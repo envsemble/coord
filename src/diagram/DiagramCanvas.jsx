@@ -14,17 +14,25 @@ import { readTarget, sameTarget } from "./interaction";
 
 export const DiagramCanvas = memo(
   forwardRef(function DiagramCanvas(
-    { diagram, selected, focusRequest, onSelect, onZoom },
+    {
+      diagram,
+      selected,
+      hovered,
+      focusRequest,
+      onSelect,
+      onZoom,
+      onHover,
+      onClearHover,
+    },
     ref,
   ) {
     const canvasRef = useRef(null),
       worldRef = useRef(null);
-    const [hovered, setHovered] = useState(null),
-      [focused, setFocused] = useState(null);
+    const [focused, setFocused] = useState(null);
     const clearTransient = useCallback(() => {
-      setHovered(null);
+      onClearHover();
       setFocused(null);
-    }, []);
+    }, [onClearHover]);
     const controls = useDiagramCamera({
       canvasRef,
       worldRef,
@@ -38,6 +46,9 @@ export const DiagramCanvas = memo(
       onMotion: clearTransient,
     });
     useImperativeHandle(ref, () => controls, [controls]);
+    useLayoutEffect(() => {
+      if (selected?.kind === "node") controls.revealNode(selected.id);
+    }, [controls, diagram, selected]);
     useLayoutEffect(clearTransient, [clearTransient, diagram]);
     useLayoutEffect(clearTransient, [clearTransient, selected]);
     useEffect(() => {
@@ -48,8 +59,7 @@ export const DiagramCanvas = memo(
       return () => document.removeEventListener("keydown", escape);
     }, [clearTransient]);
     const handlers = {
-      onHover: (value) =>
-        setHovered((old) => (sameTarget(old, value) ? old : value)),
+      onHover,
       onFocus: (value) =>
         setFocused((old) => (sameTarget(old, value) ? old : value)),
       onActivate: (value, e) => {
@@ -61,7 +71,7 @@ export const DiagramCanvas = memo(
         ref={canvasRef}
         id="canvas"
         aria-label="Interactive OntoUML diagram"
-        onPointerLeave={() => setHovered(null)}
+        onPointerLeave={() => onHover(null)}
       >
         <div ref={worldRef} id="world">
           <UMLDiagram

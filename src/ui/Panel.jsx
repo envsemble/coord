@@ -1,20 +1,31 @@
 import { IconButton } from "./Button";
 
-export function Panel({ open, onClose, label = "Diagram details", children }) {
+export function Panel({
+  open,
+  onClose,
+  label = "Diagram details",
+  children,
+  id = "panel",
+  className = "",
+  ...props
+}) {
   return (
     <aside
-      id="panel"
-      className={`panel${open ? " open" : ""}`}
+      id={id}
+      className={`panel${open ? " open" : ""}${className ? ` ${className}` : ""}`}
       aria-label={label}
+      {...props}
     >
-      <IconButton
-        className="panel-close"
-        label="Close details"
-        onClick={onClose}
-      >
-        ×
-      </IconButton>
-      <div id="panel-content">{children}</div>
+      {onClose && (
+        <IconButton
+          className="panel-close"
+          label="Close details"
+          onClick={onClose}
+        >
+          ×
+        </IconButton>
+      )}
+      <div className="panel-content">{children}</div>
     </aside>
   );
 }

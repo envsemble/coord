@@ -16,6 +16,12 @@ const THEME_VARS = [
   "--node-phase",
   "--node-event",
   "--node-mode",
+  "--type-kind",
+  "--type-role",
+  "--type-relator",
+  "--type-phase",
+  "--type-event",
+  "--type-mode",
 ];
 
 export function useSVGExport(svgSource, theme) {

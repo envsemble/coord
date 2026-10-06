@@ -1,4 +1,13 @@
 import { DownloadLink } from "../ui/DownloadLink";
+import { SourceEvidence } from "./SourceEvidence";
+
+const primarySources = {
+  ClientApplication: "R9",
+  ClientSlot: "R2",
+  SessionParticipant: "R2",
+  SessionParticipation: "R2",
+  ActiveClientSlot: "R2",
+};
 function SourceLink({ href, children }) {
   return (
     <a className="source" href={href} target="_blank" rel="noopener">
@@ -7,15 +16,21 @@ function SourceLink({ href, children }) {
   );
 }
 
-export function ConceptDetails({ concept, sources }) {
+export function ConceptDetails({ concept, sources, snippets }) {
   return (
     <>
       <span className="tag">«{concept.stereo}»</span>
       <h1>{concept.name}</h1>
       <p>{concept.description}</p>
+      <SourceEvidence
+        evidence={concept.evidence}
+        primary={primarySources[concept.name]}
+        sources={sources}
+        snippets={snippets}
+      />
       {concept.attrs.length > 0 && (
-        <>
-          <h2>Fields</h2>
+        <details className="concept-fields">
+          <summary>Fields</summary>
           {concept.attrs.map(([name, type, cardinality]) => (
             <div className="field-row" key={name}>
               <span>{name}</span>
@@ -25,17 +40,8 @@ export function ConceptDetails({ concept, sources }) {
               </span>
             </div>
           ))}
-        </>
+        </details>
       )}
-      <h2>Source</h2>
-      {concept.evidence.map((id) => {
-        const source = sources.find((s) => s.id === id);
-        return (
-          <SourceLink key={id} href={source.url}>
-            {source.title}
-          </SourceLink>
-        );
-      })}
       <p className="muted">
         OntoUML classification and multiplicities are interpretations.
       </p>
@@ -61,7 +67,7 @@ export function About({ model, exports }) {
         <div className="legend-row" key={type}>
           <span
             className="swatch"
-            style={{ background: `var(--node-${type})` }}
+            style={{ background: `var(--type-${type})` }}
           />
           «{type}»
         </div>
@@ -104,7 +110,7 @@ export function About({ model, exports }) {
   );
 }
 
-export function RelationDetails({ relation, onChoose }) {
+export function RelationDetails({ relation, onChoose, sources, snippets }) {
   return (
     <>
       <span className="tag">
@@ -128,6 +134,12 @@ export function RelationDetails({ relation, onChoose }) {
           </div>
         ))}
       </div>
+      <SourceEvidence
+        evidence={[...relation.source.evidence, ...relation.target.evidence]}
+        sources={sources}
+        snippets={snippets}
+        label="Endpoint evidence"
+      />
     </>
   );
 }

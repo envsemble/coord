@@ -10,6 +10,8 @@ const { renderSVG } = require("./diagram/render.cjs");
 const { validateDiagram } = require("./diagram/validate.cjs");
 const viewSettings = require("../model/views.cjs");
 const cfg = require("../model/model.cjs");
+const { highlightSnippets } = require("./source-snippets.cjs");
+const excerpts = require("../model/source-snippets.json");
 
 const rootPath = path.resolve(__dirname, "..");
 const downloadPath = path.join(rootPath, "downloads");
@@ -18,6 +20,7 @@ const slug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 async function build() {
   const artifacts = new Map();
   const sources = cfg.sources;
+  const snippets = await highlightSnippets(sources, excerpts);
   for (const source of sources) {
     const expected = `https://github.com/${source.repo}/blob/${source.commit}/${source.file}#L${source.line}`;
     if (
@@ -435,7 +438,7 @@ async function build() {
     .replace(
       "/*MODEL_DATA*/",
       () =>
-        `const MODEL=${inline(model)};const VIEWS=${inline(views)};const EXPORTS=${inline(exports)};`,
+        `const MODEL=${inline(model)};const VIEWS=${inline(views)};const EXPORTS=${inline(exports)};const SNIPPETS=${inline(snippets)};`,
     )
     .replace("/*APP_SCRIPT*/", () =>
       script.replace(/<\/script/gi, "<\\/script"),

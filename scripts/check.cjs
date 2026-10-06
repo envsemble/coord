@@ -50,8 +50,26 @@ async function check() {
   const dataLine = scripts[0][1].match(/^\s*(const MODEL=.*)\r?$/m)?.[1];
   assert(dataLine, "Missing embedded model and export data");
   const embedded = new vm.Script(
-    `${dataLine}\n;({MODEL,VIEWS,EXPORTS})`,
+    `${dataLine}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS})`,
   ).runInNewContext({});
+  const excerpts = require("../model/source-snippets.json");
+  for (const source of embedded.MODEL.sources) {
+    const snippet = embedded.SNIPPETS[source.id];
+    assert(snippet, `Missing offline source preview: ${source.id}`);
+    assert.equal(snippet.code, excerpts[source.id].code);
+    assert.equal(
+      snippet.lines
+        .map((line) => line.map((token) => token.content).join(""))
+        .join("\n"),
+      snippet.code,
+      `Highlighted code changed: ${source.id}`,
+    );
+    assert.equal(snippet.endLine - snippet.startLine + 1, snippet.lines.length);
+    assert.equal(
+      snippet.url,
+      `${source.url.split("#")[0]}#L${snippet.startLine}-L${snippet.endLine}`,
+    );
+  }
   assert.equal(
     embedded.EXPORTS.schema,
     built.artifacts.get("r5-ontouml.json"),
@@ -107,7 +125,7 @@ async function check() {
         `ZIP content mismatch: ${name}`,
       );
   console.log(
-    "Passed: reproducible outputs, inline script syntax, offline runtime, embedded export payloads, local links, model schema/structure, orthogonal layout geometry, and ZIP exports.",
+    "Passed: reproducible outputs, inline script syntax, offline runtime and source snippets, embedded export payloads, local links, model schema/structure, orthogonal layout geometry, and ZIP exports.",
   );
 }
 check().catch((error) => {

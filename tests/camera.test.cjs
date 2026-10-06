@@ -71,7 +71,8 @@ function harness() {
       frames.delete(id);
     },
     ResizeObserver: class {
-      constructor() {
+      constructor(callback) {
+        this.callback = callback;
         observers.push(this);
       }
       observe() {}
@@ -183,6 +184,22 @@ test("rapid input accumulates and reverses immediately at zoom limits", () => {
   h.wheel(-40);
   h.settle();
   close(h.read().scale, 0.08 * Math.exp(0.06));
+  h.detach();
+});
+
+test("opening or closing a sidebar keeps graph coordinates stable until Fit is requested", () => {
+  const h = harness();
+  const before = h.read();
+  h.canvas.clientWidth = 400;
+  h.observers[0].callback();
+  assert.deepEqual(h.read(), before);
+  h.canvas.clientWidth = 1000;
+  h.observers[0].callback();
+  assert.deepEqual(h.read(), before);
+  h.canvas.clientWidth = 200;
+  h.observers[0].callback();
+  h.controls.fit();
+  assert(h.read().scale < before.scale);
   h.detach();
 });
 

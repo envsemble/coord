@@ -175,6 +175,29 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     paint();
   }
 
+  function revealNode(id) {
+    const node = worldRef.current.querySelector(`.node[data-node-id="${id}"]`);
+    if (!node) return;
+    const m = node.transform.baseVal.consolidate().matrix;
+    const r = node.querySelector("rect");
+    const canvas = canvasRef.current;
+    const left = camera.x + m.e * camera.scale;
+    const top = camera.y + m.f * camera.scale;
+    const width = Number(r.getAttribute("width")) * camera.scale;
+    const height = Number(r.getAttribute("height")) * camera.scale;
+    const shift = (start, size, available) =>
+      size > available - 48
+        ? (available - size) / 2 - start
+        : start < 24
+          ? 24 - start
+          : start + size > available - 24
+            ? available - 24 - start - size
+            : 0;
+    const dx = shift(left, width, canvas.clientWidth);
+    const dy = shift(top, height, canvas.clientHeight);
+    if (dx || dy) pan(dx, dy);
+  }
+
   function gesture() {
     const p = [...pointers.values()];
     if (p.length < 2) return null;
@@ -328,7 +351,12 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
       if (w === width && h === height) return;
-      if (camera.fitted) fit();
+      // A sidebar changes the width without moving the canvas origin. Keep
+      // entities under the cursor instead of shifting them during inspection.
+      if (w !== width && h === height) {
+        camera.fitted = false;
+        paint();
+      } else if (camera.fitted) fit();
       else pan((w - width) / 2, (h - height) / 2);
       width = w;
       height = h;
@@ -346,6 +374,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     attach,
     restoreView,
     focusNode,
+    revealNode,
     hasDragged: () => moved,
     fit,
     reset: () => zoomTo(1),

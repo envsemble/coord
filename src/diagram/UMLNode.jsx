@@ -1,12 +1,12 @@
 import { elementClass, interactionProps, sameTarget } from "./interaction";
 
-const fills = {
-  kind: "#edf4ff",
-  role: "#fff3da",
-  relator: "#f3eaff",
-  phase: "#eaf8f0",
-  event: "#fff0ed",
-  mode: "#eaf7fa",
+const typeColors = {
+  kind: "#0550ae",
+  role: "#953800",
+  relator: "#8250df",
+  phase: "#116329",
+  event: "#cf222e",
+  mode: "#0a3069",
 };
 
 export function UMLNode({ node, focus, selected, handlers }) {
@@ -30,8 +30,8 @@ export function UMLNode({ node, focus, selected, handlers }) {
         width={node.width}
         height={node.height}
         rx="3"
-        fill={`var(--node-${node.stereotype},${fills[node.stereotype] || "#edf4ff"})`}
-        stroke="var(--diagram-border,#72839d)"
+        fill={`var(--node-${node.stereotype},#f6f8fa)`}
+        stroke="var(--diagram-border,#818b98)"
         strokeWidth="1.25"
         vectorEffect="non-scaling-stroke"
       />
@@ -40,7 +40,7 @@ export function UMLNode({ node, focus, selected, handlers }) {
           x={node.width / 2}
           y={header / 2 - 10}
           textAnchor="middle"
-          fill="var(--diagram-muted,#5b687f)"
+          fill={`var(--type-${node.stereotype},${typeColors[node.stereotype] || "#59636e"})`}
           fontSize="11.5"
         >
           «{node.stereotype}»
@@ -50,7 +50,7 @@ export function UMLNode({ node, focus, selected, handlers }) {
         x={node.width / 2}
         y={header / 2 + (node.stereotype ? 13 : 5)}
         textAnchor="middle"
-        fill="var(--text,#26354c)"
+        fill="var(--text,#1f2328)"
         fontSize="15"
         fontWeight="600"
       >
@@ -60,11 +60,11 @@ export function UMLNode({ node, focus, selected, handlers }) {
         <>
           <path
             d={`M0 66 H${node.width}`}
-            stroke="var(--diagram-divider,#b7c2d2)"
+            stroke="var(--diagram-divider,#d1d9e0)"
           />
           <g
             className="attributes"
-            fill="var(--diagram-attribute,#44546c)"
+            fill="var(--diagram-attribute,#59636e)"
             fontSize="12"
           >
             {node.attributes.map((attribute, i) => (

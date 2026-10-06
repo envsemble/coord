@@ -29,8 +29,8 @@ export function UMLRelation({ edge, focus, selected, handlers, markerId }) {
             fill="none"
             stroke={
               edge.type === "generalization"
-                ? "var(--diagram-inheritance,#57667e)"
-                : "var(--diagram-edge,#77859a)"
+                ? "var(--diagram-inheritance,#59636e)"
+                : "var(--diagram-edge,#59636e)"
             }
             strokeWidth="1.4"
             markerEnd={
@@ -67,15 +67,15 @@ export function MultiplicityLabel({ label }) {
         width={label.width}
         height={label.height}
         rx="4"
-        fill="var(--canvas,#fafbfe)"
-        stroke="var(--diagram-border,#72839d)"
+        fill="var(--canvas,#ffffff)"
+        stroke="var(--diagram-border,#818b98)"
         strokeWidth="0.9"
       />
       <text
         x={label.width / 2}
         y={label.height / 2 + 4.5}
         textAnchor="middle"
-        fill="var(--text,#26354c)"
+        fill="var(--text,#1f2328)"
         fontSize="13.5"
         fontWeight="650"
       >
@@ -110,12 +110,12 @@ export function UMLRelationLabels({ edge, focus, selected, handlers }) {
                 width={label.width}
                 height={label.height}
                 rx="3"
-                fill="var(--canvas,#fafbfe)"
+                fill="var(--canvas,#ffffff)"
               />
               <text
                 x={label.width / 2}
                 textAnchor="middle"
-                fill="var(--diagram-label,#42516a)"
+                fill="var(--diagram-label,#1f2328)"
                 fontSize="13"
               >
                 {label.text.split("\n").map((line, i, lines) => (
@@ -126,7 +126,7 @@ export function UMLRelationLabels({ edge, focus, selected, handlers }) {
                     fontSize={i === 0 && lines.length > 1 ? "11.5" : undefined}
                     fill={
                       i === 0 && lines.length > 1
-                        ? "var(--diagram-muted,#5b687f)"
+                        ? "var(--diagram-muted,#59636e)"
                         : undefined
                     }
                   >

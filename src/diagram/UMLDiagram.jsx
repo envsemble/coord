@@ -24,7 +24,10 @@ export function UMLDiagram({
       viewBox={`0 0 ${diagram.width} ${diagram.height}`}
       role={handlers ? "group" : "img"}
       aria-label={diagram.title}
-      style={{ fontFamily: "Inter,Segoe UI,Arial,sans-serif" }}
+      style={{
+        fontFamily:
+          "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif",
+      }}
     >
       <defs>
         <marker
@@ -38,8 +41,8 @@ export function UMLDiagram({
         >
           <path
             d="M1 1 L11 6 L1 11 Z"
-            fill="var(--canvas,#fafbfe)"
-            stroke="var(--diagram-inheritance,#57667e)"
+            fill="var(--canvas,#ffffff)"
+            stroke="var(--diagram-inheritance,#59636e)"
             strokeWidth="1.4"
           />
         </marker>
@@ -54,8 +57,8 @@ export function UMLDiagram({
         >
           <path
             d="M1 1 L11 6 L1 11 Z"
-            fill="var(--canvas,#fafbfe)"
-            stroke="var(--accent,#486bd0)"
+            fill="var(--canvas,#ffffff)"
+            stroke="var(--accent,#0969da)"
             strokeWidth="1.4"
           />
         </marker>

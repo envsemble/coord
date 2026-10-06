@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node scripts/build.cjs",
     "check": "node scripts/check.cjs",
-    "test": "node --test tests/camera.test.cjs tests/diagram.test.cjs",
+    "test": "node --test tests/camera.test.cjs tests/diagram.test.cjs tests/source-snippets.test.cjs",
     "format": "prettier --write src scripts tests model/*.cjs README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json"
   },
   "engines": {
@@ -19,7 +19,8 @@
     "esbuild": "0.28.2",
     "fflate": "0.8.2",
     "ontouml-js": "1.0.0",
-    "prettier": "3.8.0"
+    "prettier": "3.8.0",
+    "shiki": "4.5.0"
   },
   "dependencies": {
     "react": "19.3.0",

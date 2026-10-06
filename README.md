@@ -6,9 +6,9 @@ The interface is built with React 19. React and React DOM are bundled into the H
 
 The viewer fills the window with a diagram. Two-finger scrolling pans, pinching zooms around the cursor, and dragging pans. **Fit** shows the whole model; **Fields** reveals attributes. Select a concept for its definition and pinned source links. The export menu downloads SVG, PlantUML, OntoUML JSON, or a ZIP of model artifacts, including when the HTML file is opened from disk.
 
-Hover or select a node to see its immediate connections. The active entity has a thicker amber outline; its connected entities have blue outlines. Hover or select a relation to isolate that edge and its two endpoint entities; unrelated elements dim. Hover temporarily overrides a selection, then restores it when the pointer leaves. Selection persists through panning, zooming, empty-canvas clicks, theme and field changes, and closing details. Press Escape to clear. Relations can also be selected with Enter or Space. Each association has a readable multiplicity badge at both ends.
+Hover or select a node to see its immediate connections. The active entity has a thicker amber outline; its connected entities have blue outlines. Hover or select a relation to isolate that edge and its two endpoint entities; unrelated elements dim. A wide source sidebar follows the hovered element, falls back to the selected one, and hides when neither exists. The diagram uses the space beside it; clicking a node keeps it visible, and Fit uses the available canvas. Moving into the sidebar keeps the hovered item's details available so its links and snippets remain usable. Hover temporarily overrides a selection, then restores it when the pointer leaves. Selection persists through panning, zooming, empty-canvas clicks, and theme and field changes. Press Escape to clear. Relations can also be selected with Enter or Space. Each association has a readable multiplicity badge at both ends.
 
-Dark is the default theme. The sun/moon button switches to light or dark and remembers the choice when browser storage is available. The individual SVG download uses the selected theme.
+The interface and diagram use GitHub's default dark and light palettes; dark is the default. The sun/moon button switches themes and remembers the choice when browser storage is available. The individual SVG download uses the selected theme. Source previews use [Shiki](https://shiki.style/guide/dual-themes) with `github-dark-default` and `github-light-default`; token colors are computed during the build and embedded in the HTML. The viewer makes no runtime requests for snippets or highlighting. Each preview has original line numbers and a link to the exact range at the pinned GitHub commit. Additional sources and proposed fields expand on demand.
 
 ## Model
 
@@ -36,6 +36,7 @@ Node and npm are needed only to rebuild. The build uses the committed source-evi
 
 - `model/model.cjs`: classes, fields, relations, generalizations, constraints, and model version.
 - `model/source-evidence.json`: inspected files, commit hashes, source anchors, exact lines, and claims.
+- `model/source-snippets.json`: short, unmodified excerpts from those pinned source files, with original line numbers and provenance.
 - `model/views.cjs`: R5 view membership and placement preferences, separate from semantic definitions.
 - `src/model/`: indexes semantic entities and relationships without UI or geometry.
 - `src/app/`: connects the R5 model, reusable UI, and diagram canvas; contains source details and application-specific controls.
@@ -45,9 +46,10 @@ Node and npm are needed only to rebuild. The build uses the committed source-evi
 - `src/viewer.html`: standalone HTML shell with build markers for inline styles, data, and scripts.
 - `scripts/diagram/`: orthogonal layout, geometry and endpoint validation, and static SVG generation using the same React components as the live diagram.
 - `scripts/build.cjs`: model validation, stable identifiers, embedded exports, and static output generation.
+- `scripts/source-snippets.cjs`: build-time Shiki highlighting, with C++ and Markdown grammars and a small Squirrel extension of the C++ grammar. Highlighted display data is kept separate from the semantic model.
 - `schemas/`: vendored OntoUML JSON schema and its upstream license.
 
-Commit the generated `index.html` and `downloads/` files after rebuilding. `npm run check` verifies that those outputs match their sources, the embedded viewer script parses, the static page has no external runtime dependencies, and counts and routed ends match their semantic identities. `npm test` checks camera behavior and cleanup, tap/drag separation, graph focus, generic UML rendering, and detection of swapped endpoints. `npm run format` formats editable files.
+Commit the generated `index.html` and `downloads/` files after rebuilding. `npm run check` verifies that those outputs match their sources, the embedded viewer script parses, the static page has no external runtime dependencies, snippets retain their source text and exact GitHub ranges, and counts and routed ends match their semantic identities. `npm test` checks camera behavior and cleanup, tap/drag separation, graph focus, generic UML rendering, detection of swapped endpoints, snippet provenance and both themes, and safe code rendering. `npm run format` formats editable files.
 
 The semantic model contains class identities, stereotypes, attributes, associations, and multiplicities. A layout produces ordinary geometry data (nodes, orthogonal paths, and labels), which the renderer consumes without knowing the R5 domain. There is no diagram scripting language. Both the browser and SVG exports use `UMLDiagram`, `UMLNode`, and `UMLRelation`, so notation stays consistent. Association multiplicities appear at their respective ends; inheritance uses a hollow triangle and no multiplicity badges, following [UML notation](https://www.omg.org/spec/UML/2.5.1/PDF).
 

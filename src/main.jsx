@@ -2,5 +2,5 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 
 createRoot(document.getElementById("root")).render(
-  <App model={MODEL} views={VIEWS} exports={EXPORTS} />,
+  <App model={MODEL} views={VIEWS} exports={EXPORTS} snippets={SNIPPETS} />,
 );

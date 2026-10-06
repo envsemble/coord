@@ -7,29 +7,37 @@ import { Panel } from "../ui/Panel";
 import { useTheme } from "../ui/useTheme";
 import { ViewerToolbar } from "./ViewerToolbar";
 import { ConceptDetails, RelationDetails, About } from "./DetailsContent";
+import { useInspection, inspectedTarget } from "./useInspection";
 
-export function App({ model, views, exports }) {
+export function App({ model, views, exports, snippets }) {
   const index = useMemo(() => indexModel(model), [model]);
   const [viewKey, setViewKey] = useState("runtime"),
     [fields, setFields] = useState(false);
   const [theme, toggleTheme] = useTheme("r5-ontouml-theme");
-  const [selected, setSelected] = useState(null),
-    [panel, setPanel] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const { hovered, hover, keepHover, clearHover } = useInspection();
   const [focusRequest, setFocusRequest] = useState(null),
     [zoom, setZoom] = useState(100);
   const cameraRef = useRef(null);
   const view = views.find((v) => v.key === viewKey);
   const diagram = fields ? view.diagramFields : view.diagram;
   const diagramURL = useSVGExport(fields ? view.svgFields : view.svg, theme);
-  const element = index.getElement(selected);
-  const select = useCallback((target) => {
-    setSelected((old) => (sameTarget(old, target) ? old : target));
-    setPanel(target ? "selection" : null);
-  }, []);
+  const inspected = inspectedTarget(hovered, selected);
+  const element = index.getElement(inspected);
+  const select = useCallback(
+    (target) => {
+      clearHover();
+      setSelected((old) => (sameTarget(old, target) ? old : target));
+      setAboutOpen(false);
+    },
+    [clearHover],
+  );
   const clear = useCallback(() => {
     setSelected(null);
-    setPanel(null);
-  }, []);
+    setAboutOpen(false);
+    clearHover();
+  }, [clearHover]);
   useEffect(() => {
     const escape = (e) => {
       if (e.key === "Escape") clear();
@@ -42,13 +50,10 @@ export function App({ model, views, exports }) {
     const next = viewForNode(views, viewKey, node);
     setViewKey(next.key);
     select({ kind: "node", id: node.id });
-    setFocusRequest({
-      id: node.id,
-      rightInset: window.matchMedia("(min-width:621px)").matches ? 338 : 0,
-    });
+    setFocusRequest({ id: node.id });
   }
   return (
-    <>
+    <div className={`viewer${element ? " inspecting" : ""}`}>
       <ViewerToolbar
         {...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL }}
         onView={(key) => {
@@ -66,7 +71,7 @@ export function App({ model, views, exports }) {
         onTheme={toggleTheme}
         onChoose={choose}
         onAbout={() => {
-          setPanel("about");
+          setAboutOpen(true);
         }}
         onZoom={(factor) => cameraRef.current.zoomBy(factor)}
         onReset={() => cameraRef.current.reset()}
@@ -74,19 +79,47 @@ export function App({ model, views, exports }) {
       />
       <DiagramCanvas
         ref={cameraRef}
-        {...{ diagram, selected, focusRequest }}
+        {...{ diagram, selected, hovered, focusRequest }}
         onSelect={select}
         onZoom={setZoom}
+        onHover={hover}
+        onClearHover={clearHover}
       />
-      <Panel open={!!panel} onClose={() => setPanel(null)}>
-        {panel === "selection" && selected?.kind === "node" && (
-          <ConceptDetails concept={element} sources={model.sources} />
+      <Panel
+        className="inspector"
+        open={!!element}
+        onPointerEnter={keepHover}
+        onPointerLeave={() => hover(null)}
+        onFocusCapture={keepHover}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
+        }}
+      >
+        {element && inspected.kind === "node" && (
+          <ConceptDetails
+            concept={element}
+            sources={model.sources}
+            snippets={snippets}
+          />
         )}
-        {panel === "selection" && selected?.kind === "edge" && (
-          <RelationDetails relation={element} onChoose={choose} />
+        {element && inspected.kind === "edge" && (
+          <RelationDetails
+            relation={element}
+            onChoose={choose}
+            sources={model.sources}
+            snippets={snippets}
+          />
         )}
-        {panel === "about" && <About model={model} exports={exports} />}
       </Panel>
-    </>
+      <Panel
+        id="about-panel"
+        className="about-panel"
+        label="About and controls"
+        open={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+      >
+        <About model={model} exports={exports} />
+      </Panel>
+    </div>
   );
 }
