@@ -139,6 +139,40 @@ class PlanningFixture(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "closing delimiter"):
             parse_frontmatter("---\nrepositories: [example-app # comment ]\n---\n")
 
+    def test_invalid_plain_title_mapping_delimiters_rejected(self):
+        original = self.plan.read_text(encoding="utf-8")
+        title_line = "title: " + json.dumps(self.header["title"])
+        for value in ("Release: phase 2", "Release:\tphase 2", "Release:", "Release: # note"):
+            with self.subTest(value=value):
+                self.plan.write_text(original.replace(title_line, "title: " + value), encoding="utf-8")
+                errors, _ = validate(self.root)
+                self.assertTrue(any("invalid plain scalar mapping delimiter" in item for item in errors))
+
+    def test_equivalent_quoted_titles_with_delimiters_accepted(self):
+        original = self.plan.read_text(encoding="utf-8")
+        title_line = "title: " + json.dumps(self.header["title"])
+        for value in ('"Release: phase 2"', "'Release:'", "'it''s ready'", '"@release"', "'- release'", "'? release'", '"`release"'):
+            with self.subTest(value=value):
+                self.plan.write_text(original.replace(title_line, "title: " + value), encoding="utf-8")
+                self.assertEqual(validate(self.root), ([], []))
+
+    def test_valid_plain_title_colons_and_comments_remain_supported(self):
+        original = self.plan.read_text(encoding="utf-8")
+        title_line = "title: " + json.dumps(self.header["title"])
+        for value, expected in (("Release:phase-2 # note", "Release:phase-2"), ("https://example.invalid/release # note", "https://example.invalid/release"), ("-release", "-release"), ("?release", "?release"), (":release", ":release")):
+            with self.subTest(value=value):
+                self.plan.write_text(original.replace(title_line, "title: " + value), encoding="utf-8")
+                self.assertEqual(validate(self.root), ([], []))
+                self.assertEqual(parse_frontmatter(self.plan.read_text(encoding="utf-8"))["title"], expected)
+
+    def test_invalid_plain_leading_indicators_and_trailing_quoted_content(self):
+        original = self.plan.read_text(encoding="utf-8")
+        title_line = "title: " + json.dumps(self.header["title"])
+        for value in ("'a' 'b'", "@release", "`release", "- release", "? release", "]release", "}release", ",release", "%release"):
+            with self.subTest(value=value):
+                self.plan.write_text(original.replace(title_line, "title: " + value), encoding="utf-8")
+                self.assertTrue(validate(self.root)[0])
+
     @unittest.skipUnless(shutil.which("git"), "Git unavailable for recovery fixture")
     def test_actual_git_baseline_recovery_after_move(self):
         def git(*args):

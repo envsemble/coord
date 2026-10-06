@@ -63,7 +63,7 @@ def _scalar(value: str):
             raise ValueError("expected quoted string")
         return parsed
     if value.startswith("'"):
-        if not value.endswith("'") or len(value) < 2:
+        if not re.fullmatch(r"'(?:[^']|'')*'", value):
             raise ValueError("invalid single-quoted scalar")
         return value[1:-1].replace("''", "'")
     if value in {"null", "~", ""}:
@@ -74,6 +74,10 @@ def _scalar(value: str):
         return int(value)
     if value.startswith(("{", "&", "*", "!", "|", ">")):
         raise ValueError("unsupported structured YAML; metadata uses scalars and lists")
+    if re.search(r":(?=[ \t]|$)", value):
+        raise ValueError("invalid plain scalar mapping delimiter; quote the string")
+    if re.match(r"^(?:[@`,\]}%]|[-?](?:[ \t]|$))", value):
+        raise ValueError("invalid plain scalar leading indicator; quote the string")
     return value
 
 
