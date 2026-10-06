@@ -1,0 +1,136 @@
+@startuml
+title R5 game-server runtime — source-informed v0.2
+left to right direction
+hide circle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+class GameServer <<kind>> {
+  runtimeIdentity : Text
+  serverState : Text
+  tickCount : Integer
+  tickInterval : Decimal
+  maxClients : Integer
+  isDedicated : Boolean
+}
+class GameSession <<kind>> {
+  sessionIdentity : Text
+  spawnCount : Integer
+  gameState : Text
+}
+class PlaylistConfig <<kind>> {
+  playlistName : Text
+}
+class PlatformIdentity <<kind>> {
+  platformUid : Text
+}
+class ClientApplication <<kind>> {
+}
+class ClientSlot <<kind>> {
+  slotIndex : Integer
+  currentUserId : Integer [0..1]
+  signonStage : Text
+  fakeClient : Boolean
+  persistenceState : Text
+}
+class SessionParticipant <<role>> {
+}
+class SessionParticipation <<relator>> {
+}
+class ActiveClientSlot <<phase>> {
+}
+class NetworkChannel <<kind>> {
+  remoteEndpoint : Text
+  outSequence : Integer
+  inSequence : Integer
+  acknowledgedSequence : Integer
+}
+class ClientReplicationState <<mode>> {
+  commandTick : Integer
+  deltaTick : Integer
+  snapshotTick : Integer
+}
+class PlayerEntity <<kind>> {
+  entityHandle : Integer
+  teamNumber : Integer
+  alive : Boolean
+  bleedoutState : Text
+}
+class AssignedPlayerEntity <<role>> {
+}
+class AvatarAssignment <<relator>> {
+}
+class MatchSquad <<kind>> {
+  teamNumber : Integer
+}
+class ReadyPlayer <<phase>> {
+}
+class DownedPlayer <<phase>> {
+}
+class EliminatedIdentity <<role>> {
+}
+class EliminationStatus <<relator>> {
+}
+class GameMatch <<event>> {
+}
+class ServerFrame <<event>> {
+}
+class InputCommand <<kind>> {
+  commandNumber : Integer
+  tickCount : Integer
+  commandTime : Decimal
+  frameTime : Decimal
+  viewAngles : Vector3
+  buttons : Integer
+}
+class CommandProcessing <<event>> {
+}
+class Snapshot <<kind>> {
+}
+class SnapshotEmission <<event>> {
+}
+class Respawn <<event>> {
+}
+class Downing <<event>> {
+}
+class GameStateChange <<event>> {
+  newState : Text
+}
+ClientSlot <|-- SessionParticipant
+ClientSlot <|-- ActiveClientSlot
+PlayerEntity <|-- AssignedPlayerEntity
+PlayerEntity <|-- ReadyPlayer
+PlayerEntity <|-- DownedPlayer
+PlatformIdentity <|-- EliminatedIdentity
+GameServer "1" -- "0..1" GameSession : current game context
+GameSession "0..*" -- "1" PlaylistConfig : configured by
+ClientSlot "0..*" -- "1" GameServer : owned by
+ClientSlot "0..*" -- "0..1" PlatformIdentity : current occupant identity
+ClientSlot "0..1" -- "0..1" NetworkChannel : current channel
+ClientApplication "0..*" -- "0..1" NetworkChannel : remote application
+ClientReplicationState "1" -- "1" ClientSlot : <<characterization>>\ncharacterizes
+SessionParticipation "1..*" -- "1" SessionParticipant : <<mediation>>\nmediates
+SessionParticipation "0..*" -- "1" GameSession : <<mediation>>\nmediates
+AvatarAssignment "0..*" -- "1" SessionParticipant : <<mediation>>\nmediates
+AvatarAssignment "1" -- "1" AssignedPlayerEntity : <<mediation>>\nmediates
+PlayerEntity "0..*" -- "0..1" PlatformIdentity : reported identity
+PlayerEntity "0..*" -- "1" GameSession : exists in
+PlayerEntity "0..*" -- "0..1" MatchSquad : team membership
+MatchSquad "0..*" -- "1" GameSession : squad of
+EliminationStatus "1..*" -- "1" EliminatedIdentity : <<mediation>>\nmediates
+EliminationStatus "0..*" -- "1" GameSession : <<mediation>>\nmediates
+GameSession "1" -- "0..1" GameMatch : <<participation>>\nrealized in
+GameServer "1" -- "0..*" ServerFrame : <<participation>>\nruns frame
+ServerFrame "0..*" -- "0..1" GameSession : current frame context
+PlayerEntity "1" -- "0..*" CommandProcessing : <<participation>>\ncommand actor
+InputCommand "1" -- "0..*" CommandProcessing : <<participation>>\nprocessed request
+ServerFrame "0..1" -- "0..*" CommandProcessing : may encompass
+ClientSlot "1" -- "0..*" SnapshotEmission : <<participation>>\nrecipient slot
+Snapshot "0..1" -- "0..*" SnapshotEmission : <<participation>>\ntransmitted state
+NetworkChannel "0..1" -- "0..*" SnapshotEmission : <<participation>>\nsend channel
+Snapshot "0..*" -- "1" GameSession : state context
+PlayerEntity "1" -- "0..*" Respawn : <<participation>>\nrestored actor
+Respawn "0..*" -- "0..1" EliminationStatus : may clear
+PlayerEntity "1" -- "0..*" Downing : <<participation>>\ndowned actor
+GameSession "1" -- "0..*" GameStateChange : <<participation>>\nchanged context
+note bottom of PlayerEntity : ReadyPlayer / DownedPlayer: disjoint, incomplete.
+@enduml

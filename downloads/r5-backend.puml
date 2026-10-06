@@ -1,0 +1,57 @@
+@startuml
+title R5 server discovery and publication — source-informed v0.2
+left to right direction
+hide circle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+class GameServer <<kind>> {
+  runtimeIdentity : Text
+  serverState : Text
+  tickCount : Integer
+  tickInterval : Decimal
+  maxClients : Integer
+  isDedicated : Boolean
+}
+class ClientApplication <<kind>> {
+}
+class DirectoryService <<kind>> {
+  endpointIdentity : Text
+}
+class ServerListing <<kind>> {
+  name : Text
+  hidden : Boolean
+  mapName : Text
+  playlistName : Text
+  address : Text
+  port : Integer
+  numPlayers : Integer
+  maxPlayers : Integer
+  versionId : Text
+}
+class PublishedListing <<role>> {
+}
+class ListingPublication <<relator>> {
+}
+class HiddenListing <<phase>> {
+}
+class PublicListing <<phase>> {
+}
+class ListingUpdate <<event>> {
+}
+class ServerLookup <<event>> {
+  lookupMethod : Text
+}
+ServerListing <|-- PublishedListing
+ServerListing <|-- HiddenListing
+ServerListing <|-- PublicListing
+ListingPublication "0..*" -- "1" DirectoryService : <<mediation>>\nmediates
+ListingPublication "1..*" -- "1" PublishedListing : <<mediation>>\nmediates
+ServerListing "0..*" -- "1" GameServer : advertises
+GameServer "1" -- "0..*" ListingUpdate : <<participation>>\nhost being advertised
+DirectoryService "1" -- "0..*" ListingUpdate : <<participation>>\nreceives advertisement
+ListingUpdate "0..*" -- "0..1" ServerListing : updates or creates
+ClientApplication "1" -- "0..*" ServerLookup : <<participation>>\nrequests lookup
+DirectoryService "1" -- "0..*" ServerLookup : <<participation>>\nserves lookup
+ServerLookup "0..*" -- "0..*" ServerListing : returns
+note bottom of ServerListing : HiddenListing / PublicListing: disjoint, complete.
+@enduml

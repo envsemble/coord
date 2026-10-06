@@ -1,0 +1,66 @@
+{
+  "date": "2026-10-06",
+  "targetBuild": "R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM",
+  "counts": {
+    "classes": 36,
+    "valueTypes": 5,
+    "relations": 40,
+    "generalizations": 9
+  },
+  "schema": "https://w3id.org/ontouml/schema/v1.0.2",
+  "checks": [
+    "Official OntoUML JSON schema validation with format checks",
+    "Lossless ontouml-js parse/serialize round trip",
+    "Role/phase identity suppliers and role dependence",
+    "Relators with two mandatory mediated ends",
+    "Event and intrinsic-aspect relation directions",
+    "Source URLs match the pinned manifest recorded during inspection",
+    "All four layouts have only horizontal/vertical relation segments",
+    "No node overlap, relation through a node, or relation-label overlap with a node or another label"
+  ],
+  "limitations": [
+    "Conceptual identities, stereotypes, cardinalities, and session boundaries remain interpretations",
+    "Native binary code was not inspected or executed",
+    "No full OntoUML semantic or Alloy validation",
+    "No graphical editor import test",
+    "No directory-service implementation or EA matchmaking inspection"
+  ],
+  "diagrams": [
+    {
+      "view": "backend",
+      "fields": false,
+      "nodes": 10,
+      "edges": 12,
+      "orthogonalSegments": 36,
+      "width": 1506.7,
+      "height": 604
+    },
+    {
+      "view": "backend",
+      "fields": true,
+      "nodes": 10,
+      "edges": 12,
+      "orthogonalSegments": 42,
+      "width": 1506.7,
+      "height": 604
+    },
+    {
+      "view": "runtime",
+      "fields": false,
+      "nodes": 28,
+      "edges": 37,
+      "orthogonalSegments": 149,
+      "width": 2060,
+      "height": 1630
+    },
+    {
+      "view": "runtime",
+      "fields": true,
+      "nodes": 28,
+      "edges": 37,
+      "orthogonalSegments": 145,
+      "width": 2048,
+      "height": 1986
+    }
+  ]
+}

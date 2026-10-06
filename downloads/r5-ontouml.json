@@ -1,0 +1,5654 @@
+{
+  "type": "Project",
+  "id": "project-r5-season-3",
+  "created": "2026-10-06T00:00:00.000Z",
+  "modified": null,
+  "name": {
+    "en": "R5Reloaded / Apex Season 3 — source-informed OntoUML v0.2"
+  },
+  "description": {
+    "en": "Static inspection of public R5 SDK and Flowstate source targeting R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM. Source structures and script behavior inform this ontology; identities, stereotypes, and multiplicities remain interpretations. Native binary implementations and EA production matchmaking were not inspected."
+  },
+  "alternativeNames": [],
+  "editorialNotes": [],
+  "creators": [],
+  "contributors": [],
+  "license": null,
+  "namespace": null,
+  "publisher": null,
+  "representationStyle": null,
+  "accessRights": [],
+  "acronyms": [],
+  "bibliographicCitations": [],
+  "contexts": [],
+  "designedForTasks": [],
+  "keywords": [],
+  "landingPages": [],
+  "languages": [],
+  "ontologyTypes": [],
+  "sources": [],
+  "themes": [],
+  "root": "package-root",
+  "elements": [
+    {
+      "type": "Class",
+      "id": "datatype-Text",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Text"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "datatype",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "abstract"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "datatype-Integer",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Integer"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "datatype",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "abstract"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "datatype-Decimal",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Decimal"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "datatype",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "abstract"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "datatype-Vector3",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Vector3"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "datatype",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "abstract"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "datatype-Boolean",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Boolean"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "datatype",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "abstract"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-GameServer",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "GameServer"
+      },
+      "description": {
+        "en": "An identified engine-side server resource, distinct from its hosting process and gameplay occurrences."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R1: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-GameServer-runtimeIdentity",
+        "attribute-GameServer-serverState",
+        "attribute-GameServer-tickCount",
+        "attribute-GameServer-tickInterval",
+        "attribute-GameServer-maxClients",
+        "attribute-GameServer-isDedicated"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-GameSession",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "GameSession"
+      },
+      "description": {
+        "en": "A conceptual identity for the current level and game roster. No literal match ID was recovered; the boundary is a modeling hypothesis."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R1: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+        },
+        {
+          "en": "R11: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_gamestate_mp.nut#L84"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-GameSession-sessionIdentity",
+        "attribute-GameSession-spawnCount",
+        "attribute-GameSession-gameState"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-PlaylistConfig",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "PlaylistConfig"
+      },
+      "description": {
+        "en": "A mode configuration artifact used by server and gameplay scripts; the exact file and override lifecycle is not reconstructed."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R8: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/serverlisting.h#L3"
+        },
+        {
+          "en": "R15: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/gamemodes/survival/_gamemode_survival.nut#L1389"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-PlaylistConfig-playlistName"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-PlatformIdentity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "PlatformIdentity"
+      },
+      "description": {
+        "en": "An identity distinguished by a platform/persona UID. Slot-local user IDs do not supply this identity. Real identities and placeholder bot IDs must be distinguished."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        },
+        {
+          "en": "R13: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_base_gametype.gnut#L2172"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-PlatformIdentity-platformUid"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ClientApplication",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ClientApplication"
+      },
+      "description": {
+        "en": "The remote game application as a runtime resource. Its process structure is abstracted rather than equated with CClient."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R0: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/README.md#L42"
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-DirectoryService",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "DirectoryService"
+      },
+      "description": {
+        "en": "The opaque Pylon service endpoint reached by the SDK API client. Its internal objects, storage, and deployment are unresolved."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-DirectoryService-endpointIdentity"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ServerListing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ServerListing"
+      },
+      "description": {
+        "en": "An identified advertisement information artifact describing a game server. It is separate from the server it describes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R8: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/serverlisting.h#L3"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-ServerListing-name",
+        "attribute-ServerListing-hidden",
+        "attribute-ServerListing-mapName",
+        "attribute-ServerListing-playlistName",
+        "attribute-ServerListing-address",
+        "attribute-ServerListing-port",
+        "attribute-ServerListing-numPlayers",
+        "attribute-ServerListing-maxPlayers",
+        "attribute-ServerListing-versionId"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-PublishedListing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "PublishedListing"
+      },
+      "description": {
+        "en": "A listing currently published through the directory service. Publication identity and lifecycle are conceptual abstractions."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "role",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ListingPublication",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ListingPublication"
+      },
+      "description": {
+        "en": "The time-bounded publication relationship between a directory service and an advertised listing."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "relator",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "relator"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-HiddenListing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "HiddenListing"
+      },
+      "description": {
+        "en": "A listing whose intrinsic hidden field is true; retrieval can use a token. Offline hosting is the absence of a publication, not a listing phase."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R8: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/serverlisting.h#L3"
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "phase",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-PublicListing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "PublicListing"
+      },
+      "description": {
+        "en": "A listing whose intrinsic hidden field is false."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R8: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/serverlisting.h#L3"
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "phase",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ListingUpdate",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ListingUpdate"
+      },
+      "description": {
+        "en": "An occurrence submitting host-listing data through PostServerHost; it may create or refresh an advertisement."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ServerLookup",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ServerLookup"
+      },
+      "description": {
+        "en": "An occurrence querying a server list or looking up a listing by token. It does not itself establish a game connection."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R9: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-ServerLookup-lookupMethod"
+      ],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ClientSlot",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ClientSlot"
+      },
+      "description": {
+        "en": "A server-owned CClient resource/slot, reused across connection lifecycles. Neither the remote application nor an enduring player identity."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R1: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-ClientSlot-slotIndex",
+        "attribute-ClientSlot-currentUserId",
+        "attribute-ClientSlot-signonStage",
+        "attribute-ClientSlot-fakeClient",
+        "attribute-ClientSlot-persistenceState"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-SessionParticipant",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "SessionParticipant"
+      },
+      "description": {
+        "en": "A client slot currently admitted to a game session. Continuity across reconnect or slot reuse is not presumed."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R1: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "role",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-SessionParticipation",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "SessionParticipation"
+      },
+      "description": {
+        "en": "The current relationship between an admitted slot and one session. Historical player results require separate records."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R1: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "relator",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "relator"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ActiveClientSlot",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ActiveClientSlot"
+      },
+      "description": {
+        "en": "A slot with sign-on state FULL, matching CClient::IsActive; this is distinct from avatar life state."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "phase",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-NetworkChannel",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "NetworkChannel"
+      },
+      "description": {
+        "en": "A CNetChan communication resource with endpoint and sequencing state. It can exist before a player entity is active."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R3: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/net_chan.h#L28"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-NetworkChannel-remoteEndpoint",
+        "attribute-NetworkChannel-outSequence",
+        "attribute-NetworkChannel-inSequence",
+        "attribute-NetworkChannel-acknowledgedSequence"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ClientReplicationState",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ClientReplicationState"
+      },
+      "description": {
+        "en": "Slot-specific replication/command state, modeled as an intrinsic mode rather than another player identity."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mode",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-ClientReplicationState-commandTick",
+        "attribute-ClientReplicationState-deltaTick",
+        "attribute-ClientReplicationState-snapshotTick"
+      ],
+      "restrictedTo": [
+        "intrinsic-mode"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-PlayerEntity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "PlayerEntity"
+      },
+      "description": {
+        "en": "An identified player character entity. Script-level respawn can reuse its reference; native allocation and lifetime details remain unresolved."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R5: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/server/player_command.cpp#L25"
+        },
+        {
+          "en": "R14: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_respawn_beacon.gnut#L1235"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-PlayerEntity-entityHandle",
+        "attribute-PlayerEntity-teamNumber",
+        "attribute-PlayerEntity-alive",
+        "attribute-PlayerEntity-bleedoutState"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-AssignedPlayerEntity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "AssignedPlayerEntity"
+      },
+      "description": {
+        "en": "A player entity assigned to a session participant; this role also permits fake-client participants."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R1: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        },
+        {
+          "en": "R5: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/server/player_command.cpp#L25"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "role",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-AvatarAssignment",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "AvatarAssignment"
+      },
+      "description": {
+        "en": "The control relationship between one session participant and one assigned player entity. Exact allocation lifecycle is a hypothesis."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        },
+        {
+          "en": "R5: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/server/player_command.cpp#L25"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "relator",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "relator"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-MatchSquad",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "MatchSquad"
+      },
+      "description": {
+        "en": "A session-scoped team/roster abstraction grounded in team numbers and team-based script operations."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R2: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+        },
+        {
+          "en": "R15: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/gamemodes/survival/_gamemode_survival.nut#L1389"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-MatchSquad-teamNumber"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ReadyPlayer",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ReadyPlayer"
+      },
+      "description": {
+        "en": "A living player entity not in bleedout, using intrinsic life and bleedout state. This does not assert combat eligibility under every temporary effect."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R12: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_bleedout.gnut#L558"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "phase",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-DownedPlayer",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "DownedPlayer"
+      },
+      "description": {
+        "en": "A living player entity in bleedout. Alive and downed are not mutually exclusive raw engine predicates."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R12: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_bleedout.gnut#L558"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "phase",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-EliminatedIdentity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "EliminatedIdentity"
+      },
+      "description": {
+        "en": "A platform identity with a current elimination status in this session. Source evidence is keyed by UID rather than entity life state."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R13: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_base_gametype.gnut#L2172"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "role",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-EliminationStatus",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "EliminationStatus"
+      },
+      "description": {
+        "en": "The session-specific elimination relationship of a platform identity. The source implements its registry as information records."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R13: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_base_gametype.gnut#L2172"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "relator",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "relator"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-GameMatch",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "GameMatch"
+      },
+      "description": {
+        "en": "The gameplay occurrence associated with a conceptual game session; not a literal SDK class."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R11: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_gamestate_mp.nut#L84"
+        },
+        {
+          "en": "R15: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/gamemodes/survival/_gamemode_survival.nut#L1389"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-ServerFrame",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "ServerFrame"
+      },
+      "description": {
+        "en": "One invocation of the visible server-frame entry point. Full simulation semantics are delegated to the binary."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R10: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.cpp#L223"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-InputCommand",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "InputCommand"
+      },
+      "description": {
+        "en": "An action-request information artifact represented by CUserCmd. Receiving it does not imply that it was processed."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R4: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/shared/usercmd.h#L29"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-InputCommand-commandNumber",
+        "attribute-InputCommand-tickCount",
+        "attribute-InputCommand-commandTime",
+        "attribute-InputCommand-frameTime",
+        "attribute-InputCommand-viewAngles",
+        "attribute-InputCommand-buttons"
+      ],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-CommandProcessing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "CommandProcessing"
+      },
+      "description": {
+        "en": "An accepted movement-command execution passed to the native processor. Attempts rejected by the wrapper are distinct."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R5: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/server/player_command.cpp#L25"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-Snapshot",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Snapshot"
+      },
+      "description": {
+        "en": "A partially understood server-state information artifact; recovered CFrameSnapshot layout does not establish a complete world-state semantics."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R6: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/framesnapshot.h#L5"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "kind",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "functional-complex"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-SnapshotEmission",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "SnapshotEmission"
+      },
+      "description": {
+        "en": "An invocation of the snapshot-send interface for one client slot. The actual encoding and emission body is not available here."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R7: https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.cpp#L384"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-Respawn",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Respawn"
+      },
+      "description": {
+        "en": "An occurrence restoring an existing script-referenced player entity, potentially clearing its platform identity’s elimination status."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R14: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_respawn_beacon.gnut#L1235"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-Downing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Downing"
+      },
+      "description": {
+        "en": "An occurrence entering player bleedout, distinct from eliminating a platform identity."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R16: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_bleedout.gnut#L224"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "type": "Class",
+      "id": "class-GameStateChange",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "GameStateChange"
+      },
+      "description": {
+        "en": "An occurrence of SetGameState for the current level/game context."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [
+        {
+          "en": "OntoUML classification and multiplicities are modeling interpretations, not declarations recovered verbatim from C++ or scripts."
+        },
+        {
+          "en": "R11: https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_gamestate_mp.nut#L84"
+        }
+      ],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "event",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "attribute-GameStateChange-newState"
+      ],
+      "restrictedTo": [
+        "event"
+      ],
+      "literals": [],
+      "isPowertype": false,
+      "order": "1"
+    },
+    {
+      "id": "relation-shared-GameServer-GameSession-current-game-context",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "current game context"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-shared-GameServer-GameSession-current-game-context-source",
+        "relation-shared-GameServer-GameSession-current-game-context-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-shared-GameSession-PlaylistConfig-configured-by",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "configured by"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-shared-GameSession-PlaylistConfig-configured-by-source",
+        "relation-shared-GameSession-PlaylistConfig-configured-by-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-ListingPublication-DirectoryService-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-ListingPublication-DirectoryService-mediates-source",
+        "relation-backend-ListingPublication-DirectoryService-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-ListingPublication-PublishedListing-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-ListingPublication-PublishedListing-mediates-source",
+        "relation-backend-ListingPublication-PublishedListing-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-ServerListing-GameServer-advertises",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "advertises"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-ServerListing-GameServer-advertises-source",
+        "relation-backend-ServerListing-GameServer-advertises-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-GameServer-ListingUpdate-host-being-advertised",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "host being advertised"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-GameServer-ListingUpdate-host-being-advertised-source",
+        "relation-backend-GameServer-ListingUpdate-host-being-advertised-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-DirectoryService-ListingUpdate-receives-advertisement",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "receives advertisement"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-DirectoryService-ListingUpdate-receives-advertisement-source",
+        "relation-backend-DirectoryService-ListingUpdate-receives-advertisement-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-ListingUpdate-ServerListing-updates-or-creates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "updates or creates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-ListingUpdate-ServerListing-updates-or-creates-source",
+        "relation-backend-ListingUpdate-ServerListing-updates-or-creates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-ClientApplication-ServerLookup-requests-lookup",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "requests lookup"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-ClientApplication-ServerLookup-requests-lookup-source",
+        "relation-backend-ClientApplication-ServerLookup-requests-lookup-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-DirectoryService-ServerLookup-serves-lookup",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "serves lookup"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-DirectoryService-ServerLookup-serves-lookup-source",
+        "relation-backend-DirectoryService-ServerLookup-serves-lookup-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-backend-ServerLookup-ServerListing-returns",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "returns"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-backend-ServerLookup-ServerListing-returns-source",
+        "relation-backend-ServerLookup-ServerListing-returns-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ClientSlot-GameServer-owned-by",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "owned by"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ClientSlot-GameServer-owned-by-source",
+        "relation-runtime-ClientSlot-GameServer-owned-by-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ClientSlot-PlatformIdentity-current-occupant-identity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "current occupant identity"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ClientSlot-PlatformIdentity-current-occupant-identity-source",
+        "relation-runtime-ClientSlot-PlatformIdentity-current-occupant-identity-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ClientSlot-NetworkChannel-current-channel",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "current channel"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ClientSlot-NetworkChannel-current-channel-source",
+        "relation-runtime-ClientSlot-NetworkChannel-current-channel-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ClientApplication-NetworkChannel-remote-application",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "remote application"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ClientApplication-NetworkChannel-remote-application-source",
+        "relation-runtime-ClientApplication-NetworkChannel-remote-application-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ClientReplicationState-ClientSlot-characterizes",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "characterizes"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "characterization",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ClientReplicationState-ClientSlot-characterizes-source",
+        "relation-runtime-ClientReplicationState-ClientSlot-characterizes-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-SessionParticipation-SessionParticipant-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-SessionParticipation-SessionParticipant-mediates-source",
+        "relation-runtime-SessionParticipation-SessionParticipant-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-SessionParticipation-GameSession-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-SessionParticipation-GameSession-mediates-source",
+        "relation-runtime-SessionParticipation-GameSession-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-AvatarAssignment-SessionParticipant-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-AvatarAssignment-SessionParticipant-mediates-source",
+        "relation-runtime-AvatarAssignment-SessionParticipant-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-AvatarAssignment-AssignedPlayerEntity-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-AvatarAssignment-AssignedPlayerEntity-mediates-source",
+        "relation-runtime-AvatarAssignment-AssignedPlayerEntity-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-PlayerEntity-PlatformIdentity-reported-identity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "reported identity"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-PlayerEntity-PlatformIdentity-reported-identity-source",
+        "relation-runtime-PlayerEntity-PlatformIdentity-reported-identity-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-PlayerEntity-GameSession-exists-in",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "exists in"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-PlayerEntity-GameSession-exists-in-source",
+        "relation-runtime-PlayerEntity-GameSession-exists-in-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-PlayerEntity-MatchSquad-team-membership",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "team membership"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-PlayerEntity-MatchSquad-team-membership-source",
+        "relation-runtime-PlayerEntity-MatchSquad-team-membership-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-MatchSquad-GameSession-squad-of",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "squad of"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-MatchSquad-GameSession-squad-of-source",
+        "relation-runtime-MatchSquad-GameSession-squad-of-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-EliminationStatus-EliminatedIdentity-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-EliminationStatus-EliminatedIdentity-mediates-source",
+        "relation-runtime-EliminationStatus-EliminatedIdentity-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-EliminationStatus-GameSession-mediates",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mediates"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "mediation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-EliminationStatus-GameSession-mediates-source",
+        "relation-runtime-EliminationStatus-GameSession-mediates-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-GameSession-GameMatch-realized-in",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "realized in"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-GameSession-GameMatch-realized-in-source",
+        "relation-runtime-GameSession-GameMatch-realized-in-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-GameServer-ServerFrame-runs-frame",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "runs frame"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-GameServer-ServerFrame-runs-frame-source",
+        "relation-runtime-GameServer-ServerFrame-runs-frame-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ServerFrame-GameSession-current-frame-context",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "current frame context"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ServerFrame-GameSession-current-frame-context-source",
+        "relation-runtime-ServerFrame-GameSession-current-frame-context-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-PlayerEntity-CommandProcessing-command-actor",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "command actor"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-PlayerEntity-CommandProcessing-command-actor-source",
+        "relation-runtime-PlayerEntity-CommandProcessing-command-actor-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-InputCommand-CommandProcessing-processed-request",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "processed request"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-InputCommand-CommandProcessing-processed-request-source",
+        "relation-runtime-InputCommand-CommandProcessing-processed-request-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ServerFrame-CommandProcessing-may-encompass",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "may encompass"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ServerFrame-CommandProcessing-may-encompass-source",
+        "relation-runtime-ServerFrame-CommandProcessing-may-encompass-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "recipient slot"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot-source",
+        "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-Snapshot-SnapshotEmission-transmitted-state",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "transmitted state"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-Snapshot-SnapshotEmission-transmitted-state-source",
+        "relation-runtime-Snapshot-SnapshotEmission-transmitted-state-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-NetworkChannel-SnapshotEmission-send-channel",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "send channel"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-NetworkChannel-SnapshotEmission-send-channel-source",
+        "relation-runtime-NetworkChannel-SnapshotEmission-send-channel-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-Snapshot-GameSession-state-context",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "state context"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-Snapshot-GameSession-state-context-source",
+        "relation-runtime-Snapshot-GameSession-state-context-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-PlayerEntity-Respawn-restored-actor",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "restored actor"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-PlayerEntity-Respawn-restored-actor-source",
+        "relation-runtime-PlayerEntity-Respawn-restored-actor-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-Respawn-EliminationStatus-may-clear",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "may clear"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-Respawn-EliminationStatus-may-clear-source",
+        "relation-runtime-Respawn-EliminationStatus-may-clear-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-PlayerEntity-Downing-downed-actor",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "downed actor"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-PlayerEntity-Downing-downed-actor-source",
+        "relation-runtime-PlayerEntity-Downing-downed-actor-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "relation-runtime-GameSession-GameStateChange-changed-context",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "changed context"
+      },
+      "description": {
+        "en": "Conceptual relation and proposed multiplicities. Evidence for its connected concepts is recorded in their editorial notes."
+      },
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": "participation",
+      "isDerived": false,
+      "isAbstract": false,
+      "properties": [
+        "relation-runtime-GameSession-GameStateChange-changed-context-source",
+        "relation-runtime-GameSession-GameStateChange-changed-context-target"
+      ],
+      "type": "BinaryRelation"
+    },
+    {
+      "id": "generalization-PublishedListing-ServerListing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-ServerListing",
+      "specific": "class-PublishedListing"
+    },
+    {
+      "id": "generalization-HiddenListing-ServerListing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-ServerListing",
+      "specific": "class-HiddenListing"
+    },
+    {
+      "id": "generalization-PublicListing-ServerListing",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-ServerListing",
+      "specific": "class-PublicListing"
+    },
+    {
+      "id": "generalization-SessionParticipant-ClientSlot",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-ClientSlot",
+      "specific": "class-SessionParticipant"
+    },
+    {
+      "id": "generalization-ActiveClientSlot-ClientSlot",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-ClientSlot",
+      "specific": "class-ActiveClientSlot"
+    },
+    {
+      "id": "generalization-AssignedPlayerEntity-PlayerEntity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-PlayerEntity",
+      "specific": "class-AssignedPlayerEntity"
+    },
+    {
+      "id": "generalization-ReadyPlayer-PlayerEntity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-PlayerEntity",
+      "specific": "class-ReadyPlayer"
+    },
+    {
+      "id": "generalization-DownedPlayer-PlayerEntity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-PlayerEntity",
+      "specific": "class-DownedPlayer"
+    },
+    {
+      "id": "generalization-EliminatedIdentity-PlatformIdentity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Generalization",
+      "general": "class-PlatformIdentity",
+      "specific": "class-EliminatedIdentity"
+    },
+    {
+      "id": "generalization-set-listing-visibility",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Listing visibility"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "GeneralizationSet",
+      "isDisjoint": true,
+      "isComplete": true,
+      "categorizer": null,
+      "generalizations": [
+        "generalization-HiddenListing-ServerListing",
+        "generalization-PublicListing-ServerListing"
+      ]
+    },
+    {
+      "id": "generalization-set-selected-intrinsic-player-phases",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Selected intrinsic player phases"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "GeneralizationSet",
+      "isDisjoint": true,
+      "isComplete": false,
+      "categorizer": null,
+      "generalizations": [
+        "generalization-ReadyPlayer-PlayerEntity",
+        "generalization-DownedPlayer-PlayerEntity"
+      ]
+    },
+    {
+      "id": "package-root",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "R5Reloaded Season 3 service domain"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Package",
+      "contents": [
+        "package-shared",
+        "package-backend",
+        "package-runtime",
+        "package-types"
+      ]
+    },
+    {
+      "id": "package-shared",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Shared identities"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Package",
+      "contents": [
+        "class-GameServer",
+        "class-GameSession",
+        "class-PlaylistConfig",
+        "class-PlatformIdentity",
+        "class-ClientApplication",
+        "relation-shared-GameServer-GameSession-current-game-context",
+        "relation-shared-GameSession-PlaylistConfig-configured-by"
+      ]
+    },
+    {
+      "id": "package-backend",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "R5 server discovery backend"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Package",
+      "contents": [
+        "class-DirectoryService",
+        "class-ServerListing",
+        "class-PublishedListing",
+        "class-ListingPublication",
+        "class-HiddenListing",
+        "class-PublicListing",
+        "class-ListingUpdate",
+        "class-ServerLookup",
+        "generalization-PublishedListing-ServerListing",
+        "generalization-HiddenListing-ServerListing",
+        "generalization-PublicListing-ServerListing",
+        "generalization-set-listing-visibility",
+        "relation-backend-ListingPublication-DirectoryService-mediates",
+        "relation-backend-ListingPublication-PublishedListing-mediates",
+        "relation-backend-ServerListing-GameServer-advertises",
+        "relation-backend-GameServer-ListingUpdate-host-being-advertised",
+        "relation-backend-DirectoryService-ListingUpdate-receives-advertisement",
+        "relation-backend-ListingUpdate-ServerListing-updates-or-creates",
+        "relation-backend-ClientApplication-ServerLookup-requests-lookup",
+        "relation-backend-DirectoryService-ServerLookup-serves-lookup",
+        "relation-backend-ServerLookup-ServerListing-returns"
+      ]
+    },
+    {
+      "id": "package-runtime",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "R5 game-server runtime"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Package",
+      "contents": [
+        "class-ClientSlot",
+        "class-SessionParticipant",
+        "class-SessionParticipation",
+        "class-ActiveClientSlot",
+        "class-NetworkChannel",
+        "class-ClientReplicationState",
+        "class-PlayerEntity",
+        "class-AssignedPlayerEntity",
+        "class-AvatarAssignment",
+        "class-MatchSquad",
+        "class-ReadyPlayer",
+        "class-DownedPlayer",
+        "class-EliminatedIdentity",
+        "class-EliminationStatus",
+        "class-GameMatch",
+        "class-ServerFrame",
+        "class-InputCommand",
+        "class-CommandProcessing",
+        "class-Snapshot",
+        "class-SnapshotEmission",
+        "class-Respawn",
+        "class-Downing",
+        "class-GameStateChange",
+        "generalization-SessionParticipant-ClientSlot",
+        "generalization-ActiveClientSlot-ClientSlot",
+        "generalization-AssignedPlayerEntity-PlayerEntity",
+        "generalization-ReadyPlayer-PlayerEntity",
+        "generalization-DownedPlayer-PlayerEntity",
+        "generalization-EliminatedIdentity-PlatformIdentity",
+        "generalization-set-selected-intrinsic-player-phases",
+        "relation-runtime-ClientSlot-GameServer-owned-by",
+        "relation-runtime-ClientSlot-PlatformIdentity-current-occupant-identity",
+        "relation-runtime-ClientSlot-NetworkChannel-current-channel",
+        "relation-runtime-ClientApplication-NetworkChannel-remote-application",
+        "relation-runtime-ClientReplicationState-ClientSlot-characterizes",
+        "relation-runtime-SessionParticipation-SessionParticipant-mediates",
+        "relation-runtime-SessionParticipation-GameSession-mediates",
+        "relation-runtime-AvatarAssignment-SessionParticipant-mediates",
+        "relation-runtime-AvatarAssignment-AssignedPlayerEntity-mediates",
+        "relation-runtime-PlayerEntity-PlatformIdentity-reported-identity",
+        "relation-runtime-PlayerEntity-GameSession-exists-in",
+        "relation-runtime-PlayerEntity-MatchSquad-team-membership",
+        "relation-runtime-MatchSquad-GameSession-squad-of",
+        "relation-runtime-EliminationStatus-EliminatedIdentity-mediates",
+        "relation-runtime-EliminationStatus-GameSession-mediates",
+        "relation-runtime-GameSession-GameMatch-realized-in",
+        "relation-runtime-GameServer-ServerFrame-runs-frame",
+        "relation-runtime-ServerFrame-GameSession-current-frame-context",
+        "relation-runtime-PlayerEntity-CommandProcessing-command-actor",
+        "relation-runtime-InputCommand-CommandProcessing-processed-request",
+        "relation-runtime-ServerFrame-CommandProcessing-may-encompass",
+        "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot",
+        "relation-runtime-Snapshot-SnapshotEmission-transmitted-state",
+        "relation-runtime-NetworkChannel-SnapshotEmission-send-channel",
+        "relation-runtime-Snapshot-GameSession-state-context",
+        "relation-runtime-PlayerEntity-Respawn-restored-actor",
+        "relation-runtime-Respawn-EliminationStatus-may-clear",
+        "relation-runtime-PlayerEntity-Downing-downed-actor",
+        "relation-runtime-GameSession-GameStateChange-changed-context"
+      ]
+    },
+    {
+      "id": "package-types",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "Value types"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "type": "Package",
+      "contents": [
+        "datatype-Text",
+        "datatype-Integer",
+        "datatype-Decimal",
+        "datatype-Vector3",
+        "datatype-Boolean"
+      ]
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameServer-runtimeIdentity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "runtimeIdentity"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameServer-serverState",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "serverState"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameServer-tickCount",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "tickCount"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameServer-tickInterval",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "tickInterval"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Decimal",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameServer-maxClients",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "maxClients"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameServer-isDedicated",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "isDedicated"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Boolean",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameSession-sessionIdentity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "sessionIdentity"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameSession-spawnCount",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "spawnCount"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameSession-gameState",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "gameState"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-PlaylistConfig-playlistName",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "playlistName"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-PlatformIdentity-platformUid",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "platformUid"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-DirectoryService-endpointIdentity",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "endpointIdentity"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-name",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "name"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-hidden",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "hidden"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Boolean",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-mapName",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "mapName"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-playlistName",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "playlistName"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-address",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "address"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-port",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "port"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-numPlayers",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "numPlayers"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-maxPlayers",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "maxPlayers"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerListing-versionId",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "versionId"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ServerLookup-lookupMethod",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "lookupMethod"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientSlot-slotIndex",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "slotIndex"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientSlot-currentUserId",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "currentUserId"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientSlot-signonStage",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "signonStage"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientSlot-fakeClient",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "fakeClient"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Boolean",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientSlot-persistenceState",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "persistenceState"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-NetworkChannel-remoteEndpoint",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "remoteEndpoint"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-NetworkChannel-outSequence",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "outSequence"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-NetworkChannel-inSequence",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "inSequence"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-NetworkChannel-acknowledgedSequence",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "acknowledgedSequence"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientReplicationState-commandTick",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "commandTick"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientReplicationState-deltaTick",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "deltaTick"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-ClientReplicationState-snapshotTick",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "snapshotTick"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-PlayerEntity-entityHandle",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "entityHandle"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-PlayerEntity-teamNumber",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "teamNumber"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-PlayerEntity-alive",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "alive"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Boolean",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-PlayerEntity-bleedoutState",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "bleedoutState"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-MatchSquad-teamNumber",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "teamNumber"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-InputCommand-commandNumber",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "commandNumber"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-InputCommand-tickCount",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "tickCount"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-InputCommand-commandTime",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "commandTime"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Decimal",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-InputCommand-frameTime",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "frameTime"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Decimal",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-InputCommand-viewAngles",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "viewAngles"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Vector3",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-InputCommand-buttons",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "buttons"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Integer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "attribute-GameStateChange-newState",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": {
+        "en": "newState"
+      },
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "datatype-Text",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-shared-GameServer-GameSession-current-game-context-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameServer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-shared-GameServer-GameSession-current-game-context-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-shared-GameSession-PlaylistConfig-configured-by-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-shared-GameSession-PlaylistConfig-configured-by-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-PlaylistConfig",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ListingPublication-DirectoryService-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ListingPublication",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ListingPublication-DirectoryService-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-DirectoryService",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ListingPublication-PublishedListing-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1..*",
+      "propertyType": "class-ListingPublication",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ListingPublication-PublishedListing-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-PublishedListing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ServerListing-GameServer-advertises-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ServerListing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ServerListing-GameServer-advertises-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameServer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-GameServer-ListingUpdate-host-being-advertised-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameServer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-GameServer-ListingUpdate-host-being-advertised-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ListingUpdate",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-DirectoryService-ListingUpdate-receives-advertisement-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-DirectoryService",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-DirectoryService-ListingUpdate-receives-advertisement-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ListingUpdate",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ListingUpdate-ServerListing-updates-or-creates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ListingUpdate",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ListingUpdate-ServerListing-updates-or-creates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-ServerListing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ClientApplication-ServerLookup-requests-lookup-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-ClientApplication",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ClientApplication-ServerLookup-requests-lookup-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ServerLookup",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-DirectoryService-ServerLookup-serves-lookup-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-DirectoryService",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-DirectoryService-ServerLookup-serves-lookup-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ServerLookup",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ServerLookup-ServerListing-returns-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ServerLookup",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-backend-ServerLookup-ServerListing-returns-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ServerListing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-GameServer-owned-by-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ClientSlot",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-GameServer-owned-by-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameServer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-PlatformIdentity-current-occupant-identity-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ClientSlot",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-PlatformIdentity-current-occupant-identity-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-PlatformIdentity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-NetworkChannel-current-channel-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-ClientSlot",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-NetworkChannel-current-channel-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-NetworkChannel",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientApplication-NetworkChannel-remote-application-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ClientApplication",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientApplication-NetworkChannel-remote-application-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-NetworkChannel",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientReplicationState-ClientSlot-characterizes-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-ClientReplicationState",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientReplicationState-ClientSlot-characterizes-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-ClientSlot",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-SessionParticipation-SessionParticipant-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1..*",
+      "propertyType": "class-SessionParticipation",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-SessionParticipation-SessionParticipant-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-SessionParticipant",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-SessionParticipation-GameSession-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-SessionParticipation",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-SessionParticipation-GameSession-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-AvatarAssignment-SessionParticipant-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-AvatarAssignment",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-AvatarAssignment-SessionParticipant-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-SessionParticipant",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-AvatarAssignment-AssignedPlayerEntity-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-AvatarAssignment",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-AvatarAssignment-AssignedPlayerEntity-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-AssignedPlayerEntity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-PlatformIdentity-reported-identity-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-PlayerEntity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-PlatformIdentity-reported-identity-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-PlatformIdentity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-GameSession-exists-in-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-PlayerEntity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-GameSession-exists-in-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-MatchSquad-team-membership-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-PlayerEntity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-MatchSquad-team-membership-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-MatchSquad",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-MatchSquad-GameSession-squad-of-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-MatchSquad",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-MatchSquad-GameSession-squad-of-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-EliminationStatus-EliminatedIdentity-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1..*",
+      "propertyType": "class-EliminationStatus",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-EliminationStatus-EliminatedIdentity-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-EliminatedIdentity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-EliminationStatus-GameSession-mediates-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-EliminationStatus",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-EliminationStatus-GameSession-mediates-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": true
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-GameSession-GameMatch-realized-in-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-GameSession-GameMatch-realized-in-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-GameMatch",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-GameServer-ServerFrame-runs-frame-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameServer",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-GameServer-ServerFrame-runs-frame-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ServerFrame",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ServerFrame-GameSession-current-frame-context-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-ServerFrame",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ServerFrame-GameSession-current-frame-context-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-CommandProcessing-command-actor-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-PlayerEntity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-CommandProcessing-command-actor-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-CommandProcessing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-InputCommand-CommandProcessing-processed-request-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-InputCommand",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-InputCommand-CommandProcessing-processed-request-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-CommandProcessing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ServerFrame-CommandProcessing-may-encompass-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-ServerFrame",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ServerFrame-CommandProcessing-may-encompass-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-CommandProcessing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-ClientSlot",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-SnapshotEmission",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-Snapshot-SnapshotEmission-transmitted-state-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-Snapshot",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-Snapshot-SnapshotEmission-transmitted-state-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-SnapshotEmission",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-NetworkChannel-SnapshotEmission-send-channel-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-NetworkChannel",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-NetworkChannel-SnapshotEmission-send-channel-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-SnapshotEmission",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-Snapshot-GameSession-state-context-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-Snapshot",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-Snapshot-GameSession-state-context-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-Respawn-restored-actor-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-PlayerEntity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-Respawn-restored-actor-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-Respawn",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-Respawn-EliminationStatus-may-clear-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-Respawn",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-Respawn-EliminationStatus-may-clear-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..1",
+      "propertyType": "class-EliminationStatus",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-Downing-downed-actor-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-PlayerEntity",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-PlayerEntity-Downing-downed-actor-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-Downing",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-GameSession-GameStateChange-changed-context-source",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "1",
+      "propertyType": "class-GameSession",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    },
+    {
+      "type": "Property",
+      "id": "relation-runtime-GameSession-GameStateChange-changed-context-target",
+      "created": "2026-10-06T00:00:00.000Z",
+      "modified": null,
+      "name": null,
+      "description": null,
+      "alternativeNames": [],
+      "editorialNotes": [],
+      "creators": [],
+      "contributors": [],
+      "customProperties": null,
+      "stereotype": null,
+      "isDerived": false,
+      "cardinality": "0..*",
+      "propertyType": "class-GameStateChange",
+      "subsettedProperties": [],
+      "redefinedProperties": [],
+      "aggregationKind": "NONE",
+      "isOrdered": false,
+      "isReadOnly": false
+    }
+  ]
+}

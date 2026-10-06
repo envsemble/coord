@@ -1,0 +1,20 @@
+{
+  "name": "kom-apex-legends",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Offline OntoUML viewer for the public R5Reloaded Season 3 source model",
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "check": "node scripts/check.cjs",
+    "format": "prettier --write src scripts model/model.cjs README.md CONTEXT.md"
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "elkjs": "0.12.0",
+    "fflate": "0.8.2",
+    "ontouml-js": "1.0.0",
+    "prettier": "3.8.0"
+  }
+}
