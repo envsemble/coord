@@ -654,12 +654,24 @@
       }
       const view = () => VIEWS.find((v) => v.key === current);
       const bounds = () => world.querySelector("svg").viewBox.baseVal;
+      const PINCH_WHEEL_SENSITIVITY = 0.0015,
+        PINCH_GESTURE_SENSITIVITY = 0.15,
+        PINCH_EASING_MS = 80;
+      let pinchZoom = null,
+        pinchFrame = null;
+      const clampScale = (scale) => Math.max(0.08, Math.min(3.5, scale));
+      function cancelPinchZoom() {
+        if (pinchFrame !== null) cancelAnimationFrame(pinchFrame);
+        pinchFrame = null;
+        pinchZoom = null;
+      }
       function paint() {
         world.style.transform = `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`;
         $("#zoom-value").textContent = Math.round(camera.scale * 100) + "%";
         canvas.style.backgroundPosition = `${camera.x}px ${camera.y}px`;
       }
       function fit() {
+        cancelPinchZoom();
         const b = bounds(),
           w = canvas.clientWidth,
           h = canvas.clientHeight;
@@ -708,12 +720,8 @@
           paint();
         }
       }
-      function zoomTo(
-        scale,
-        x = canvas.clientWidth / 2,
-        y = canvas.clientHeight / 2,
-      ) {
-        scale = Math.max(0.08, Math.min(3.5, scale));
+      function applyZoom(scale, x, y) {
+        scale = clampScale(scale);
         const ratio = scale / camera.scale;
         camera.x = x - (x - camera.x) * ratio;
         camera.y = y - (y - camera.y) * ratio;
@@ -721,7 +729,47 @@
         camera.fitted = false;
         paint();
       }
+      function zoomTo(
+        scale,
+        x = canvas.clientWidth / 2,
+        y = canvas.clientHeight / 2,
+      ) {
+        cancelPinchZoom();
+        applyZoom(scale, x, y);
+      }
+      function animatePinchZoom(time) {
+        const zoom = pinchZoom,
+          elapsed = Math.max(0, Math.min(time - zoom.time, 64)),
+          gap = Math.log(zoom.scale / camera.scale),
+          finished = Math.abs(gap) < 0.0001;
+        zoom.time = time;
+        // Ease in log space so zooming in and out feel equally responsive.
+        applyZoom(
+          finished
+            ? zoom.scale
+            : camera.scale *
+                Math.exp(gap * (1 - Math.exp(-elapsed / PINCH_EASING_MS))),
+          zoom.x,
+          zoom.y,
+        );
+        if (finished) {
+          pinchZoom = null;
+          pinchFrame = null;
+        } else pinchFrame = requestAnimationFrame(animatePinchZoom);
+      }
+      function pinchZoomBy(delta, x, y) {
+        if (!pinchZoom)
+          pinchZoom = { scale: camera.scale, x, y, time: performance.now() };
+        // Accumulate against the target so frequent touchpad events are retained.
+        pinchZoom.scale = clampScale(pinchZoom.scale * Math.exp(delta));
+        pinchZoom.x = x;
+        pinchZoom.y = y;
+        camera.fitted = false;
+        if (pinchFrame === null)
+          pinchFrame = requestAnimationFrame(animatePinchZoom);
+      }
       function pan(dx, dy) {
+        cancelPinchZoom();
         camera.x += dx;
         camera.y += dy;
         camera.fitted = false;
@@ -735,6 +783,7 @@
           .forEach((n) => n.classList.remove("selected"));
       }
       function showView(key, save = true) {
+        cancelPinchZoom();
         if (save) cameras[current + ":" + fields] = { ...camera };
         current = key;
         const v = view();
@@ -774,6 +823,7 @@
       function focusConcept(name) {
         const c = MODEL.classes.find((c) => c.name === name);
         if (!c) return;
+        cancelPinchZoom();
         if (!view().names.includes(name))
           showView(c.pkg === "backend" ? "backend" : "runtime");
         const n = world.querySelector(`[data-name="${name}"]`),
@@ -906,8 +956,8 @@
                   : 1,
             rect = canvas.getBoundingClientRect();
           if (e.ctrlKey || e.metaKey)
-            zoomTo(
-              camera.scale * Math.exp(-e.deltaY * unit * 0.01),
+            pinchZoomBy(
+              -e.deltaY * unit * PINCH_WHEEL_SENSITIVITY,
               e.clientX - rect.left,
               e.clientY - rect.top,
             );
@@ -926,6 +976,7 @@
       }
       canvas.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
+        cancelPinchZoom();
         const rect = canvas.getBoundingClientRect(),
           p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
         pointers.set(e.pointerId, p);
@@ -1014,12 +1065,13 @@
           $("#suggestions").classList.remove("open");
         }
       });
-      let safariStart = 1;
+      let safariScale = 1;
       canvas.addEventListener(
         "gesturestart",
         (e) => {
           e.preventDefault();
-          safariStart = camera.scale;
+          cancelPinchZoom();
+          safariScale = 1;
         },
         { passive: false },
       );
@@ -1027,8 +1079,14 @@
         "gesturechange",
         (e) => {
           e.preventDefault();
+          if (!(e.scale > 0)) return;
           const r = canvas.getBoundingClientRect();
-          zoomTo(safariStart * e.scale, e.clientX - r.left, e.clientY - r.top);
+          pinchZoomBy(
+            Math.log(e.scale / safariScale) * PINCH_GESTURE_SENSITIVITY,
+            e.clientX - r.left,
+            e.clientY - r.top,
+          );
+          safariScale = e.scale;
         },
         { passive: false },
       );
