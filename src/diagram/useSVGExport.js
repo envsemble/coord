@@ -18,20 +18,14 @@ const THEME_VARS = [
   "--node-mode",
 ];
 
-export function useBlobURL(data, type = "text/plain;charset=utf-8") {
+export function useSVGExport(svgSource, theme) {
   const [url, setURL] = useState(undefined);
   useEffect(() => {
-    const next = URL.createObjectURL(new Blob([data], { type }));
-    setURL(next);
-    return () => URL.revokeObjectURL(next);
-  }, [data, type]);
-  return url;
-}
-
-export function useDiagramURL(worldRef, svgSource, theme) {
-  const [url, setURL] = useState(undefined);
-  useEffect(() => {
-    const svg = worldRef.current.querySelector("svg").cloneNode(true);
+    // Export the normal static rendering, independent of hover/selection.
+    const svg = new DOMParser().parseFromString(
+      svgSource,
+      "image/svg+xml",
+    ).documentElement;
     const styles = getComputedStyle(document.documentElement);
     for (const name of THEME_VARS)
       svg.style.setProperty(name, styles.getPropertyValue(name).trim());
@@ -53,6 +47,6 @@ export function useDiagramURL(worldRef, svgSource, theme) {
     );
     setURL(next);
     return () => URL.revokeObjectURL(next);
-  }, [worldRef, svgSource, theme]);
+  }, [svgSource, theme]);
   return url;
 }

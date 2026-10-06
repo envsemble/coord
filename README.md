@@ -6,6 +6,8 @@ The interface is built with React 19. React and React DOM are bundled into the H
 
 The viewer fills the window with a diagram. Two-finger scrolling pans, pinching zooms around the cursor, and dragging pans. **Fit** shows the whole model; **Fields** reveals attributes. Select a concept for its definition and pinned source links. The export menu downloads SVG, PlantUML, OntoUML JSON, or a ZIP of model artifacts, including when the HTML file is opened from disk.
 
+Hover or select a node to see its immediate connections. Hover or select a relation to isolate that edge and its two endpoint entities; unrelated elements dim. Hover temporarily overrides a selection, then restores it when the pointer leaves. Select empty canvas or press Escape to clear. Relations can also be selected with Enter or Space. Each association has a readable multiplicity badge at both ends.
+
 Dark is the default theme. The sun/moon button switches to light or dark and remembers the choice when browser storage is available. The individual SVG download uses the selected theme.
 
 ## Model
@@ -34,16 +36,20 @@ Node and npm are needed only to rebuild. The build uses the committed source-evi
 
 - `model/model.cjs`: classes, fields, relations, generalizations, constraints, and model version.
 - `model/source-evidence.json`: inspected files, commit hashes, source anchors, exact lines, and claims.
-- `src/App.jsx`: React viewer, search, details, theme state, and export controls.
-- `src/useDiagramCamera.js` and `src/camera.js`: camera hook and gesture controller, including smooth touchpad zoom and lifecycle cleanup.
-- `src/downloads.js`: offline download hooks with Blob URL cleanup.
+- `model/views.cjs`: R5 view membership and placement preferences, separate from semantic definitions.
+- `src/model/`: indexes semantic entities and relationships without UI or geometry.
+- `src/app/`: connects the R5 model, reusable UI, and diagram canvas; contains source details and application-specific controls.
+- `src/ui/`: reusable buttons, tabs, camera controls, search, panels, menus, download links, theme and popup hooks, and interface styles.
+- `src/diagram/`: domain-independent React UML node, relation, and multiplicity components; hover/selection logic; camera controls; diagram styles; and SVG exports.
 - `src/main.jsx`: React entry point.
-- `src/viewer.html`: HTML shell and styles.
-- `scripts/orthogonal.cjs`: layout and SVG rendering, with overlap and right-angle route checks.
+- `src/viewer.html`: standalone HTML shell with build markers for inline styles, data, and scripts.
+- `scripts/diagram/`: orthogonal layout, geometry and endpoint validation, and static SVG generation using the same React components as the live diagram.
 - `scripts/build.cjs`: model validation, stable identifiers, embedded exports, and static output generation.
 - `schemas/`: vendored OntoUML JSON schema and its upstream license.
 
-Commit the generated `index.html` and `downloads/` files after rebuilding. `npm run check` verifies that those outputs match their sources, the embedded viewer script parses, and the static page has no external runtime dependencies or missing local links. `npm test` checks camera easing, cursor anchoring, accumulated gestures, limits, view restoration, and cleanup. `npm run format` formats editable files.
+Commit the generated `index.html` and `downloads/` files after rebuilding. `npm run check` verifies that those outputs match their sources, the embedded viewer script parses, the static page has no external runtime dependencies, and counts and routed ends match their semantic identities. `npm test` checks camera behavior and cleanup, tap/drag separation, graph focus, generic UML rendering, and detection of swapped endpoints. `npm run format` formats editable files.
+
+The semantic model contains class identities, stereotypes, attributes, associations, and multiplicities. A layout produces ordinary geometry data (nodes, orthogonal paths, and labels), which the renderer consumes without knowing the R5 domain. There is no diagram scripting language. Both the browser and SVG exports use `UMLDiagram`, `UMLNode`, and `UMLRelation`, so notation stays consistent. Association multiplicities appear at their respective ends; inheritance uses a hollow triangle and no multiplicity badges, following [UML notation](https://www.omg.org/spec/UML/2.5.1/PDF).
 
 ## Static hosting
 

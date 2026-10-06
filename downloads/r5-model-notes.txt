@@ -106,6 +106,7 @@ Relators with two mandatory mediated ends
 Event and intrinsic-aspect relation directions
 Source URLs match the pinned manifest recorded during inspection
 All four layouts have only horizontal/vertical relation segments
+Every association has two explicit multiplicities matched to its semantic endpoints
 No node overlap, relation through a node, or relation-label overlap with a node or another label
 Limitation: Conceptual identities, stereotypes, cardinalities, and session boundaries remain interpretations
 Limitation: Native binary code was not inspected or executed

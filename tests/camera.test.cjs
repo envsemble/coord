@@ -6,7 +6,7 @@ const { test } = require("node:test");
 const { transformSync } = require("esbuild");
 
 const code = transformSync(
-  fs.readFileSync(path.join(__dirname, "../src/camera.js"), "utf8"),
+  fs.readFileSync(path.join(__dirname, "../src/diagram/camera.js"), "utf8"),
   { format: "cjs" },
 ).code;
 
@@ -56,6 +56,7 @@ function harness() {
   const worldRef = { current: world };
   const frames = new Map();
   const observers = [];
+  const taps = [];
   let time = 0;
   let nextFrame = 0;
   const context = vm.createContext({
@@ -84,7 +85,9 @@ function harness() {
     canvasRef,
     worldRef,
     onZoom() {},
-    onInspect() {},
+    onTap(element) {
+      taps.push(element);
+    },
   });
   controls.restoreView("runtime", false);
   const detach = controls.attach();
@@ -128,6 +131,7 @@ function harness() {
     canvasRef,
     worldRef,
     observers,
+    taps,
     frames,
     controls,
     detach,
@@ -216,4 +220,30 @@ test("navigation cancels animation, restores cameras, and unmount cleans up", ()
   assert.equal(h.world.listenerCount, 0);
   assert.equal(h.document.listenerCount, 0);
   assert(h.observers.every((o) => o.disconnected));
+});
+
+test("a tap activates its original target, while a drag or cancel does not", () => {
+  const h = harness(),
+    element = { closest: () => null };
+  const down = () =>
+    h.canvas.emit("pointerdown", {
+      button: 0,
+      pointerId: 1,
+      clientX: 300,
+      clientY: 350,
+      target: element,
+    });
+  down();
+  h.canvas.emit("pointerup", { pointerId: 1 });
+  assert.deepEqual(h.taps, [element]);
+  down();
+  h.canvas.emit("pointermove", { pointerId: 1, clientX: 340, clientY: 360 });
+  h.canvas.emit("pointerup", { pointerId: 1 });
+  assert.equal(h.taps.length, 1);
+  assert(h.controls.hasDragged());
+  down();
+  h.canvas.emit("pointercancel", { pointerId: 1 });
+  assert.equal(h.taps.length, 1);
+  assert(h.controls.hasDragged());
+  h.detach();
 });

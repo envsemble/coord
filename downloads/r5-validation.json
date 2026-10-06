@@ -16,6 +16,7 @@
     "Event and intrinsic-aspect relation directions",
     "Source URLs match the pinned manifest recorded during inspection",
     "All four layouts have only horizontal/vertical relation segments",
+    "Every association has two explicit multiplicities matched to its semantic endpoints",
     "No node overlap, relation through a node, or relation-label overlap with a node or another label"
   ],
   "limitations": [
@@ -27,13 +28,37 @@
   ],
   "diagrams": [
     {
+      "view": "runtime",
+      "fields": false,
+      "nodes": 28,
+      "edges": 37,
+      "orthogonalSegments": 151,
+      "width": 2218,
+      "height": 1814,
+      "multiplicityLabels": 62,
+      "maxMultiplicityDistance": 47
+    },
+    {
+      "view": "runtime",
+      "fields": true,
+      "nodes": 28,
+      "edges": 37,
+      "orthogonalSegments": 143,
+      "width": 2234,
+      "height": 2178,
+      "multiplicityLabels": 62,
+      "maxMultiplicityDistance": 47
+    },
+    {
       "view": "backend",
       "fields": false,
       "nodes": 10,
       "edges": 12,
-      "orthogonalSegments": 36,
-      "width": 1506.7,
-      "height": 604
+      "orthogonalSegments": 40,
+      "width": 1583,
+      "height": 682,
+      "multiplicityLabels": 18,
+      "maxMultiplicityDistance": 47
     },
     {
       "view": "backend",
@@ -41,26 +66,10 @@
       "nodes": 10,
       "edges": 12,
       "orthogonalSegments": 42,
-      "width": 1506.7,
-      "height": 604
-    },
-    {
-      "view": "runtime",
-      "fields": false,
-      "nodes": 28,
-      "edges": 37,
-      "orthogonalSegments": 149,
-      "width": 2060,
-      "height": 1630
-    },
-    {
-      "view": "runtime",
-      "fields": true,
-      "nodes": 28,
-      "edges": 37,
-      "orthogonalSegments": 145,
-      "width": 2048,
-      "height": 1986
+      "width": 1583,
+      "height": 682,
+      "multiplicityLabels": 18,
+      "maxMultiplicityDistance": 47
     }
   ]
 }

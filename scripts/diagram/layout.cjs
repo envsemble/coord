@@ -1,19 +1,5 @@
 const ELK = require("elkjs");
 const elk = new ELK();
-const colors = {
-  kind: "#edf4ff",
-  role: "#fff3da",
-  relator: "#f3eaff",
-  phase: "#eaf8f0",
-  event: "#fff0ed",
-  mode: "#eaf7fa",
-};
-const esc = (s) =>
-  String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 const round = (n) => Number(n.toFixed(2));
 function label(id, text, placement = "CENTER") {
   const lines = text.split("\n");
@@ -21,10 +7,11 @@ function label(id, text, placement = "CENTER") {
   return {
     id,
     text,
-    width:
-      Math.max(...lines.map((t) => t.length)) * (end ? 6 : 6.7) +
-      (end ? 6 : 12),
-    height: end ? 16 : lines.length * 17 + 6,
+    width: Math.max(
+      end ? 26 : 0,
+      Math.max(...lines.map((t) => t.length)) * (end ? 7.5 : 7) + 14,
+    ),
+    height: end ? 24 : lines.length * 17 + 8,
     layoutOptions: { "elk.edgeLabels.placement": placement },
   };
 }
@@ -55,7 +42,17 @@ function placeEndLabels(graph) {
       let p = points(e);
       if (l.layoutOptions["elk.edgeLabels.placement"] === "HEAD")
         p = p.slice().reverse();
-      const candidates = [{ x: l.x, y: l.y, score: 0 }];
+      const endpoint = p[0];
+      const candidates = [
+        {
+          x: l.x,
+          y: l.y,
+          score:
+            Math.abs(l.x + l.width / 2 - endpoint.x) +
+            Math.abs(l.y + l.height / 2 - endpoint.y) +
+            20,
+        },
+      ];
       let traveled = 0;
       for (let i = 1; i < p.length && traveled < 260; i++) {
         const a = p[i - 1],
@@ -161,7 +158,7 @@ function geometry(graph) {
     height: round(graph.height),
   };
 }
-async function render(
+async function layoutDiagram(
   view,
   classes,
   relations,
@@ -169,72 +166,29 @@ async function render(
   fields = false,
 ) {
   const allEdges = [
-    ...generalizations.map((g, i) => ({
-      id: "generalization-" + i,
+    ...generalizations.map((g) => ({
+      id: g.id || `generalization-${g.child}-${g.parent}`,
       a: g.child,
       b: g.parent,
       generalization: true,
     })),
-    ...relations,
+    ...relations.map((r) => ({ ...r })),
   ];
   // Class-diagram relations have no process-flow ordering. Give the layered
   // router a balanced rank order, while preserving every UML end and arrow.
-  const columns =
-    view.key === "runtime"
-      ? [
-          [
-            "GameSession",
-            "ClientSlot",
-            "AssignedPlayerEntity",
-            "Respawn",
-            "CommandProcessing",
-            "ClientApplication",
-            "Downing",
-          ],
-          [
-            "PlayerEntity",
-            "GameServer",
-            "SessionParticipant",
-            "NetworkChannel",
-            "Snapshot",
-            "EliminationStatus",
-          ],
-          [
-            "MatchSquad",
-            "ServerFrame",
-            "PlatformIdentity",
-            "SessionParticipation",
-            "SnapshotEmission",
-            "AvatarAssignment",
-            "ReadyPlayer",
-            "DownedPlayer",
-          ],
-          [
-            "EliminatedIdentity",
-            "GameStateChange",
-            "GameMatch",
-            "InputCommand",
-            "PlaylistConfig",
-            "ActiveClientSlot",
-            "ClientReplicationState",
-          ],
-        ]
-      : [
-          ["DirectoryService", "ClientApplication", "ServerListing"],
-          [
-            "ListingPublication",
-            "ServerLookup",
-            "ListingUpdate",
-            "HiddenListing",
-            "PublicListing",
-          ],
-          ["PublishedListing", "GameServer"],
-        ];
+  const columns = view.columns;
   const rank = new Map(columns.flatMap((ns, i) => ns.map((n) => [n, i])));
   for (const e of allEdges) {
     if (rank.get(e.a) === rank.get(e.b))
       throw Error("Adjacent nodes share a layout rank: " + e.a + " / " + e.b);
     e.reversed = rank.get(e.a) > rank.get(e.b);
+  }
+  const portCounts = new Map(
+    view.names.map((name) => [name, { left: 0, right: 0 }]),
+  );
+  for (const edge of allEdges) {
+    portCounts.get(edge.a)[edge.reversed ? "left" : "right"]++;
+    portCounts.get(edge.b)[edge.reversed ? "right" : "left"]++;
   }
   const graph = {
     id: "diagram",
@@ -244,11 +198,11 @@ async function render(
       "elk.edgeRouting": "ORTHOGONAL",
       "elk.padding": "[top=28,left=28,bottom=28,right=28]",
       "elk.spacing.nodeNode": "30",
-      "elk.spacing.edgeNode": "16",
-      "elk.spacing.edgeEdge": "12",
+      "elk.spacing.edgeNode": "20",
+      "elk.spacing.edgeEdge": "16",
       "elk.layered.spacing.nodeNodeBetweenLayers": "56",
       "elk.layered.spacing.edgeNodeBetweenLayers": "20",
-      "elk.layered.spacing.edgeEdgeBetweenLayers": "12",
+      "elk.layered.spacing.edgeEdgeBetweenLayers": "16",
       "elk.spacing.edgeLabel": "6",
       "elk.spacing.labelNode": "12",
       "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
@@ -262,10 +216,14 @@ async function render(
     },
     children: view.names.map((name) => {
       const c = classes.get(name);
+      const ports = portCounts.get(name);
       return {
         id: name,
         width: 232,
-        height: fields && c.attrs.length ? 70 + c.attrs.length * 20 : 66,
+        height: Math.max(
+          fields && c.attrs.length ? 70 + c.attrs.length * 20 : 74,
+          (Math.max(ports.left, ports.right) + 1) * 28,
+        ),
       };
     }),
     edges: allEdges.map((e) => ({
@@ -277,9 +235,7 @@ async function render(
         : [
             label(
               e.id + "-name",
-              ["mediation", "characterization"].includes(e.stereo)
-                ? "«" + e.stereo + "»"
-                : (e.stereo ? "«" + e.stereo + "»\n" : "") + e.name,
+              (e.stereo ? "«" + e.stereo + "»\n" : "") + e.name,
             ),
             label(e.id + "-tail", e.ac, e.reversed ? "HEAD" : "TAIL"),
             label(e.id + "-head", e.bc, e.reversed ? "TAIL" : "HEAD"),
@@ -288,42 +244,81 @@ async function render(
   };
   const result = await elk.layout(graph);
   placeEndLabels(result);
-  const check = geometry(result),
-    byEdge = new Map(allEdges.map((e) => [e.id, e]));
-  const shapes = [];
-  for (const e of result.edges) {
-    const data = byEdge.get(e.id);
-    for (const s of e.sections) {
-      const p = [s.startPoint, ...(s.bendPoints || []), s.endPoint];
-      if (data.reversed) p.reverse();
-      const d = p
-        .map((p, i) => (i ? "L" : "M") + round(p.x) + " " + round(p.y))
-        .join(" ");
-      shapes.push(
-        `<g class="edge${data.generalization ? " generalization" : ""}" data-edge="${esc(e.id)}"><path d="${d}" fill="none" stroke="${data.generalization ? "var(--diagram-inheritance,#57667e)" : "var(--diagram-edge,#77859a)"}" stroke-width="1.4"${data.generalization ? ' marker-end="url(#inheritance)"' : ""}/></g>`,
-      );
-    }
-  }
-  // Labels are rendered after routes to keep them legible at crossings.
-  for (const e of result.edges)
-    for (const l of e.labels || []) {
-      const lines = l.text.split("\n"),
-        isEnd = l.id.endsWith("-head") || l.id.endsWith("-tail");
-      shapes.push(
-        `<g class="edge-label" transform="translate(${round(l.x)} ${round(l.y)})"><rect x="0" y="0" width="${round(l.width)}" height="${round(l.height)}" rx="3" fill="var(--canvas,#fafbfe)"/><text x="${round(l.width / 2)}" text-anchor="middle" fill="var(--diagram-label,#42516a)" font-size="${isEnd ? 10.5 : 12.5}">${lines.map((line, i) => `<tspan x="${round(l.width / 2)}" y="${(isEnd ? 12 : 16) + i * 17}"${i === 0 && lines.length > 1 ? ' font-size="11.5" fill="var(--diagram-muted,#5b687f)"' : ""}>${esc(line)}</tspan>`).join("")}</text></g>`,
-      );
-    }
-  for (const n of result.children) {
-    const c = classes.get(n.id),
-      fieldsSvg =
-        fields && c.attrs.length
-          ? `<path d="M0 66 H${n.width}" stroke="var(--diagram-divider,#b7c2d2)"/><g class="attributes" fill="var(--diagram-attribute,#44546c)" font-size="12">${c.attrs.map(([a, t, k], i) => `<text x="14" y="${85 + i * 20}">${esc(a + " : " + t + (k ? " [" + k + "]" : ""))}</text>`).join("")}</g>`
-          : "";
-    shapes.push(
-      `<g class="node" id="node-${c.name}" data-name="${c.name}" role="button" tabindex="0" aria-label="${c.name}" transform="translate(${round(n.x)} ${round(n.y)})"><rect class="node-box" width="${n.width}" height="${n.height}" rx="4" fill="var(--node-${c.stereo},${colors[c.stereo]})" stroke="var(--diagram-border,#72839d)" stroke-width="1.25"/><text x="${n.width / 2}" y="23" text-anchor="middle" fill="var(--diagram-muted,#5b687f)" font-size="11.5">«${c.stereo}»</text><text x="${n.width / 2}" y="46" text-anchor="middle" fill="var(--text,#26354c)" font-size="15" font-weight="600">${c.name}</text>${fieldsSvg}</g>`,
-    );
-  }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${round(result.width)}" height="${round(result.height)}" viewBox="0 0 ${round(result.width)} ${round(result.height)}" role="img" aria-label="${esc(view.title)}" style="font-family:Inter,Segoe UI,Arial,sans-serif"><defs><marker id="inheritance" markerWidth="13" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11 Z" fill="var(--canvas,#fafbfe)" stroke="var(--diagram-inheritance,#57667e)" stroke-width="1.4"/></marker></defs>${shapes.join("\n")}</svg>`;
-  return { svg, check, layout: result };
+
+  const check = geometry(result);
+  const byEdge = new Map(allEdges.map((e) => [e.id, e]));
+  const diagram = {
+    key: view.key,
+    title: view.title,
+    fields,
+    width: round(result.width),
+    height: round(result.height),
+    initialFocus: view.focusNames.map((name) => classes.get(name).id),
+    nodes: result.children.map((n) => {
+      const c = classes.get(n.id);
+      return {
+        id: c.id,
+        name: c.name,
+        stereotype: c.stereo,
+        x: round(n.x),
+        y: round(n.y),
+        width: round(n.width),
+        height: round(n.height),
+        attributes: fields
+          ? c.attrs.map(([name, type, multiplicity]) => ({
+              name,
+              type,
+              multiplicity,
+            }))
+          : [],
+      };
+    }),
+    edges: result.edges.map((e) => {
+      const data = byEdge.get(e.id);
+      const source = classes.get(data.a),
+        target = classes.get(data.b);
+      return {
+        id: e.id,
+        type: data.generalization ? "generalization" : "association",
+        source: source.id,
+        target: target.id,
+        sourceName: source.name,
+        targetName: target.name,
+        name: data.name || "Generalization",
+        stereotype: data.stereo || "",
+        sourceMultiplicity: data.ac,
+        targetMultiplicity: data.bc,
+        paths: e.sections.map((s) => {
+          const p = [s.startPoint, ...(s.bendPoints || []), s.endPoint];
+          if (data.reversed) p.reverse();
+          return p
+            .map(
+              (point, i) =>
+                (i ? "L" : "M") + round(point.x) + " " + round(point.y),
+            )
+            .join(" ");
+        }),
+        labels: (e.labels || []).map((l) => ({
+          id: l.id,
+          text: l.text,
+          x: round(l.x),
+          y: round(l.y),
+          width: round(l.width),
+          height: round(l.height),
+          kind: l.id.endsWith("-tail")
+            ? "source"
+            : l.id.endsWith("-head")
+              ? "target"
+              : "name",
+          ...(l.id.endsWith("-tail")
+            ? { nodeId: source.id }
+            : l.id.endsWith("-head")
+              ? { nodeId: target.id }
+              : {}),
+        })),
+      };
+    }),
+  };
+  return { diagram, check };
 }
-module.exports = { render };
+module.exports = { layoutDiagram };

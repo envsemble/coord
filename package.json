@@ -6,8 +6,8 @@
   "scripts": {
     "build": "node scripts/build.cjs",
     "check": "node scripts/check.cjs",
-    "test": "node --test tests/camera.test.cjs",
-    "format": "prettier --write src scripts tests model/model.cjs README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json"
+    "test": "node --test tests/camera.test.cjs tests/diagram.test.cjs",
+    "format": "prettier --write src scripts tests model/*.cjs README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json"
   },
   "engines": {
     "node": ">=20"

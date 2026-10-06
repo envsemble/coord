@@ -5,13 +5,14 @@ const clampScale = (scale) => Math.max(0.08, Math.min(3.5, scale));
 
 // The SVG camera updates outside React's render cycle. Only its rounded zoom
 // readout becomes React state; every animation frame can stay inexpensive.
-export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
+export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
   let camera = { x: 0, y: 0, scale: 1, fitted: true };
   let activeKey = null;
-  let viewKey = "runtime";
   let pinchZoom = null;
   let pinchFrame = null;
   let drag = null;
+  let moved = false;
+  let initialFocus = [];
   const cameras = new Map();
   const pointers = new Map();
 
@@ -44,13 +45,11 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
 
   function initialCamera() {
     fit();
-    if (camera.scale >= 0.7) return;
-    const anchors = (
-      viewKey === "runtime"
-        ? ["GameServer", "ClientSlot", "GameSession"]
-        : ["DirectoryService", "ListingPublication", "ServerListing"]
-    ).map((name) => {
-      const node = worldRef.current.querySelector(`[data-name="${name}"]`);
+    if (camera.scale >= 0.7 || !initialFocus.length) return;
+    const anchors = initialFocus.map((id) => {
+      const node = worldRef.current.querySelector(
+        `.node[data-node-id="${id}"]`,
+      );
       const m = node.transform.baseVal.consolidate().matrix;
       const r = node.querySelector("rect");
       return {
@@ -145,11 +144,11 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
     canvas.classList.remove("dragging");
   }
 
-  function restoreView(key, fields) {
+  function restoreView(key, fields, focusIds = []) {
     cancelPinchZoom();
     clearPointers();
     if (activeKey) cameras.set(activeKey, { ...camera });
-    viewKey = key;
+    initialFocus = focusIds;
     activeKey = `${key}:${fields}`;
     if (cameras.has(activeKey)) {
       camera = { ...cameras.get(activeKey) };
@@ -157,15 +156,14 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
     } else initialCamera();
   }
 
-  function focusConcept(name) {
-    const node = worldRef.current.querySelector(`[data-name="${name}"]`);
+  function focusNode(id, rightInset = 0) {
+    const node = worldRef.current.querySelector(`.node[data-node-id="${id}"]`);
     if (!node) return;
     cancelPinchZoom();
     const m = node.transform.baseVal.consolidate().matrix;
     const r = node.querySelector("rect");
     const canvas = canvasRef.current;
-    const freeWidth =
-      canvas.clientWidth > 620 ? canvas.clientWidth - 338 : canvas.clientWidth;
+    const freeWidth = Math.max(1, canvas.clientWidth - rightInset);
     camera.scale = Math.max(camera.scale, 0.85);
     camera.x =
       freeWidth / 2 -
@@ -204,6 +202,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
       "wheel",
       (e) => {
         e.preventDefault();
+        onMotion?.();
         const unit =
           e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1;
         const p = position(e);
@@ -216,6 +215,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
     listen(canvas, "pointerdown", (e) => {
       if (e.button !== 0) return;
       cancelPinchZoom();
+      moved = false;
       const p = position(e);
       pointers.set(e.pointerId, p);
       canvas.setPointerCapture(e.pointerId);
@@ -225,7 +225,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
         lastX: p.x,
         lastY: p.y,
         moved: false,
-        target: e.target.closest(".node")?.dataset.name,
+        target: e.target,
         gesture: gesture(),
       };
       canvas.classList.add("dragging");
@@ -240,11 +240,15 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
         pan(g.x - old.x, g.y - old.y);
         if (old.d > 0) zoomTo((camera.scale * g.d) / old.d, g.x, g.y);
         drag.moved = true;
+        if (!moved) onMotion?.();
+        moved = true;
         drag.gesture = g;
       } else if (g) drag.gesture = g;
       else {
         if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
           drag.moved = true;
+        if (drag.moved && !moved) onMotion?.();
+        if (drag.moved) moved = true;
         if (drag.moved) pan(p.x - drag.lastX, p.y - drag.lastY);
         drag.lastX = p.x;
         drag.lastY = p.y;
@@ -252,10 +256,11 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
     });
     function pointerEnd(e) {
       if (!pointers.has(e.pointerId)) return;
+      if (e.type === "pointercancel") moved = true;
       pointers.delete(e.pointerId);
       if (!pointers.size) {
         if (e.type === "pointerup" && drag && !drag.moved && drag.target)
-          onInspect(drag.target);
+          onTap?.(drag.target);
         drag = null;
         canvas.classList.remove("dragging");
       } else {
@@ -272,13 +277,6 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
     }
     listen(canvas, "pointerup", pointerEnd);
     listen(canvas, "pointercancel", pointerEnd);
-    listen(world, "keydown", (e) => {
-      const node = e.target.closest(".node");
-      if ((e.key === "Enter" || e.key === " ") && node) {
-        e.preventDefault();
-        onInspect(node.dataset.name);
-      }
-    });
     listen(document, "keydown", (e) => {
       if (e.target.matches("input,textarea,[contenteditable='true']")) return;
       if (e.key === "+" || e.key === "=") {
@@ -300,6 +298,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
       "gesturestart",
       (e) => {
         e.preventDefault();
+        onMotion?.();
         cancelPinchZoom();
         safariScale = 1;
       },
@@ -311,6 +310,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
       (e) => {
         e.preventDefault();
         if (!(e.scale > 0)) return;
+        onMotion?.();
         const p = position(e);
         pinchZoomBy(
           Math.log(e.scale / safariScale) * PINCH_GESTURE_SENSITIVITY,
@@ -345,7 +345,8 @@ export function createCamera({ canvasRef, worldRef, onZoom, onInspect }) {
   return {
     attach,
     restoreView,
-    focusConcept,
+    focusNode,
+    hasDragged: () => moved,
     fit,
     reset: () => zoomTo(1),
     zoomBy: (factor) => zoomTo(camera.scale * factor),

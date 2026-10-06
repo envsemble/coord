@@ -4,6 +4,7 @@ const vm = require("node:vm");
 const assert = require("node:assert/strict");
 const { unzipSync } = require("fflate");
 const { build } = require("./build.cjs");
+const { validateDiagram } = require("./diagram/validate.cjs");
 const root = path.resolve(__dirname, "..");
 
 async function check() {
@@ -73,6 +74,8 @@ async function check() {
     built.artifacts.get("r5-models.zip"),
   );
   for (const view of embedded.VIEWS) {
+    validateDiagram(view.diagram, embedded.MODEL);
+    validateDiagram(view.diagramFields, embedded.MODEL);
     assert.equal(view.svg, built.artifacts.get(`r5-${view.key}.svg`));
     assert.equal(
       view.svgFields,

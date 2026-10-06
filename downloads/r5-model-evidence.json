@@ -1031,39 +1031,48 @@
   "generalizations": [
     {
       "child": "PublishedListing",
-      "parent": "ServerListing"
+      "parent": "ServerListing",
+      "id": "generalization-PublishedListing-ServerListing"
     },
     {
       "child": "HiddenListing",
-      "parent": "ServerListing"
+      "parent": "ServerListing",
+      "id": "generalization-HiddenListing-ServerListing"
     },
     {
       "child": "PublicListing",
-      "parent": "ServerListing"
+      "parent": "ServerListing",
+      "id": "generalization-PublicListing-ServerListing"
     },
     {
       "child": "SessionParticipant",
-      "parent": "ClientSlot"
+      "parent": "ClientSlot",
+      "id": "generalization-SessionParticipant-ClientSlot"
     },
     {
       "child": "ActiveClientSlot",
-      "parent": "ClientSlot"
+      "parent": "ClientSlot",
+      "id": "generalization-ActiveClientSlot-ClientSlot"
     },
     {
       "child": "AssignedPlayerEntity",
-      "parent": "PlayerEntity"
+      "parent": "PlayerEntity",
+      "id": "generalization-AssignedPlayerEntity-PlayerEntity"
     },
     {
       "child": "ReadyPlayer",
-      "parent": "PlayerEntity"
+      "parent": "PlayerEntity",
+      "id": "generalization-ReadyPlayer-PlayerEntity"
     },
     {
       "child": "DownedPlayer",
-      "parent": "PlayerEntity"
+      "parent": "PlayerEntity",
+      "id": "generalization-DownedPlayer-PlayerEntity"
     },
     {
       "child": "EliminatedIdentity",
-      "parent": "PlatformIdentity"
+      "parent": "PlatformIdentity",
+      "id": "generalization-EliminatedIdentity-PlatformIdentity"
     }
   ],
   "partitions": [

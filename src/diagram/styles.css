@@ -1,0 +1,107 @@
+:root {
+  --diagram-border: #657b99;
+  --diagram-divider: #46566e;
+  --diagram-edge: #8395b0;
+  --diagram-inheritance: #a2b4cf;
+  --diagram-label: #bdcade;
+  --diagram-muted: #9faec5;
+  --diagram-attribute: #c8d4e7;
+  --node-kind: #1b304b;
+  --node-role: #423623;
+  --node-relator: #342943;
+  --node-phase: #203c31;
+  --node-event: #432b2d;
+  --node-mode: #203842;
+}
+:root[data-theme="light"] {
+  --diagram-border: #72839d;
+  --diagram-divider: #b7c2d2;
+  --diagram-edge: #77859a;
+  --diagram-inheritance: #57667e;
+  --diagram-label: #42516a;
+  --diagram-muted: #5b687f;
+  --diagram-attribute: #44546c;
+  --node-kind: #edf4ff;
+  --node-role: #fff3da;
+  --node-relator: #f3eaff;
+  --node-phase: #eaf8f0;
+  --node-event: #fff0ed;
+  --node-mode: #eaf7fa;
+}
+#canvas {
+  position: fixed;
+  inset: 50px 0 0;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+  cursor: grab;
+  background-color: var(--canvas);
+  background-image: radial-gradient(var(--grid) 0.7px, transparent 0.7px);
+  background-size: 20px 20px;
+  user-select: none;
+}
+#canvas.dragging {
+  cursor: grabbing;
+}
+#world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+#world svg {
+  display: block;
+  overflow: visible;
+}
+.node {
+  cursor: pointer;
+  outline: none;
+}
+.node:hover .node-box,
+.node:focus-visible .node-box {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.node.selected .node-box {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.diagram-element {
+  transition: opacity 130ms ease;
+}
+.node.dimmed,
+.edge.dimmed {
+  opacity: 0.16;
+}
+.node.highlighted .node-box {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.node.highlighted.selected .node-box {
+  stroke-width: 2.5;
+}
+.edge {
+  outline: none;
+  cursor: pointer;
+}
+.edge.highlighted .edge-path,
+.edge:focus-visible .edge-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.edge.highlighted .multiplicity rect {
+  stroke: var(--accent);
+  stroke-width: 1.4;
+}
+.edge.highlighted .edge-label text {
+  fill: var(--accent);
+}
+.edge-label {
+  pointer-events: all;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram-element {
+    transition: none;
+  }
+}

@@ -5,7 +5,10 @@ const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 const { zipSync, strToU8 } = require("fflate");
 const { build: bundleJavaScript } = require("esbuild");
-const { render } = require("./orthogonal.cjs");
+const { layoutDiagram } = require("./diagram/layout.cjs");
+const { renderSVG } = require("./diagram/render.cjs");
+const { validateDiagram } = require("./diagram/validate.cjs");
+const viewSettings = require("../model/views.cjs");
 const cfg = require("../model/model.cjs");
 
 const rootPath = path.resolve(__dirname, "..");
@@ -122,7 +125,7 @@ async function build() {
         .build(),
       `generalization-${child}-${parent}`,
     );
-    gens.push({ child, parent, obj });
+    gens.push({ child, parent, id: stableIds.get(obj.id), obj });
   }
   for (const partition of cfg.partitions) {
     const builder = packages[classes.get(partition.parent).pkg]
@@ -244,26 +247,17 @@ async function build() {
     constraints: cfg.constraints,
     unknowns: cfg.unknowns,
   };
-  const views = [
-    {
-      key: "backend",
-      title: "R5 server discovery and publication",
-      names: [...classes.values()]
-        .filter(
-          (c) =>
-            c.pkg === "backend" ||
-            ["GameServer", "ClientApplication"].includes(c.name),
-        )
-        .map((c) => c.name),
-    },
-    {
-      key: "runtime",
-      title: "R5 game-server runtime",
-      names: [...classes.values()]
-        .filter((c) => c.pkg === "runtime" || c.pkg === "shared")
-        .map((c) => c.name),
-    },
-  ];
+  const views = Object.entries(viewSettings).map(([key, settings]) => ({
+    key,
+    ...settings,
+    names: [...classes.values()]
+      .filter(
+        (c) =>
+          settings.packages.includes(c.pkg) ||
+          settings.includeNames.includes(c.name),
+      )
+      .map((c) => c.name),
+  }));
   const report = {
     date: cfg.date,
     targetBuild: cfg.build,
@@ -304,19 +298,23 @@ async function build() {
       (g) => names.has(g.child) && names.has(g.parent),
     );
     for (const fields of [false, true]) {
-      const rendered = await render(
+      const rendered = await layoutDiagram(
         view,
         classes,
         edges,
         generalizations,
         fields,
       );
-      view[fields ? "svgFields" : "svg"] = rendered.svg;
-      report.diagrams.push({ view: view.key, fields, ...rendered.check });
-      artifacts.set(
-        `r5-${view.key}${fields ? "-fields" : ""}.svg`,
-        rendered.svg,
-      );
+      const svg = renderSVG(rendered.diagram);
+      view[fields ? "diagramFields" : "diagram"] = rendered.diagram;
+      view[fields ? "svgFields" : "svg"] = svg;
+      report.diagrams.push({
+        view: view.key,
+        fields,
+        ...rendered.check,
+        ...validateDiagram(rendered.diagram, model),
+      });
+      artifacts.set(`r5-${view.key}${fields ? "-fields" : ""}.svg`, svg);
     }
     const lines = [
       "@startuml",
@@ -351,6 +349,7 @@ async function build() {
   }
   report.checks.push(
     "All four layouts have only horizontal/vertical relation segments",
+    "Every association has two explicit multiplicities matched to its semantic endpoints",
     "No node overlap, relation through a node, or relation-label overlap with a node or another label",
   );
   const notes = [
@@ -404,7 +403,8 @@ async function build() {
   );
   if (
     !template.includes("/*MODEL_DATA*/") ||
-    !template.includes("/*APP_SCRIPT*/")
+    !template.includes("/*APP_SCRIPT*/") ||
+    !template.includes("/*APP_STYLES*/")
   )
     throw new Error("Missing template marker");
   const app = await bundleJavaScript({
@@ -427,6 +427,11 @@ async function build() {
   );
   const script = `/* React and React DOM\n${license}\n*/\n${app.outputFiles[0].text}`;
   const html = template
+    .replace("/*APP_STYLES*/", () =>
+      ["src/ui/styles.css", "src/diagram/styles.css"]
+        .map((file) => fs.readFileSync(path.join(rootPath, file), "utf8"))
+        .join("\n"),
+    )
     .replace(
       "/*MODEL_DATA*/",
       () =>
