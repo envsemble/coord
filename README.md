@@ -4,6 +4,8 @@ Open **[index.html](index.html)** directly in a browser. It is a self-contained 
 
 The viewer fills the window with a diagram. Two-finger scrolling pans, pinching zooms around the cursor, and dragging pans. **Fit** shows the whole model; **Fields** reveals attributes. Select a concept for its definition and pinned source links. The export menu downloads SVG, PlantUML, OntoUML JSON, or a ZIP of model artifacts, including when the HTML file is opened from disk.
 
+Dark is the default theme. The sun/moon button switches to light or dark and remembers the choice when browser storage is available. The individual SVG download uses the selected theme.
+
 ## Model
 
 Two connected views cover game-server runtime and server discovery/publication, sharing server and client-application identities. The model has 36 domain classes, five value types, 40 relations, and nine generalizations.

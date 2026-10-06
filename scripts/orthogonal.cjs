@@ -300,7 +300,7 @@ async function render(
         .map((p, i) => (i ? "L" : "M") + round(p.x) + " " + round(p.y))
         .join(" ");
       shapes.push(
-        `<g class="edge${data.generalization ? " generalization" : ""}" data-edge="${esc(e.id)}"><path d="${d}" fill="none" stroke="${data.generalization ? "#57667e" : "#77859a"}" stroke-width="1.4"${data.generalization ? ' marker-end="url(#inheritance)"' : ""}/></g>`,
+        `<g class="edge${data.generalization ? " generalization" : ""}" data-edge="${esc(e.id)}"><path d="${d}" fill="none" stroke="${data.generalization ? "var(--diagram-inheritance,#57667e)" : "var(--diagram-edge,#77859a)"}" stroke-width="1.4"${data.generalization ? ' marker-end="url(#inheritance)"' : ""}/></g>`,
       );
     }
   }
@@ -310,20 +310,20 @@ async function render(
       const lines = l.text.split("\n"),
         isEnd = l.id.endsWith("-head") || l.id.endsWith("-tail");
       shapes.push(
-        `<g class="edge-label" transform="translate(${round(l.x)} ${round(l.y)})"><rect x="0" y="0" width="${round(l.width)}" height="${round(l.height)}" rx="3" fill="#fafbfe"/><text x="${round(l.width / 2)}" text-anchor="middle" fill="#42516a" font-size="${isEnd ? 10.5 : 12.5}">${lines.map((line, i) => `<tspan x="${round(l.width / 2)}" y="${(isEnd ? 12 : 16) + i * 17}"${i === 0 && lines.length > 1 ? ' font-size="11.5" fill="#728097"' : ""}>${esc(line)}</tspan>`).join("")}</text></g>`,
+        `<g class="edge-label" transform="translate(${round(l.x)} ${round(l.y)})"><rect x="0" y="0" width="${round(l.width)}" height="${round(l.height)}" rx="3" fill="var(--canvas,#fafbfe)"/><text x="${round(l.width / 2)}" text-anchor="middle" fill="var(--diagram-label,#42516a)" font-size="${isEnd ? 10.5 : 12.5}">${lines.map((line, i) => `<tspan x="${round(l.width / 2)}" y="${(isEnd ? 12 : 16) + i * 17}"${i === 0 && lines.length > 1 ? ' font-size="11.5" fill="var(--diagram-muted,#5b687f)"' : ""}>${esc(line)}</tspan>`).join("")}</text></g>`,
       );
     }
   for (const n of result.children) {
     const c = classes.get(n.id),
       fieldsSvg =
         fields && c.attrs.length
-          ? `<path d="M0 66 H${n.width}" stroke="#b7c2d2"/><g class="attributes" fill="#44546c" font-size="12">${c.attrs.map(([a, t, k], i) => `<text x="14" y="${85 + i * 20}">${esc(a + " : " + t + (k ? " [" + k + "]" : ""))}</text>`).join("")}</g>`
+          ? `<path d="M0 66 H${n.width}" stroke="var(--diagram-divider,#b7c2d2)"/><g class="attributes" fill="var(--diagram-attribute,#44546c)" font-size="12">${c.attrs.map(([a, t, k], i) => `<text x="14" y="${85 + i * 20}">${esc(a + " : " + t + (k ? " [" + k + "]" : ""))}</text>`).join("")}</g>`
           : "";
     shapes.push(
-      `<g class="node" id="node-${c.name}" data-name="${c.name}" role="button" tabindex="0" aria-label="${c.name}" transform="translate(${round(n.x)} ${round(n.y)})"><rect class="node-box" width="${n.width}" height="${n.height}" rx="4" fill="${colors[c.stereo]}" stroke="#8999af" stroke-width="1.25"/><text x="${n.width / 2}" y="23" text-anchor="middle" fill="#66738a" font-size="11.5">«${c.stereo}»</text><text x="${n.width / 2}" y="46" text-anchor="middle" fill="#26354c" font-size="15" font-weight="600">${c.name}</text>${fieldsSvg}</g>`,
+      `<g class="node" id="node-${c.name}" data-name="${c.name}" role="button" tabindex="0" aria-label="${c.name}" transform="translate(${round(n.x)} ${round(n.y)})"><rect class="node-box" width="${n.width}" height="${n.height}" rx="4" fill="var(--node-${c.stereo},${colors[c.stereo]})" stroke="var(--diagram-border,#72839d)" stroke-width="1.25"/><text x="${n.width / 2}" y="23" text-anchor="middle" fill="var(--diagram-muted,#5b687f)" font-size="11.5">«${c.stereo}»</text><text x="${n.width / 2}" y="46" text-anchor="middle" fill="var(--text,#26354c)" font-size="15" font-weight="600">${c.name}</text>${fieldsSvg}</g>`,
     );
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${round(result.width)}" height="${round(result.height)}" viewBox="0 0 ${round(result.width)} ${round(result.height)}" role="img" aria-label="${esc(view.title)}" style="font-family:Inter,Segoe UI,Arial,sans-serif"><defs><marker id="inheritance" markerWidth="13" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11 Z" fill="#fafbfe" stroke="#57667e" stroke-width="1.4"/></marker></defs>${shapes.join("\n")}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${round(result.width)}" height="${round(result.height)}" viewBox="0 0 ${round(result.width)} ${round(result.height)}" role="img" aria-label="${esc(view.title)}" style="font-family:Inter,Segoe UI,Arial,sans-serif"><defs><marker id="inheritance" markerWidth="13" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11 Z" fill="var(--canvas,#fafbfe)" stroke="var(--diagram-inheritance,#57667e)" stroke-width="1.4"/></marker></defs>${shapes.join("\n")}</svg>`;
   return { svg, check, layout: result };
 }
 module.exports = { render };
