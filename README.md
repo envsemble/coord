@@ -2,6 +2,8 @@
 
 Open **[index.html](index.html)** directly in a browser. It is a self-contained offline static website: styles, scripts, both diagrams, and all export data are embedded. No server, CDN, or build is needed to use it. Source links open GitHub when selected.
 
+The interface is built with React 19. React and React DOM are bundled into the HTML during generation; no runtime installation or network connection is required.
+
 The viewer fills the window with a diagram. Two-finger scrolling pans, pinching zooms around the cursor, and dragging pans. **Fit** shows the whole model; **Fields** reveals attributes. Select a concept for its definition and pinned source links. The export menu downloads SVG, PlantUML, OntoUML JSON, or a ZIP of model artifacts, including when the HTML file is opened from disk.
 
 Dark is the default theme. The sun/moon button switches to light or dark and remembers the choice when browser storage is available. The individual SVG download uses the selected theme.
@@ -25,19 +27,24 @@ Stereotypes, cardinalities, and conceptual identity boundaries are interpretatio
 npm ci
 npm run build
 npm run check
+npm test
 ```
 
 Node and npm are needed only to rebuild. The build uses the committed source-evidence manifest and makes no network requests. Installing build dependencies initially requires access to the npm registry.
 
 - `model/model.cjs`: classes, fields, relations, generalizations, constraints, and model version.
 - `model/source-evidence.json`: inspected files, commit hashes, source anchors, exact lines, and claims.
-- `src/viewer.html`: UI template and camera controls.
+- `src/App.jsx`: React viewer, search, details, theme state, and export controls.
+- `src/useDiagramCamera.js` and `src/camera.js`: camera hook and gesture controller, including smooth touchpad zoom and lifecycle cleanup.
+- `src/downloads.js`: offline download hooks with Blob URL cleanup.
+- `src/main.jsx`: React entry point.
+- `src/viewer.html`: HTML shell and styles.
 - `scripts/orthogonal.cjs`: layout and SVG rendering, with overlap and right-angle route checks.
 - `scripts/build.cjs`: model validation, stable identifiers, embedded exports, and static output generation.
 - `schemas/`: vendored OntoUML JSON schema and its upstream license.
 
-Commit the generated `index.html` and `downloads/` files after rebuilding. `npm run check` verifies that those outputs match their sources, the embedded viewer script parses, and the static page has no external runtime dependencies or missing local links. `npm run format` formats editable files.
+Commit the generated `index.html` and `downloads/` files after rebuilding. `npm run check` verifies that those outputs match their sources, the embedded viewer script parses, and the static page has no external runtime dependencies or missing local links. `npm test` checks camera easing, cursor anchoring, accumulated gestures, limits, view restoration, and cleanup. `npm run format` formats editable files.
 
 ## Static hosting
 
-Serve the repository root on any static host, with `index.html` as the entry point. There are no environment variables, backend endpoints, or runtime package dependencies. The same HTML file also works independently from disk.
+Serve the repository root on any static host, with `index.html` as the entry point. There are no environment variables, backend endpoints, or packages to install on the host. The same HTML file also works independently from disk.

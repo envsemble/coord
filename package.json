@@ -6,15 +6,23 @@
   "scripts": {
     "build": "node scripts/build.cjs",
     "check": "node scripts/check.cjs",
-    "format": "prettier --write src scripts model/model.cjs README.md CONTEXT.md"
+    "test": "node --test tests/camera.test.cjs",
+    "format": "prettier --write src scripts tests model/model.cjs README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "elkjs": "0.12.0",
+    "esbuild": "0.28.2",
     "fflate": "0.8.2",
     "ontouml-js": "1.0.0",
     "prettier": "3.8.0"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   }
 }

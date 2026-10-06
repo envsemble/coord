@@ -4,6 +4,7 @@ const { Project, serializationUtils } = require("ontouml-js");
 const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 const { zipSync, strToU8 } = require("fflate");
+const { build: bundleJavaScript } = require("esbuild");
 const { render } = require("./orthogonal.cjs");
 const cfg = require("../model/model.cjs");
 
@@ -401,12 +402,39 @@ async function build() {
     path.join(rootPath, "src/viewer.html"),
     "utf8",
   );
-  if (!template.includes("/*MODEL_DATA*/"))
+  if (
+    !template.includes("/*MODEL_DATA*/") ||
+    !template.includes("/*APP_SCRIPT*/")
+  )
     throw new Error("Missing template marker");
-  const html = template.replace(
-    "/*MODEL_DATA*/",
-    `const MODEL=${inline(model)};const VIEWS=${inline(views)};const EXPORTS=${inline(exports)};`,
+  const app = await bundleJavaScript({
+    absWorkingDir: rootPath,
+    entryPoints: ["src/main.jsx"],
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"production"' },
+    minify: true,
+    charset: "utf8",
+    legalComments: "inline",
+    write: false,
+  });
+  const license = fs.readFileSync(
+    path.join(rootPath, "licenses/react-LICENSE"),
+    "utf8",
   );
+  const script = `/* React and React DOM\n${license}\n*/\n${app.outputFiles[0].text}`;
+  const html = template
+    .replace(
+      "/*MODEL_DATA*/",
+      () =>
+        `const MODEL=${inline(model)};const VIEWS=${inline(views)};const EXPORTS=${inline(exports)};`,
+    )
+    .replace("/*APP_SCRIPT*/", () =>
+      script.replace(/<\/script/gi, "<\\/script"),
+    );
   artifacts.set("r5-models.zip", bundle);
   fs.mkdirSync(downloadPath, { recursive: true });
   for (const [name, content] of artifacts)
