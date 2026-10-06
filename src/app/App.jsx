@@ -52,19 +52,20 @@ export function App({ model, views, exports }) {
       <ViewerToolbar
         {...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL }}
         onView={(key) => {
-          clear();
+          if (key === viewKey) return;
+          const next = views.find((v) => v.key === key).diagram;
+          const elements = selected?.kind === "edge" ? next.edges : next.nodes;
+          if (!elements.some((item) => item.id === selected?.id)) clear();
           setFocusRequest(null);
           setViewKey(key);
         }}
         onFields={() => {
-          clear();
           setFocusRequest(null);
           setFields(!fields);
         }}
         onTheme={toggleTheme}
         onChoose={choose}
         onAbout={() => {
-          setSelected(null);
           setPanel("about");
         }}
         onZoom={(factor) => cameraRef.current.zoomBy(factor)}
@@ -77,7 +78,7 @@ export function App({ model, views, exports }) {
         onSelect={select}
         onZoom={setZoom}
       />
-      <Panel open={!!panel} onClose={clear}>
+      <Panel open={!!panel} onClose={() => setPanel(null)}>
         {panel === "selection" && selected?.kind === "node" && (
           <ConceptDetails concept={element} sources={model.sources} />
         )}

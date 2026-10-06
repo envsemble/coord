@@ -33,6 +33,7 @@ export function UMLNode({ node, focus, selected, handlers }) {
         fill={`var(--node-${node.stereotype},${fills[node.stereotype] || "#edf4ff"})`}
         stroke="var(--diagram-border,#72839d)"
         strokeWidth="1.25"
+        vectorEffect="non-scaling-stroke"
       />
       {node.stereotype && (
         <text

@@ -30,7 +30,7 @@ export function focusedElements(diagram, target) {
     nodes.add(edge.source);
     nodes.add(edge.target);
   }
-  return { nodes, edges };
+  return { nodes, edges, primary: target };
 }
 
 export function elementClass(kind, id, focus, selected) {
@@ -42,6 +42,7 @@ export function elementClass(kind, id, focus, selected) {
         ? "highlighted"
         : "dimmed",
     );
+  if (sameTarget(target, focus?.primary)) classes.push("primary");
   if (sameTarget(target, selected)) classes.push("selected");
   return classes.join(" ");
 }

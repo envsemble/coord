@@ -6,7 +6,7 @@ The interface is built with React 19. React and React DOM are bundled into the H
 
 The viewer fills the window with a diagram. Two-finger scrolling pans, pinching zooms around the cursor, and dragging pans. **Fit** shows the whole model; **Fields** reveals attributes. Select a concept for its definition and pinned source links. The export menu downloads SVG, PlantUML, OntoUML JSON, or a ZIP of model artifacts, including when the HTML file is opened from disk.
 
-Hover or select a node to see its immediate connections. Hover or select a relation to isolate that edge and its two endpoint entities; unrelated elements dim. Hover temporarily overrides a selection, then restores it when the pointer leaves. Select empty canvas or press Escape to clear. Relations can also be selected with Enter or Space. Each association has a readable multiplicity badge at both ends.
+Hover or select a node to see its immediate connections. The active entity has a thicker amber outline; its connected entities have blue outlines. Hover or select a relation to isolate that edge and its two endpoint entities; unrelated elements dim. Hover temporarily overrides a selection, then restores it when the pointer leaves. Selection persists through panning, zooming, empty-canvas clicks, theme and field changes, and closing details. Press Escape to clear. Relations can also be selected with Enter or Space. Each association has a readable multiplicity badge at both ends.
 
 Dark is the default theme. The sun/moon button switches to light or dark and remembers the choice when browser storage is available. The individual SVG download uses the selected theme.
 

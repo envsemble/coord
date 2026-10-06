@@ -31,14 +31,15 @@ export const DiagramCanvas = memo(
       diagram,
       focusRequest,
       onZoom,
-      onTap: (element) => onSelect(readTarget(element)),
+      onTap: (element) => {
+        const target = readTarget(element);
+        if (target) onSelect(target);
+      },
       onMotion: clearTransient,
     });
     useImperativeHandle(ref, () => controls, [controls]);
     useLayoutEffect(clearTransient, [clearTransient, diagram]);
-    useLayoutEffect(() => {
-      if (!selected) clearTransient();
-    }, [clearTransient, selected]);
+    useLayoutEffect(clearTransient, [clearTransient, selected]);
     useEffect(() => {
       const escape = (e) => {
         if (e.key === "Escape") clearTransient();

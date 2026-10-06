@@ -6,6 +6,7 @@
   --diagram-label: #bdcade;
   --diagram-muted: #9faec5;
   --diagram-attribute: #c8d4e7;
+  --diagram-selection: #f4bc65;
   --node-kind: #1b304b;
   --node-role: #423623;
   --node-relator: #342943;
@@ -21,6 +22,7 @@
   --diagram-label: #42516a;
   --diagram-muted: #5b687f;
   --diagram-attribute: #44546c;
+  --diagram-selection: #a65b10;
   --node-kind: #edf4ff;
   --node-role: #fff3da;
   --node-relator: #f3eaff;
@@ -63,10 +65,6 @@
   stroke: var(--accent);
   stroke-width: 2;
 }
-.node.selected .node-box {
-  stroke: var(--accent);
-  stroke-width: 2.5;
-}
 .diagram-element {
   transition: opacity 130ms ease;
 }
@@ -78,8 +76,9 @@
   stroke: var(--accent);
   stroke-width: 2;
 }
-.node.highlighted.selected .node-box {
-  stroke-width: 2.5;
+.node.primary .node-box {
+  stroke: var(--diagram-selection);
+  stroke-width: 3;
 }
 .edge {
   outline: none;

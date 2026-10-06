@@ -16,7 +16,7 @@ const code = transformSync(
 ).code;
 const context = vm.createContext({ module: { exports: {} } });
 new vm.Script(code).runInContext(context);
-const { focusedElements } = context.module.exports;
+const { focusedElements, elementClass } = context.module.exports;
 const graph = {
   nodes: ["A", "B", "C", "D"].map((id) => ({ id })),
   edges: [
@@ -38,6 +38,25 @@ test("node focus reveals one hop and does not leak into neighbors' other edges",
   assert.deepEqual([...focus.edges].sort(), ["AB", "AB2", "BC"]);
   assert.equal(focusedElements(graph, null), null);
   assert.equal(focusedElements(graph, { kind: "edge", id: "missing" }), null);
+});
+
+test("the active entity has a distinct outline state from its connected entities", () => {
+  const selected = { kind: "node", id: "B" };
+  const focus = focusedElements(graph, selected);
+  assert.equal(
+    elementClass("node", "B", focus, selected),
+    "diagram-element node highlighted primary selected",
+  );
+  assert.equal(
+    elementClass("node", "A", focus, selected),
+    "diagram-element node highlighted",
+  );
+  const hover = focusedElements(graph, { kind: "node", id: "A" });
+  assert.match(elementClass("node", "A", hover, selected), /primary/);
+  assert(!elementClass("node", "B", hover, selected).includes("primary"));
+  const relation = focusedElements(graph, { kind: "edge", id: "AB" });
+  assert(!elementClass("node", "A", relation, selected).includes("primary"));
+  assert(!elementClass("node", "B", relation, selected).includes("primary"));
 });
 
 function diagramFixture() {
