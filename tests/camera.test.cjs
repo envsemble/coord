@@ -6,7 +6,10 @@ const { test } = require("node:test");
 const { transformSync } = require("esbuild");
 
 const code = transformSync(
-  fs.readFileSync(path.join(__dirname, "../src/diagram/camera.js"), "utf8"),
+  fs.readFileSync(
+    path.join(__dirname, "../src/visualization/camera.js"),
+    "utf8",
+  ),
   { format: "cjs" },
 ).code;
 

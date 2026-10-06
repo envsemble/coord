@@ -1,6 +1,14 @@
 import { createRoot } from "react-dom/client";
-import { App } from "./app/App";
+import { OntoUMLViewer } from "./viewer/OntoUMLViewer";
+import { ViewerErrorBoundary } from "./viewer/ViewerErrorBoundary";
 
 createRoot(document.getElementById("root")).render(
-  <App model={MODEL} views={VIEWS} exports={EXPORTS} snippets={SNIPPETS} />,
+  <ViewerErrorBoundary>
+    <OntoUMLViewer
+      model={MODEL}
+      views={VIEWS}
+      exports={EXPORTS}
+      snippets={SNIPPETS}
+    />
+  </ViewerErrorBoundary>,
 );

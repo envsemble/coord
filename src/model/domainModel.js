@@ -1,5 +1,5 @@
 // Semantic records only. No coordinates, DOM elements, styles, or React state.
-export function indexModel(model) {
+export function indexViewerModel(model) {
   const nodes = new Map(model.classes.map((node) => [node.id, node]));
   const names = new Map(model.classes.map((node) => [node.name, node]));
   const edges = new Map([
@@ -8,8 +8,8 @@ export function indexModel(model) {
       {
         ...edge,
         type: "association",
-        source: names.get(edge.a),
-        target: names.get(edge.b),
+        source: nodes.get(edge.sourceId),
+        target: nodes.get(edge.targetId),
       },
     ]),
     ...model.generalizations.map((edge) => [
@@ -17,8 +17,8 @@ export function indexModel(model) {
       {
         ...edge,
         type: "generalization",
-        source: names.get(edge.child),
-        target: names.get(edge.parent),
+        source: nodes.get(edge.specificId),
+        target: nodes.get(edge.generalId),
       },
     ]),
   ]);
@@ -34,7 +34,7 @@ export function indexModel(model) {
 export function viewForNode(views, currentKey, node) {
   return (
     views.find(
-      (view) => view.key === currentKey && view.names.includes(node.name),
-    ) || views.find((view) => view.names.includes(node.name))
+      (view) => view.key === currentKey && view.nodeIds.includes(node.id),
+    ) || views.find((view) => view.nodeIds.includes(node.id))
   );
 }

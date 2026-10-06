@@ -1,31 +1,220 @@
 {
-  "date": "2026-10-06",
-  "targetBuild": "R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM",
+  "valid": false,
+  "schema": "https://w3id.org/ontouml/schema/v1.0.2",
+  "engines": [
+    {
+      "name": "Ajv + official OntoUML schema",
+      "version": "1.0.2",
+      "layer": "schema"
+    },
+    {
+      "name": "OntoUML Atlas documented rule subset",
+      "version": "1",
+      "layer": "ontology"
+    }
+  ],
+  "issues": [
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-ListingUpdate",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-ServerLookup",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "PHASE_PARTITION",
+      "severity": "error",
+      "elementId": "class-ActiveClientSlot",
+      "message": "This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.",
+      "layer": "ontology",
+      "documentation": "https://ontouml.readthedocs.io/en/latest/classes/sortals/phase/index.html"
+    },
+    {
+      "code": "PHASE_PARTITION",
+      "severity": "error",
+      "elementId": "class-ReadyPlayer",
+      "message": "This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.",
+      "layer": "ontology",
+      "documentation": "https://ontouml.readthedocs.io/en/latest/classes/sortals/phase/index.html"
+    },
+    {
+      "code": "PHASE_PARTITION",
+      "severity": "error",
+      "elementId": "class-DownedPlayer",
+      "message": "This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.",
+      "layer": "ontology",
+      "documentation": "https://ontouml.readthedocs.io/en/latest/classes/sortals/phase/index.html"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-GameMatch",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-ServerFrame",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-CommandProcessing",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-SnapshotEmission",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-Respawn",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-Downing",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-GameStateChange",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-GameServer-ListingUpdate-host-being-advertised",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-DirectoryService-ListingUpdate-receives-advertisement",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-ClientApplication-ServerLookup-requests-lookup",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-DirectoryService-ServerLookup-serves-lookup",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-GameSession-GameMatch-realized-in",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-GameServer-ServerFrame-runs-frame",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-PlayerEntity-CommandProcessing-command-actor",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-InputCommand-CommandProcessing-processed-request",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-Snapshot-SnapshotEmission-transmitted-state",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-NetworkChannel-SnapshotEmission-send-channel",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-PlayerEntity-Respawn-restored-actor",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-PlayerEntity-Downing-downed-actor",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-GameSession-GameStateChange-changed-context",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    }
+  ],
   "counts": {
-    "classes": 36,
-    "valueTypes": 5,
+    "error": 3,
+    "warning": 0,
+    "info": 23
+  },
+  "limitations": [
+    "This is a documented subset of OntoUML rules, not full semantic or Alloy validation.",
+    "Passing checks cannot establish correct domain identities, empirical claims, or multiplicities.",
+    "N-ary relations, relation-to-relation edges, and diagram annotations are not rendered by this class viewer."
+  ],
+  "modelCounts": {
+    "classes": 41,
     "relations": 40,
     "generalizations": 9
   },
-  "schema": "https://w3id.org/ontouml/schema/v1.0.2",
-  "checks": [
-    "Official OntoUML JSON schema validation with format checks",
-    "Lossless ontouml-js parse/serialize round trip",
-    "Role/phase identity suppliers and role dependence",
-    "Relators with two mandatory mediated ends",
-    "Event and intrinsic-aspect relation directions",
-    "Source URLs match the pinned manifest recorded during inspection",
-    "All four layouts have only horizontal/vertical relation segments",
-    "Every association has two explicit multiplicities matched to its semantic endpoints",
-    "No node overlap, relation through a node, or relation-label overlap with a node or another label"
-  ],
-  "limitations": [
-    "Conceptual identities, stereotypes, cardinalities, and session boundaries remain interpretations",
-    "Native binary code was not inspected or executed",
-    "No full OntoUML semantic or Alloy validation",
-    "No graphical editor import test",
-    "No directory-service implementation or EA matchmaking inspection"
-  ],
   "diagrams": [
     {
       "view": "runtime",
@@ -44,7 +233,7 @@
       "nodes": 28,
       "edges": 37,
       "orthogonalSegments": 143,
-      "width": 2234,
+      "width": 2306,
       "height": 2178,
       "multiplicityLabels": 62,
       "maxMultiplicityDistance": 47

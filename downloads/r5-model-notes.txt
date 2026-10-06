@@ -1,95 +1,58 @@
-R5Reloaded / Apex Season 3 — v0.2
-Target build: R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM
+R5Reloaded / Apex Season 3
+Public-source interpretation; native engine internals partially opaque
 
-Mauler125/r5sdk @ c49e0d2123bc3ddb53419005ddd7c6ef73925faf
-Mauler125/r5_flowstate @ a2cb35fc6d249ea678578ba2df41b9b55f742578
-
-OBSERVATIONS AND INTERPRETATIONS
-SDK declarations, wrappers, and scripts were statically inspected. Stereotypes and multiplicities are interpretations. Native engine bodies and directory-service internals remain partly opaque.
-CClient is a server-side resource, distinct from the remote application. A command can be declined by the movement wrapper. Downed players can satisfy the alive predicate. Elimination is recorded by platform UID and cleared by the inspected respawn path.
-
-SOURCE LINKS
-R0 — Supported Apex Season 3 build
+SOURCES
+R0: Supported Apex Season 3 build
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/README.md#L42
 The SDK targets R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM and requires existing game executables.
-
-R1 — CServer declaration
+R1: CServer declaration
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30
 Exposes server state, tick count and interval, client storage, capacity, map, and dedicated-server status.
-
-R2 — CClient declaration
+R2: CClient declaration
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64
 Server-side client records distinguish user ID, Nucleus identity, channel, sign-on stage, fake-client flag, and replication ticks.
-
-R3 — Network channel declaration
+R3: Network channel declaration
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/net_chan.h#L28
 Exposes endpoint, sequence and acknowledgement state, message handling, and reliable/unreliable streams.
-
-R4 — Input command declaration
+R4: Input command declaration
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/shared/usercmd.h#L29
 Exposes sequence, tick, command time, movement, buttons, view angles, and frame time; unknown fields remain.
-
-R5 — Command-processing wrapper
+R5: Command-processing wrapper
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/server/player_command.cpp#L25
 The SDK can decline command processing based on a movement-time budget, then delegates accepted processing to the binary.
-
-R6 — Partial snapshot declaration
+R6: Partial snapshot declaration
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/framesnapshot.h#L5
 A partial recovered layout includes tick-update data and entity-oriented buffers. Most fields remain unidentified.
-
-R7 — Snapshot-send wrapper
+R7: Snapshot-send wrapper
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.cpp#L384
 The visible snapshot wrapper forwards to CClient__SendSnapshot; it is not the complete emission implementation.
-
-R8 — Server listing record
+R8: Server listing record
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/serverlisting.h#L3
 Listing fields include visibility, map, playlist, endpoint, compatibility data, network-key data, and player counts.
-
-R9 — Pylon API client
+R9: Pylon API client
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56
 Visible client methods query listings, find hidden servers by token, and post host listings. The directory service implementation is not present in this inspected code.
-
-R10 — Server-frame wrapper
+R10: Server-frame wrapper
 https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.cpp#L223
 RunFrame forwards to a recovered binary function pointer; the simulation body remains opaque.
-
-R11 — Game-state script
+R11: Game-state script
 https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_gamestate_mp.nut#L84
 SetGameState updates level game state, signals changes, updates a server variable, and invokes callbacks.
-
-R12 — Bleedout predicate
+R12: Bleedout predicate
 https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_bleedout.gnut#L558
 The script checks the player bleedout state. Downed status is distinct from the alive predicate.
-
-R13 — Elimination registry
+R13: Elimination registry
 https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_base_gametype.gnut#L2172
 Elimination is tracked by platform UID in an EliminatedPlayers map, with a name and team record, and may be cleared.
-
-R14 — Respawn script
+R14: Respawn script
 https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_respawn_beacon.gnut#L1235
 This path clears elimination and passes the same player reference to DecideRespawnPlayer_Retail. The native respawn implementation remains opaque.
-
-R15 — Survival-mode rules
+R15: Survival-mode rules
 https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/gamemodes/survival/_gamemode_survival.nut#L1389
 The survival script uses team relationships, game states, and a playlist setting to decide whether bleedout is enabled.
-
-R16 — Downing script
+R16: Downing script
 https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_bleedout.gnut#L224
 The downing path changes player bleedout state and starts related behavior and callbacks.
-
-CONSTRAINTS
-C01 — Identity separation — Platform UID, slot index/current user ID, entity handle, and network-channel identity are distinct. Reconnect and slot reuse must not silently merge them. — Source-supported distinction; temporal identity rules inferred
-C02 — Slot capacity — The count of active/admitted clients must respect the configured maximum. Static slot storage is not the current lobby population. — R1, R2; proposed invariant
-C03 — Fake clients — Fake-client slots need not have a remote application, network channel, or real platform account. Do not fabricate account identities for bots. — R1, R2; association policy inferred
-C04 — Sign-on classification — ActiveClientSlot corresponds to sign-on state FULL. It says nothing about whether the assigned player is alive or downed. — R2 declaration
-C05 — Participation scope — An assignment, participant, assigned entity, and squad must refer to the same game session. The game-session identity boundary remains inferred. — Proposed OntoUML invariant
-C06 — Life and bleedout — ReadyPlayer means alive and not bleeding out; DownedPlayer means alive and bleeding out. Dead or observer entities may be in neither phase. — R12 motivates classification; stereotypes inferred
-C07 — Elimination dependence — Elimination status is scoped by game session and platform identity. Registry membership, not an entity-only health predicate, determines EliminatedIdentity. — R13 observation; session boundary inferred
-C08 — Respawn continuity — The inspected respawn path clears elimination and reuses a player reference. This supports script-level continuity, but does not prove native allocation or reconnect continuity. — R14 observation
-C09 — Command acceptance — A received command can be declined by the movement-time wrapper. CommandProcessing denotes accepted native execution; it does not guarantee a particular gameplay outcome. — R5 observed control flow
-C10 — Snapshot uncertainty — Do not impose one snapshot per frame or full-world contents from these declarations. Tick, frame, and snapshot-send interfaces are partially opaque. — R6, R7, R10 limits
-C11 — Directory semantics — Listing lookup is discovery, not skill matchmaking or game admission. Hidden/public classify the listing’s hidden field; offline means no publication. — R8, R9; publication relator inferred
-C12 — Version scope — Every source assertion applies to the pinned repositories supporting the named Season 3 build. Flowstate behavior can differ from original retail gameplay. — R0 and script README
 
 OPEN QUESTIONS
 Native bodies behind RunFrame, SendSnapshot, RunCommand, and native respawn calls.
@@ -99,17 +62,32 @@ Exact match/session identity, reconnect ownership, and slot/avatar reuse invaria
 Original retail versus community changes; current EA matchmaking is outside this R5 model.
 
 VALIDATION
-Official OntoUML JSON schema validation with format checks
-Lossless ontouml-js parse/serialize round trip
-Role/phase identity suppliers and role dependence
-Relators with two mandatory mediated ends
-Event and intrinsic-aspect relation directions
-Source URLs match the pinned manifest recorded during inspection
-All four layouts have only horizontal/vertical relation segments
-Every association has two explicit multiplicities matched to its semantic endpoints
-No node overlap, relation through a node, or relation-label overlap with a node or another label
-Limitation: Conceptual identities, stereotypes, cardinalities, and session boundaries remain interpretations
-Limitation: Native binary code was not inspected or executed
-Limitation: No full OntoUML semantic or Alloy validation
-Limitation: No graphical editor import test
-Limitation: No directory-service implementation or EA matchmaking inspection
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+error: This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.
+error: This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.
+error: This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+info: Full constraints for «participation» are outside this local rule set.
+This is a documented subset of OntoUML rules, not full semantic or Alloy validation.
+Passing checks cannot establish correct domain identities, empirical claims, or multiplicities.
+N-ary relations, relation-to-relation edges, and diagram annotations are not rendered by this class viewer.

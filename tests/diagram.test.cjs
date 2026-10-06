@@ -4,12 +4,12 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { test } = require("node:test");
 const { transformSync } = require("esbuild");
-const { renderSVG } = require("../scripts/diagram/render.cjs");
-const { validateDiagram } = require("../scripts/diagram/validate.cjs");
+const { renderSVG } = require("../lib/layout/renderSVG.cjs");
+const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 
 const code = transformSync(
   fs.readFileSync(
-    path.join(__dirname, "../src/diagram/interaction.js"),
+    path.join(__dirname, "../src/visualization/interaction.js"),
     "utf8",
   ),
   { format: "cjs" },
@@ -147,4 +147,16 @@ test("endpoint validation rejects switched multiplicities and wrong physical att
   diagram.edges[0].labels[0].nodeId = "A";
   diagram.edges[0].paths = ["M300 50 L110 50"];
   assert.throws(() => validateDiagram(diagram), /starts at wrong entity/);
+});
+test("same-named entities have unique SVG identities, and abstract classes use UML italics", () => {
+  const diagram = diagramFixture();
+  for (const node of diagram.nodes) {
+    node.name = "Shared name";
+    node.isAbstract = true;
+  }
+  diagram.edges[0].sourceAggregation = "COMPOSITE";
+  const svg = renderSVG(diagram);
+  assert(svg.includes('id="node-A"') && svg.includes('id="node-B"'));
+  assert.equal((svg.match(/font-style="italic"/g) || []).length, 2);
+  assert.match(svg, /marker-start="url\(#[^"]+-COMPOSITE\)"/);
 });

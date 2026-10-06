@@ -1,0 +1,176 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DiagramCanvas } from "../visualization/DiagramCanvas";
+import { useSVGExport } from "../visualization/useSVGExport";
+import { sameTarget } from "../visualization/interaction";
+import { indexViewerModel, viewForNode } from "../model/domainModel";
+import { Panel } from "../ui/Panel";
+import { useTheme } from "../ui/useTheme";
+import { ViewerToolbar } from "./ViewerToolbar";
+import { ConceptDetails, RelationDetails, About } from "./DetailsContent";
+import { useInspection, inspectedTarget } from "./useInspection";
+import { LearningLibrary } from "../learning/LearningContent";
+import { useArtifactArchive } from "./useArtifactArchive";
+
+export function OntoUMLViewer({
+  model,
+  views,
+  exports: exportData,
+  snippets = {},
+}) {
+  const exports = useArtifactArchive(exportData);
+  const index = useMemo(() => indexViewerModel(model), [model]);
+  const [viewKey, setViewKey] = useState(views[0].key),
+    [fields, setFields] = useState(false);
+  const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
+  const [selected, setSelected] = useState(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [learningOpen, setLearningOpen] = useState(false);
+  const { hovered, hover, keepHover, clearHover } = useInspection();
+  const [focusRequest, setFocusRequest] = useState(null),
+    [zoom, setZoom] = useState(100);
+  const cameraRef = useRef(null);
+  const view = views.find((v) => v.key === viewKey) || views[0];
+  const diagram = fields ? view.diagramFields : view.diagram;
+  const diagramURL = useSVGExport(
+    exports.readText(
+      `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`,
+    ),
+    theme,
+  );
+  const inspected = inspectedTarget(hovered, selected);
+  const element = index.getElement(inspected);
+  const select = useCallback(
+    (target) => {
+      clearHover();
+      setSelected((old) => (sameTarget(old, target) ? old : target));
+      setAboutOpen(false);
+      setLearningOpen(false);
+    },
+    [clearHover],
+  );
+  const clear = useCallback(() => {
+    setSelected(null);
+    setAboutOpen(false);
+    setLearningOpen(false);
+    clearHover();
+  }, [clearHover]);
+  useEffect(() => {
+    setSelected(null);
+    setFocusRequest(null);
+    setViewKey(views[0].key);
+    clearHover();
+  }, [model.id, clearHover]);
+  const onHover = useCallback(
+    (target) => {
+      if (target) setLearningOpen(false);
+      hover(target);
+    },
+    [hover],
+  );
+  useEffect(() => {
+    const escape = (e) => {
+      if (e.key === "Escape") clear();
+    };
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [clear]);
+  function choose(id) {
+    const node = index.nodes.get(id);
+    if (!node) return;
+    const next = viewForNode(views, viewKey, node);
+    if (!next) return;
+    setViewKey(next.key);
+    select({ kind: "node", id: node.id });
+    setFocusRequest({ id: node.id });
+  }
+  return (
+    <div className={`viewer${element || learningOpen ? " inspecting" : ""}`}>
+      <ViewerToolbar
+        {...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL }}
+        onView={(key) => {
+          if (key === viewKey) return;
+          const next = views.find((v) => v.key === key).diagram;
+          const elements = selected?.kind === "edge" ? next.edges : next.nodes;
+          if (!elements.some((item) => item.id === selected?.id)) clear();
+          setFocusRequest(null);
+          setViewKey(key);
+        }}
+        onFields={() => {
+          setFocusRequest(null);
+          setFields(!fields);
+        }}
+        onTheme={toggleTheme}
+        onLearn={() => {
+          clearHover();
+          setLearningOpen(!learningOpen);
+        }}
+        onChoose={choose}
+        onAbout={() => {
+          setAboutOpen(true);
+        }}
+        onZoom={(factor) => cameraRef.current.zoomBy(factor)}
+        onReset={() => cameraRef.current.reset()}
+        onFit={() => cameraRef.current.fit()}
+      />
+      <DiagramCanvas
+        ref={cameraRef}
+        {...{ diagram, selected, hovered, focusRequest }}
+        onSelect={select}
+        onZoom={setZoom}
+        onHover={onHover}
+        onClearHover={clearHover}
+      />
+      <Panel
+        className="inspector"
+        open={!!element || learningOpen}
+        label={learningOpen ? "OntoUML learning library" : "Model details"}
+        onClose={learningOpen ? () => setLearningOpen(false) : undefined}
+        onPointerEnter={keepHover}
+        onPointerLeave={() => hover(null)}
+        onFocusCapture={keepHover}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
+        }}
+      >
+        {learningOpen && (
+          <LearningLibrary
+            model={model}
+            onInspect={(id) => {
+              if (index.nodes.has(id)) choose(id);
+              else {
+                const edge = index.edges.get(id);
+                const next = views.find((v) =>
+                  v.diagram.edges.some((e) => e.id === id),
+                );
+                if (edge && next) {
+                  setViewKey(next.key);
+                  select({ kind: "edge", id });
+                }
+              }
+            }}
+          />
+        )}
+        {!learningOpen && element && inspected.kind === "node" && (
+          <ConceptDetails concept={element} model={model} snippets={snippets} />
+        )}
+        {!learningOpen && element && inspected.kind === "edge" && (
+          <RelationDetails
+            relation={element}
+            onChoose={choose}
+            model={model}
+            snippets={snippets}
+          />
+        )}
+      </Panel>
+      <Panel
+        id="about-panel"
+        className="about-panel"
+        label="About and controls"
+        open={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+      >
+        <About model={model} exports={exports} />
+      </Panel>
+    </div>
+  );
+}

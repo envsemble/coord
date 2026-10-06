@@ -53,7 +53,7 @@ export function ConceptSearch({ classes, onChoose }) {
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && hits.length) {
-              choose(hits[0].name);
+              choose(hits[0].id);
               e.preventDefault();
             }
             if (e.key === "ArrowDown") {
@@ -74,7 +74,7 @@ export function ConceptSearch({ classes, onChoose }) {
           aria-label="Concepts"
         >
           {hits.map((c) => (
-            <button key={c.id} role="option" onClick={() => choose(c.name)}>
+            <button key={c.id} role="option" onClick={() => choose(c.id)}>
               {c.name}
             </button>
           ))}

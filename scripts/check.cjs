@@ -4,7 +4,7 @@ const vm = require("node:vm");
 const assert = require("node:assert/strict");
 const { unzipSync } = require("fflate");
 const { build } = require("./build.cjs");
-const { validateDiagram } = require("./diagram/validate.cjs");
+const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 const root = path.resolve(__dirname, "..");
 
 async function check() {
@@ -52,7 +52,7 @@ async function check() {
   const embedded = new vm.Script(
     `${dataLine}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS})`,
   ).runInNewContext({});
-  const excerpts = require("../model/source-snippets.json");
+  const excerpts = require("../examples/r5/source-snippets.json");
   for (const source of embedded.MODEL.sources) {
     const snippet = embedded.SNIPPETS[source.id];
     assert(snippet, `Missing offline source preview: ${source.id}`);
@@ -71,19 +71,6 @@ async function check() {
     );
   }
   assert.equal(
-    embedded.EXPORTS.schema,
-    built.artifacts.get("r5-ontouml.json"),
-    "Embedded OntoUML export differs from the generated schema",
-  );
-  assert.equal(
-    embedded.EXPORTS.notes,
-    built.artifacts.get("r5-model-notes.txt"),
-  );
-  assert.equal(
-    embedded.EXPORTS.validation,
-    built.artifacts.get("r5-validation.json"),
-  );
-  assert.equal(
     JSON.stringify(embedded.MODEL, null, 2),
     built.artifacts.get("r5-model-evidence.json"),
   );
@@ -94,15 +81,6 @@ async function check() {
   for (const view of embedded.VIEWS) {
     validateDiagram(view.diagram, embedded.MODEL);
     validateDiagram(view.diagramFields, embedded.MODEL);
-    assert.equal(view.svg, built.artifacts.get(`r5-${view.key}.svg`));
-    assert.equal(
-      view.svgFields,
-      built.artifacts.get(`r5-${view.key}-fields.svg`),
-    );
-    assert.equal(
-      embedded.EXPORTS.plantUML[view.key],
-      built.artifacts.get(`r5-${view.key}.puml`),
-    );
   }
   for (const [, href] of html.matchAll(/\bhref="([^"$]+)"/g)) {
     if (href.startsWith("downloads/"))

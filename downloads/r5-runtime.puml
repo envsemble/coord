@@ -4,133 +4,132 @@ left to right direction
 hide circle
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
-class GameServer <<kind>> {
-  runtimeIdentity : Text
-  serverState : Text
-  tickCount : Integer
-  tickInterval : Decimal
-  maxClients : Integer
-  isDedicated : Boolean
+class "GameServer" as C5 <<kind>> {
+  runtimeIdentity : Text [1]
+  serverState : Text [1]
+  tickCount : Integer [1]
+  tickInterval : Decimal [1]
+  maxClients : Integer [1]
+  isDedicated : Boolean [1]
 }
-class GameSession <<kind>> {
-  sessionIdentity : Text
-  spawnCount : Integer
-  gameState : Text
+class "GameSession" as C6 <<kind>> {
+  sessionIdentity : Text [1]
+  spawnCount : Integer [1]
+  gameState : Text [1]
 }
-class PlaylistConfig <<kind>> {
-  playlistName : Text
+class "PlaylistConfig" as C7 <<kind>> {
+  playlistName : Text [1]
 }
-class PlatformIdentity <<kind>> {
-  platformUid : Text
+class "PlatformIdentity" as C8 <<kind>> {
+  platformUid : Text [1]
 }
-class ClientApplication <<kind>> {
+class "ClientApplication" as C9 <<kind>> {
 }
-class ClientSlot <<kind>> {
-  slotIndex : Integer
+class "ClientSlot" as C18 <<kind>> {
+  slotIndex : Integer [1]
   currentUserId : Integer [0..1]
-  signonStage : Text
-  fakeClient : Boolean
-  persistenceState : Text
+  signonStage : Text [1]
+  fakeClient : Boolean [1]
+  persistenceState : Text [1]
 }
-class SessionParticipant <<role>> {
+class "SessionParticipant" as C19 <<role>> {
 }
-class SessionParticipation <<relator>> {
+class "SessionParticipation" as C20 <<relator>> {
 }
-class ActiveClientSlot <<phase>> {
+class "ActiveClientSlot" as C21 <<phase>> {
 }
-class NetworkChannel <<kind>> {
-  remoteEndpoint : Text
-  outSequence : Integer
-  inSequence : Integer
-  acknowledgedSequence : Integer
+class "NetworkChannel" as C22 <<kind>> {
+  remoteEndpoint : Text [1]
+  outSequence : Integer [1]
+  inSequence : Integer [1]
+  acknowledgedSequence : Integer [1]
 }
-class ClientReplicationState <<mode>> {
-  commandTick : Integer
-  deltaTick : Integer
-  snapshotTick : Integer
+class "ClientReplicationState" as C23 <<mode>> {
+  commandTick : Integer [1]
+  deltaTick : Integer [1]
+  snapshotTick : Integer [1]
 }
-class PlayerEntity <<kind>> {
-  entityHandle : Integer
-  teamNumber : Integer
-  alive : Boolean
-  bleedoutState : Text
+class "PlayerEntity" as C24 <<kind>> {
+  entityHandle : Integer [1]
+  teamNumber : Integer [1]
+  alive : Boolean [1]
+  bleedoutState : Text [1]
 }
-class AssignedPlayerEntity <<role>> {
+class "AssignedPlayerEntity" as C25 <<role>> {
 }
-class AvatarAssignment <<relator>> {
+class "AvatarAssignment" as C26 <<relator>> {
 }
-class MatchSquad <<kind>> {
-  teamNumber : Integer
+class "MatchSquad" as C27 <<kind>> {
+  teamNumber : Integer [1]
 }
-class ReadyPlayer <<phase>> {
+class "ReadyPlayer" as C28 <<phase>> {
 }
-class DownedPlayer <<phase>> {
+class "DownedPlayer" as C29 <<phase>> {
 }
-class EliminatedIdentity <<role>> {
+class "EliminatedIdentity" as C30 <<role>> {
 }
-class EliminationStatus <<relator>> {
+class "EliminationStatus" as C31 <<relator>> {
 }
-class GameMatch <<event>> {
+class "GameMatch" as C32 <<event>> {
 }
-class ServerFrame <<event>> {
+class "ServerFrame" as C33 <<event>> {
 }
-class InputCommand <<kind>> {
-  commandNumber : Integer
-  tickCount : Integer
-  commandTime : Decimal
-  frameTime : Decimal
-  viewAngles : Vector3
-  buttons : Integer
+class "InputCommand" as C34 <<kind>> {
+  commandNumber : Integer [1]
+  tickCount : Integer [1]
+  commandTime : Decimal [1]
+  frameTime : Decimal [1]
+  viewAngles : Vector3 [1]
+  buttons : Integer [1]
 }
-class CommandProcessing <<event>> {
+class "CommandProcessing" as C35 <<event>> {
 }
-class Snapshot <<kind>> {
+class "Snapshot" as C36 <<kind>> {
 }
-class SnapshotEmission <<event>> {
+class "SnapshotEmission" as C37 <<event>> {
 }
-class Respawn <<event>> {
+class "Respawn" as C38 <<event>> {
 }
-class Downing <<event>> {
+class "Downing" as C39 <<event>> {
 }
-class GameStateChange <<event>> {
-  newState : Text
+class "GameStateChange" as C40 <<event>> {
+  newState : Text [1]
 }
-ClientSlot <|-- SessionParticipant
-ClientSlot <|-- ActiveClientSlot
-PlayerEntity <|-- AssignedPlayerEntity
-PlayerEntity <|-- ReadyPlayer
-PlayerEntity <|-- DownedPlayer
-PlatformIdentity <|-- EliminatedIdentity
-GameServer "1" -- "0..1" GameSession : current game context
-GameSession "0..*" -- "1" PlaylistConfig : configured by
-ClientSlot "0..*" -- "1" GameServer : owned by
-ClientSlot "0..*" -- "0..1" PlatformIdentity : current occupant identity
-ClientSlot "0..1" -- "0..1" NetworkChannel : current channel
-ClientApplication "0..*" -- "0..1" NetworkChannel : remote application
-ClientReplicationState "1" -- "1" ClientSlot : <<characterization>>\ncharacterizes
-SessionParticipation "1..*" -- "1" SessionParticipant : <<mediation>>\nmediates
-SessionParticipation "0..*" -- "1" GameSession : <<mediation>>\nmediates
-AvatarAssignment "0..*" -- "1" SessionParticipant : <<mediation>>\nmediates
-AvatarAssignment "1" -- "1" AssignedPlayerEntity : <<mediation>>\nmediates
-PlayerEntity "0..*" -- "0..1" PlatformIdentity : reported identity
-PlayerEntity "0..*" -- "1" GameSession : exists in
-PlayerEntity "0..*" -- "0..1" MatchSquad : team membership
-MatchSquad "0..*" -- "1" GameSession : squad of
-EliminationStatus "1..*" -- "1" EliminatedIdentity : <<mediation>>\nmediates
-EliminationStatus "0..*" -- "1" GameSession : <<mediation>>\nmediates
-GameSession "1" -- "0..1" GameMatch : <<participation>>\nrealized in
-GameServer "1" -- "0..*" ServerFrame : <<participation>>\nruns frame
-ServerFrame "0..*" -- "0..1" GameSession : current frame context
-PlayerEntity "1" -- "0..*" CommandProcessing : <<participation>>\ncommand actor
-InputCommand "1" -- "0..*" CommandProcessing : <<participation>>\nprocessed request
-ServerFrame "0..1" -- "0..*" CommandProcessing : may encompass
-ClientSlot "1" -- "0..*" SnapshotEmission : <<participation>>\nrecipient slot
-Snapshot "0..1" -- "0..*" SnapshotEmission : <<participation>>\ntransmitted state
-NetworkChannel "0..1" -- "0..*" SnapshotEmission : <<participation>>\nsend channel
-Snapshot "0..*" -- "1" GameSession : state context
-PlayerEntity "1" -- "0..*" Respawn : <<participation>>\nrestored actor
-Respawn "0..*" -- "0..1" EliminationStatus : may clear
-PlayerEntity "1" -- "0..*" Downing : <<participation>>\ndowned actor
-GameSession "1" -- "0..*" GameStateChange : <<participation>>\nchanged context
-note bottom of PlayerEntity : ReadyPlayer / DownedPlayer: disjoint, incomplete.
+C18 <|-- C19
+C18 <|-- C21
+C24 <|-- C25
+C24 <|-- C28
+C24 <|-- C29
+C8 <|-- C30
+C5 "1" -- "0..1" C6 : current game context
+C6 "0..*" -- "1" C7 : configured by
+C18 "0..*" -- "1" C5 : owned by
+C18 "0..*" -- "0..1" C8 : current occupant identity
+C18 "0..1" -- "0..1" C22 : current channel
+C9 "0..*" -- "0..1" C22 : remote application
+C23 "1" -- "1" C18 : <<characterization>>\ncharacterizes
+C20 "1..*" -- "1" C19 : <<mediation>>\nmediates
+C20 "0..*" -- "1" C6 : <<mediation>>\nmediates
+C26 "0..*" -- "1" C19 : <<mediation>>\nmediates
+C26 "1" -- "1" C25 : <<mediation>>\nmediates
+C24 "0..*" -- "0..1" C8 : reported identity
+C24 "0..*" -- "1" C6 : exists in
+C24 "0..*" -- "0..1" C27 : team membership
+C27 "0..*" -- "1" C6 : squad of
+C31 "1..*" -- "1" C30 : <<mediation>>\nmediates
+C31 "0..*" -- "1" C6 : <<mediation>>\nmediates
+C6 "1" -- "0..1" C32 : <<participation>>\nrealized in
+C5 "1" -- "0..*" C33 : <<participation>>\nruns frame
+C33 "0..*" -- "0..1" C6 : current frame context
+C24 "1" -- "0..*" C35 : <<participation>>\ncommand actor
+C34 "1" -- "0..*" C35 : <<participation>>\nprocessed request
+C33 "0..1" -- "0..*" C35 : may encompass
+C18 "1" -- "0..*" C37 : <<participation>>\nrecipient slot
+C36 "0..1" -- "0..*" C37 : <<participation>>\ntransmitted state
+C22 "0..1" -- "0..*" C37 : <<participation>>\nsend channel
+C36 "0..*" -- "1" C6 : state context
+C24 "1" -- "0..*" C38 : <<participation>>\nrestored actor
+C38 "0..*" -- "0..1" C31 : may clear
+C24 "1" -- "0..*" C39 : <<participation>>\ndowned actor
+C6 "1" -- "0..*" C40 : <<participation>>\nchanged context
 @enduml

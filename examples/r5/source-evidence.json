@@ -1,0 +1,189 @@
+[
+  {
+    "id": "R0",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "README.md",
+    "anchor": "S3 `R5pc",
+    "title": "Supported Apex Season 3 build",
+    "claim": "The SDK targets R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM and requires existing game executables.",
+    "line": 42,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/README.md#L42"
+  },
+  {
+    "id": "R1",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/engine/server/server.h",
+    "anchor": "class CServer :",
+    "title": "CServer declaration",
+    "claim": "Exposes server state, tick count and interval, client storage, capacity, map, and dedicated-server status.",
+    "line": 30,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+  },
+  {
+    "id": "R2",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/engine/client/client.h",
+    "anchor": "class CClient :",
+    "title": "CClient declaration",
+    "claim": "Server-side client records distinguish user ID, Nucleus identity, channel, sign-on stage, fake-client flag, and replication ticks.",
+    "line": 64,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+  },
+  {
+    "id": "R3",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/engine/net_chan.h",
+    "anchor": "class CNetChan\r",
+    "title": "Network channel declaration",
+    "claim": "Exposes endpoint, sequence and acknowledgement state, message handling, and reliable/unreliable streams.",
+    "line": 28,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/net_chan.h#L28"
+  },
+  {
+    "id": "R4",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/game/shared/usercmd.h",
+    "anchor": "class CUserCmd\r",
+    "title": "Input command declaration",
+    "claim": "Exposes sequence, tick, command time, movement, buttons, view angles, and frame time; unknown fields remain.",
+    "line": 29,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/shared/usercmd.h#L29"
+  },
+  {
+    "id": "R5",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/game/server/player_command.cpp",
+    "anchor": "void CPlayerMove::StaticRunCommand",
+    "title": "Command-processing wrapper",
+    "claim": "The SDK can decline command processing based on a movement-time budget, then delegates accepted processing to the binary.",
+    "line": 25,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/server/player_command.cpp#L25"
+  },
+  {
+    "id": "R6",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/engine/framesnapshot.h",
+    "anchor": "struct CFrameSnapshot",
+    "title": "Partial snapshot declaration",
+    "claim": "A partial recovered layout includes tick-update data and entity-oriented buffers. Most fields remain unidentified.",
+    "line": 5,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/framesnapshot.h#L5"
+  },
+  {
+    "id": "R7",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/engine/client/client.cpp",
+    "anchor": "void* CClient::VSendSnapshot",
+    "title": "Snapshot-send wrapper",
+    "claim": "The visible snapshot wrapper forwards to CClient__SendSnapshot; it is not the complete emission implementation.",
+    "line": 384,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.cpp#L384"
+  },
+  {
+    "id": "R8",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/networksystem/serverlisting.h",
+    "anchor": "struct NetGameServer_t",
+    "title": "Server listing record",
+    "claim": "Listing fields include visibility, map, playlist, endpoint, compatibility data, network-key data, and player counts.",
+    "line": 3,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/serverlisting.h#L3"
+  },
+  {
+    "id": "R9",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/networksystem/pylon.cpp",
+    "anchor": "bool CPylon::GetServerList",
+    "title": "Pylon API client",
+    "claim": "Visible client methods query listings, find hidden servers by token, and post host listings. The directory service implementation is not present in this inspected code.",
+    "line": 56,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+  },
+  {
+    "id": "R10",
+    "repo": "Mauler125/r5sdk",
+    "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+    "file": "src/engine/server/server.cpp",
+    "anchor": "void CServer::RunFrame",
+    "title": "Server-frame wrapper",
+    "claim": "RunFrame forwards to a recovered binary function pointer; the simulation body remains opaque.",
+    "line": 223,
+    "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.cpp#L223"
+  },
+  {
+    "id": "R11",
+    "repo": "Mauler125/r5_flowstate",
+    "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+    "file": "vscripts/mp/_gamestate_mp.nut",
+    "anchor": "void function SetGameState",
+    "title": "Game-state script",
+    "claim": "SetGameState updates level game state, signals changes, updates a server variable, and invokes callbacks.",
+    "line": 84,
+    "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_gamestate_mp.nut#L84"
+  },
+  {
+    "id": "R12",
+    "repo": "Mauler125/r5_flowstate",
+    "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+    "file": "vscripts/mp/sh_bleedout.gnut",
+    "anchor": "bool function Bleedout_IsBleedingOut",
+    "title": "Bleedout predicate",
+    "claim": "The script checks the player bleedout state. Downed status is distinct from the alive predicate.",
+    "line": 558,
+    "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_bleedout.gnut#L558"
+  },
+  {
+    "id": "R13",
+    "repo": "Mauler125/r5_flowstate",
+    "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+    "file": "vscripts/mp/_base_gametype.gnut",
+    "anchor": "void function SetPlayerEliminated",
+    "title": "Elimination registry",
+    "claim": "Elimination is tracked by platform UID in an EliminatedPlayers map, with a name and team record, and may be cleared.",
+    "line": 2172,
+    "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_base_gametype.gnut#L2172"
+  },
+  {
+    "id": "R14",
+    "repo": "Mauler125/r5_flowstate",
+    "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+    "file": "vscripts/mp/sh_respawn_beacon.gnut",
+    "anchor": "ClearPlayerEliminated( player )",
+    "title": "Respawn script",
+    "claim": "This path clears elimination and passes the same player reference to DecideRespawnPlayer_Retail. The native respawn implementation remains opaque.",
+    "line": 1235,
+    "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_respawn_beacon.gnut#L1235"
+  },
+  {
+    "id": "R15",
+    "repo": "Mauler125/r5_flowstate",
+    "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+    "file": "vscripts/gamemodes/survival/_gamemode_survival.nut",
+    "anchor": "bool function ShouldDoBleedout",
+    "title": "Survival-mode rules",
+    "claim": "The survival script uses team relationships, game states, and a playlist setting to decide whether bleedout is enabled.",
+    "line": 1389,
+    "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/gamemodes/survival/_gamemode_survival.nut#L1389"
+  },
+  {
+    "id": "R16",
+    "repo": "Mauler125/r5_flowstate",
+    "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+    "file": "vscripts/mp/_bleedout.gnut",
+    "anchor": "void function Bleedout_StartPlayerBleedout",
+    "title": "Downing script",
+    "claim": "The downing path changes player bleedout state and starts related behavior and callbacks.",
+    "line": 224,
+    "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_bleedout.gnut#L224"
+  }
+]

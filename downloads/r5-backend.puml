@@ -4,54 +4,53 @@ left to right direction
 hide circle
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
-class GameServer <<kind>> {
-  runtimeIdentity : Text
-  serverState : Text
-  tickCount : Integer
-  tickInterval : Decimal
-  maxClients : Integer
-  isDedicated : Boolean
+class "GameServer" as C5 <<kind>> {
+  runtimeIdentity : Text [1]
+  serverState : Text [1]
+  tickCount : Integer [1]
+  tickInterval : Decimal [1]
+  maxClients : Integer [1]
+  isDedicated : Boolean [1]
 }
-class ClientApplication <<kind>> {
+class "ClientApplication" as C9 <<kind>> {
 }
-class DirectoryService <<kind>> {
-  endpointIdentity : Text
+class "DirectoryService" as C10 <<kind>> {
+  endpointIdentity : Text [1]
 }
-class ServerListing <<kind>> {
-  name : Text
-  hidden : Boolean
-  mapName : Text
-  playlistName : Text
-  address : Text
-  port : Integer
-  numPlayers : Integer
-  maxPlayers : Integer
-  versionId : Text
+class "ServerListing" as C11 <<kind>> {
+  name : Text [1]
+  hidden : Boolean [1]
+  mapName : Text [1]
+  playlistName : Text [1]
+  address : Text [1]
+  port : Integer [1]
+  numPlayers : Integer [1]
+  maxPlayers : Integer [1]
+  versionId : Text [1]
 }
-class PublishedListing <<role>> {
+class "PublishedListing" as C12 <<role>> {
 }
-class ListingPublication <<relator>> {
+class "ListingPublication" as C13 <<relator>> {
 }
-class HiddenListing <<phase>> {
+class "HiddenListing" as C14 <<phase>> {
 }
-class PublicListing <<phase>> {
+class "PublicListing" as C15 <<phase>> {
 }
-class ListingUpdate <<event>> {
+class "ListingUpdate" as C16 <<event>> {
 }
-class ServerLookup <<event>> {
-  lookupMethod : Text
+class "ServerLookup" as C17 <<event>> {
+  lookupMethod : Text [1]
 }
-ServerListing <|-- PublishedListing
-ServerListing <|-- HiddenListing
-ServerListing <|-- PublicListing
-ListingPublication "0..*" -- "1" DirectoryService : <<mediation>>\nmediates
-ListingPublication "1..*" -- "1" PublishedListing : <<mediation>>\nmediates
-ServerListing "0..*" -- "1" GameServer : advertises
-GameServer "1" -- "0..*" ListingUpdate : <<participation>>\nhost being advertised
-DirectoryService "1" -- "0..*" ListingUpdate : <<participation>>\nreceives advertisement
-ListingUpdate "0..*" -- "0..1" ServerListing : updates or creates
-ClientApplication "1" -- "0..*" ServerLookup : <<participation>>\nrequests lookup
-DirectoryService "1" -- "0..*" ServerLookup : <<participation>>\nserves lookup
-ServerLookup "0..*" -- "0..*" ServerListing : returns
-note bottom of ServerListing : HiddenListing / PublicListing: disjoint, complete.
+C11 <|-- C12
+C11 <|-- C14
+C11 <|-- C15
+C13 "0..*" -- "1" C10 : <<mediation>>\nmediates
+C13 "1..*" -- "1" C12 : <<mediation>>\nmediates
+C11 "0..*" -- "1" C5 : advertises
+C5 "1" -- "0..*" C16 : <<participation>>\nhost being advertised
+C10 "1" -- "0..*" C16 : <<participation>>\nreceives advertisement
+C16 "0..*" -- "0..1" C11 : updates or creates
+C9 "1" -- "0..*" C17 : <<participation>>\nrequests lookup
+C10 "1" -- "0..*" C17 : <<participation>>\nserves lookup
+C17 "0..*" -- "0..*" C11 : returns
 @enduml

@@ -3,9 +3,9 @@ const { test } = require("node:test");
 const { buildSync } = require("esbuild");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const { highlightSnippets } = require("../scripts/source-snippets.cjs");
-const sources = require("../model/source-evidence.json");
-const excerpts = require("../model/source-snippets.json");
+const { highlightSnippets } = require("../lib/build/highlightSnippets.cjs");
+const sources = require("../examples/r5/source-evidence.json");
+const excerpts = require("../examples/r5/source-snippets.json");
 
 test("Shiki previews preserve pinned source text, exact line ranges, and both GitHub themes", async () => {
   const highlighted = await highlightSnippets(sources, excerpts);

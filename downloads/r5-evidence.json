@@ -1,0 +1,607 @@
+{
+  "title": "R5Reloaded / Apex Season 3",
+  "version": "0.2",
+  "status": "Public-source interpretation; native engine internals partially opaque",
+  "repositories": [
+    {
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf"
+    },
+    {
+      "repo": "Mauler125/r5_flowstate",
+      "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578"
+    }
+  ],
+  "sources": [
+    {
+      "id": "R0",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "README.md",
+      "anchor": "S3 `R5pc",
+      "title": "Supported Apex Season 3 build",
+      "claim": "The SDK targets R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM and requires existing game executables.",
+      "line": 42,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/README.md#L42"
+    },
+    {
+      "id": "R1",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/engine/server/server.h",
+      "anchor": "class CServer :",
+      "title": "CServer declaration",
+      "claim": "Exposes server state, tick count and interval, client storage, capacity, map, and dedicated-server status.",
+      "line": 30,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.h#L30"
+    },
+    {
+      "id": "R2",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/engine/client/client.h",
+      "anchor": "class CClient :",
+      "title": "CClient declaration",
+      "claim": "Server-side client records distinguish user ID, Nucleus identity, channel, sign-on stage, fake-client flag, and replication ticks.",
+      "line": 64,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.h#L64"
+    },
+    {
+      "id": "R3",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/engine/net_chan.h",
+      "anchor": "class CNetChan\r",
+      "title": "Network channel declaration",
+      "claim": "Exposes endpoint, sequence and acknowledgement state, message handling, and reliable/unreliable streams.",
+      "line": 28,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/net_chan.h#L28"
+    },
+    {
+      "id": "R4",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/game/shared/usercmd.h",
+      "anchor": "class CUserCmd\r",
+      "title": "Input command declaration",
+      "claim": "Exposes sequence, tick, command time, movement, buttons, view angles, and frame time; unknown fields remain.",
+      "line": 29,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/shared/usercmd.h#L29"
+    },
+    {
+      "id": "R5",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/game/server/player_command.cpp",
+      "anchor": "void CPlayerMove::StaticRunCommand",
+      "title": "Command-processing wrapper",
+      "claim": "The SDK can decline command processing based on a movement-time budget, then delegates accepted processing to the binary.",
+      "line": 25,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/game/server/player_command.cpp#L25"
+    },
+    {
+      "id": "R6",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/engine/framesnapshot.h",
+      "anchor": "struct CFrameSnapshot",
+      "title": "Partial snapshot declaration",
+      "claim": "A partial recovered layout includes tick-update data and entity-oriented buffers. Most fields remain unidentified.",
+      "line": 5,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/framesnapshot.h#L5"
+    },
+    {
+      "id": "R7",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/engine/client/client.cpp",
+      "anchor": "void* CClient::VSendSnapshot",
+      "title": "Snapshot-send wrapper",
+      "claim": "The visible snapshot wrapper forwards to CClient__SendSnapshot; it is not the complete emission implementation.",
+      "line": 384,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/client/client.cpp#L384"
+    },
+    {
+      "id": "R8",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/networksystem/serverlisting.h",
+      "anchor": "struct NetGameServer_t",
+      "title": "Server listing record",
+      "claim": "Listing fields include visibility, map, playlist, endpoint, compatibility data, network-key data, and player counts.",
+      "line": 3,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/serverlisting.h#L3"
+    },
+    {
+      "id": "R9",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/networksystem/pylon.cpp",
+      "anchor": "bool CPylon::GetServerList",
+      "title": "Pylon API client",
+      "claim": "Visible client methods query listings, find hidden servers by token, and post host listings. The directory service implementation is not present in this inspected code.",
+      "line": 56,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/networksystem/pylon.cpp#L56"
+    },
+    {
+      "id": "R10",
+      "repo": "Mauler125/r5sdk",
+      "commit": "c49e0d2123bc3ddb53419005ddd7c6ef73925faf",
+      "file": "src/engine/server/server.cpp",
+      "anchor": "void CServer::RunFrame",
+      "title": "Server-frame wrapper",
+      "claim": "RunFrame forwards to a recovered binary function pointer; the simulation body remains opaque.",
+      "line": 223,
+      "url": "https://github.com/Mauler125/r5sdk/blob/c49e0d2123bc3ddb53419005ddd7c6ef73925faf/src/engine/server/server.cpp#L223"
+    },
+    {
+      "id": "R11",
+      "repo": "Mauler125/r5_flowstate",
+      "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+      "file": "vscripts/mp/_gamestate_mp.nut",
+      "anchor": "void function SetGameState",
+      "title": "Game-state script",
+      "claim": "SetGameState updates level game state, signals changes, updates a server variable, and invokes callbacks.",
+      "line": 84,
+      "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_gamestate_mp.nut#L84"
+    },
+    {
+      "id": "R12",
+      "repo": "Mauler125/r5_flowstate",
+      "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+      "file": "vscripts/mp/sh_bleedout.gnut",
+      "anchor": "bool function Bleedout_IsBleedingOut",
+      "title": "Bleedout predicate",
+      "claim": "The script checks the player bleedout state. Downed status is distinct from the alive predicate.",
+      "line": 558,
+      "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_bleedout.gnut#L558"
+    },
+    {
+      "id": "R13",
+      "repo": "Mauler125/r5_flowstate",
+      "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+      "file": "vscripts/mp/_base_gametype.gnut",
+      "anchor": "void function SetPlayerEliminated",
+      "title": "Elimination registry",
+      "claim": "Elimination is tracked by platform UID in an EliminatedPlayers map, with a name and team record, and may be cleared.",
+      "line": 2172,
+      "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_base_gametype.gnut#L2172"
+    },
+    {
+      "id": "R14",
+      "repo": "Mauler125/r5_flowstate",
+      "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+      "file": "vscripts/mp/sh_respawn_beacon.gnut",
+      "anchor": "ClearPlayerEliminated( player )",
+      "title": "Respawn script",
+      "claim": "This path clears elimination and passes the same player reference to DecideRespawnPlayer_Retail. The native respawn implementation remains opaque.",
+      "line": 1235,
+      "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/sh_respawn_beacon.gnut#L1235"
+    },
+    {
+      "id": "R15",
+      "repo": "Mauler125/r5_flowstate",
+      "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+      "file": "vscripts/gamemodes/survival/_gamemode_survival.nut",
+      "anchor": "bool function ShouldDoBleedout",
+      "title": "Survival-mode rules",
+      "claim": "The survival script uses team relationships, game states, and a playlist setting to decide whether bleedout is enabled.",
+      "line": 1389,
+      "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/gamemodes/survival/_gamemode_survival.nut#L1389"
+    },
+    {
+      "id": "R16",
+      "repo": "Mauler125/r5_flowstate",
+      "commit": "a2cb35fc6d249ea678578ba2df41b9b55f742578",
+      "file": "vscripts/mp/_bleedout.gnut",
+      "anchor": "void function Bleedout_StartPlayerBleedout",
+      "title": "Downing script",
+      "claim": "The downing path changes player bleedout state and starts related behavior and callbacks.",
+      "line": 224,
+      "url": "https://github.com/Mauler125/r5_flowstate/blob/a2cb35fc6d249ea678578ba2df41b9b55f742578/vscripts/mp/_bleedout.gnut#L224"
+    }
+  ],
+  "constraints": [
+    [
+      "C01",
+      "Identity separation",
+      "Platform UID, slot index/current user ID, entity handle, and network-channel identity are distinct. Reconnect and slot reuse must not silently merge them.",
+      "Source-supported distinction; temporal identity rules inferred"
+    ],
+    [
+      "C02",
+      "Slot capacity",
+      "The count of active/admitted clients must respect the configured maximum. Static slot storage is not the current lobby population.",
+      "R1, R2; proposed invariant"
+    ],
+    [
+      "C03",
+      "Fake clients",
+      "Fake-client slots need not have a remote application, network channel, or real platform account. Do not fabricate account identities for bots.",
+      "R1, R2; association policy inferred"
+    ],
+    [
+      "C04",
+      "Sign-on classification",
+      "ActiveClientSlot corresponds to sign-on state FULL. It says nothing about whether the assigned player is alive or downed.",
+      "R2 declaration"
+    ],
+    [
+      "C05",
+      "Participation scope",
+      "An assignment, participant, assigned entity, and squad must refer to the same game session. The game-session identity boundary remains inferred.",
+      "Proposed OntoUML invariant"
+    ],
+    [
+      "C06",
+      "Life and bleedout",
+      "ReadyPlayer means alive and not bleeding out; DownedPlayer means alive and bleeding out. Dead or observer entities may be in neither phase.",
+      "R12 motivates classification; stereotypes inferred"
+    ],
+    [
+      "C07",
+      "Elimination dependence",
+      "Elimination status is scoped by game session and platform identity. Registry membership, not an entity-only health predicate, determines EliminatedIdentity.",
+      "R13 observation; session boundary inferred"
+    ],
+    [
+      "C08",
+      "Respawn continuity",
+      "The inspected respawn path clears elimination and reuses a player reference. This supports script-level continuity, but does not prove native allocation or reconnect continuity.",
+      "R14 observation"
+    ],
+    [
+      "C09",
+      "Command acceptance",
+      "A received command can be declined by the movement-time wrapper. CommandProcessing denotes accepted native execution; it does not guarantee a particular gameplay outcome.",
+      "R5 observed control flow"
+    ],
+    [
+      "C10",
+      "Snapshot uncertainty",
+      "Do not impose one snapshot per frame or full-world contents from these declarations. Tick, frame, and snapshot-send interfaces are partially opaque.",
+      "R6, R7, R10 limits"
+    ],
+    [
+      "C11",
+      "Directory semantics",
+      "Listing lookup is discovery, not skill matchmaking or game admission. Hidden/public classify the listing’s hidden field; offline means no publication.",
+      "R8, R9; publication relator inferred"
+    ],
+    [
+      "C12",
+      "Version scope",
+      "Every source assertion applies to the pinned repositories supporting the named Season 3 build. Flowstate behavior can differ from original retail gameplay.",
+      "R0 and script README"
+    ]
+  ],
+  "unknowns": [
+    "Native bodies behind RunFrame, SendSnapshot, RunCommand, and native respawn calls.",
+    "Unknown SDK layout fields and declarations explicitly marked unconfirmed.",
+    "Directory-service implementation, its internal persistence, and publication lifecycle.",
+    "Exact match/session identity, reconnect ownership, and slot/avatar reuse invariants.",
+    "Original retail versus community changes; current EA matchmaking is outside this R5 model."
+  ],
+  "elements": {
+    "class-GameServer": {
+      "evidence": [
+        "R1"
+      ],
+      "status": "inferred",
+      "rationale": "An identified engine-side server resource, distinct from its hosting process and gameplay occurrences.",
+      "questions": []
+    },
+    "class-GameSession": {
+      "evidence": [
+        "R1",
+        "R11"
+      ],
+      "status": "inferred",
+      "rationale": "A conceptual identity for the current level and game roster. No literal match ID was recovered; the boundary is a modeling hypothesis.",
+      "questions": [
+        {
+          "question": "What preserves a game session's identity?",
+          "why": "The SDK declarations do not establish reconnect or match-boundary behavior.",
+          "resolve": "Inspect lifecycle callers and compare reconnect, map-change, and match-restart traces."
+        }
+      ]
+    },
+    "class-PlaylistConfig": {
+      "evidence": [
+        "R8",
+        "R15"
+      ],
+      "status": "inferred",
+      "rationale": "A mode configuration artifact used by server and gameplay scripts; the exact file and override lifecycle is not reconstructed.",
+      "questions": []
+    },
+    "class-PlatformIdentity": {
+      "evidence": [
+        "R2",
+        "R13"
+      ],
+      "status": "inferred",
+      "rationale": "An identity distinguished by a platform/persona UID. Slot-local user IDs do not supply this identity. Real identities and placeholder bot IDs must be distinguished.",
+      "questions": []
+    },
+    "class-ClientApplication": {
+      "evidence": [
+        "R0",
+        "R9"
+      ],
+      "status": "inferred",
+      "primarySource": "R9",
+      "rationale": "The remote game application as a runtime resource. Its process structure is abstracted rather than equated with CClient.",
+      "questions": []
+    },
+    "class-DirectoryService": {
+      "evidence": [
+        "R9"
+      ],
+      "status": "inferred",
+      "rationale": "The opaque Pylon service endpoint reached by the SDK API client. Its internal objects, storage, and deployment are unresolved.",
+      "questions": []
+    },
+    "class-ServerListing": {
+      "evidence": [
+        "R8"
+      ],
+      "status": "inferred",
+      "rationale": "An identified advertisement information artifact describing a game server. It is separate from the server it describes.",
+      "questions": []
+    },
+    "class-PublishedListing": {
+      "evidence": [
+        "R9"
+      ],
+      "status": "inferred",
+      "rationale": "A listing currently published through the directory service. Publication identity and lifecycle are conceptual abstractions.",
+      "questions": []
+    },
+    "class-ListingPublication": {
+      "evidence": [
+        "R9"
+      ],
+      "status": "inferred",
+      "rationale": "The time-bounded publication relationship between a directory service and an advertised listing.",
+      "questions": []
+    },
+    "class-HiddenListing": {
+      "evidence": [
+        "R8",
+        "R9"
+      ],
+      "status": "inferred",
+      "rationale": "A listing whose intrinsic hidden field is true; retrieval can use a token. Offline hosting is the absence of a publication, not a listing phase.",
+      "questions": []
+    },
+    "class-PublicListing": {
+      "evidence": [
+        "R8",
+        "R9"
+      ],
+      "status": "inferred",
+      "rationale": "A listing whose intrinsic hidden field is false.",
+      "questions": []
+    },
+    "class-ListingUpdate": {
+      "evidence": [
+        "R9"
+      ],
+      "status": "inferred",
+      "rationale": "An occurrence submitting host-listing data through PostServerHost; it may create or refresh an advertisement.",
+      "questions": []
+    },
+    "class-ServerLookup": {
+      "evidence": [
+        "R9"
+      ],
+      "status": "inferred",
+      "rationale": "An occurrence querying a server list or looking up a listing by token. It does not itself establish a game connection.",
+      "questions": []
+    },
+    "class-ClientSlot": {
+      "evidence": [
+        "R1",
+        "R2"
+      ],
+      "status": "inferred",
+      "primarySource": "R2",
+      "rationale": "A server-owned CClient resource/slot, reused across connection lifecycles. Neither the remote application nor an enduring player identity.",
+      "questions": []
+    },
+    "class-SessionParticipant": {
+      "evidence": [
+        "R1",
+        "R2"
+      ],
+      "status": "inferred",
+      "primarySource": "R2",
+      "rationale": "A client slot currently admitted to a game session. Continuity across reconnect or slot reuse is not presumed.",
+      "questions": []
+    },
+    "class-SessionParticipation": {
+      "evidence": [
+        "R1",
+        "R2"
+      ],
+      "status": "inferred",
+      "primarySource": "R2",
+      "rationale": "The current relationship between an admitted slot and one session. Historical player results require separate records.",
+      "questions": []
+    },
+    "class-ActiveClientSlot": {
+      "evidence": [
+        "R2"
+      ],
+      "status": "inferred",
+      "primarySource": "R2",
+      "rationale": "A slot with sign-on state FULL, matching CClient::IsActive; this is distinct from avatar life state.",
+      "questions": []
+    },
+    "class-NetworkChannel": {
+      "evidence": [
+        "R3"
+      ],
+      "status": "inferred",
+      "rationale": "A CNetChan communication resource with endpoint and sequencing state. It can exist before a player entity is active.",
+      "questions": []
+    },
+    "class-ClientReplicationState": {
+      "evidence": [
+        "R2"
+      ],
+      "status": "inferred",
+      "rationale": "Slot-specific replication/command state, modeled as an intrinsic mode rather than another player identity.",
+      "questions": []
+    },
+    "class-PlayerEntity": {
+      "evidence": [
+        "R5",
+        "R14"
+      ],
+      "status": "inferred",
+      "rationale": "An identified player character entity. Script-level respawn can reuse its reference; native allocation and lifetime details remain unresolved.",
+      "questions": []
+    },
+    "class-AssignedPlayerEntity": {
+      "evidence": [
+        "R1",
+        "R2",
+        "R5"
+      ],
+      "status": "inferred",
+      "rationale": "A player entity assigned to a session participant; this role also permits fake-client participants.",
+      "questions": []
+    },
+    "class-AvatarAssignment": {
+      "evidence": [
+        "R2",
+        "R5"
+      ],
+      "status": "inferred",
+      "rationale": "The control relationship between one session participant and one assigned player entity. Exact allocation lifecycle is a hypothesis.",
+      "questions": []
+    },
+    "class-MatchSquad": {
+      "evidence": [
+        "R2",
+        "R15"
+      ],
+      "status": "inferred",
+      "rationale": "A session-scoped team/roster abstraction grounded in team numbers and team-based script operations.",
+      "questions": []
+    },
+    "class-ReadyPlayer": {
+      "evidence": [
+        "R12"
+      ],
+      "status": "inferred",
+      "rationale": "A living player entity not in bleedout, using intrinsic life and bleedout state. This does not assert combat eligibility under every temporary effect.",
+      "questions": []
+    },
+    "class-DownedPlayer": {
+      "evidence": [
+        "R12"
+      ],
+      "status": "inferred",
+      "rationale": "A living player entity in bleedout. Alive and downed are not mutually exclusive raw engine predicates.",
+      "questions": []
+    },
+    "class-EliminatedIdentity": {
+      "evidence": [
+        "R13"
+      ],
+      "status": "inferred",
+      "rationale": "A platform identity with a current elimination status in this session. Source evidence is keyed by UID rather than entity life state.",
+      "questions": []
+    },
+    "class-EliminationStatus": {
+      "evidence": [
+        "R13"
+      ],
+      "status": "inferred",
+      "rationale": "The session-specific elimination relationship of a platform identity. The source implements its registry as information records.",
+      "questions": []
+    },
+    "class-GameMatch": {
+      "evidence": [
+        "R11",
+        "R15"
+      ],
+      "status": "inferred",
+      "rationale": "The gameplay occurrence associated with a conceptual game session; not a literal SDK class.",
+      "questions": []
+    },
+    "class-ServerFrame": {
+      "evidence": [
+        "R10"
+      ],
+      "status": "inferred",
+      "rationale": "One invocation of the visible server-frame entry point. Full simulation semantics are delegated to the binary.",
+      "questions": []
+    },
+    "class-InputCommand": {
+      "evidence": [
+        "R4"
+      ],
+      "status": "inferred",
+      "rationale": "An action-request information artifact represented by CUserCmd. Receiving it does not imply that it was processed.",
+      "questions": []
+    },
+    "class-CommandProcessing": {
+      "evidence": [
+        "R5"
+      ],
+      "status": "inferred",
+      "rationale": "An accepted movement-command execution passed to the native processor. Attempts rejected by the wrapper are distinct.",
+      "questions": []
+    },
+    "class-Snapshot": {
+      "evidence": [
+        "R6"
+      ],
+      "status": "inferred",
+      "rationale": "A partially understood server-state information artifact; recovered CFrameSnapshot layout does not establish a complete world-state semantics.",
+      "questions": [
+        {
+          "question": "Does each snapshot represent a complete world state?",
+          "why": "The declarations expose snapshot sending but leave its native contents opaque.",
+          "resolve": "Inspect authorized native implementation or documented replication behavior before tightening its counts."
+        }
+      ]
+    },
+    "class-SnapshotEmission": {
+      "evidence": [
+        "R7"
+      ],
+      "status": "inferred",
+      "rationale": "An invocation of the snapshot-send interface for one client slot. The actual encoding and emission body is not available here.",
+      "questions": []
+    },
+    "class-Respawn": {
+      "evidence": [
+        "R14"
+      ],
+      "status": "inferred",
+      "rationale": "An occurrence restoring an existing script-referenced player entity, potentially clearing its platform identity’s elimination status.",
+      "questions": []
+    },
+    "class-Downing": {
+      "evidence": [
+        "R16"
+      ],
+      "status": "inferred",
+      "rationale": "An occurrence entering player bleedout, distinct from eliminating a platform identity.",
+      "questions": []
+    },
+    "class-GameStateChange": {
+      "evidence": [
+        "R11"
+      ],
+      "status": "inferred",
+      "rationale": "An occurrence of SetGameState for the current level/game context.",
+      "questions": []
+    }
+  }
+}

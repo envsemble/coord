@@ -1,0 +1,173 @@
+[
+  {
+    "key": "runtime",
+    "label": "Game server",
+    "title": "R5 game-server runtime",
+    "nodeIds": [
+      "class-GameServer",
+      "class-GameSession",
+      "class-PlaylistConfig",
+      "class-PlatformIdentity",
+      "class-ClientApplication",
+      "class-ClientSlot",
+      "class-SessionParticipant",
+      "class-SessionParticipation",
+      "class-ActiveClientSlot",
+      "class-NetworkChannel",
+      "class-ClientReplicationState",
+      "class-PlayerEntity",
+      "class-AssignedPlayerEntity",
+      "class-AvatarAssignment",
+      "class-MatchSquad",
+      "class-ReadyPlayer",
+      "class-DownedPlayer",
+      "class-EliminatedIdentity",
+      "class-EliminationStatus",
+      "class-GameMatch",
+      "class-ServerFrame",
+      "class-InputCommand",
+      "class-CommandProcessing",
+      "class-Snapshot",
+      "class-SnapshotEmission",
+      "class-Respawn",
+      "class-Downing",
+      "class-GameStateChange"
+    ],
+    "focusIds": [
+      "class-GameServer",
+      "class-ClientSlot",
+      "class-GameSession"
+    ],
+    "columns": [
+      [
+        "class-GameSession",
+        "class-ClientSlot",
+        "class-AssignedPlayerEntity",
+        "class-Respawn",
+        "class-CommandProcessing",
+        "class-ClientApplication",
+        "class-Downing"
+      ],
+      [
+        "class-PlayerEntity",
+        "class-GameServer",
+        "class-SessionParticipant",
+        "class-NetworkChannel",
+        "class-Snapshot",
+        "class-EliminationStatus"
+      ],
+      [
+        "class-MatchSquad",
+        "class-ServerFrame",
+        "class-PlatformIdentity",
+        "class-SessionParticipation",
+        "class-SnapshotEmission",
+        "class-AvatarAssignment",
+        "class-ReadyPlayer",
+        "class-DownedPlayer"
+      ],
+      [
+        "class-EliminatedIdentity",
+        "class-GameStateChange",
+        "class-GameMatch",
+        "class-InputCommand",
+        "class-PlaylistConfig",
+        "class-ActiveClientSlot",
+        "class-ClientReplicationState"
+      ]
+    ],
+    "edgeIds": [
+      "relation-shared-GameServer-GameSession-current-game-context",
+      "relation-shared-GameSession-PlaylistConfig-configured-by",
+      "relation-runtime-ClientSlot-GameServer-owned-by",
+      "relation-runtime-ClientSlot-PlatformIdentity-current-occupant-identity",
+      "relation-runtime-ClientSlot-NetworkChannel-current-channel",
+      "relation-runtime-ClientApplication-NetworkChannel-remote-application",
+      "relation-runtime-ClientReplicationState-ClientSlot-characterizes",
+      "relation-runtime-SessionParticipation-SessionParticipant-mediates",
+      "relation-runtime-SessionParticipation-GameSession-mediates",
+      "relation-runtime-AvatarAssignment-SessionParticipant-mediates",
+      "relation-runtime-AvatarAssignment-AssignedPlayerEntity-mediates",
+      "relation-runtime-PlayerEntity-PlatformIdentity-reported-identity",
+      "relation-runtime-PlayerEntity-GameSession-exists-in",
+      "relation-runtime-PlayerEntity-MatchSquad-team-membership",
+      "relation-runtime-MatchSquad-GameSession-squad-of",
+      "relation-runtime-EliminationStatus-EliminatedIdentity-mediates",
+      "relation-runtime-EliminationStatus-GameSession-mediates",
+      "relation-runtime-GameSession-GameMatch-realized-in",
+      "relation-runtime-GameServer-ServerFrame-runs-frame",
+      "relation-runtime-ServerFrame-GameSession-current-frame-context",
+      "relation-runtime-PlayerEntity-CommandProcessing-command-actor",
+      "relation-runtime-InputCommand-CommandProcessing-processed-request",
+      "relation-runtime-ServerFrame-CommandProcessing-may-encompass",
+      "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot",
+      "relation-runtime-Snapshot-SnapshotEmission-transmitted-state",
+      "relation-runtime-NetworkChannel-SnapshotEmission-send-channel",
+      "relation-runtime-Snapshot-GameSession-state-context",
+      "relation-runtime-PlayerEntity-Respawn-restored-actor",
+      "relation-runtime-Respawn-EliminationStatus-may-clear",
+      "relation-runtime-PlayerEntity-Downing-downed-actor",
+      "relation-runtime-GameSession-GameStateChange-changed-context",
+      "generalization-SessionParticipant-ClientSlot",
+      "generalization-ActiveClientSlot-ClientSlot",
+      "generalization-AssignedPlayerEntity-PlayerEntity",
+      "generalization-ReadyPlayer-PlayerEntity",
+      "generalization-DownedPlayer-PlayerEntity",
+      "generalization-EliminatedIdentity-PlatformIdentity"
+    ]
+  },
+  {
+    "key": "backend",
+    "label": "Server browser",
+    "title": "R5 server discovery and publication",
+    "nodeIds": [
+      "class-GameServer",
+      "class-ClientApplication",
+      "class-DirectoryService",
+      "class-ServerListing",
+      "class-PublishedListing",
+      "class-ListingPublication",
+      "class-HiddenListing",
+      "class-PublicListing",
+      "class-ListingUpdate",
+      "class-ServerLookup"
+    ],
+    "focusIds": [
+      "class-DirectoryService",
+      "class-ListingPublication",
+      "class-ServerListing"
+    ],
+    "columns": [
+      [
+        "class-DirectoryService",
+        "class-ClientApplication",
+        "class-ServerListing"
+      ],
+      [
+        "class-ListingPublication",
+        "class-ServerLookup",
+        "class-ListingUpdate",
+        "class-HiddenListing",
+        "class-PublicListing"
+      ],
+      [
+        "class-PublishedListing",
+        "class-GameServer"
+      ]
+    ],
+    "edgeIds": [
+      "relation-backend-ListingPublication-DirectoryService-mediates",
+      "relation-backend-ListingPublication-PublishedListing-mediates",
+      "relation-backend-ServerListing-GameServer-advertises",
+      "relation-backend-GameServer-ListingUpdate-host-being-advertised",
+      "relation-backend-DirectoryService-ListingUpdate-receives-advertisement",
+      "relation-backend-ListingUpdate-ServerListing-updates-or-creates",
+      "relation-backend-ClientApplication-ServerLookup-requests-lookup",
+      "relation-backend-DirectoryService-ServerLookup-serves-lookup",
+      "relation-backend-ServerLookup-ServerListing-returns",
+      "generalization-PublishedListing-ServerListing",
+      "generalization-HiddenListing-ServerListing",
+      "generalization-PublicListing-ServerListing"
+    ]
+  }
+]

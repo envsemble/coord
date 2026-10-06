@@ -1,58 +1,119 @@
-# Apex Legends / R5 OntoUML
+# OntoUML Atlas
 
-Open **[index.html](index.html)** directly in a browser. It is a self-contained offline static website: styles, scripts, both diagrams, and all export data are embedded. No server, CDN, or build is needed to use it. Source links open GitHub when selected.
+An agent-ready library for evidence-backed OntoUML models, with validation, a React viewer, and contextual learning. The viewer is read-only. An agent authors the standard model; the library validates it and produces a self-contained offline HTML site.
 
-The interface is built with React 19. React and React DOM are bundled into the HTML during generation; no runtime installation or network connection is required.
+Open [index.html](index.html) to explore the included R5Reloaded example. It uses pinned public sources for Apex Season 3. The example is separate from the reusable library and excluded from its package.
 
-The viewer fills the window with a diagram. Two-finger scrolling pans, pinching zooms around the cursor, and dragging pans. **Fit** shows the whole model; **Fields** reveals attributes. Select a concept for its definition and pinned source links. The export menu downloads SVG, PlantUML, OntoUML JSON, or a ZIP of model artifacts, including when the HTML file is opened from disk.
-
-Hover or select a node to see its immediate connections. The active entity has a thicker amber outline; its connected entities have blue outlines. Hover or select a relation to isolate that edge and its two endpoint entities; unrelated elements dim. A wide source sidebar follows the hovered element, falls back to the selected one, and hides when neither exists. The diagram uses the space beside it; clicking a node keeps it visible, and Fit uses the available canvas. Moving into the sidebar keeps the hovered item's details available so its links and snippets remain usable. Hover temporarily overrides a selection, then restores it when the pointer leaves. Selection persists through panning, zooming, empty-canvas clicks, and theme and field changes. Press Escape to clear. Relations can also be selected with Enter or Space. Each association has a readable multiplicity badge at both ends.
-
-The interface and diagram use GitHub's default dark and light palettes; dark is the default. The sun/moon button switches themes and remembers the choice when browser storage is available. The individual SVG download uses the selected theme. Source previews use [Shiki](https://shiki.style/guide/dual-themes) with `github-dark-default` and `github-light-default`; token colors are computed during the build and embedded in the HTML. The viewer makes no runtime requests for snippets or highlighting. Each preview has original line numbers and a link to the exact range at the pinned GitHub commit. Additional sources and proposed fields expand on demand.
-
-## Model
-
-Two connected views cover game-server runtime and server discovery/publication, sharing server and client-application identities. The model has 36 domain classes, five value types, 40 relations, and nine generalizations.
-
-The evidence comes from public R5 SDK and Flowstate repositories targeting this Apex Season 3 build:
-
-`R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM`
-
-- [R5 SDK](https://github.com/Mauler125/r5sdk/tree/c49e0d2123bc3ddb53419005ddd7c6ef73925faf)
-- [Flowstate scripts](https://github.com/Mauler125/r5_flowstate/tree/a2cb35fc6d249ea678578ba2df41b9b55f742578)
-
-Stereotypes, cardinalities, and conceptual identity boundaries are interpretations. Native engine bodies and the directory-service implementation were not recovered. Pylon discovery is distinct from EA skill matchmaking. Full OntoUML semantic validation and graphical editor import remain untested. See [source notes](downloads/r5-model-notes.txt) and the [validation report](downloads/r5-validation.json).
-
-## Editing
+## Give an agent a modeling job
 
 ```sh
 npm ci
-npm run build
-npm run check
-npm test
+node bin/ontouml.cjs init --project /path/to/server --project /path/to/client --question "Model session participation and discovery" --out work/session-model
 ```
 
-Node and npm are needed only to rebuild. The build uses the committed source-evidence manifest and makes no network requests. Installing build dependencies initially requires access to the npm registry.
+Give your coding agent the generated `work/session-model/AGENT.md`. `job.json` records the question, source paths and Git revisions. The agent inspects those projects, writes standard OntoUML JSON and evidence, then runs:
 
-- `model/model.cjs`: classes, fields, relations, generalizations, constraints, and model version.
-- `model/source-evidence.json`: inspected files, commit hashes, source anchors, exact lines, and claims.
-- `model/source-snippets.json`: short, unmodified excerpts from those pinned source files, with original line numbers and provenance.
-- `model/views.cjs`: R5 view membership and placement preferences, separate from semantic definitions.
-- `src/model/`: indexes semantic entities and relationships without UI or geometry.
-- `src/app/`: connects the R5 model, reusable UI, and diagram canvas; contains source details and application-specific controls.
-- `src/ui/`: reusable buttons, tabs, camera controls, search, panels, menus, download links, theme and popup hooks, and interface styles.
-- `src/diagram/`: domain-independent React UML node, relation, and multiplicity components; hover/selection logic; camera controls; diagram styles; and SVG exports.
-- `src/main.jsx`: React entry point.
-- `src/viewer.html`: standalone HTML shell with build markers for inline styles, data, and scripts.
-- `scripts/diagram/`: orthogonal layout, geometry and endpoint validation, and static SVG generation using the same React components as the live diagram.
-- `scripts/build.cjs`: model validation, stable identifiers, embedded exports, and static output generation.
-- `scripts/source-snippets.cjs`: build-time Shiki highlighting, with C++ and Markdown grammars and a small Squirrel extension of the C++ grammar. Highlighted display data is kept separate from the semantic model.
-- `schemas/`: vendored OntoUML JSON schema and its upstream license.
+```sh
+node bin/ontouml.cjs validate work/session-model/model.ontouml.json --evidence work/session-model/evidence.json --json
+node bin/ontouml.cjs build work/session-model/job.json --out work/session-site
+```
 
-Commit the generated `index.html` and `downloads/` files after rebuilding. `npm run check` verifies that those outputs match their sources, the embedded viewer script parses, the static page has no external runtime dependencies, snippets retain their source text and exact GitHub ranges, and counts and routed ends match their semantic identities. `npm test` checks camera behavior and cleanup, tap/drag separation, graph focus, generic UML rendering, detection of swapped endpoints, snippet provenance and both themes, and safe code rendering. `npm run format` formats editable files.
+Open `work/session-site/index.html`, or host it on any static host. No backend, credentials, CDN, runtime requests or AI service are required. This workflow uses your existing coding agent; it does not call an LLM automatically.
 
-The semantic model contains class identities, stereotypes, attributes, associations, and multiplicities. A layout produces ordinary geometry data (nodes, orthogonal paths, and labels), which the renderer consumes without knowing the R5 domain. There is no diagram scripting language. Both the browser and SVG exports use `UMLDiagram`, `UMLNode`, and `UMLRelation`, so notation stays consistent. Association multiplicities appear at their respective ends; inheritance uses a hollow triangle and no multiplicity badges, following [UML notation](https://www.omg.org/spec/UML/2.5.1/PDF).
+Validation exits with 0 when implemented checks pass, 1 when findings include errors, and 2 for a command or input failure. The builder rejects malformed models and broken references. It can visualize ontology findings so a reader can investigate them without pretending they pass.
 
-## Static hosting
+## Model, evidence and views
 
-Serve the repository root on any static host, with `index.html` as the entry point. There are no environment variables, backend endpoints, or packages to install on the host. The same HTML file also works independently from disk.
+- `model.ontouml.json`: the official [OntoUML exchange format](https://github.com/OntoUML/ontouml-schema), a flat Project with identified elements. Use the existing `ontouml-js` builders or write conforming JSON. No diagram language is involved.
+- `evidence.json`: sources, interpretation rationale, confidence status and unresolved questions, keyed by model element ID. See [the evidence schema](schemas/evidence-schema.json).
+- `views.json`: optional node IDs, edge IDs, focus IDs and placement preferences. An empty array generates a default view. View settings never change ontology.
+- `snippets.json`: optional short, unmodified source excerpts. Provenance must match the source manifest. Shiki highlights them at build time with both GitHub default themes.
+
+Two source projects can contribute to one OntoUML project using separate packages and deliberate shared identities. `mergeProjects` namespaces IDs when combining independently authored models; identical names stay distinct. Author cross-project relations against those IDs afterwards, and namespace accompanying evidence keys in the same way.
+
+See [the agent workflow](agents/MODELING.md) for the contract, supported excerpt languages and modeling guidance.
+
+## Node and React APIs
+
+Install the package locally or from a tarball produced by `npm pack`. Node 20 or later is required.
+
+```js
+const {
+  Project,
+  validateModel,
+  buildViewer,
+  writeViewer,
+} = require("ontouml-atlas");
+
+const project = new Project();
+project.name.add("Orders");
+const domain = project.packageBuilder().root().name("Orders").build();
+domain.classBuilder().kind().name("Order").build();
+
+const data = JSON.parse(JSON.stringify(project));
+const report = validateModel(data);
+const built = await buildViewer({ project: data, slug: "orders" });
+writeViewer(built, "./site");
+```
+
+`buildViewer` returns HTML, export artifacts, a validation report, scenes and `payload`. Use the payload in a React 19.3 application:
+
+```jsx
+import { OntoUMLViewer, ViewerErrorBoundary } from "ontouml-atlas/react";
+import "ontouml-atlas/viewer.css";
+import "ontouml-atlas/diagram.css";
+
+<ViewerErrorBoundary>
+  <OntoUMLViewer {...payload} />
+</ViewerErrorBoundary>;
+```
+
+The complete viewer occupies the viewport and manages its theme. For a custom interface, use `UMLDiagram` with an ordinary `DiagramScene`, or `DiagramCanvas` with controlled selection and hover callbacks. The renderer knows nothing about source projects or evidence. Public APIs include TypeScript declarations; the React entry point is precompiled ESM, with React as a peer dependency.
+
+## Validation and learning
+
+The local validator integrates Ajv with the unmodified official OntoUML schema v1.0.2. It also checks IDs, typed references, multiplicities, ownership and cycles, plus a documented subset of ontology rules: identity providers, rigidity, mandatory role dependence, complete phase partitions, relator participants, intrinsic aspect bearers and relation directions. Findings identify affected elements and link to the relevant specification.
+
+These checks are intentionally reported separately from domain correctness. They do not provide full OntoUML semantics, anti-pattern detection or Alloy model checking. Rule coverage notices remain available in the viewer. [OntoUML Server](https://github.com/OntoUML/ontouml-server) offers a verification service using an older exchange contract; the [archived Python validator](https://github.com/OntoUML/ontouml-validator) consumes RDF vocabulary graphs. Neither is silently called with private models or treated as compatible with the current flat JSON format.
+
+The bundled learning material paraphrases the [OntoUML specification](https://ontouml.readthedocs.io/en/latest/) and works offline. Inspect a concept or relation to understand its stereotype, identity provider and counts. Evidence can explain why a classification was chosen, what remains uncertain, and how to resolve it. The Learn panel adds a searchable reference and a small count-reading exercise. Full specification links open externally when requested.
+
+The R5 example currently has three phase-partition findings. Its ActiveClientSlot, ReadyPlayer and DownedPlayer alternatives are not complete. These are preserved for review; the library does not invent missing phases or mark incomplete partitions complete merely to pass validation.
+
+## Viewer behavior
+
+Two fingers pan; pinch zooms slowly and smoothly. Drag also pans. Hover takes priority over selection in the wide sidebar. Hover or selection dims unrelated elements; a relation keeps only itself and its two endpoints highlighted. The active entity has an amber outline and connected entities have blue outlines. Selection survives navigation, theme changes and field toggling. Escape clears it.
+
+Each association shows counts at both ends. Inheritance uses a hollow triangle and no counts. Routes have only horizontal and vertical segments, checked during generation. Dark is the default; light is available and remembered when browser storage permits. Source snippets include line numbers and pinned GitHub links. SVG, standard JSON, evidence, views, notes, validation and ZIP downloads work directly from disk.
+
+Exports have one compressed copy in the HTML; SVG downloads use the chosen theme. The included page is about 45% smaller than the initial uncompressed library build. Source repositories, the layout engine and Shiki are build-time inputs, never runtime network dependencies.
+
+## Structure and checks
+
+```text
+lib/model/        Standard exchange indexing, viewer projection, project merging
+lib/validation/  Official schema, references, evidence and ontology rules
+lib/layout/      View preparation, orthogonal geometry, SVG and endpoint checks
+lib/build/       Offline HTML generation, export archive, Shiki previews
+lib/agent/       Multi-project modeling jobs
+src/viewer/      React application composition and evidence sidebar
+src/visualization/  Reusable UML components, camera and focus behavior
+src/learning/    Bundled specification guidance and model-specific explanations
+src/ui/          Reusable controls, panels, themes and downloads
+examples/r5/     Season 3 model, pinned source evidence and view preferences
+schemas/         Official exchange schema and application contracts
+```
+
+```sh
+npm run format
+npm run build
+npm run format:check
+npm run check:types
+npm test
+npm run check
+npm run check:package
+```
+
+`check` verifies reproducible committed HTML/downloads, offline dependencies, source previews, geometry and ZIP fidelity. `check:package` packs the library, installs it in a clean temporary directory, and exercises both public entry points and a fresh viewer build. The GitLab CI pipeline runs these checks. Installing dependencies and the package smoke check require registry access; building and using the HTML do not.
+
+Commit `index.html`, `downloads/` and `dist/` after changes. Core package files exclude the R5 example, tests and generated demo exports. Publishing remains disabled (`private`, `UNLICENSED`); the repository has not been published or deployed. Dependency licenses and source attribution are preserved in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

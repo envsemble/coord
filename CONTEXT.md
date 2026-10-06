@@ -1,57 +1,37 @@
-# R5 Season 3 service domain
+# OntoUML Atlas
 
-The vocabulary of the current source-informed model. Source observations and proposed ontological boundaries are distinguished in `model/model.cjs` and `model/source-evidence.json`.
+OntoUML Atlas connects an agent's evidence-backed domain model to a read-only viewer and learning experience.
 
 ## Language
 
-**Game server**:
-An engine-side server resource with client slots, tick state, and a current level context.
-_Avoid_: Game session, hosting process, server listing
+**Modeling job**:
+A user's modeling question together with the source projects to inspect and the resulting model artifacts.
+_Avoid_: Diagram task, AI session
 
-**Game session**:
-A proposed identity for the current game context and roster. Its exact native identity and lifecycle remain unresolved.
-_Avoid_: Game match, server resource
+**Source project**:
+A codebase or other source collection inspected as evidence for a domain model; several source projects may inform one model.
+_Avoid_: OntoUML project, diagram
 
-**Game match**:
-The gameplay occurrence associated with a game session.
-_Avoid_: Game session
+**OntoUML project**:
+The standard exchange object containing a domain model's identified elements and packages.
+_Avoid_: Source project, custom diagram format
 
-**Client slot**:
-A server-owned CClient resource that can be reused across connection lifecycles.
-_Avoid_: Client application, platform identity, player entity
+**Model evidence**:
+Source observations, interpretation rationale, and unresolved questions attached to model identities.
+_Avoid_: Proof, recovered ontology
 
-**Client application**:
-The remote game application as a runtime resource.
-_Avoid_: CClient, client slot
+**View**:
+A chosen subset of model identities presented together without changing their meanings.
+_Avoid_: Separate ontology, model copy
 
-**Platform identity**:
-A persona identity distinguished by platform UID, separate from slot-local IDs and entity handles.
-_Avoid_: Current user ID, entity ID
+**Diagram scene**:
+The positions, orthogonal routes, and labels used to display a view.
+_Avoid_: Semantic model, diagram script
 
-**Session participant**:
-A client slot in the dependent role of belonging to one game session.
-_Avoid_: Permanent player identity, network connection
+**Validation finding**:
+A reported violation of an implemented structural or ontology rule, with its affected identity and explanation.
+_Avoid_: Domain fact, proof of correctness
 
-**Player entity**:
-An identified character entity. A reused script reference supports limited respawn continuity; native allocation remains unresolved.
-_Avoid_: Platform identity, client slot, legend definition
-
-**Match squad**:
-A session-scoped team roster represented through team numbers and team operations.
-_Avoid_: Prematch party
-
-**Elimination status**:
-A session-specific relationship recorded for a platform UID, which can be cleared on respawn.
-_Avoid_: Dead entity, downed entity
-
-**Snapshot**:
-A simulation-state information artifact whose native layout and contents are only partially identified.
-_Avoid_: Network packet, server frame, live world
-
-**Server listing**:
-An advertisement describing a server for discovery.
-_Avoid_: Game server, matchmaking allocation
-
-**Directory service**:
-The opaque Pylon service reached by the inspected listing API client.
-_Avoid_: EA skill matchmaker, game server
+**Learning guidance**:
+A model-specific explanation or question that helps a reader assess an interpretation and its evidence.
+_Avoid_: Automatic answer, model repair
