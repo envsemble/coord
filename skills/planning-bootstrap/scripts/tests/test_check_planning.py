@@ -173,6 +173,68 @@ class PlanningFixture(unittest.TestCase):
                 self.plan.write_text(original.replace(title_line, "title: " + value), encoding="utf-8")
                 self.assertTrue(validate(self.root)[0])
 
+    def test_implicit_nonstring_titles_rejected_and_quoted_equivalents_accepted(self):
+        original = self.plan.read_text(encoding="utf-8")
+        title_line = "title: " + json.dumps(self.header["title"])
+        variants = (
+            "True", "FALSE", "TrUe", "yes", "NO", "On", "off", "y", "N",
+            "Null", "NULL", "~", "1.5", "+12", "-2", "0b10", "0o10",
+            "0123", "0xA", "1_000", "1e3", "1.0e+3", ".5", "1.",
+            ".inf", "+.INF", "-.Inf", ".NaN", "1:20", "1:20.5",
+            "2026-10-06", "2026-10-06T12:00:00Z", "2026-10-06 12:00:00+02:00",
+        )
+        for value in variants:
+            with self.subTest(value=value):
+                self.plan.write_text(original.replace(title_line, "title: " + value), encoding="utf-8")
+                self.assertTrue(validate(self.root)[0], "implicit non-string title was certified")
+                for quoted in (json.dumps(value), "'" + value + "'"):
+                    self.plan.write_text(original.replace(title_line, "title: " + quoted), encoding="utf-8")
+                    self.assertEqual(validate(self.root), ([], []))
+
+    def test_ordinary_plain_titles_not_mistaken_for_implicit_types(self):
+        original = self.plan.read_text(encoding="utf-8")
+        title_line = "title: " + json.dumps(self.header["title"])
+        for value in ("1st release", "v1.5", "1.5 release", "Release on Tuesday", "nothing null", "True story", "nullish", "2026-10-06 release"):
+            with self.subTest(value=value):
+                self.plan.write_text(original.replace(title_line, "title: " + value), encoding="utf-8")
+                self.assertEqual(validate(self.root), ([], []))
+                self.assertEqual(parse_frontmatter(self.plan.read_text(encoding="utf-8"))["title"], value)
+
+    def test_implicit_typing_applies_to_flow_and_block_string_lists(self):
+        self.registry["repositories"] = [{"id": "yes", "name": "Yes repository"}]
+        self.registry["work_items"][0]["repositories"] = ["yes"]
+        self.header["repositories"] = ["yes"]
+        self.write()
+        original = self.plan.read_text(encoding="utf-8")
+        for raw, quoted in (("[yes]", "['yes']"), ("\n  - yes", "\n  - 'yes'")):
+            with self.subTest(raw=raw):
+                self.plan.write_text(original.replace('repositories: ["yes"]', "repositories: " + raw), encoding="utf-8")
+                self.assertTrue(validate(self.root)[0])
+                self.plan.write_text(original.replace('repositories: ["yes"]', "repositories: " + quoted), encoding="utf-8")
+                self.assertEqual(validate(self.root), ([], []))
+
+    def test_null_like_trailing_flow_content_is_not_a_comment(self):
+        original = self.plan.read_text(encoding="utf-8")
+        for value in ("null", "Null", "~"):
+            with self.subTest(value=value):
+                self.plan.write_text(original.replace('repositories: ["example-app"]', 'repositories: ["example-app"] ' + value), encoding="utf-8")
+                self.assertTrue(any("unexpected content after flow list" in item for item in validate(self.root)[0]))
+
+    def test_plain_iso_date_compatibility_is_scoped_to_date_fields(self):
+        self.header.update(created="2026-10-06", accepted_at="2026-10-06", completed_at="2026-10-06", implementation_status="complete")
+        self.write()
+        content = self.plan.read_text(encoding="utf-8")
+        for field in ("created", "updated", "accepted_at", "completed_at"):
+            content = content.replace(field + ': "2026-10-06"', field + ": 2026-10-06")
+        self.plan.write_text(content, encoding="utf-8")
+        self.assertEqual(validate(self.root), ([], []))
+        for field in ("created", "updated", "accepted_at", "completed_at"):
+            self.assertEqual(parse_frontmatter(content)[field], "2026-10-06")
+        for value in ("Null", "NULL", "~"):
+            self.plan.write_text(content.replace("created: 2026-10-06", "created: " + value), encoding="utf-8")
+            self.assertEqual(validate(self.root), ([], []))
+            self.assertIsNone(parse_frontmatter(self.plan.read_text(encoding="utf-8"))["created"])
+
     @unittest.skipUnless(shutil.which("git"), "Git unavailable for recovery fixture")
     def test_actual_git_baseline_recovery_after_move(self):
         def git(*args):

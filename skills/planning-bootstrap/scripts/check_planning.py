@@ -3,6 +3,8 @@
 
 Uses stdlib only. Accepts the contract's plain/quoted scalars and flow/block
 lists; this is deliberately not a general YAML parser or migration tool.
+Quote string values that resemble implicit YAML booleans, nulls, numbers, or
+timestamps. Plain ISO dates remain compatible only in the contract's date fields.
 """
 
 from __future__ import annotations
@@ -24,6 +26,17 @@ REPO_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 WORK_ID = re.compile(r"work-[0-9]{4,}\Z")
 DESIGN = {"draft", "accepted", "superseded", "abandoned"}
 IMPLEMENTATION = {"unknown", "not_started", "in_progress", "partial", "complete"}
+DATE_FIELDS = {"created", "updated", "accepted_at", "completed_at"}
+# Conservatively cover implicit numeric spellings across YAML 1.1 and 1.2,
+# rather than treating resolver differences as evidence of a string value.
+IMPLICIT_NUMBER = re.compile(
+    r"[+-]?(?:"
+    r"0[bBoOxX][0-9a-fA-F_]+|"
+    r"[0-9][0-9_]*(?::[0-9][0-9_]*)+(?:\.[0-9_]*)?|"
+    r"(?:[0-9][0-9_]*(?:\.[0-9_]*)?|\.[0-9_]+)(?:[eE][+-]?[0-9_]+)?|"
+    r"\.(?:inf|nan))\Z",
+    re.IGNORECASE,
+)
 
 
 def _split_flow(value: str, split_commas: bool = True) -> list[str]:
@@ -55,7 +68,7 @@ def _split_flow(value: str, split_commas: bool = True) -> list[str]:
     return parts
 
 
-def _scalar(value: str):
+def _scalar(value: str, allow_date: bool = False):
     value = _split_flow(value, split_commas=False)[0].strip()
     if value.startswith('"'):
         parsed = json.loads(value)
@@ -66,12 +79,19 @@ def _scalar(value: str):
         if not re.fullmatch(r"'(?:[^']|'')*'", value):
             raise ValueError("invalid single-quoted scalar")
         return value[1:-1].replace("''", "'")
-    if value in {"null", "~", ""}:
+    lowered = value.lower()
+    if lowered in {"null", "~", ""}:
         return None
-    if value in {"true", "false"}:
-        return value == "true"
-    if re.fullmatch(r"-?[0-9]+", value):
+    if lowered in {"true", "false", "yes", "no", "on", "off", "y", "n"}:
+        return lowered in {"true", "yes", "on", "y"}
+    if re.fullmatch(r"[+-]?[0-9]+", value):
         return int(value)
+    plain_date = re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value)
+    if plain_date and allow_date:
+        return value
+    if (IMPLICIT_NUMBER.fullmatch(value) or plain_date
+            or re.match(r"[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[Tt]|[ \t]+)[0-9]", value)):
+        raise ValueError("ambiguous implicit YAML scalar; quote intended strings")
     if value.startswith(("{", "&", "*", "!", "|", ">")):
         raise ValueError("unsupported structured YAML; metadata uses scalars and lists")
     if re.search(r":(?=[ \t]|$)", value):
@@ -102,7 +122,7 @@ def _flow_list(value: str) -> list:
         elif char == "#" and (index == 0 or value[index - 1].isspace()):
             break
         elif char == "]":
-            if _scalar(value[index + 1:]) is not None:
+            if _split_flow(value[index + 1:], split_commas=False)[0].strip():
                 raise ValueError("unexpected content after flow list")
             contents = value[1:index].strip()
             if not contents:
@@ -147,7 +167,7 @@ def parse_frontmatter(text: str) -> dict | None:
         elif value.startswith("["):
             fields[key] = _flow_list(value)
         else:
-            fields[key] = _scalar(value)
+            fields[key] = _scalar(value, allow_date=key in DATE_FIELDS)
     return fields
 
 
