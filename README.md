@@ -104,7 +104,7 @@ The R5 example currently has three phase-partition findings. Its ActiveClientSlo
 
 ## Viewer behavior
 
-Scroll or pinch to zoom slowly and smoothly. Drag to pan. Hover takes priority over selection in the wide sidebar. Hover or selection dims unrelated elements; a relation keeps only itself and its two endpoints highlighted. The active entity has an amber outline and connected entities have blue outlines. Selection survives navigation, theme changes and field toggling. Clicking the background or pressing Escape clears it.
+Scroll or pinch to zoom slowly and smoothly. Drag to pan. Hover takes priority over selection in the wide sidebar. Hover or selection dims unrelated elements; a relation keeps only itself and its two endpoints highlighted. The active entity, relation or inheritance branch is amber; connected elements are blue. Arrowheads, aggregation diamonds, relation labels and counts follow the active relation's color. A selected element has a slightly thicker outline. Controls provide immediate hover, pressed, focus and open/selected feedback. Selection survives navigation, theme changes and field toggling. Clicking the background or pressing Escape clears it.
 
 Scrolling, dragging, pinch gestures, zoom buttons and Fit share one frame-synchronized camera animation. Input accumulates without dropping movement, zoom stays anchored under the cursor, and drag follows more tightly than zoom. The grid shares the diagram's world origin and zoom; neighboring dot densities blend smoothly without gaps after large or negative pans. Reduced-motion preferences apply movements immediately.
 

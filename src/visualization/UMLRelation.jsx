@@ -19,9 +19,14 @@ export function UMLRelation({
   const highlighted = focus?.[kind === "group" ? "groups" : "edges"]?.has(
     edge.id,
   );
+  const markerState = sameTarget(target, focus?.primary)
+    ? "-primary"
+    : highlighted
+      ? "-active"
+      : "";
   const aggregationMarker = (kind) =>
     ["SHARED", "COMPOSITE"].includes(kind)
-      ? `url(#${markerId}-${kind}${focus?.edges.has(edge.id) ? "-active" : ""})`
+      ? `url(#${markerId}-${kind}${markerState})`
       : undefined;
   return (
     <g
@@ -55,7 +60,7 @@ export function UMLRelation({
             }
             markerEnd={
               edge.type === "generalization" && !edge.branchPaths
-                ? `url(#${markerId}${highlighted ? "-active" : ""})`
+                ? `url(#${markerId}${markerState})`
                 : aggregationMarker(edge.targetAggregation)
             }
           />

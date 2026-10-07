@@ -32,7 +32,11 @@ export function createHighlightController(svg, diagram) {
       for (const name of ["marker-start", "marker-end"]) {
         const value = path.getAttribute(name);
         if (value)
-          markers.push({ path, name, value: value.replace(/-active\)$/, ")") });
+          markers.push({
+            path,
+            name,
+            value: value.replace(/-(active|primary)\)$/, ")"),
+          });
       }
     }
     records.get(key).push({
@@ -74,6 +78,9 @@ export function createHighlightController(svg, diagram) {
       ]);
       for (const key of changed) {
         for (const record of records.get(key) || []) {
+          const updateMarkers =
+            record.highlighted !== nextKeys.has(key) ||
+            record.primary !== (key === primary);
           for (const [name, enabled] of [
             ["highlighted", nextKeys.has(key)],
             ["primary", key === primary],
@@ -84,12 +91,15 @@ export function createHighlightController(svg, diagram) {
             record.element.classList.toggle(name, enabled);
             if (name === "selected" && record.accessible)
               record.element.setAttribute("aria-pressed", String(enabled));
-            if (name === "highlighted")
-              for (const { path, name: attribute, value } of record.markers)
-                path.setAttribute(
-                  attribute,
-                  enabled ? value.replace(/\)$/, "-active)") : value,
-                );
+          }
+          if (updateMarkers) {
+            const state = record.primary
+              ? "-primary"
+              : record.highlighted
+                ? "-active"
+                : "";
+            for (const { path, name: attribute, value } of record.markers)
+              path.setAttribute(attribute, value.replace(/\)$/, `${state})`));
           }
         }
       }

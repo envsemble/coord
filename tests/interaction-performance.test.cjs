@@ -233,7 +233,7 @@ test("relation/group focus keeps exact ends, parallel edges, inherited markers a
   assert(h.find("group", "G").every((el) => el.classes.has("highlighted")));
   assert.equal(
     h.find("edge", "AB")[0].paths[0].getAttribute("marker-end"),
-    "url(#inheritance-COMPOSITE-active)",
+    "url(#inheritance-COMPOSITE-primary)",
   );
   h.controller.update({ kind: "group", id: "G" }, null);
   assert(h.find("node", "C")[0].classes.has("highlighted"));
@@ -242,13 +242,27 @@ test("relation/group focus keeps exact ends, parallel edges, inherited markers a
     h.find("edge", "CB")[0].paths[0].getAttribute("marker-end"),
     "url(#inheritance-active)",
   );
-  h.controller.update(null, null);
+  assert.equal(
+    h.find("edge", "AB")[0].paths[0].getAttribute("marker-end"),
+    "url(#inheritance-COMPOSITE-active)",
+    "a relation returns to connected styling when the set becomes primary",
+  );
+  assert.equal(
+    h.find("group", "G")[0].paths[0].getAttribute("marker-end"),
+    "url(#inheritance-primary)",
+  );
+  // A cached SVG may be reattached while its shared arrow is still primary.
+  createHighlightController(h.svg, scene).update(null, null);
   assert.equal(
     h.find("edge", "AB")[0].paths[0].getAttribute("marker-end"),
     "url(#inheritance-COMPOSITE)",
   );
   assert.equal(h.find("edge", "AB")[0].getAttribute("aria-pressed"), "false");
   assert(!h.find("group", "G")[0].classes.has("highlighted"));
+  assert.equal(
+    h.find("group", "G")[0].paths[0].getAttribute("marker-end"),
+    "url(#inheritance)",
+  );
 });
 
 test("reattaching to cached geometry clears stale focus and selection state", () => {

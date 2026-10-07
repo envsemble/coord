@@ -152,6 +152,9 @@ svg.has-focus .diagram-element.highlighted {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
+.node.primary.selected .node-box {
+  stroke-width: 3.5;
+}
 .edge {
   outline: none;
   cursor: pointer;
@@ -174,6 +177,20 @@ svg.has-focus .diagram-element.highlighted {
 }
 .edge.highlighted .edge-label text {
   fill: var(--accent);
+}
+.edge.primary .edge-path {
+  stroke: var(--diagram-selection);
+  stroke-width: 3;
+}
+.edge.primary.selected .edge-path {
+  stroke-width: 3.5;
+}
+.edge.primary .multiplicity rect {
+  stroke: var(--diagram-selection);
+}
+.edge.primary .edge-label text,
+.edge.primary .edge-label tspan {
+  fill: var(--diagram-selection);
 }
 .edge-label {
   pointer-events: all;

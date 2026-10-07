@@ -115,6 +115,8 @@ export function OntoUMLViewer({
         }}
         sidebarHidden={sidebarHidden}
         sidebarOpen={sidebarOpen}
+        learningOpen={learningOpen}
+        aboutOpen={aboutOpen}
         onSidebar={() => setSidebarHidden((hidden) => !hidden)}
         onView={(key) => {
           if (key === viewKey) return;

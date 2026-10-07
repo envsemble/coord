@@ -251,7 +251,8 @@ function UMLRelation({
   const highlighted = focus?.[kind === "group" ? "groups" : "edges"]?.has(
     edge.id
   );
-  const aggregationMarker = (kind2) => ["SHARED", "COMPOSITE"].includes(kind2) ? `url(#${markerId}-${kind2}${focus?.edges.has(edge.id) ? "-active" : ""})` : void 0;
+  const markerState = sameTarget(target, focus?.primary) ? "-primary" : highlighted ? "-active" : "";
+  const aggregationMarker = (kind2) => ["SHARED", "COMPOSITE"].includes(kind2) ? `url(#${markerId}-${kind2}${markerState})` : void 0;
   return /* @__PURE__ */ jsxs2(
     "g",
     {
@@ -276,7 +277,7 @@ function UMLRelation({
               stroke: edge.type === "generalization" ? "var(--diagram-inheritance,#59636e)" : "var(--diagram-edge,#59636e)",
               strokeWidth: "1.4",
               markerStart: edge.type === "association" ? aggregationMarker(edge.sourceAggregation) : void 0,
-              markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${highlighted ? "-active" : ""})` : aggregationMarker(edge.targetAggregation)
+              markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${markerState})` : aggregationMarker(edge.targetAggregation)
             }
           ),
           handlers && /* @__PURE__ */ jsx2(
@@ -436,7 +437,11 @@ function createHighlightController(svg, diagram) {
       for (const name of ["marker-start", "marker-end"]) {
         const value = path.getAttribute(name);
         if (value)
-          markers.push({ path, name, value: value.replace(/-active\)$/, ")") });
+          markers.push({
+            path,
+            name,
+            value: value.replace(/-(active|primary)\)$/, ")")
+          });
       }
     }
     records.get(key).push({
@@ -473,6 +478,7 @@ function createHighlightController(svg, diagram) {
       ]);
       for (const key of changed) {
         for (const record of records.get(key) || []) {
+          const updateMarkers = record.highlighted !== nextKeys.has(key) || record.primary !== (key === primary);
           for (const [name, enabled] of [
             ["highlighted", nextKeys.has(key)],
             ["primary", key === primary],
@@ -483,12 +489,11 @@ function createHighlightController(svg, diagram) {
             record.element.classList.toggle(name, enabled);
             if (name === "selected" && record.accessible)
               record.element.setAttribute("aria-pressed", String(enabled));
-            if (name === "highlighted")
-              for (const { path, name: attribute, value } of record.markers)
-                path.setAttribute(
-                  attribute,
-                  enabled ? value.replace(/\)$/, "-active)") : value
-                );
+          }
+          if (updateMarkers) {
+            const state = record.primary ? "-primary" : record.highlighted ? "-active" : "";
+            for (const { path, name: attribute, value } of record.markers)
+              path.setAttribute(attribute, value.replace(/\)$/, `${state})`));
           }
         }
       }
@@ -504,6 +509,8 @@ function createHighlightController(svg, diagram) {
 
 // src/visualization/UMLDiagram.jsx
 import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
+var markerStates = ["", "-active", "-primary"];
+var markerColor = (state, normal) => state === "-primary" ? "var(--diagram-selection,#9a6700)" : state === "-active" ? "var(--accent,#0969da)" : normal;
 var UMLDiagram = memo(function UMLDiagram2({
   diagram,
   active = null,
@@ -570,10 +577,10 @@ var UMLDiagram = memo(function UMLDiagram2({
         children: [
           /* @__PURE__ */ jsxs3("defs", { children: [
             ["SHARED", "COMPOSITE"].flatMap(
-              (aggregation) => [false, true].map((active2) => /* @__PURE__ */ jsx4(
+              (aggregation) => markerStates.map((state) => /* @__PURE__ */ jsx4(
                 "marker",
                 {
-                  id: `${markerId}-${aggregation}${active2 ? "-active" : ""}`,
+                  id: `${markerId}-${aggregation}${state}`,
                   markerWidth: "15",
                   markerHeight: "12",
                   refX: "1",
@@ -584,19 +591,19 @@ var UMLDiagram = memo(function UMLDiagram2({
                     "path",
                     {
                       d: "M1 6 L7 1 L13 6 L7 11 Z",
-                      fill: aggregation === "COMPOSITE" ? active2 ? "var(--accent,#0969da)" : "var(--diagram-edge,#59636e)" : "var(--canvas,#ffffff)",
-                      stroke: active2 ? "var(--accent,#0969da)" : "var(--diagram-edge,#59636e)",
+                      fill: aggregation === "COMPOSITE" ? markerColor(state, "var(--diagram-edge,#59636e)") : "var(--canvas,#ffffff)",
+                      stroke: markerColor(state, "var(--diagram-edge,#59636e)"),
                       strokeWidth: "1.4"
                     }
                   )
                 },
-                `${aggregation}-${active2}`
+                `${aggregation}${state}`
               ))
             ),
-            /* @__PURE__ */ jsx4(
+            markerStates.map((state) => /* @__PURE__ */ jsx4(
               "marker",
               {
-                id: markerId,
+                id: `${markerId}${state}`,
                 markerWidth: "13",
                 markerHeight: "12",
                 refX: "11",
@@ -608,33 +615,16 @@ var UMLDiagram = memo(function UMLDiagram2({
                   {
                     d: "M1 1 L11 6 L1 11 Z",
                     fill: "var(--canvas,#ffffff)",
-                    stroke: "var(--diagram-inheritance,#59636e)",
+                    stroke: markerColor(
+                      state,
+                      "var(--diagram-inheritance,#59636e)"
+                    ),
                     strokeWidth: "1.4"
                   }
                 )
-              }
-            ),
-            /* @__PURE__ */ jsx4(
-              "marker",
-              {
-                id: `${markerId}-active`,
-                markerWidth: "13",
-                markerHeight: "12",
-                refX: "11",
-                refY: "6",
-                orient: "auto",
-                markerUnits: "userSpaceOnUse",
-                children: /* @__PURE__ */ jsx4(
-                  "path",
-                  {
-                    d: "M1 1 L11 6 L1 11 Z",
-                    fill: "var(--canvas,#ffffff)",
-                    stroke: "var(--accent,#0969da)",
-                    strokeWidth: "1.4"
-                  }
-                )
-              }
-            )
+              },
+              state
+            ))
           ] }),
           /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
             (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
@@ -1676,6 +1666,8 @@ var ConceptSearch = memo3(function ConceptSearch2({
         id: "search-toggle",
         className: "icon",
         "aria-label": "Open concept search",
+        "aria-expanded": open,
+        "aria-controls": "search",
         title: "Find concept",
         onClick: () => setOpen(!open),
         children: /* @__PURE__ */ jsx10(SearchIcon, { size: 16 })
@@ -1792,6 +1784,8 @@ function ViewerToolbar({
   diagramURL,
   sidebarHidden,
   sidebarOpen,
+  learningOpen,
+  aboutOpen,
   onSidebar,
   onView,
   onFields,
@@ -1891,6 +1885,7 @@ function ViewerToolbar({
         {
           id: "learn-toggle",
           className: "learn-toggle",
+          "aria-pressed": learningOpen && sidebarOpen,
           onClick: onLearn,
           "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
           title: "Learn OntoUML",
@@ -1912,7 +1907,17 @@ function ViewerToolbar({
           children: sidebarHidden ? /* @__PURE__ */ jsx13(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx13(SidebarCollapseIcon, { size: 16 })
         }
       ),
-      /* @__PURE__ */ jsx13(IconButton, { id: "info", label: "About and controls", onClick: onAbout, children: /* @__PURE__ */ jsx13(QuestionIcon, { size: 16 }) })
+      /* @__PURE__ */ jsx13(
+        IconButton,
+        {
+          id: "info",
+          label: "About and controls",
+          onClick: onAbout,
+          "aria-controls": "about-panel",
+          "aria-expanded": aboutOpen,
+          children: /* @__PURE__ */ jsx13(QuestionIcon, { size: 16 })
+        }
+      )
     ] })
   ] });
 }
@@ -2830,6 +2835,8 @@ function OntoUMLViewer({
         },
         sidebarHidden,
         sidebarOpen,
+        learningOpen,
+        aboutOpen,
         onSidebar: () => setSidebarHidden((hidden) => !hidden),
         onView: (key) => {
           if (key === viewKey) return;

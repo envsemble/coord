@@ -68,6 +68,8 @@ export const ConceptSearch = memo(function ConceptSearch({
         id="search-toggle"
         className="icon"
         aria-label="Open concept search"
+        aria-expanded={open}
+        aria-controls="search"
         title="Find concept"
         onClick={() => setOpen(!open)}
       >

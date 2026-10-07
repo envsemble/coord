@@ -30,6 +30,8 @@ export function ViewerToolbar({
   diagramURL,
   sidebarHidden,
   sidebarOpen,
+  learningOpen,
+  aboutOpen,
   onSidebar,
   onView,
   onFields,
@@ -119,6 +121,7 @@ export function ViewerToolbar({
         <button
           id="learn-toggle"
           className="learn-toggle"
+          aria-pressed={learningOpen && sidebarOpen}
           onClick={onLearn}
           aria-label={`Learn OntoUML; ${model.validation.counts.error} findings`}
           title="Learn OntoUML"
@@ -144,7 +147,13 @@ export function ViewerToolbar({
             <SidebarCollapseIcon size={16} />
           )}
         </IconButton>
-        <IconButton id="info" label="About and controls" onClick={onAbout}>
+        <IconButton
+          id="info"
+          label="About and controls"
+          onClick={onAbout}
+          aria-controls="about-panel"
+          aria-expanded={aboutOpen}
+        >
           <QuestionIcon size={16} />
         </IconButton>
       </div>

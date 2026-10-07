@@ -8,6 +8,7 @@
   --hover: #373e47;
   --focus: #539bf5;
   --selected-bg: #4184e426;
+  --selected-hover: #539bf536;
   --selected-text: #cdd9e5;
   --link: #6cb6ff;
   --grid: #373e47;
@@ -17,6 +18,7 @@
   --toolbar-height: 56px;
   --control-bg: #373e47;
   --control-hover: #444c56;
+  --control-active: #2e353e;
   --border-muted: #373e47;
   --inspector-width: clamp(440px, 42vw, 640px);
 }
@@ -30,6 +32,7 @@
   --hover: #f0f2f5;
   --focus: #0969da;
   --selected-bg: #0969da1a;
+  --selected-hover: #0969da26;
   --selected-text: #1f2328;
   --link: #0969da;
   --grid: #d1d9e0;
@@ -38,6 +41,7 @@
   --tab-indicator: #fd8c73;
   --control-bg: #f6f8fa;
   --control-hover: #eef1f4;
+  --control-active: #e4e8ec;
   --border-muted: #d8dee4;
 }
 
@@ -89,6 +93,10 @@ button:hover {
 button:focus-visible,
 input:focus-visible,
 a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -252,6 +260,13 @@ button[aria-selected="true"] {
   background: transparent;
   width: 28px;
   height: 30px;
+}
+.camera-controls .icon:hover,
+.tabs button:hover {
+  background: var(--control-hover);
+}
+.camera-controls button:focus-visible {
+  outline-offset: -3px;
 }
 .camera-controls button {
   height: 30px;
@@ -858,6 +873,46 @@ input::placeholder {
   max-width: 520px;
   margin: 15vh auto;
   padding: 24px;
+}
+.viewer button[aria-pressed="true"],
+.viewer button[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+.viewer button[aria-expanded="true"] {
+  background: var(--selected-bg);
+}
+.viewer button:is([aria-pressed="true"], [aria-expanded="true"]):hover {
+  background: var(--selected-hover);
+}
+.tabs button[aria-selected="true"]:hover {
+  background: var(--control-hover);
+}
+.panel details[open] > summary {
+  color: var(--text);
+  background: var(--selected-bg);
+  border-radius: 4px;
+}
+.panel details > summary:hover {
+  background: var(--hover);
+  border-radius: 4px;
+}
+.viewer button:not(:disabled):active,
+.menu a:active,
+.panel details > summary:active {
+  background: var(--control-active);
+  box-shadow: inset 0 1px 3px var(--shadow);
+}
+.panel a:active {
+  color: var(--focus);
+  text-decoration: underline;
+}
+.search input:hover,
+.learning-search:hover {
+  border-color: var(--muted);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 @media (max-width: 680px) {
   .learn-toggle {
