@@ -33,16 +33,16 @@ def data_directory(root: Path, base: Path | None = None) -> Path:
     return cache_base / identity
 
 def document_identity(relative: str, registry: dict) -> str:
-    for work in registry.get("work_items", []):
-        location = work.get("path", "")
-        if relative == location:
-            return work["id"] + ":" + Path(relative).name
-        if location and relative.startswith(location + "/"):
-            return work["id"] + ":" + relative[len(location) + 1:]
+    matches = [work for work in registry.get("work_items", [])
+               if relative == work["path"] or relative.startswith(work["path"] + "/")]
+    work = max(matches, key=lambda item: len(item["path"]), default=None)
+    if work:
+        location = work["path"]
+        return work["id"] + ":" + (Path(relative).name if relative == location else relative[len(location) + 1:])
     return "root:" + relative
 
 def normalized_location(value: object) -> str:
-    if (not isinstance(value, str) or not value or "\\" in value or "\0" in value
+    if (not isinstance(value, str) or not value or "\\" in value or "\0" in value or ":" in value
             or value.startswith("/") or re.match(r"^[a-z]:", value, re.I) or ".." in value.split("/")):
         raise ValueError("Work and selected plan paths must be POSIX-relative paths without parent segments")
     normalized = str(PurePosixPath(value))
@@ -76,7 +76,7 @@ def report(root: Path, files: list[str], task: str | None = None,
     if not isinstance(registry, dict) or registry.get("schema_version") != 1:
         raise ValueError("Unrecognized planning registry")
     if not isinstance(registry.get("work_items"), list) or any(
-        not isinstance(work, dict) or not isinstance(work.get("id"), str)
+        not isinstance(work, dict) or not isinstance(work.get("id"), str) or not re.fullmatch(r"work-[0-9]{4,}", work["id"])
         or not isinstance(work.get("path"), str) for work in registry["work_items"]
     ):
         raise ValueError("Invalid planning work identities")

@@ -32,6 +32,8 @@ class ConsultationTests(unittest.TestCase):
             reject([item, {**item, "id": "work-0002"}], "Duplicate")
             reject([item, {**item, "id": "work-0002", "path": ".//note.md/"}], "Duplicate")
             reject([item, {**item, "path": "other.md", "current_plan": "other.md"}], "Duplicate")
+            for identity in ["root", "work-1", "Work-0001", "", "work-0001:shadow"]:
+                reject([{**item, "id": identity}], "Invalid planning work identities")
             if os.name == "nt":
                 reject([item, {**item, "id": "work-0002", "path": "Note.md", "current_plan": "Note.md"}], "Duplicate")
             for location in ["./note.md", ".//note.md", "note.md/"]:
@@ -43,6 +45,22 @@ class ConsultationTests(unittest.TestCase):
             with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
                 self.assertEqual(db.execute("SELECT DISTINCT document_key FROM events").fetchall(), [("work-0001:note.md",)])
             self.assertEqual((root / "note.md").read_bytes(), original)
+
+    def test_nested_locations_select_the_most_specific_owner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "planning"
+            parent = root / "active/0001-parent"
+            child = parent / "nested"
+            child.mkdir(parents=True)
+            (parent / "plan.md").write_text("Parent plan\n", encoding="utf-8")
+            (child / "plan.md").write_text("Child plan\n", encoding="utf-8")
+            items = [{"id": "work-0001", "path": "active/0001-parent"}, {"id": "work-0002", "path": "active/0001-parent/nested"}]
+            destination = Path(directory) / "metrics"
+            for ordering in [items, list(reversed(items))]:
+                (root / "planning.json").write_text(json.dumps({"schema_version": 1, "work_items": ordering}), encoding="utf-8")
+                self.assertEqual(module.report(root, ["active/0001-parent/plan.md", "active/0001-parent/nested/plan.md"], destination=destination), (2, 0))
+            with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
+                self.assertEqual(db.execute("SELECT DISTINCT document_key FROM events ORDER BY document_key").fetchall(), [("work-0001:plan.md",), ("work-0002:plan.md",)])
 
     def test_closed_dashboard_collection_and_unknown_identity(self):
         with tempfile.TemporaryDirectory() as directory:

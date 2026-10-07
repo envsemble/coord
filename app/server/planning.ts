@@ -11,6 +11,8 @@ const textExtensions = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.csv',
 const excludedDirectories = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);
 const implementationStates = new Set(['unknown', 'not_started', 'in_progress', 'partial', 'complete']);
+const workIdentity = /^work-[0-9]{4,}$/;
+const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const readableLimit = 4 * 1024 * 1024;
 type HistoricalWork = Pick<Work, 'id' | 'path' | 'repositories'>;
 const historyCache = new Map<string, { head: string; entries: HistoryEntry[] }>();
@@ -26,7 +28,7 @@ function hidden(relative: string) {
   return relative.replaceAll('\\', '/').split('/').some(part => part.startsWith('.') || excludedDirectories.has(part));
 }
 function normalizedLocation(value: unknown): string {
-  if (typeof value !== 'string' || !value || value.includes('\\') || value.includes('\0') || path.posix.isAbsolute(value) || /^[a-z]:/i.test(value) || value.split('/').includes('..')) {
+  if (typeof value !== 'string' || !value || value.includes('\\') || value.includes('\0') || value.includes(':') || path.posix.isAbsolute(value) || value.split('/').includes('..')) {
     throw new PlanningError('Work and selected plan paths must be POSIX-relative paths without parent segments.');
   }
   const normalized = path.posix.normalize(value).replace(/\/+$/, '');
@@ -35,6 +37,9 @@ function normalizedLocation(value: unknown): string {
   return normalized;
 }
 function locationIdentity(relative: string) { return process.platform === 'win32' ? relative.toLowerCase() : relative; }
+function documentOwner<T extends HistoricalWork>(work: T[], relative: string): T | undefined {
+  return work.filter(item => relative === item.path || relative.startsWith(item.path + '/')).sort((a, b) => b.path.length - a.path.length)[0];
+}
 export async function resolveDocument(root: string, relative: string) {
   if (!relative || relative.includes('\0') || path.isAbsolute(relative) || /^[a-z]:/i.test(relative) || hidden(relative)) {
     throw new PlanningError('Choose a document inside the connected planning folder.', 403);
@@ -122,7 +127,7 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
           const identities = new Set<string>();
           const registrations: HistoricalWork[] = [];
           for (const item of registry.work_items) {
-            if (!item || typeof item.id !== 'string' || identities.has(item.id) || !Array.isArray(item.repositories) || !item.repositories.every((id: unknown) => typeof id === 'string')) return [];
+            if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || !Array.isArray(item.repositories) || !item.repositories.every((id: unknown) => typeof id === 'string')) return [];
             const location = normalizedLocation(item.path);
             if (locations.has(locationIdentity(location))) return [];
             locations.add(locationIdentity(location)); identities.add(item.id);
@@ -135,7 +140,7 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
       for (let offset = 0; offset < entries.length; offset += 4) {
         await Promise.all(entries.slice(offset, offset + 4).map(async entry => {
           const snapshots = await Promise.all([registrationsAt(entry.id), registrationsAt(entry.id + '^')]);
-          const matches = snapshots.flat().filter(item => entry.files.some(file => file === item.path || file.startsWith(item.path + '/')));
+          const matches = snapshots.flatMap(registrations => entry.files.map(file => documentOwner(registrations, file)).filter((item): item is HistoricalWork => Boolean(item)));
           entry.workIds = [...new Set(matches.map(item => item.id))];
           entry.repositories = [...new Set(matches.flatMap(item => item.repositories))];
         }));
@@ -146,7 +151,7 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
     return { available: true, history: retained.entries.map(entry => {
       if (entry.workIds.length) return entry;
       // A newly adopted, uncommitted registration can identify previously unregistered records.
-      const matches = currentWork.filter(item => entry.files.some(file => file === item.path || file.startsWith(item.path + '/')));
+      const matches = entry.files.map(file => documentOwner(currentWork, file)).filter((item): item is HistoricalWork => Boolean(item));
       return { ...entry, workIds: [...new Set(matches.map(item => item.id))], repositories: [...new Set(matches.flatMap(item => item.repositories))] };
     }) };
   } catch { return { history: [], available: false }; }
@@ -170,9 +175,10 @@ export async function loadPlanning(inputRoot: string) {
   const issues: Issue[] = [];
   const work: Work[] = [];
   const identities = new Set<string>();
+  const registeredIds = new Set(registry.work_items.map(item => item?.id));
   const locations = new Set<string>();
   for (const item of registry.work_items) {
-    if (!item || typeof item.id !== 'string' || !item.id || identities.has(item.id) || typeof item.path !== 'string' || !Array.isArray(item.repositories) || !item.repositories.every(id => typeof id === 'string' && repositoryIds.has(id))) {
+    if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || typeof item.path !== 'string' || !Array.isArray(item.repositories) || new Set(item.repositories).size !== item.repositories.length || !item.repositories.every(id => typeof id === 'string' && repositoryIds.has(id))) {
       throw new PlanningError('A work item has an invalid or duplicate identity, location, or repository scope.');
     }
     const relative = normalizedLocation(item.path);
@@ -207,7 +213,12 @@ export async function loadPlanning(inputRoot: string) {
           continue;
         }
         if (metadata.kind !== 'plan' || metadata.schema_version !== 1 || metadata.id !== item.id) throw new PlanningError('The selected document does not have matching plan metadata.');
-        if (!Array.isArray(metadata.repositories) || JSON.stringify([...metadata.repositories].sort()) !== JSON.stringify([...item.repositories].sort())) issues.push({ level: 'error', workId: item.id, message: 'Plan and registry repository scopes differ.' });
+        const missing = planFields.filter(field => !Object.hasOwn(metadata, field));
+        if (missing.length) issues.push({ level: 'error', workId: item.id, message: 'Missing plan metadata: ' + missing.join(', ') + '.' });
+        if (typeof metadata.title !== 'string' || !metadata.title.trim()) issues.push({ level: 'error', workId: item.id, message: 'The plan title must be a nonempty string.' });
+        if (!Array.isArray(metadata.repositories) || new Set(metadata.repositories).size !== metadata.repositories.length || JSON.stringify([...metadata.repositories].sort()) !== JSON.stringify([...item.repositories].sort())) issues.push({ level: 'error', workId: item.id, message: 'Plan and registry repository scopes differ.' });
+        if (!Array.isArray(metadata.supersedes) || metadata.supersedes.some(id => typeof id !== 'string' || !registeredIds.has(id) || id === item.id) || new Set(metadata.supersedes).size !== metadata.supersedes.length) issues.push({ level: 'error', workId: item.id, message: 'Supersedes must list unique other registered work IDs.' });
+        if (metadata.superseded_by !== null && (typeof metadata.superseded_by !== 'string' || !registeredIds.has(metadata.superseded_by) || metadata.superseded_by === item.id)) issues.push({ level: 'error', workId: item.id, message: 'Superseded by must identify another registered work item or null.' });
         entry.title = content.title;
         if (typeof metadata.design_status === 'string' && designStates.has(metadata.design_status)) entry.design = metadata.design_status;
         else issues.push({ level: 'error', workId: item.id, message: 'The plan has an unrecognized design status.' });
@@ -220,9 +231,10 @@ export async function loadPlanning(inputRoot: string) {
         }
         entry.created = lifecycleDate('created'); entry.updated = lifecycleDate('updated');
         entry.accepted = lifecycleDate('accepted_at'); entry.completed = lifecycleDate('completed_at');
-        const chronologyInvalid = (entry.created && entry.accepted && entry.accepted < entry.created) || (entry.completed && (entry.accepted && entry.completed < entry.accepted || entry.created && entry.completed < entry.created));
+        const chronologyInvalid = (entry.created && ((entry.updated && entry.updated < entry.created) || (entry.accepted && entry.accepted < entry.created))) || (entry.completed && (entry.accepted && entry.completed < entry.accepted || entry.created && entry.completed < entry.created));
         if (chronologyInvalid) issues.push({ level: 'error', workId: item.id, message: 'Recorded lifecycle dates are out of order.' });
         if (entry.completed && entry.implementation !== 'complete') issues.push({ level: 'error', workId: item.id, message: 'A completion date requires complete implementation status.' });
+        if (entry.accepted && entry.design === 'draft') issues.push({ level: 'error', workId: item.id, message: 'A draft cannot claim an acceptance date.' });
         if (entry.implementation === 'complete' && entry.accepted && entry.completed && !chronologyInvalid) {
           entry.durationDays = Math.round((Date.parse(entry.completed) - Date.parse(entry.accepted)) / 86400000);
         }
@@ -234,7 +246,7 @@ export async function loadPlanning(inputRoot: string) {
   for (const relative of await files(root)) {
     const filename = await resolveDocument(root, relative);
     const information = await stat(filename);
-    const owner = work.find(item => relative === item.path || relative.startsWith(item.path + '/'));
+    const owner = documentOwner(work, relative);
     let title = path.basename(filename);
     if (format(filename) === 'markdown' && information.size <= readableLimit) {
       try { title = (await readDocument(root, relative)).title; } catch { /* A malformed supporting file remains downloadable. */ }

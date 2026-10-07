@@ -112,6 +112,8 @@ test('invalid non-null dates and chronology produce health errors while unknown 
     assert.equal(result.work[0].durationDays, null);
     await writeFile(filename, original.replace('created: null', 'created: "2026-10-07"').replace('accepted_at: null', 'accepted_at: "2026-10-05"').replace('completed_at: null', 'completed_at: "2026-10-06"'));
     assert.equal((await loadPlanning(setup.root)).work[0].durationDays, null, 'a reversed creation date must not enter duration statistics');
+    await writeFile(filename, original.replace('created: null', 'created: "2026-10-07"'));
+    assert.ok((await loadPlanning(setup.root)).issues.some(issue => issue.message.includes('out of order')), 'an update before creation is invalid even with unknown acceptance and completion');
   } finally { await setup.cleanup(); }
 });
 test('registry paths retain safe POSIX aliases while rejecting parent segments and duplicate locations', async () => {
@@ -134,6 +136,10 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
     await assert.rejects(loadPlanning(setup.root), /same retained location/);
     await writeRegistry([item, { ...item, id: 'work-0003', path: './active//0002-real/' }]);
     await assert.rejects(loadPlanning(setup.root), /same retained location/);
+    for (const id of ['root', 'work-1', 'Work-0001', '', 'work-0001:shadow']) {
+      await writeRegistry([{ ...item, id }]);
+      await assert.rejects(loadPlanning(setup.root), /invalid or duplicate identity/);
+    }
     if (process.platform === 'win32') {
       await writeRegistry([item, { ...item, id: 'work-0003', path: 'Active/0002-Real', current_plan: 'Active/0002-Real/plan.md' }]);
       await assert.rejects(loadPlanning(setup.root), /same retained location/);
@@ -148,6 +154,58 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
       assert.deepEqual(await readFile(path.join(setup.root, 'planning.json')), registryBytes);
     }
     assert.equal(await readFile(filename, 'utf8'), original);
+  } finally { await setup.cleanup(); }
+});
+test('nested registrations assign documents and history to the most-specific owner in either registry order', async () => {
+  const setup = await fixture();
+  try {
+    const parent = 'active/0001-parent'; const child = parent + '/nested';
+    await mkdir(path.join(setup.root, child), { recursive: true });
+    await writeFile(path.join(setup.root, parent, 'plan.md'), header('work-0001', 'accepted', 'not_started'));
+    await writeFile(path.join(setup.root, child, 'plan.md'), header('work-0002', 'accepted', 'not_started').replace('[example]', '[child]'));
+    const parentItem = { id: 'work-0001', path: parent, repositories: ['example'], current_plan: parent + '/plan.md' };
+    const childItem = { id: 'work-0002', path: child, repositories: ['child'], current_plan: child + '/plan.md' };
+    for (const items of [[parentItem, childItem], [childItem, parentItem]]) {
+      await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }, { id: 'child', name: 'Child' }], work_items: items }));
+      const result = await loadPlanning(setup.root);
+      assert.equal(result.work.find(item => item.id === 'work-0001')?.documents.length, 1);
+      assert.equal(result.work.find(item => item.id === 'work-0002')?.documents[0].key, 'work-0002:plan.md');
+      assert.deepEqual(result.documents.find(document => document.path === child + '/plan.md')?.repositories, ['child']);
+    }
+    const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
+    git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
+    git('add', '.'); git('commit', '--no-verify', '-m', 'Register nested work');
+    await writeFile(path.join(setup.root, child, 'plan.md'), header('work-0002', 'accepted', 'not_started').replace('[example]', '[child]') + '\nA child-only update.\n');
+    git('add', '.'); git('commit', '--no-verify', '-m', 'Update child work');
+    const update = (await loadPlanning(setup.root)).history.find(entry => entry.title === 'Update child work');
+    assert.deepEqual(update?.workIds, ['work-0002']); assert.deepEqual(update?.repositories, ['child']);
+  } finally { await setup.cleanup(); }
+});
+test('normalized plan health reports missing or contradictory metadata while keeping original bodies readable', async () => {
+  const setup = await fixture();
+  try {
+    await mkdir(path.join(setup.root, 'active/0001-example'), { recursive: true });
+    await writeFile(path.join(setup.root, 'retained.md'), '# Other retained work');
+    const filename = path.join(setup.root, 'active/0001-example/plan.md');
+    const original = header('work-0001', 'accepted', 'not_started');
+    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: 'active/0001-example', repositories: ['example'], current_plan: 'active/0001-example/plan.md' }, { id: 'work-0002', path: 'retained.md', repositories: [], current_plan: null }] }));
+    const scenarios = [
+      [original.replace('title: Example work', 'title: 123'), 'title'],
+      [original.replace('supersedes: []\n', ''), 'Missing plan metadata'],
+      [original.replace('supersedes: []', 'supersedes: [work-0001]'), 'Supersedes'],
+      [original.replace('supersedes: []', 'supersedes: [work-0002, work-0002]'), 'Supersedes'],
+      [original.replace('superseded_by: null', 'superseded_by: work-9999'), 'Superseded by'],
+      [original.replace('design_status: accepted', 'design_status: draft').replace('accepted_at: null', 'accepted_at: "2026-10-06"'), 'draft'],
+    ];
+    for (const [source, message] of scenarios) {
+      await writeFile(filename, source);
+      const result = await loadPlanning(setup.root);
+      assert.ok(result.issues.some(issue => issue.level === 'error' && issue.message.includes(message)), message);
+      assert.ok((await readDocument(setup.root, 'active/0001-example/plan.md')).body.includes('Preserve this body.'));
+      assert.equal(await readFile(filename, 'utf8'), source);
+    }
+    await writeFile(filename, original.replace('supersedes: []', 'supersedes: [work-0002]'));
+    assert.equal((await loadPlanning(setup.root)).issues.filter(issue => issue.level === 'error').length, 0);
   } finally { await setup.cleanup(); }
 });
 test('work activity follows stable registry identity through archive and folder renames', async () => {
