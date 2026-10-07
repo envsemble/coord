@@ -18,3 +18,12 @@ test('malformed legacy references never crash the reader', () => {
     assert.deepEqual(resolveLink(href, 'README.md', [file]), {});
   }
 });
+
+test('Windows targets use indexed spelling while case-sensitive hosts retain distinct names', () => {
+  assert.equal(resolveLink('DOCS/Decision.md#The-Choice', 'ACTIVE/0001-EXAMPLE/plan.md', [file], [work], false).file, file);
+  assert.equal(resolveLink('ACTIVE/0001-EXAMPLE/', 'README.md', [file], [work], false).work, work);
+  assert.equal(resolveLink('DOCS/Decision.md#The-Choice', 'ACTIVE/0001-EXAMPLE/plan.md', [file], [work], false).anchor, 'The-Choice');
+  assert.equal(resolveLink('DOCS/Decision.md', 'active/0001-example/plan.md', [file], [work], true).file, undefined);
+  assert.equal(resolveLink('ACTIVE/0001-EXAMPLE/', 'README.md', [file], [work], true).work, undefined);
+  assert.equal(resolveLink('../../private.md', 'README.md', [file], [work], false).file, undefined);
+});

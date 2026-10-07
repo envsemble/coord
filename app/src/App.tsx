@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Activity, Archive, ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, CircleCheck, Clock3, Download, FileText, Folder, FolderOpen, GitCommitHorizontal, Layers3, LayoutDashboard, ListChecks, RefreshCw, Search, ShieldCheck, Sparkles, Workflow, X } from 'lucide-react';
 import type { Document, DocumentContent, Snapshot, Work } from './types';
-import { resolveLink } from './links';
+import { resolveLink, samePath } from './links';
 
 type Route = { view: string; work: string | null; file: string | null; anchor: string | null };
 function currentRoute(): Route {
@@ -81,7 +81,7 @@ function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot
     if (content && anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView());
   }, [content, anchor]);
   function destination(href: string) {
-    return resolveLink(href, file.path, snapshot.documents, snapshot.work);
+    return resolveLink(href, file.path, snapshot.documents, snapshot.work, snapshot.caseSensitivePaths);
   }
   return <article className="reader">
     <div className="reader-toolbar"><div><FileText size={16} /><strong>{file.name}</strong><span className="file-size">{bytes(file.size)}</span></div><a className="icon-button" href={fileUrl(file.path, true)} aria-label={'Download ' + file.name}><Download size={17} /></a></div>
@@ -158,7 +158,7 @@ export default function App() {
   useEffect(() => { const change = () => { setRoute(currentRoute()); window.scrollTo(0, 0); }; window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, []);
   const work = snapshot?.work.filter(item => repository === 'all' || item.repositories.includes(repository)) ?? [];
   const selectedWork = snapshot?.work.find(item => item.id === route.work);
-  const selectedFile = snapshot?.documents.find(file => file.path === route.file);
+  const selectedFile = snapshot?.documents.find(file => route.file !== null && samePath(file.path, route.file, snapshot.caseSensitivePaths));
   const selectedDefault = selectedWork ? snapshot?.documents.find(file => file.path === selectedWork.currentPlan) ?? selectedWork.documents.find(file => file.name.toLowerCase() === 'readme.md') ?? selectedWork.documents[0] : null;
   const reading = selectedFile ?? selectedDefault;
   const searchTerm = search.toLowerCase();
@@ -200,12 +200,12 @@ export default function App() {
         </> : route.view === 'insights' ? <Insights snapshot={snapshot} repository={repository} /> :
         route.view === 'history' ? <>
           <div className="page-title"><div className="eyebrow">LOCAL PLANNING HISTORY</div><h1>The record of the work.</h1><p>Meaningful checkpoints from planning Git. These are document changes, not estimates of engineering activity.</p></div>
-          <div className="history-list">{snapshot.history.filter(entry => repository === 'all' || entry.repositories.includes(repository) || entry.files.some(file => snapshot.documents.some(document => document.path === file && document.workId === null && document.repositories.includes(repository)))).map(entry => <div className="history-row" key={entry.id}><span className="history-icon"><GitCommitHorizontal size={19} /></span><div><strong>{entry.title}</strong><small>{day(entry.date)} · {entry.id.slice(0, 7)} · {entry.files.length} changed records</small><div className="changed-files">{entry.files.slice(0, 4).map(file => <button key={file} disabled={!snapshot.documents.some(document => document.path === file)} onClick={() => { const document = snapshot.documents.find(document => document.path === file); if (document) documentOpen(document); }}>{file.split('/').at(-1)}</button>)}{entry.files.length > 4 && <span>+{entry.files.length - 4} more</span>}</div></div></div>)}</div>
+          <div className="history-list">{snapshot.history.filter(entry => repository === 'all' || entry.repositories.includes(repository) || entry.files.some(file => snapshot.documents.some(document => samePath(document.path, file, snapshot.caseSensitivePaths) && document.workId === null && document.repositories.includes(repository)))).map(entry => <div className="history-row" key={entry.id}><span className="history-icon"><GitCommitHorizontal size={19} /></span><div><strong>{entry.title}</strong><small>{day(entry.date)} · {entry.id.slice(0, 7)} · {entry.files.length} changed records</small><div className="changed-files">{entry.files.slice(0, 4).map(file => <button key={file} disabled={!snapshot.documents.some(document => samePath(document.path, file, snapshot.caseSensitivePaths))} onClick={() => { const document = snapshot.documents.find(document => samePath(document.path, file, snapshot.caseSensitivePaths)); if (document) documentOpen(document); }}>{file.split('/').at(-1)}</button>)}{entry.files.length > 4 && <span>+{entry.files.length - 4} more</span>}</div></div></div>)}</div>
           {!snapshot.gitAvailable && <Empty title="History unavailable">The connected folder needs its own readable local Git history.</Empty>}
         </> : <>
           <div className="page-title"><div className="eyebrow">{route.view === 'knowledge' ? 'USEFUL BEYOND ONE TASK' : 'THE ORIGINAL RECORDS'}</div><h1>{route.view === 'knowledge' ? 'Knowledge worth keeping.' : 'Everything, in its place.'}</h1><p>{route.view === 'knowledge' ? 'Scoped preferences, decisions, and lessons. Read the original sources in context.' : 'Browse original documents and attachments without changing their contents.'}</p></div>
           <div className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search document titles and paths…" aria-label="Search documents" /></div>
-          <div className="document-grid">{snapshot.documents.filter(file => (route.view !== 'knowledge' || file.category === 'knowledge') && (repository === 'all' || file.repositories.includes(repository) || file.path.startsWith('knowledge/' + repository + '/')) && (file.title + ' ' + file.path).toLowerCase().includes(searchTerm)).map(file => <button className="document-card" key={file.path} onClick={() => documentOpen(file)}><span className="document-icon"><FileText size={20} /></span><strong>{file.title}</strong><small>{file.path}</small><div><Badge>{pretty(file.category)}</Badge><span>{bytes(file.size)}</span></div></button>)}</div>
+          <div className="document-grid">{snapshot.documents.filter(file => (route.view !== 'knowledge' || file.category === 'knowledge') && (repository === 'all' || file.repositories.includes(repository)) && (file.title + ' ' + file.path).toLowerCase().includes(searchTerm)).map(file => <button className="document-card" key={file.path} onClick={() => documentOpen(file)}><span className="document-icon"><FileText size={20} /></span><strong>{file.title}</strong><small>{file.path}</small><div><Badge>{pretty(file.category)}</Badge><span>{bytes(file.size)}</span></div></button>)}</div>
         </>}
         {snapshot && snapshot.issues.length > 0 && !selectedWork && !selectedFile && <details className="health"><summary><ShieldCheck size={16} />Record health <Badge tone={snapshot.issues.some(issue => issue.level === 'error') ? 'amber' : 'neutral'}>{snapshot.issues.length} notes</Badge></summary><ul>{snapshot.issues.map((issue, index) => <li key={index}>{issue.workId && <button className="text-link" onClick={() => navigate({ work: issue.workId })}>{issue.workId}</button>} {issue.message}</li>)}</ul></details>}
       </main>

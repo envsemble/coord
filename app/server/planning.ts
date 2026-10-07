@@ -109,7 +109,7 @@ async function files(root: string, directory = root): Promise<string[]> {
 export async function gitHistory(root: string, currentWork: HistoricalWork[] = []): Promise<{ history: HistoryEntry[]; available: boolean }> {
   try {
     const { stdout: top } = await execute('git', ['-C', root, 'rev-parse', '--show-toplevel']);
-    if (await realpath(top.trim()) !== await realpath(root)) return { history: [], available: false };
+    if (locationIdentity(await realpath(top.trim())) !== locationIdentity(await realpath(root))) return { history: [], available: false };
     const { stdout: revision } = await execute('git', ['-C', root, 'rev-parse', 'HEAD']);
     const head = revision.trim();
     let retained = historyCache.get(root);
@@ -275,6 +275,8 @@ export async function loadPlanning(inputRoot: string) {
     const filename = await resolveDocument(root, relative);
     const information = await stat(filename);
     const owner = documentOwner(work, relative);
+    const identity = locationIdentity(relative);
+    const scope = identity.startsWith('knowledge/') ? [...repositoryIds].filter(id => locationIdentity(id) === identity.split('/')[1]) : [];
     let title = path.basename(filename);
     if (format(filename) === 'markdown' && information.size <= readableLimit) {
       try { title = (await readDocument(root, relative)).title; } catch { /* A malformed supporting file remains downloadable. */ }
@@ -282,7 +284,7 @@ export async function loadPlanning(inputRoot: string) {
     const document: Document = {
       path: relative, name: path.basename(filename), title, size: information.size, modified: information.mtime.toISOString(),
       key: owner ? owner.id + ':' + (locationIdentity(relative) === locationIdentity(owner.path) ? path.basename(relative) : relative.slice(owner.path.length + 1)) : 'root:' + relative,
-      workId: owner?.id ?? null, repositories: owner?.repositories ?? (relative.startsWith('knowledge/') && repositoryIds.has(relative.split('/')[1]) ? [relative.split('/')[1]] : []), category: owner?.currentPlan && locationIdentity(owner.currentPlan) === locationIdentity(relative) ? 'plan' : category(relative), format: format(filename),
+      workId: owner?.id ?? null, repositories: owner?.repositories ?? (scope.length === 1 ? scope : []), category: owner?.currentPlan && locationIdentity(owner.currentPlan) === identity ? 'plan' : category(relative), format: format(filename),
     };
     documents.push(document);
     owner?.documents.push(document);
@@ -296,5 +298,5 @@ export async function loadPlanning(inputRoot: string) {
   }
   const history = await gitHistory(root, work);
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
-  return { root, loadedAt: new Date().toISOString(), repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
+  return { root, loadedAt: new Date().toISOString(), caseSensitivePaths: process.platform !== 'win32', repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

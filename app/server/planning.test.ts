@@ -166,12 +166,18 @@ test('Windows path casing preserves selected plans, ownership, and Git attributi
     const original = header('work-0001', 'accepted', 'not_started');
     await writeFile(plan, original);
     await writeFile(path.join(setup.root, 'legacy.md'), header('work-0002', 'accepted', 'not_started'));
+    await mkdir(path.join(setup.root, 'Knowledge/Example'), { recursive: true });
+    await writeFile(path.join(setup.root, 'Knowledge/Example/note.md'), '# Scoped knowledge\n');
     const registry = JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: 'ACTIVE/0001-EXAMPLE', repositories: ['example'], current_plan: 'Active/0001-Example/pLAN.md' }, { id: 'work-0002', path: 'LEGACY.MD', repositories: ['example'], current_plan: 'Legacy.md' }] });
     await writeFile(path.join(setup.root, 'planning.json'), registry);
     const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
     git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
     git('add', '.'); git('commit', '--no-verify', '-m', 'Register differently cased paths');
     const result = await loadPlanning(setup.root);
+    assert.equal(result.caseSensitivePaths, false);
+    const knowledge = result.documents.find(document => document.path === 'Knowledge/Example/note.md');
+    assert.equal(knowledge?.category, 'knowledge');
+    assert.deepEqual(knowledge?.repositories, ['example']);
     assert.equal(result.work[0].location, 'active');
     assert.equal(result.work[0].currentPlan, 'active/0001-example/Plan.md');
     assert.equal(result.work[0].documents[0].key, 'work-0001:Plan.md');
