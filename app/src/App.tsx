@@ -1,9 +1,10 @@
-import { Children, isValidElement, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Activity, Archive, ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, CircleCheck, Clock3, Download, FileText, Folder, FolderOpen, GitCommitHorizontal, Layers3, LayoutDashboard, ListChecks, RefreshCw, Search, ShieldCheck, Sparkles, Workflow, X } from 'lucide-react';
 import type { Document, DocumentContent, Snapshot, Work } from './types';
 import { resolveLink, samePath } from './links';
+import { findHeadingId, rehypeHeadingIds } from './headings';
 
 type Route = { view: string; work: string | null; file: string | null; anchor: string | null };
 function currentRoute(): Route {
@@ -52,16 +53,16 @@ function FileList({ files, selected }: { files: Document[]; selected?: string | 
     <FileText size={16} /><span><strong>{file.name}</strong><small>{file.category === 'document' ? file.path.split('/').slice(-2, -1).join('') || 'Document' : pretty(file.category)}</small></span>
   </button>)}</div>;
 }
-function textContent(children: ReactNode): string {
-  return Children.toArray(children).map(child => typeof child === 'string' || typeof child === 'number' ? String(child) : isValidElement<{ children?: ReactNode }>(child) ? textContent(child.props.children) : '').join('');
-}
-function slug(children: ReactNode) { return textContent(children).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, ''); }
-function scrollToHeading(anchor: string) { (document.getElementById(anchor) ?? document.getElementById(slug(anchor)))?.scrollIntoView(); }
-
 function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
+  const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [error, setError] = useState('');
   const [collectionError, setCollectionError] = useState('');
+  function scrollToHeading(anchor: string) {
+    const nodes = Array.from(article.current?.querySelectorAll<HTMLElement>('[id]') ?? []);
+    const id = findHeadingId(anchor, nodes.map(node => node.id));
+    nodes.find(node => node.id === id)?.scrollIntoView();
+  }
   useEffect(() => {
     const controller = new AbortController();
     setContent(null); setError(''); setCollectionError('');
@@ -84,24 +85,18 @@ function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot
   function destination(href: string) {
     return resolveLink(href, file.path, snapshot.documents, snapshot.work, snapshot.caseSensitivePaths);
   }
-  return <article className="reader">
+  return <article className="reader" ref={article}>
     <div className="reader-toolbar"><div><FileText size={16} /><strong>{file.name}</strong><span className="file-size">{bytes(file.size)}</span></div><a className="icon-button" href={fileUrl(file.path, true)} aria-label={'Download ' + file.name}><Download size={17} /></a></div>
     {content?.metadata?.kind === 'plan' && <div className="intent-note"><ListChecks size={15} /> Plan · intended work. Actual progress is recorded in the ledger.</div>}
     {collectionError && <div className="notice warning">{collectionError}</div>}
     {error ? <Empty title="This record could not be displayed">{error}<br /><a href={fileUrl(file.path, true)}>Download the original</a></Empty> : !content ? <div className="reader-loading">Opening the original record…</div> : content.format === 'markdown' ?
-      <div className="prose"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-        h1: ({ children }) => <h1 id={slug(children)}>{children}</h1>,
-        h2: ({ children }) => <h2 id={slug(children)}>{children}</h2>,
-        h3: ({ children }) => <h3 id={slug(children)}>{children}</h3>,
-        h4: ({ children }) => <h4 id={slug(children)}>{children}</h4>,
-        h5: ({ children }) => <h5 id={slug(children)}>{children}</h5>,
-        h6: ({ children }) => <h6 id={slug(children)}>{children}</h6>,
-        a: ({ href = '', children }) => {
+      <div className="prose"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHeadingIds]} components={{
+        a: ({ href = '', children, id }) => {
           const target = destination(href);
-          if (target.external) return <a href={target.external} target="_blank" rel="noreferrer">{children}<ArrowUpRight className="external-icon" size={12} /></a>;
-          if (target.file) return <a href={'#file=' + encodeURIComponent(target.file.path)} onClick={event => { event.preventDefault(); navigate({ view: target.file?.category === 'knowledge' ? 'knowledge' : target.file?.workId ? 'work' : 'records', work: target.file?.workId, file: target.file?.path, anchor: target.anchor }); }}>{children}</a>;
-          if (target.work) return <a href={'#work=' + encodeURIComponent(target.work.id)} onClick={event => { event.preventDefault(); navigate({ work: target.work?.id }); }}>{children}</a>;
-          if (href.startsWith('#')) return <a href={href} onClick={event => { event.preventDefault(); scrollToHeading(target.anchor ?? ''); }}>{children}</a>;
+          if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<ArrowUpRight className="external-icon" size={12} /></a>;
+          if (target.file) return <a id={id} href={'#file=' + encodeURIComponent(target.file.path)} onClick={event => { event.preventDefault(); navigate({ view: target.file?.category === 'knowledge' ? 'knowledge' : target.file?.workId ? 'work' : 'records', work: target.file?.workId, file: target.file?.path, anchor: target.anchor }); }}>{children}</a>;
+          if (target.work) return <a id={id} href={'#work=' + encodeURIComponent(target.work.id)} onClick={event => { event.preventDefault(); navigate({ work: target.work?.id }); }}>{children}</a>;
+          if (href.startsWith('#')) return <a id={id} href={href} onClick={event => { event.preventDefault(); scrollToHeading(target.anchor ?? ''); }}>{children}</a>;
           return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
         },
         img: ({ src = '', alt = '' }) => {

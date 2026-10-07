@@ -10,7 +10,7 @@
     "dev": "tsx server/index.ts --dev",
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
-    "test": "tsx --test server/planning.test.ts server/telemetry.test.ts server/links.test.ts server/http.test.ts"
+    "test": "tsx --test server/planning.test.ts server/telemetry.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",
