@@ -14,8 +14,8 @@ const implementationStates = new Set(['unknown', 'not_started', 'in_progress', '
 const workIdentity = /^work-[0-9]{4,}$/;
 const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const readableLimit = 4 * 1024 * 1024;
-type HistoricalWork = Pick<Work, 'id' | 'path' | 'repositories'>;
-const historyCache = new Map<string, { head: string; entries: HistoryEntry[] }>();
+type HistoricalWork = Pick<Work, 'id' | 'path' | 'repositories' | 'currentPlan'>;
+const historyCache = new Map<string, { head: string; entries: HistoryEntry[]; unattributedFiles: Map<string, string[]> }>();
 
 export class PlanningError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -38,7 +38,8 @@ function normalizedLocation(value: unknown): string {
 }
 function locationIdentity(relative: string) { return process.platform === 'win32' ? relative.toLowerCase() : relative; }
 function documentOwner<T extends HistoricalWork>(work: T[], relative: string): T | undefined {
-  return work.filter(item => relative === item.path || relative.startsWith(item.path + '/')).sort((a, b) => b.path.length - a.path.length)[0];
+  const matches = work.filter(item => relative === item.path || relative.startsWith(item.path + '/'));
+  return matches.find(item => item.currentPlan === relative) ?? matches.sort((a, b) => b.path.length - a.path.length)[0];
 }
 export async function resolveDocument(root: string, relative: string) {
   if (!relative || relative.includes('\0') || path.isAbsolute(relative) || /^[a-z]:/i.test(relative) || hidden(relative)) {
@@ -112,11 +113,13 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
     const head = revision.trim();
     let retained = historyCache.get(root);
     if (!retained || retained.head !== head) {
-      const { stdout } = await execute('git', ['-C', root, '-c', 'core.quotepath=false', 'log', '-30', '--format=%x1e%H%x00%aI%x00%s', '--name-only'], { maxBuffer: 1024 * 1024 });
+      const { stdout } = await execute('git', ['-C', root, 'log', '-30', '--format=%x1e%H%x00%aI%x00%s%x00%P'], { maxBuffer: 1024 * 1024 });
+      const firstParents = new Map<string, string | undefined>();
+      const unattributedFiles = new Map<string, string[]>();
       const entries: HistoryEntry[] = stdout.split('\x1e').slice(1).map(record => {
-        const [header, ...changed] = record.trim().split(/\r?\n/);
-        const [id, date, title] = header.split('\0');
-        return { id, date, title, files: changed.filter(Boolean), workIds: [], repositories: [] };
+        const [id, date, title, parents] = record.trim().split('\0');
+        firstParents.set(id, parents?.split(' ')[0] || undefined);
+        return { id, date, title, files: [], workIds: [], repositories: [] };
       });
       async function registrationsAt(commit: string): Promise<HistoricalWork[]> {
         try {
@@ -125,34 +128,55 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
           if (registry?.schema_version !== 1 || !Array.isArray(registry.work_items)) return [];
           const locations = new Set<string>();
           const identities = new Set<string>();
+          const selectedPlans = new Set<string>();
           const registrations: HistoricalWork[] = [];
           for (const item of registry.work_items) {
             if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || !Array.isArray(item.repositories) || !item.repositories.every((id: unknown) => typeof id === 'string')) return [];
             const location = normalizedLocation(item.path);
             if (locations.has(locationIdentity(location))) return [];
+            const currentPlan = item.current_plan == null ? null : normalizedLocation(item.current_plan);
+            if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) return [];
+            if (currentPlan) selectedPlans.add(locationIdentity(currentPlan));
             locations.add(locationIdentity(location)); identities.add(item.id);
-            registrations.push({ id: item.id, path: location, repositories: item.repositories });
+            registrations.push({ id: item.id, path: location, repositories: item.repositories, currentPlan });
           }
           return registrations;
         } catch { return []; /* Older unregistered or invalid history has no established work identity. */ }
       }
-      // Locations belong to their registry revision. The parent also owns paths removed in this commit.
+      // Read change direction explicitly; rename detection must not alter historical ownership.
       for (let offset = 0; offset < entries.length; offset += 4) {
         await Promise.all(entries.slice(offset, offset + 4).map(async entry => {
-          const snapshots = await Promise.all([registrationsAt(entry.id), registrationsAt(entry.id + '^')]);
-          const matches = snapshots.flatMap(registrations => entry.files.map(file => documentOwner(registrations, file)).filter((item): item is HistoricalWork => Boolean(item)));
+          const parent = firstParents.get(entry.id);
+          const [current, previous, changes] = await Promise.all([
+            registrationsAt(entry.id), parent ? registrationsAt(parent) : Promise.resolve([]),
+            execute('git', ['-C', root, 'diff-tree', '-r', '--no-commit-id', '--name-status', '--no-renames', '-z', ...(parent ? [parent, entry.id] : ['--root', entry.id])], { maxBuffer: 1024 * 1024 }),
+          ]);
+          const parts = changes.stdout.split('\0');
+          const matches: HistoricalWork[] = [];
+          const unowned: string[] = [];
+          for (let index = 0; index + 1 < parts.length; index += 2) {
+            const status = parts[index]; const file = parts[index + 1];
+            entry.files.push(file);
+            const snapshots = status === 'D' ? [previous] : status === 'A' ? [current] : [previous, current];
+            let attributed = false;
+            for (const snapshot of snapshots) {
+              const owner = documentOwner(snapshot, file);
+              if (owner) { matches.push(owner); attributed = true; }
+            }
+            if (!attributed) unowned.push(file);
+          }
+          unattributedFiles.set(entry.id, unowned);
           entry.workIds = [...new Set(matches.map(item => item.id))];
           entry.repositories = [...new Set(matches.flatMap(item => item.repositories))];
         }));
       }
-      retained = { head, entries };
+      retained = { head, entries, unattributedFiles };
       historyCache.set(root, retained);
     }
     return { available: true, history: retained.entries.map(entry => {
-      if (entry.workIds.length) return entry;
       // A newly adopted, uncommitted registration can identify previously unregistered records.
-      const matches = entry.files.map(file => documentOwner(currentWork, file)).filter((item): item is HistoricalWork => Boolean(item));
-      return { ...entry, workIds: [...new Set(matches.map(item => item.id))], repositories: [...new Set(matches.flatMap(item => item.repositories))] };
+      const matches = (retained.unattributedFiles.get(entry.id) ?? []).map(file => documentOwner(currentWork, file)).filter((item): item is HistoricalWork => Boolean(item));
+      return { ...entry, workIds: [...new Set([...entry.workIds, ...matches.map(item => item.id)])], repositories: [...new Set([...entry.repositories, ...matches.flatMap(item => item.repositories)])] };
     }) };
   } catch { return { history: [], available: false }; }
 }
@@ -177,6 +201,7 @@ export async function loadPlanning(inputRoot: string) {
   const identities = new Set<string>();
   const registeredIds = new Set(registry.work_items.map(item => item?.id));
   const locations = new Set<string>();
+  const selectedPlans = new Set<string>();
   for (const item of registry.work_items) {
     if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || typeof item.path !== 'string' || !Array.isArray(item.repositories) || new Set(item.repositories).size !== item.repositories.length || !item.repositories.every(id => typeof id === 'string' && repositoryIds.has(id))) {
       throw new PlanningError('A work item has an invalid or duplicate identity, location, or repository scope.');
@@ -185,6 +210,8 @@ export async function loadPlanning(inputRoot: string) {
     const currentPlan = item.current_plan === null ? null : normalizedLocation(item.current_plan);
     const location = locationIdentity(relative);
     if (locations.has(location)) throw new PlanningError('Two work items have the same retained location; reconcile the duplicate registration.');
+    if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) throw new PlanningError('Several work items select the same plan; reconcile the conflicting pointers.');
+    if (currentPlan) selectedPlans.add(locationIdentity(currentPlan));
     locations.add(location);
     identities.add(item.id);
     const folder = path.resolve(root, relative);

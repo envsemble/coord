@@ -136,6 +136,8 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
     await assert.rejects(loadPlanning(setup.root), /same retained location/);
     await writeRegistry([item, { ...item, id: 'work-0003', path: './active//0002-real/' }]);
     await assert.rejects(loadPlanning(setup.root), /same retained location/);
+    await writeRegistry([item, { ...item, id: 'work-0003', path: 'active/0002-real/nested' }]);
+    await assert.rejects(loadPlanning(setup.root), /select the same plan/);
     for (const id of ['root', 'work-1', 'Work-0001', '', 'work-0001:shadow']) {
       await writeRegistry([{ ...item, id }]);
       await assert.rejects(loadPlanning(setup.root), /invalid or duplicate identity/);
@@ -156,29 +158,79 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
     assert.equal(await readFile(filename, 'utf8'), original);
   } finally { await setup.cleanup(); }
 });
-test('nested registrations assign documents and history to the most-specific owner in either registry order', async () => {
+test('selected plans take precedence over nested locations in either registry order', async () => {
   const setup = await fixture();
   try {
     const parent = 'active/0001-parent'; const child = parent + '/nested';
     await mkdir(path.join(setup.root, child), { recursive: true });
-    await writeFile(path.join(setup.root, parent, 'plan.md'), header('work-0001', 'accepted', 'not_started'));
-    await writeFile(path.join(setup.root, child, 'plan.md'), header('work-0002', 'accepted', 'not_started').replace('[example]', '[child]'));
-    const parentItem = { id: 'work-0001', path: parent, repositories: ['example'], current_plan: parent + '/plan.md' };
-    const childItem = { id: 'work-0002', path: child, repositories: ['child'], current_plan: child + '/plan.md' };
+    await writeFile(path.join(setup.root, child, 'parent-plan.md'), header('work-0001', 'accepted', 'not_started'));
+    await writeFile(path.join(setup.root, child, 'child-plan.md'), header('work-0002', 'accepted', 'not_started').replace('[example]', '[child]'));
+    const parentItem = { id: 'work-0001', path: parent, repositories: ['example'], current_plan: child + '/parent-plan.md' };
+    const childItem = { id: 'work-0002', path: child, repositories: ['child'], current_plan: child + '/child-plan.md' };
     for (const items of [[parentItem, childItem], [childItem, parentItem]]) {
       await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }, { id: 'child', name: 'Child' }], work_items: items }));
       const result = await loadPlanning(setup.root);
       assert.equal(result.work.find(item => item.id === 'work-0001')?.documents.length, 1);
-      assert.equal(result.work.find(item => item.id === 'work-0002')?.documents[0].key, 'work-0002:plan.md');
-      assert.deepEqual(result.documents.find(document => document.path === child + '/plan.md')?.repositories, ['child']);
+      assert.equal(result.work.find(item => item.id === 'work-0001')?.documents[0].key, 'work-0001:nested/parent-plan.md');
+      assert.equal(result.work.find(item => item.id === 'work-0001')?.documents[0].category, 'plan');
+      assert.equal(result.work.find(item => item.id === 'work-0002')?.documents[0].key, 'work-0002:child-plan.md');
+      assert.deepEqual(result.documents.find(document => document.path === child + '/parent-plan.md')?.repositories, ['example']);
+      assert.deepEqual(result.documents.find(document => document.path === child + '/child-plan.md')?.repositories, ['child']);
     }
     const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
     git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
     git('add', '.'); git('commit', '--no-verify', '-m', 'Register nested work');
-    await writeFile(path.join(setup.root, child, 'plan.md'), header('work-0002', 'accepted', 'not_started').replace('[example]', '[child]') + '\nA child-only update.\n');
+    await writeFile(path.join(setup.root, child, 'child-plan.md'), header('work-0002', 'accepted', 'not_started').replace('[example]', '[child]') + '\nA child-only update.\n');
     git('add', '.'); git('commit', '--no-verify', '-m', 'Update child work');
     const update = (await loadPlanning(setup.root)).history.find(entry => entry.title === 'Update child work');
     assert.deepEqual(update?.workIds, ['work-0002']); assert.deepEqual(update?.repositories, ['child']);
+  } finally { await setup.cleanup(); }
+});
+
+test('archiving nested work does not assign its deleted paths to the remaining parent', async () => {
+  const setup = await fixture();
+  try {
+    const parent = 'active/0001-parent'; const child = parent + '/nested'; const archived = 'archive/0002-child';
+    await mkdir(path.join(setup.root, child), { recursive: true });
+    await writeFile(path.join(setup.root, parent, 'plan.md'), header('work-0001', 'accepted', 'not_started'));
+    await writeFile(path.join(setup.root, child, 'plan.md'), header('work-0002', 'accepted', 'complete').replace('[example]', '[child]'));
+    const registry = { schema_version: 1, repositories: [{ id: 'example', name: 'Example' }, { id: 'child', name: 'Child' }], work_items: [
+      { id: 'work-0001', path: parent, repositories: ['example'], current_plan: parent + '/plan.md' },
+      { id: 'work-0002', path: child, repositories: ['child'], current_plan: child + '/plan.md' },
+    ] };
+    const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
+    git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test'); git('config', 'diff.renames', 'false');
+    const commit = async (title: string) => { await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(registry)); git('add', '.'); git('commit', '--no-verify', '-m', title); };
+    await commit('Register parent and child');
+    await mkdir(path.join(setup.root, 'archive'));
+    await rename(path.join(setup.root, child), path.join(setup.root, archived));
+    registry.work_items[1].path = archived; registry.work_items[1].current_plan = archived + '/plan.md';
+    await commit('Archive child only');
+    const result = await loadPlanning(setup.root);
+    const archive = result.history.find(entry => entry.title === 'Archive child only');
+    assert.deepEqual(archive?.workIds, ['work-0002']); assert.deepEqual(archive?.repositories, ['child']);
+    assert.equal(result.work.find(item => item.id === 'work-0001')?.documents.length, 1);
+  } finally { await setup.cleanup(); }
+});
+
+test('mixed commits include newly adopted records without overriding established historical ownership', async () => {
+  const setup = await fixture();
+  try {
+    await mkdir(path.join(setup.root, 'active/0001-first'), { recursive: true });
+    await writeFile(path.join(setup.root, 'active/0001-first/plan.md'), header('work-0001', 'accepted', 'not_started'));
+    await writeFile(path.join(setup.root, 'legacy.md'), '# Later adopted work\n');
+    const registry = { schema_version: 1, repositories: [{ id: 'example', name: 'Example' }, { id: 'adopted', name: 'Adopted' }], work_items: [
+      { id: 'work-0001', path: 'active/0001-first', repositories: ['example'], current_plan: 'active/0001-first/plan.md' },
+    ] };
+    const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
+    git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
+    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(registry));
+    git('add', '.'); git('commit', '--no-verify', '-m', 'Mixed registered and legacy work');
+    assert.deepEqual((await loadPlanning(setup.root)).history[0].workIds, ['work-0001']);
+    registry.work_items.push({ id: 'work-0002', path: 'legacy.md', repositories: ['adopted'], current_plan: 'legacy.md' });
+    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(registry));
+    const mixed = (await loadPlanning(setup.root)).history.find(entry => entry.title === 'Mixed registered and legacy work');
+    assert.deepEqual(mixed?.workIds, ['work-0001', 'work-0002']); assert.deepEqual(mixed?.repositories, ['example', 'adopted']);
   } finally { await setup.cleanup(); }
 });
 test('normalized plan health reports missing or contradictory metadata while keeping original bodies readable', async () => {

@@ -35,7 +35,8 @@ def data_directory(root: Path, base: Path | None = None) -> Path:
 def document_identity(relative: str, registry: dict) -> str:
     matches = [work for work in registry.get("work_items", [])
                if relative == work["path"] or relative.startswith(work["path"] + "/")]
-    work = max(matches, key=lambda item: len(item["path"]), default=None)
+    selected = [work for work in matches if work.get("current_plan") == relative]
+    work = selected[0] if selected else max(matches, key=lambda item: len(item["path"]), default=None)
     if work:
         location = work["path"]
         return work["id"] + ":" + (Path(relative).name if relative == location else relative[len(location) + 1:])
@@ -82,14 +83,19 @@ def report(root: Path, files: list[str], task: str | None = None,
         raise ValueError("Invalid planning work identities")
     identities: set[str] = set()
     locations: set[str] = set()
+    selected_plans: set[str] = set()
     for work in registry["work_items"]:
         location = normalized_location(work["path"])
         work["path"] = location
-        if work.get("current_plan") is not None:
-            work["current_plan"] = normalized_location(work["current_plan"])
         identity = location.lower() if os.name == "nt" else location
         if work["id"] in identities or identity in locations:
             raise ValueError("Duplicate planning work identity or retained location")
+        if work.get("current_plan") is not None:
+            work["current_plan"] = normalized_location(work["current_plan"])
+            selected = work["current_plan"].lower() if os.name == "nt" else work["current_plan"]
+            if selected in selected_plans:
+                raise ValueError("Conflicting selected plan pointers")
+            selected_plans.add(selected)
         identities.add(work["id"])
         locations.add(identity)
     destination = cache_outside_planning(root, data_directory(root, destination))
