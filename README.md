@@ -4,6 +4,24 @@ An agent-ready library for evidence-backed OntoUML models, with validation, a Re
 
 Open [index.html](index.html) to explore the included R5Reloaded example. It uses pinned public sources for Apex Season 3. The example is separate from the reusable library and excluded from its package.
 
+## Development and offline builds
+
+Use Node 20.19+ or 22.12+ for the Vite development server.
+
+```sh
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/`. Vite serves the React source with Fast Refresh and CSS updates. Changes to the R5 model, evidence, snippets, view settings, validation or diagram generation rebuild the viewer payload and update the open application. Existing selection and UI state survive successful updates when their IDs remain stable. Invalid model updates display Vite's error overlay; the last valid payload is retained until the model is fixed. The development entry point and model bridge live in `development/` and `scripts/vite-model-plugin.cjs`.
+
+```sh
+npm run build
+npm run preview
+```
+
+`build` writes the self-contained production `index.html`, `downloads/` and reusable React module in `dist/`. The HTML has embedded JavaScript, styles, model, snippets and exports; it needs no internet connection, development server or runtime API. Open it directly from disk, serve it with any static HTTP server, or use `preview` at `http://127.0.0.1:4173/`. The preview serves only the generated HTML and downloads. Rebuild to update production output. Vite and its live-update client are development dependencies and are excluded from the offline HTML.
+
 ## Give an agent a modeling job
 
 ```sh
@@ -60,7 +78,7 @@ const built = await buildViewer({ project: data, slug: "orders" });
 writeViewer(built, "./site");
 ```
 
-`buildViewer` returns HTML, export artifacts, a validation report, scenes and `payload`. Use the payload in a React 19.3 application:
+`buildViewer` returns HTML, export artifacts, a validation report, scenes and `payload`. `prepareViewer` returns the same data without bundling the HTML, useful for live React applications. Use the payload in a React 19.3 application:
 
 ```jsx
 import { OntoUMLViewer, ViewerErrorBoundary } from "ontouml-atlas/react";
@@ -100,6 +118,7 @@ lib/validation/  Official schema, references, evidence and ontology rules
 lib/layout/      View preparation, orthogonal geometry, SVG and endpoint checks
 lib/build/       Offline HTML generation, export archive, Shiki previews
 lib/agent/       Multi-project modeling jobs
+development/     Vite entry point and live model updates
 src/viewer/      React application composition and evidence sidebar
 src/visualization/  Reusable UML components, camera and focus behavior
 src/learning/    Bundled specification guidance and model-specific explanations

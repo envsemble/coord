@@ -4,11 +4,13 @@
   "private": true,
   "description": "Agent-ready OntoUML validation, offline visualization and learning",
   "scripts": {
+    "dev": "vite",
     "build": "node scripts/build.cjs",
+    "preview": "node scripts/preview.cjs",
     "check": "node scripts/check.cjs",
     "test": "node scripts/test.cjs",
-    "format": "prettier --write src lib bin scripts tests examples schemas/*.json agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json",
-    "format:check": "prettier --check src lib bin scripts tests examples agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json",
+    "format": "prettier --write development vite.config.mjs src lib bin scripts tests examples schemas/*.json agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json",
+    "format:check": "prettier --check development vite.config.mjs src lib bin scripts tests examples agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json",
     "check:types": "tsc --noEmit -p tsconfig.contracts.json",
     "build:library": "node scripts/build-library.cjs",
     "prepack": "node scripts/build-library.cjs",
@@ -19,10 +21,12 @@
   },
   "devDependencies": {
     "@types/react": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
     "prettier": "3.8.0",
-    "typescript": "7.0.2",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.3"
   },
   "dependencies": {
     "ajv": "8.20.0",

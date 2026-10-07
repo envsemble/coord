@@ -240,13 +240,15 @@ export interface ViewerPayload {
   exports: ExportData;
   snippets: Record<string, HighlightedExcerpt>;
 }
-export interface BuildResult {
-  html: string;
+export interface PreparedViewer {
   artifacts: Map<string, string | Uint8Array>;
   report: ValidationReport;
   model: ViewerModel & { validation: ValidationReport };
   views: PreparedView[];
   payload: ViewerPayload;
+}
+export interface BuildResult extends PreparedViewer {
+  html: string;
 }
 export function validateProject(project: unknown): ValidationReport;
 export function validateEvidence(
@@ -265,13 +267,15 @@ export function mergeProjects(
   inputs: { key: string; project: ExchangeProject }[],
   options?: { id?: string; name?: string },
 ): ExchangeProject;
-export function buildViewer(input: {
+export interface ViewerBuildInput {
   project: ExchangeProject;
   evidence?: ModelEvidence;
   views?: ViewSettings[];
   snippets?: Record<string, SourceExcerpt>;
   slug?: string;
-}): Promise<BuildResult>;
+}
+export function prepareViewer(input: ViewerBuildInput): Promise<PreparedViewer>;
+export function buildViewer(input: ViewerBuildInput): Promise<BuildResult>;
 export function writeViewer(result: BuildResult, outputPath: string): void;
 export interface ModelingJob {
   formatVersion: 1;
