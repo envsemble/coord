@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { PulseIcon as Activity, ArrowLeftIcon as ArrowLeft, ArrowUpRightIcon as ArrowUpRight, BookIcon as BookOpen, ChevronRightIcon as ChevronRight, IssueOpenedIcon, ClockIcon as Clock3, DownloadIcon as Download, FileIcon as FileText, FileDirectoryIcon as Folder, FileDirectoryOpenFillIcon as FolderOpen, GitCommitIcon as GitCommitHorizontal, StackIcon as Layers3, ProjectIcon as LayoutDashboard, ChecklistIcon as ListChecks, SyncIcon as RefreshCw, SearchIcon as Search, ShieldCheckIcon as ShieldCheck, SparkleIcon as Sparkles, RepoIcon as Workflow, XIcon as X } from '@primer/octicons-react';
+import { Activity, ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, CircleIcon, Clock3, Download, FileText, Folder, FolderOpen, GitCommitHorizontal, Layers3, LayoutDashboard, ListChecks, RefreshCw, Search, ShieldCheck, Sparkles, Workflow, X } from './icons';
 import type { Document, DocumentContent, Snapshot, Work } from './types';
 import { resolveLink, samePath } from './links';
 import { findHeadingId, rehypeHeadingIds } from './headings';
@@ -40,7 +40,7 @@ function documentOpen(file: Document) { navigate(documentRoute(file)); }
 function WorkCard({ work }: { work: Work }) {
   const updated = work.progress?.updated ?? work.updated;
   return <button className="work-card" onClick={() => navigate({ work: work.id })}>
-    <IssueOpenedIcon className={'work-status-icon ' + (work.implementation === 'complete' ? 'complete' : '')} size={18} />
+    <CircleIcon className={'work-status-icon ' + (work.implementation === 'complete' ? 'complete' : '')} size={18} />
     <div className="work-row-main"><h3>{work.title}</h3>
     <div className="card-foot"><span>{work.id.replace('work-', '#')} · {pretty(work.design)} plan</span><span>{work.repositories.join(', ')}</span></div>
     {work.progress?.current && <div className="row-focus">{work.progress.current}</div>}</div>
