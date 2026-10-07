@@ -94,7 +94,12 @@ function RecordGroup({ title, files, work, searching, expansion }: { title: stri
 function Records({ snapshot, repository, search, knowledge }: { snapshot: Snapshot; repository: string; search: string; knowledge: boolean }) {
   const [expansion, setExpansion] = useState({ open: false, revision: 0 });
   const term = search.toLowerCase();
-  const files = snapshot.documents.filter(file => (!knowledge || file.category === 'knowledge') && (repository === 'all' || file.repositories.includes(repository)) && (file.title + ' ' + file.path).toLowerCase().includes(term));
+  const owners = new Map(snapshot.work.map(work => [work.id, work]));
+  const files = snapshot.documents.filter(file => {
+    const owner = file.workId === null ? undefined : owners.get(file.workId);
+    const searchable = [file.title, file.path, owner?.title, owner?.id, owner?.id.replace('work-', '#')].join(' ').toLowerCase();
+    return (!knowledge || file.category === 'knowledge') && (repository === 'all' || file.repositories.includes(repository)) && searchable.includes(term);
+  });
   const groups = new Map<string | null, Document[]>();
   for (const file of files) {
     const key = file.workId;

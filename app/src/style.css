@@ -304,8 +304,8 @@ select option { background: var(--bg); color: var(--text); }
   .work-card { grid-template-columns: 18px minmax(0, 1fr) 100px 72px; }
 }
 @media (max-width: 640px) {
-  .app { display: block; }
-  .app-sidebar { position: static; height: auto; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .app { display: block; --mobile-navigation-height: 90px; }
+  .app-sidebar { position: sticky; top: 0; z-index: 20; height: var(--mobile-navigation-height); padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
   .brand { justify-content: flex-start; gap: 8px; min-height: 32px; margin-bottom: 6px; padding: 4px 8px; }
   .brand strong { display: block; }
   .workspace-nav { flex-direction: row; overflow-x: auto; padding: 0; }
@@ -314,7 +314,8 @@ select option { background: var(--bg); color: var(--text); }
   .nav-label { display: block; }
   .workspace-nav button.secondary-start { margin-top: 0; }
   .workspace-nav button.active { box-shadow: inset 0 -2px var(--underlineNav-borderColor-active, #f78166); }
-  .site-header { min-height: 56px; padding: 10px 16px; gap: 10px; }
+  .site-header { top: var(--mobile-navigation-height); min-height: 56px; padding: 10px 16px; gap: 10px; }
+  .prose [id], .document-pane { scroll-margin-top: calc(var(--mobile-navigation-height) + 80px); }
   .repository-filter { padding-left: 6px; gap: 4px; }
   .repository-filter select { max-width: 140px; }
   .content { padding: 20px 16px; }
