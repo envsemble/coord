@@ -106,6 +106,8 @@ The R5 example currently has three phase-partition findings. Its ActiveClientSlo
 
 Two fingers pan; pinch zooms slowly and smoothly. Drag also pans. Hover takes priority over selection in the wide sidebar. Hover or selection dims unrelated elements; a relation keeps only itself and its two endpoints highlighted. The active entity has an amber outline and connected entities have blue outlines. Selection survives navigation, theme changes and field toggling. Clicking the background or pressing Escape clears it.
 
+Scrolling, dragging, pinch gestures, zoom buttons and Fit share one frame-synchronized camera animation. Input accumulates without dropping movement, zoom stays anchored under the cursor, and drag follows more tightly than scrolling. The grid moves on a separate composited layer. Reduced-motion preferences apply movements immediately.
+
 Each association shows counts at both ends. Inheritance uses a hollow triangle and no counts. Routes have only horizontal and vertical segments, checked during generation. GitHub Dark Dimmed is the default; light is available and remembered when browser storage permits. Entity backgrounds distinguish kinds (blue), roles (orange), relators (purple), phases (green), events (red) and modes (cyan) in both themes and SVG exports. Source snippets include line numbers and pinned GitHub links. SVG, standard JSON, evidence, views, notes, validation and ZIP downloads work directly from disk.
 
 Exports have one compressed copy in the HTML; SVG downloads use the chosen theme. The included page is about 45% smaller than the initial uncompressed library build. Source repositories, the layout engine and Shiki are build-time inputs, never runtime network dependencies.

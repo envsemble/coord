@@ -3,7 +3,7 @@ var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { en
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
 // src/viewer/OntoUMLViewer.jsx
-import { useCallback as useCallback3, useEffect as useEffect6, useMemo as useMemo4, useRef as useRef7, useState as useState10 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect6, useMemo as useMemo5, useRef as useRef7, useState as useState9 } from "react";
 
 // src/visualization/DiagramCanvas.jsx
 import {
@@ -14,7 +14,7 @@ import {
   useImperativeHandle,
   useLayoutEffect as useLayoutEffect2,
   useRef as useRef2,
-  useState as useState2
+  useState
 } from "react";
 
 // src/visualization/UMLDiagram.jsx
@@ -521,49 +521,108 @@ function UMLDiagram({
 }
 
 // src/visualization/useDiagramCamera.js
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo as useMemo2, useRef } from "react";
 
 // src/visualization/camera.js
 var PINCH_WHEEL_SENSITIVITY = 15e-4;
 var PINCH_GESTURE_SENSITIVITY = 0.15;
-var PINCH_EASING_MS = 80;
+var PAN_EASING_MS = 50;
+var DRAG_EASING_MS = 28;
+var ZOOM_EASING_MS = 90;
 var clampScale = (scale) => Math.max(0.08, Math.min(3.5, scale));
 function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
   let camera = { x: 0, y: 0, scale: 1, fitted: true };
+  let destination = { ...camera };
   let activeKey = null;
-  let pinchZoom = null;
-  let pinchFrame = null;
+  let motionFrame = null;
+  let motionTime = 0;
+  let easing = PAN_EASING_MS;
+  let reducedMotion = false;
+  let grid = null;
+  let zoomReadout = null;
   let drag = null;
   let moved = false;
   let initialFocus = [];
   const cameras = /* @__PURE__ */ new Map();
   const pointers = /* @__PURE__ */ new Map();
-  function cancelPinchZoom() {
-    if (pinchFrame !== null) cancelAnimationFrame(pinchFrame);
-    pinchFrame = null;
-    pinchZoom = null;
+  function cancelMotion() {
+    if (motionFrame !== null) cancelAnimationFrame(motionFrame);
+    motionFrame = null;
+    destination = { ...camera };
   }
   function paint() {
     worldRef.current.style.transform = `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`;
-    canvasRef.current.style.backgroundPosition = `${camera.x}px ${camera.y}px`;
-    onZoom(Math.round(camera.scale * 100));
+    if (grid)
+      grid.style.transform = `translate3d(${camera.x % 20}px,${camera.y % 20}px,0)`;
+    const value = Math.round(camera.scale * 100);
+    if (value !== zoomReadout) {
+      zoomReadout = value;
+      onZoom(value);
+    }
   }
-  function fit() {
-    cancelPinchZoom();
+  function snapTo(next) {
+    cancelMotion();
+    camera = { ...next };
+    destination = { ...next };
+    paint();
+  }
+  function animateMotion(time) {
+    const elapsed = Math.max(0, Math.min(time - motionTime, 64));
+    motionTime = time;
+    const scaleGap = Math.log(destination.scale / camera.scale);
+    const dx = destination.x - camera.x;
+    const dy = destination.y - camera.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 0.05 && Math.abs(scaleGap) < 1e-4) {
+      motionFrame = null;
+      camera = { ...destination };
+      paint();
+      return;
+    }
+    const amount = 1 - Math.exp(-elapsed / easing);
+    const scale = camera.scale * Math.exp(scaleGap * amount);
+    const progress = Math.abs(destination.scale - camera.scale) > 1e-10 ? (scale - camera.scale) / (destination.scale - camera.scale) : amount;
+    camera = {
+      x: camera.x + dx * progress,
+      y: camera.y + dy * progress,
+      scale,
+      fitted: false
+    };
+    paint();
+    motionFrame = requestAnimationFrame(animateMotion);
+  }
+  function moveTo(next, duration) {
+    if (reducedMotion) {
+      snapTo(next);
+      return;
+    }
+    destination = { ...next };
+    easing = duration;
+    camera.fitted = false;
+    if (motionFrame === null) {
+      motionTime = performance.now();
+      motionFrame = requestAnimationFrame(animateMotion);
+    }
+  }
+  function fit(animate = true) {
     const b = worldRef.current.querySelector("svg").viewBox.baseVal;
     const w = canvasRef.current.clientWidth;
     const h = canvasRef.current.clientHeight;
-    const scale = Math.min((w - 48) / b.width, (h - 48) / b.height, 1.2);
-    camera = {
+    const scale = Math.min(
+      Math.max(1, w - 48) / b.width,
+      Math.max(1, h - 48) / b.height,
+      1.2
+    );
+    const next = {
       x: (w - b.width * scale) / 2,
       y: (h - b.height * scale) / 2,
       scale,
       fitted: true
     };
-    paint();
+    if (animate) moveTo(next, ZOOM_EASING_MS);
+    else snapTo(next);
   }
   function initialCamera() {
-    fit();
+    fit(false);
     if (camera.scale >= 0.7 || !initialFocus.length) return;
     const anchors = initialFocus.map((id) => {
       const node = worldRef.current.querySelector(
@@ -580,59 +639,38 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     });
     const x = (Math.min(...anchors.map((n) => n.x)) + Math.max(...anchors.map((n) => n.x + n.w))) / 2;
     const y = (Math.min(...anchors.map((n) => n.y)) + Math.max(...anchors.map((n) => n.y + n.h))) / 2;
-    camera = {
+    snapTo({
       scale: 0.7,
       x: canvasRef.current.clientWidth / 2 - x * 0.7,
       y: canvasRef.current.clientHeight / 2 - y * 0.7,
       fitted: false
-    };
-    paint();
+    });
   }
-  function applyZoom(scale, x, y) {
+  function zoomTo(scale, x = canvasRef.current.clientWidth / 2, y = canvasRef.current.clientHeight / 2, duration = ZOOM_EASING_MS) {
     scale = clampScale(scale);
-    const ratio = scale / camera.scale;
-    camera.x = x - (x - camera.x) * ratio;
-    camera.y = y - (y - camera.y) * ratio;
-    camera.scale = scale;
-    camera.fitted = false;
-    paint();
-  }
-  function zoomTo(scale, x = canvasRef.current.clientWidth / 2, y = canvasRef.current.clientHeight / 2) {
-    cancelPinchZoom();
-    applyZoom(scale, x, y);
-  }
-  function animatePinchZoom(time) {
-    const zoom = pinchZoom;
-    const elapsed = Math.max(0, Math.min(time - zoom.time, 64));
-    const gap = Math.log(zoom.scale / camera.scale);
-    const finished = Math.abs(gap) < 1e-4;
-    zoom.time = time;
-    applyZoom(
-      finished ? zoom.scale : camera.scale * Math.exp(gap * (1 - Math.exp(-elapsed / PINCH_EASING_MS))),
-      zoom.x,
-      zoom.y
+    const ratio = scale / destination.scale;
+    moveTo(
+      {
+        x: x - (x - destination.x) * ratio,
+        y: y - (y - destination.y) * ratio,
+        scale,
+        fitted: false
+      },
+      duration
     );
-    if (finished) {
-      pinchZoom = null;
-      pinchFrame = null;
-    } else pinchFrame = requestAnimationFrame(animatePinchZoom);
   }
   function pinchZoomBy(delta, x, y) {
-    if (!pinchZoom)
-      pinchZoom = { scale: camera.scale, x, y, time: performance.now() };
-    pinchZoom.scale = clampScale(pinchZoom.scale * Math.exp(delta));
-    pinchZoom.x = x;
-    pinchZoom.y = y;
-    camera.fitted = false;
-    if (pinchFrame === null)
-      pinchFrame = requestAnimationFrame(animatePinchZoom);
+    zoomTo(destination.scale * Math.exp(delta), x, y);
   }
-  function pan(dx, dy) {
-    cancelPinchZoom();
-    camera.x += dx;
-    camera.y += dy;
-    camera.fitted = false;
-    paint();
+  function pan(dx, dy, duration = PAN_EASING_MS) {
+    const next = {
+      ...destination,
+      x: destination.x + dx,
+      y: destination.y + dy,
+      fitted: false
+    };
+    if (duration) moveTo(next, duration);
+    else snapTo(next);
   }
   function clearPointers(canvas = canvasRef.current) {
     for (const id of pointers.keys())
@@ -642,29 +680,33 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     canvas.classList.remove("dragging");
   }
   function restoreView(key, fields, focusIds = []) {
-    cancelPinchZoom();
+    cancelMotion();
     clearPointers();
     if (activeKey) cameras.set(activeKey, { ...camera });
     initialFocus = focusIds;
     activeKey = `${key}:${fields}`;
     if (cameras.has(activeKey)) {
-      camera = { ...cameras.get(activeKey) };
-      paint();
+      snapTo(cameras.get(activeKey));
     } else initialCamera();
   }
   function focusNode(id, rightInset = 0) {
     const node = worldRef.current.querySelector(`.node[data-node-id="${id}"]`);
     if (!node) return;
-    cancelPinchZoom();
+    cancelMotion();
     const m = node.transform.baseVal.consolidate().matrix;
     const r = node.querySelector("rect");
     const canvas = canvasRef.current;
     const freeWidth = Math.max(1, canvas.clientWidth - rightInset);
-    camera.scale = Math.max(camera.scale, 0.85);
-    camera.x = freeWidth / 2 - (m.e + Number(r.getAttribute("width")) / 2) * camera.scale;
-    camera.y = canvas.clientHeight / 2 - (m.f + Number(r.getAttribute("height")) / 2) * camera.scale;
-    camera.fitted = false;
-    paint();
+    const scale = Math.max(camera.scale, 0.85);
+    moveTo(
+      {
+        scale,
+        x: freeWidth / 2 - (m.e + Number(r.getAttribute("width")) / 2) * scale,
+        y: canvas.clientHeight / 2 - (m.f + Number(r.getAttribute("height")) / 2) * scale,
+        fitted: false
+      },
+      ZOOM_EASING_MS
+    );
   }
   function revealNode(id) {
     const node = worldRef.current.querySelector(`.node[data-node-id="${id}"]`);
@@ -672,14 +714,16 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     const m = node.transform.baseVal.consolidate().matrix;
     const r = node.querySelector("rect");
     const canvas = canvasRef.current;
-    const left = camera.x + m.e * camera.scale;
-    const top = camera.y + m.f * camera.scale;
-    const width = Number(r.getAttribute("width")) * camera.scale;
-    const height = Number(r.getAttribute("height")) * camera.scale;
+    const left = destination.x + m.e * destination.scale;
+    const top = destination.y + m.f * destination.scale;
+    const width = Number(r.getAttribute("width")) * destination.scale;
+    const height = Number(r.getAttribute("height")) * destination.scale;
     const shift = (start, size, available) => size > available - 48 ? (available - size) / 2 - start : start < 24 ? 24 - start : start + size > available - 24 ? available - 24 - start - size : 0;
     const dx = shift(left, width, canvas.clientWidth);
     const dy = shift(top, height, canvas.clientHeight);
-    if (dx || dy) pan(dx, dy);
+    if (dx || dy) {
+      pan(dx, dy, motionFrame === null ? 0 : easing);
+    }
   }
   function gesture() {
     const p = [...pointers.values()];
@@ -693,6 +737,7 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
   function attach() {
     const canvas = canvasRef.current;
     const world = worldRef.current;
+    grid = canvas.querySelector(".canvas-grid");
     const cleanup = [];
     const listen = (target, type, handler, options) => {
       target.addEventListener(type, handler, options);
@@ -702,6 +747,14 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
+    const motionPreference = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+    reducedMotion = motionPreference?.matches || false;
+    if (motionPreference)
+      listen(motionPreference, "change", (e) => {
+        reducedMotion = e.matches;
+        if (reducedMotion) snapTo(destination);
+      });
+    paint();
     listen(
       canvas,
       "wheel",
@@ -718,7 +771,7 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     );
     listen(canvas, "pointerdown", (e) => {
       if (e.button !== 0) return;
-      cancelPinchZoom();
+      cancelMotion();
       moved = false;
       const p = position(e);
       pointers.set(e.pointerId, p);
@@ -741,19 +794,26 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       const g = gesture();
       if (g && drag.gesture) {
         const old = drag.gesture;
-        pan(g.x - old.x, g.y - old.y);
-        if (old.d > 0) zoomTo(camera.scale * g.d / old.d, g.x, g.y);
+        pan(g.x - old.x, g.y - old.y, DRAG_EASING_MS);
+        if (old.d > 0)
+          zoomTo(destination.scale * g.d / old.d, g.x, g.y, DRAG_EASING_MS);
         drag.moved = true;
         if (!moved) onMotion?.();
         moved = true;
         drag.gesture = g;
       } else if (g) drag.gesture = g;
       else {
+        const wasMoved = drag.moved;
         if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
           drag.moved = true;
         if (drag.moved && !moved) onMotion?.();
         if (drag.moved) moved = true;
-        if (drag.moved) pan(p.x - drag.lastX, p.y - drag.lastY);
+        if (drag.moved)
+          pan(
+            p.x - (wasMoved ? drag.lastX : drag.startX),
+            p.y - (wasMoved ? drag.lastY : drag.startY),
+            DRAG_EASING_MS
+          );
         drag.lastX = p.x;
         drag.lastY = p.y;
       }
@@ -784,11 +844,11 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     listen(document, "keydown", (e) => {
       if (e.target.matches("input,textarea,[contenteditable='true']")) return;
       if (e.key === "+" || e.key === "=") {
-        zoomTo(camera.scale * 1.25);
+        zoomTo(destination.scale * 1.25);
         e.preventDefault();
       }
       if (e.key === "-") {
-        zoomTo(camera.scale / 1.25);
+        zoomTo(destination.scale / 1.25);
         e.preventDefault();
       }
       if (e.key === "0") {
@@ -803,7 +863,7 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       (e) => {
         e.preventDefault();
         onMotion?.();
-        cancelPinchZoom();
+        cancelMotion();
         safariScale = 1;
       },
       { passive: false }
@@ -834,9 +894,13 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       if (w === width && h === height) return;
       if (w !== width && h === height) {
         camera.fitted = false;
+        destination.fitted = false;
         paint();
-      } else if (camera.fitted) fit();
-      else pan((w - width) / 2, (h - height) / 2);
+      } else if (destination.fitted) fit(false);
+      else {
+        cancelMotion();
+        pan((w - width) / 2, (h - height) / 2, 0);
+      }
       width = w;
       height = h;
     });
@@ -844,8 +908,9 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     return () => {
       cleanup.forEach((remove) => remove());
       observer.disconnect();
-      cancelPinchZoom();
+      cancelMotion();
       clearPointers(canvas);
+      grid = null;
     };
   }
   return {
@@ -856,7 +921,7 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     hasDragged: () => moved,
     fit,
     reset: () => zoomTo(1),
-    zoomBy: (factor) => zoomTo(camera.scale * factor)
+    zoomBy: (factor) => zoomTo(destination.scale * factor)
   };
 }
 
@@ -871,14 +936,16 @@ function useDiagramCamera({
   onMotion
 }) {
   const callbacks = useRef({ onZoom, onTap, onMotion });
-  const [controls] = useState(
+  const controls = useMemo2(
     () => createCamera({
       canvasRef,
       worldRef,
       onZoom: (value) => callbacks.current.onZoom(value),
       onTap: (element) => callbacks.current.onTap(element),
       onMotion: () => callbacks.current.onMotion()
-    })
+    }),
+    // A new camera implementation during Vite refresh needs a new controller.
+    [createCamera]
   );
   useLayoutEffect(() => {
     callbacks.current = { onZoom, onTap, onMotion };
@@ -895,7 +962,7 @@ function useDiagramCamera({
 }
 
 // src/visualization/DiagramCanvas.jsx
-import { jsx as jsx5 } from "react/jsx-runtime";
+import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
 var DiagramCanvas = memo(
   forwardRef(function DiagramCanvas2({
     diagram,
@@ -908,7 +975,7 @@ var DiagramCanvas = memo(
     onClearHover
   }, ref) {
     const canvasRef = useRef2(null), worldRef = useRef2(null);
-    const [focused, setFocused] = useState2(null);
+    const [focused, setFocused] = useState(null);
     const clearTransient = useCallback(() => {
       onClearHover();
       setFocused(null);
@@ -944,29 +1011,32 @@ var DiagramCanvas = memo(
         if (e.type === "keydown" || !controls.hasDragged()) onSelect(value);
       }
     };
-    return /* @__PURE__ */ jsx5(
+    return /* @__PURE__ */ jsxs4(
       "main",
       {
         ref: canvasRef,
         id: "canvas",
         "aria-label": "Interactive OntoUML diagram",
         onPointerLeave: () => onHover(null),
-        children: /* @__PURE__ */ jsx5("div", { ref: worldRef, id: "world", children: /* @__PURE__ */ jsx5(
-          UMLDiagram,
-          {
-            diagram,
-            active: hovered || focused || selected,
-            selected,
-            handlers
-          }
-        ) })
+        children: [
+          /* @__PURE__ */ jsx5("div", { className: "canvas-grid", "aria-hidden": "true" }),
+          /* @__PURE__ */ jsx5("div", { ref: worldRef, id: "world", children: /* @__PURE__ */ jsx5(
+            UMLDiagram,
+            {
+              diagram,
+              active: hovered || focused || selected,
+              selected,
+              handlers
+            }
+          ) })
+        ]
       }
     );
   })
 );
 
 // src/visualization/useSVGExport.js
-import { useEffect as useEffect2, useState as useState3 } from "react";
+import { useEffect as useEffect2, useState as useState2 } from "react";
 var THEME_VARS = [
   "--canvas",
   "--surface",
@@ -992,7 +1062,7 @@ var THEME_VARS = [
   "--type-mode"
 ];
 function useSVGExport(svgSource, theme) {
-  const [url, setURL] = useState3(void 0);
+  const [url, setURL] = useState2(void 0);
   useEffect2(() => {
     const svg = new DOMParser().parseFromString(
       svgSource,
@@ -1097,7 +1167,7 @@ function ToggleButton({ pressed, className = "", children, ...props }) {
 }
 
 // src/ui/Panel.jsx
-import { jsx as jsx7, jsxs as jsxs4 } from "react/jsx-runtime";
+import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
 function Panel({
   open,
   onClose,
@@ -1107,7 +1177,7 @@ function Panel({
   className = "",
   ...props
 }) {
-  return /* @__PURE__ */ jsxs4(
+  return /* @__PURE__ */ jsxs5(
     "aside",
     {
       id,
@@ -1131,9 +1201,9 @@ function Panel({
 }
 
 // src/ui/useTheme.js
-import { useLayoutEffect as useLayoutEffect3, useState as useState4 } from "react";
+import { useLayoutEffect as useLayoutEffect3, useState as useState3 } from "react";
 function useTheme(storageKey) {
-  const [theme, setTheme] = useState4(() => {
+  const [theme, setTheme] = useState3(() => {
     try {
       return localStorage.getItem(storageKey) === "light" ? "light" : "dark";
     } catch {
@@ -1166,9 +1236,9 @@ function Tabs({ items, value, onChange, label = "Diagram" }) {
 }
 
 // src/ui/CameraControls.jsx
-import { jsx as jsx9, jsxs as jsxs5 } from "react/jsx-runtime";
+import { jsx as jsx9, jsxs as jsxs6 } from "react/jsx-runtime";
 function CameraControls({ zoom, onZoom, onReset, onFit }) {
-  return /* @__PURE__ */ jsxs5("div", { className: "camera-controls", children: [
+  return /* @__PURE__ */ jsxs6("div", { className: "camera-controls", children: [
     /* @__PURE__ */ jsx9(
       IconButton,
       {
@@ -1179,7 +1249,7 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
         children: "\u2212"
       }
     ),
-    /* @__PURE__ */ jsxs5(
+    /* @__PURE__ */ jsxs6(
       "button",
       {
         id: "zoom-value",
@@ -1207,7 +1277,7 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
 }
 
 // src/ui/ConceptSearch.jsx
-import { useLayoutEffect as useLayoutEffect5, useRef as useRef4, useState as useState5 } from "react";
+import { useLayoutEffect as useLayoutEffect5, useRef as useRef4, useState as useState4 } from "react";
 
 // src/ui/usePopupDismiss.js
 import { useEffect as useEffect3, useLayoutEffect as useLayoutEffect4, useRef as useRef3 } from "react";
@@ -1234,11 +1304,11 @@ function usePopupDismiss(onClose, ...roots) {
 }
 
 // src/ui/ConceptSearch.jsx
-import { Fragment as Fragment3, jsx as jsx10, jsxs as jsxs6 } from "react/jsx-runtime";
+import { Fragment as Fragment3, jsx as jsx10, jsxs as jsxs7 } from "react/jsx-runtime";
 function ConceptSearch({ classes, onChoose }) {
-  const [query, setQuery] = useState5("");
-  const [open, setOpen] = useState5(false);
-  const [showHits, setShowHits] = useState5(false);
+  const [query, setQuery] = useState4("");
+  const [open, setOpen] = useState4(false);
+  const [showHits, setShowHits] = useState4(false);
   const inputRef = useRef4(null);
   const suggestionsRef = useRef4(null);
   const searchRef = useRef4(null), toggleRef = useRef4(null);
@@ -1258,7 +1328,7 @@ function ConceptSearch({ classes, onChoose }) {
     close();
     inputRef.current.blur();
   }
-  return /* @__PURE__ */ jsxs6(Fragment3, { children: [
+  return /* @__PURE__ */ jsxs7(Fragment3, { children: [
     /* @__PURE__ */ jsx10(
       "button",
       {
@@ -1271,7 +1341,7 @@ function ConceptSearch({ classes, onChoose }) {
         children: "\u2315"
       }
     ),
-    /* @__PURE__ */ jsxs6("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
+    /* @__PURE__ */ jsxs7("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
       /* @__PURE__ */ jsx10(
         "input",
         {
@@ -1318,13 +1388,13 @@ function ConceptSearch({ classes, onChoose }) {
 }
 
 // src/ui/ExportMenu.jsx
-import { useRef as useRef5, useState as useState6 } from "react";
-import { jsx as jsx11, jsxs as jsxs7 } from "react/jsx-runtime";
+import { useRef as useRef5, useState as useState5 } from "react";
+import { jsx as jsx11, jsxs as jsxs8 } from "react/jsx-runtime";
 function ExportMenu({ children }) {
-  const [open, setOpen] = useState6(false);
+  const [open, setOpen] = useState5(false);
   const root = useRef5(null);
   usePopupDismiss(() => setOpen(false), root);
-  return /* @__PURE__ */ jsxs7("div", { className: "menu-wrap", ref: root, children: [
+  return /* @__PURE__ */ jsxs8("div", { className: "menu-wrap", ref: root, children: [
     /* @__PURE__ */ jsx11(
       IconButton,
       {
@@ -1340,9 +1410,9 @@ function ExportMenu({ children }) {
 }
 
 // src/ui/useBlobURL.js
-import { useEffect as useEffect4, useState as useState7 } from "react";
+import { useEffect as useEffect4, useState as useState6 } from "react";
 function useBlobURL(data, type = "text/plain;charset=utf-8") {
-  const [url, setURL] = useState7(void 0);
+  const [url, setURL] = useState6(void 0);
   useEffect4(() => {
     const next = URL.createObjectURL(new Blob([data], { type }));
     setURL(next);
@@ -1366,7 +1436,7 @@ function DownloadLink({
 }
 
 // src/viewer/ViewerToolbar.jsx
-import { jsx as jsx13, jsxs as jsxs8 } from "react/jsx-runtime";
+import { jsx as jsx13, jsxs as jsxs9 } from "react/jsx-runtime";
 function ViewerToolbar({
   model,
   views,
@@ -1387,7 +1457,7 @@ function ViewerToolbar({
   onFit
 }) {
   const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
-  return /* @__PURE__ */ jsxs8("header", { children: [
+  return /* @__PURE__ */ jsxs9("header", { children: [
     /* @__PURE__ */ jsx13("span", { className: "brand", title: model.title, children: "OntoUML" }),
     /* @__PURE__ */ jsx13(Tabs, { items: views, value: viewKey, onChange: onView }),
     /* @__PURE__ */ jsx13("span", { className: "spacer" }),
@@ -1414,7 +1484,7 @@ function ViewerToolbar({
     /* @__PURE__ */ jsx13(CameraControls, { ...{ zoom, onZoom, onReset, onFit } }),
     /* @__PURE__ */ jsx13("span", { className: "divider" }),
     /* @__PURE__ */ jsx13(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? "\u2600" : "\u263E" }),
-    /* @__PURE__ */ jsxs8(ExportMenu, { children: [
+    /* @__PURE__ */ jsxs9(ExportMenu, { children: [
       /* @__PURE__ */ jsx13(
         "a",
         {
@@ -1457,7 +1527,7 @@ function ViewerToolbar({
         }
       )
     ] }),
-    /* @__PURE__ */ jsxs8(
+    /* @__PURE__ */ jsxs9(
       "button",
       {
         id: "learn-toggle",
@@ -1476,19 +1546,19 @@ function ViewerToolbar({
 
 // src/ui/CodeSnippet.jsx
 import { Fragment as Fragment4 } from "react";
-import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
+import { jsx as jsx14, jsxs as jsxs10 } from "react/jsx-runtime";
 function CodeSnippet({ snippet, label }) {
-  return /* @__PURE__ */ jsx14("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx14("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs9(Fragment4, { children: [
+  return /* @__PURE__ */ jsx14("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx14("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs10(Fragment4, { children: [
     /* @__PURE__ */ jsx14("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx14("span", { style: token.style, children: token.content }, j)) }),
     i < snippet.lines.length - 1 ? "\n" : null
   ] }, i)) }) });
 }
 
 // src/viewer/SourceEvidence.jsx
-import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
+import { jsx as jsx15, jsxs as jsxs11 } from "react/jsx-runtime";
 function SourceExcerpt({ source, snippet }) {
   if (!snippet)
-    return /* @__PURE__ */ jsxs10("div", { className: "source-excerpt", children: [
+    return /* @__PURE__ */ jsxs11("div", { className: "source-excerpt", children: [
       /* @__PURE__ */ jsx15("p", { children: source.claim }),
       source.url && /* @__PURE__ */ jsx15(
         "a",
@@ -1501,8 +1571,8 @@ function SourceExcerpt({ source, snippet }) {
         }
       )
     ] });
-  return /* @__PURE__ */ jsxs10("div", { className: "source-excerpt", children: [
-    /* @__PURE__ */ jsxs10("div", { className: "source-path", title: source.file, children: [
+  return /* @__PURE__ */ jsxs11("div", { className: "source-excerpt", children: [
+    /* @__PURE__ */ jsxs11("div", { className: "source-path", title: source.file, children: [
       source.file.split("/").pop(),
       " \xB7 ",
       snippet.language
@@ -1514,7 +1584,7 @@ function SourceExcerpt({ source, snippet }) {
         label: `${source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
       }
     ),
-    snippet.url && /* @__PURE__ */ jsxs10(
+    snippet.url && /* @__PURE__ */ jsxs11(
       "a",
       {
         className: "source-github",
@@ -1540,7 +1610,7 @@ function SourceEvidence({
 }) {
   const records = [...new Set(primary ? [primary, ...evidence] : evidence)].filter((id) => evidence.includes(id)).map((id) => sources.find((s) => s.id === id)).filter(Boolean);
   if (!records.length) return null;
-  return /* @__PURE__ */ jsxs10("section", { className: "source-evidence", "aria-label": label, children: [
+  return /* @__PURE__ */ jsxs11("section", { className: "source-evidence", "aria-label": label, children: [
     /* @__PURE__ */ jsx15("h2", { children: label }),
     records.map(
       (source, i) => i === 0 ? /* @__PURE__ */ jsx15(
@@ -1550,7 +1620,7 @@ function SourceEvidence({
           snippet: snippets[source.id]
         },
         source.id
-      ) : /* @__PURE__ */ jsxs10("details", { className: "additional-source", children: [
+      ) : /* @__PURE__ */ jsxs11("details", { className: "additional-source", children: [
         /* @__PURE__ */ jsx15("summary", { children: source.title }),
         /* @__PURE__ */ jsx15(SourceExcerpt, { source, snippet: snippets[source.id] })
       ] }, source.id)
@@ -1559,7 +1629,7 @@ function SourceEvidence({
 }
 
 // src/learning/LearningContent.jsx
-import { useState as useState8, useMemo as useMemo2 } from "react";
+import { useState as useState7, useMemo as useMemo3 } from "react";
 
 // src/learning/reference.json
 var reference_default = {
@@ -1750,10 +1820,10 @@ function identityProviders(model, id) {
 }
 
 // src/learning/LearningContent.jsx
-import { Fragment as Fragment5, jsx as jsx16, jsxs as jsxs11 } from "react/jsx-runtime";
+import { Fragment as Fragment5, jsx as jsx16, jsxs as jsxs12 } from "react/jsx-runtime";
 function Lesson({ stereotype, children }) {
   const lesson = lessonFor(stereotype);
-  return /* @__PURE__ */ jsxs11("div", { className: "lesson", children: [
+  return /* @__PURE__ */ jsxs12("div", { className: "lesson", children: [
     /* @__PURE__ */ jsx16("p", { children: lesson.summary }),
     children,
     /* @__PURE__ */ jsx16("p", { className: "learning-question", children: lesson.question }),
@@ -1776,9 +1846,9 @@ function ElementLearning({ element, model, relation = false }) {
   const issues = model.validation.issues.filter(
     (i) => i.elementId === element.id
   );
-  return /* @__PURE__ */ jsxs11("section", { className: "element-learning", "aria-label": "Model guidance", children: [
-    issues.filter((i) => i.severity !== "info").map((issue) => /* @__PURE__ */ jsxs11("details", { className: "finding", children: [
-      /* @__PURE__ */ jsxs11("summary", { children: [
+  return /* @__PURE__ */ jsxs12("section", { className: "element-learning", "aria-label": "Model guidance", children: [
+    issues.filter((i) => i.severity !== "info").map((issue) => /* @__PURE__ */ jsxs12("details", { className: "finding", children: [
+      /* @__PURE__ */ jsxs12("summary", { children: [
         issue.severity === "error" ? "Needs review" : "Review",
         " \xB7",
         " ",
@@ -1796,10 +1866,10 @@ function ElementLearning({ element, model, relation = false }) {
         }
       )
     ] }, issue.code)),
-    /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
+    /* @__PURE__ */ jsxs12("details", { className: "learn-concept", children: [
       /* @__PURE__ */ jsx16("summary", { children: key === "generalizationSet" ? "Understand generalization sets" : `Understand \xAB${key || "unspecified"}\xBB` }),
-      /* @__PURE__ */ jsxs11(Lesson, { stereotype: key, children: [
-        providers.length > 0 && /* @__PURE__ */ jsxs11("p", { children: [
+      /* @__PURE__ */ jsxs12(Lesson, { stereotype: key, children: [
+        providers.length > 0 && /* @__PURE__ */ jsxs12("p", { children: [
           "Identity supplied by ",
           providers.map((p) => p.name).join(", "),
           "."
@@ -1807,11 +1877,11 @@ function ElementLearning({ element, model, relation = false }) {
         relation && element.type === "association" && /* @__PURE__ */ jsx16("div", { className: "counts-reading", children: readMultiplicity(element).map((sentence) => /* @__PURE__ */ jsx16("p", { children: sentence }, sentence)) })
       ] })
     ] }),
-    element.rationale && element.rationale !== element.description && /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
+    element.rationale && element.rationale !== element.description && /* @__PURE__ */ jsxs12("details", { className: "learn-concept", children: [
       /* @__PURE__ */ jsx16("summary", { children: "Why this classification?" }),
       /* @__PURE__ */ jsx16("p", { children: element.rationale })
     ] }),
-    (element.questions || []).map((question) => /* @__PURE__ */ jsxs11("details", { className: "learn-concept uncertainty", children: [
+    (element.questions || []).map((question) => /* @__PURE__ */ jsxs12("details", { className: "learn-concept uncertainty", children: [
       /* @__PURE__ */ jsx16("summary", { children: question.question }),
       /* @__PURE__ */ jsx16("p", { children: question.why }),
       /* @__PURE__ */ jsx16("h2", { children: "How to resolve it" }),
@@ -1820,13 +1890,13 @@ function ElementLearning({ element, model, relation = false }) {
   ] });
 }
 function LearningLibrary({ model, onInspect }) {
-  const [tab, setTab] = useState8("learn"), [query, setQuery] = useState8("");
-  const [reveal, setReveal] = useState8(false);
+  const [tab, setTab] = useState7("learn"), [query, setQuery] = useState7("");
+  const [reveal, setReveal] = useState7(false);
   const visibleIssues = model.validation.issues.filter(
     (i) => i.severity !== "info"
   );
   const coverage = model.validation.issues.filter((i) => i.severity === "info");
-  const elementNames = useMemo2(
+  const elementNames = useMemo3(
     () => new Map(
       [...model.classes, ...model.relations, ...model.partitions || []].map(
         (e) => [e.id, e.name]
@@ -1834,10 +1904,10 @@ function LearningLibrary({ model, onInspect }) {
     ),
     [model]
   );
-  const renderIssue = (issue, i) => /* @__PURE__ */ jsxs11("div", { className: `validation-issue ${issue.severity}`, children: [
+  const renderIssue = (issue, i) => /* @__PURE__ */ jsxs12("div", { className: `validation-issue ${issue.severity}`, children: [
     /* @__PURE__ */ jsx16("span", { className: "tag", children: issue.severity }),
     /* @__PURE__ */ jsx16("p", { children: issue.message }),
-    issue.elementId && /* @__PURE__ */ jsxs11(
+    issue.elementId && /* @__PURE__ */ jsxs12(
       "button",
       {
         className: "issue-link",
@@ -1849,12 +1919,12 @@ function LearningLibrary({ model, onInspect }) {
       }
     )
   ] }, i);
-  return /* @__PURE__ */ jsxs11(Fragment5, { children: [
+  return /* @__PURE__ */ jsxs12(Fragment5, { children: [
     /* @__PURE__ */ jsx16("span", { className: "tag", children: "OntoUML Atlas" }),
     /* @__PURE__ */ jsx16("h1", { children: "Understand the model" }),
-    /* @__PURE__ */ jsxs11("div", { className: "learning-tabs", children: [
+    /* @__PURE__ */ jsxs12("div", { className: "learning-tabs", children: [
       /* @__PURE__ */ jsx16("button", { "aria-pressed": tab === "learn", onClick: () => setTab("learn"), children: "Learn" }),
-      /* @__PURE__ */ jsxs11(
+      /* @__PURE__ */ jsxs12(
         "button",
         {
           "aria-pressed": tab === "checks",
@@ -1875,7 +1945,7 @@ function LearningLibrary({ model, onInspect }) {
         }
       )
     ] }),
-    tab === "learn" && /* @__PURE__ */ jsxs11(Fragment5, { children: [
+    tab === "learn" && /* @__PURE__ */ jsxs12(Fragment5, { children: [
       /* @__PURE__ */ jsx16(
         "input",
         {
@@ -1887,7 +1957,7 @@ function LearningLibrary({ model, onInspect }) {
           onChange: (e) => setQuery(e.target.value)
         }
       ),
-      /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
+      /* @__PURE__ */ jsxs12("details", { className: "learn-concept", children: [
         /* @__PURE__ */ jsx16("summary", { children: "How to read counts" }),
         /* @__PURE__ */ jsx16("p", { children: "The count next to a type says how many of its instances can relate to one instance at the opposite end." }),
         /* @__PURE__ */ jsx16("p", { children: "1 = exactly one \xB7 0..1 = optional, at most one \xB7 1..* = at least one \xB7 * = zero or more." }),
@@ -1904,17 +1974,17 @@ function LearningLibrary({ model, onInspect }) {
       ] }),
       Object.entries(reference_default).filter(
         ([key, value]) => `${key} ${value.summary}`.toLowerCase().includes(query.toLowerCase())
-      ).map(([key, lesson]) => /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
+      ).map(([key, lesson]) => /* @__PURE__ */ jsxs12("details", { className: "learn-concept", children: [
         /* @__PURE__ */ jsx16("summary", { children: key === "generalizationSet" ? lesson.title : `${lesson.title} \xB7 \xAB${key}\xBB` }),
         /* @__PURE__ */ jsx16(Lesson, { stereotype: key })
       ] }, key))
     ] }),
-    tab === "checks" && /* @__PURE__ */ jsxs11(Fragment5, { children: [
+    tab === "checks" && /* @__PURE__ */ jsxs12(Fragment5, { children: [
       /* @__PURE__ */ jsx16("p", { children: model.validation.counts.error ? `${model.validation.counts.error} findings need review.` : "The implemented checks pass." }),
       /* @__PURE__ */ jsx16("p", { className: "muted", children: "Official JSON schema, reference integrity, and a documented subset of ontology rules. Domain accuracy still needs judgment." }),
       visibleIssues.map(renderIssue),
-      coverage.length > 0 && /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsxs11("summary", { children: [
+      coverage.length > 0 && /* @__PURE__ */ jsxs12("details", { className: "learn-concept", children: [
+        /* @__PURE__ */ jsxs12("summary", { children: [
           "Rule coverage \xB7 ",
           coverage.length,
           " notices"
@@ -1923,7 +1993,7 @@ function LearningLibrary({ model, onInspect }) {
       ] }),
       model.validation.limitations.map((limit) => /* @__PURE__ */ jsx16("p", { className: "muted", children: limit }, limit))
     ] }),
-    tab === "questions" && /* @__PURE__ */ jsxs11(Fragment5, { children: [
+    tab === "questions" && /* @__PURE__ */ jsxs12(Fragment5, { children: [
       model.unknowns.length ? model.unknowns.map((question) => /* @__PURE__ */ jsx16("p", { className: "open-question", children: question }, question)) : /* @__PURE__ */ jsx16("p", { className: "muted", children: "No project-wide questions recorded. Individual concepts may have their own questions." }),
       /* @__PURE__ */ jsx16("p", { className: "muted", children: "Inspect a concept for its evidence, classification rationale, and ways to resolve uncertainty." })
     ] })
@@ -1931,10 +2001,10 @@ function LearningLibrary({ model, onInspect }) {
 }
 
 // src/viewer/DetailsContent.jsx
-import { Fragment as Fragment6, jsx as jsx17, jsxs as jsxs12 } from "react/jsx-runtime";
+import { Fragment as Fragment6, jsx as jsx17, jsxs as jsxs13 } from "react/jsx-runtime";
 function ConceptDetails({ concept, model, snippets }) {
-  return /* @__PURE__ */ jsxs12(Fragment6, { children: [
-    /* @__PURE__ */ jsxs12("span", { className: "tag", children: [
+  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
+    /* @__PURE__ */ jsxs13("span", { className: "tag", children: [
       "\xAB",
       concept.stereotype || "unspecified",
       "\xBB"
@@ -1952,12 +2022,12 @@ function ConceptDetails({ concept, model, snippets }) {
       }
     ),
     /* @__PURE__ */ jsx17(ElementLearning, { element: concept, model }),
-    concept.attributes.length > 0 && /* @__PURE__ */ jsxs12("details", { className: "concept-fields", children: [
+    concept.attributes.length > 0 && /* @__PURE__ */ jsxs13("details", { className: "concept-fields", children: [
       /* @__PURE__ */ jsx17("summary", { children: "Fields" }),
       concept.attributes.map(
-        ({ name, type, multiplicity: cardinality }, i) => /* @__PURE__ */ jsxs12("div", { className: "field-row", children: [
+        ({ name, type, multiplicity: cardinality }, i) => /* @__PURE__ */ jsxs13("div", { className: "field-row", children: [
           /* @__PURE__ */ jsx17("span", { children: name }),
-          /* @__PURE__ */ jsxs12("span", { children: [
+          /* @__PURE__ */ jsxs13("span", { children: [
             type,
             cardinality ? ` [${cardinality}]` : ""
           ] })
@@ -1967,18 +2037,18 @@ function ConceptDetails({ concept, model, snippets }) {
   ] });
 }
 function RelationDetails({ relation, onChoose, model, snippets }) {
-  return /* @__PURE__ */ jsxs12(Fragment6, { children: [
+  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
     /* @__PURE__ */ jsx17("span", { className: "tag", children: relation.type === "generalization" ? "Generalization" : relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association" }),
     /* @__PURE__ */ jsx17("h1", { children: relation.type === "generalization" ? "Inheritance" : relation.name }),
     /* @__PURE__ */ jsx17("div", { className: "relation-ends", children: [
       [relation.source, relation.sourceMultiplicity],
       [relation.target, relation.targetMultiplicity]
-    ].map(([node, count], i) => /* @__PURE__ */ jsxs12("div", { className: "relation-end", children: [
+    ].map(([node, count], i) => /* @__PURE__ */ jsxs13("div", { className: "relation-end", children: [
       /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(node.id), children: node.name }),
       count && /* @__PURE__ */ jsx17("span", { className: "count-badge", children: count })
     ] }, i)) }),
     /* @__PURE__ */ jsx17(ElementLearning, { element: relation, model, relation: true }),
-    relation.type === "generalization" && (model.partitions || []).filter((set) => set.generalizations.includes(relation.id)).map((set) => /* @__PURE__ */ jsxs12("div", { className: "generalization-set-summary", children: [
+    relation.type === "generalization" && (model.partitions || []).filter((set) => set.generalizations.includes(relation.id)).map((set) => /* @__PURE__ */ jsxs13("div", { className: "generalization-set-summary", children: [
       /* @__PURE__ */ jsx17("h2", { children: set.name }),
       /* @__PURE__ */ jsx17("p", { children: `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}` })
     ] }, set.id)),
@@ -1995,21 +2065,21 @@ function RelationDetails({ relation, onChoose, model, snippets }) {
 }
 function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
   const declared = group.type === "generalizationSet";
-  return /* @__PURE__ */ jsxs12(Fragment6, { children: [
+  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
     /* @__PURE__ */ jsx17("span", { className: "tag", children: declared ? "Generalization set" : "Joined inheritance" }),
     /* @__PURE__ */ jsx17("h1", { children: group.name }),
     group.description && /* @__PURE__ */ jsx17("p", { children: group.description }),
-    /* @__PURE__ */ jsxs12("div", { className: "relation-ends", children: [
+    /* @__PURE__ */ jsxs13("div", { className: "relation-ends", children: [
       /* @__PURE__ */ jsx17("h2", { children: "Supertype" }),
       /* @__PURE__ */ jsx17("div", { className: "relation-end", children: /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(group.target.id), children: group.target.name }) }),
       /* @__PURE__ */ jsx17("h2", { children: "Subtypes" }),
       group.sources.map((node) => /* @__PURE__ */ jsx17("div", { className: "relation-end", children: /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(node.id), children: node.name }) }, node.id))
     ] }),
-    declared ? /* @__PURE__ */ jsxs12(Fragment6, { children: [
+    declared ? /* @__PURE__ */ jsxs13(Fragment6, { children: [
       /* @__PURE__ */ jsx17("p", { className: "set-constraints", children: `{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}` }),
       /* @__PURE__ */ jsx17("p", { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
       /* @__PURE__ */ jsx17("p", { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." }),
-      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs12("p", { className: "muted", children: [
+      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs13("p", { className: "muted", children: [
         group.memberIds.length,
         " of ",
         group.totalMembers,
@@ -2029,11 +2099,11 @@ function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
   ] });
 }
 function About({ model, exports }) {
-  return /* @__PURE__ */ jsxs12(Fragment6, { children: [
+  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
     /* @__PURE__ */ jsx17("span", { className: "tag", children: "OntoUML Atlas" }),
     /* @__PURE__ */ jsx17("h1", { children: model.title }),
     /* @__PURE__ */ jsx17("p", { children: "Two fingers to pan. Pinch to zoom. Select a concept or relation for evidence and learning help." }),
-    /* @__PURE__ */ jsxs12("p", { children: [
+    /* @__PURE__ */ jsxs13("p", { children: [
       /* @__PURE__ */ jsx17("kbd", { children: "+" }),
       " / ",
       /* @__PURE__ */ jsx17("kbd", { children: "\u2212" }),
@@ -2066,10 +2136,10 @@ function About({ model, exports }) {
 }
 
 // src/viewer/useInspection.js
-import { useCallback as useCallback2, useEffect as useEffect5, useRef as useRef6, useState as useState9 } from "react";
+import { useCallback as useCallback2, useEffect as useEffect5, useRef as useRef6, useState as useState8 } from "react";
 var inspectedTarget = (hovered, selected) => hovered || selected;
 function useInspection() {
-  const [hovered, setHovered] = useState9(null);
+  const [hovered, setHovered] = useState8(null);
   const hoverTimer = useRef6(null);
   const keepHover = useCallback2(() => {
     clearTimeout(hoverTimer.current);
@@ -2096,10 +2166,10 @@ function useInspection() {
 }
 
 // src/viewer/useArtifactArchive.js
-import { useMemo as useMemo3 } from "react";
+import { useMemo as useMemo4 } from "react";
 import { unzipSync, strFromU8 } from "fflate";
 function useArtifactArchive(exportData) {
-  return useMemo3(() => {
+  return useMemo4(() => {
     const bundle = Uint8Array.from(
       atob(exportData.bundle),
       (c) => c.charCodeAt(0)
@@ -2119,7 +2189,7 @@ function useArtifactArchive(exportData) {
 }
 
 // src/viewer/OntoUMLViewer.jsx
-import { jsx as jsx18, jsxs as jsxs13 } from "react/jsx-runtime";
+import { jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
 function OntoUMLViewer({
   model,
   views,
@@ -2127,17 +2197,17 @@ function OntoUMLViewer({
   snippets = {}
 }) {
   const exports = useArtifactArchive(exportData);
-  const [viewKey, setViewKey] = useState10(views[0].key), [fields, setFields] = useState10(false);
+  const [viewKey, setViewKey] = useState9(views[0].key), [fields, setFields] = useState9(false);
   const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
-  const [selected, setSelected] = useState10(null);
-  const [aboutOpen, setAboutOpen] = useState10(false);
-  const [learningOpen, setLearningOpen] = useState10(false);
+  const [selected, setSelected] = useState9(null);
+  const [aboutOpen, setAboutOpen] = useState9(false);
+  const [learningOpen, setLearningOpen] = useState9(false);
   const { hovered, hover, keepHover, clearHover } = useInspection();
-  const [focusRequest, setFocusRequest] = useState10(null), [zoom, setZoom] = useState10(100);
+  const [focusRequest, setFocusRequest] = useState9(null), [zoom, setZoom] = useState9(100);
   const cameraRef = useRef7(null);
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
-  const index = useMemo4(
+  const index = useMemo5(
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups]
   );
@@ -2193,7 +2263,7 @@ function OntoUMLViewer({
     select({ kind: "node", id: node.id });
     setFocusRequest({ id: node.id });
   }
-  return /* @__PURE__ */ jsxs13("div", { className: `viewer${element || learningOpen ? " inspecting" : ""}`, children: [
+  return /* @__PURE__ */ jsxs14("div", { className: `viewer${element || learningOpen ? " inspecting" : ""}`, children: [
     /* @__PURE__ */ jsx18(
       ViewerToolbar,
       {
@@ -2235,7 +2305,7 @@ function OntoUMLViewer({
         onClearHover: clearHover
       }
     ),
-    /* @__PURE__ */ jsxs13(
+    /* @__PURE__ */ jsxs14(
       Panel,
       {
         className: "inspector",
@@ -2314,7 +2384,7 @@ function OntoUMLViewer({
 
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { jsx as jsx19, jsxs as jsxs14 } from "react/jsx-runtime";
+import { jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -2325,7 +2395,7 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsxs14("main", { className: "viewer-error", role: "alert", children: [
+      return /* @__PURE__ */ jsxs15("main", { className: "viewer-error", role: "alert", children: [
         /* @__PURE__ */ jsx19("h1", { children: "The model could not be displayed" }),
         /* @__PURE__ */ jsx19("p", { children: "Rebuild the viewer from the model and check its validation report." }),
         /* @__PURE__ */ jsx19("button", { onClick: () => location.reload(), children: "Reload" })

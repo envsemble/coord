@@ -50,9 +50,15 @@
   overscroll-behavior: none;
   cursor: grab;
   background-color: var(--canvas);
+  user-select: none;
+}
+.canvas-grid {
+  position: absolute;
+  inset: -20px;
+  pointer-events: none;
   background-image: radial-gradient(var(--grid) 0.7px, transparent 0.7px);
   background-size: 20px 20px;
-  user-select: none;
+  will-change: transform;
 }
 #canvas.dragging {
   cursor: grabbing;

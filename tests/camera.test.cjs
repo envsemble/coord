@@ -51,10 +51,15 @@ function target() {
   };
 }
 
-function harness() {
+function harness({ reducedMotion = false } = {}) {
   const canvas = target();
   const world = target();
   const document = target();
+  const grid = { style: {} };
+  canvas.querySelector = (selector) =>
+    selector === ".canvas-grid" ? grid : null;
+  const motionPreference = target();
+  motionPreference.matches = reducedMotion;
   const canvasRef = { current: canvas };
   const worldRef = { current: world };
   const frames = new Map();
@@ -66,6 +71,7 @@ function harness() {
     module: { exports: {} },
     document,
     performance: { now: () => time },
+    matchMedia: () => motionPreference,
     requestAnimationFrame(fn) {
       frames.set(++nextFrame, fn);
       return nextFrame;
@@ -101,8 +107,8 @@ function harness() {
     );
     return { x: Number(m[1]), y: Number(m[2]), scale: Number(m[3]) };
   }
-  function frame() {
-    time += 16;
+  function frame(elapsed = 16) {
+    time += elapsed;
     const pending = [...frames.values()];
     frames.clear();
     pending.forEach((fn) => fn(time));
@@ -135,6 +141,7 @@ function harness() {
     canvasRef,
     worldRef,
     observers,
+    motionPreference,
     taps,
     frames,
     controls,
@@ -165,6 +172,10 @@ test("pinch eases to its slower target around the cursor; scroll still pans", ()
   close(after.x + worldX * after.scale, 300);
   close(after.y + worldY * after.scale, 300);
   h.wheel(80, { ctrlKey: false, deltaX: 120 });
+  assert.deepEqual(h.read(), after);
+  h.frame();
+  assert(h.read().x < after.x && h.read().x > after.x - 120);
+  h.settle();
   close(h.read().x, after.x - 120);
   close(h.read().y, after.y - 80);
   close(h.read().scale, after.scale);
@@ -202,6 +213,7 @@ test("opening or closing a sidebar keeps graph coordinates stable until Fit is r
   h.canvas.clientWidth = 200;
   h.observers[0].callback();
   h.controls.fit();
+  h.settle();
   assert(h.read().scale < before.scale);
   h.detach();
 });
@@ -211,10 +223,10 @@ test("navigation cancels animation, restores cameras, and unmount cleans up", ()
   h.wheel(-200);
   h.frame();
   h.controls.fit();
-  const fitted = h.world.style.transform;
   h.settle();
-  assert.equal(h.world.style.transform, fitted);
+  close(h.read().scale, 1.2);
   h.wheel(80, { ctrlKey: false, deltaX: 120 });
+  h.settle();
   const panned = h.world.style.transform;
   h.wheel(-40);
   h.controls.restoreView("backend", false);
@@ -240,6 +252,7 @@ test("navigation cancels animation, restores cameras, and unmount cleans up", ()
   assert.equal(h.world.listenerCount, 0);
   assert.equal(h.document.listenerCount, 0);
   assert(h.observers.every((o) => o.disconnected));
+  assert.equal(h.motionPreference.listenerCount, 0);
 });
 
 test("a tap activates its original target, while a drag or cancel does not", () => {
@@ -265,5 +278,144 @@ test("a tap activates its original target, while a drag or cancel does not", () 
   h.canvas.emit("pointercancel", { pointerId: 1 });
   assert.equal(h.taps.length, 1);
   assert(h.controls.hasDragged());
+  h.detach();
+});
+
+test("scroll and drag input share one frame and settle to their full distance", () => {
+  const h = harness();
+  const before = h.read();
+  for (let i = 0; i < 10; i++) h.wheel(8, { ctrlKey: false, deltaX: 12 });
+  assert.equal(h.frames.size, 1);
+  assert.deepEqual(h.read(), before);
+  h.frame();
+  assert(h.read().x < before.x && h.read().x > before.x - 120);
+  h.settle();
+  close(h.read().x, before.x - 120);
+  close(h.read().y, before.y - 80);
+  const scrolled = h.read();
+  h.canvas.emit("pointerdown", {
+    button: 0,
+    pointerId: 1,
+    clientX: 100,
+    clientY: 100,
+    target: {},
+  });
+  h.canvas.emit("pointermove", { pointerId: 1, clientX: 103, clientY: 100 });
+  h.canvas.emit("pointermove", { pointerId: 1, clientX: 120, clientY: 110 });
+  h.canvas.emit("pointermove", { pointerId: 1, clientX: 140, clientY: 120 });
+  h.canvas.emit("pointerup", { pointerId: 1 });
+  assert.equal(h.frames.size, 1);
+  assert.deepEqual(h.read(), scrolled);
+  h.settle();
+  close(h.read().x, scrolled.x + 40);
+  close(h.read().y, scrolled.y + 20);
+  assert.equal(h.taps.length, 0);
+  h.detach();
+});
+
+test("zoom controls accumulate and keep their anchor fixed on every frame", () => {
+  const h = harness();
+  const before = h.read();
+  const anchor = { x: 500, y: 350 };
+  const worldX = (anchor.x - before.x) / before.scale;
+  const worldY = (anchor.y - before.y) / before.scale;
+  h.controls.zoomBy(1.25);
+  h.controls.zoomBy(1.25);
+  h.controls.zoomBy(1.25);
+  assert.deepEqual(h.read(), before);
+  for (let i = 0; i < 15; i++) {
+    h.frame();
+    const current = h.read();
+    close(current.x + worldX * current.scale, anchor.x);
+    close(current.y + worldY * current.scale, anchor.y);
+  }
+  h.settle();
+  close(h.read().scale, before.scale * 1.25 ** 3);
+  const zoomed = h.read();
+  h.controls.reset();
+  assert.deepEqual(h.read(), zoomed);
+  h.settle();
+  close(h.read().scale, 1);
+  h.detach();
+});
+
+test("revealing a selected search result preserves its animated focus destination", () => {
+  const h = harness();
+  h.controls.zoomBy(0.5);
+  h.settle();
+  h.world.querySelector = () => ({
+    transform: {
+      baseVal: { consolidate: () => ({ matrix: { e: 1000, f: 500 } }) },
+    },
+    querySelector: () => ({
+      getAttribute: (name) => (name === "width" ? "100" : "80"),
+    }),
+  });
+  h.controls.focusNode("search-result");
+  h.controls.revealNode("search-result");
+  assert.equal(h.frames.size, 1);
+  h.settle();
+  close(h.read().scale, 0.85);
+  close(h.read().x + 1050 * h.read().scale, 500);
+  close(h.read().y + 540 * h.read().scale, 350);
+  h.detach();
+});
+
+test("a two-finger gesture combines pan and zoom without lost updates or a tap", () => {
+  const h = harness();
+  const before = h.read();
+  const worldX = (400 - before.x) / before.scale;
+  const worldY = (300 - before.y) / before.scale;
+  for (const [pointerId, clientX] of [
+    [1, 300],
+    [2, 500],
+  ])
+    h.canvas.emit("pointerdown", {
+      button: 0,
+      pointerId,
+      clientX,
+      clientY: 350,
+      target: {},
+    });
+  h.canvas.emit("pointermove", { pointerId: 1, clientX: 280, clientY: 350 });
+  h.canvas.emit("pointermove", { pointerId: 2, clientX: 520, clientY: 350 });
+  h.canvas.emit("pointerup", { pointerId: 1 });
+  h.canvas.emit("pointerup", { pointerId: 2 });
+  assert.equal(h.frames.size, 1);
+  h.settle();
+  close(h.read().scale, before.scale * 1.2);
+  close(h.read().x + worldX * h.read().scale, 400);
+  close(h.read().y + worldY * h.read().scale, 300);
+  assert.equal(h.taps.length, 0);
+  h.detach();
+});
+
+test("motion follows elapsed time across different display refresh rates", () => {
+  const standard = harness();
+  const fast = harness();
+  for (const h of [standard, fast])
+    h.wheel(120, { ctrlKey: false, deltaX: 160 });
+  for (let i = 0; i < 10; i++) standard.frame(16);
+  for (let i = 0; i < 20; i++) fast.frame(8);
+  close(standard.read().x, fast.read().x);
+  close(standard.read().y, fast.read().y);
+  standard.detach();
+  fast.detach();
+});
+
+test("reduced motion applies movement immediately and cancels pending animation", () => {
+  const h = harness({ reducedMotion: true });
+  const before = h.read();
+  h.wheel(80, { ctrlKey: false, deltaX: 120 });
+  close(h.read().x, before.x - 120);
+  close(h.read().y, before.y - 80);
+  assert.equal(h.frames.size, 0);
+  h.motionPreference.emit("change", { matches: false });
+  h.controls.zoomBy(1.25);
+  assert.equal(h.frames.size, 1);
+  h.frame();
+  h.motionPreference.emit("change", { matches: true });
+  close(h.read().scale, before.scale * 1.25);
+  assert.equal(h.frames.size, 0);
   h.detach();
 });

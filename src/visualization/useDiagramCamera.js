@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { createCamera } from "./camera";
 
 export function useDiagramCamera({
@@ -11,14 +11,17 @@ export function useDiagramCamera({
   onMotion,
 }) {
   const callbacks = useRef({ onZoom, onTap, onMotion });
-  const [controls] = useState(() =>
-    createCamera({
-      canvasRef,
-      worldRef,
-      onZoom: (value) => callbacks.current.onZoom(value),
-      onTap: (element) => callbacks.current.onTap(element),
-      onMotion: () => callbacks.current.onMotion(),
-    }),
+  const controls = useMemo(
+    () =>
+      createCamera({
+        canvasRef,
+        worldRef,
+        onZoom: (value) => callbacks.current.onZoom(value),
+        onTap: (element) => callbacks.current.onTap(element),
+        onMotion: () => callbacks.current.onMotion(),
+      }),
+    // A new camera implementation during Vite refresh needs a new controller.
+    [createCamera],
   );
   useLayoutEffect(() => {
     callbacks.current = { onZoom, onTap, onMotion };

@@ -72,6 +72,7 @@ export const DiagramCanvas = memo(
         aria-label="Interactive OntoUML diagram"
         onPointerLeave={() => onHover(null)}
       >
+        <div className="canvas-grid" aria-hidden="true" />
         <div ref={worldRef} id="world">
           <UMLDiagram
             diagram={diagram}
