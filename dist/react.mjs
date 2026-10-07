@@ -105,9 +105,28 @@ var typeColors = {
   event: "#cf222e",
   mode: "#0a3069"
 };
+var typeBackgrounds = {
+  kind: "#ddedff",
+  role: "#fff0df",
+  relator: "#f0e5ff",
+  phase: "#e1f2e4",
+  event: "#ffe5e2",
+  mode: "#e0f3f5"
+};
+var colorFamilies = {
+  subkind: "kind",
+  collective: "kind",
+  quantity: "kind",
+  category: "kind",
+  mixin: "kind",
+  roleMixin: "role",
+  phaseMixin: "phase",
+  quality: "mode"
+};
 function UMLNode({ node, focus, selected, handlers }) {
   const target = { kind: "node", id: node.id };
   const header = node.attributes.length ? 66 : node.height;
+  const color = colorFamilies[node.stereotype] || node.stereotype;
   return /* @__PURE__ */ jsxs(
     "g",
     {
@@ -129,7 +148,7 @@ function UMLNode({ node, focus, selected, handlers }) {
             width: node.width,
             height: node.height,
             rx: "3",
-            fill: `var(--node-${node.stereotype},var(--surface,#f6f8fa))`,
+            fill: `var(--node-${color},${typeBackgrounds[color] || "var(--surface,#f6f8fa)"})`,
             stroke: "var(--diagram-border,#818b98)",
             strokeWidth: "1.25",
             vectorEffect: "non-scaling-stroke"
@@ -141,7 +160,7 @@ function UMLNode({ node, focus, selected, handlers }) {
             x: node.width / 2,
             y: header / 2 - 10,
             textAnchor: "middle",
-            fill: `var(--type-${node.stereotype},${typeColors[node.stereotype] || "var(--diagram-muted,#59636e)"})`,
+            fill: `var(--type-${color},${typeColors[color] || "var(--diagram-muted,#59636e)"})`,
             fontSize: "11.5",
             children: [
               "\xAB",
@@ -900,10 +919,9 @@ var DiagramCanvas = memo(
       diagram,
       focusRequest,
       onZoom,
-      onTap: (element) => {
-        const target = readTarget(element);
-        if (target) onSelect(target);
-      },
+      // A background tap has no model target and clears selection. The camera
+      // invokes this only for taps, so panning and zooming retain selection.
+      onTap: (element) => onSelect(readTarget(element)),
       onMotion: clearTransient
     });
     useImperativeHandle(ref, () => controls, [controls]);

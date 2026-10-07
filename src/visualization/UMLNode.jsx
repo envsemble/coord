@@ -8,10 +8,29 @@ const typeColors = {
   event: "#cf222e",
   mode: "#0a3069",
 };
+const typeBackgrounds = {
+  kind: "#ddedff",
+  role: "#fff0df",
+  relator: "#f0e5ff",
+  phase: "#e1f2e4",
+  event: "#ffe5e2",
+  mode: "#e0f3f5",
+};
+const colorFamilies = {
+  subkind: "kind",
+  collective: "kind",
+  quantity: "kind",
+  category: "kind",
+  mixin: "kind",
+  roleMixin: "role",
+  phaseMixin: "phase",
+  quality: "mode",
+};
 
 export function UMLNode({ node, focus, selected, handlers }) {
   const target = { kind: "node", id: node.id };
   const header = node.attributes.length ? 66 : node.height;
+  const color = colorFamilies[node.stereotype] || node.stereotype;
   return (
     <g
       id={`node-${node.id}`}
@@ -30,7 +49,7 @@ export function UMLNode({ node, focus, selected, handlers }) {
         width={node.width}
         height={node.height}
         rx="3"
-        fill={`var(--node-${node.stereotype},var(--surface,#f6f8fa))`}
+        fill={`var(--node-${color},${typeBackgrounds[color] || "var(--surface,#f6f8fa)"})`}
         stroke="var(--diagram-border,#818b98)"
         strokeWidth="1.25"
         vectorEffect="non-scaling-stroke"
@@ -40,7 +59,7 @@ export function UMLNode({ node, focus, selected, handlers }) {
           x={node.width / 2}
           y={header / 2 - 10}
           textAnchor="middle"
-          fill={`var(--type-${node.stereotype},${typeColors[node.stereotype] || "var(--diagram-muted,#59636e)"})`}
+          fill={`var(--type-${color},${typeColors[color] || "var(--diagram-muted,#59636e)"})`}
           fontSize="11.5"
         >
           «{node.stereotype}»

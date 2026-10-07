@@ -39,10 +39,9 @@ export const DiagramCanvas = memo(
       diagram,
       focusRequest,
       onZoom,
-      onTap: (element) => {
-        const target = readTarget(element);
-        if (target) onSelect(target);
-      },
+      // A background tap has no model target and clears selection. The camera
+      // invokes this only for taps, so panning and zooming retain selection.
+      onTap: (element) => onSelect(readTarget(element)),
       onMotion: clearTransient,
     });
     useImperativeHandle(ref, () => controls, [controls]);
