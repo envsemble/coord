@@ -7,7 +7,7 @@ import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesyst
 export async function statisticsDirectory(root: string, base?: string) {
   const canonical = await realpath(root).catch(() => path.resolve(root));
   const unicode = await filesystemNormalizesUnicode(canonical) ? canonical.normalize('NFC') : canonical;
-  const normalized = (await filesystemCaseSensitive(canonical) ? unicode : unicode.toLowerCase()).replaceAll('\\', '/');
+  const normalized = (await filesystemCaseSensitive(canonical) ? unicode : unicode.toLowerCase()).split(path.sep).join('/');
   const identity = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
   const directory = base ? path.resolve(base.replace(/^~(?=$|[\\/])/, () => homedir())) : path.join(homedir(), '.cache', 'planning-dashboard');
   return path.join(directory, identity);

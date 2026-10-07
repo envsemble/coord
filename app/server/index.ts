@@ -11,6 +11,7 @@ import { loadPlanning, PlanningError, readDocument, resolveDocument } from './pl
 import { Telemetry, recordCollectionGap } from './telemetry.ts';
 import type { Usage } from '../src/types.ts';
 import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
+import { localOrigin } from './origin.ts';
 
 const { values } = parseArgs({ options: {
   dev: { type: 'boolean', default: false }, 'planning-dir': { type: 'string' }, port: { type: 'string', default: '4317' }, 'data-dir': { type: 'string' },
@@ -35,13 +36,8 @@ app.use((request, response, next) => {
   const hostname = request.hostname.toLowerCase();
   if (!['127.0.0.1', 'localhost', '[::1]'].includes(hostname)) { response.status(403).json({ error: 'Use the local dashboard address.' }); return; }
   const origin = request.get('origin');
-  if (origin) {
-    try {
-      const parsed = new URL(origin);
-      if (!['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname) || parsed.port !== String(port)) {
-        response.status(403).json({ error: 'Open this request from the local dashboard.' }); return;
-      }
-    } catch { response.status(403).json({ error: 'Invalid request origin.' }); return; }
+  if (origin && !localOrigin(origin, port)) {
+    response.status(403).json({ error: 'Open this request from the local dashboard.' }); return;
   }
   next();
 });

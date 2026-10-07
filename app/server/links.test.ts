@@ -20,11 +20,12 @@ test('malformed legacy references never crash the reader', () => {
 });
 
 test('relative links keep reserved filename characters in the source directory', () => {
-  for (const folder of ['foo#bar', 'foo?bar', 'foo%bar', 'foo bar']) {
+  for (const folder of ['foo#bar', 'foo?bar', 'foo%bar', 'foo bar', 'foo\\bar']) {
     const target = { path: 'active/' + folder + '/note.md' } as Document;
     assert.equal(resolveLink('note.md#The-Choice', 'active/' + folder + '/plan.md', [target]).file, target);
     assert.equal(resolveLink('./note.md', 'active/' + folder + '/plan.md', [target]).file, target);
     assert.equal(resolveLink('note.md#The-Choice', 'active/' + folder + '/plan.md', [target]).anchor, 'The-Choice');
+    assert.equal(resolveLink(encodeURIComponent(folder) + '/note.md', 'active/plan.md', [target]).file, target);
   }
 });
 

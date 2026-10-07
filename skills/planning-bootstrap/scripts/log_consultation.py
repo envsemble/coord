@@ -104,7 +104,7 @@ def retained_relative(actual: Path, root: Path, case_sensitive: bool) -> str:
 
 def data_directory(root: Path, base: Path | None = None) -> Path:
     override = base or os.environ.get("PLANNING_DASHBOARD_DATA_DIR")
-    normalized = str(root.expanduser().resolve()).replace("\\", "/")
+    normalized = root.expanduser().resolve().as_posix()
     if filesystem_normalizes_unicode(root.expanduser().resolve()):
         normalized = unicodedata.normalize("NFC", normalized)
     if not filesystem_case_sensitive(root.expanduser().resolve()):

@@ -11,6 +11,22 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { Telemetry } from './telemetry.ts';
 import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
+import { localOrigin } from './origin.ts';
+
+test('local HTTP origins accept the default port while rejecting unrelated origins', () => {
+  for (const hostname of ['localhost', '127.0.0.1', '[::1]']) {
+    assert.ok(localOrigin('http://' + hostname, 80));
+    assert.ok(localOrigin('http://' + hostname + ':80', 80));
+    assert.ok(localOrigin('http://' + hostname + ':4317', 4317));
+    assert.equal(localOrigin('http://' + hostname, 4317), false);
+    assert.equal(localOrigin('http://' + hostname + ':4318', 4317), false);
+    assert.equal(localOrigin('https://' + hostname, 443), false);
+  }
+  for (const origin of ['null', 'http://', 'file:///tmp/record', 'http://unrelated.example', 'http://localhost.unrelated.example:4317']) {
+    assert.equal(localOrigin(origin, 80), false);
+    assert.equal(localOrigin(origin, 4317), false);
+  }
+});
 
 test('HTTP reading survives unavailable collection and lost views retain coverage after restart', async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), 'planning-http-'));
@@ -51,7 +67,7 @@ test('HTTP reading survives unavailable collection and lost views retain coverag
     assert.equal((await document.json()).body, original);
     assert.equal((await fetch(address + '/api/document?path=..%2Foutside.md')).status, 403);
     assert.equal((await fetch(address + '/api/snapshot', { headers: { Origin: 'https://unrelated.example' } })).status, 403);
-    const event = await fetch(address + '/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: randomUUID(), session: randomUUID(), path: 'note.md' }) });
+    const event = await fetch(address + '/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: address }, body: JSON.stringify({ id: randomUUID(), session: randomUUID(), path: 'note.md' }) });
     assert.equal(event.status, 503);
     const reopened = new Telemetry(filename);
     try { assert.equal(reopened.summary().views, 0); assert.equal(reopened.summary().failures, 1); }

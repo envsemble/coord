@@ -13,6 +13,21 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 class ConsultationTests(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "Backslash is a path separator on Windows")
+    def test_posix_backslash_roots_and_document_names_remain_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "foo\\bar"
+            nested = Path(directory) / "foo" / "bar"
+            destination = Path(directory) / "metrics"
+            for folder in (root, nested):
+                folder.mkdir(parents=True)
+                (folder / "planning.json").write_text('{"schema_version": 1, "work_items": []}', encoding="utf-8")
+            self.assertNotEqual(module.data_directory(root, destination), module.data_directory(nested, destination))
+            (root / "foo\\bar.md").write_text("Original record\n", encoding="utf-8")
+            self.assertEqual(module.report(root, ["foo\\bar.md"], destination=destination), (1, 0))
+            with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
+                self.assertEqual(db.execute("SELECT document_key, path FROM events").fetchall(), [("root:foo\\bar.md", "foo\\bar.md")])
+
     def test_distinct_unicode_hardlink_names_do_not_establish_normalization_aliases(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -23,6 +23,29 @@ async function fixture() {
 function header(id: string, design: string, implementation: string, completed: string | null = null) {
   return ['---', 'schema_version: 1', 'kind: plan', 'id: ' + id, 'title: Example work', 'repositories: [example]', 'created: null', 'updated: "2026-10-06"', 'design_status: ' + design, 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: ' + (completed ? '"' + completed + '"' : 'null'), 'supersedes: []', 'superseded_by: null', '---', '# Original plan', '', 'Preserve this body.', ''].join('\n');
 }
+
+test('POSIX backslashes retain original filenames instead of indexing another path', { skip: process.platform === 'win32' }, async () => {
+  const setup = await fixture();
+  try {
+    const location = 'active/0001-example';
+    await mkdir(path.join(setup.root, location, 'foo'), { recursive: true });
+    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [{ id: 'work-0001', path: location, repositories: [], current_plan: null }] }));
+    const originals = new Map([
+      [location + '/foo\\bar.md', '# Literal backslash\n'],
+      [location + '/foo/bar.md', '# Nested path\n'],
+      [location + '/foo\\.retained.md', '# Visible filename\n'],
+    ]);
+    for (const [name, body] of originals) await writeFile(path.join(setup.root, name), body);
+    const snapshot = await loadPlanning(setup.root);
+    for (const [name, body] of originals) {
+      const document = snapshot.documents.find(document => document.path === name);
+      assert.ok(document, name);
+      assert.equal(document.workId, 'work-0001');
+      assert.equal(document.key, 'work-0001:' + name.slice(location.length + 1));
+      assert.equal((await readDocument(setup.root, name)).body, body);
+    }
+  } finally { await setup.cleanup(); }
+});
 test('null pointers never select a file by name, and archive is not implementation completion', async () => {
   const setup = await fixture();
   try {

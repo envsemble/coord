@@ -11,6 +11,30 @@ import { DatabaseSync } from 'node:sqlite';
 import { statisticsDirectory } from './storage.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 
+test('POSIX backslash planning roots remain separate from nested roots in both collectors', { skip: process.platform === 'win32' }, async () => {
+  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'planning-backslash-cache-')));
+  try {
+    const root = path.join(temporary, 'foo\\bar');
+    const nested = path.join(temporary, 'foo/bar');
+    for (const folder of [root, nested]) {
+      await mkdir(folder, { recursive: true });
+      await writeFile(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [] }));
+    }
+    const metrics = path.join(temporary, 'metrics');
+    const expected = await statisticsDirectory(root, metrics);
+    assert.notEqual(await statisticsDirectory(nested, metrics), expected);
+    await writeFile(path.join(root, 'foo\\bar.md'), '# Consulted original\n');
+    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
+    execFileSync(process.env.PYTHON ?? 'python', [helper, root, '--data-dir', metrics, '--files', 'foo\\bar.md']);
+    const store = new Telemetry(path.join(expected, 'usage.sqlite'));
+    try {
+      assert.equal(store.summary().reports, 1);
+      assert.equal(store.summary().documents[0].key, 'root:foo\\bar.md');
+      assert.equal(store.summary().documents[0].path, 'foo\\bar.md');
+    } finally { store.close(); }
+  } finally { await rm(temporary, { recursive: true }); }
+});
+
 test('cache overrides resolve home shorthand identically in Node and the Python collector', async () => {
   const root = path.dirname(fileURLToPath(import.meta.url));
   const shorthand = '~/.planning-dashboard-path-test';

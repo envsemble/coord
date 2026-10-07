@@ -26,7 +26,7 @@ function within(root: string, candidate: string) {
   return relative !== '' && !relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative);
 }
 function hidden(relative: string) {
-  return relative.replaceAll('\\', '/').split('/').some(part => part.startsWith('.') || excludedDirectories.has(part));
+  return relative.split(path.sep).join('/').split('/').some(part => part.startsWith('.') || excludedDirectories.has(part));
 }
 function normalizedLocation(value: unknown): string {
   if (typeof value !== 'string' || !value || value.includes('\\') || value.includes('\0') || value.includes(':') || path.posix.isAbsolute(value) || value.split('/').includes('..')) {
@@ -52,7 +52,7 @@ export async function resolveDocument(root: string, relative: string) {
     throw new PlanningError('Choose a document inside the connected planning folder.', 403);
   }
   const resolvedRoot = await realpath(root);
-  const candidate = path.resolve(resolvedRoot, relative.replaceAll('\\', '/'));
+  const candidate = path.resolve(resolvedRoot, relative);
   if (!within(resolvedRoot, candidate)) throw new PlanningError('Document is outside the planning folder.', 403);
   let actual: string;
   try { actual = await realpath(candidate); } catch { throw new PlanningError('This document could not be found.', 404); }
@@ -107,7 +107,7 @@ async function files(root: string, directory = root): Promise<string[]> {
     if (entry.name.startsWith('.') || excludedDirectories.has(entry.name) || entry.isSymbolicLink()) continue;
     const filename = path.join(directory, entry.name);
     if (entry.isDirectory()) result.push(...await files(root, filename));
-    else if (entry.isFile()) result.push(path.relative(root, filename).replaceAll('\\', '/'));
+    else if (entry.isFile()) result.push(path.relative(root, filename).split(path.sep).join('/'));
   }
   return result;
 }
