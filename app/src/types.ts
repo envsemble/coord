@@ -9,7 +9,7 @@ export interface Work {
   created: string | null; updated: string | null; accepted: string | null;
   completed: string | null; durationDays: number | null; documents: Document[];
 }
-export interface HistoryEntry { id: string; date: string; title: string; files: string[] }
+export interface HistoryEntry { id: string; date: string; title: string; files: string[]; workIds: string[]; repositories: string[] }
 export interface Issue { level: 'warning' | 'error'; message: string; workId?: string }
 export interface DocumentUsage {
   key: string; path: string; views: number; sessions: number; lastViewed: string | null;

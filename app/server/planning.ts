@@ -12,6 +12,8 @@ const excludedDirectories = new Set(['node_modules', '__pycache__', 'dist', 'bui
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);
 const implementationStates = new Set(['unknown', 'not_started', 'in_progress', 'partial', 'complete']);
 const readableLimit = 4 * 1024 * 1024;
+type HistoricalWork = Pick<Work, 'id' | 'path' | 'repositories'>;
+const historyCache = new Map<string, { head: string; entries: HistoryEntry[] }>();
 
 export class PlanningError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -87,19 +89,45 @@ async function files(root: string, directory = root): Promise<string[]> {
   }
   return result;
 }
-export async function gitHistory(root: string): Promise<{ history: HistoryEntry[]; available: boolean }> {
+export async function gitHistory(root: string, currentWork: HistoricalWork[] = []): Promise<{ history: HistoryEntry[]; available: boolean }> {
   try {
     const { stdout: top } = await execute('git', ['-C', root, 'rev-parse', '--show-toplevel']);
     if (await realpath(top.trim()) !== await realpath(root)) return { history: [], available: false };
-    const { stdout } = await execute('git', ['-C', root, 'log', '-30', '--format=%x1e%H%x00%aI%x00%s', '--name-only'], { maxBuffer: 1024 * 1024 });
-    return {
-      available: true,
-      history: stdout.split('\x1e').slice(1).map(record => {
+    const { stdout: revision } = await execute('git', ['-C', root, 'rev-parse', 'HEAD']);
+    const head = revision.trim();
+    let retained = historyCache.get(root);
+    if (!retained || retained.head !== head) {
+      const { stdout } = await execute('git', ['-C', root, '-c', 'core.quotepath=false', 'log', '-30', '--format=%x1e%H%x00%aI%x00%s', '--name-only'], { maxBuffer: 1024 * 1024 });
+      const entries: HistoryEntry[] = stdout.split('\x1e').slice(1).map(record => {
         const [header, ...changed] = record.trim().split(/\r?\n/);
         const [id, date, title] = header.split('\0');
-        return { id, date, title, files: changed.filter(Boolean) };
-      }),
-    };
+        return { id, date, title, files: changed.filter(Boolean), workIds: [], repositories: [] };
+      });
+      async function registrationsAt(commit: string): Promise<HistoricalWork[]> {
+        try {
+          const { stdout: source } = await execute('git', ['-C', root, 'show', commit + ':planning.json'], { maxBuffer: 1024 * 1024 });
+          const registry = JSON.parse(source.replace(/^\uFEFF/, ''));
+          return registry?.schema_version === 1 && Array.isArray(registry.work_items) ? registry.work_items.filter((item: HistoricalWork) => item && typeof item.id === 'string' && typeof item.path === 'string' && Array.isArray(item.repositories) && item.repositories.every(id => typeof id === 'string')) as HistoricalWork[] : [];
+        } catch { return []; /* Older unregistered or invalid history has no established work identity. */ }
+      }
+      // Locations belong to their registry revision. The parent also owns paths removed in this commit.
+      for (let offset = 0; offset < entries.length; offset += 4) {
+        await Promise.all(entries.slice(offset, offset + 4).map(async entry => {
+          const snapshots = await Promise.all([registrationsAt(entry.id), registrationsAt(entry.id + '^')]);
+          const matches = snapshots.flat().filter(item => entry.files.some(file => file === item.path || file.startsWith(item.path + '/')));
+          entry.workIds = [...new Set(matches.map(item => item.id))];
+          entry.repositories = [...new Set(matches.flatMap(item => item.repositories))];
+        }));
+      }
+      retained = { head, entries };
+      historyCache.set(root, retained);
+    }
+    return { available: true, history: retained.entries.map(entry => {
+      if (entry.workIds.length) return entry;
+      // A newly adopted, uncommitted registration can identify previously unregistered records.
+      const matches = currentWork.filter(item => entry.files.some(file => file === item.path || file.startsWith(item.path + '/')));
+      return { ...entry, workIds: [...new Set(matches.map(item => item.id))], repositories: [...new Set(matches.flatMap(item => item.repositories))] };
+    }) };
   } catch { return { history: [], available: false }; }
 }
 export async function loadPlanning(inputRoot: string) {
@@ -159,8 +187,15 @@ export async function loadPlanning(inputRoot: string) {
         else issues.push({ level: 'error', workId: item.id, message: 'The plan has an unrecognized design status.' });
         if (typeof metadata.implementation_status === 'string' && implementationStates.has(metadata.implementation_status)) entry.implementation = metadata.implementation_status;
         else issues.push({ level: 'error', workId: item.id, message: 'The plan has an unrecognized implementation status.' });
-        entry.created = date(metadata.created); entry.updated = date(metadata.updated);
-        entry.accepted = date(metadata.accepted_at); entry.completed = date(metadata.completed_at);
+        function lifecycleDate(field: string) {
+          const value = date(metadata![field]);
+          if (metadata![field] !== null && !value) issues.push({ level: 'error', workId: item.id, message: 'Plan date ' + field + ' is invalid; use an ISO date or null.' });
+          return value;
+        }
+        entry.created = lifecycleDate('created'); entry.updated = lifecycleDate('updated');
+        entry.accepted = lifecycleDate('accepted_at'); entry.completed = lifecycleDate('completed_at');
+        if ((entry.created && entry.accepted && entry.accepted < entry.created) || (entry.completed && (entry.accepted && entry.completed < entry.accepted || entry.created && entry.completed < entry.created))) issues.push({ level: 'error', workId: item.id, message: 'Recorded lifecycle dates are out of order.' });
+        if (entry.completed && entry.implementation !== 'complete') issues.push({ level: 'error', workId: item.id, message: 'A completion date requires complete implementation status.' });
         if (entry.implementation === 'complete' && entry.accepted && entry.completed && entry.completed >= entry.accepted) {
           entry.durationDays = Math.round((Date.parse(entry.completed) - Date.parse(entry.accepted)) / 86400000);
         }
@@ -187,7 +222,7 @@ export async function loadPlanning(inputRoot: string) {
   }
   documents.sort((a, b) => a.path.localeCompare(b.path));
   for (const item of work) item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
-  const history = await gitHistory(root);
+  const history = await gitHistory(root, work);
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
   return { root, loadedAt: new Date().toISOString(), repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

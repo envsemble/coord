@@ -3,11 +3,23 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, rm, realpath, mkdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Telemetry } from './telemetry.ts';
 import { DatabaseSync } from 'node:sqlite';
+import { statisticsDirectory } from './storage.ts';
+
+test('cache overrides resolve home shorthand identically in Node and the Python collector', async () => {
+  const root = path.dirname(fileURLToPath(import.meta.url));
+  const shorthand = '~/.planning-dashboard-path-test';
+  const helper = path.resolve(root, '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
+  const expected = await statisticsDirectory(root, path.join(homedir(), '.planning-dashboard-path-test'));
+  assert.equal(await statisticsDirectory(root, shorthand), expected);
+  const script = 'import importlib.util, pathlib, sys; spec = importlib.util.spec_from_file_location("collector", sys.argv[1]); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.data_directory(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])))';
+  const collected = execFileSync(process.env.PYTHON ?? 'python', ['-c', script, helper, root, shorthand], { encoding: 'utf8' }).trim();
+  assert.equal(path.normalize(collected), expected);
+});
 
 test('view collection is deduplicated and cannot claim agent consultation', () => {
   const store = new Telemetry(':memory:');
@@ -33,7 +45,8 @@ test('Python reports written with no dashboard running are readable by Node with
     const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
     execFileSync(process.env.PYTHON ?? 'python', [helper, root, '--data-dir', metrics, '--files', 'note.md']);
     execFileSync(process.env.PYTHON ?? 'python', [helper, root, '--data-dir', metrics, '--task', 'real-task', '--files', 'note.md', '../not-a-document.md']);
-    store = new Telemetry(path.join(metrics, 'usage.sqlite'));
+    const filename = path.join(await statisticsDirectory(root, metrics), 'usage.sqlite');
+    store = new Telemetry(filename);
     const summary = store.summary();
     assert.equal(summary.reports, 2); assert.equal(summary.views, 0);
     assert.equal(summary.tasks, 1); assert.equal(summary.unassigned, 1);
@@ -45,7 +58,16 @@ test('Python reports written with no dashboard running are readable by Node with
     const scoped = store.summary(['root:note.md']);
     assert.equal(scoped.reports, 2); assert.equal(scoped.tasks, 1); assert.equal(scoped.unassigned, 1);
     assert.equal(store.summary([]).reports, 0);
-    const lock = new DatabaseSync(path.join(metrics, 'usage.sqlite'));
+    const unrelated = path.join(temporary, 'unrelated-planning'); await mkdir(unrelated);
+    await writeFile(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 1, work_items: [] }));
+    await writeFile(path.join(unrelated, 'note.md'), 'A different repository record.\n');
+    execFileSync(process.env.PYTHON ?? 'python', [helper, unrelated, '--data-dir', metrics, '--task', 'unrelated-task', '--files', 'note.md']);
+    const unrelatedStore = new Telemetry(path.join(await statisticsDirectory(unrelated, metrics), 'usage.sqlite'));
+    try {
+      assert.equal(unrelatedStore.summary().reports, 1);
+      assert.equal(store.summary().reports, 4, 'a reused cache base must not mix planning roots');
+    } finally { unrelatedStore.close(); }
+    const lock = new DatabaseSync(filename);
     try {
       lock.exec('BEGIN IMMEDIATE');
       execFileSync(process.env.PYTHON ?? 'python', [helper, root, '--data-dir', metrics, '--files', 'other.md'], { stdio: 'pipe', timeout: 8000 });

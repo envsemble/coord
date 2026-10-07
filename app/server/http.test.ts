@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { Telemetry } from './telemetry.ts';
-import { cacheOutsidePlanning } from './storage.ts';
+import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
 
 test('HTTP reading survives unavailable collection and lost views retain coverage after restart', async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), 'planning-http-'));
@@ -25,7 +25,7 @@ test('HTTP reading survives unavailable collection and lost views retain coverag
     await symlink(root, path.join(temporary, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
     await assert.rejects(cacheOutsidePlanning(root, path.join(temporary, 'linked/new/cache')), /outside the planning folder/);
     const metrics = path.join(temporary, 'metrics');
-    const filename = path.join(metrics, 'usage.sqlite');
+    const filename = path.join(await statisticsDirectory(root, metrics), 'usage.sqlite');
     const initialized = new Telemetry(filename); initialized.close();
     lock = new DatabaseSync(filename); lock.exec('BEGIN IMMEDIATE');
     const reservation = createServer().listen(0, '127.0.0.1'); await once(reservation, 'listening');

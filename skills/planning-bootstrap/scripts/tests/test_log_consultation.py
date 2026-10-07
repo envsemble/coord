@@ -21,7 +21,7 @@ class ConsultationTests(unittest.TestCase):
             original = (root / "note.md").read_bytes()
             destination = Path(directory) / "metrics"
             self.assertEqual(module.report(root, ["note.md", "note.md"], destination=destination), (1, 0))
-            with closing(sqlite3.connect(destination / "usage.sqlite")) as db:
+            with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
                 row = db.execute("SELECT source, document_key, task_id, session_id, content_hash FROM events").fetchone()
             self.assertEqual(row[:4], ("agent_report", "root:note.md", None, None))
             self.assertEqual(len(row[4]), 64)
@@ -51,7 +51,7 @@ class ConsultationTests(unittest.TestCase):
             registry["work_items"][0]["path"] = "archive/0001-example"
             (root / "planning.json").write_text(json.dumps(registry), encoding="utf-8")
             self.assertEqual(module.report(root, ["archive/0001-example/plan.md"], "work-0001", destination=destination), (1, 0))
-            with closing(sqlite3.connect(destination / "usage.sqlite")) as db:
+            with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
                 keys = db.execute("SELECT DISTINCT document_key FROM events").fetchall()
                 failures = db.execute("SELECT count(*) FROM failures").fetchone()[0]
             self.assertEqual(keys, [("work-0001:plan.md",)])

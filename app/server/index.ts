@@ -2,8 +2,6 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { createHash } from 'node:crypto';
-import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
@@ -12,7 +10,7 @@ import path from 'node:path';
 import { loadPlanning, PlanningError, readDocument, resolveDocument } from './planning.ts';
 import { Telemetry, recordCollectionGap } from './telemetry.ts';
 import type { Usage } from '../src/types.ts';
-import { cacheOutsidePlanning } from './storage.ts';
+import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
 
 const { values } = parseArgs({ options: {
   dev: { type: 'boolean', default: false }, 'planning-dir': { type: 'string' }, port: { type: 'string', default: '4317' }, 'data-dir': { type: 'string' },
@@ -21,9 +19,7 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const planningRoot = path.resolve(values['planning-dir'] ?? path.join(appRoot, '../../planning'));
 const port = Number(values.port);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a valid --port.');
-const canonicalRoot = await realpath(planningRoot).catch(() => planningRoot);
-const normalizedRoot = (process.platform === 'win32' ? canonicalRoot.toLowerCase() : canonicalRoot).replaceAll('\\', '/');
-const dataRoot = values['data-dir'] ?? process.env.PLANNING_DASHBOARD_DATA_DIR ?? path.join(homedir(), '.cache', 'planning-dashboard', createHash('sha256').update(normalizedRoot).digest('hex').slice(0, 16));
+const dataRoot = await statisticsDirectory(planningRoot, values['data-dir'] ?? process.env.PLANNING_DASHBOARD_DATA_DIR);
 let telemetry: Telemetry | null = null;
 let collectionError: string | null = null;
 let usageDirectory: string | null = null;

@@ -22,15 +22,14 @@ CREATE INDEX IF NOT EXISTS event_document ON events(document_key);
 CREATE TABLE IF NOT EXISTS failures (timestamp TEXT NOT NULL, detail TEXT NOT NULL);
 """
 
-def data_directory(root: Path) -> Path:
-    override = os.environ.get("PLANNING_DASHBOARD_DATA_DIR")
-    if override:
-        return Path(override).expanduser().resolve()
-    normalized = str(root).replace("\\", "/")
+def data_directory(root: Path, base: Path | None = None) -> Path:
+    override = base or os.environ.get("PLANNING_DASHBOARD_DATA_DIR")
+    normalized = str(root.expanduser().resolve()).replace("\\", "/")
     if os.name == "nt":
         normalized = normalized.lower()
     identity = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
-    return Path.home() / ".cache" / "planning-dashboard" / identity
+    cache_base = Path(override).expanduser().resolve() if override else Path.home() / ".cache" / "planning-dashboard"
+    return cache_base / identity
 
 def document_identity(relative: str, registry: dict) -> str:
     for work in registry.get("work_items", []):
@@ -69,7 +68,7 @@ def report(root: Path, files: list[str], task: str | None = None,
         or not isinstance(work.get("path"), str) for work in registry["work_items"]
     ):
         raise ValueError("Invalid planning work identities")
-    destination = cache_outside_planning(root, destination or data_directory(root))
+    destination = cache_outside_planning(root, data_directory(root, destination))
     destination.mkdir(parents=True, exist_ok=True)
     revision = None
     try:
@@ -136,7 +135,7 @@ def main() -> int:
         if failed:
             print("Some usage reports were not recorded; continue the task.", file=sys.stderr)
     except (OSError, ValueError, sqlite3.Error) as error:
-        record_collection_gap(arguments.planning_root, arguments.data_dir or data_directory(arguments.planning_root.expanduser().resolve()))
+        record_collection_gap(arguments.planning_root, data_directory(arguments.planning_root, arguments.data_dir))
         print("Planning usage logging unavailable (" + type(error).__name__ + "); continue the task.", file=sys.stderr)
     return 0
 
