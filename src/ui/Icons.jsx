@@ -15,6 +15,8 @@ export {
   RepoIcon,
   ScreenFullIcon,
   SearchIcon,
+  SidebarCollapseIcon,
+  SidebarExpandIcon,
   SunIcon,
   TableIcon,
   XIcon,

@@ -30,7 +30,6 @@ export function CameraControls({ zoom, onZoom, onReset, onFit }) {
       </IconButton>
       <button id="fit" aria-label="Fit" title="Fit diagram (0)" onClick={onFit}>
         <ScreenFullIcon size={16} />
-        <span>Fit</span>
       </button>
     </div>
   );

@@ -14,6 +14,8 @@ import {
   FileMediaIcon,
   FileCodeIcon,
   DownloadIcon,
+  SidebarCollapseIcon,
+  SidebarExpandIcon,
 } from "../ui/Icons";
 
 export function ViewerToolbar({
@@ -25,6 +27,9 @@ export function ViewerToolbar({
   theme,
   zoom,
   diagramURL,
+  sidebarHidden,
+  sidebarOpen,
+  onSidebar,
   onView,
   onFields,
   onTheme,
@@ -37,13 +42,13 @@ export function ViewerToolbar({
 }) {
   const themeLabel =
     theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
+  const sidebarLabel = sidebarHidden ? "Show sidebar" : "Hide sidebar";
   return (
     <header className="viewer-toolbar">
       <div className="toolbar-identity" title={model.title}>
         <span className="brand-mark">
           <RepoIcon size={20} />
         </span>
-        <span className="brand">OntoUML</span>
       </div>
       <div className="view-navigation">
         <Tabs items={views} value={viewKey} onChange={onView} />
@@ -66,7 +71,6 @@ export function ViewerToolbar({
             onClick={onFields}
           >
             <TableIcon size={16} />
-            <span>Fields</span>
           </ToggleButton>
           <CameraControls {...{ zoom, onZoom, onReset, onFit }} />
         </div>
@@ -80,7 +84,7 @@ export function ViewerToolbar({
             download={`${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`}
           >
             <FileMediaIcon size={16} />
-            Diagram · SVG
+            SVG
           </a>
           <DownloadLink
             id="puml-download"
@@ -89,7 +93,7 @@ export function ViewerToolbar({
             filename={`${exports.slug}-${viewKey}.puml`}
           >
             <FileCodeIcon size={16} />
-            Diagram · PlantUML
+            PlantUML
           </DownloadLink>
           <DownloadLink
             id="model-download"
@@ -99,7 +103,7 @@ export function ViewerToolbar({
             type="application/json"
           >
             <FileCodeIcon size={16} />
-            Model · OntoUML JSON
+            OntoUML JSON
           </DownloadLink>
           <DownloadLink
             id="bundle-download"
@@ -109,7 +113,7 @@ export function ViewerToolbar({
             type="application/zip"
           >
             <DownloadIcon size={16} />
-            Models · ZIP
+            Models ZIP
           </DownloadLink>
         </ExportMenu>
         <button
@@ -117,15 +121,29 @@ export function ViewerToolbar({
           className="learn-toggle"
           onClick={onLearn}
           aria-label={`Learn OntoUML; ${model.validation.counts.error} findings`}
+          title="Learn OntoUML"
         >
           <BookIcon size={16} />
-          <span className="learn-label">Learn</span>
           {model.validation.counts.error > 0 && (
             <span className="validation-count">
               {model.validation.counts.error}
             </span>
           )}
         </button>
+        <IconButton
+          id="sidebar-toggle"
+          label={sidebarLabel}
+          aria-controls="inspector"
+          aria-expanded={sidebarOpen}
+          aria-pressed={!sidebarHidden}
+          onClick={onSidebar}
+        >
+          {sidebarHidden ? (
+            <SidebarExpandIcon size={16} />
+          ) : (
+            <SidebarCollapseIcon size={16} />
+          )}
+        </IconButton>
         <IconButton id="info" label="About and controls" onClick={onAbout}>
           <QuestionIcon size={16} />
         </IconButton>

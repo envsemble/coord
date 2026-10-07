@@ -5,6 +5,8 @@ export function Panel({
   open,
   onClose,
   label = "Diagram details",
+  title = label,
+  closeLabel = "Close details",
   children,
   id = "panel",
   className = "",
@@ -17,12 +19,12 @@ export function Panel({
       aria-label={label}
       {...props}
     >
-      <div className="panel-header">
-        <span className="panel-title">{label}</span>
+      <div className={`panel-header${title ? "" : " compact"}`}>
+        {title && <span className="panel-title">{title}</span>}
         {onClose && (
           <IconButton
             className="panel-close"
-            label="Close details"
+            label={closeLabel}
             onClick={onClose}
           >
             <XIcon size={16} />

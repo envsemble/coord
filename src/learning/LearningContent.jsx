@@ -134,8 +134,6 @@ export function LearningLibrary({ model, onInspect }) {
   );
   return (
     <>
-      <span className="tag">OntoUML Atlas</span>
-      <h1>Understand the model</h1>
       <div className="learning-tabs">
         <button aria-pressed={tab === "learn"} onClick={() => setTab("learn")}>
           Learn
@@ -213,27 +211,23 @@ export function LearningLibrary({ model, onInspect }) {
       )}
       {tab === "checks" && (
         <>
-          <p>
-            {model.validation.counts.error
-              ? `${model.validation.counts.error} findings need review.`
-              : "The implemented checks pass."}
-          </p>
-          <p className="muted">
-            Official JSON schema, reference integrity, and a documented subset
-            of ontology rules. Domain accuracy still needs judgment.
-          </p>
-          {visibleIssues.map(renderIssue)}
-          {coverage.length > 0 && (
-            <details className="learn-concept">
-              <summary>Rule coverage · {coverage.length} notices</summary>
-              {coverage.map(renderIssue)}
-            </details>
+          {!model.validation.counts.error && (
+            <p>The implemented checks pass.</p>
           )}
-          {model.validation.limitations.map((limit) => (
-            <p className="muted" key={limit}>
-              {limit}
+          {visibleIssues.map(renderIssue)}
+          <details className="learn-concept">
+            <summary>Rule coverage</summary>
+            <p className="muted">
+              Official JSON schema, reference integrity, and a documented subset
+              of ontology rules. Domain accuracy still needs judgment.
             </p>
-          ))}
+            {coverage.map(renderIssue)}
+            {model.validation.limitations.map((limit) => (
+              <p className="muted" key={limit}>
+                {limit}
+              </p>
+            ))}
+          </details>
         </>
       )}
       {tab === "questions" && (
@@ -245,15 +239,8 @@ export function LearningLibrary({ model, onInspect }) {
               </p>
             ))
           ) : (
-            <p className="muted">
-              No project-wide questions recorded. Individual concepts may have
-              their own questions.
-            </p>
+            <p className="muted">No project-wide questions recorded.</p>
           )}
-          <p className="muted">
-            Inspect a concept for its evidence, classification rationale, and
-            ways to resolve uncertainty.
-          </p>
         </>
       )}
     </>

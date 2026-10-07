@@ -121,10 +121,6 @@ button[aria-selected="true"] {
   height: 32px;
   color: var(--text);
 }
-.brand {
-  font-weight: 600;
-  color: var(--text);
-}
 .toolbar-actions,
 .diagram-actions {
   display: flex;
@@ -263,9 +259,8 @@ button[aria-selected="true"] {
 }
 .camera-controls #fit {
   border-left: 1px solid var(--border);
-  padding: 0 9px;
-  gap: 6px;
-  font-size: 12px;
+  width: 32px;
+  padding: 0;
 }
 .zoom-readout {
   font-variant-numeric: tabular-nums;
@@ -274,7 +269,8 @@ button[aria-selected="true"] {
   padding: 0 6px;
 }
 .fields {
-  font-size: 12px;
+  width: 32px;
+  padding: 0;
   border: 1px solid var(--border);
   background: var(--control-bg);
   font-weight: 500;
@@ -359,6 +355,12 @@ button[aria-selected="true"] {
   font-size: 13px;
   font-weight: 600;
 }
+.panel-header.compact {
+  height: 40px;
+  justify-content: flex-end;
+  border-bottom: 0;
+  background: var(--canvas);
+}
 .panel-content {
   padding: 20px;
 }
@@ -413,9 +415,14 @@ button[aria-selected="true"] {
   flex-wrap: wrap;
   gap: 6px;
 }
-.detail-header > p {
+.detail-description {
+  margin-top: 16px;
+}
+.detail-description p {
   color: var(--muted);
-  margin: 14px 0 20px;
+}
+.source-evidence {
+  margin-top: 20px;
 }
 .stereotype-tag[data-stereotype="kind"] {
   color: var(--type-kind);
@@ -487,20 +494,11 @@ button[aria-selected="true"] {
     gap: 6px;
     padding: 0 8px;
   }
-  .brand {
-    display: none;
-  }
   .search {
     width: 160px;
   }
   .toolbar-actions {
     gap: 6px;
-  }
-  .learn-label {
-    display: none;
-  }
-  .fields {
-    padding: 0 7px;
   }
 }
 @media (max-width: 780px) {
@@ -518,7 +516,7 @@ button[aria-selected="true"] {
     position: absolute;
     left: 8px;
     bottom: 0;
-    right: 234px;
+    right: 186px;
   }
   .tabs {
     height: 44px;
@@ -582,24 +580,6 @@ button[aria-selected="true"] {
     right: 15px;
   }
 }
-@media (max-width: 500px) {
-  .fields span,
-  .camera-controls #fit span {
-    display: none;
-  }
-  .fields {
-    width: 32px;
-    padding: 0;
-  }
-  .camera-controls #fit {
-    width: 32px;
-    padding: 0;
-  }
-  .view-navigation {
-    right: 186px;
-  }
-}
-
 input::placeholder {
   color: var(--muted);
 }
@@ -648,7 +628,7 @@ input::placeholder {
   box-shadow: none;
 }
 .inspector .panel-content {
-  padding: 24px;
+  padding: 8px 24px 24px;
 }
 .viewer.inspecting #canvas {
   right: var(--inspector-width);
@@ -670,7 +650,7 @@ input::placeholder {
     padding: 0;
   }
   .inspector .panel-content {
-    padding: 20px;
+    padding: 8px 20px 20px;
   }
 }
 @media (max-width: 680px) {
@@ -798,7 +778,7 @@ input::placeholder {
 .learning-tabs {
   display: flex;
   gap: 4px;
-  margin: 16px 0;
+  margin: 0 0 16px;
   padding: 4px;
   border: 1px solid var(--border);
   background: var(--surface);

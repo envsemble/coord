@@ -24,7 +24,12 @@ export function DetailHeader({
           </span>
         )}
       </div>
-      {description && <p>{description}</p>}
+      {description && (
+        <details className="detail-description">
+          <summary>Description</summary>
+          <p>{description}</p>
+        </details>
+      )}
     </div>
   );
 }

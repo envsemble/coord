@@ -66,7 +66,7 @@ export function SourceEvidence({
   if (!records.length) return null;
   return (
     <section className="source-evidence" aria-label={label}>
-      <h2>{label}</h2>
+      {label !== "Source" && <h2>{label}</h2>}
       {records.map((source, i) =>
         i === 0 ? (
           <SourceExcerpt

@@ -118,16 +118,19 @@ export function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
       {declared ? (
         <>
           <p className="set-constraints">{`{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}`}</p>
-          <p>
-            {group.complete
-              ? "Every instance of the supertype belongs to at least one subtype in this set."
-              : "Instances of the supertype may belong to none of the subtypes in this set."}
-          </p>
-          <p>
-            {group.disjoint
-              ? "An instance cannot belong to two subtypes in this set at the same time."
-              : "An instance may belong to more than one subtype in this set at the same time."}
-          </p>
+          <details className="learn-concept">
+            <summary>Read these constraints</summary>
+            <p>
+              {group.complete
+                ? "Every instance of the supertype belongs to at least one subtype in this set."
+                : "Instances of the supertype may belong to none of the subtypes in this set."}
+            </p>
+            <p>
+              {group.disjoint
+                ? "An instance cannot belong to two subtypes in this set at the same time."
+                : "An instance may belong to more than one subtype in this set at the same time."}
+            </p>
+          </details>
           {group.memberIds.length < group.totalMembers && (
             <p className="muted">
               {group.memberIds.length} of {group.totalMembers} members are
@@ -137,11 +140,14 @@ export function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
           <ElementLearning element={group} model={model} relation />
         </>
       ) : (
-        <p className="muted">
-          These inheritance branches share a supertype. Joining their lines does
-          not assert completeness or disjointness. Declare a generalization set
-          in the model to express those constraints.
-        </p>
+        <details className="learn-concept">
+          <summary>Read joined inheritance</summary>
+          <p className="muted">
+            These inheritance branches share a supertype. Joining their lines
+            does not assert completeness or disjointness. Declare a
+            generalization set in the model to express those constraints.
+          </p>
+        </details>
       )}
       <SourceEvidence
         evidence={group.evidence}
@@ -155,12 +161,8 @@ export function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
 export function About({ model, exports }) {
   return (
     <>
-      <span className="tag">OntoUML Atlas</span>
       <h1>{model.title}</h1>
-      <p>
-        Scroll or pinch to zoom. Drag to pan. Select a concept or relation for
-        evidence and learning help.
-      </p>
+      <p>Scroll or pinch to zoom · Drag to pan</p>
       <p>
         <kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>0</kbd> fit · <kbd>Esc</kbd>{" "}
         clear

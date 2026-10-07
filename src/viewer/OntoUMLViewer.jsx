@@ -29,6 +29,7 @@ export function OntoUMLViewer({
   const [selected, setSelected] = useState(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [learningOpen, setLearningOpen] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
   const { hovered, hover, keepHover, clearHover } = useInspection();
   const [focusRequest, setFocusRequest] = useState(null),
     [zoom, setZoom] = useState(100);
@@ -47,6 +48,7 @@ export function OntoUMLViewer({
   );
   const inspected = inspectedTarget(hovered, selected);
   const element = index.getElement(inspected);
+  const sidebarOpen = !sidebarHidden && (!!element || learningOpen);
   const select = useCallback(
     (target) => {
       clearHover();
@@ -92,9 +94,12 @@ export function OntoUMLViewer({
     setFocusRequest({ id: node.id });
   }
   return (
-    <div className={`viewer${element || learningOpen ? " inspecting" : ""}`}>
+    <div className={`viewer${sidebarOpen ? " inspecting" : ""}`}>
       <ViewerToolbar
         {...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL }}
+        sidebarHidden={sidebarHidden}
+        sidebarOpen={sidebarOpen}
+        onSidebar={() => setSidebarHidden((hidden) => !hidden)}
         onView={(key) => {
           if (key === viewKey) return;
           const next = views.find((v) => v.key === key).diagram;
@@ -115,7 +120,8 @@ export function OntoUMLViewer({
         onTheme={toggleTheme}
         onLearn={() => {
           clearHover();
-          setLearningOpen(!learningOpen);
+          setSidebarHidden(false);
+          setLearningOpen(sidebarHidden || !learningOpen);
         }}
         onChoose={choose}
         onAbout={() => {
@@ -134,10 +140,13 @@ export function OntoUMLViewer({
         onClearHover={clearHover}
       />
       <Panel
+        id="inspector"
         className="inspector"
-        open={!!element || learningOpen}
+        open={sidebarOpen}
         label={learningOpen ? "OntoUML learning library" : "Model details"}
-        onClose={learningOpen ? () => setLearningOpen(false) : clear}
+        title={null}
+        closeLabel="Hide sidebar"
+        onClose={() => setSidebarHidden(true)}
         onPointerEnter={keepHover}
         onPointerLeave={() => hover(null)}
         onFocusCapture={keepHover}

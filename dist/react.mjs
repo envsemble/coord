@@ -1192,6 +1192,8 @@ import {
   RepoIcon,
   ScreenFullIcon,
   SearchIcon,
+  SidebarCollapseIcon,
+  SidebarExpandIcon,
   SunIcon,
   TableIcon,
   XIcon
@@ -1203,6 +1205,8 @@ function Panel({
   open,
   onClose,
   label = "Diagram details",
+  title = label,
+  closeLabel = "Close details",
   children,
   id = "panel",
   className = "",
@@ -1216,13 +1220,13 @@ function Panel({
       "aria-label": label,
       ...props,
       children: [
-        /* @__PURE__ */ jsxs5("div", { className: "panel-header", children: [
-          /* @__PURE__ */ jsx7("span", { className: "panel-title", children: label }),
+        /* @__PURE__ */ jsxs5("div", { className: `panel-header${title ? "" : " compact"}`, children: [
+          title && /* @__PURE__ */ jsx7("span", { className: "panel-title", children: title }),
           onClose && /* @__PURE__ */ jsx7(
             IconButton,
             {
               className: "panel-close",
-              label: "Close details",
+              label: closeLabel,
               onClick: onClose,
               children: /* @__PURE__ */ jsx7(XIcon, { size: 16 })
             }
@@ -1306,10 +1310,7 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
         children: /* @__PURE__ */ jsx9(PlusIcon, { size: 16 })
       }
     ),
-    /* @__PURE__ */ jsxs6("button", { id: "fit", "aria-label": "Fit", title: "Fit diagram (0)", onClick: onFit, children: [
-      /* @__PURE__ */ jsx9(ScreenFullIcon, { size: 16 }),
-      /* @__PURE__ */ jsx9("span", { children: "Fit" })
-    ] })
+    /* @__PURE__ */ jsx9("button", { id: "fit", "aria-label": "Fit", title: "Fit diagram (0)", onClick: onFit, children: /* @__PURE__ */ jsx9(ScreenFullIcon, { size: 16 }) })
   ] });
 }
 
@@ -1499,6 +1500,9 @@ function ViewerToolbar({
   theme,
   zoom,
   diagramURL,
+  sidebarHidden,
+  sidebarOpen,
+  onSidebar,
   onView,
   onFields,
   onTheme,
@@ -1510,11 +1514,9 @@ function ViewerToolbar({
   onFit
 }) {
   const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
+  const sidebarLabel = sidebarHidden ? "Show sidebar" : "Hide sidebar";
   return /* @__PURE__ */ jsxs9("header", { className: "viewer-toolbar", children: [
-    /* @__PURE__ */ jsxs9("div", { className: "toolbar-identity", title: model.title, children: [
-      /* @__PURE__ */ jsx13("span", { className: "brand-mark", children: /* @__PURE__ */ jsx13(RepoIcon, { size: 20 }) }),
-      /* @__PURE__ */ jsx13("span", { className: "brand", children: "OntoUML" })
-    ] }),
+    /* @__PURE__ */ jsx13("div", { className: "toolbar-identity", title: model.title, children: /* @__PURE__ */ jsx13("span", { className: "brand-mark", children: /* @__PURE__ */ jsx13(RepoIcon, { size: 20 }) }) }),
     /* @__PURE__ */ jsx13("div", { className: "view-navigation", children: /* @__PURE__ */ jsx13(Tabs, { items: views, value: viewKey, onChange: onView }) }),
     /* @__PURE__ */ jsx13("span", { className: "spacer" }),
     /* @__PURE__ */ jsxs9("div", { className: "toolbar-actions", children: [
@@ -1528,7 +1530,7 @@ function ViewerToolbar({
         }
       ),
       /* @__PURE__ */ jsxs9("div", { className: "diagram-actions", children: [
-        /* @__PURE__ */ jsxs9(
+        /* @__PURE__ */ jsx13(
           ToggleButton,
           {
             id: "fields",
@@ -1537,10 +1539,7 @@ function ViewerToolbar({
             "aria-label": "Fields",
             title: "Show attributes in the diagram",
             onClick: onFields,
-            children: [
-              /* @__PURE__ */ jsx13(TableIcon, { size: 16 }),
-              /* @__PURE__ */ jsx13("span", { children: "Fields" })
-            ]
+            children: /* @__PURE__ */ jsx13(TableIcon, { size: 16 })
           }
         ),
         /* @__PURE__ */ jsx13(CameraControls, { ...{ zoom, onZoom, onReset, onFit } })
@@ -1555,7 +1554,7 @@ function ViewerToolbar({
             download: `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
             children: [
               /* @__PURE__ */ jsx13(FileMediaIcon, { size: 16 }),
-              "Diagram \xB7 SVG"
+              "SVG"
             ]
           }
         ),
@@ -1568,7 +1567,7 @@ function ViewerToolbar({
             filename: `${exports.slug}-${viewKey}.puml`,
             children: [
               /* @__PURE__ */ jsx13(FileCodeIcon, { size: 16 }),
-              "Diagram \xB7 PlantUML"
+              "PlantUML"
             ]
           }
         ),
@@ -1582,7 +1581,7 @@ function ViewerToolbar({
             type: "application/json",
             children: [
               /* @__PURE__ */ jsx13(FileCodeIcon, { size: 16 }),
-              "Model \xB7 OntoUML JSON"
+              "OntoUML JSON"
             ]
           }
         ),
@@ -1596,7 +1595,7 @@ function ViewerToolbar({
             type: "application/zip",
             children: [
               /* @__PURE__ */ jsx13(DownloadIcon, { size: 16 }),
-              "Models \xB7 ZIP"
+              "Models ZIP"
             ]
           }
         )
@@ -1608,11 +1607,23 @@ function ViewerToolbar({
           className: "learn-toggle",
           onClick: onLearn,
           "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
+          title: "Learn OntoUML",
           children: [
             /* @__PURE__ */ jsx13(BookIcon, { size: 16 }),
-            /* @__PURE__ */ jsx13("span", { className: "learn-label", children: "Learn" }),
             model.validation.counts.error > 0 && /* @__PURE__ */ jsx13("span", { className: "validation-count", children: model.validation.counts.error })
           ]
+        }
+      ),
+      /* @__PURE__ */ jsx13(
+        IconButton,
+        {
+          id: "sidebar-toggle",
+          label: sidebarLabel,
+          "aria-controls": "inspector",
+          "aria-expanded": sidebarOpen,
+          "aria-pressed": !sidebarHidden,
+          onClick: onSidebar,
+          children: sidebarHidden ? /* @__PURE__ */ jsx13(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx13(SidebarCollapseIcon, { size: 16 })
         }
       ),
       /* @__PURE__ */ jsx13(IconButton, { id: "info", label: "About and controls", onClick: onAbout, children: /* @__PURE__ */ jsx13(QuestionIcon, { size: 16 }) })
@@ -1688,7 +1699,7 @@ function SourceEvidence({
   const records = [...new Set(primary ? [primary, ...evidence] : evidence)].filter((id) => evidence.includes(id)).map((id) => sources.find((s) => s.id === id)).filter(Boolean);
   if (!records.length) return null;
   return /* @__PURE__ */ jsxs11("section", { className: "source-evidence", "aria-label": label, children: [
-    /* @__PURE__ */ jsx15("h2", { children: label }),
+    label !== "Source" && /* @__PURE__ */ jsx15("h2", { children: label }),
     records.map(
       (source, i) => i === 0 ? /* @__PURE__ */ jsx15(
         SourceExcerpt,
@@ -1997,8 +2008,6 @@ function LearningLibrary({ model, onInspect }) {
     )
   ] }, i);
   return /* @__PURE__ */ jsxs12(Fragment5, { children: [
-    /* @__PURE__ */ jsx16("span", { className: "tag", children: "OntoUML Atlas" }),
-    /* @__PURE__ */ jsx16("h1", { children: "Understand the model" }),
     /* @__PURE__ */ jsxs12("div", { className: "learning-tabs", children: [
       /* @__PURE__ */ jsx16("button", { "aria-pressed": tab === "learn", onClick: () => setTab("learn"), children: "Learn" }),
       /* @__PURE__ */ jsxs12(
@@ -2057,23 +2066,16 @@ function LearningLibrary({ model, onInspect }) {
       ] }, key))
     ] }),
     tab === "checks" && /* @__PURE__ */ jsxs12(Fragment5, { children: [
-      /* @__PURE__ */ jsx16("p", { children: model.validation.counts.error ? `${model.validation.counts.error} findings need review.` : "The implemented checks pass." }),
-      /* @__PURE__ */ jsx16("p", { className: "muted", children: "Official JSON schema, reference integrity, and a documented subset of ontology rules. Domain accuracy still needs judgment." }),
+      !model.validation.counts.error && /* @__PURE__ */ jsx16("p", { children: "The implemented checks pass." }),
       visibleIssues.map(renderIssue),
-      coverage.length > 0 && /* @__PURE__ */ jsxs12("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsxs12("summary", { children: [
-          "Rule coverage \xB7 ",
-          coverage.length,
-          " notices"
-        ] }),
-        coverage.map(renderIssue)
-      ] }),
-      model.validation.limitations.map((limit) => /* @__PURE__ */ jsx16("p", { className: "muted", children: limit }, limit))
+      /* @__PURE__ */ jsxs12("details", { className: "learn-concept", children: [
+        /* @__PURE__ */ jsx16("summary", { children: "Rule coverage" }),
+        /* @__PURE__ */ jsx16("p", { className: "muted", children: "Official JSON schema, reference integrity, and a documented subset of ontology rules. Domain accuracy still needs judgment." }),
+        coverage.map(renderIssue),
+        model.validation.limitations.map((limit) => /* @__PURE__ */ jsx16("p", { className: "muted", children: limit }, limit))
+      ] })
     ] }),
-    tab === "questions" && /* @__PURE__ */ jsxs12(Fragment5, { children: [
-      model.unknowns.length ? model.unknowns.map((question) => /* @__PURE__ */ jsx16("p", { className: "open-question", children: question }, question)) : /* @__PURE__ */ jsx16("p", { className: "muted", children: "No project-wide questions recorded. Individual concepts may have their own questions." }),
-      /* @__PURE__ */ jsx16("p", { className: "muted", children: "Inspect a concept for its evidence, classification rationale, and ways to resolve uncertainty." })
-    ] })
+    tab === "questions" && /* @__PURE__ */ jsx16(Fragment5, { children: model.unknowns.length ? model.unknowns.map((question) => /* @__PURE__ */ jsx16("p", { className: "open-question", children: question }, question)) : /* @__PURE__ */ jsx16("p", { className: "muted", children: "No project-wide questions recorded." }) })
   ] });
 }
 
@@ -2096,7 +2098,10 @@ function DetailHeader({
       /* @__PURE__ */ jsx17("span", { className: "tag stereotype-tag", "data-stereotype": stereotype, children: tag }),
       status && /* @__PURE__ */ jsx17("span", { className: "tag evidence-status", "data-status": status, children: status })
     ] }),
-    description && /* @__PURE__ */ jsx17("p", { children: description })
+    description && /* @__PURE__ */ jsxs13("details", { className: "detail-description", children: [
+      /* @__PURE__ */ jsx17("summary", { children: "Description" }),
+      /* @__PURE__ */ jsx17("p", { children: description })
+    ] })
   ] });
 }
 
@@ -2192,8 +2197,11 @@ function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
     ] }),
     declared ? /* @__PURE__ */ jsxs14(Fragment6, { children: [
       /* @__PURE__ */ jsx18("p", { className: "set-constraints", children: `{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}` }),
-      /* @__PURE__ */ jsx18("p", { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
-      /* @__PURE__ */ jsx18("p", { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." }),
+      /* @__PURE__ */ jsxs14("details", { className: "learn-concept", children: [
+        /* @__PURE__ */ jsx18("summary", { children: "Read these constraints" }),
+        /* @__PURE__ */ jsx18("p", { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
+        /* @__PURE__ */ jsx18("p", { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." })
+      ] }),
       group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs14("p", { className: "muted", children: [
         group.memberIds.length,
         " of ",
@@ -2201,7 +2209,10 @@ function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
         " members are shown. These constraints apply to the full set."
       ] }),
       /* @__PURE__ */ jsx18(ElementLearning, { element: group, model, relation: true })
-    ] }) : /* @__PURE__ */ jsx18("p", { className: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }),
+    ] }) : /* @__PURE__ */ jsxs14("details", { className: "learn-concept", children: [
+      /* @__PURE__ */ jsx18("summary", { children: "Read joined inheritance" }),
+      /* @__PURE__ */ jsx18("p", { className: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." })
+    ] }),
     /* @__PURE__ */ jsx18(
       SourceEvidence,
       {
@@ -2215,9 +2226,8 @@ function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
 }
 function About({ model, exports }) {
   return /* @__PURE__ */ jsxs14(Fragment6, { children: [
-    /* @__PURE__ */ jsx18("span", { className: "tag", children: "OntoUML Atlas" }),
     /* @__PURE__ */ jsx18("h1", { children: model.title }),
-    /* @__PURE__ */ jsx18("p", { children: "Scroll or pinch to zoom. Drag to pan. Select a concept or relation for evidence and learning help." }),
+    /* @__PURE__ */ jsx18("p", { children: "Scroll or pinch to zoom \xB7 Drag to pan" }),
     /* @__PURE__ */ jsxs14("p", { children: [
       /* @__PURE__ */ jsx18("kbd", { children: "+" }),
       " / ",
@@ -2317,6 +2327,7 @@ function OntoUMLViewer({
   const [selected, setSelected] = useState9(null);
   const [aboutOpen, setAboutOpen] = useState9(false);
   const [learningOpen, setLearningOpen] = useState9(false);
+  const [sidebarHidden, setSidebarHidden] = useState9(false);
   const { hovered, hover, keepHover, clearHover } = useInspection();
   const [focusRequest, setFocusRequest] = useState9(null), [zoom, setZoom] = useState9(100);
   const cameraRef = useRef7(null);
@@ -2334,6 +2345,7 @@ function OntoUMLViewer({
   );
   const inspected = inspectedTarget(hovered, selected);
   const element = index.getElement(inspected);
+  const sidebarOpen = !sidebarHidden && (!!element || learningOpen);
   const select = useCallback3(
     (target) => {
       clearHover();
@@ -2378,11 +2390,14 @@ function OntoUMLViewer({
     select({ kind: "node", id: node.id });
     setFocusRequest({ id: node.id });
   }
-  return /* @__PURE__ */ jsxs15("div", { className: `viewer${element || learningOpen ? " inspecting" : ""}`, children: [
+  return /* @__PURE__ */ jsxs15("div", { className: `viewer${sidebarOpen ? " inspecting" : ""}`, children: [
     /* @__PURE__ */ jsx19(
       ViewerToolbar,
       {
         ...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL },
+        sidebarHidden,
+        sidebarOpen,
+        onSidebar: () => setSidebarHidden((hidden) => !hidden),
         onView: (key) => {
           if (key === viewKey) return;
           const next = views.find((v) => v.key === key).diagram;
@@ -2398,7 +2413,8 @@ function OntoUMLViewer({
         onTheme: toggleTheme,
         onLearn: () => {
           clearHover();
-          setLearningOpen(!learningOpen);
+          setSidebarHidden(false);
+          setLearningOpen(sidebarHidden || !learningOpen);
         },
         onChoose: choose,
         onAbout: () => {
@@ -2423,10 +2439,13 @@ function OntoUMLViewer({
     /* @__PURE__ */ jsxs15(
       Panel,
       {
+        id: "inspector",
         className: "inspector",
-        open: !!element || learningOpen,
+        open: sidebarOpen,
         label: learningOpen ? "OntoUML learning library" : "Model details",
-        onClose: learningOpen ? () => setLearningOpen(false) : clear,
+        title: null,
+        closeLabel: "Hide sidebar",
+        onClose: () => setSidebarHidden(true),
         onPointerEnter: keepHover,
         onPointerLeave: () => hover(null),
         onFocusCapture: keepHover,
