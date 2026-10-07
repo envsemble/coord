@@ -41,6 +41,12 @@ When replacing an installed `implement-plan`, retire that old installed entry se
 
 Use `planning-bootstrap` to create/adopt a folder named `planning` in the relevant workspace. It guides setup with existing content, recoverable local Git history, and optional remote hosting. Product repositories need no mandatory locator file.
 
+## Planning dashboard
+
+The [planning dashboard](planning-dashboard) is a local React viewer for plans, implementation records, knowledge, Git history, and usage statistics. From that directory, run npm ci once, then npm run dev. It reads the sibling planning repository by default, with --planning-dir for another location. Node.js 24+ is required; nothing needs a model API or remote hosting.
+
+The five planning skills report actual document consultation through the shared bootstrap helper, even while the dashboard is closed. Browser views are collected separately. Usage stays in a local cache outside planning documents. See the [dashboard guide](planning-dashboard/README.md) for launch options and collection limitations.
+
 ## Other skills and archive
 
 [issue-writing](issue-writing) remains independent. Archived [repo-commit-splitter](archive/repo-commit-splitter) and [refactor-codebase](archive/refactor-codebase) remain available for reference and are not part of the installed collection.

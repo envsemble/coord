@@ -16,3 +16,7 @@ Organization includes relevant surrounding workspace and repository roots, obvio
 Use reversible structural changes autonomously when their meaning is clear. Preserve original plans and supporting documents, establish recovery before moves, repair references, and retain uncertainty about historical status. Ask about real competing designs or ambiguous ownership while continuing independent organization.
 
 Finish with useful entry points, an accurate registry, verified preservation, and a concise account of significant changes or unresolved items. Commit planning changes reasonably and incrementally. Product Git history and disposable-output cleanup are separate from planning maintenance.
+
+## Passive usage reporting
+
+After consulting planning records, follow [passive usage reporting](../planning-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.

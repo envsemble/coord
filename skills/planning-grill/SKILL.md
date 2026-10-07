@@ -33,3 +33,7 @@ Use [planning-record](../planning-record/SKILL.md) for selective reusable knowle
 Before handoff, reconcile the files with the final agreement and identify real blockers. Acceptance records agreement on intended work, not implementation completion. Link the work folder with a short status in chat; do not repeat the whole plan. Do not enact unresolved design choices. Respect approval already given for settled work; new acceptance alone does not implicitly invoke `planning-implement` or grant merge/deployment authority.
 
 The supporting methods are adapted from Matt Pocock's MIT-licensed skills. See [provenance and adaptation notes](references/ATTRIBUTION.md) and [the retained license](references/LICENSE).
+
+## Passive usage reporting
+
+After consulting planning records, follow [passive usage reporting](../planning-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.

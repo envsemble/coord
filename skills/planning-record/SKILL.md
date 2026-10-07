@@ -38,3 +38,7 @@ Move the **entire** work folder to `archive/` with the same work ID, number, and
 Manage planning Git independently of product Git. Make reasonable incremental local planning commits for coherent retained knowledge or closure, preserving unrelated user changes. A remote is optional; neither a remote nor a product commit is a prerequisite for local recording. Do not change product history just to save a planning record.
 
 Report the retained record or archived folder with a link and a short accurate outcome, including unresolved delivery steps where relevant. The value is usable memory and honest closure, not a larger document set.
+
+## Passive usage reporting
+
+After consulting planning records, follow [passive usage reporting](../planning-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.

@@ -63,3 +63,7 @@ After fixes, recheck affected dependencies and cross-repository interactions. Be
 Conclude with links to the work item and applicable PRs, what changed, validation/review evidence, and material limitations. Say PRs are ready for human review and remain unmerged only when every readiness gate passes. Otherwise report incomplete gates and next actions. Code written, a PR opened, review requested, or CI started is insufficient.
 
 Reconcile durable decisions, concerns, actual outcomes, and current canonical documentation through [planning-record](../planning-record/SKILL.md). Keep acceptance, implementation completion, PR readiness, merge, and release distinct. Archive the whole work item only when agreed completion criteria are verified and the outcome is recorded; for PR delivery the default requires the required PRs to have merged, unless task-specific criteria differ. Pending external delivery remains explicit. Unfinished scope stays active or is explicitly transferred, superseded, or deliberately dropped. Closure never grants merge or deployment authority.
+
+## Passive usage reporting
+
+After consulting planning records, follow [passive usage reporting](../planning-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.

@@ -49,3 +49,7 @@ Pilot a bounded work item or copy before broad relocation. Finish enough adoptio
 Use the read-only stdlib helper `python scripts/check_planning.py <planning-root>` when checking registry and selected-plan consistency. It accepts the flat contract's scalar fields and flow/block lists; it does not migrate records, interpret arbitrary YAML structures, check Markdown links, or prove preservation. Legacy plans without frontmatter and unknown legacy pointers/scope are reported as warnings rather than forced normalization. Its semantic fixtures run with `python -m unittest discover -s scripts/tests` from this skill folder.
 
 Report the usable location, what was adopted, verification evidence, and any unresolved legacy locations or genuinely blocked choices. Keep acceptance, implementation, PR readiness, merge, and release distinct. Subsequent planning-dependent operations read this repository's `AGENTS.md` and `PLANS.md`; ordinary coding and independent `babysit-pr` remain available without planning.
+
+## Passive usage reporting
+
+After consulting planning records, follow [passive usage reporting](references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.
