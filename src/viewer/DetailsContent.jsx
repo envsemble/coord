@@ -3,8 +3,13 @@ import { SourceEvidence } from "./SourceEvidence";
 import { ElementLearning } from "../learning/LearningContent";
 import { DetailHeader } from "../ui/DetailHeader";
 import { GitBranchIcon } from "../ui/Icons";
+import { memo } from "react";
 
-export function ConceptDetails({ concept, model, snippets }) {
+export const ConceptDetails = memo(function ConceptDetails({
+  concept,
+  model,
+  snippets,
+}) {
   return (
     <>
       <DetailHeader
@@ -39,8 +44,13 @@ export function ConceptDetails({ concept, model, snippets }) {
       )}
     </>
   );
-}
-export function RelationDetails({ relation, onChoose, model, snippets }) {
+});
+export const RelationDetails = memo(function RelationDetails({
+  relation,
+  onChoose,
+  model,
+  snippets,
+}) {
   return (
     <>
       <DetailHeader
@@ -90,8 +100,13 @@ export function RelationDetails({ relation, onChoose, model, snippets }) {
       />
     </>
   );
-}
-export function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
+});
+export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
+  group,
+  onChoose,
+  model,
+  snippets,
+}) {
   const declared = group.type === "generalizationSet";
   return (
     <>
@@ -157,7 +172,7 @@ export function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
       />
     </>
   );
-}
+});
 export function About({ model, exports }) {
   return (
     <>

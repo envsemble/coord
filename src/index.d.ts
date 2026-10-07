@@ -23,6 +23,8 @@ export const DiagramCanvas: ForwardRefExoticComponent<
     selected: InspectionTarget;
     hovered: InspectionTarget;
     focusRequest?: { id: string } | null;
+    /** Transparent, theme-matched SVG image of this immutable scene. */
+    backgroundURL?: string;
     onSelect(target: InspectionTarget): void;
     onZoom(zoom: number): void;
     onHover(target: InspectionTarget): void;
@@ -34,6 +36,7 @@ export const UMLDiagram: ComponentType<{
   active?: InspectionTarget;
   selected?: InspectionTarget;
   handlers?: Record<string, (...args: any[]) => void>;
+  backgroundURL?: string;
 }>;
 export const UMLNode: ComponentType<Record<string, unknown>>;
 export const UMLRelation: ComponentType<Record<string, unknown>>;

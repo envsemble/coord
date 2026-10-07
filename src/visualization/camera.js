@@ -16,6 +16,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
   let easing = PAN_EASING_MS;
   let reducedMotion = false;
   let grid = null;
+  let gridScale = null;
   let zoomReadout = null;
   let drag = null;
   let moved = false;
@@ -39,15 +40,18 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       const phase = (n) => ((n % spacing) + spacing) % spacing;
       // Blend neighboring densities so crossing a zoom threshold does not
       // suddenly replace the dot pattern. Both layers share the same origin.
-      const fine = Math.max(0, Math.min(1, spacing / 16 - 1));
-      grid.style.backgroundImage = [fine, 1 - fine]
-        .map(
-          (opacity) =>
-            `radial-gradient(color-mix(in srgb,var(--grid) ${opacity * 100}%,transparent) 0.7px,transparent 0.7px)`,
-        )
-        .join(",");
-      grid.style.backgroundSize = `${spacing / 2}px ${spacing / 2}px,${spacing}px ${spacing}px`;
-      grid.style.backgroundPosition = `${64 - spacing / 4}px ${64 - spacing / 4}px,${64 - spacing / 2}px ${64 - spacing / 2}px`;
+      if (gridScale !== camera.scale) {
+        gridScale = camera.scale;
+        const fine = Math.max(0, Math.min(1, spacing / 16 - 1));
+        grid.style.backgroundImage = [fine, 1 - fine]
+          .map(
+            (opacity) =>
+              `radial-gradient(color-mix(in srgb,var(--grid) ${opacity * 100}%,transparent) 0.7px,transparent 0.7px)`,
+          )
+          .join(",");
+        grid.style.backgroundSize = `${spacing / 2}px ${spacing / 2}px,${spacing}px ${spacing}px`;
+        grid.style.backgroundPosition = `${64 - spacing / 4}px ${64 - spacing / 4}px,${64 - spacing / 2}px ${64 - spacing / 2}px`;
+      }
       grid.style.transform = `translate3d(${phase(camera.x)}px,${phase(camera.y)}px,0)`;
     }
     const value = Math.round(camera.scale * 100);
@@ -279,6 +283,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     const canvas = canvasRef.current;
     const world = worldRef.current;
     grid = canvas.querySelector(".canvas-grid");
+    gridScale = null;
     const cleanup = [];
     const listen = (target, type, handler, options) => {
       target.addEventListener(type, handler, options);
@@ -457,6 +462,7 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       cancelMotion();
       clearPointers(canvas);
       grid = null;
+      gridScale = null;
     };
   }
 

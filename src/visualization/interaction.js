@@ -8,6 +8,34 @@ export function readTarget(element) {
     : null;
 }
 
+// Scenes are immutable React inputs. Build adjacency once per scene, and let
+// the WeakMap release it when a view/model is replaced.
+const indexes = new WeakMap();
+export function interactionIndex(diagram) {
+  if (indexes.has(diagram)) return indexes.get(diagram);
+  const nodes = new Map(diagram.nodes.map((node) => [node.id, node]));
+  const edges = new Map();
+  const incident = new Map();
+  const groups = new Map();
+  const groupsByEdge = new Map();
+  const append = (map, id, value) => {
+    if (!map.has(id)) map.set(id, new Set());
+    map.get(id).add(value);
+  };
+  for (const edge of diagram.edges) {
+    edges.set(edge.id, edge);
+    append(incident, edge.source, edge);
+    append(incident, edge.target, edge);
+  }
+  for (const group of diagram.generalizationGroups || []) {
+    groups.set(group.id, group);
+    for (const id of group.memberIds) append(groupsByEdge, id, group.id);
+  }
+  const index = { nodes, edges, incident, groups, groupsByEdge };
+  indexes.set(diagram, index);
+  return index;
+}
+
 // Focus is calculated from graph identities, independently of SVG or the R5
 // domain. A relation keeps exactly its two ends; a node reveals one hop.
 export function focusedElements(diagram, target) {
@@ -15,32 +43,30 @@ export function focusedElements(diagram, target) {
   const nodes = new Set();
   const edges = new Set();
   const groups = new Set();
+  const index = interactionIndex(diagram);
   if (target.kind === "node") {
-    if (!diagram.nodes.some((n) => n.id === target.id)) return null;
+    if (!index.nodes.has(target.id)) return null;
     nodes.add(target.id);
-    for (const edge of diagram.edges) {
-      if (edge.source !== target.id && edge.target !== target.id) continue;
+    for (const edge of index.incident.get(target.id) || []) {
       edges.add(edge.id);
       nodes.add(edge.source);
       nodes.add(edge.target);
     }
   } else if (target.kind === "group") {
-    const group = (diagram.generalizationGroups || []).find(
-      (g) => g.id === target.id,
-    );
+    const group = index.groups.get(target.id);
     if (!group) return null;
     group.memberIds.forEach((id) => edges.add(id));
     group.sourceIds.forEach((id) => nodes.add(id));
     nodes.add(group.target);
   } else {
-    const edge = diagram.edges.find((e) => e.id === target.id);
+    const edge = index.edges.get(target.id);
     if (!edge) return null;
     edges.add(edge.id);
     nodes.add(edge.source);
     nodes.add(edge.target);
   }
-  for (const group of diagram.generalizationGroups || [])
-    if (group.memberIds.some((id) => edges.has(id))) groups.add(group.id);
+  for (const id of edges)
+    for (const groupId of index.groupsByEdge.get(id) || []) groups.add(groupId);
   return { nodes, edges, groups, primary: target };
 }
 
@@ -64,7 +90,8 @@ export function interactionProps(target, handlers, focusable = true) {
   if (!handlers) return {};
   return {
     onPointerEnter: () => handlers.onHover(target),
-    onPointerLeave: () => handlers.onHover(null),
+    onPointerLeave: (event) =>
+      handlers.onHover(readTarget(event.relatedTarget)),
     onClick: (e) => {
       e.stopPropagation();
       handlers.onActivate(target, e);

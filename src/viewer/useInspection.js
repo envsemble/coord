@@ -1,32 +1,51 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
 import { sameTarget } from "../visualization/interaction";
+import { createInspectionController } from "./inspection";
 
 export const inspectedTarget = (hovered, selected) => hovered || selected;
 
-export function useInspection() {
+export function useInspection({
+  previewEnabled = true,
+  previewVisible = false,
+} = {}) {
   const [hovered, setHovered] = useState(null);
-  const hoverTimer = useRef(null);
-  const keepHover = useCallback(() => {
-    clearTimeout(hoverTimer.current);
-    hoverTimer.current = null;
-  }, []);
-  const clearHover = useCallback(() => {
-    keepHover();
-    setHovered(null);
-  }, [keepHover]);
+  const [preview, setPreview] = useState(null);
+  const controller = useMemo(
+    () =>
+      createInspectionController({
+        onHover: (target) =>
+          setHovered((old) => (sameTarget(old, target) ? old : target)),
+        // An open inspector follows the same input commit as its highlight.
+        // Memoized details/code avoid rebuilding unchanged source content.
+        onPreview: (target) =>
+          setPreview((old) => (sameTarget(old, target) ? old : target)),
+      }),
+    [createInspectionController],
+  );
+  useLayoutEffect(() => {
+    controller.configure({ previewEnabled, previewVisible });
+  }, [controller, previewEnabled, previewVisible]);
+  useEffect(() => () => controller.dispose(), [controller]);
   const hover = useCallback(
     (target) => {
-      keepHover();
-      // Let a click complete before a hover-only sidebar can cover its target.
-      if (target)
-        hoverTimer.current = setTimeout(
-          () => setHovered((old) => (sameTarget(old, target) ? old : target)),
-          120,
-        );
-      else hoverTimer.current = setTimeout(clearHover, 200);
+      // A sparse overlay is cheap to commit. Do not leave pointer feedback in
+      // React's background update queue.
+      flushSync(() => controller.hover(target));
     },
-    [keepHover, clearHover],
+    [controller],
   );
-  useEffect(() => keepHover, [keepHover]);
-  return { hovered, hover, keepHover, clearHover };
+  return {
+    hovered,
+    preview,
+    hover,
+    keepHover: controller.keepHover,
+    clearHover: controller.clearHover,
+  };
 }

@@ -1,7 +1,30 @@
 import { IconButton } from "./Button";
 import { DashIcon, PlusIcon, ScreenFullIcon } from "./Icons";
+import { useSyncExternalStore } from "react";
 
-export function CameraControls({ zoom, onZoom, onReset, onFit }) {
+function ZoomReadout({ zoom, onReset }) {
+  return (
+    <button
+      id="zoom-value"
+      className="zoom-readout"
+      title="Reset to 100%"
+      onClick={onReset}
+    >
+      {zoom}%
+    </button>
+  );
+}
+
+function ObservedZoomReadout({ store, onReset }) {
+  const zoom = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot,
+  );
+  return <ZoomReadout zoom={zoom} onReset={onReset} />;
+}
+
+export function CameraControls({ zoom, zoomStore, onZoom, onReset, onFit }) {
   return (
     <div className="camera-controls">
       <IconButton
@@ -12,14 +35,11 @@ export function CameraControls({ zoom, onZoom, onReset, onFit }) {
       >
         <DashIcon size={16} />
       </IconButton>
-      <button
-        id="zoom-value"
-        className="zoom-readout"
-        title="Reset to 100%"
-        onClick={onReset}
-      >
-        {zoom}%
-      </button>
+      {zoomStore ? (
+        <ObservedZoomReadout store={zoomStore} onReset={onReset} />
+      ) : (
+        <ZoomReadout zoom={zoom} onReset={onReset} />
+      )}
       <IconButton
         id="zoom-in"
         label="Zoom in"

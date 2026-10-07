@@ -3,22 +3,22 @@ var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { en
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
 // src/viewer/OntoUMLViewer.jsx
-import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo5, useRef as useRef7, useState as useState9 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo8, useRef as useRef7, useState as useState10 } from "react";
 
 // src/visualization/DiagramCanvas.jsx
 import {
   forwardRef,
-  memo,
+  memo as memo2,
   useCallback,
   useEffect,
   useImperativeHandle,
-  useLayoutEffect as useLayoutEffect2,
-  useRef as useRef2,
-  useState
+  useLayoutEffect as useLayoutEffect3,
+  useRef as useRef3,
+  useState as useState2
 } from "react";
 
 // src/visualization/UMLDiagram.jsx
-import { useId, useMemo } from "react";
+import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 // src/visualization/interaction.js
 var sameTarget = (a, b) => a === b || !!a && !!b && a.kind === b.kind && a.id === b.id;
@@ -26,37 +26,60 @@ function readTarget(element) {
   const item = element?.closest?.("[data-element-kind]");
   return item ? { kind: item.dataset.elementKind, id: item.dataset.elementId } : null;
 }
+var indexes = /* @__PURE__ */ new WeakMap();
+function interactionIndex(diagram) {
+  if (indexes.has(diagram)) return indexes.get(diagram);
+  const nodes = new Map(diagram.nodes.map((node) => [node.id, node]));
+  const edges = /* @__PURE__ */ new Map();
+  const incident = /* @__PURE__ */ new Map();
+  const groups = /* @__PURE__ */ new Map();
+  const groupsByEdge = /* @__PURE__ */ new Map();
+  const append = (map, id, value) => {
+    if (!map.has(id)) map.set(id, /* @__PURE__ */ new Set());
+    map.get(id).add(value);
+  };
+  for (const edge of diagram.edges) {
+    edges.set(edge.id, edge);
+    append(incident, edge.source, edge);
+    append(incident, edge.target, edge);
+  }
+  for (const group of diagram.generalizationGroups || []) {
+    groups.set(group.id, group);
+    for (const id of group.memberIds) append(groupsByEdge, id, group.id);
+  }
+  const index = { nodes, edges, incident, groups, groupsByEdge };
+  indexes.set(diagram, index);
+  return index;
+}
 function focusedElements(diagram, target) {
   if (!target) return null;
   const nodes = /* @__PURE__ */ new Set();
   const edges = /* @__PURE__ */ new Set();
   const groups = /* @__PURE__ */ new Set();
+  const index = interactionIndex(diagram);
   if (target.kind === "node") {
-    if (!diagram.nodes.some((n) => n.id === target.id)) return null;
+    if (!index.nodes.has(target.id)) return null;
     nodes.add(target.id);
-    for (const edge of diagram.edges) {
-      if (edge.source !== target.id && edge.target !== target.id) continue;
+    for (const edge of index.incident.get(target.id) || []) {
       edges.add(edge.id);
       nodes.add(edge.source);
       nodes.add(edge.target);
     }
   } else if (target.kind === "group") {
-    const group = (diagram.generalizationGroups || []).find(
-      (g) => g.id === target.id
-    );
+    const group = index.groups.get(target.id);
     if (!group) return null;
     group.memberIds.forEach((id) => edges.add(id));
     group.sourceIds.forEach((id) => nodes.add(id));
     nodes.add(group.target);
   } else {
-    const edge = diagram.edges.find((e) => e.id === target.id);
+    const edge = index.edges.get(target.id);
     if (!edge) return null;
     edges.add(edge.id);
     nodes.add(edge.source);
     nodes.add(edge.target);
   }
-  for (const group of diagram.generalizationGroups || [])
-    if (group.memberIds.some((id) => edges.has(id))) groups.add(group.id);
+  for (const id of edges)
+    for (const groupId of index.groupsByEdge.get(id) || []) groups.add(groupId);
   return { nodes, edges, groups, primary: target };
 }
 function elementClass(kind, id, focus, selected) {
@@ -74,7 +97,7 @@ function interactionProps(target, handlers, focusable = true) {
   if (!handlers) return {};
   return {
     onPointerEnter: () => handlers.onHover(target),
-    onPointerLeave: () => handlers.onHover(null),
+    onPointerLeave: (event) => handlers.onHover(readTarget(event.relatedTarget)),
     onClick: (e) => {
       e.stopPropagation();
       handlers.onActivate(target, e);
@@ -123,14 +146,14 @@ var colorFamilies = {
   phaseMixin: "phase",
   quality: "mode"
 };
-function UMLNode({ node, focus, selected, handlers }) {
+function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const header = node.attributes.length ? 66 : node.height;
   const color = colorFamilies[node.stereotype] || node.stereotype;
   return /* @__PURE__ */ jsxs(
     "g",
     {
-      id: `node-${node.id}`,
+      id: `${idPrefix}node-${node.id}`,
       className: elementClass("node", node.id, focus, selected),
       "data-name": node.name,
       "data-node-id": node.id,
@@ -387,141 +410,355 @@ function UMLGeneralizationGroup({ group, labels = false, ...props }) {
   );
 }
 
+// src/visualization/highlight.js
+var keyFor = (target) => target && `${target.kind}:${target.id}`;
+var focusKeys = (focus) => new Set(
+  focus ? [
+    ...[...focus.nodes].map((id) => `node:${id}`),
+    ...[...focus.edges].map((id) => `edge:${id}`),
+    ...[...focus.groups].map((id) => `group:${id}`)
+  ] : []
+);
+function createHighlightController(svg, diagram) {
+  const records = /* @__PURE__ */ new Map();
+  let previousKeys = /* @__PURE__ */ new Set();
+  let previousPrimary = null;
+  let previousSelection = /* @__PURE__ */ new Set();
+  for (const element of svg.querySelectorAll("[data-element-kind]")) {
+    const key = keyFor({
+      kind: element.dataset.elementKind,
+      id: element.dataset.elementId
+    });
+    if (!records.has(key)) records.set(key, []);
+    element.classList.remove("dimmed");
+    const markers = [];
+    for (const path of element.querySelectorAll(".edge-path")) {
+      for (const name of ["marker-start", "marker-end"]) {
+        const value = path.getAttribute(name);
+        if (value)
+          markers.push({ path, name, value: value.replace(/-active\)$/, ")") });
+      }
+    }
+    records.get(key).push({
+      element,
+      markers,
+      highlighted: element.classList.contains("highlighted"),
+      primary: element.classList.contains("primary"),
+      selected: element.classList.contains("selected"),
+      accessible: element.getAttribute("role") === "button"
+    });
+    if (element.classList.contains("highlighted")) previousKeys.add(key);
+    if (element.classList.contains("primary")) previousPrimary = key;
+    if (element.classList.contains("selected")) previousSelection.add(key);
+  }
+  let previousActive = null;
+  let previousSelected = null;
+  let initialized = false;
+  return {
+    update(active, selected) {
+      if (initialized && sameTarget(active, previousActive) && sameTarget(selected, previousSelected))
+        return;
+      const focus = focusedElements(diagram, active);
+      const nextKeys = focusKeys(focus);
+      const primary = keyFor(focus?.primary);
+      const selectedKey = keyFor(selected);
+      svg.classList.toggle("has-focus", !!focus);
+      const changed = /* @__PURE__ */ new Set([
+        ...previousKeys,
+        ...nextKeys,
+        previousPrimary,
+        primary,
+        ...previousSelection,
+        selectedKey
+      ]);
+      for (const key of changed) {
+        for (const record of records.get(key) || []) {
+          for (const [name, enabled] of [
+            ["highlighted", nextKeys.has(key)],
+            ["primary", key === primary],
+            ["selected", key === selectedKey]
+          ]) {
+            if (record[name] === enabled) continue;
+            record[name] = enabled;
+            record.element.classList.toggle(name, enabled);
+            if (name === "selected" && record.accessible)
+              record.element.setAttribute("aria-pressed", String(enabled));
+            if (name === "highlighted")
+              for (const { path, name: attribute, value } of record.markers)
+                path.setAttribute(
+                  attribute,
+                  enabled ? value.replace(/\)$/, "-active)") : value
+                );
+          }
+        }
+      }
+      previousKeys = nextKeys;
+      previousPrimary = primary;
+      previousActive = active;
+      previousSelected = selected;
+      previousSelection = new Set(selectedKey ? [selectedKey] : []);
+      initialized = true;
+    }
+  };
+}
+
 // src/visualization/UMLDiagram.jsx
 import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
-function UMLDiagram({
+var UMLDiagram = memo(function UMLDiagram2({
   diagram,
   active = null,
   selected = null,
-  handlers
+  handlers,
+  backgroundURL
 }) {
   const markerId = `inheritance-${useId().replaceAll(":", "")}`;
+  const svgRef = useRef(null);
+  const highlight = useRef(null);
+  const latestHandlers = useRef(handlers);
+  const interactive = !!handlers;
+  const [loadedBackground, setLoadedBackground] = useState(null);
+  const bitmap = interactive && !!backgroundURL && loadedBackground === backgroundURL;
   const focus = useMemo(
     () => focusedElements(diagram, active),
     [diagram, active]
   );
-  return /* @__PURE__ */ jsxs3(
-    "svg",
-    {
-      xmlns: "http://www.w3.org/2000/svg",
-      width: diagram.width,
-      height: diagram.height,
-      viewBox: `0 0 ${diagram.width} ${diagram.height}`,
-      role: handlers ? "group" : "img",
-      "aria-label": diagram.title,
-      style: {
-        fontFamily: "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif"
-      },
-      children: [
-        /* @__PURE__ */ jsxs3("defs", { children: [
-          ["SHARED", "COMPOSITE"].flatMap(
-            (aggregation) => [false, true].map((active2) => /* @__PURE__ */ jsx4(
+  const stableHandlers = useMemo(
+    () => interactive ? {
+      onHover: (...args) => latestHandlers.current.onHover(...args),
+      onFocus: (...args) => latestHandlers.current.onFocus(...args),
+      onActivate: (...args) => latestHandlers.current.onActivate(...args)
+    } : void 0,
+    [interactive]
+  );
+  useLayoutEffect(() => {
+    latestHandlers.current = handlers;
+  }, [handlers]);
+  const initial = useMemo(
+    () => ({
+      active: interactive ? null : active,
+      selected,
+      focus: interactive ? null : focusedElements(diagram, active)
+    }),
+    [diagram, interactive]
+  );
+  useLayoutEffect(() => {
+    highlight.current = createHighlightController(svgRef.current, diagram);
+    return () => {
+      highlight.current = null;
+    };
+  }, [diagram, initial, bitmap]);
+  useLayoutEffect(() => {
+    highlight.current.update(interactive ? null : active, selected);
+  }, [diagram, active, selected, initial, interactive, bitmap]);
+  const geometry = useMemo(() => {
+    const { focus: focus2, selected: selected2 } = initial;
+    const handlers2 = stableHandlers;
+    return /* @__PURE__ */ jsxs3(
+      "svg",
+      {
+        ref: svgRef,
+        className: interactive ? bitmap ? "diagram-hit-layer" : "diagram-base" : focus2 ? "has-focus" : void 0,
+        xmlns: "http://www.w3.org/2000/svg",
+        width: diagram.width,
+        height: diagram.height,
+        viewBox: `0 0 ${diagram.width} ${diagram.height}`,
+        role: handlers2 ? "group" : "img",
+        "aria-label": diagram.title,
+        style: {
+          fontFamily: "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif"
+        },
+        children: [
+          /* @__PURE__ */ jsxs3("defs", { children: [
+            ["SHARED", "COMPOSITE"].flatMap(
+              (aggregation) => [false, true].map((active2) => /* @__PURE__ */ jsx4(
+                "marker",
+                {
+                  id: `${markerId}-${aggregation}${active2 ? "-active" : ""}`,
+                  markerWidth: "15",
+                  markerHeight: "12",
+                  refX: "1",
+                  refY: "6",
+                  orient: "auto-start-reverse",
+                  markerUnits: "userSpaceOnUse",
+                  children: /* @__PURE__ */ jsx4(
+                    "path",
+                    {
+                      d: "M1 6 L7 1 L13 6 L7 11 Z",
+                      fill: aggregation === "COMPOSITE" ? active2 ? "var(--accent,#0969da)" : "var(--diagram-edge,#59636e)" : "var(--canvas,#ffffff)",
+                      stroke: active2 ? "var(--accent,#0969da)" : "var(--diagram-edge,#59636e)",
+                      strokeWidth: "1.4"
+                    }
+                  )
+                },
+                `${aggregation}-${active2}`
+              ))
+            ),
+            /* @__PURE__ */ jsx4(
               "marker",
               {
-                id: `${markerId}-${aggregation}${active2 ? "-active" : ""}`,
-                markerWidth: "15",
+                id: markerId,
+                markerWidth: "13",
                 markerHeight: "12",
-                refX: "1",
+                refX: "11",
                 refY: "6",
-                orient: "auto-start-reverse",
+                orient: "auto",
                 markerUnits: "userSpaceOnUse",
                 children: /* @__PURE__ */ jsx4(
                   "path",
                   {
-                    d: "M1 6 L7 1 L13 6 L7 11 Z",
-                    fill: aggregation === "COMPOSITE" ? active2 ? "var(--accent,#0969da)" : "var(--diagram-edge,#59636e)" : "var(--canvas,#ffffff)",
-                    stroke: active2 ? "var(--accent,#0969da)" : "var(--diagram-edge,#59636e)",
+                    d: "M1 1 L11 6 L1 11 Z",
+                    fill: "var(--canvas,#ffffff)",
+                    stroke: "var(--diagram-inheritance,#59636e)",
                     strokeWidth: "1.4"
                   }
                 )
+              }
+            ),
+            /* @__PURE__ */ jsx4(
+              "marker",
+              {
+                id: `${markerId}-active`,
+                markerWidth: "13",
+                markerHeight: "12",
+                refX: "11",
+                refY: "6",
+                orient: "auto",
+                markerUnits: "userSpaceOnUse",
+                children: /* @__PURE__ */ jsx4(
+                  "path",
+                  {
+                    d: "M1 1 L11 6 L1 11 Z",
+                    fill: "var(--canvas,#ffffff)",
+                    stroke: "var(--accent,#0969da)",
+                    strokeWidth: "1.4"
+                  }
+                )
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
+            (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
+              UMLGeneralizationGroup,
+              {
+                ...{ group, focus: focus2, selected: selected2, handlers: handlers2, markerId }
               },
-              `${aggregation}-${active2}`
+              group.id
+            )),
+            diagram.edges.map((edge) => /* @__PURE__ */ jsx4(
+              UMLRelation,
+              {
+                ...{ edge, focus: focus2, selected: selected2, handlers: handlers2, markerId }
+              },
+              edge.id
             ))
-          ),
-          /* @__PURE__ */ jsx4(
-            "marker",
+          ] }),
+          /* @__PURE__ */ jsxs3("g", { className: "relation-label-layer", children: [
+            (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
+              UMLGeneralizationGroup,
+              {
+                labels: true,
+                ...{ group, focus: focus2, selected: selected2, handlers: handlers2 }
+              },
+              group.id
+            )),
+            diagram.edges.map((edge) => /* @__PURE__ */ jsx4(
+              UMLRelationLabels,
+              {
+                ...{ edge, focus: focus2, selected: selected2, handlers: handlers2 }
+              },
+              edge.id
+            ))
+          ] }),
+          /* @__PURE__ */ jsx4("g", { className: "node-layer", children: diagram.nodes.map((node) => /* @__PURE__ */ jsx4(UMLNode, { ...{ node, focus: focus2, selected: selected2, handlers: handlers2 } }, node.id)) })
+        ]
+      }
+    );
+  }, [diagram, initial, stableHandlers, markerId, interactive, bitmap]);
+  const overlay = useMemo(() => {
+    if (!interactive || !focus) return null;
+    const index = interactionIndex(diagram);
+    const groups = [...focus.groups].map((id) => index.groups.get(id));
+    const edges = [...focus.edges].map((id) => index.edges.get(id));
+    const nodes = [...focus.nodes].map((id) => index.nodes.get(id)).filter(Boolean);
+    return /* @__PURE__ */ jsxs3(
+      "svg",
+      {
+        className: "diagram-overlay",
+        width: diagram.width,
+        height: diagram.height,
+        viewBox: `0 0 ${diagram.width} ${diagram.height}`,
+        "aria-hidden": "true",
+        style: {
+          fontFamily: "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif"
+        },
+        children: [
+          /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
+            groups.map((group) => /* @__PURE__ */ jsx4(
+              UMLGeneralizationGroup,
+              {
+                ...{ group, focus, selected, markerId }
+              },
+              group.id
+            )),
+            edges.map((edge) => /* @__PURE__ */ jsx4(
+              UMLRelation,
+              {
+                ...{ edge, focus, selected, markerId }
+              },
+              edge.id
+            ))
+          ] }),
+          /* @__PURE__ */ jsxs3("g", { className: "relation-label-layer", children: [
+            groups.map((group) => /* @__PURE__ */ jsx4(
+              UMLGeneralizationGroup,
+              {
+                labels: true,
+                ...{ group, focus, selected }
+              },
+              group.id
+            )),
+            edges.map((edge) => /* @__PURE__ */ jsx4(UMLRelationLabels, { ...{ edge, focus, selected } }, edge.id))
+          ] }),
+          /* @__PURE__ */ jsx4("g", { className: "node-layer", children: nodes.map((node) => /* @__PURE__ */ jsx4(
+            UMLNode,
             {
-              id: markerId,
-              markerWidth: "13",
-              markerHeight: "12",
-              refX: "11",
-              refY: "6",
-              orient: "auto",
-              markerUnits: "userSpaceOnUse",
-              children: /* @__PURE__ */ jsx4(
-                "path",
-                {
-                  d: "M1 1 L11 6 L1 11 Z",
-                  fill: "var(--canvas,#ffffff)",
-                  stroke: "var(--diagram-inheritance,#59636e)",
-                  strokeWidth: "1.4"
-                }
-              )
-            }
-          ),
-          /* @__PURE__ */ jsx4(
-            "marker",
-            {
-              id: `${markerId}-active`,
-              markerWidth: "13",
-              markerHeight: "12",
-              refX: "11",
-              refY: "6",
-              orient: "auto",
-              markerUnits: "userSpaceOnUse",
-              children: /* @__PURE__ */ jsx4(
-                "path",
-                {
-                  d: "M1 1 L11 6 L1 11 Z",
-                  fill: "var(--canvas,#ffffff)",
-                  stroke: "var(--accent,#0969da)",
-                  strokeWidth: "1.4"
-                }
-              )
-            }
-          )
-        ] }),
-        /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
-          (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
-            UMLGeneralizationGroup,
-            {
-              ...{ group, focus, selected, handlers, markerId }
+              idPrefix: `overlay-${markerId}-`,
+              ...{ node, focus, selected }
             },
-            group.id
-          )),
-          diagram.edges.map((edge) => /* @__PURE__ */ jsx4(
-            UMLRelation,
-            {
-              ...{ edge, focus, selected, handlers, markerId }
-            },
-            edge.id
-          ))
-        ] }),
-        /* @__PURE__ */ jsxs3("g", { className: "relation-label-layer", children: [
-          (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
-            UMLGeneralizationGroup,
-            {
-              labels: true,
-              ...{ group, focus, selected, handlers }
-            },
-            group.id
-          )),
-          diagram.edges.map((edge) => /* @__PURE__ */ jsx4(
-            UMLRelationLabels,
-            {
-              ...{ edge, focus, selected, handlers }
-            },
-            edge.id
-          ))
-        ] }),
-        /* @__PURE__ */ jsx4("g", { className: "node-layer", children: diagram.nodes.map((node) => /* @__PURE__ */ jsx4(UMLNode, { ...{ node, focus, selected, handlers } }, node.id)) })
+            node.id
+          )) })
+        ]
+      }
+    );
+  }, [diagram, focus, selected, markerId, interactive]);
+  if (!interactive) return geometry;
+  return /* @__PURE__ */ jsxs3(
+    "div",
+    {
+      className: `uml-diagram${focus ? " has-focus" : ""}`,
+      style: { width: diagram.width, height: diagram.height },
+      children: [
+        interactive && backgroundURL && /* @__PURE__ */ jsx4(
+          "img",
+          {
+            className: `diagram-background${bitmap ? " ready" : ""}`,
+            src: backgroundURL,
+            width: diagram.width,
+            height: diagram.height,
+            alt: "",
+            draggable: false,
+            onLoad: () => setLoadedBackground(backgroundURL)
+          }
+        ),
+        geometry,
+        overlay
       ]
     }
   );
-}
+});
 
 // src/visualization/useDiagramCamera.js
-import { useLayoutEffect, useMemo as useMemo2, useRef } from "react";
+import { useLayoutEffect as useLayoutEffect2, useMemo as useMemo2, useRef as useRef2 } from "react";
 
 // src/visualization/camera.js
 var WHEEL_ZOOM_SENSITIVITY = 15e-4;
@@ -539,6 +776,7 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
   let easing = PAN_EASING_MS;
   let reducedMotion = false;
   let grid = null;
+  let gridScale = null;
   let zoomReadout = null;
   let drag = null;
   let moved = false;
@@ -556,12 +794,15 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       const step = 20 * 2 ** Math.ceil(Math.log2(16 / (20 * camera.scale)));
       const spacing = step * camera.scale;
       const phase = (n) => (n % spacing + spacing) % spacing;
-      const fine = Math.max(0, Math.min(1, spacing / 16 - 1));
-      grid.style.backgroundImage = [fine, 1 - fine].map(
-        (opacity) => `radial-gradient(color-mix(in srgb,var(--grid) ${opacity * 100}%,transparent) 0.7px,transparent 0.7px)`
-      ).join(",");
-      grid.style.backgroundSize = `${spacing / 2}px ${spacing / 2}px,${spacing}px ${spacing}px`;
-      grid.style.backgroundPosition = `${64 - spacing / 4}px ${64 - spacing / 4}px,${64 - spacing / 2}px ${64 - spacing / 2}px`;
+      if (gridScale !== camera.scale) {
+        gridScale = camera.scale;
+        const fine = Math.max(0, Math.min(1, spacing / 16 - 1));
+        grid.style.backgroundImage = [fine, 1 - fine].map(
+          (opacity) => `radial-gradient(color-mix(in srgb,var(--grid) ${opacity * 100}%,transparent) 0.7px,transparent 0.7px)`
+        ).join(",");
+        grid.style.backgroundSize = `${spacing / 2}px ${spacing / 2}px,${spacing}px ${spacing}px`;
+        grid.style.backgroundPosition = `${64 - spacing / 4}px ${64 - spacing / 4}px,${64 - spacing / 2}px ${64 - spacing / 2}px`;
+      }
       grid.style.transform = `translate3d(${phase(camera.x)}px,${phase(camera.y)}px,0)`;
     }
     const value = Math.round(camera.scale * 100);
@@ -748,6 +989,7 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     const canvas = canvasRef.current;
     const world = worldRef.current;
     grid = canvas.querySelector(".canvas-grid");
+    gridScale = null;
     const cleanup = [];
     const listen = (target, type, handler, options) => {
       target.addEventListener(type, handler, options);
@@ -920,6 +1162,7 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       cancelMotion();
       clearPointers(canvas);
       grid = null;
+      gridScale = null;
     };
   }
   return {
@@ -944,7 +1187,7 @@ function useDiagramCamera({
   onTap,
   onMotion
 }) {
-  const callbacks = useRef({ onZoom, onTap, onMotion });
+  const callbacks = useRef2({ onZoom, onTap, onMotion });
   const controls = useMemo2(
     () => createCamera({
       canvasRef,
@@ -956,35 +1199,36 @@ function useDiagramCamera({
     // A new camera implementation during Vite refresh needs a new controller.
     [createCamera]
   );
-  useLayoutEffect(() => {
+  useLayoutEffect2(() => {
     callbacks.current = { onZoom, onTap, onMotion };
   }, [onZoom, onTap, onMotion]);
-  useLayoutEffect(() => {
+  useLayoutEffect2(() => {
     controls.restoreView(diagram.key, diagram.fields, diagram.initialFocus);
   }, [controls, diagram]);
-  useLayoutEffect(() => {
+  useLayoutEffect2(() => {
     if (focusRequest)
       controls.focusNode(focusRequest.id, focusRequest.rightInset);
   }, [controls, focusRequest]);
-  useLayoutEffect(() => controls.attach(), [controls]);
+  useLayoutEffect2(() => controls.attach(), [controls]);
   return controls;
 }
 
 // src/visualization/DiagramCanvas.jsx
 import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
-var DiagramCanvas = memo(
+var DiagramCanvas = memo2(
   forwardRef(function DiagramCanvas2({
     diagram,
     selected,
     hovered,
     focusRequest,
+    backgroundURL,
     onSelect,
     onZoom,
     onHover,
     onClearHover
   }, ref) {
-    const canvasRef = useRef2(null), worldRef = useRef2(null);
-    const [focused, setFocused] = useState(null);
+    const canvasRef = useRef3(null), worldRef = useRef3(null);
+    const [focused, setFocused] = useState2(null);
     const clearTransient = useCallback(() => {
       onClearHover();
       setFocused(null);
@@ -1001,11 +1245,11 @@ var DiagramCanvas = memo(
       onMotion: clearTransient
     });
     useImperativeHandle(ref, () => controls, [controls]);
-    useLayoutEffect2(() => {
+    useLayoutEffect3(() => {
       if (selected?.kind === "node") controls.revealNode(selected.id);
     }, [controls, diagram, selected]);
-    useLayoutEffect2(clearTransient, [clearTransient, diagram]);
-    useLayoutEffect2(clearTransient, [clearTransient, selected]);
+    useLayoutEffect3(clearTransient, [clearTransient, diagram]);
+    useLayoutEffect3(clearTransient, [clearTransient, selected]);
     useEffect(() => {
       const escape = (e) => {
         if (e.key === "Escape") clearTransient();
@@ -1035,6 +1279,7 @@ var DiagramCanvas = memo(
               diagram,
               active: hovered || focused || selected,
               selected,
+              backgroundURL,
               handlers
             }
           ) })
@@ -1045,7 +1290,7 @@ var DiagramCanvas = memo(
 );
 
 // src/visualization/useSVGExport.js
-import { useEffect as useEffect2, useState as useState2 } from "react";
+import { useEffect as useEffect2, useState as useState3 } from "react";
 var THEME_VARS = [
   "--canvas",
   "--surface",
@@ -1070,8 +1315,9 @@ var THEME_VARS = [
   "--type-event",
   "--type-mode"
 ];
+var EMPTY_URLS = { diagramURL: void 0, backgroundURL: void 0 };
 function useSVGExport(svgSource, theme) {
-  const [url, setURL] = useState2(void 0);
+  const [urls, setURLs] = useState3(EMPTY_URLS);
   useEffect2(() => {
     const svg = new DOMParser().parseFromString(
       svgSource,
@@ -1081,6 +1327,11 @@ function useSVGExport(svgSource, theme) {
     for (const name of THEME_VARS)
       svg.style.setProperty(name, styles.getPropertyValue(name).trim());
     svg.querySelectorAll(".selected,.dimmed").forEach((n) => n.classList.remove("selected", "dimmed"));
+    const backgroundURL = URL.createObjectURL(
+      new Blob([new XMLSerializer().serializeToString(svg)], {
+        type: "image/svg+xml"
+      })
+    );
     const background = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "rect"
@@ -1089,15 +1340,18 @@ function useSVGExport(svgSource, theme) {
     background.setAttribute("height", svg.viewBox.baseVal.height);
     background.setAttribute("fill", styles.getPropertyValue("--canvas").trim());
     svg.insertBefore(background, svg.firstChild);
-    const next = URL.createObjectURL(
+    const diagramURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"
       })
     );
-    setURL(next);
-    return () => URL.revokeObjectURL(next);
+    setURLs({ diagramURL, backgroundURL, source: svgSource, theme });
+    return () => {
+      URL.revokeObjectURL(diagramURL);
+      URL.revokeObjectURL(backgroundURL);
+    };
   }, [svgSource, theme]);
-  return url;
+  return urls.source === svgSource && urls.theme === theme ? urls : EMPTY_URLS;
 }
 
 // src/model/domainModel.js
@@ -1239,16 +1493,16 @@ function Panel({
 }
 
 // src/ui/useTheme.js
-import { useLayoutEffect as useLayoutEffect3, useState as useState3 } from "react";
+import { useLayoutEffect as useLayoutEffect4, useState as useState4 } from "react";
 function useTheme(storageKey) {
-  const [theme, setTheme] = useState3(() => {
+  const [theme, setTheme] = useState4(() => {
     try {
       return localStorage.getItem(storageKey) === "light" ? "light" : "dark";
     } catch {
       return "dark";
     }
   });
-  useLayoutEffect3(() => {
+  useLayoutEffect4(() => {
     document.documentElement.dataset.theme = theme;
     try {
       localStorage.setItem(storageKey, theme);
@@ -1274,8 +1528,32 @@ function Tabs({ items, value, onChange, label = "Diagram" }) {
 }
 
 // src/ui/CameraControls.jsx
+import { useSyncExternalStore } from "react";
 import { jsx as jsx9, jsxs as jsxs6 } from "react/jsx-runtime";
-function CameraControls({ zoom, onZoom, onReset, onFit }) {
+function ZoomReadout({ zoom, onReset }) {
+  return /* @__PURE__ */ jsxs6(
+    "button",
+    {
+      id: "zoom-value",
+      className: "zoom-readout",
+      title: "Reset to 100%",
+      onClick: onReset,
+      children: [
+        zoom,
+        "%"
+      ]
+    }
+  );
+}
+function ObservedZoomReadout({ store, onReset }) {
+  const zoom = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot
+  );
+  return /* @__PURE__ */ jsx9(ZoomReadout, { zoom, onReset });
+}
+function CameraControls({ zoom, zoomStore, onZoom, onReset, onFit }) {
   return /* @__PURE__ */ jsxs6("div", { className: "camera-controls", children: [
     /* @__PURE__ */ jsx9(
       IconButton,
@@ -1287,19 +1565,7 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
         children: /* @__PURE__ */ jsx9(DashIcon, { size: 16 })
       }
     ),
-    /* @__PURE__ */ jsxs6(
-      "button",
-      {
-        id: "zoom-value",
-        className: "zoom-readout",
-        title: "Reset to 100%",
-        onClick: onReset,
-        children: [
-          zoom,
-          "%"
-        ]
-      }
-    ),
+    zoomStore ? /* @__PURE__ */ jsx9(ObservedZoomReadout, { store: zoomStore, onReset }) : /* @__PURE__ */ jsx9(ZoomReadout, { zoom, onReset }),
     /* @__PURE__ */ jsx9(
       IconButton,
       {
@@ -1315,13 +1581,20 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
 }
 
 // src/ui/ConceptSearch.jsx
-import { useEffect as useEffect4, useLayoutEffect as useLayoutEffect5, useRef as useRef4, useState as useState4 } from "react";
+import {
+  memo as memo3,
+  useEffect as useEffect4,
+  useLayoutEffect as useLayoutEffect6,
+  useMemo as useMemo3,
+  useRef as useRef5,
+  useState as useState5
+} from "react";
 
 // src/ui/usePopupDismiss.js
-import { useEffect as useEffect3, useLayoutEffect as useLayoutEffect4, useRef as useRef3 } from "react";
+import { useEffect as useEffect3, useLayoutEffect as useLayoutEffect5, useRef as useRef4 } from "react";
 function usePopupDismiss(onClose, ...roots) {
-  const latest = useRef3({ onClose, roots });
-  useLayoutEffect4(() => {
+  const latest = useRef4({ onClose, roots });
+  useLayoutEffect5(() => {
     latest.current = { onClose, roots };
   });
   useEffect3(() => {
@@ -1343,20 +1616,35 @@ function usePopupDismiss(onClose, ...roots) {
 
 // src/ui/ConceptSearch.jsx
 import { Fragment as Fragment3, jsx as jsx10, jsxs as jsxs7 } from "react/jsx-runtime";
-function ConceptSearch({ classes, onChoose }) {
-  const [query, setQuery] = useState4("");
-  const [open, setOpen] = useState4(false);
-  const [showHits, setShowHits] = useState4(false);
-  const inputRef = useRef4(null);
-  const suggestionsRef = useRef4(null);
-  const searchRef = useRef4(null), toggleRef = useRef4(null);
+var ConceptSearch = memo3(function ConceptSearch2({
+  classes,
+  onChoose
+}) {
+  const [query, setQuery] = useState5("");
+  const [open, setOpen] = useState5(false);
+  const [showHits, setShowHits] = useState5(false);
+  const inputRef = useRef5(null);
+  const suggestionsRef = useRef5(null);
+  const searchRef = useRef5(null), toggleRef = useRef5(null);
   const q = query.trim().toLowerCase();
-  const hits = q ? classes.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 12) : [];
+  const searchEntries = useMemo3(
+    () => classes.map((concept) => ({ concept, text: concept.name.toLowerCase() })),
+    [classes]
+  );
+  const hits = useMemo3(() => {
+    if (!q) return [];
+    const matches = [];
+    for (const entry of searchEntries) {
+      if (entry.text.includes(q)) matches.push(entry.concept);
+      if (matches.length === 12) break;
+    }
+    return matches;
+  }, [q, searchEntries]);
   const close = () => {
     setShowHits(false);
     setOpen(false);
   };
-  useLayoutEffect5(() => {
+  useLayoutEffect6(() => {
     if (open) inputRef.current.focus();
   }, [open]);
   usePopupDismiss(close, searchRef, toggleRef);
@@ -1439,14 +1727,14 @@ function ConceptSearch({ classes, onChoose }) {
       )
     ] })
   ] });
-}
+});
 
 // src/ui/ExportMenu.jsx
-import { useRef as useRef5, useState as useState5 } from "react";
+import { useRef as useRef6, useState as useState6 } from "react";
 import { jsx as jsx11, jsxs as jsxs8 } from "react/jsx-runtime";
 function ExportMenu({ children }) {
-  const [open, setOpen] = useState5(false);
-  const root = useRef5(null);
+  const [open, setOpen] = useState6(false);
+  const root = useRef6(null);
   usePopupDismiss(() => setOpen(false), root);
   return /* @__PURE__ */ jsxs8("div", { className: "menu-wrap", ref: root, children: [
     /* @__PURE__ */ jsx11(
@@ -1464,9 +1752,9 @@ function ExportMenu({ children }) {
 }
 
 // src/ui/useBlobURL.js
-import { useEffect as useEffect5, useState as useState6 } from "react";
+import { useEffect as useEffect5, useState as useState7 } from "react";
 function useBlobURL(data, type = "text/plain;charset=utf-8") {
-  const [url, setURL] = useState6(void 0);
+  const [url, setURL] = useState7(void 0);
   useEffect5(() => {
     const next = URL.createObjectURL(new Blob([data], { type }));
     setURL(next);
@@ -1490,6 +1778,7 @@ function DownloadLink({
 }
 
 // src/viewer/ViewerToolbar.jsx
+import { useMemo as useMemo4 } from "react";
 import { jsx as jsx13, jsxs as jsxs9 } from "react/jsx-runtime";
 function ViewerToolbar({
   model,
@@ -1498,7 +1787,7 @@ function ViewerToolbar({
   viewKey,
   fields,
   theme,
-  zoom,
+  zoomStore,
   diagramURL,
   sidebarHidden,
   sidebarOpen,
@@ -1515,20 +1804,16 @@ function ViewerToolbar({
 }) {
   const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
   const sidebarLabel = sidebarHidden ? "Show sidebar" : "Hide sidebar";
+  const searchClasses = useMemo4(() => {
+    const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
+    return model.classes.filter((concept) => visibleIds.has(concept.id));
+  }, [model.classes, views]);
   return /* @__PURE__ */ jsxs9("header", { className: "viewer-toolbar", children: [
     /* @__PURE__ */ jsx13("div", { className: "toolbar-identity", title: model.title, children: /* @__PURE__ */ jsx13("span", { className: "brand-mark", children: /* @__PURE__ */ jsx13(RepoIcon, { size: 20 }) }) }),
     /* @__PURE__ */ jsx13("div", { className: "view-navigation", children: /* @__PURE__ */ jsx13(Tabs, { items: views, value: viewKey, onChange: onView }) }),
     /* @__PURE__ */ jsx13("span", { className: "spacer" }),
     /* @__PURE__ */ jsxs9("div", { className: "toolbar-actions", children: [
-      /* @__PURE__ */ jsx13(
-        ConceptSearch,
-        {
-          classes: model.classes.filter(
-            (c) => views.some((v) => v.nodeIds.includes(c.id))
-          ),
-          onChoose
-        }
-      ),
+      /* @__PURE__ */ jsx13(ConceptSearch, { classes: searchClasses, onChoose }),
       /* @__PURE__ */ jsxs9("div", { className: "diagram-actions", children: [
         /* @__PURE__ */ jsx13(
           ToggleButton,
@@ -1542,7 +1827,7 @@ function ViewerToolbar({
             children: /* @__PURE__ */ jsx13(TableIcon, { size: 16 })
           }
         ),
-        /* @__PURE__ */ jsx13(CameraControls, { ...{ zoom, onZoom, onReset, onFit } })
+        /* @__PURE__ */ jsx13(CameraControls, { ...{ zoomStore, onZoom, onReset, onFit } })
       ] }),
       /* @__PURE__ */ jsx13(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? /* @__PURE__ */ jsx13(SunIcon, { size: 16 }) : /* @__PURE__ */ jsx13(MoonIcon, { size: 16 }) }),
       /* @__PURE__ */ jsxs9(ExportMenu, { children: [
@@ -1632,14 +1917,14 @@ function ViewerToolbar({
 }
 
 // src/ui/CodeSnippet.jsx
-import { Fragment as Fragment4 } from "react";
+import { Fragment as Fragment4, memo as memo4 } from "react";
 import { jsx as jsx14, jsxs as jsxs10 } from "react/jsx-runtime";
-function CodeSnippet({ snippet, label }) {
+var CodeSnippet = memo4(function CodeSnippet2({ snippet, label }) {
   return /* @__PURE__ */ jsx14("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx14("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs10(Fragment4, { children: [
     /* @__PURE__ */ jsx14("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx14("span", { style: token.style, children: token.content }, j)) }),
     i < snippet.lines.length - 1 ? "\n" : null
   ] }, i)) }) });
-}
+});
 
 // src/viewer/SourceEvidence.jsx
 import { jsx as jsx15, jsxs as jsxs11 } from "react/jsx-runtime";
@@ -1717,7 +2002,7 @@ function SourceEvidence({
 }
 
 // src/learning/LearningContent.jsx
-import { useState as useState7, useMemo as useMemo3 } from "react";
+import { useState as useState8, useMemo as useMemo5 } from "react";
 
 // src/learning/reference.json
 var reference_default = {
@@ -1884,16 +2169,28 @@ function readMultiplicity(relation) {
     `For each ${relation.target.name}: ${countMeaning(relation.sourceMultiplicity)} ${relation.sourceMultiplicity === "1" ? "instance" : "instances"} of ${relation.source.name}.`
   ];
 }
+var identityIndexes = /* @__PURE__ */ new WeakMap();
+function identityIndex(model) {
+  if (identityIndexes.has(model)) return identityIndexes.get(model);
+  const classes = new Map(model.classes.map((c) => [c.id, c]));
+  const parents = /* @__PURE__ */ new Map();
+  for (const generalization of model.generalizations) {
+    const { specificId, generalId } = generalization;
+    if (!parents.has(specificId)) parents.set(specificId, []);
+    parents.get(specificId).push(generalId);
+  }
+  const index = { classes, parents };
+  identityIndexes.set(model, index);
+  return index;
+}
 function identityProviders(model, id) {
   const found = /* @__PURE__ */ new Set(), pending = [id];
-  const classes = new Map(model.classes.map((c) => [c.id, c]));
+  const { classes, parents } = identityIndex(model);
   while (pending.length) {
     const next = pending.pop();
     if (found.has(next)) continue;
     found.add(next);
-    pending.push(
-      ...model.generalizations.filter((g) => g.specificId === next).map((g) => g.generalId)
-    );
+    pending.push(...parents.get(next) || []);
   }
   return [...found].map((key) => classes.get(key)).filter(
     (c) => c && [
@@ -1978,13 +2275,13 @@ function ElementLearning({ element, model, relation = false }) {
   ] });
 }
 function LearningLibrary({ model, onInspect }) {
-  const [tab, setTab] = useState7("learn"), [query, setQuery] = useState7("");
-  const [reveal, setReveal] = useState7(false);
+  const [tab, setTab] = useState8("learn"), [query, setQuery] = useState8("");
+  const [reveal, setReveal] = useState8(false);
   const visibleIssues = model.validation.issues.filter(
     (i) => i.severity !== "info"
   );
   const coverage = model.validation.issues.filter((i) => i.severity === "info");
-  const elementNames = useMemo3(
+  const elementNames = useMemo5(
     () => new Map(
       [...model.classes, ...model.relations, ...model.partitions || []].map(
         (e) => [e.id, e.name]
@@ -2106,8 +2403,13 @@ function DetailHeader({
 }
 
 // src/viewer/DetailsContent.jsx
+import { memo as memo5 } from "react";
 import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
-function ConceptDetails({ concept, model, snippets }) {
+var ConceptDetails = memo5(function ConceptDetails2({
+  concept,
+  model,
+  snippets
+}) {
   return /* @__PURE__ */ jsxs14(Fragment6, { children: [
     /* @__PURE__ */ jsx18(
       DetailHeader,
@@ -2142,8 +2444,13 @@ function ConceptDetails({ concept, model, snippets }) {
       )
     ] })
   ] });
-}
-function RelationDetails({ relation, onChoose, model, snippets }) {
+});
+var RelationDetails = memo5(function RelationDetails2({
+  relation,
+  onChoose,
+  model,
+  snippets
+}) {
   return /* @__PURE__ */ jsxs14(Fragment6, { children: [
     /* @__PURE__ */ jsx18(
       DetailHeader,
@@ -2176,8 +2483,13 @@ function RelationDetails({ relation, onChoose, model, snippets }) {
       }
     )
   ] });
-}
-function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
+});
+var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
+  group,
+  onChoose,
+  model,
+  snippets
+}) {
   const declared = group.type === "generalizationSet";
   return /* @__PURE__ */ jsxs14(Fragment6, { children: [
     /* @__PURE__ */ jsx18(
@@ -2223,7 +2535,7 @@ function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
       }
     )
   ] });
-}
+});
 function About({ model, exports }) {
   return /* @__PURE__ */ jsxs14(Fragment6, { children: [
     /* @__PURE__ */ jsx18("h1", { children: model.title }),
@@ -2261,40 +2573,126 @@ function About({ model, exports }) {
 }
 
 // src/viewer/useInspection.js
-import { useCallback as useCallback2, useEffect as useEffect6, useRef as useRef6, useState as useState8 } from "react";
+import {
+  useCallback as useCallback2,
+  useEffect as useEffect6,
+  useLayoutEffect as useLayoutEffect7,
+  useMemo as useMemo6,
+  useState as useState9
+} from "react";
+import { flushSync } from "react-dom";
+
+// src/viewer/inspection.js
+function createInspectionController({
+  onHover,
+  onPreview,
+  schedule = setTimeout,
+  cancel = clearTimeout
+}) {
+  let hovered = null;
+  let preview = null;
+  let timer = null;
+  let enabled = true;
+  let visible = false;
+  const cancelPreview = () => {
+    if (timer !== null) cancel(timer);
+    timer = null;
+  };
+  const setHover = (target) => {
+    if (sameTarget(hovered, target)) return;
+    hovered = target;
+    onHover(target);
+  };
+  const setPreview = (target) => {
+    if (sameTarget(preview, target)) return;
+    preview = target;
+    onPreview(target);
+  };
+  const controller = {
+    configure({ previewEnabled, previewVisible }) {
+      enabled = previewEnabled;
+      visible = previewVisible;
+      if (!enabled) {
+        cancelPreview();
+        setPreview(null);
+      } else if (visible && hovered) {
+        cancelPreview();
+        setPreview(hovered);
+      }
+    },
+    hover(target) {
+      cancelPreview();
+      setHover(target);
+      if (!enabled) return;
+      if (target) {
+        if (visible || preview) setPreview(target);
+        else
+          timer = schedule(() => {
+            timer = null;
+            if (sameTarget(hovered, target)) setPreview(target);
+          }, 100);
+      } else if (preview) {
+        timer = schedule(() => {
+          timer = null;
+          setPreview(null);
+        }, 160);
+      }
+    },
+    keepHover() {
+      cancelPreview();
+      if (preview) setHover(preview);
+    },
+    clearHover() {
+      cancelPreview();
+      setHover(null);
+      setPreview(null);
+    },
+    dispose: cancelPreview
+  };
+  return controller;
+}
+
+// src/viewer/useInspection.js
 var inspectedTarget = (hovered, selected) => hovered || selected;
-function useInspection() {
-  const [hovered, setHovered] = useState8(null);
-  const hoverTimer = useRef6(null);
-  const keepHover = useCallback2(() => {
-    clearTimeout(hoverTimer.current);
-    hoverTimer.current = null;
-  }, []);
-  const clearHover = useCallback2(() => {
-    keepHover();
-    setHovered(null);
-  }, [keepHover]);
+function useInspection({
+  previewEnabled = true,
+  previewVisible = false
+} = {}) {
+  const [hovered, setHovered] = useState9(null);
+  const [preview, setPreview] = useState9(null);
+  const controller = useMemo6(
+    () => createInspectionController({
+      onHover: (target) => setHovered((old) => sameTarget(old, target) ? old : target),
+      // An open inspector follows the same input commit as its highlight.
+      // Memoized details/code avoid rebuilding unchanged source content.
+      onPreview: (target) => setPreview((old) => sameTarget(old, target) ? old : target)
+    }),
+    [createInspectionController]
+  );
+  useLayoutEffect7(() => {
+    controller.configure({ previewEnabled, previewVisible });
+  }, [controller, previewEnabled, previewVisible]);
+  useEffect6(() => () => controller.dispose(), [controller]);
   const hover = useCallback2(
     (target) => {
-      keepHover();
-      if (target)
-        hoverTimer.current = setTimeout(
-          () => setHovered((old) => sameTarget(old, target) ? old : target),
-          120
-        );
-      else hoverTimer.current = setTimeout(clearHover, 200);
+      flushSync(() => controller.hover(target));
     },
-    [keepHover, clearHover]
+    [controller]
   );
-  useEffect6(() => keepHover, [keepHover]);
-  return { hovered, hover, keepHover, clearHover };
+  return {
+    hovered,
+    preview,
+    hover,
+    keepHover: controller.keepHover,
+    clearHover: controller.clearHover
+  };
 }
 
 // src/viewer/useArtifactArchive.js
-import { useMemo as useMemo4 } from "react";
+import { useMemo as useMemo7 } from "react";
 import { unzipSync, strFromU8 } from "fflate";
 function useArtifactArchive(exportData) {
-  return useMemo4(() => {
+  return useMemo7(() => {
     const bundle = Uint8Array.from(
       atob(exportData.bundle),
       (c) => c.charCodeAt(0)
@@ -2313,6 +2711,24 @@ function useArtifactArchive(exportData) {
   }, [exportData]);
 }
 
+// src/ui/zoomStore.js
+function createZoomStore() {
+  let zoom = 100;
+  const listeners = /* @__PURE__ */ new Set();
+  return {
+    getSnapshot: () => zoom,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    set(value) {
+      if (value === zoom) return;
+      zoom = value;
+      listeners.forEach((listener) => listener());
+    }
+  };
+}
+
 // src/viewer/OntoUMLViewer.jsx
 import { jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
 function OntoUMLViewer({
@@ -2322,28 +2738,32 @@ function OntoUMLViewer({
   snippets = {}
 }) {
   const exports = useArtifactArchive(exportData);
-  const [viewKey, setViewKey] = useState9(views[0].key), [fields, setFields] = useState9(false);
+  const [viewKey, setViewKey] = useState10(views[0].key), [fields, setFields] = useState10(false);
   const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
-  const [selected, setSelected] = useState9(null);
-  const [aboutOpen, setAboutOpen] = useState9(false);
-  const [learningOpen, setLearningOpen] = useState9(false);
-  const [sidebarHidden, setSidebarHidden] = useState9(false);
-  const { hovered, hover, keepHover, clearHover } = useInspection();
-  const [focusRequest, setFocusRequest] = useState9(null), [zoom, setZoom] = useState9(100);
+  const [selected, setSelected] = useState10(null);
+  const [aboutOpen, setAboutOpen] = useState10(false);
+  const [learningOpen, setLearningOpen] = useState10(false);
+  const [sidebarHidden, setSidebarHidden] = useState10(false);
+  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
+    previewEnabled: !sidebarHidden,
+    previewVisible: !!selected || learningOpen
+  });
+  const [focusRequest, setFocusRequest] = useState10(null);
+  const zoomStore = useMemo8(createZoomStore, []);
   const cameraRef = useRef7(null);
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
-  const index = useMemo5(
+  const index = useMemo8(
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups]
   );
-  const diagramURL = useSVGExport(
+  const { diagramURL, backgroundURL } = useSVGExport(
     exports.readText(
       `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`
     ),
     theme
   );
-  const inspected = inspectedTarget(hovered, selected);
+  const inspected = inspectedTarget(preview, selected);
   const element = index.getElement(inspected);
   const sidebarOpen = !sidebarHidden && (!!element || learningOpen);
   const select = useCallback3(
@@ -2381,20 +2801,32 @@ function OntoUMLViewer({
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [clear]);
-  function choose(id) {
-    const node = index.nodes.get(id);
-    if (!node) return;
-    const next = viewForNode(views, viewKey, node);
-    if (!next) return;
-    setViewKey(next.key);
-    select({ kind: "node", id: node.id });
-    setFocusRequest({ id: node.id });
-  }
+  const choose = useCallback3(
+    (id) => {
+      const node = index.nodes.get(id);
+      if (!node) return;
+      const next = viewForNode(views, viewKey, node);
+      if (!next) return;
+      setViewKey(next.key);
+      select({ kind: "node", id: node.id });
+      setFocusRequest({ id: node.id });
+    },
+    [index, views, viewKey, select]
+  );
   return /* @__PURE__ */ jsxs15("div", { className: `viewer${sidebarOpen ? " inspecting" : ""}`, children: [
     /* @__PURE__ */ jsx19(
       ViewerToolbar,
       {
-        ...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL },
+        ...{
+          model,
+          views,
+          exports,
+          viewKey,
+          fields,
+          theme,
+          zoomStore,
+          diagramURL
+        },
         sidebarHidden,
         sidebarOpen,
         onSidebar: () => setSidebarHidden((hidden) => !hidden),
@@ -2429,9 +2861,9 @@ function OntoUMLViewer({
       DiagramCanvas,
       {
         ref: cameraRef,
-        ...{ diagram, selected, hovered, focusRequest },
+        ...{ diagram, selected, hovered, focusRequest, backgroundURL },
         onSelect: select,
-        onZoom: setZoom,
+        onZoom: zoomStore.set,
         onHover,
         onClearHover: clearHover
       }
@@ -2453,7 +2885,7 @@ function OntoUMLViewer({
           if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
         },
         children: [
-          learningOpen && /* @__PURE__ */ jsx19(
+          sidebarOpen && learningOpen && /* @__PURE__ */ jsx19(
             LearningLibrary,
             {
               model,
@@ -2480,8 +2912,15 @@ function OntoUMLViewer({
               }
             }
           ),
-          !learningOpen && element && inspected.kind === "node" && /* @__PURE__ */ jsx19(ConceptDetails, { concept: element, model, snippets }),
-          !learningOpen && element && inspected.kind === "edge" && /* @__PURE__ */ jsx19(
+          sidebarOpen && !learningOpen && element && inspected.kind === "node" && /* @__PURE__ */ jsx19(
+            ConceptDetails,
+            {
+              concept: element,
+              model,
+              snippets
+            }
+          ),
+          sidebarOpen && !learningOpen && element && inspected.kind === "edge" && /* @__PURE__ */ jsx19(
             RelationDetails,
             {
               relation: element,
@@ -2490,7 +2929,7 @@ function OntoUMLViewer({
               snippets
             }
           ),
-          !learningOpen && element && inspected.kind === "group" && /* @__PURE__ */ jsx19(
+          sidebarOpen && !learningOpen && element && inspected.kind === "group" && /* @__PURE__ */ jsx19(
             GeneralizationSetDetails,
             {
               group: element,

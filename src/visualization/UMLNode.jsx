@@ -27,13 +27,13 @@ const colorFamilies = {
   quality: "mode",
 };
 
-export function UMLNode({ node, focus, selected, handlers }) {
+export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const header = node.attributes.length ? 66 : node.height;
   const color = colorFamilies[node.stereotype] || node.stereotype;
   return (
     <g
-      id={`node-${node.id}`}
+      id={`${idPrefix}node-${node.id}`}
       className={elementClass("node", node.id, focus, selected)}
       data-name={node.name}
       data-node-id={node.id}

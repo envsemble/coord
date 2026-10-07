@@ -1,7 +1,17 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePopupDismiss } from "./usePopupDismiss";
 import { SearchIcon } from "./Icons";
-export function ConceptSearch({ classes, onChoose }) {
+export const ConceptSearch = memo(function ConceptSearch({
+  classes,
+  onChoose,
+}) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [showHits, setShowHits] = useState(false);
@@ -10,9 +20,20 @@ export function ConceptSearch({ classes, onChoose }) {
   const searchRef = useRef(null),
     toggleRef = useRef(null);
   const q = query.trim().toLowerCase();
-  const hits = q
-    ? classes.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 12)
-    : [];
+  const searchEntries = useMemo(
+    () =>
+      classes.map((concept) => ({ concept, text: concept.name.toLowerCase() })),
+    [classes],
+  );
+  const hits = useMemo(() => {
+    if (!q) return [];
+    const matches = [];
+    for (const entry of searchEntries) {
+      if (entry.text.includes(q)) matches.push(entry.concept);
+      if (matches.length === 12) break;
+    }
+    return matches;
+  }, [q, searchEntries]);
   const close = () => {
     setShowHits(false);
     setOpen(false);
@@ -101,4 +122,4 @@ export function ConceptSearch({ classes, onChoose }) {
       </div>
     </>
   );
-}
+});

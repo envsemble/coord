@@ -24,19 +24,30 @@ export function readMultiplicity(relation) {
     `For each ${relation.target.name}: ${countMeaning(relation.sourceMultiplicity)} ${relation.sourceMultiplicity === "1" ? "instance" : "instances"} of ${relation.source.name}.`,
   ];
 }
+const identityIndexes = new WeakMap();
+function identityIndex(model) {
+  if (identityIndexes.has(model)) return identityIndexes.get(model);
+  const classes = new Map(model.classes.map((c) => [c.id, c]));
+  const parents = new Map();
+  for (const generalization of model.generalizations) {
+    const { specificId, generalId } = generalization;
+    if (!parents.has(specificId)) parents.set(specificId, []);
+    parents.get(specificId).push(generalId);
+  }
+  const index = { classes, parents };
+  identityIndexes.set(model, index);
+  return index;
+}
+
 export function identityProviders(model, id) {
   const found = new Set(),
     pending = [id];
-  const classes = new Map(model.classes.map((c) => [c.id, c]));
+  const { classes, parents } = identityIndex(model);
   while (pending.length) {
     const next = pending.pop();
     if (found.has(next)) continue;
     found.add(next);
-    pending.push(
-      ...model.generalizations
-        .filter((g) => g.specificId === next)
-        .map((g) => g.generalId),
-    );
+    pending.push(...(parents.get(next) || []));
   }
   return [...found]
     .map((key) => classes.get(key))

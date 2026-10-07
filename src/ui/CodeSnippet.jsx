@@ -1,6 +1,6 @@
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 
-export function CodeSnippet({ snippet, label }) {
+export const CodeSnippet = memo(function CodeSnippet({ snippet, label }) {
   return (
     <pre className="shiki code-snippet" tabIndex={0} aria-label={label}>
       <code>
@@ -19,4 +19,4 @@ export function CodeSnippet({ snippet, label }) {
       </code>
     </pre>
   );
-}
+});

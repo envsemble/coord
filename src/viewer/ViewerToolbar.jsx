@@ -4,6 +4,7 @@ import { CameraControls } from "../ui/CameraControls";
 import { ConceptSearch } from "../ui/ConceptSearch";
 import { ExportMenu } from "../ui/ExportMenu";
 import { DownloadLink } from "../ui/DownloadLink";
+import { useMemo } from "react";
 import {
   BookIcon,
   SunIcon,
@@ -25,7 +26,7 @@ export function ViewerToolbar({
   viewKey,
   fields,
   theme,
-  zoom,
+  zoomStore,
   diagramURL,
   sidebarHidden,
   sidebarOpen,
@@ -43,6 +44,10 @@ export function ViewerToolbar({
   const themeLabel =
     theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
   const sidebarLabel = sidebarHidden ? "Show sidebar" : "Hide sidebar";
+  const searchClasses = useMemo(() => {
+    const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
+    return model.classes.filter((concept) => visibleIds.has(concept.id));
+  }, [model.classes, views]);
   return (
     <header className="viewer-toolbar">
       <div className="toolbar-identity" title={model.title}>
@@ -55,12 +60,7 @@ export function ViewerToolbar({
       </div>
       <span className="spacer" />
       <div className="toolbar-actions">
-        <ConceptSearch
-          classes={model.classes.filter((c) =>
-            views.some((v) => v.nodeIds.includes(c.id)),
-          )}
-          onChoose={onChoose}
-        />
+        <ConceptSearch classes={searchClasses} onChoose={onChoose} />
         <div className="diagram-actions">
           <ToggleButton
             id="fields"
@@ -72,7 +72,7 @@ export function ViewerToolbar({
           >
             <TableIcon size={16} />
           </ToggleButton>
-          <CameraControls {...{ zoom, onZoom, onReset, onFit }} />
+          <CameraControls {...{ zoomStore, onZoom, onReset, onFit }} />
         </div>
         <IconButton id="theme-toggle" label={themeLabel} onClick={onTheme}>
           {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}

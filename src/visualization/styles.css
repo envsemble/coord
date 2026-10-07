@@ -74,6 +74,39 @@
   display: block;
   overflow: visible;
 }
+.uml-diagram {
+  position: relative;
+}
+.diagram-base {
+  will-change: opacity;
+}
+.diagram-background {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: opacity;
+}
+.diagram-background.ready {
+  visibility: visible;
+}
+.diagram-hit-layer {
+  opacity: 0;
+}
+.uml-diagram.has-focus > .diagram-base,
+.uml-diagram.has-focus > .diagram-background {
+  opacity: 0.22;
+}
+.diagram-overlay {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.diagram-overlay,
+.diagram-overlay *,
+.diagram-overlay .edge-label {
+  pointer-events: none;
+}
 .node {
   cursor: pointer;
   outline: none;
@@ -83,8 +116,16 @@
   stroke: var(--accent);
   stroke-width: 2;
 }
-.diagram-element {
-  transition: opacity 130ms ease;
+.diagram-base .node:hover .node-box,
+.diagram-base .node:focus-visible .node-box {
+  stroke: var(--diagram-border);
+  stroke-width: 1.25;
+}
+svg.has-focus .diagram-element {
+  opacity: 0.22;
+}
+svg.has-focus .diagram-element.highlighted {
+  opacity: 1;
 }
 .node.dimmed,
 .edge.dimmed {
@@ -111,14 +152,16 @@
   stroke: var(--accent);
   stroke-width: 1.4;
 }
+.diagram-base .edge:focus-visible .edge-path {
+  stroke: var(--diagram-edge);
+  stroke-width: 1.4;
+}
+.diagram-base .generalization:focus-visible .edge-path {
+  stroke: var(--diagram-inheritance);
+}
 .edge.highlighted .edge-label text {
   fill: var(--accent);
 }
 .edge-label {
   pointer-events: all;
-}
-@media (prefers-reduced-motion: reduce) {
-  .diagram-element {
-    transition: none;
-  }
 }

@@ -19,6 +19,7 @@ export const DiagramCanvas = memo(
       selected,
       hovered,
       focusRequest,
+      backgroundURL,
       onSelect,
       onZoom,
       onHover,
@@ -78,6 +79,7 @@ export const DiagramCanvas = memo(
             diagram={diagram}
             active={hovered || focused || selected}
             selected={selected}
+            backgroundURL={backgroundURL}
             handlers={handlers}
           />
         </div>

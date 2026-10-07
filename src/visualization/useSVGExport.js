@@ -24,9 +24,10 @@ const THEME_VARS = [
   "--type-event",
   "--type-mode",
 ];
+const EMPTY_URLS = { diagramURL: undefined, backgroundURL: undefined };
 
 export function useSVGExport(svgSource, theme) {
-  const [url, setURL] = useState(undefined);
+  const [urls, setURLs] = useState(EMPTY_URLS);
   useEffect(() => {
     // Export the normal static rendering, independent of hover/selection.
     const svg = new DOMParser().parseFromString(
@@ -39,6 +40,13 @@ export function useSVGExport(svgSource, theme) {
     svg
       .querySelectorAll(".selected,.dimmed")
       .forEach((n) => n.classList.remove("selected", "dimmed"));
+    // A transparent drawing layer lets the world grid show through. The
+    // downloadable SVG below has an opaque theme-colored background.
+    const backgroundURL = URL.createObjectURL(
+      new Blob([new XMLSerializer().serializeToString(svg)], {
+        type: "image/svg+xml",
+      }),
+    );
     const background = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "rect",
@@ -47,13 +55,17 @@ export function useSVGExport(svgSource, theme) {
     background.setAttribute("height", svg.viewBox.baseVal.height);
     background.setAttribute("fill", styles.getPropertyValue("--canvas").trim());
     svg.insertBefore(background, svg.firstChild);
-    const next = URL.createObjectURL(
+    const diagramURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml",
       }),
     );
-    setURL(next);
-    return () => URL.revokeObjectURL(next);
+    setURLs({ diagramURL, backgroundURL, source: svgSource, theme });
+    return () => {
+      URL.revokeObjectURL(diagramURL);
+      URL.revokeObjectURL(backgroundURL);
+    };
   }, [svgSource, theme]);
-  return url;
+  // A newly chosen view/theme must never briefly display the previous image.
+  return urls.source === svgSource && urls.theme === theme ? urls : EMPTY_URLS;
 }

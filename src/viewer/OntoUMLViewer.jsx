@@ -15,6 +15,7 @@ import {
 import { useInspection, inspectedTarget } from "./useInspection";
 import { LearningLibrary } from "../learning/LearningContent";
 import { useArtifactArchive } from "./useArtifactArchive";
+import { createZoomStore } from "../ui/zoomStore";
 
 export function OntoUMLViewer({
   model,
@@ -30,9 +31,12 @@ export function OntoUMLViewer({
   const [aboutOpen, setAboutOpen] = useState(false);
   const [learningOpen, setLearningOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  const { hovered, hover, keepHover, clearHover } = useInspection();
-  const [focusRequest, setFocusRequest] = useState(null),
-    [zoom, setZoom] = useState(100);
+  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
+    previewEnabled: !sidebarHidden,
+    previewVisible: !!selected || learningOpen,
+  });
+  const [focusRequest, setFocusRequest] = useState(null);
+  const zoomStore = useMemo(createZoomStore, []);
   const cameraRef = useRef(null);
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
@@ -40,13 +44,13 @@ export function OntoUMLViewer({
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups],
   );
-  const diagramURL = useSVGExport(
+  const { diagramURL, backgroundURL } = useSVGExport(
     exports.readText(
       `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`,
     ),
     theme,
   );
-  const inspected = inspectedTarget(hovered, selected);
+  const inspected = inspectedTarget(preview, selected);
   const element = index.getElement(inspected);
   const sidebarOpen = !sidebarHidden && (!!element || learningOpen);
   const select = useCallback(
@@ -84,19 +88,31 @@ export function OntoUMLViewer({
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [clear]);
-  function choose(id) {
-    const node = index.nodes.get(id);
-    if (!node) return;
-    const next = viewForNode(views, viewKey, node);
-    if (!next) return;
-    setViewKey(next.key);
-    select({ kind: "node", id: node.id });
-    setFocusRequest({ id: node.id });
-  }
+  const choose = useCallback(
+    (id) => {
+      const node = index.nodes.get(id);
+      if (!node) return;
+      const next = viewForNode(views, viewKey, node);
+      if (!next) return;
+      setViewKey(next.key);
+      select({ kind: "node", id: node.id });
+      setFocusRequest({ id: node.id });
+    },
+    [index, views, viewKey, select],
+  );
   return (
     <div className={`viewer${sidebarOpen ? " inspecting" : ""}`}>
       <ViewerToolbar
-        {...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL }}
+        {...{
+          model,
+          views,
+          exports,
+          viewKey,
+          fields,
+          theme,
+          zoomStore,
+          diagramURL,
+        }}
         sidebarHidden={sidebarHidden}
         sidebarOpen={sidebarOpen}
         onSidebar={() => setSidebarHidden((hidden) => !hidden)}
@@ -133,9 +149,9 @@ export function OntoUMLViewer({
       />
       <DiagramCanvas
         ref={cameraRef}
-        {...{ diagram, selected, hovered, focusRequest }}
+        {...{ diagram, selected, hovered, focusRequest, backgroundURL }}
         onSelect={select}
-        onZoom={setZoom}
+        onZoom={zoomStore.set}
         onHover={onHover}
         onClearHover={clearHover}
       />
@@ -154,7 +170,7 @@ export function OntoUMLViewer({
           if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
         }}
       >
-        {learningOpen && (
+        {sidebarOpen && learningOpen && (
           <LearningLibrary
             model={model}
             onInspect={(id) => {
@@ -180,25 +196,38 @@ export function OntoUMLViewer({
             }}
           />
         )}
-        {!learningOpen && element && inspected.kind === "node" && (
-          <ConceptDetails concept={element} model={model} snippets={snippets} />
-        )}
-        {!learningOpen && element && inspected.kind === "edge" && (
-          <RelationDetails
-            relation={element}
-            onChoose={choose}
-            model={model}
-            snippets={snippets}
-          />
-        )}
-        {!learningOpen && element && inspected.kind === "group" && (
-          <GeneralizationSetDetails
-            group={element}
-            model={model}
-            snippets={snippets}
-            onChoose={choose}
-          />
-        )}
+        {sidebarOpen &&
+          !learningOpen &&
+          element &&
+          inspected.kind === "node" && (
+            <ConceptDetails
+              concept={element}
+              model={model}
+              snippets={snippets}
+            />
+          )}
+        {sidebarOpen &&
+          !learningOpen &&
+          element &&
+          inspected.kind === "edge" && (
+            <RelationDetails
+              relation={element}
+              onChoose={choose}
+              model={model}
+              snippets={snippets}
+            />
+          )}
+        {sidebarOpen &&
+          !learningOpen &&
+          element &&
+          inspected.kind === "group" && (
+            <GeneralizationSetDetails
+              group={element}
+              model={model}
+              snippets={snippets}
+              onChoose={choose}
+            />
+          )}
       </Panel>
       <Panel
         id="about-panel"

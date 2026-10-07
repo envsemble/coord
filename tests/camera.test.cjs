@@ -154,6 +154,40 @@ function harness({ reducedMotion = false } = {}) {
   };
 }
 
+test("pan reuses the grid raster parameters while zoom still updates its density", () => {
+  const h = harness();
+  const writes = [];
+  h.grid.style = new Proxy(h.grid.style, {
+    set(target, name, value) {
+      writes.push(name);
+      target[name] = value;
+      return true;
+    },
+  });
+  h.canvas.emit("pointerdown", {
+    button: 0,
+    pointerId: 1,
+    clientX: 100,
+    clientY: 150,
+    target: h.canvas,
+  });
+  h.canvas.emit("pointermove", { pointerId: 1, clientX: 160, clientY: 210 });
+  h.settle();
+  h.canvas.emit("pointerup", { pointerId: 1 });
+  assert(writes.includes("transform"));
+  assert(
+    !writes.includes("backgroundImage") &&
+      !writes.includes("backgroundSize") &&
+      !writes.includes("backgroundPosition"),
+  );
+  h.wheel(-120);
+  h.settle();
+  assert(
+    writes.includes("backgroundImage") && writes.includes("backgroundSize"),
+  );
+  h.detach();
+});
+
 const close = (actual, expected) =>
   assert(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
