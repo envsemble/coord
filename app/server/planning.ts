@@ -25,6 +25,16 @@ function within(root: string, candidate: string) {
 function hidden(relative: string) {
   return relative.replaceAll('\\', '/').split('/').some(part => part.startsWith('.') || excludedDirectories.has(part));
 }
+function normalizedLocation(value: unknown): string {
+  if (typeof value !== 'string' || !value || value.includes('\\') || value.includes('\0') || path.posix.isAbsolute(value) || /^[a-z]:/i.test(value) || value.split('/').includes('..')) {
+    throw new PlanningError('Work and selected plan paths must be POSIX-relative paths without parent segments.');
+  }
+  const normalized = path.posix.normalize(value).replace(/\/+$/, '');
+  if (path.posix.isAbsolute(normalized) || /^[a-z]:/i.test(normalized)) throw new PlanningError('Work and selected plan paths must be POSIX-relative paths without drive syntax.');
+  if (normalized === '.') throw new PlanningError('A work or plan path must identify a record inside the planning folder.');
+  return normalized;
+}
+function locationIdentity(relative: string) { return process.platform === 'win32' ? relative.toLowerCase() : relative; }
 export async function resolveDocument(root: string, relative: string) {
   if (!relative || relative.includes('\0') || path.isAbsolute(relative) || /^[a-z]:/i.test(relative) || hidden(relative)) {
     throw new PlanningError('Choose a document inside the connected planning folder.', 403);
@@ -107,7 +117,18 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
         try {
           const { stdout: source } = await execute('git', ['-C', root, 'show', commit + ':planning.json'], { maxBuffer: 1024 * 1024 });
           const registry = JSON.parse(source.replace(/^\uFEFF/, ''));
-          return registry?.schema_version === 1 && Array.isArray(registry.work_items) ? registry.work_items.filter((item: HistoricalWork) => item && typeof item.id === 'string' && typeof item.path === 'string' && Array.isArray(item.repositories) && item.repositories.every(id => typeof id === 'string')) as HistoricalWork[] : [];
+          if (registry?.schema_version !== 1 || !Array.isArray(registry.work_items)) return [];
+          const locations = new Set<string>();
+          const identities = new Set<string>();
+          const registrations: HistoricalWork[] = [];
+          for (const item of registry.work_items) {
+            if (!item || typeof item.id !== 'string' || identities.has(item.id) || !Array.isArray(item.repositories) || !item.repositories.every((id: unknown) => typeof id === 'string')) return [];
+            const location = normalizedLocation(item.path);
+            if (locations.has(locationIdentity(location))) return [];
+            locations.add(locationIdentity(location)); identities.add(item.id);
+            registrations.push({ id: item.id, path: location, repositories: item.repositories });
+          }
+          return registrations;
         } catch { return []; /* Older unregistered or invalid history has no established work identity. */ }
       }
       // Locations belong to their registry revision. The parent also owns paths removed in this commit.
@@ -149,30 +170,35 @@ export async function loadPlanning(inputRoot: string) {
   const issues: Issue[] = [];
   const work: Work[] = [];
   const identities = new Set<string>();
+  const locations = new Set<string>();
   for (const item of registry.work_items) {
     if (!item || typeof item.id !== 'string' || !item.id || identities.has(item.id) || typeof item.path !== 'string' || !Array.isArray(item.repositories) || !item.repositories.every(id => typeof id === 'string' && repositoryIds.has(id))) {
       throw new PlanningError('A work item has an invalid or duplicate identity, location, or repository scope.');
     }
+    const relative = normalizedLocation(item.path);
+    const currentPlan = item.current_plan === null ? null : normalizedLocation(item.current_plan);
+    const location = locationIdentity(relative);
+    if (locations.has(location)) throw new PlanningError('Two work items have the same retained location; reconcile the duplicate registration.');
+    locations.add(location);
     identities.add(item.id);
-    const relative = item.path.replaceAll('\\', '/');
     const folder = path.resolve(root, relative);
     if (!within(root, folder) || hidden(relative)) throw new PlanningError('A registered work item points outside the planning folder.');
     try { if (!within(root, await realpath(folder))) throw new Error('Outside folder'); }
     catch { issues.push({ level: 'error', workId: item.id, message: 'The work folder is missing or outside the planning repository.' }); }
     const entry: Work = {
-      id: item.id, path: relative, repositories: item.repositories, currentPlan: item.current_plan,
+      id: item.id, path: relative, repositories: item.repositories, currentPlan,
       title: path.basename(relative).replace(/^\d+-/, '').replaceAll('-', ' '),
       location: relative.startsWith('active/') ? 'active' : relative.startsWith('archive/') ? 'archived' : 'retained',
       design: 'unknown', implementation: 'unknown', created: null, updated: null, accepted: null,
       completed: null, durationDays: null, documents: [],
     };
-    if (item.current_plan === null) {
+    if (currentPlan === null) {
       issues.push({ level: 'warning', workId: item.id, message: 'No main plan is selected; retained documents are available.' });
-    } else if (typeof item.current_plan !== 'string' || (item.current_plan !== relative && !item.current_plan.startsWith(relative + '/'))) {
+    } else if (currentPlan !== relative && !currentPlan.startsWith(relative + '/')) {
       issues.push({ level: 'error', workId: item.id, message: 'The selected plan does not belong to this work item.' });
     } else {
       try {
-        const content = await readDocument(root, item.current_plan);
+        const content = await readDocument(root, currentPlan);
         const metadata = content.metadata;
         if (!metadata) {
           entry.title = content.title;
@@ -194,9 +220,10 @@ export async function loadPlanning(inputRoot: string) {
         }
         entry.created = lifecycleDate('created'); entry.updated = lifecycleDate('updated');
         entry.accepted = lifecycleDate('accepted_at'); entry.completed = lifecycleDate('completed_at');
-        if ((entry.created && entry.accepted && entry.accepted < entry.created) || (entry.completed && (entry.accepted && entry.completed < entry.accepted || entry.created && entry.completed < entry.created))) issues.push({ level: 'error', workId: item.id, message: 'Recorded lifecycle dates are out of order.' });
+        const chronologyInvalid = (entry.created && entry.accepted && entry.accepted < entry.created) || (entry.completed && (entry.accepted && entry.completed < entry.accepted || entry.created && entry.completed < entry.created));
+        if (chronologyInvalid) issues.push({ level: 'error', workId: item.id, message: 'Recorded lifecycle dates are out of order.' });
         if (entry.completed && entry.implementation !== 'complete') issues.push({ level: 'error', workId: item.id, message: 'A completion date requires complete implementation status.' });
-        if (entry.implementation === 'complete' && entry.accepted && entry.completed && entry.completed >= entry.accepted) {
+        if (entry.implementation === 'complete' && entry.accepted && entry.completed && !chronologyInvalid) {
           entry.durationDays = Math.round((Date.parse(entry.completed) - Date.parse(entry.accepted)) / 86400000);
         }
       } catch (error) { issues.push({ level: 'error', workId: item.id, message: error instanceof Error ? error.message : 'The selected plan could not be read.' }); }

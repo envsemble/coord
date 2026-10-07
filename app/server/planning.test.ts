@@ -110,6 +110,44 @@ test('invalid non-null dates and chronology produce health errors while unknown 
     const result = await loadPlanning(setup.root);
     assert.ok(result.issues.some(issue => issue.message.includes('out of order')));
     assert.equal(result.work[0].durationDays, null);
+    await writeFile(filename, original.replace('created: null', 'created: "2026-10-07"').replace('accepted_at: null', 'accepted_at: "2026-10-05"').replace('completed_at: null', 'completed_at: "2026-10-06"'));
+    assert.equal((await loadPlanning(setup.root)).work[0].durationDays, null, 'a reversed creation date must not enter duration statistics');
+  } finally { await setup.cleanup(); }
+});
+test('registry paths retain safe POSIX aliases while rejecting parent segments and duplicate locations', async () => {
+  const setup = await fixture();
+  try {
+    await mkdir(path.join(setup.root, 'active/0002-real'), { recursive: true });
+    const filename = path.join(setup.root, 'active/0002-real/plan.md');
+    const original = header('work-0002', 'accepted', 'not_started');
+    await writeFile(filename, original);
+    const item = { id: 'work-0002', path: 'active/0002-real', repositories: ['example'], current_plan: 'active/0002-real/plan.md' };
+    const writeRegistry = (items: typeof item[]) => writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: items }));
+    const locations = ['active/0001-old/../0002-real', 'active\\0002-real', '/active/0002-real', 'C:/active/0002-real', './C:active/0002-real', './C:/active/0002-real'];
+    for (const location of locations) {
+      await writeRegistry([{ ...item, path: location }]);
+      await assert.rejects(loadPlanning(setup.root), /POSIX-relative/);
+    }
+    await writeRegistry([{ ...item, current_plan: 'active/0002-real/../0002-real/plan.md' }]);
+    await assert.rejects(loadPlanning(setup.root), /POSIX-relative/);
+    await writeRegistry([item, { ...item, id: 'work-0003' }]);
+    await assert.rejects(loadPlanning(setup.root), /same retained location/);
+    await writeRegistry([item, { ...item, id: 'work-0003', path: './active//0002-real/' }]);
+    await assert.rejects(loadPlanning(setup.root), /same retained location/);
+    if (process.platform === 'win32') {
+      await writeRegistry([item, { ...item, id: 'work-0003', path: 'Active/0002-Real', current_plan: 'Active/0002-Real/plan.md' }]);
+      await assert.rejects(loadPlanning(setup.root), /same retained location/);
+    }
+    for (const location of ['active/./0002-real', './active/0002-real', 'active//0002-real', 'active/0002-real/']) {
+      await writeRegistry([{ ...item, path: location, current_plan: './active//0002-real/./plan.md' }]);
+      const registryBytes = await readFile(path.join(setup.root, 'planning.json'));
+      const result = await loadPlanning(setup.root);
+      assert.equal(result.work[0].path, item.path);
+      assert.equal(result.work[0].currentPlan, item.current_plan);
+      assert.equal(result.work[0].documents[0].key, 'work-0002:plan.md');
+      assert.deepEqual(await readFile(path.join(setup.root, 'planning.json')), registryBytes);
+    }
+    assert.equal(await readFile(filename, 'utf8'), original);
   } finally { await setup.cleanup(); }
 });
 test('work activity follows stable registry identity through archive and folder renames', async () => {

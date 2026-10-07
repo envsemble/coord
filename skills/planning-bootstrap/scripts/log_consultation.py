@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
+import re
+from pathlib import Path, PurePosixPath
 import sqlite3
 import subprocess
 import sys
@@ -40,6 +41,17 @@ def document_identity(relative: str, registry: dict) -> str:
             return work["id"] + ":" + relative[len(location) + 1:]
     return "root:" + relative
 
+def normalized_location(value: object) -> str:
+    if (not isinstance(value, str) or not value or "\\" in value or "\0" in value
+            or value.startswith("/") or re.match(r"^[a-z]:", value, re.I) or ".." in value.split("/")):
+        raise ValueError("Work and selected plan paths must be POSIX-relative paths without parent segments")
+    normalized = str(PurePosixPath(value))
+    if normalized.startswith("/") or re.match(r"^[a-z]:", normalized, re.I):
+        raise ValueError("Work and selected plan paths must be POSIX-relative paths without drive syntax")
+    if normalized == ".":
+        raise ValueError("A work or plan path must identify a record inside the planning folder")
+    return normalized
+
 def cache_outside_planning(root: Path, destination: Path) -> Path:
     destination = destination.expanduser().resolve()
     if destination.is_relative_to(root.expanduser().resolve()):
@@ -68,6 +80,18 @@ def report(root: Path, files: list[str], task: str | None = None,
         or not isinstance(work.get("path"), str) for work in registry["work_items"]
     ):
         raise ValueError("Invalid planning work identities")
+    identities: set[str] = set()
+    locations: set[str] = set()
+    for work in registry["work_items"]:
+        location = normalized_location(work["path"])
+        work["path"] = location
+        if work.get("current_plan") is not None:
+            work["current_plan"] = normalized_location(work["current_plan"])
+        identity = location.lower() if os.name == "nt" else location
+        if work["id"] in identities or identity in locations:
+            raise ValueError("Duplicate planning work identity or retained location")
+        identities.add(work["id"])
+        locations.add(identity)
     destination = cache_outside_planning(root, data_directory(root, destination))
     destination.mkdir(parents=True, exist_ok=True)
     revision = None
@@ -126,7 +150,7 @@ def main() -> int:
     parser.add_argument("--files", nargs="+", required=True)
     parser.add_argument("--task", help="Known work/task identity; omit when unknown.")
     parser.add_argument("--session", help="Known chat/session identity; omit when unknown.")
-    parser.add_argument("--data-dir", type=Path, help="Optional isolated statistics directory.")
+    parser.add_argument("--data-dir", type=Path, help="Optional statistics cache base; the planning-root hash is appended.")
     arguments = parser.parse_args()
     try:
         recorded, failed = report(arguments.planning_root, arguments.files,
