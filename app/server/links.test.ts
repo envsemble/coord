@@ -5,6 +5,17 @@ import type { Document, Work } from '../src/types.ts';
 
 const file = { path: 'active/0001-example/docs/decision.md' } as Document;
 const work = { path: 'active/0001-example', id: 'work-0001' } as Work;
+
+test('parent traversal cannot clamp escaped references onto retained root documents', () => {
+  const retained = { path: 'README.md' } as Document;
+  const source = 'active/0001-example/plan.md';
+  for (const href of ['../../../README.md', '../../../../README.md', '/../../../README.md', '%2e%2e/%2e%2e/%2e%2e/README.md', '..\\..\\..\\README.md', 'http://planning.local/../README.md', 'http:////planning.local/../README.md']) {
+    assert.deepEqual(resolveLink(href, source, [retained]), {}, href);
+  }
+  for (const href of ['../../README.md', '%2e%2e/%2e%2e/README.md', '/README.md', 'docs/../../../README.md']) {
+    assert.equal(resolveLink(href, source, [retained]).file, retained, href);
+  }
+});
 test('contained document and work-folder links resolve without granting arbitrary local access', () => {
   assert.equal(resolveLink('docs/decision.md#the-choice', 'active/0001-example/plan.md', [file]).file, file);
   assert.equal(resolveLink('docs/decision.md#the%20choice', 'active/0001-example/plan.md', [file]).anchor, 'the choice');

@@ -16,6 +16,7 @@ const workIdentity = /^work-[0-9]{4,}$/;
 const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const readableLimit = 4 * 1024 * 1024;
 type HistoricalWork = Pick<Work, 'id' | 'path' | 'repositories' | 'currentPlan'>;
+type HistoricalRegistry = { work: HistoricalWork[]; repositories: string[] };
 const historyCache = new Map<string, { head: string; entries: HistoryEntry[]; unattributedFiles: Map<string, string[]> }>();
 
 export class PlanningError extends Error {
@@ -40,6 +41,10 @@ function normalizedLocation(value: unknown): string {
 function pathIdentity(relative: string, caseSensitive: boolean, normalizesUnicode: boolean) {
   const spelling = normalizesUnicode ? relative.normalize('NFC') : relative;
   return caseSensitive ? spelling : spelling.toLowerCase();
+}
+function knowledgeScope(relative: string, repositories: string[], caseSensitive: boolean, normalizesUnicode: boolean) {
+  const identity = pathIdentity(relative, caseSensitive, normalizesUnicode);
+  return identity.startsWith('knowledge/') ? [...new Set(repositories)].filter(id => pathIdentity(id, caseSensitive, normalizesUnicode) === identity.split('/')[1]) : [];
 }
 function documentOwner<T extends HistoricalWork>(work: T[], relative: string, caseSensitive: boolean, normalizesUnicode: boolean): T | undefined {
   const locationIdentity = (value: string) => pathIdentity(value, caseSensitive, normalizesUnicode);
@@ -111,7 +116,7 @@ async function files(root: string, directory = root): Promise<string[]> {
   }
   return result;
 }
-export async function gitHistory(root: string, currentWork: HistoricalWork[] = [], sensitivity?: boolean, normalization?: boolean): Promise<{ history: HistoryEntry[]; available: boolean }> {
+export async function gitHistory(root: string, currentWork: HistoricalWork[] = [], sensitivity?: boolean, normalization?: boolean, currentRepositories: string[] = []): Promise<{ history: HistoryEntry[]; available: boolean }> {
   try {
     const caseSensitive = sensitivity ?? await filesystemCaseSensitive(root);
     const normalizesUnicode = normalization ?? await filesystemNormalizesUnicode(root, await files(root));
@@ -131,38 +136,41 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
         firstParents.set(id, parents?.split(' ')[0] || undefined);
         return { id, date, title, files: [], workIds: [], repositories: [] };
       });
-      async function registrationsAt(commit: string): Promise<HistoricalWork[]> {
+      async function registrationsAt(commit: string): Promise<HistoricalRegistry> {
+        const empty: HistoricalRegistry = { work: [], repositories: [] };
         try {
           const { stdout: source } = await execute('git', ['-C', root, 'show', commit + ':planning.json'], { maxBuffer: 1024 * 1024 });
           const registry = JSON.parse(source.replace(/^\uFEFF/, ''));
-          if (registry?.schema_version !== 1 || !Array.isArray(registry.work_items)) return [];
+          if (registry?.schema_version !== 1 || !Array.isArray(registry.work_items)) return empty;
+          const repositories: string[] = Array.isArray(registry.repositories) ? registry.repositories.flatMap((item: { id?: unknown } | null) => item && typeof item.id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.id) ? [item.id] : []) : [];
           const locations = new Set<string>();
           const identities = new Set<string>();
           const selectedPlans = new Set<string>();
           const registrations: HistoricalWork[] = [];
           for (const item of registry.work_items) {
-            if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || !Array.isArray(item.repositories) || !item.repositories.every((id: unknown) => typeof id === 'string')) return [];
+            if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || !Array.isArray(item.repositories) || !item.repositories.every((id: unknown) => typeof id === 'string')) return empty;
             const location = normalizedLocation(item.path);
-            if (locations.has(locationIdentity(location))) return [];
+            if (locations.has(locationIdentity(location))) return empty;
             const currentPlan = item.current_plan == null ? null : normalizedLocation(item.current_plan);
-            if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) return [];
+            if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) return empty;
             if (currentPlan) selectedPlans.add(locationIdentity(currentPlan));
             locations.add(locationIdentity(location)); identities.add(item.id);
             registrations.push({ id: item.id, path: location, repositories: item.repositories, currentPlan });
           }
-          return registrations;
-        } catch { return []; /* Older unregistered or invalid history has no established work identity. */ }
+          return { work: registrations, repositories };
+        } catch { return empty; /* Older unregistered or invalid history has no established work identity. */ }
       }
       // Read change direction explicitly; rename detection must not alter historical ownership.
       for (let offset = 0; offset < entries.length; offset += 4) {
         await Promise.all(entries.slice(offset, offset + 4).map(async entry => {
           const parent = firstParents.get(entry.id);
           const [current, previous, changes] = await Promise.all([
-            registrationsAt(entry.id), parent ? registrationsAt(parent) : Promise.resolve([]),
+            registrationsAt(entry.id), parent ? registrationsAt(parent) : Promise.resolve({ work: [], repositories: [] } as HistoricalRegistry),
             execute('git', ['-C', root, 'diff-tree', '-r', '--no-commit-id', '--name-status', '--no-renames', '-z', ...(parent ? [parent, entry.id] : ['--root', entry.id])], { maxBuffer: 1024 * 1024 }),
           ]);
           const parts = changes.stdout.split('\0');
           const matches: HistoricalWork[] = [];
+          const scopedRepositories: string[] = [];
           const unowned: string[] = [];
           for (let index = 0; index + 1 < parts.length; index += 2) {
             const status = parts[index]; const file = parts[index + 1];
@@ -170,14 +178,18 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
             const snapshots = status === 'D' ? [previous] : status === 'A' ? [current] : [previous, current];
             let attributed = false;
             for (const snapshot of snapshots) {
-              const owner = documentOwner(snapshot, file, caseSensitive, normalizesUnicode);
+              const owner = documentOwner(snapshot.work, file, caseSensitive, normalizesUnicode);
               if (owner) { matches.push(owner); attributed = true; }
+              else {
+                const scope = knowledgeScope(file, snapshot.repositories, caseSensitive, normalizesUnicode);
+                if (scope.length) { scopedRepositories.push(...scope); attributed = true; }
+              }
             }
             if (!attributed) unowned.push(file);
           }
           unattributedFiles.set(entry.id, unowned);
           entry.workIds = [...new Set(matches.map(item => item.id))];
-          entry.repositories = [...new Set(matches.flatMap(item => item.repositories))];
+          entry.repositories = [...new Set([...matches.flatMap(item => item.repositories), ...scopedRepositories])];
         }));
       }
       retained = { head, entries, unattributedFiles };
@@ -185,8 +197,10 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
     }
     return { available: true, history: retained.entries.map(entry => {
       // A newly adopted, uncommitted registration can identify previously unregistered records.
-      const matches = (retained.unattributedFiles.get(entry.id) ?? []).map(file => documentOwner(currentWork, file, caseSensitive, normalizesUnicode)).filter((item): item is HistoricalWork => Boolean(item));
-      return { ...entry, workIds: [...new Set([...entry.workIds, ...matches.map(item => item.id)])], repositories: [...new Set([...entry.repositories, ...matches.flatMap(item => item.repositories)])] };
+      const unowned = retained.unattributedFiles.get(entry.id) ?? [];
+      const matches = unowned.map(file => documentOwner(currentWork, file, caseSensitive, normalizesUnicode)).filter((item): item is HistoricalWork => Boolean(item));
+      const scopes = unowned.filter(file => !documentOwner(currentWork, file, caseSensitive, normalizesUnicode)).flatMap(file => knowledgeScope(file, currentRepositories, caseSensitive, normalizesUnicode));
+      return { ...entry, workIds: [...new Set([...entry.workIds, ...matches.map(item => item.id)])], repositories: [...new Set([...entry.repositories, ...matches.flatMap(item => item.repositories), ...scopes])] };
     }) };
   } catch { return { history: [], available: false }; }
 }
@@ -291,7 +305,7 @@ export async function loadPlanning(inputRoot: string) {
     const information = await stat(filename);
     const owner = documentOwner(work, relative, caseSensitivePaths, normalizationInsensitivePaths);
     const identity = locationIdentity(relative);
-    const scope = identity.startsWith('knowledge/') ? [...repositoryIds].filter(id => locationIdentity(id) === identity.split('/')[1]) : [];
+    const scope = knowledgeScope(relative, [...repositoryIds], caseSensitivePaths, normalizationInsensitivePaths);
     let title = path.basename(filename);
     if (format(filename) === 'markdown' && information.size <= readableLimit) {
       try { title = (await readDocument(root, relative)).title; } catch { /* A malformed supporting file remains downloadable. */ }
@@ -311,7 +325,7 @@ export async function loadPlanning(inputRoot: string) {
     if (selected) item.currentPlan = selected.path;
     item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
   }
-  const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths);
+  const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths, [...repositoryIds]);
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
   return { root, loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

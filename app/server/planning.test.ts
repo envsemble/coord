@@ -406,6 +406,32 @@ test('work activity follows stable registry identity through archive and folder 
   } finally { await setup.cleanup(); }
 });
 const actualRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../planning');
+
+test('deleted and transferred knowledge retains its directional historical repository scope', async () => {
+  const setup = await fixture();
+  try {
+    const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
+    git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
+    const registry = { schema_version: 1, repositories: [{ id: 'first', name: 'First' }, { id: 'second', name: 'Second' }], work_items: [] };
+    const commit = async (title: string) => { await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(registry)); git('add', '.'); git('commit', '--no-verify', '-m', title); };
+    await mkdir(path.join(setup.root, 'knowledge/first'), { recursive: true });
+    await writeFile(path.join(setup.root, 'knowledge/first/note.md'), '# Scoped knowledge\n');
+    await commit('Record first repository knowledge');
+    await mkdir(path.join(setup.root, 'knowledge/second'));
+    await rename(path.join(setup.root, 'knowledge/first/note.md'), path.join(setup.root, 'knowledge/second/note.md'));
+    registry.repositories = registry.repositories.filter(repository => repository.id !== 'first');
+    await commit('Transfer knowledge and remove first registration');
+    git('rm', 'knowledge/second/note.md');
+    await commit('Remove superseded knowledge');
+    const snapshot = await loadPlanning(setup.root);
+    assert.ok(!snapshot.documents.some(document => document.path.endsWith('/note.md')));
+    assert.deepEqual(snapshot.history.find(entry => entry.title === 'Record first repository knowledge')?.repositories, ['first']);
+    assert.deepEqual(new Set(snapshot.history.find(entry => entry.title === 'Transfer knowledge and remove first registration')?.repositories), new Set(['first', 'second']));
+    assert.deepEqual(snapshot.history.find(entry => entry.title === 'Remove superseded knowledge')?.repositories, ['second']);
+    assert.deepEqual(snapshot.history.filter(entry => entry.repositories.includes('second')).map(entry => entry.title), ['Remove superseded knowledge', 'Transfer knowledge and remove first registration']);
+    assert.ok(snapshot.history.every(entry => entry.workIds.length === 0));
+  } finally { await setup.cleanup(); }
+});
 test('reusing a legacy work location does not associate later edits with its previous owner', async () => {
   const setup = await fixture();
   try {
