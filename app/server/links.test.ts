@@ -9,7 +9,7 @@ const work = { path: 'active/0001-example', id: 'work-0001' } as Work;
 test('parent traversal cannot clamp escaped references onto retained root documents', () => {
   const retained = { path: 'README.md' } as Document;
   const source = 'active/0001-example/plan.md';
-  for (const href of ['../../../README.md', '../../../../README.md', '/../../../README.md', '%2e%2e/%2e%2e/%2e%2e/README.md', '..\\..\\..\\README.md', 'http://planning.local/../README.md', 'http:////planning.local/../README.md']) {
+  for (const href of ['../../../README.md', '\u0000../../../README.md', '\u001f../../../README.md', '../../../../README.md', '/../../../README.md', '%2e%2e/%2e%2e/%2e%2e/README.md', '..\\..\\..\\README.md', 'http://planning.local/../README.md', 'http:////planning.local/../README.md']) {
     assert.deepEqual(resolveLink(href, source, [retained]), {}, href);
   }
   for (const href of ['../../README.md', '%2e%2e/%2e%2e/README.md', '/README.md', 'docs/../../../README.md']) {

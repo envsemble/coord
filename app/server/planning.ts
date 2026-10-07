@@ -141,8 +141,9 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
         try {
           const { stdout: source } = await execute('git', ['-C', root, 'show', commit + ':planning.json'], { maxBuffer: 1024 * 1024 });
           const registry = JSON.parse(source.replace(/^\uFEFF/, ''));
-          if (registry?.schema_version !== 1 || !Array.isArray(registry.work_items)) return empty;
-          const repositories: string[] = Array.isArray(registry.repositories) ? registry.repositories.flatMap((item: { id?: unknown } | null) => item && typeof item.id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.id) ? [item.id] : []) : [];
+          if (registry?.schema_version !== 1) return empty;
+          empty.repositories = Array.isArray(registry.repositories) ? registry.repositories.flatMap((item: { id?: unknown } | null) => item && typeof item.id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.id) ? [item.id] : []) : [];
+          if (!Array.isArray(registry.work_items)) return empty;
           const locations = new Set<string>();
           const identities = new Set<string>();
           const selectedPlans = new Set<string>();
@@ -157,7 +158,7 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
             locations.add(locationIdentity(location)); identities.add(item.id);
             registrations.push({ id: item.id, path: location, repositories: item.repositories, currentPlan });
           }
-          return { work: registrations, repositories };
+          return { work: registrations, repositories: empty.repositories };
         } catch { return empty; /* Older unregistered or invalid history has no established work identity. */ }
       }
       // Read change direction explicitly; rename detection must not alter historical ownership.

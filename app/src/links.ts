@@ -7,7 +7,7 @@ export function samePath(left: string, right: string, caseSensitive = true, norm
 }
 function containedReference(href: string, source: string) {
   // Check before URL resolution can clamp excessive parent traversal to the root.
-  const rawPath = href.trim().replace(/[\t\r\n]/g, '').replaceAll('\\', '/').split(/[?#]/, 1)[0].replace(/^http:/i, '').replace(/^\/{2,}[^/]*/, '');
+  const rawPath = href.replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '').replace(/[\t\r\n]/g, '').replaceAll('\\', '/').split(/[?#]/, 1)[0].replace(/^http:/i, '').replace(/^\/{2,}[^/]*/, '');
   let depth = rawPath.startsWith('/') ? 0 : source.split('/').length - 1;
   for (const segment of decodeURIComponent(rawPath).split('/')) {
     if (segment === '..') { if (depth === 0) return false; depth--; }

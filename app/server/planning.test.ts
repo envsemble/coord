@@ -412,20 +412,26 @@ test('deleted and transferred knowledge retains its directional historical repos
   try {
     const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
     git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
-    const registry = { schema_version: 1, repositories: [{ id: 'first', name: 'First' }, { id: 'second', name: 'Second' }], work_items: [] };
+    const registry = { schema_version: 1, repositories: [{ id: 'first', name: 'First' }, { id: 'second', name: 'Second' }], work_items: [] as unknown[] };
     const commit = async (title: string) => { await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(registry)); git('add', '.'); git('commit', '--no-verify', '-m', title); };
     await mkdir(path.join(setup.root, 'knowledge/first'), { recursive: true });
     await writeFile(path.join(setup.root, 'knowledge/first/note.md'), '# Scoped knowledge\n');
+    registry.work_items = [{ id: 'legacy-work', path: 'legacy.md', repositories: ['first'] }];
     await commit('Record first repository knowledge');
+    registry.work_items = [{ id: 'work-0001', path: '../outside', repositories: ['first'] }];
+    await writeFile(path.join(setup.root, 'knowledge/first/note.md'), '# Scoped knowledge\nRetained update.\n');
+    await commit('Retain knowledge with invalid legacy work location');
     await mkdir(path.join(setup.root, 'knowledge/second'));
     await rename(path.join(setup.root, 'knowledge/first/note.md'), path.join(setup.root, 'knowledge/second/note.md'));
     registry.repositories = registry.repositories.filter(repository => repository.id !== 'first');
+    registry.work_items = [];
     await commit('Transfer knowledge and remove first registration');
     git('rm', 'knowledge/second/note.md');
     await commit('Remove superseded knowledge');
     const snapshot = await loadPlanning(setup.root);
     assert.ok(!snapshot.documents.some(document => document.path.endsWith('/note.md')));
     assert.deepEqual(snapshot.history.find(entry => entry.title === 'Record first repository knowledge')?.repositories, ['first']);
+    assert.deepEqual(snapshot.history.find(entry => entry.title === 'Retain knowledge with invalid legacy work location')?.repositories, ['first']);
     assert.deepEqual(new Set(snapshot.history.find(entry => entry.title === 'Transfer knowledge and remove first registration')?.repositories), new Set(['first', 'second']));
     assert.deepEqual(snapshot.history.find(entry => entry.title === 'Remove superseded knowledge')?.repositories, ['second']);
     assert.deepEqual(snapshot.history.filter(entry => entry.repositories.includes('second')).map(entry => entry.title), ['Remove superseded knowledge', 'Transfer knowledge and remove first registration']);
