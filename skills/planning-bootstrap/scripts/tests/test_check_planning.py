@@ -49,6 +49,25 @@ class PlanningFixture(unittest.TestCase):
         self.assertEqual(validate(self.root), ([], []))
         self.assertEqual(manifest(), before)
 
+    def test_ledger_status_validation_keeps_history_read_only(self):
+        ledger = self.work / 'ledger.md'
+        ledger.write_text('# Old ledger\nOld current work.', encoding='utf-8')
+        self.assertEqual(validate(self.root), ([], []))
+        metadata = {'schema_version': 1, 'kind': 'ledger', 'work_id': 'work-0001', 'updated': '2026-10-07', 'current': None, 'next': ['Verify boundaries'], 'blocked': 'Awaiting a required decision'}
+        def write(values):
+            source = '---\n' + '\n'.join(key + ': ' + json.dumps(value) for key, value in values.items()) + '\n---\n\n# Original ledger\nEvidence retained.'
+            ledger.write_text(source, encoding='utf-8')
+            return ledger.read_bytes()
+        original = write(metadata)
+        self.assertEqual(validate(self.root), ([], []))
+        self.assertEqual(ledger.read_bytes(), original)
+        for invalid in [dict(metadata, work_id='work-9999'), dict(metadata, next='Guess work'), dict(metadata, current=''), dict(metadata, updated='2026-02-30'), {key: value for key, value in metadata.items() if key != 'blocked'}]:
+            with self.subTest(invalid=invalid):
+                before = write(invalid)
+                errors, _ = validate(self.root)
+                self.assertTrue(any('ledger.md' in error for error in errors))
+                self.assertEqual(ledger.read_bytes(), before)
+
     def test_legacy_location_with_null_pointer(self):
         legacy = self.root / "legacy/old-notes"
         legacy.mkdir(parents=True)

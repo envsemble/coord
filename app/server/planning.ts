@@ -330,6 +330,21 @@ export async function loadPlanning(inputRoot: string) {
     // Return the indexed spelling for browser selection without modifying the registry.
     const selected = item.documents.find(document => document.category === 'plan');
     if (selected) item.currentPlan = selected.path;
+    const ledger = item.documents.find(document => locationIdentity(document.path) === locationIdentity(item.path + '/ledger.md'));
+    item.ledger = ledger?.path ?? null;
+    item.progress = null;
+    if (ledger) {
+      try {
+        const { metadata } = await readDocument(root, ledger.path);
+        if (metadata) {
+          const textOrNull = (value: unknown) => value === null || typeof value === 'string' && value.trim().length > 0;
+          if (metadata.schema_version !== 1 || metadata.kind !== 'ledger' || metadata.work_id !== item.id || !textOrNull(metadata.current) || !textOrNull(metadata.blocked) || !Array.isArray(metadata.next) || metadata.next.some(step => typeof step !== 'string' || !step.trim()) || metadata.updated !== null && !date(metadata.updated)) {
+            throw new PlanningError('Ledger status metadata is invalid; current and upcoming work remain unknown.');
+          }
+          item.progress = { current: metadata.current as string | null, next: metadata.next as string[], blocked: metadata.blocked as string | null, updated: date(metadata.updated) };
+        }
+      } catch (error) { issues.push({ level: 'warning', workId: item.id, message: error instanceof Error ? error.message : 'Ledger status could not be read.' }); }
+    }
     item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
   }
   const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths, [...repositoryIds]);

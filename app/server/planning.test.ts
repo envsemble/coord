@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { loadPlanning, readDocument, resolveDocument } from './planning.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
+import { defaultDocument, relativeDocumentPath } from '../src/work.ts';
 
 async function fixture() {
   const temporary = await mkdtemp(path.join(tmpdir(), 'planning-reader-'));
@@ -24,6 +25,41 @@ async function fixture() {
 function header(id: string, design: string, implementation: string, completed: string | null = null) {
   return ['---', 'schema_version: 1', 'kind: plan', 'id: ' + id, 'title: Example work', 'repositories: [example]', 'created: null', 'updated: "2026-10-06"', 'design_status: ' + design, 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: ' + (completed ? '"' + completed + '"' : 'null'), 'supersedes: []', 'superseded_by: null', '---', '# Original plan', '', 'Preserve this body.', ''].join('\n');
 }
+
+test('root ledger reports current and agreed next work; defaults follow implementation while historical status stays unknown', async () => {
+  const setup = await fixture();
+  try {
+    const folder = 'active/0001-example';
+    await mkdir(path.join(setup.root, folder, 'supporting'), { recursive: true });
+    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: folder, repositories: ['example'], current_plan: folder + '/plan.md' }] }));
+    await writeFile(path.join(setup.root, folder, 'supporting/ledger.md'), '# Historical phase evidence');
+    const ledgerFile = path.join(setup.root, folder, 'ledger.md');
+    const metadata = { schema_version: 1, kind: 'ledger', work_id: 'work-0001', updated: '2026-10-07', current: 'Verifying tenant boundaries', next: ['Review and hand off'], blocked: null };
+    const source = (values: object) => '---\n' + Object.entries(values).map(([key, value]) => key + ': ' + JSON.stringify(value)).join('\n') + '\n---\n\n# Original ledger\nEvidence stays readable.';
+    await writeFile(ledgerFile, source(metadata));
+    for (const implementation of ['not_started', 'in_progress', 'partial', 'complete']) {
+      await writeFile(path.join(setup.root, folder, 'plan.md'), header('work-0001', 'accepted', implementation));
+      const work = (await loadPlanning(setup.root)).work[0];
+      assert.equal(relativeDocumentPath(work.documents.find(file => file.name === 'ledger.md' && file.path.includes('/supporting/'))!), 'supporting/ledger.md');
+      assert.equal(work.ledger, folder + '/ledger.md');
+      assert.deepEqual(work.progress, { current: metadata.current, next: metadata.next, blocked: null, updated: metadata.updated });
+      assert.equal(defaultDocument(work)?.path, folder + (implementation === 'not_started' ? '/plan.md' : '/ledger.md'));
+    }
+    for (const invalid of [{ ...metadata, work_id: 'work-9999' }, { ...metadata, next: 'Guess a phase' }, { ...metadata, updated: '2026-02-30' }, { ...metadata, current: '' }]) {
+      await writeFile(ledgerFile, source(invalid));
+      const result = await loadPlanning(setup.root);
+      assert.equal(result.work[0].progress, null);
+      assert.ok(result.issues.some(issue => issue.message.includes('Ledger status')));
+      assert.ok((await readDocument(setup.root, folder + '/ledger.md')).body.includes('Evidence stays readable.'));
+    }
+    await writeFile(ledgerFile, '# Historical ledger\nAn old in-progress statement.');
+    assert.equal((await loadPlanning(setup.root)).work[0].progress, null);
+    await rename(ledgerFile, path.join(setup.root, folder, 'supporting/older-ledger.md'));
+    const withoutMain = (await loadPlanning(setup.root)).work[0];
+    assert.equal(withoutMain.ledger, null);
+    assert.equal(defaultDocument(withoutMain)?.path, folder + '/plan.md', 'a nested historical ledger must not become the main record');
+  } finally { await setup.cleanup(); }
+});
 
 test('attachment metadata retains a streamed content hash beyond the text reader size limit', async () => {
   const setup = await fixture();
@@ -277,6 +313,8 @@ test('case-insensitive filesystem paths preserve selected plans, ownership, and 
     const plan = path.join(setup.root, 'active/0001-example/Plan.md');
     const original = header('work-0001', 'accepted', 'not_started');
     await writeFile(plan, original);
+    await mkdir(path.join(setup.root, 'active/0001-example/supporting'));
+    await writeFile(path.join(setup.root, 'active/0001-example/supporting/note.md'), '# Retained phase contract');
     await writeFile(path.join(setup.root, 'legacy.md'), header('work-0002', 'accepted', 'not_started'));
     await mkdir(path.join(setup.root, 'Knowledge/Example'), { recursive: true });
     await writeFile(path.join(setup.root, 'Knowledge/Example/note.md'), '# Scoped knowledge\n');
@@ -295,6 +333,7 @@ test('case-insensitive filesystem paths preserve selected plans, ownership, and 
     assert.equal(result.work[0].currentPlan, 'active/0001-example/Plan.md');
     assert.equal(result.work[0].documents[0].key, 'work-0001:Plan.md');
     assert.equal(result.work[0].documents[0].category, 'plan');
+    assert.equal(relativeDocumentPath(result.work[0].documents.find(file => file.path.endsWith('/supporting/note.md'))!), 'supporting/note.md');
     assert.deepEqual(result.work[0].documents[0].repositories, ['example']);
     assert.equal(result.work[1].documents[0].key, 'work-0002:legacy.md');
     assert.equal(result.work[1].currentPlan, 'legacy.md');

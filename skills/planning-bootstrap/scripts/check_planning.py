@@ -270,6 +270,8 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
         if not plan_path.is_file():
             errors.append(label + ".current_plan must identify a file")
             continue
+        if location is not None and location.is_dir() and plan_path != location / 'plan.md':
+            warnings.append(str(pointer) + ': retained legacy main plan name; normalize to root plan.md during organization')
         try:
             metadata = parse_frontmatter(plan_path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError) as error:
@@ -320,6 +322,34 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
         replacement = metadata.get("superseded_by")
         if replacement is not None and (not isinstance(replacement, str) or replacement not in work_ids or replacement == work_id):
             errors.append(prefix + "superseded_by must identify another registered work item or null")
+    for entry in registry['work_items']:
+        if not isinstance(entry, dict) or not isinstance(entry.get('path'), str):
+            continue
+        location = contained(entry['path'], 'ledger work location')
+        if location is None or not location.is_dir():
+            continue
+        ledger = location / 'ledger.md'
+        if not ledger.is_file():
+            continue
+        if contained(ledger.relative_to(root).as_posix(), 'ledger') is None:
+            continue
+        try:
+            metadata = parse_frontmatter(ledger.read_text(encoding='utf-8-sig'))
+            if metadata is None:
+                continue  # Retained historical prose does not establish current activity.
+            text_or_null = lambda value: value is None or isinstance(value, str) and bool(value.strip())
+            required = {'schema_version', 'kind', 'work_id', 'updated', 'current', 'next', 'blocked'}
+            valid = required <= metadata.keys() and type(metadata.get('schema_version')) is int and metadata['schema_version'] == 1 and metadata.get('kind') == 'ledger' and metadata.get('work_id') == entry.get('id')
+            valid = valid and text_or_null(metadata.get('current')) and text_or_null(metadata.get('blocked')) and isinstance(metadata.get('next'), list) and all(isinstance(step, str) and bool(step.strip()) for step in metadata['next'])
+            updated = metadata.get('updated')
+            if updated is not None:
+                valid = valid and isinstance(updated, str) and bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}', updated))
+                if valid:
+                    date.fromisoformat(updated)
+            if not valid:
+                raise ValueError('invalid ledger status metadata')
+        except (OSError, ValueError) as error:
+            errors.append(str(ledger.relative_to(root)) + ': ' + str(error))
     return errors, warnings
 
 

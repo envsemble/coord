@@ -33,7 +33,7 @@ Before implementation, record the work-item ID, selected plan path, full plannin
 
 For each involved repository, identify required validation, PR conventions, and its actual Codex review mechanism. Verify GitHub access early when PR delivery is in scope. Reuse known context and gather evidence in focused batches; compare changed state before repeating reads or checks.
 
-Use the existing work-item ledger or create `ledger.md` inside that work item, outside product source. Share its location. Set evidence-backed implementation metadata to `in_progress` when work starts and maintain it under `PLANS.md`; acceptance is a separate fact. Update the ledger at meaningful milestones, keeping the minimum needed to resume and verify:
+Use the work folder's root `ledger.md` or create it outside product source. Preserve/adopt an existing differently named main ledger rather than creating a competing progress record. Follow `PLANS.md` for its small status header: current focus, agreed next steps, and actual blocker. Update before a substantial execution stretch and at meaningful changes or handoff; keep its body freeform. Select the explicit plan as before and normalize its main filename to `plan.md` through reversible organization when needed. Share its location. Set evidence-backed implementation metadata to `in_progress` when work starts and maintain it under `PLANS.md`; acceptance is a separate fact. Update the ledger at meaningful milestones, keeping the minimum needed to resume and verify:
 
 - Selected plan path/revision and amendments, affected repositories, and relevant product revisions.
 - Actual progress against requested outcomes, dependencies, consequential assumptions or departures, grounded concerns, and real blockers.

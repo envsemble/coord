@@ -8,7 +8,9 @@ export interface Work {
   title: string; location: string; design: string; implementation: string;
   created: string | null; updated: string | null; accepted: string | null;
   completed: string | null; durationDays: number | null; documents: Document[];
+  ledger?: string | null; progress?: WorkProgress | null;
 }
+export interface WorkProgress { current: string | null; next: string[]; blocked: string | null; updated: string | null }
 export interface HistoryEntry { id: string; date: string; title: string; files: string[]; workIds: string[]; repositories: string[] }
 export interface Issue { level: 'warning' | 'error'; message: string; workId?: string }
 export interface DocumentUsage {

@@ -48,3 +48,9 @@ Events retain document identity, source, timestamp, known task/session IDs, avai
     npm run build
 
 Portable tests cover legacy records, explicit plan selection, path containment, statistics, and Python/Node interoperability while the dashboard is closed. A local-only test also reads the sibling workspace's actual planning registry when present; CI does not need private planning records. The repository's CI validates the dashboard and planning helper tests.
+
+## Viewer conventions
+
+The interface uses [GitHub Primer](https://primer.style/product/components/underline-nav/) dark default tokens and Octicons, system typography, repository navigation, compact rows, folder disclosure, and GitHub-like Markdown presentation. It is dark-only. Root `plan.md` and `ledger.md` have primary navigation and also remain in the searchable full file browser. An explicit file URL always wins; otherwise work opens the plan before implementation and the root ledger for in-progress, partial, or complete implementation, falling back to the explicit selected plan when no ledger exists.
+
+The root ledger's optional version-1 status header reports current, next, blocked, and updated values under the shared [contract](../planning-workflow/planning-bootstrap/assets/planning/PLANS.md#ledger-status-version-1). The viewer never infers current activity from historical narrative. Skills update that header at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.

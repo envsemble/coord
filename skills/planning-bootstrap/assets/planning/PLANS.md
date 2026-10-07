@@ -1,6 +1,6 @@
 # Work items and metadata
 
-`plan.md` is the main review entry point for intended work. Its body is flexible: communicate the outcome, scope, important edge cases, boundaries, consequential choices, dependencies, and completion checks at the detail the work needs. It may include implementation steps and links to supporting documents. No mandatory sections, phases, specification file, or prose style apply.
+Every normalized work folder has one main `plan.md` and, once implementation begins, one main `ledger.md` at its root. The folder name identifies the feature; do not give these files feature-specific names. The registry still selects authority explicitly. Retained legacy names remain readable during adoption; organize them reversibly before renaming, repairing pointers and links. `plan.md` is the main review entry point for intended work. Its body is flexible: communicate the outcome, scope, important edge cases, boundaries, consequential choices, dependencies, and completion checks at the detail the work needs. It may include implementation steps and links to supporting documents. No mandatory sections, phases, specification file, or prose style apply.
 
 ## Registry version 1
 
@@ -71,8 +71,26 @@ Replacement relationships identify work items, not paths; update both sides when
 
 Use one repository-wide registration sequence across active, archive, and indexed legacy work. Assign the next unused number, padded to at least four digits, and a descriptive folder slug: `active/0001-example-change/`. Numbers show registration order, not age, authority, or completion order. Never reuse an assigned identity after closure.
 
-Create supporting files only when useful: `CONTEXT.md` for the work's domain glossary, `docs/adr/` for qualifying decisions, `ledger.md` for implementation, and `evidence/` for meaningful verification. Keep these original documents together through archive moves.
+Keep the root lean: `plan.md`, `ledger.md` when needed, and a useful glossary. Update existing records instead of adding parallel specifications, progress summaries, handoffs, PR drafts, or per-phase command diaries. Use the ledger for progress and closure when it exists; a separate outcome/README is optional only when it improves navigation. Group retained historical notes under `supporting/`, verification artifacts under `evidence/`, and qualified ADRs under `docs/adr/`; do not create empty folders or discard originals. Existing detailed phase contracts may remain in grouped phase folders. Create supporting files only when useful: `CONTEXT.md` for the work's domain glossary, `docs/adr/` for qualifying decisions, `ledger.md` for implementation, and `evidence/` for meaningful verification. Keep these original documents together through archive moves.
 
 Use the user's selected plan or the registry's explicit `current_plan`. If they conflict or the pointer is null, resolve the actual selection before plan implementation. Record its path and planning Git revision in the ledger before execution. Current code and canonical documentation establish present reality; an old or superseded plan is historical context, not current authority.
 
 `active/` holds work expected to continue. `archive/` holds completed or deliberately closed work, including abandonment and supersession. Close automatically after verified agreed completion and outcome recording; PR-delivered work defaults to required PRs merged unless agreed criteria differ. Readiness, merge, release, and pending external actions remain explicit ledger milestones. Moving a folder updates its registry path, current-plan pointer, and references, while preserving its ID, body, and supporting files. Scope left unfinished must remain active or be accounted for as transferred, superseded, or deliberately dropped.
+
+## Ledger status version 1
+
+The root `ledger.md` records actual progress and implementation provenance; its body stays flexible. A small YAML header makes the agent's reported current focus and agreed upcoming work visible without parsing narrative prose:
+
+```yaml
+---
+schema_version: 1
+kind: ledger
+work_id: work-0001
+updated: "2026-10-07"
+current: "Implementing the agreed query behavior."
+next: ["Verify tenant boundaries", "Complete review and handoff"]
+blocked: null
+---
+```
+
+`work_id` matches the registered work; `updated` is an ISO date or null when unknown. `current` and `blocked` are nonempty strings or null, and `next` is an array of nonempty strings, empty when no next step is established. Keep these concise and specific to the accepted scope. Update at meaningful transitions, before a substantial execution stretch, when the next sequence changes, when genuinely blocked, and at handoff. Do not record every command, predict unagreed work, or promise continuous live telemetry. Once implementation is complete, report pending review/merge accurately; clear finished upcoming steps. Historical ledgers without this header remain readable and their present focus remains unknown; do not copy old activity into a new current claim.
