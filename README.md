@@ -8,7 +8,7 @@ Open [index.html](index.html) to explore the included R5Reloaded example. It use
 
 Versioned model documents separate source snapshots, authored revisions, evidence and selected planning context from visualization. See [the core contracts](docs/architecture.md) for OntoUML, database and code profiles and `includeArtifacts: false` embedding preparation. Automatic source adapters are being implemented against explicit coverage matrices.
 
-Use Node 20.19+ or 22.12+ for the Vite development server.
+Use Node 22.12 or newer (Node 24 is the development runtime).
 
 ```sh
 npm ci
@@ -59,7 +59,7 @@ See [the agent workflow](agents/MODELING.md) for the contract, supported excerpt
 
 ## Node and React APIs
 
-Install the package locally or from a tarball produced by `npm pack`. Node 20 or later is required.
+Install the package locally or from a tarball produced by `npm pack`. Node 22.12 or later is required.
 
 ```js
 const {

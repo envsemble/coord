@@ -390,6 +390,7 @@ export function createSnapshot(input: {
   id?: string;
 }): SourceSnapshot;
 export function documentViewerModel(document: AtlasDocument): ViewerModel;
+export function importDocument(input: string | Uint8Array): AtlasDocument;
 export function prepareViewer(input: ViewerBuildInput): Promise<PreparedViewer>;
 export function buildViewer(input: ViewerBuildInput): Promise<BuildResult>;
 export function writeViewer(result: BuildResult, outputPath: string): void;

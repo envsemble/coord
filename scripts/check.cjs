@@ -44,7 +44,16 @@ async function check() {
     "Runtime network API",
   );
   assert(!/url\(\s*['"]?https?:/i.test(html), "Remote CSS dependency");
-  const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
+  const data = html.match(
+    /<script id="atlas-document" type="application\/json">([\s\S]*?)<\/script>/,
+  );
+  assert(data, "Missing editable document payload");
+  assert.equal(JSON.parse(data[1]).formatVersion, 1);
+  const scripts = [
+    ...html.matchAll(
+      /<script(?![^>]*type="application\/json")[^>]*>([\s\S]*?)<\/script>/gi,
+    ),
+  ];
   assert.equal(scripts.length, 1, "Expected one inline application script");
   new vm.Script(scripts[0][1], { filename: "index.html" });
   const dataLine = scripts[0][1].match(/^\s*(const MODEL=.*)\r?$/m)?.[1];
