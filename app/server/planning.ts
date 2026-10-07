@@ -38,8 +38,9 @@ function normalizedLocation(value: unknown): string {
 }
 function locationIdentity(relative: string) { return process.platform === 'win32' ? relative.toLowerCase() : relative; }
 function documentOwner<T extends HistoricalWork>(work: T[], relative: string): T | undefined {
-  const matches = work.filter(item => relative === item.path || relative.startsWith(item.path + '/'));
-  return matches.find(item => item.currentPlan === relative) ?? matches.sort((a, b) => b.path.length - a.path.length)[0];
+  const identity = locationIdentity(relative);
+  const matches = work.filter(item => identity === locationIdentity(item.path) || identity.startsWith(locationIdentity(item.path) + '/'));
+  return matches.find(item => item.currentPlan !== null && locationIdentity(item.currentPlan) === identity) ?? matches.sort((a, b) => b.path.length - a.path.length)[0];
 }
 export async function resolveDocument(root: string, relative: string) {
   if (!relative || relative.includes('\0') || path.isAbsolute(relative) || /^[a-z]:/i.test(relative) || hidden(relative)) {
@@ -221,13 +222,13 @@ export async function loadPlanning(inputRoot: string) {
     const entry: Work = {
       id: item.id, path: relative, repositories: item.repositories, currentPlan,
       title: path.basename(relative).replace(/^\d+-/, '').replaceAll('-', ' '),
-      location: relative.startsWith('active/') ? 'active' : relative.startsWith('archive/') ? 'archived' : 'retained',
+      location: location.startsWith('active/') ? 'active' : location.startsWith('archive/') ? 'archived' : 'retained',
       design: 'unknown', implementation: 'unknown', created: null, updated: null, accepted: null,
       completed: null, durationDays: null, documents: [],
     };
     if (currentPlan === null) {
       issues.push({ level: 'warning', workId: item.id, message: 'No main plan is selected; retained documents are available.' });
-    } else if (currentPlan !== relative && !currentPlan.startsWith(relative + '/')) {
+    } else if (locationIdentity(currentPlan) !== location && !locationIdentity(currentPlan).startsWith(location + '/')) {
       issues.push({ level: 'error', workId: item.id, message: 'The selected plan does not belong to this work item.' });
     } else {
       try {
@@ -280,14 +281,19 @@ export async function loadPlanning(inputRoot: string) {
     }
     const document: Document = {
       path: relative, name: path.basename(filename), title, size: information.size, modified: information.mtime.toISOString(),
-      key: owner ? owner.id + ':' + (relative === owner.path ? path.basename(relative) : relative.slice(owner.path.length + 1)) : 'root:' + relative,
-      workId: owner?.id ?? null, repositories: owner?.repositories ?? (relative.startsWith('knowledge/') && repositoryIds.has(relative.split('/')[1]) ? [relative.split('/')[1]] : []), category: owner?.currentPlan === relative ? 'plan' : category(relative), format: format(filename),
+      key: owner ? owner.id + ':' + (locationIdentity(relative) === locationIdentity(owner.path) ? path.basename(relative) : relative.slice(owner.path.length + 1)) : 'root:' + relative,
+      workId: owner?.id ?? null, repositories: owner?.repositories ?? (relative.startsWith('knowledge/') && repositoryIds.has(relative.split('/')[1]) ? [relative.split('/')[1]] : []), category: owner?.currentPlan && locationIdentity(owner.currentPlan) === locationIdentity(relative) ? 'plan' : category(relative), format: format(filename),
     };
     documents.push(document);
     owner?.documents.push(document);
   }
   documents.sort((a, b) => a.path.localeCompare(b.path));
-  for (const item of work) item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
+  for (const item of work) {
+    // Return the indexed spelling for browser selection without modifying the registry.
+    const selected = item.documents.find(document => document.category === 'plan');
+    if (selected) item.currentPlan = selected.path;
+    item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
+  }
   const history = await gitHistory(root, work);
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
   return { root, loadedAt: new Date().toISOString(), repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };

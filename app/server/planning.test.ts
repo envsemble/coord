@@ -158,6 +158,34 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
     assert.equal(await readFile(filename, 'utf8'), original);
   } finally { await setup.cleanup(); }
 });
+test('Windows path casing preserves selected plans, ownership, and Git attribution', { skip: process.platform !== 'win32' }, async () => {
+  const setup = await fixture();
+  try {
+    await mkdir(path.join(setup.root, 'active/0001-example'), { recursive: true });
+    const plan = path.join(setup.root, 'active/0001-example/Plan.md');
+    const original = header('work-0001', 'accepted', 'not_started');
+    await writeFile(plan, original);
+    await writeFile(path.join(setup.root, 'legacy.md'), header('work-0002', 'accepted', 'not_started'));
+    const registry = JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: 'ACTIVE/0001-EXAMPLE', repositories: ['example'], current_plan: 'Active/0001-Example/pLAN.md' }, { id: 'work-0002', path: 'LEGACY.MD', repositories: ['example'], current_plan: 'Legacy.md' }] });
+    await writeFile(path.join(setup.root, 'planning.json'), registry);
+    const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
+    git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
+    git('add', '.'); git('commit', '--no-verify', '-m', 'Register differently cased paths');
+    const result = await loadPlanning(setup.root);
+    assert.equal(result.work[0].location, 'active');
+    assert.equal(result.work[0].currentPlan, 'active/0001-example/Plan.md');
+    assert.equal(result.work[0].documents[0].key, 'work-0001:Plan.md');
+    assert.equal(result.work[0].documents[0].category, 'plan');
+    assert.deepEqual(result.work[0].documents[0].repositories, ['example']);
+    assert.equal(result.work[1].documents[0].key, 'work-0002:legacy.md');
+    assert.equal(result.work[1].currentPlan, 'legacy.md');
+    assert.deepEqual(result.history[0].workIds, ['work-0001', 'work-0002']);
+    assert.equal(result.issues.filter(issue => issue.level === 'error').length, 0);
+    assert.equal(await readFile(plan, 'utf8'), original);
+    assert.equal(await readFile(path.join(setup.root, 'planning.json'), 'utf8'), registry);
+  } finally { await setup.cleanup(); }
+});
+
 test('selected plans take precedence over nested locations in either registry order', async () => {
   const setup = await fixture();
   try {

@@ -33,13 +33,16 @@ def data_directory(root: Path, base: Path | None = None) -> Path:
     return cache_base / identity
 
 def document_identity(relative: str, registry: dict) -> str:
+    identity = relative.lower() if os.name == "nt" else relative
     matches = [work for work in registry.get("work_items", [])
-               if relative == work["path"] or relative.startswith(work["path"] + "/")]
-    selected = [work for work in matches if work.get("current_plan") == relative]
+               if identity == (work["path"].lower() if os.name == "nt" else work["path"])
+               or identity.startswith((work["path"].lower() if os.name == "nt" else work["path"]) + "/")]
+    selected = [work for work in matches if work.get("current_plan") is not None
+                and (work["current_plan"].lower() if os.name == "nt" else work["current_plan"]) == identity]
     work = selected[0] if selected else max(matches, key=lambda item: len(item["path"]), default=None)
     if work:
         location = work["path"]
-        return work["id"] + ":" + (Path(relative).name if relative == location else relative[len(location) + 1:])
+        return work["id"] + ":" + (Path(relative).name if identity == (location.lower() if os.name == "nt" else location) else relative[len(location) + 1:])
     return "root:" + relative
 
 def normalized_location(value: object) -> str:

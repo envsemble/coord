@@ -65,6 +65,27 @@ class ConsultationTests(unittest.TestCase):
             with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
                 self.assertEqual(db.execute("SELECT DISTINCT document_key FROM events ORDER BY document_key").fetchall(), [("work-0001:nested/parent-plan.md",), ("work-0001:note.md",), ("work-0002:child-plan.md",), ("work-0002:note.md",)])
 
+    @unittest.skipUnless(os.name == "nt", "Windows filesystem casing")
+    def test_windows_registry_casing_preserves_work_document_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "planning"
+            work = root / "active/0001-example"
+            work.mkdir(parents=True)
+            document = work / "Plan.md"
+            document.write_text("Original selected plan\n", encoding="utf-8")
+            original = document.read_bytes()
+            (root / "legacy.md").write_text("Legacy plan\n", encoding="utf-8")
+            registry = {"schema_version": 1, "work_items": [{"id": "work-0001", "path": "ACTIVE/0001-EXAMPLE", "current_plan": "Active/0001-Example/pLAN.md"}, {"id": "work-0002", "path": "LEGACY.MD", "current_plan": "Legacy.md"}]}
+            registry_file = root / "planning.json"
+            registry_file.write_text(json.dumps(registry), encoding="utf-8")
+            registry_bytes = registry_file.read_bytes()
+            destination = Path(directory) / "metrics"
+            self.assertEqual(module.report(root, ["active/0001-example/Plan.md", "ACTIVE/0001-EXAMPLE/plan.md", "LEGACY.MD"], destination=destination), (2, 0))
+            with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
+                self.assertEqual(db.execute("SELECT document_key FROM events ORDER BY document_key").fetchall(), [("work-0001:Plan.md",), ("work-0002:legacy.md",)])
+            self.assertEqual(registry_file.read_bytes(), registry_bytes)
+            self.assertEqual(document.read_bytes(), original)
+
     def test_closed_dashboard_collection_and_unknown_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "planning"
