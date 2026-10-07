@@ -197,6 +197,7 @@ export const UMLDiagram = memo(function UMLDiagram({
       .filter(Boolean);
     return (
       <svg
+        key={`${focus.primary.kind}:${focus.primary.id}`}
         className="diagram-overlay"
         width={diagram.width}
         height={diagram.height}

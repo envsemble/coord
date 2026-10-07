@@ -80,6 +80,10 @@
 .diagram-base {
   will-change: opacity;
 }
+.diagram-base,
+.diagram-background {
+  transition: opacity 100ms ease-out;
+}
 .diagram-background {
   position: absolute;
   inset: 0;
@@ -101,6 +105,15 @@
   position: absolute;
   inset: 0;
   will-change: transform;
+  animation: highlight-enter 80ms ease-out;
+}
+@keyframes highlight-enter {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .diagram-overlay,
 .diagram-overlay *,
@@ -164,4 +177,13 @@ svg.has-focus .diagram-element.highlighted {
 }
 .edge-label {
   pointer-events: all;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram-base,
+  .diagram-background {
+    transition: none;
+  }
+  .diagram-overlay {
+    animation: none;
+  }
 }

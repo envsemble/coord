@@ -118,7 +118,10 @@ function Benchmark() {
           throw new Error("Hover timed out");
       }
       highlight.push(performance.now() - start);
-      while (Number(getComputedStyle(primary()).opacity) < 0.999) await frame();
+      const drawingLayer = () =>
+        primary().closest(".diagram-overlay") || primary();
+      while (Number(getComputedStyle(drawingLayer()).opacity) < 0.999)
+        await frame();
       visible.push(performance.now() - start);
       await frame();
     }

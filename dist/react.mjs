@@ -728,7 +728,8 @@ var UMLDiagram = memo(function UMLDiagram2({
             node.id
           )) })
         ]
-      }
+      },
+      `${focus.primary.kind}:${focus.primary.id}`
     );
   }, [diagram, focus, selected, markerId, interactive]);
   if (!interactive) return geometry;
