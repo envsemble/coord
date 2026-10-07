@@ -57,7 +57,8 @@
     "./viewer.css": "./src/ui/styles.css",
     "./diagram.css": "./src/visualization/styles.css",
     "./schema": "./schemas/ontouml-schema.json",
-    "./evidence-schema": "./schemas/evidence-schema.json"
+    "./evidence-schema": "./schemas/evidence-schema.json",
+    "./document-schema": "./schemas/document-schema.json"
   },
   "files": [
     "lib/",
@@ -66,6 +67,7 @@
     "schemas/",
     "licenses/",
     "agents/",
+    "docs/",
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "dist/"

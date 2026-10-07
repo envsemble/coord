@@ -6,6 +6,8 @@ Open [index.html](index.html) to explore the included R5Reloaded example. It use
 
 ## Development and offline builds
 
+Versioned model documents separate source snapshots, authored revisions, evidence and selected planning context from visualization. See [the core contracts](docs/architecture.md) for OntoUML, database and code profiles and `includeArtifacts: false` embedding preparation. Automatic source adapters are being implemented against explicit coverage matrices.
+
 Use Node 20.19+ or 22.12+ for the Vite development server.
 
 ```sh

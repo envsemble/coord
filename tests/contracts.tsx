@@ -3,12 +3,28 @@ import {
   buildViewer,
   prepareViewer,
   validateProject,
+  createDocument,
+  reviseDocument,
+  validateDocument,
   type ExchangeProject,
 } from "../lib";
 import { OntoUMLViewer, UMLDiagram } from "../src";
 async function smoke() {
   const project = JSON.parse(JSON.stringify(new Project())) as ExchangeProject;
   validateProject(project);
+  const document = createDocument({ project, profile: "ontouml" });
+  validateDocument(reviseDocument(document, { title: "Planning revision" }));
+  await prepareViewer({ document, includeArtifacts: false });
+  createDocument({
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [{ id: "table", name: "Table", attributes: [] }],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
+    },
+  });
   const built = await buildViewer({ project });
   const prepared = await prepareViewer({ project });
   return (
