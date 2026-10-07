@@ -78,7 +78,7 @@ function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot
     } catch { setCollectionError('This document opened, but browser session storage is unavailable for view collection.'); }
   }, [content]);
   useEffect(() => {
-    if (content && anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView());
+    if (content && anchor) requestAnimationFrame(() => (document.getElementById(anchor) ?? document.getElementById(slug(anchor)))?.scrollIntoView());
   }, [content, anchor]);
   function destination(href: string) {
     return resolveLink(href, file.path, snapshot.documents, snapshot.work, snapshot.caseSensitivePaths);
