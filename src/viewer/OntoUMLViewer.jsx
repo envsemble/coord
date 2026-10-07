@@ -137,7 +137,7 @@ export function OntoUMLViewer({
         className="inspector"
         open={!!element || learningOpen}
         label={learningOpen ? "OntoUML learning library" : "Model details"}
-        onClose={learningOpen ? () => setLearningOpen(false) : undefined}
+        onClose={learningOpen ? () => setLearningOpen(false) : clear}
         onPointerEnter={keepHover}
         onPointerLeave={() => hover(null)}
         onFocusCapture={keepHover}

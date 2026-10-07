@@ -3,7 +3,7 @@ var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { en
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
 // src/viewer/OntoUMLViewer.jsx
-import { useCallback as useCallback3, useEffect as useEffect6, useMemo as useMemo5, useRef as useRef7, useState as useState9 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo5, useRef as useRef7, useState as useState9 } from "react";
 
 // src/visualization/DiagramCanvas.jsx
 import {
@@ -1175,6 +1175,28 @@ function ToggleButton({ pressed, className = "", children, ...props }) {
   return /* @__PURE__ */ jsx6("button", { className, "aria-pressed": pressed, ...props, children });
 }
 
+// src/ui/Icons.jsx
+import {
+  BookIcon,
+  CodeIcon,
+  DashIcon,
+  DownloadIcon,
+  FileCodeIcon,
+  FileMediaIcon,
+  GitBranchIcon,
+  LinkExternalIcon,
+  MarkGithubIcon,
+  MoonIcon,
+  PlusIcon,
+  QuestionIcon,
+  RepoIcon,
+  ScreenFullIcon,
+  SearchIcon,
+  SunIcon,
+  TableIcon,
+  XIcon
+} from "@primer/octicons-react";
+
 // src/ui/Panel.jsx
 import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
 function Panel({
@@ -1194,15 +1216,18 @@ function Panel({
       "aria-label": label,
       ...props,
       children: [
-        onClose && /* @__PURE__ */ jsx7(
-          IconButton,
-          {
-            className: "panel-close",
-            label: "Close details",
-            onClick: onClose,
-            children: "\xD7"
-          }
-        ),
+        /* @__PURE__ */ jsxs5("div", { className: "panel-header", children: [
+          /* @__PURE__ */ jsx7("span", { className: "panel-title", children: label }),
+          onClose && /* @__PURE__ */ jsx7(
+            IconButton,
+            {
+              className: "panel-close",
+              label: "Close details",
+              onClick: onClose,
+              children: /* @__PURE__ */ jsx7(XIcon, { size: 16 })
+            }
+          )
+        ] }),
         /* @__PURE__ */ jsx7("div", { className: "panel-content", children })
       ]
     }
@@ -1255,7 +1280,7 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
         label: "Zoom out",
         title: "Zoom out (\u2212)",
         onClick: () => onZoom(1 / 1.25),
-        children: "\u2212"
+        children: /* @__PURE__ */ jsx9(DashIcon, { size: 16 })
       }
     ),
     /* @__PURE__ */ jsxs6(
@@ -1278,15 +1303,18 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
         label: "Zoom in",
         title: "Zoom in (+)",
         onClick: () => onZoom(1.25),
-        children: "+"
+        children: /* @__PURE__ */ jsx9(PlusIcon, { size: 16 })
       }
     ),
-    /* @__PURE__ */ jsx9("button", { id: "fit", title: "Fit diagram (0)", onClick: onFit, children: "Fit" })
+    /* @__PURE__ */ jsxs6("button", { id: "fit", "aria-label": "Fit", title: "Fit diagram (0)", onClick: onFit, children: [
+      /* @__PURE__ */ jsx9(ScreenFullIcon, { size: 16 }),
+      /* @__PURE__ */ jsx9("span", { children: "Fit" })
+    ] })
   ] });
 }
 
 // src/ui/ConceptSearch.jsx
-import { useLayoutEffect as useLayoutEffect5, useRef as useRef4, useState as useState4 } from "react";
+import { useEffect as useEffect4, useLayoutEffect as useLayoutEffect5, useRef as useRef4, useState as useState4 } from "react";
 
 // src/ui/usePopupDismiss.js
 import { useEffect as useEffect3, useLayoutEffect as useLayoutEffect4, useRef as useRef3 } from "react";
@@ -1331,6 +1359,19 @@ function ConceptSearch({ classes, onChoose }) {
     if (open) inputRef.current.focus();
   }, [open]);
   usePopupDismiss(close, searchRef, toggleRef);
+  useEffect4(() => {
+    const shortcut = (e) => {
+      if (e.target.closest("input,textarea,select,[contenteditable='true']"))
+        return;
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setOpen(true);
+        inputRef.current.focus();
+      }
+    };
+    document.addEventListener("keydown", shortcut);
+    return () => document.removeEventListener("keydown", shortcut);
+  }, []);
   function choose(name) {
     onChoose(name);
     setQuery("");
@@ -1347,19 +1388,21 @@ function ConceptSearch({ classes, onChoose }) {
         "aria-label": "Open concept search",
         title: "Find concept",
         onClick: () => setOpen(!open),
-        children: "\u2315"
+        children: /* @__PURE__ */ jsx10(SearchIcon, { size: 16 })
       }
     ),
     /* @__PURE__ */ jsxs7("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
+      /* @__PURE__ */ jsx10(SearchIcon, { size: 16, className: "search-icon" }),
       /* @__PURE__ */ jsx10(
         "input",
         {
           ref: inputRef,
           id: "search",
           type: "search",
-          placeholder: "Find concept\u2026",
+          placeholder: "Find a concept",
           "aria-label": "Find concept",
           autoComplete: "off",
+          "aria-keyshortcuts": "/",
           value: query,
           onChange: (e) => {
             setQuery(e.target.value);
@@ -1381,6 +1424,7 @@ function ConceptSearch({ classes, onChoose }) {
           }
         }
       ),
+      /* @__PURE__ */ jsx10("kbd", { className: "search-shortcut", "aria-hidden": "true", children: "/" }),
       /* @__PURE__ */ jsx10(
         "div",
         {
@@ -1411,7 +1455,7 @@ function ExportMenu({ children }) {
         label: "Export",
         "aria-expanded": open,
         onClick: () => setOpen(!open),
-        children: "\u2193"
+        children: /* @__PURE__ */ jsx11(DownloadIcon, { size: 16 })
       }
     ),
     /* @__PURE__ */ jsx11("div", { id: "export-menu", className: `menu${open ? " open" : ""}`, children })
@@ -1419,10 +1463,10 @@ function ExportMenu({ children }) {
 }
 
 // src/ui/useBlobURL.js
-import { useEffect as useEffect4, useState as useState6 } from "react";
+import { useEffect as useEffect5, useState as useState6 } from "react";
 function useBlobURL(data, type = "text/plain;charset=utf-8") {
   const [url, setURL] = useState6(void 0);
-  useEffect4(() => {
+  useEffect5(() => {
     const next = URL.createObjectURL(new Blob([data], { type }));
     setURL(next);
     return () => URL.revokeObjectURL(next);
@@ -1466,90 +1510,113 @@ function ViewerToolbar({
   onFit
 }) {
   const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
-  return /* @__PURE__ */ jsxs9("header", { children: [
-    /* @__PURE__ */ jsx13("span", { className: "brand", title: model.title, children: "OntoUML" }),
-    /* @__PURE__ */ jsx13(Tabs, { items: views, value: viewKey, onChange: onView }),
-    /* @__PURE__ */ jsx13("span", { className: "spacer" }),
-    /* @__PURE__ */ jsx13(
-      ConceptSearch,
-      {
-        classes: model.classes.filter(
-          (c) => views.some((v) => v.nodeIds.includes(c.id))
-        ),
-        onChoose
-      }
-    ),
-    /* @__PURE__ */ jsx13(
-      ToggleButton,
-      {
-        id: "fields",
-        className: "fields",
-        pressed: fields,
-        title: "Show attributes in the diagram",
-        onClick: onFields,
-        children: "Fields"
-      }
-    ),
-    /* @__PURE__ */ jsx13(CameraControls, { ...{ zoom, onZoom, onReset, onFit } }),
-    /* @__PURE__ */ jsx13("span", { className: "divider" }),
-    /* @__PURE__ */ jsx13(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? "\u2600" : "\u263E" }),
-    /* @__PURE__ */ jsxs9(ExportMenu, { children: [
-      /* @__PURE__ */ jsx13(
-        "a",
-        {
-          id: "svg-download",
-          href: diagramURL,
-          download: `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
-          children: "Diagram \xB7 SVG"
-        }
-      ),
-      /* @__PURE__ */ jsx13(
-        DownloadLink,
-        {
-          id: "puml-download",
-          className: "",
-          data: exports.readText(`${exports.slug}-${viewKey}.puml`),
-          filename: `${exports.slug}-${viewKey}.puml`,
-          children: "Diagram \xB7 PlantUML"
-        }
-      ),
-      /* @__PURE__ */ jsx13(
-        DownloadLink,
-        {
-          id: "model-download",
-          className: "",
-          data: exports.readText(`${exports.slug}-ontouml.json`),
-          filename: `${exports.slug}-ontouml.json`,
-          type: "application/json",
-          children: "Model \xB7 OntoUML JSON"
-        }
-      ),
-      /* @__PURE__ */ jsx13(
-        DownloadLink,
-        {
-          id: "bundle-download",
-          className: "",
-          data: exports.bundle,
-          filename: `${exports.slug}-models.zip`,
-          type: "application/zip",
-          children: "Models \xB7 ZIP"
-        }
-      )
+  return /* @__PURE__ */ jsxs9("header", { className: "viewer-toolbar", children: [
+    /* @__PURE__ */ jsxs9("div", { className: "toolbar-identity", title: model.title, children: [
+      /* @__PURE__ */ jsx13("span", { className: "brand-mark", children: /* @__PURE__ */ jsx13(RepoIcon, { size: 20 }) }),
+      /* @__PURE__ */ jsx13("span", { className: "brand", children: "OntoUML" })
     ] }),
-    /* @__PURE__ */ jsxs9(
-      "button",
-      {
-        id: "learn-toggle",
-        className: "learn-toggle",
-        onClick: onLearn,
-        "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
-        children: [
-          "Learn",
-          model.validation.counts.error > 0 && /* @__PURE__ */ jsx13("span", { className: "validation-count", children: model.validation.counts.error })
-        ]
-      }
-    ),
-    /* @__PURE__ */ jsx13(IconButton, { id: "info", label: "About and controls", onClick: onAbout, children: "\u24D8" })
+    /* @__PURE__ */ jsx13("div", { className: "view-navigation", children: /* @__PURE__ */ jsx13(Tabs, { items: views, value: viewKey, onChange: onView }) }),
+    /* @__PURE__ */ jsx13("span", { className: "spacer" }),
+    /* @__PURE__ */ jsxs9("div", { className: "toolbar-actions", children: [
+      /* @__PURE__ */ jsx13(
+        ConceptSearch,
+        {
+          classes: model.classes.filter(
+            (c) => views.some((v) => v.nodeIds.includes(c.id))
+          ),
+          onChoose
+        }
+      ),
+      /* @__PURE__ */ jsxs9("div", { className: "diagram-actions", children: [
+        /* @__PURE__ */ jsxs9(
+          ToggleButton,
+          {
+            id: "fields",
+            className: "fields",
+            pressed: fields,
+            "aria-label": "Fields",
+            title: "Show attributes in the diagram",
+            onClick: onFields,
+            children: [
+              /* @__PURE__ */ jsx13(TableIcon, { size: 16 }),
+              /* @__PURE__ */ jsx13("span", { children: "Fields" })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsx13(CameraControls, { ...{ zoom, onZoom, onReset, onFit } })
+      ] }),
+      /* @__PURE__ */ jsx13(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? /* @__PURE__ */ jsx13(SunIcon, { size: 16 }) : /* @__PURE__ */ jsx13(MoonIcon, { size: 16 }) }),
+      /* @__PURE__ */ jsxs9(ExportMenu, { children: [
+        /* @__PURE__ */ jsxs9(
+          "a",
+          {
+            id: "svg-download",
+            href: diagramURL,
+            download: `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
+            children: [
+              /* @__PURE__ */ jsx13(FileMediaIcon, { size: 16 }),
+              "Diagram \xB7 SVG"
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs9(
+          DownloadLink,
+          {
+            id: "puml-download",
+            className: "",
+            data: exports.readText(`${exports.slug}-${viewKey}.puml`),
+            filename: `${exports.slug}-${viewKey}.puml`,
+            children: [
+              /* @__PURE__ */ jsx13(FileCodeIcon, { size: 16 }),
+              "Diagram \xB7 PlantUML"
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs9(
+          DownloadLink,
+          {
+            id: "model-download",
+            className: "",
+            data: exports.readText(`${exports.slug}-ontouml.json`),
+            filename: `${exports.slug}-ontouml.json`,
+            type: "application/json",
+            children: [
+              /* @__PURE__ */ jsx13(FileCodeIcon, { size: 16 }),
+              "Model \xB7 OntoUML JSON"
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs9(
+          DownloadLink,
+          {
+            id: "bundle-download",
+            className: "",
+            data: exports.bundle,
+            filename: `${exports.slug}-models.zip`,
+            type: "application/zip",
+            children: [
+              /* @__PURE__ */ jsx13(DownloadIcon, { size: 16 }),
+              "Models \xB7 ZIP"
+            ]
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxs9(
+        "button",
+        {
+          id: "learn-toggle",
+          className: "learn-toggle",
+          onClick: onLearn,
+          "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
+          children: [
+            /* @__PURE__ */ jsx13(BookIcon, { size: 16 }),
+            /* @__PURE__ */ jsx13("span", { className: "learn-label", children: "Learn" }),
+            model.validation.counts.error > 0 && /* @__PURE__ */ jsx13("span", { className: "validation-count", children: model.validation.counts.error })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsx13(IconButton, { id: "info", label: "About and controls", onClick: onAbout, children: /* @__PURE__ */ jsx13(QuestionIcon, { size: 16 }) })
+    ] })
   ] });
 }
 
@@ -1580,11 +1647,11 @@ function SourceExcerpt({ source, snippet }) {
         }
       )
     ] });
-  return /* @__PURE__ */ jsxs11("div", { className: "source-excerpt", children: [
+  return /* @__PURE__ */ jsxs11("div", { className: "source-excerpt source-file-card", children: [
     /* @__PURE__ */ jsxs11("div", { className: "source-path", title: source.file, children: [
-      source.file.split("/").pop(),
-      " \xB7 ",
-      snippet.language
+      /* @__PURE__ */ jsx15(FileCodeIcon, { size: 16 }),
+      /* @__PURE__ */ jsx15("span", { className: "source-filename", children: source.file.split("/").pop() }),
+      /* @__PURE__ */ jsx15("span", { className: "source-language", children: snippet.language })
     ] }),
     /* @__PURE__ */ jsx15(
       CodeSnippet,
@@ -1593,7 +1660,7 @@ function SourceExcerpt({ source, snippet }) {
         label: `${source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
       }
     ),
-    snippet.url && /* @__PURE__ */ jsxs11(
+    snippet.url && /* @__PURE__ */ jsx15("div", { className: "source-footer", children: /* @__PURE__ */ jsxs11(
       "a",
       {
         className: "source-github",
@@ -1602,12 +1669,13 @@ function SourceExcerpt({ source, snippet }) {
         rel: "noopener noreferrer",
         "aria-label": `View ${source.title} on GitHub`,
         children: [
+          snippet.url.startsWith("https://github.com/") && /* @__PURE__ */ jsx15(MarkGithubIcon, { size: 16 }),
           snippet.url.startsWith("https://github.com/") ? "View on GitHub" : "View source",
           " ",
-          "\u2197"
+          /* @__PURE__ */ jsx15(LinkExternalIcon, { size: 12 })
         ]
       }
-    )
+    ) })
   ] });
 }
 function SourceEvidence({
@@ -2009,19 +2077,44 @@ function LearningLibrary({ model, onInspect }) {
   ] });
 }
 
-// src/viewer/DetailsContent.jsx
-import { Fragment as Fragment6, jsx as jsx17, jsxs as jsxs13 } from "react/jsx-runtime";
-function ConceptDetails({ concept, model, snippets }) {
-  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
-    /* @__PURE__ */ jsxs13("span", { className: "tag", children: [
-      "\xAB",
-      concept.stereotype || "unspecified",
-      "\xBB"
+// src/ui/DetailHeader.jsx
+import { jsx as jsx17, jsxs as jsxs13 } from "react/jsx-runtime";
+function DetailHeader({
+  title,
+  tag,
+  status,
+  description,
+  stereotype,
+  icon: Icon = FileCodeIcon
+}) {
+  return /* @__PURE__ */ jsxs13("div", { className: "detail-header", children: [
+    /* @__PURE__ */ jsxs13("h1", { children: [
+      /* @__PURE__ */ jsx17(Icon, { size: 20 }),
+      /* @__PURE__ */ jsx17("span", { children: title })
     ] }),
-    concept.status && /* @__PURE__ */ jsx17("span", { className: "tag evidence-status", children: concept.status }),
-    /* @__PURE__ */ jsx17("h1", { children: concept.name }),
-    concept.description && /* @__PURE__ */ jsx17("p", { children: concept.description }),
-    /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsxs13("div", { className: "detail-tags", children: [
+      /* @__PURE__ */ jsx17("span", { className: "tag stereotype-tag", "data-stereotype": stereotype, children: tag }),
+      status && /* @__PURE__ */ jsx17("span", { className: "tag evidence-status", "data-status": status, children: status })
+    ] }),
+    description && /* @__PURE__ */ jsx17("p", { children: description })
+  ] });
+}
+
+// src/viewer/DetailsContent.jsx
+import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
+function ConceptDetails({ concept, model, snippets }) {
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    /* @__PURE__ */ jsx18(
+      DetailHeader,
+      {
+        title: concept.name,
+        tag: `\xAB${concept.stereotype || "unspecified"}\xBB`,
+        stereotype: concept.stereotype,
+        status: concept.status,
+        description: concept.description
+      }
+    ),
+    /* @__PURE__ */ jsx18(
       SourceEvidence,
       {
         evidence: concept.evidence,
@@ -2030,13 +2123,13 @@ function ConceptDetails({ concept, model, snippets }) {
         snippets
       }
     ),
-    /* @__PURE__ */ jsx17(ElementLearning, { element: concept, model }),
-    concept.attributes.length > 0 && /* @__PURE__ */ jsxs13("details", { className: "concept-fields", children: [
-      /* @__PURE__ */ jsx17("summary", { children: "Fields" }),
+    /* @__PURE__ */ jsx18(ElementLearning, { element: concept, model }),
+    concept.attributes.length > 0 && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
+      /* @__PURE__ */ jsx18("summary", { children: "Fields" }),
       concept.attributes.map(
-        ({ name, type, multiplicity: cardinality }, i) => /* @__PURE__ */ jsxs13("div", { className: "field-row", children: [
-          /* @__PURE__ */ jsx17("span", { children: name }),
-          /* @__PURE__ */ jsxs13("span", { children: [
+        ({ name, type, multiplicity: cardinality }, i) => /* @__PURE__ */ jsxs14("div", { className: "field-row", children: [
+          /* @__PURE__ */ jsx18("span", { children: name }),
+          /* @__PURE__ */ jsxs14("span", { children: [
             type,
             cardinality ? ` [${cardinality}]` : ""
           ] })
@@ -2046,22 +2139,29 @@ function ConceptDetails({ concept, model, snippets }) {
   ] });
 }
 function RelationDetails({ relation, onChoose, model, snippets }) {
-  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
-    /* @__PURE__ */ jsx17("span", { className: "tag", children: relation.type === "generalization" ? "Generalization" : relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association" }),
-    /* @__PURE__ */ jsx17("h1", { children: relation.type === "generalization" ? "Inheritance" : relation.name }),
-    /* @__PURE__ */ jsx17("div", { className: "relation-ends", children: [
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    /* @__PURE__ */ jsx18(
+      DetailHeader,
+      {
+        title: relation.type === "generalization" ? "Inheritance" : relation.name,
+        icon: GitBranchIcon,
+        tag: relation.type === "generalization" ? "Generalization" : relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association",
+        stereotype: relation.stereotype
+      }
+    ),
+    /* @__PURE__ */ jsx18("div", { className: "relation-ends", children: [
       [relation.source, relation.sourceMultiplicity],
       [relation.target, relation.targetMultiplicity]
-    ].map(([node, count], i) => /* @__PURE__ */ jsxs13("div", { className: "relation-end", children: [
-      /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(node.id), children: node.name }),
-      count && /* @__PURE__ */ jsx17("span", { className: "count-badge", children: count })
+    ].map(([node, count], i) => /* @__PURE__ */ jsxs14("div", { className: "relation-end", children: [
+      /* @__PURE__ */ jsx18("button", { onClick: () => onChoose(node.id), children: node.name }),
+      count && /* @__PURE__ */ jsx18("span", { className: "count-badge", children: count })
     ] }, i)) }),
-    /* @__PURE__ */ jsx17(ElementLearning, { element: relation, model, relation: true }),
-    relation.type === "generalization" && (model.partitions || []).filter((set) => set.generalizations.includes(relation.id)).map((set) => /* @__PURE__ */ jsxs13("div", { className: "generalization-set-summary", children: [
-      /* @__PURE__ */ jsx17("h2", { children: set.name }),
-      /* @__PURE__ */ jsx17("p", { children: `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}` })
+    /* @__PURE__ */ jsx18(ElementLearning, { element: relation, model, relation: true }),
+    relation.type === "generalization" && (model.partitions || []).filter((set) => set.generalizations.includes(relation.id)).map((set) => /* @__PURE__ */ jsxs14("div", { className: "generalization-set-summary", children: [
+      /* @__PURE__ */ jsx18("h2", { children: set.name }),
+      /* @__PURE__ */ jsx18("p", { children: `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}` })
     ] }, set.id)),
-    /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsx18(
       SourceEvidence,
       {
         evidence: relation.evidence?.length ? relation.evidence : [...relation.source.evidence, ...relation.target.evidence],
@@ -2074,29 +2174,35 @@ function RelationDetails({ relation, onChoose, model, snippets }) {
 }
 function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
   const declared = group.type === "generalizationSet";
-  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
-    /* @__PURE__ */ jsx17("span", { className: "tag", children: declared ? "Generalization set" : "Joined inheritance" }),
-    /* @__PURE__ */ jsx17("h1", { children: group.name }),
-    group.description && /* @__PURE__ */ jsx17("p", { children: group.description }),
-    /* @__PURE__ */ jsxs13("div", { className: "relation-ends", children: [
-      /* @__PURE__ */ jsx17("h2", { children: "Supertype" }),
-      /* @__PURE__ */ jsx17("div", { className: "relation-end", children: /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(group.target.id), children: group.target.name }) }),
-      /* @__PURE__ */ jsx17("h2", { children: "Subtypes" }),
-      group.sources.map((node) => /* @__PURE__ */ jsx17("div", { className: "relation-end", children: /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(node.id), children: node.name }) }, node.id))
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    /* @__PURE__ */ jsx18(
+      DetailHeader,
+      {
+        title: group.name,
+        tag: declared ? "Generalization set" : "Joined inheritance",
+        icon: GitBranchIcon,
+        description: group.description
+      }
+    ),
+    /* @__PURE__ */ jsxs14("div", { className: "relation-ends", children: [
+      /* @__PURE__ */ jsx18("h2", { children: "Supertype" }),
+      /* @__PURE__ */ jsx18("div", { className: "relation-end", children: /* @__PURE__ */ jsx18("button", { onClick: () => onChoose(group.target.id), children: group.target.name }) }),
+      /* @__PURE__ */ jsx18("h2", { children: "Subtypes" }),
+      group.sources.map((node) => /* @__PURE__ */ jsx18("div", { className: "relation-end", children: /* @__PURE__ */ jsx18("button", { onClick: () => onChoose(node.id), children: node.name }) }, node.id))
     ] }),
-    declared ? /* @__PURE__ */ jsxs13(Fragment6, { children: [
-      /* @__PURE__ */ jsx17("p", { className: "set-constraints", children: `{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}` }),
-      /* @__PURE__ */ jsx17("p", { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
-      /* @__PURE__ */ jsx17("p", { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." }),
-      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs13("p", { className: "muted", children: [
+    declared ? /* @__PURE__ */ jsxs14(Fragment6, { children: [
+      /* @__PURE__ */ jsx18("p", { className: "set-constraints", children: `{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}` }),
+      /* @__PURE__ */ jsx18("p", { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
+      /* @__PURE__ */ jsx18("p", { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." }),
+      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs14("p", { className: "muted", children: [
         group.memberIds.length,
         " of ",
         group.totalMembers,
         " members are shown. These constraints apply to the full set."
       ] }),
-      /* @__PURE__ */ jsx17(ElementLearning, { element: group, model, relation: true })
-    ] }) : /* @__PURE__ */ jsx17("p", { className: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }),
-    /* @__PURE__ */ jsx17(
+      /* @__PURE__ */ jsx18(ElementLearning, { element: group, model, relation: true })
+    ] }) : /* @__PURE__ */ jsx18("p", { className: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }),
+    /* @__PURE__ */ jsx18(
       SourceEvidence,
       {
         evidence: group.evidence,
@@ -2108,23 +2214,23 @@ function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
   ] });
 }
 function About({ model, exports }) {
-  return /* @__PURE__ */ jsxs13(Fragment6, { children: [
-    /* @__PURE__ */ jsx17("span", { className: "tag", children: "OntoUML Atlas" }),
-    /* @__PURE__ */ jsx17("h1", { children: model.title }),
-    /* @__PURE__ */ jsx17("p", { children: "Scroll or pinch to zoom. Drag to pan. Select a concept or relation for evidence and learning help." }),
-    /* @__PURE__ */ jsxs13("p", { children: [
-      /* @__PURE__ */ jsx17("kbd", { children: "+" }),
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    /* @__PURE__ */ jsx18("span", { className: "tag", children: "OntoUML Atlas" }),
+    /* @__PURE__ */ jsx18("h1", { children: model.title }),
+    /* @__PURE__ */ jsx18("p", { children: "Scroll or pinch to zoom. Drag to pan. Select a concept or relation for evidence and learning help." }),
+    /* @__PURE__ */ jsxs14("p", { children: [
+      /* @__PURE__ */ jsx18("kbd", { children: "+" }),
       " / ",
-      /* @__PURE__ */ jsx17("kbd", { children: "\u2212" }),
+      /* @__PURE__ */ jsx18("kbd", { children: "\u2212" }),
       " zoom \xB7 ",
-      /* @__PURE__ */ jsx17("kbd", { children: "0" }),
+      /* @__PURE__ */ jsx18("kbd", { children: "0" }),
       " fit \xB7 ",
-      /* @__PURE__ */ jsx17("kbd", { children: "Esc" }),
+      /* @__PURE__ */ jsx18("kbd", { children: "Esc" }),
       " ",
       "clear"
     ] }),
-    /* @__PURE__ */ jsx17("p", { className: "muted", children: model.status }),
-    /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsx18("p", { className: "muted", children: model.status }),
+    /* @__PURE__ */ jsx18(
       DownloadLink,
       {
         data: exports.readText(`${exports.slug}-model-notes.txt`),
@@ -2132,7 +2238,7 @@ function About({ model, exports }) {
         children: "Source notes \u2193"
       }
     ),
-    /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsx18(
       DownloadLink,
       {
         data: exports.readText(`${exports.slug}-validation.json`),
@@ -2145,7 +2251,7 @@ function About({ model, exports }) {
 }
 
 // src/viewer/useInspection.js
-import { useCallback as useCallback2, useEffect as useEffect5, useRef as useRef6, useState as useState8 } from "react";
+import { useCallback as useCallback2, useEffect as useEffect6, useRef as useRef6, useState as useState8 } from "react";
 var inspectedTarget = (hovered, selected) => hovered || selected;
 function useInspection() {
   const [hovered, setHovered] = useState8(null);
@@ -2170,7 +2276,7 @@ function useInspection() {
     },
     [keepHover, clearHover]
   );
-  useEffect5(() => keepHover, [keepHover]);
+  useEffect6(() => keepHover, [keepHover]);
   return { hovered, hover, keepHover, clearHover };
 }
 
@@ -2198,7 +2304,7 @@ function useArtifactArchive(exportData) {
 }
 
 // src/viewer/OntoUMLViewer.jsx
-import { jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
+import { jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
 function OntoUMLViewer({
   model,
   views,
@@ -2243,7 +2349,7 @@ function OntoUMLViewer({
     setLearningOpen(false);
     clearHover();
   }, [clearHover]);
-  useEffect6(() => {
+  useEffect7(() => {
     setSelected(null);
     setFocusRequest(null);
     setViewKey(views[0].key);
@@ -2256,7 +2362,7 @@ function OntoUMLViewer({
     },
     [hover]
   );
-  useEffect6(() => {
+  useEffect7(() => {
     const escape = (e) => {
       if (e.key === "Escape") clear();
     };
@@ -2272,8 +2378,8 @@ function OntoUMLViewer({
     select({ kind: "node", id: node.id });
     setFocusRequest({ id: node.id });
   }
-  return /* @__PURE__ */ jsxs14("div", { className: `viewer${element || learningOpen ? " inspecting" : ""}`, children: [
-    /* @__PURE__ */ jsx18(
+  return /* @__PURE__ */ jsxs15("div", { className: `viewer${element || learningOpen ? " inspecting" : ""}`, children: [
+    /* @__PURE__ */ jsx19(
       ViewerToolbar,
       {
         ...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL },
@@ -2303,7 +2409,7 @@ function OntoUMLViewer({
         onFit: () => cameraRef.current.fit()
       }
     ),
-    /* @__PURE__ */ jsx18(
+    /* @__PURE__ */ jsx19(
       DiagramCanvas,
       {
         ref: cameraRef,
@@ -2314,13 +2420,13 @@ function OntoUMLViewer({
         onClearHover: clearHover
       }
     ),
-    /* @__PURE__ */ jsxs14(
+    /* @__PURE__ */ jsxs15(
       Panel,
       {
         className: "inspector",
         open: !!element || learningOpen,
         label: learningOpen ? "OntoUML learning library" : "Model details",
-        onClose: learningOpen ? () => setLearningOpen(false) : void 0,
+        onClose: learningOpen ? () => setLearningOpen(false) : clear,
         onPointerEnter: keepHover,
         onPointerLeave: () => hover(null),
         onFocusCapture: keepHover,
@@ -2328,7 +2434,7 @@ function OntoUMLViewer({
           if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
         },
         children: [
-          learningOpen && /* @__PURE__ */ jsx18(
+          learningOpen && /* @__PURE__ */ jsx19(
             LearningLibrary,
             {
               model,
@@ -2355,8 +2461,8 @@ function OntoUMLViewer({
               }
             }
           ),
-          !learningOpen && element && inspected.kind === "node" && /* @__PURE__ */ jsx18(ConceptDetails, { concept: element, model, snippets }),
-          !learningOpen && element && inspected.kind === "edge" && /* @__PURE__ */ jsx18(
+          !learningOpen && element && inspected.kind === "node" && /* @__PURE__ */ jsx19(ConceptDetails, { concept: element, model, snippets }),
+          !learningOpen && element && inspected.kind === "edge" && /* @__PURE__ */ jsx19(
             RelationDetails,
             {
               relation: element,
@@ -2365,7 +2471,7 @@ function OntoUMLViewer({
               snippets
             }
           ),
-          !learningOpen && element && inspected.kind === "group" && /* @__PURE__ */ jsx18(
+          !learningOpen && element && inspected.kind === "group" && /* @__PURE__ */ jsx19(
             GeneralizationSetDetails,
             {
               group: element,
@@ -2377,7 +2483,7 @@ function OntoUMLViewer({
         ]
       }
     ),
-    /* @__PURE__ */ jsx18(
+    /* @__PURE__ */ jsx19(
       Panel,
       {
         id: "about-panel",
@@ -2385,7 +2491,7 @@ function OntoUMLViewer({
         label: "About and controls",
         open: aboutOpen,
         onClose: () => setAboutOpen(false),
-        children: /* @__PURE__ */ jsx18(About, { model, exports })
+        children: /* @__PURE__ */ jsx19(About, { model, exports })
       }
     )
   ] });
@@ -2393,7 +2499,7 @@ function OntoUMLViewer({
 
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
+import { jsx as jsx20, jsxs as jsxs16 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -2404,10 +2510,10 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsxs15("main", { className: "viewer-error", role: "alert", children: [
-        /* @__PURE__ */ jsx19("h1", { children: "The model could not be displayed" }),
-        /* @__PURE__ */ jsx19("p", { children: "Rebuild the viewer from the model and check its validation report." }),
-        /* @__PURE__ */ jsx19("button", { onClick: () => location.reload(), children: "Reload" })
+      return /* @__PURE__ */ jsxs16("main", { className: "viewer-error", role: "alert", children: [
+        /* @__PURE__ */ jsx20("h1", { children: "The model could not be displayed" }),
+        /* @__PURE__ */ jsx20("p", { children: "Rebuild the viewer from the model and check its validation report." }),
+        /* @__PURE__ */ jsx20("button", { onClick: () => location.reload(), children: "Reload" })
       ] });
     return this.props.children;
   }

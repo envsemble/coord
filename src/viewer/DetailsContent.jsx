@@ -1,16 +1,19 @@
 import { DownloadLink } from "../ui/DownloadLink";
 import { SourceEvidence } from "./SourceEvidence";
 import { ElementLearning } from "../learning/LearningContent";
+import { DetailHeader } from "../ui/DetailHeader";
+import { GitBranchIcon } from "../ui/Icons";
 
 export function ConceptDetails({ concept, model, snippets }) {
   return (
     <>
-      <span className="tag">«{concept.stereotype || "unspecified"}»</span>
-      {concept.status && (
-        <span className="tag evidence-status">{concept.status}</span>
-      )}
-      <h1>{concept.name}</h1>
-      {concept.description && <p>{concept.description}</p>}
+      <DetailHeader
+        title={concept.name}
+        tag={`«${concept.stereotype || "unspecified"}»`}
+        stereotype={concept.stereotype}
+        status={concept.status}
+        description={concept.description}
+      />
       <SourceEvidence
         evidence={concept.evidence}
         primary={concept.primarySource}
@@ -40,16 +43,20 @@ export function ConceptDetails({ concept, model, snippets }) {
 export function RelationDetails({ relation, onChoose, model, snippets }) {
   return (
     <>
-      <span className="tag">
-        {relation.type === "generalization"
-          ? "Generalization"
-          : relation.stereotype
-            ? `«${relation.stereotype}»`
-            : "Association"}
-      </span>
-      <h1>
-        {relation.type === "generalization" ? "Inheritance" : relation.name}
-      </h1>
+      <DetailHeader
+        title={
+          relation.type === "generalization" ? "Inheritance" : relation.name
+        }
+        icon={GitBranchIcon}
+        tag={
+          relation.type === "generalization"
+            ? "Generalization"
+            : relation.stereotype
+              ? `«${relation.stereotype}»`
+              : "Association"
+        }
+        stereotype={relation.stereotype}
+      />
       <div className="relation-ends">
         {[
           [relation.source, relation.sourceMultiplicity],
@@ -88,11 +95,12 @@ export function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
   const declared = group.type === "generalizationSet";
   return (
     <>
-      <span className="tag">
-        {declared ? "Generalization set" : "Joined inheritance"}
-      </span>
-      <h1>{group.name}</h1>
-      {group.description && <p>{group.description}</p>}
+      <DetailHeader
+        title={group.name}
+        tag={declared ? "Generalization set" : "Joined inheritance"}
+        icon={GitBranchIcon}
+        description={group.description}
+      />
       <div className="relation-ends">
         <h2>Supertype</h2>
         <div className="relation-end">

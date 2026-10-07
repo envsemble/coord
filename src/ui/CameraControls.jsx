@@ -1,4 +1,5 @@
 import { IconButton } from "./Button";
+import { DashIcon, PlusIcon, ScreenFullIcon } from "./Icons";
 
 export function CameraControls({ zoom, onZoom, onReset, onFit }) {
   return (
@@ -9,7 +10,7 @@ export function CameraControls({ zoom, onZoom, onReset, onFit }) {
         title="Zoom out (−)"
         onClick={() => onZoom(1 / 1.25)}
       >
-        −
+        <DashIcon size={16} />
       </IconButton>
       <button
         id="zoom-value"
@@ -25,10 +26,11 @@ export function CameraControls({ zoom, onZoom, onReset, onFit }) {
         title="Zoom in (+)"
         onClick={() => onZoom(1.25)}
       >
-        +
+        <PlusIcon size={16} />
       </IconButton>
-      <button id="fit" title="Fit diagram (0)" onClick={onFit}>
-        Fit
+      <button id="fit" aria-label="Fit" title="Fit diagram (0)" onClick={onFit}>
+        <ScreenFullIcon size={16} />
+        <span>Fit</span>
       </button>
     </div>
   );

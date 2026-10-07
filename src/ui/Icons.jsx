@@ -1,0 +1,21 @@
+// GitHub's icon set is bundled locally, including in the offline viewer.
+export {
+  BookIcon,
+  CodeIcon,
+  DashIcon,
+  DownloadIcon,
+  FileCodeIcon,
+  FileMediaIcon,
+  GitBranchIcon,
+  LinkExternalIcon,
+  MarkGithubIcon,
+  MoonIcon,
+  PlusIcon,
+  QuestionIcon,
+  RepoIcon,
+  ScreenFullIcon,
+  SearchIcon,
+  SunIcon,
+  TableIcon,
+  XIcon,
+} from "@primer/octicons-react";

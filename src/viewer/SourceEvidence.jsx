@@ -1,4 +1,5 @@
 import { CodeSnippet } from "../ui/CodeSnippet";
+import { FileCodeIcon, LinkExternalIcon, MarkGithubIcon } from "../ui/Icons";
 
 function SourceExcerpt({ source, snippet }) {
   if (!snippet)
@@ -18,27 +19,34 @@ function SourceExcerpt({ source, snippet }) {
       </div>
     );
   return (
-    <div className="source-excerpt">
+    <div className="source-excerpt source-file-card">
       <div className="source-path" title={source.file}>
-        {source.file.split("/").pop()} · {snippet.language}
+        <FileCodeIcon size={16} />
+        <span className="source-filename">{source.file.split("/").pop()}</span>
+        <span className="source-language">{snippet.language}</span>
       </div>
       <CodeSnippet
         snippet={snippet}
         label={`${source.title}, lines ${snippet.startLine} to ${snippet.endLine}`}
       />
       {snippet.url && (
-        <a
-          className="source-github"
-          href={snippet.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`View ${source.title} on GitHub`}
-        >
-          {snippet.url.startsWith("https://github.com/")
-            ? "View on GitHub"
-            : "View source"}{" "}
-          ↗
-        </a>
+        <div className="source-footer">
+          <a
+            className="source-github"
+            href={snippet.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View ${source.title} on GitHub`}
+          >
+            {snippet.url.startsWith("https://github.com/") && (
+              <MarkGithubIcon size={16} />
+            )}
+            {snippet.url.startsWith("https://github.com/")
+              ? "View on GitHub"
+              : "View source"}{" "}
+            <LinkExternalIcon size={12} />
+          </a>
+        </div>
       )}
     </div>
   );

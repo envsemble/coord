@@ -1,4 +1,5 @@
 import { IconButton } from "./Button";
+import { XIcon } from "./Icons";
 
 export function Panel({
   open,
@@ -16,15 +17,18 @@ export function Panel({
       aria-label={label}
       {...props}
     >
-      {onClose && (
-        <IconButton
-          className="panel-close"
-          label="Close details"
-          onClick={onClose}
-        >
-          ×
-        </IconButton>
-      )}
+      <div className="panel-header">
+        <span className="panel-title">{label}</span>
+        {onClose && (
+          <IconButton
+            className="panel-close"
+            label="Close details"
+            onClick={onClose}
+          >
+            <XIcon size={16} />
+          </IconButton>
+        )}
+      </div>
       <div className="panel-content">{children}</div>
     </aside>
   );

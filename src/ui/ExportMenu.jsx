@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { IconButton } from "./Button";
 import { usePopupDismiss } from "./usePopupDismiss";
+import { DownloadIcon } from "./Icons";
 
 export function ExportMenu({ children }) {
   const [open, setOpen] = useState(false);
@@ -14,7 +15,7 @@ export function ExportMenu({ children }) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        ↓
+        <DownloadIcon size={16} />
       </IconButton>
       <div id="export-menu" className={`menu${open ? " open" : ""}`}>
         {children}
