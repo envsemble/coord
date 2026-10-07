@@ -552,8 +552,18 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
   }
   function paint() {
     worldRef.current.style.transform = `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`;
-    if (grid)
-      grid.style.transform = `translate3d(${camera.x % 20}px,${camera.y % 20}px,0)`;
+    if (grid) {
+      const step = 20 * 2 ** Math.ceil(Math.log2(16 / (20 * camera.scale)));
+      const spacing = step * camera.scale;
+      const phase = (n) => (n % spacing + spacing) % spacing;
+      const fine = Math.max(0, Math.min(1, spacing / 16 - 1));
+      grid.style.backgroundImage = [fine, 1 - fine].map(
+        (opacity) => `radial-gradient(color-mix(in srgb,var(--grid) ${opacity * 100}%,transparent) 0.7px,transparent 0.7px)`
+      ).join(",");
+      grid.style.backgroundSize = `${spacing / 2}px ${spacing / 2}px,${spacing}px ${spacing}px`;
+      grid.style.backgroundPosition = `${64 - spacing / 4}px ${64 - spacing / 4}px,${64 - spacing / 2}px ${64 - spacing / 2}px`;
+      grid.style.transform = `translate3d(${phase(camera.x)}px,${phase(camera.y)}px,0)`;
+    }
     const value = Math.round(camera.scale * 100);
     if (value !== zoomReadout) {
       zoomReadout = value;

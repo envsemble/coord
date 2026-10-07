@@ -137,6 +137,7 @@ function harness({ reducedMotion = false } = {}) {
   return {
     canvas,
     world,
+    grid,
     document,
     canvasRef,
     worldRef,
@@ -155,6 +156,50 @@ function harness({ reducedMotion = false } = {}) {
 
 const close = (actual, expected) =>
   assert(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+
+test("the grid follows world coordinates across negative pans and zoom thresholds", () => {
+  const h = harness({ reducedMotion: true });
+  const verify = () => {
+    const camera = h.read();
+    const values = (text) =>
+      text.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g).map(Number);
+    const sizes = values(h.grid.style.backgroundSize);
+    const positions = values(h.grid.style.backgroundPosition);
+    const offset = values(h.grid.style.transform);
+    // translate3d includes the 3 in its name; parse its arguments only.
+    const translation = offset.slice(1);
+    const spacing = sizes[2];
+    assert(spacing >= 16 - 1e-9 && spacing <= 32 + 1e-9);
+    for (const [i, coordinate] of [camera.x, camera.y].entries()) {
+      assert(translation[i] >= 0 && translation[i] < spacing);
+      for (const layer of [0, 1]) {
+        const period = sizes[layer * 2];
+        const origin =
+          -64 + positions[layer * 2 + i] + period / 2 + translation[i];
+        const steps = (coordinate - origin) / period;
+        close(steps, Math.round(steps));
+      }
+    }
+  };
+  for (const scale of [0.08, 0.3999, 0.4, 0.4001, 0.7999, 0.8, 0.8001, 3.5]) {
+    h.controls.zoomBy(scale / h.read().scale);
+    h.canvas.emit("pointerdown", {
+      button: 0,
+      pointerId: 1,
+      clientX: 400,
+      clientY: 400,
+      target: {},
+    });
+    h.canvas.emit("pointermove", {
+      pointerId: 1,
+      clientX: -2400,
+      clientY: -1700,
+    });
+    h.canvas.emit("pointerup", { pointerId: 1 });
+    verify();
+  }
+  h.detach();
+});
 
 test("scroll and pinch zoom smoothly in both directions around the cursor", () => {
   const h = harness();
