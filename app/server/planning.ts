@@ -1,4 +1,5 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -96,10 +97,15 @@ function category(relative: string) {
   if (lower.includes('/evidence/') || lower.includes('/artifacts/')) return 'evidence';
   return 'document';
 }
+async function hashFile(filename: string) {
+  const hash = createHash('sha256');
+  for await (const block of createReadStream(filename)) hash.update(block);
+  return hash.digest('hex');
+}
 export async function readDocument(root: string, relative: string): Promise<DocumentContent> {
   const filename = await resolveDocument(root, relative);
   const documentFormat = format(filename);
-  if (documentFormat === 'attachment') return { path: relative, title: path.basename(filename), body: '', format: documentFormat, metadata: null, contentHash: '' };
+  if (documentFormat === 'attachment') return { path: relative, title: path.basename(filename), body: '', format: documentFormat, metadata: null, contentHash: await hashFile(filename) };
   if ((await stat(filename)).size > readableLimit) throw new PlanningError('This file is too large for the reader. Use Download instead.', 413);
   const bytes = await readFile(filename);
   const source = bytes.toString('utf8');

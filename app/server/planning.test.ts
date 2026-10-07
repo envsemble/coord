@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { loadPlanning, readDocument, resolveDocument } from './planning.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 
@@ -23,6 +24,22 @@ async function fixture() {
 function header(id: string, design: string, implementation: string, completed: string | null = null) {
   return ['---', 'schema_version: 1', 'kind: plan', 'id: ' + id, 'title: Example work', 'repositories: [example]', 'created: null', 'updated: "2026-10-06"', 'design_status: ' + design, 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: ' + (completed ? '"' + completed + '"' : 'null'), 'supersedes: []', 'superseded_by: null', '---', '# Original plan', '', 'Preserve this body.', ''].join('\n');
 }
+
+test('attachment metadata retains a streamed content hash beyond the text reader size limit', async () => {
+  const setup = await fixture();
+  try {
+    const original = Buffer.alloc(5 * 1024 * 1024, 0x9c);
+    const filename = path.join(setup.root, 'evidence.png');
+    await writeFile(filename, original);
+    const document = await readDocument(setup.root, 'evidence.png');
+    assert.equal(document.format, 'attachment');
+    assert.equal(document.body, '');
+    assert.equal(document.contentHash, createHash('sha256').update(original).digest('hex'));
+    assert.deepEqual(await readFile(filename), original);
+    await writeFile(filename, Buffer.from('Replaced attachment'));
+    assert.notEqual((await readDocument(setup.root, 'evidence.png')).contentHash, document.contentHash);
+  } finally { await setup.cleanup(); }
+});
 
 test('POSIX backslashes retain original filenames instead of indexing another path', { skip: process.platform === 'win32' }, async () => {
   const setup = await fixture();

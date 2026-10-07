@@ -36,6 +36,7 @@ test('HTTP reading survives unavailable collection and lost views retain coverag
     const root = path.join(temporary, 'planning'); await mkdir(root);
     const original = '# Original record\n';
     await writeFile(path.join(root, 'note.md'), original);
+    await writeFile(path.join(root, 'evidence.png'), Buffer.from('Original image fixture'));
     await writeFile(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [] }));
     await assert.rejects(cacheOutsidePlanning(root, path.join(root, 'cache')), /outside the planning folder/);
     await symlink(root, path.join(temporary, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
@@ -65,6 +66,11 @@ test('HTTP reading survives unavailable collection and lost views retain coverag
     const document = await fetch(address + '/api/document?path=note.md');
     assert.equal(document.status, 200);
     assert.equal((await document.json()).body, original);
+    const attachment = await (await fetch(address + '/api/document?path=evidence.png')).json();
+    assert.match(attachment.contentHash, /^[a-f0-9]{64}$/);
+    await writeFile(path.join(root, 'evidence.png'), Buffer.from('Replaced image fixture'));
+    const staleView = await fetch(address + '/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: address }, body: JSON.stringify({ id: randomUUID(), session: randomUUID(), path: 'evidence.png', contentHash: attachment.contentHash }) });
+    assert.equal(staleView.status, 409, 'changed attachments must not record a view of the wrong version');
     assert.equal((await fetch(address + '/api/document?path=..%2Foutside.md')).status, 403);
     assert.equal((await fetch(address + '/api/snapshot', { headers: { Origin: 'https://unrelated.example' } })).status, 403);
     const event = await fetch(address + '/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: address }, body: JSON.stringify({ id: randomUUID(), session: randomUUID(), path: 'note.md' }) });
