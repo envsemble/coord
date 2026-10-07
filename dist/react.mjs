@@ -524,7 +524,7 @@ function UMLDiagram({
 import { useLayoutEffect, useMemo as useMemo2, useRef } from "react";
 
 // src/visualization/camera.js
-var PINCH_WHEEL_SENSITIVITY = 15e-4;
+var WHEEL_ZOOM_SENSITIVITY = 15e-4;
 var PINCH_GESTURE_SENSITIVITY = 0.15;
 var PAN_EASING_MS = 50;
 var DRAG_EASING_MS = 28;
@@ -760,12 +760,11 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       "wheel",
       (e) => {
         e.preventDefault();
+        if (!e.deltaY) return;
         onMotion?.();
         const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1;
         const p = position(e);
-        if (e.ctrlKey || e.metaKey)
-          pinchZoomBy(-e.deltaY * unit * PINCH_WHEEL_SENSITIVITY, p.x, p.y);
-        else pan(-e.deltaX * unit, -e.deltaY * unit);
+        pinchZoomBy(-e.deltaY * unit * WHEEL_ZOOM_SENSITIVITY, p.x, p.y);
       },
       { passive: false }
     );
@@ -2102,7 +2101,7 @@ function About({ model, exports }) {
   return /* @__PURE__ */ jsxs13(Fragment6, { children: [
     /* @__PURE__ */ jsx17("span", { className: "tag", children: "OntoUML Atlas" }),
     /* @__PURE__ */ jsx17("h1", { children: model.title }),
-    /* @__PURE__ */ jsx17("p", { children: "Two fingers to pan. Pinch to zoom. Select a concept or relation for evidence and learning help." }),
+    /* @__PURE__ */ jsx17("p", { children: "Scroll or pinch to zoom. Drag to pan. Select a concept or relation for evidence and learning help." }),
     /* @__PURE__ */ jsxs13("p", { children: [
       /* @__PURE__ */ jsx17("kbd", { children: "+" }),
       " / ",

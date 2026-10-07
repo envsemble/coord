@@ -150,7 +150,7 @@ export function About({ model, exports }) {
       <span className="tag">OntoUML Atlas</span>
       <h1>{model.title}</h1>
       <p>
-        Two fingers to pan. Pinch to zoom. Select a concept or relation for
+        Scroll or pinch to zoom. Drag to pan. Select a concept or relation for
         evidence and learning help.
       </p>
       <p>

@@ -1,4 +1,4 @@
-const PINCH_WHEEL_SENSITIVITY = 0.0015;
+const WHEEL_ZOOM_SENSITIVITY = 0.0015;
 const PINCH_GESTURE_SENSITIVITY = 0.15;
 const PAN_EASING_MS = 50;
 const DRAG_EASING_MS = 28;
@@ -287,13 +287,12 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       "wheel",
       (e) => {
         e.preventDefault();
+        if (!e.deltaY) return;
         onMotion?.();
         const unit =
           e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1;
         const p = position(e);
-        if (e.ctrlKey || e.metaKey)
-          pinchZoomBy(-e.deltaY * unit * PINCH_WHEEL_SENSITIVITY, p.x, p.y);
-        else pan(-e.deltaX * unit, -e.deltaY * unit);
+        pinchZoomBy(-e.deltaY * unit * WHEEL_ZOOM_SENSITIVITY, p.x, p.y);
       },
       { passive: false },
     );

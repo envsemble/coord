@@ -129,7 +129,7 @@ function harness({ reducedMotion = false } = {}) {
       deltaX: 0,
       deltaY,
       deltaMode: 0,
-      ctrlKey: true,
+      ctrlKey: false,
       metaKey: false,
       ...options,
     });
@@ -156,7 +156,7 @@ function harness({ reducedMotion = false } = {}) {
 const close = (actual, expected) =>
   assert(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
-test("pinch eases to its slower target around the cursor; scroll still pans", () => {
+test("scroll and pinch zoom smoothly in both directions around the cursor", () => {
   const h = harness();
   const before = h.read();
   const worldX = (300 - before.x) / before.scale;
@@ -171,15 +171,39 @@ test("pinch eases to its slower target around the cursor; scroll still pans", ()
   close(after.scale, before.scale * Math.exp(0.06));
   close(after.x + worldX * after.scale, 300);
   close(after.y + worldY * after.scale, 300);
-  h.wheel(80, { ctrlKey: false, deltaX: 120 });
+  h.wheel(80, { ctrlKey: true, deltaX: 120 });
   assert.deepEqual(h.read(), after);
   h.frame();
-  assert(h.read().x < after.x && h.read().x > after.x - 120);
+  assert(h.read().scale < after.scale);
+  assert(h.read().scale > after.scale * Math.exp(-0.12));
   h.settle();
-  close(h.read().x, after.x - 120);
-  close(h.read().y, after.y - 80);
-  close(h.read().scale, after.scale);
+  close(h.read().scale, after.scale * Math.exp(-0.12));
+  close(h.read().x + worldX * h.read().scale, 300);
+  close(h.read().y + worldY * h.read().scale, 300);
   h.detach();
+});
+
+test("wheel units are normalized and horizontal scrolling never pans", () => {
+  for (const [deltaMode, deltaY, pixels] of [
+    [0, 40, 40],
+    [1, 2.5, 40],
+    [2, 1, 700],
+  ]) {
+    const h = harness();
+    const before = h.read();
+    h.wheel(deltaY, { deltaMode, deltaX: 120 });
+    h.settle();
+    const after = h.read();
+    close(after.scale, before.scale * Math.exp(-pixels * 0.0015));
+    close(after.x + ((300 - before.x) / before.scale) * after.scale, 300);
+    close(after.y + ((300 - before.y) / before.scale) * after.scale, 300);
+    let prevented = 0;
+    h.wheel(0, { deltaX: 120, preventDefault: () => prevented++ });
+    assert.equal(prevented, 1);
+    assert.equal(h.frames.size, 0);
+    assert.deepEqual(h.read(), after);
+    h.detach();
+  }
 });
 
 test("rapid input accumulates and reverses immediately at zoom limits", () => {
@@ -227,12 +251,12 @@ test("navigation cancels animation, restores cameras, and unmount cleans up", ()
   close(h.read().scale, 1.2);
   h.wheel(80, { ctrlKey: false, deltaX: 120 });
   h.settle();
-  const panned = h.world.style.transform;
+  const savedPose = h.world.style.transform;
   h.wheel(-40);
   h.controls.restoreView("backend", false);
   assert.equal(h.frames.size, 0);
   h.controls.restoreView("runtime", false);
-  assert.equal(h.world.style.transform, panned);
+  assert.equal(h.world.style.transform, savedPose);
   h.canvas.emit("pointerdown", {
     button: 0,
     pointerId: 1,
@@ -281,17 +305,19 @@ test("a tap activates its original target, while a drag or cancel does not", () 
   h.detach();
 });
 
-test("scroll and drag input share one frame and settle to their full distance", () => {
+test("scroll zoom and drag pan share one frame and accumulate all input", () => {
   const h = harness();
   const before = h.read();
   for (let i = 0; i < 10; i++) h.wheel(8, { ctrlKey: false, deltaX: 12 });
   assert.equal(h.frames.size, 1);
   assert.deepEqual(h.read(), before);
   h.frame();
-  assert(h.read().x < before.x && h.read().x > before.x - 120);
+  assert(h.read().scale < before.scale);
+  assert(h.read().scale > before.scale * Math.exp(-0.12));
   h.settle();
-  close(h.read().x, before.x - 120);
-  close(h.read().y, before.y - 80);
+  close(h.read().scale, before.scale * Math.exp(-0.12));
+  close(h.read().x + ((300 - before.x) / before.scale) * h.read().scale, 300);
+  close(h.read().y + ((300 - before.y) / before.scale) * h.read().scale, 300);
   const scrolled = h.read();
   h.canvas.emit("pointerdown", {
     button: 0,
@@ -399,6 +425,7 @@ test("motion follows elapsed time across different display refresh rates", () =>
   for (let i = 0; i < 20; i++) fast.frame(8);
   close(standard.read().x, fast.read().x);
   close(standard.read().y, fast.read().y);
+  close(standard.read().scale, fast.read().scale);
   standard.detach();
   fast.detach();
 });
@@ -407,15 +434,17 @@ test("reduced motion applies movement immediately and cancels pending animation"
   const h = harness({ reducedMotion: true });
   const before = h.read();
   h.wheel(80, { ctrlKey: false, deltaX: 120 });
-  close(h.read().x, before.x - 120);
-  close(h.read().y, before.y - 80);
+  const scrolled = h.read();
+  close(scrolled.scale, before.scale * Math.exp(-0.12));
+  close(scrolled.x + ((300 - before.x) / before.scale) * scrolled.scale, 300);
+  close(scrolled.y + ((300 - before.y) / before.scale) * scrolled.scale, 300);
   assert.equal(h.frames.size, 0);
   h.motionPreference.emit("change", { matches: false });
   h.controls.zoomBy(1.25);
   assert.equal(h.frames.size, 1);
   h.frame();
   h.motionPreference.emit("change", { matches: true });
-  close(h.read().scale, before.scale * 1.25);
+  close(h.read().scale, scrolled.scale * 1.25);
   assert.equal(h.frames.size, 0);
   h.detach();
 });
