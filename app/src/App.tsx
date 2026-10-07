@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { PulseIcon as Activity, ArchiveIcon as Archive, ArrowLeftIcon as ArrowLeft, ArrowUpRightIcon as ArrowUpRight, BookIcon as BookOpen, ChevronRightIcon as ChevronRight, IssueOpenedIcon, ClockIcon as Clock3, DownloadIcon as Download, FileIcon as FileText, FileDirectoryIcon as Folder, FileDirectoryOpenFillIcon as FolderOpen, GitCommitIcon as GitCommitHorizontal, StackIcon as Layers3, ProjectIcon as LayoutDashboard, ChecklistIcon as ListChecks, SyncIcon as RefreshCw, SearchIcon as Search, ShieldCheckIcon as ShieldCheck, SparkleIcon as Sparkles, RepoIcon as Workflow, XIcon as X } from '@primer/octicons-react';
+import { PulseIcon as Activity, ArrowLeftIcon as ArrowLeft, ArrowUpRightIcon as ArrowUpRight, BookIcon as BookOpen, ChevronRightIcon as ChevronRight, IssueOpenedIcon, ClockIcon as Clock3, DownloadIcon as Download, FileIcon as FileText, FileDirectoryIcon as Folder, FileDirectoryOpenFillIcon as FolderOpen, GitCommitIcon as GitCommitHorizontal, StackIcon as Layers3, ProjectIcon as LayoutDashboard, ChecklistIcon as ListChecks, SyncIcon as RefreshCw, SearchIcon as Search, ShieldCheckIcon as ShieldCheck, SparkleIcon as Sparkles, RepoIcon as Workflow, XIcon as X } from '@primer/octicons-react';
 import type { Document, DocumentContent, Snapshot, Work } from './types';
 import { resolveLink, samePath } from './links';
 import { findHeadingId, rehypeHeadingIds } from './headings';
@@ -41,9 +41,11 @@ function WorkCard({ work }: { work: Work }) {
   const updated = work.progress?.updated ?? work.updated;
   return <button className="work-card" onClick={() => navigate({ work: work.id })}>
     <IssueOpenedIcon className={'work-status-icon ' + (work.implementation === 'complete' ? 'complete' : '')} size={18} />
-    <div className="work-row-main"><div className="work-row-title"><h3>{work.title}</h3><Badge tone={work.implementation === 'complete' ? 'green' : work.implementation === 'in_progress' ? 'blue' : 'neutral'}>{pretty(work.implementation)}</Badge>{work.repositories.map(repository => <Badge key={repository}>{repository}</Badge>)}</div>
-    <div className="card-foot"><span>{work.id.replace('work-', '#')} · {pretty(work.design)} plan</span>{updated && <span>Updated {shortDay(updated)}</span>}</div>
+    <div className="work-row-main"><h3>{work.title}</h3>
+    <div className="card-foot"><span>{work.id.replace('work-', '#')} · {pretty(work.design)} plan</span><span>{work.repositories.join(', ')}</span></div>
     {work.progress?.current && <div className="row-focus">{work.progress.current}</div>}</div>
+    <div className="work-row-status"><Badge tone={work.implementation === 'complete' ? 'green' : work.implementation === 'in_progress' ? 'blue' : 'neutral'}>{pretty(work.implementation)}</Badge></div>
+    <span className="work-row-date">{shortDay(updated)}</span>
   </button>;
 }
 function FileList({ files, selected }: { files: Document[]; selected?: string | null }) {
@@ -70,10 +72,49 @@ function FileFolder({ name, selected, searching, children }: { name: string; sel
 }
 function WorkFocus({ work }: { work: Work }) {
   if (!work.progress) return <p className="muted progress-missing">No progress reported.</p>;
-  return <section className="work-focus" aria-label="Reported work status">{work.progress.updated && <div className="focus-header"><small>Updated {day(work.progress.updated)}</small></div>}<div className="focus-columns"><div><h3>Current</h3><p>{work.progress.current ?? 'Not reported.'}</p></div><div><h3>Next</h3>{work.progress.next.length ? <ul>{work.progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul> : <p>Not recorded.</p>}</div></div>{work.progress.blocked && <p className="focus-blocked"><strong>Blocked:</strong> {work.progress.blocked}</p>}</section>;
+  return <section className="work-focus" aria-label="Reported work status"><div className="focus-columns"><div><h3>Current</h3><p>{work.progress.current ?? 'Not reported.'}</p></div><div><h3>Next</h3>{work.progress.next.length ? <ul>{work.progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul> : <p>Not recorded.</p>}</div></div>{work.progress.blocked && <p className="focus-blocked"><strong>Blocked:</strong> {work.progress.blocked}</p>}{work.progress.updated && <small className="focus-updated">Updated {day(work.progress.updated)}</small>}</section>;
 }
-function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
+
+function DocumentRow({ file, scoped = false, category = true }: { file: Document; scoped?: boolean; category?: boolean }) {
+  return <button className="document-card" onClick={() => documentOpen(file)}>
+    <FileText className="document-icon" size={18} />
+    <span className="document-label"><strong>{file.title}</strong><small>{scoped ? relativeDocumentPath(file) : file.path}</small></span>
+    {category && <Badge>{pretty(file.category)}</Badge>}<ChevronRight className="document-chevron" size={16} />
+  </button>;
+}
+function RecordGroup({ title, files, work, searching, expansion }: { title: string; files: Document[]; work?: Work; searching: string; expansion: { open: boolean; revision: number } }) {
+  const [open, setOpen] = useState(Boolean(searching) || expansion.open);
+  useEffect(() => { if (expansion.revision) setOpen(expansion.open); }, [expansion]);
+  useEffect(() => { if (searching) setOpen(true); }, [searching]);
+  return <details className="record-group" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary><ChevronRight size={16} /><Folder size={18} /><strong>{title}</strong>{work && <Badge>{pretty(work.location)}</Badge>}<span className="group-count">{files.length}</span></summary>
+    <div>{files.map(file => <DocumentRow key={file.path} file={file} scoped={Boolean(work)} />)}</div>
+  </details>;
+}
+function Records({ snapshot, repository, search, knowledge }: { snapshot: Snapshot; repository: string; search: string; knowledge: boolean }) {
+  const [expansion, setExpansion] = useState({ open: false, revision: 0 });
+  const term = search.toLowerCase();
+  const files = snapshot.documents.filter(file => (!knowledge || file.category === 'knowledge') && (repository === 'all' || file.repositories.includes(repository)) && (file.title + ' ' + file.path).toLowerCase().includes(term));
+  const groups = new Map<string | null, Document[]>();
+  for (const file of files) {
+    const key = file.workId;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(file);
+  }
+  return !files.length ? <Empty title="No matching records" /> : knowledge ? <div className="document-grid">{files.map(file => <DocumentRow key={file.path} file={file} category={false} />)}</div> : <><div className="records-toolbar"><span>{files.length} {files.length === 1 ? 'file' : 'files'}</span><div><button className="text-link" onClick={() => setExpansion(current => ({ open: true, revision: current.revision + 1 }))}>Expand all</button><button className="text-link" onClick={() => setExpansion(current => ({ open: false, revision: current.revision + 1 }))}>Collapse all</button></div></div><div className="record-groups">{[...groups].sort(([a], [b]) => {
+    if (a === b) return 0;
+    if (a === null) return -1;
+    if (b === null) return 1;
+    const first = snapshot.work.find(work => work.id === a), second = snapshot.work.find(work => work.id === b);
+    return (first?.location === 'active' ? 0 : 1) - (second?.location === 'active' ? 0 : 1) || b.localeCompare(a);
+  }).map(([id, files]) => {
+    const work = snapshot.work.find(work => work.id === id);
+    return <RecordGroup key={id === null ? 'workspace' : 'work:' + id} title={work ? work.id.replace('work-', '#') + ' · ' + work.title : id === null ? 'Workspace' : id} work={work} files={files} searching={search} expansion={expansion} />;
+  })}</div></>;
+}
+function Reader({ file, snapshot, anchor, scrollToDocument }: { file: Document; snapshot: Snapshot; anchor: string | null; scrollToDocument: boolean }) {
   const article = useRef<HTMLElement>(null);
+  const openedDocument = useRef<string | null>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [error, setError] = useState('');
   const [collectionError, setCollectionError] = useState('');
@@ -99,8 +140,12 @@ function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot
     } catch { setCollectionError('View tracking unavailable.'); }
   }, [content]);
   useEffect(() => {
-    if (content && anchor) requestAnimationFrame(() => scrollToHeading(anchor));
-  }, [content, anchor]);
+    if (!content) return;
+    const opening = scrollToDocument && openedDocument.current !== file.path;
+    openedDocument.current = scrollToDocument ? file.path : null;
+    if (anchor) requestAnimationFrame(() => scrollToHeading(anchor));
+    else if (opening) requestAnimationFrame(() => article.current?.closest('.document-pane')?.scrollIntoView({ block: 'start' }));
+  }, [content, anchor, scrollToDocument, file.path]);
   function destination(href: string) {
     return resolveLink(href, file.path, snapshot.documents, snapshot.work, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths);
   }
@@ -145,17 +190,16 @@ function Insights({ snapshot, repository }: { snapshot: Snapshot; repository: st
   const knownDurations = snapshot.work.filter(work => work.durationDays !== null && (repository === 'all' || work.repositories.includes(repository)));
   const meanDuration = knownDurations.length ? (knownDurations.reduce((sum, work) => sum + work.durationDays!, 0) / knownDurations.length).toFixed(1) : '—';
   return <>
-    <div className="page-title"><h1>Statistics</h1></div>
+    <div className="page-title insights-title"><h1>Statistics</h1><details className="statistics-about"><summary>About statistics</summary><p>Agent reports are self-reported consultation. Counts cover the collection period; unreported access is unknown. Zero activity does not mean no value. Durations are calendar time, not engineering time.</p><p>Agent collection: {day(totals.agentSince)} · View collection: {day(totals.dashboardSince)}</p></details></div>
     <div className="stats-grid">
       <StatsCard label="Agent reports" value={totals.reports} note={totals.agentSince ? 'Since ' + day(totals.agentSince) : 'Not collected'} icon={<Sparkles size={18} />} />
       <StatsCard label="Known tasks" value={totals.tasks} note={totals.unassigned ? totals.unassigned + ' unassigned reports' : undefined} icon={<Layers3 size={18} />} />
       <StatsCard label="Dashboard views" value={totals.views} note={totals.documentsViewed + ' files'} icon={<BookOpen size={18} />} />
       <StatsCard label="Avg. calendar duration" value={meanDuration === '—' ? meanDuration : meanDuration + 'd'} note={knownDurations.length + ' dated work items'} icon={<Clock3 size={18} />} />
     </div>
-    <details className="statistics-about"><summary>About statistics</summary><p>Agent reports are self-reported consultation. Counts cover the collection period; unreported access is unknown. Zero activity does not mean no value. Durations are calendar time, not engineering time.</p><p>Agent collection: {day(totals.agentSince)} · View collection: {day(totals.dashboardSince)}</p></details>
     {snapshot.usage.failures > 0 && <div className="notice warning">{snapshot.usage.failures} collection failures. Counts are incomplete.</div>}
-    <div className="section-heading"><h2>Document use</h2><div className="segmented"><button className={source === 'agent' ? 'active' : ''} onClick={() => setSource('agent')}>Agent reports</button><button className={source === 'views' ? 'active' : ''} onClick={() => setSource('views')}>Dashboard views</button></div></div>
-    <div className="table-controls"><select value={kind} onChange={event => setKind(event.target.value)} aria-label="Document category"><option value="meaningful">Work & knowledge</option><option value="knowledge">Knowledge only</option><option value="all">All documents</option></select><select value={order} onChange={event => setOrder(event.target.value)} aria-label="Usage order"><option value="most">Most recorded use</option><option value="least">Least recorded use</option></select></div>
+    <div className="section-heading"><h2>Document use</h2></div>
+    <div className="usage-toolbar"><div className="segmented" role="group" aria-label="Usage source"><button className={source === 'agent' ? 'active' : ''} aria-pressed={source === 'agent'} onClick={() => setSource('agent')}>Agent reports</button><button className={source === 'views' ? 'active' : ''} aria-pressed={source === 'views'} onClick={() => setSource('views')}>Dashboard views</button></div><div className="table-controls"><select value={kind} onChange={event => setKind(event.target.value)} aria-label="Document category"><option value="meaningful">Work & knowledge</option><option value="knowledge">Knowledge only</option><option value="all">All documents</option></select><select value={order} onChange={event => setOrder(event.target.value)} aria-label="Usage order"><option value="most">Most recorded use</option><option value="least">Least recorded use</option></select></div></div>
     <div className="table-wrap"><table className="usage-table"><thead><tr><th>Document</th><th>{source === 'agent' ? 'Reports' : 'Views'}</th><th>{source === 'agent' ? 'Known tasks' : 'Browser sessions'}</th><th>Last recorded</th></tr></thead><tbody>{rows.slice(0, 60).map(({ document, usage, count }) => <tr key={document.path}><td><button className="text-link" onClick={() => documentOpen(document)}>{document.title}</button><small>{document.path}</small></td><td><strong>{count}</strong><div className="mini-bar"><span style={{ width: Math.max(0, count / Math.max(1, ...rows.map(row => row.count)) * 100) + '%' }} /></div></td><td>{source === 'agent' ? usage?.tasks ?? 0 : usage?.sessions ?? 0}</td><td>{day(source === 'agent' ? usage?.lastConsulted ?? null : usage?.lastViewed ?? null)}</td></tr>)}</tbody></table>{!rows.length && <Empty title="No matching records" />}</div>
     {rows.length > 60 && <div className="coverage-note">Showing 60 of {rows.length} records.</div>}
   </>;
@@ -167,7 +211,8 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [route, setRoute] = useState(currentRoute);
   const [repository, setRepository] = useState('all');
-  const [search, setSearch] = useState('');
+  const [workSearch, setWorkSearch] = useState('');
+  const [recordSearch, setRecordSearch] = useState('');
   const [location, setLocation] = useState('active');
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -175,56 +220,103 @@ export default function App() {
     finally { setRefreshing(false); }
   }, []);
   useEffect(() => { void refresh(); const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 20000); return () => clearInterval(timer); }, [refresh]);
-  useEffect(() => { const change = () => { setRoute(currentRoute()); window.scrollTo(0, 0); }; window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, []);
+  useEffect(() => {
+    const change = () => {
+      const next = currentRoute();
+      setRoute(next);
+      if (next.view !== route.view || next.work !== route.work || (!next.work && !next.file)) window.scrollTo(0, 0);
+    };
+    window.addEventListener('hashchange', change);
+    return () => window.removeEventListener('hashchange', change);
+  }, [route.view, route.work, route.file]);
   const work = snapshot?.work.filter(item => repository === 'all' || item.repositories.includes(repository)) ?? [];
   const selectedFile = snapshot?.documents.find(file => route.file !== null && samePath(file.path, route.file, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
   const selectedWork = snapshot?.work.find(item => item.id === (selectedFile ? selectedFile.workId : route.work));
   const selectedDefault = selectedWork ? defaultDocument(selectedWork) : null;
   const reading = selectedFile ?? selectedDefault;
+  const search = route.view === 'work' ? workSearch : recordSearch;
+  const setSearch = route.view === 'work' ? setWorkSearch : setRecordSearch;
   const searchTerm = search.toLowerCase();
   const matches = (item: Work) => [item.title, item.id, ...item.repositories, ...item.documents.map(file => file.name)].join(' ').toLowerCase().includes(searchTerm);
-  const navigation = [{ id: 'work', label: 'Work', icon: <LayoutDashboard size={18} /> }, { id: 'knowledge', label: 'Knowledge', icon: <BookOpen size={18} /> }, { id: 'history', label: 'Activity', icon: <Activity size={18} /> }, { id: 'insights', label: 'Statistics', icon: <Layers3 size={18} /> }, { id: 'records', label: 'All records', icon: <FolderOpen size={18} /> }];
+  const navigation = [
+    { id: 'work', label: 'Work', icon: <LayoutDashboard size={18} /> },
+    { id: 'knowledge', label: 'Knowledge', icon: <BookOpen size={18} /> },
+    { id: 'records', label: 'All records', icon: <FolderOpen size={18} /> },
+    { id: 'history', label: 'Activity', icon: <Activity size={18} /> },
+    { id: 'insights', label: 'Statistics', icon: <Layers3 size={18} /> },
+  ];
+  const viewName = navigation.find(item => item.id === route.view)?.label ?? 'Work';
+  const visibleWork = work.filter(item => (location === 'all' || item.location === location) && matches(item)).sort((a, b) => b.id.localeCompare(a.id));
+  const activeCount = work.filter(item => item.location === 'active').length;
+  const archivedCount = work.filter(item => item.location === 'archived').length;
   return <div className="app">
-    <header className="site-header"><a className="brand" href="#view=work" title={snapshot?.root}><Workflow size={24} /><span>Workspace <span className="muted">/</span> <strong>planning</strong></span></a><button className="icon-button" aria-label="Refresh records" title="Refresh records" onClick={() => void refresh()}><RefreshCw size={16} className={refreshing ? 'spinning' : ''} /></button></header>
-    <nav className="workspace-nav" aria-label="Workspace">{navigation.map(item => <button key={item.id} className={route.view === item.id ? 'active' : ''} aria-current={route.view === item.id ? 'page' : undefined} onClick={() => { setSearch(''); navigate({ view: item.id }); }}>{item.icon}{item.label}{item.id === 'work' && <span className="nav-count">{snapshot?.work.filter(work => work.location === 'active').length ?? '—'}</span>}</button>)}</nav>
-    <div className="workspace-layout">
-    <aside className="sidebar">
-      <div className="sidebar-heading">Repositories</div>
-      <div className="repository-list"><button className={repository === 'all' ? 'active' : ''} onClick={() => setRepository('all')}><Layers3 size={15} /> All repositories</button>{snapshot?.repositories.map(item => <button key={item.id} className={repository === item.id ? 'active' : ''} onClick={() => setRepository(item.id)}><span className="repo-dot" />{item.id}<span>{snapshot.work.filter(work => work.repositories.includes(item.id)).length}</span></button>)}</div>
+    <aside className="app-sidebar">
+      <a className="brand" href="#view=work" title={snapshot?.root}><Workflow size={24} /><strong>Planning</strong></a>
+      <nav className="workspace-nav" aria-label="Workspace">
+        {navigation.map(item => <button key={item.id} className={(route.view === item.id ? 'active ' : '') + (item.id === 'history' ? 'secondary-start' : '')} aria-label={item.label} aria-current={route.view === item.id ? 'page' : undefined} title={item.label} onClick={() => { setWorkSearch(''); setRecordSearch(''); navigate({ view: item.id }); }}>
+          {item.icon}<span className="nav-label">{item.label}</span>{item.id === 'work' && <span className="nav-count">{snapshot?.work.filter(work => work.location === 'active').length ?? '—'}</span>}
+        </button>)}
+      </nav>
     </aside>
     <div className="main">
+      <header className="site-header">
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          {selectedWork || selectedFile ? <><button className="back-link" onClick={() => navigate({ view: route.view })}><ArrowLeft size={15} />{viewName}</button><span>/</span><span>{selectedWork?.id.replace('work-', '#') ?? selectedFile?.name}</span></> : <span>{viewName}</span>}
+        </nav>
+        <div className="workspace-controls"><label className="repository-filter"><Workflow size={16} /><select aria-label="Repository" value={repository} onChange={event => { setRepository(event.target.value); if (selectedWork || selectedFile) { setSearch(''); navigate({ view: route.view }); } }}>
+          <option value="all">All repositories</option>{snapshot?.repositories.map(item => <option key={item.id} value={item.id}>{item.id} ({snapshot.work.filter(work => work.repositories.includes(item.id)).length})</option>)}
+        </select></label><button className="icon-button" aria-label="Refresh records" title="Refresh records" onClick={() => void refresh()}><RefreshCw size={16} className={refreshing ? 'spinning' : ''} /></button></div>
+      </header>
       <main className="content">
         {snapshot?.collectionError && <div className="notice warning">{snapshot.collectionError}</div>}
         {error && <div className="notice warning">{error}</div>}
         {!snapshot ? error ? <Empty title="Connect a planning folder">Start the viewer with a valid --planning-dir containing planning.json, then refresh.<br /><button className="text-link" onClick={() => void refresh()}>Try again</button></Empty> : <div className="initial-loading"><Workflow size={30} /><h2>Loading…</h2></div> :
         selectedWork || selectedFile ? <>
-          <button className="back-link" onClick={() => navigate({ view: route.view })}><ArrowLeft size={15} />Back to {navigation.find(item => item.id === route.view)?.label.toLowerCase() ?? 'work'}</button>
-          <div className="page-title detail-title"><div className="eyebrow">{selectedWork ? selectedWork.id.replace('work-', 'WORK ') + ' · ' + selectedWork.location.toUpperCase() : selectedFile?.category.toUpperCase()}</div><h1>{selectedWork?.title ?? selectedFile?.title}</h1>
-          {selectedWork && <div className="detail-badges"><Badge tone="neutral">{pretty(selectedWork.design)} plan</Badge><Badge tone={selectedWork.implementation === 'complete' ? 'green' : 'blue'}>{pretty(selectedWork.implementation)} implementation</Badge>{selectedWork.repositories.map(id => <Badge key={id}>{id}</Badge>)}</div>}</div>
-          {selectedWork && <details className="work-dates"><summary>Dates</summary><div className="milestones"><div><small>Created</small><strong>{day(selectedWork.created)}</strong></div><div><small>Accepted</small><strong>{day(selectedWork.accepted)}</strong></div><div><small>Completed</small><strong>{day(selectedWork.completed)}</strong></div><div><small>Plan updated</small><strong>{day(selectedWork.updated)}</strong></div></div></details>}
-          {selectedWork && snapshot.issues.some(issue => issue.workId === selectedWork.id) && <div className={'notice ' + (snapshot.issues.some(issue => issue.workId === selectedWork.id && issue.level === 'error') ? 'error' : 'warning')}><ShieldCheck size={17} /><div><strong>Record health</strong>{snapshot.issues.filter(issue => issue.workId === selectedWork.id).map((issue, index) => <span key={index}>{issue.level === 'error' ? 'Error: ' : 'Note: '}{issue.message}</span>)}</div></div>}
-          {selectedWork && <WorkFocus work={selectedWork} />}
-          <div className="reading-layout"><aside className="record-panel"><div className="record-panel-heading"><Folder size={16} /><strong>All files</strong><span>{selectedWork?.documents.length ?? 1}</span></div><FileList files={selectedWork?.documents ?? (selectedFile ? [selectedFile] : [])} selected={reading?.path} /></aside><div className="document-pane">{selectedWork && <nav className="document-tabs" aria-label="Main work records">{(['plan', 'ledger'] as const).map(kind => { const file = primaryDocuments(selectedWork)[kind]; return <button key={kind} disabled={!file} className={file?.path === reading?.path ? 'active' : ''} aria-current={file?.path === reading?.path ? 'page' : undefined} onClick={() => file && documentOpen(file)}>{kind === 'plan' ? <ListChecks size={16} /> : <GitCommitHorizontal size={16} />}{kind === 'plan' ? 'Plan' : 'Ledger'}</button>; })}</nav>}{reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={route.anchor} /> : <Empty title="No retained documents" />}</div></div>
-          {selectedWork && <details className="work-history"><summary>Activity</summary>{snapshot.history.filter(entry => entry.workIds.includes(selectedWork.id)).slice(0, 6).map(entry => <div className="history-row compact" key={entry.id}><GitCommitHorizontal size={17} /><div><strong>{entry.title}</strong><small>{day(entry.date)} · {entry.id.slice(0, 7)}</small></div></div>)}</details>}
+          <div className="page-title detail-title">
+            <div className="eyebrow">{selectedWork ? selectedWork.id.replace('work-', 'WORK ') + ' · ' + selectedWork.location.toUpperCase() : selectedFile?.category.toUpperCase()}</div>
+            <h1>{selectedWork?.title ?? selectedFile?.title}</h1>
+            {selectedWork && <div className="detail-badges"><Badge tone="neutral">{pretty(selectedWork.design)} plan</Badge><Badge tone={selectedWork.implementation === 'complete' ? 'green' : 'blue'}>{pretty(selectedWork.implementation)} implementation</Badge>{selectedWork.repositories.map(id => <Badge key={id}>{id}</Badge>)}</div>}
+          </div>
+          <div className="reading-layout">
+            <aside className="work-context" aria-label="Work context">
+              {selectedWork && <WorkFocus work={selectedWork} />}
+              <details className="record-panel" open>
+                <summary className="record-panel-heading"><Folder size={16} /><strong>All files</strong><span>{selectedWork?.documents.length ?? 1}</span></summary>
+                <FileList files={selectedWork?.documents ?? (selectedFile ? [selectedFile] : [])} selected={reading?.path} />
+              </details>
+              {selectedWork && <div className="work-metadata">
+                <details className="work-dates"><summary>Dates</summary><div className="milestones"><div><small>Created</small><strong>{day(selectedWork.created)}</strong></div><div><small>Accepted</small><strong>{day(selectedWork.accepted)}</strong></div><div><small>Completed</small><strong>{day(selectedWork.completed)}</strong></div><div><small>Plan updated</small><strong>{day(selectedWork.updated)}</strong></div></div></details>
+                <details className="work-history"><summary>Activity</summary>{snapshot.history.filter(entry => entry.workIds.includes(selectedWork.id)).slice(0, 6).map(entry => <div className="history-row compact" key={entry.id}><GitCommitHorizontal size={15} /><div><strong>{entry.title}</strong><small>{day(entry.date)} · {entry.id.slice(0, 7)}</small></div></div>)}</details>
+              </div>}
+              {selectedWork && snapshot.issues.some(issue => issue.workId === selectedWork.id) && <div className={'notice ' + (snapshot.issues.some(issue => issue.workId === selectedWork.id && issue.level === 'error') ? 'error' : 'warning')}><ShieldCheck size={17} /><div><strong>Record health</strong>{snapshot.issues.filter(issue => issue.workId === selectedWork.id).map((issue, index) => <span key={index}>{issue.level === 'error' ? 'Error: ' : 'Note: '}{issue.message}</span>)}</div></div>}
+            </aside>
+            <div className="document-pane">
+              {selectedWork && <nav className="document-tabs" aria-label="Main work records">{(['plan', 'ledger'] as const).map(kind => { const file = primaryDocuments(selectedWork)[kind]; return <button key={kind} disabled={!file} className={file?.path === reading?.path ? 'active' : ''} aria-current={file?.path === reading?.path ? 'page' : undefined} onClick={() => file && documentOpen(file)}>{kind === 'plan' ? <ListChecks size={16} /> : <GitCommitHorizontal size={16} />}{kind === 'plan' ? 'Plan' : 'Ledger'}</button>; })}</nav>}
+              {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={route.anchor} scrollToDocument={Boolean(selectedFile)} /> : <Empty title="No retained documents" />}
+            </div>
+          </div>
         </> : route.view === 'work' ? <>
-          <div className="page-title"><h1>Work</h1></div>
-          <div className="stats-grid"><StatsCard label="Active" value={work.filter(item => item.location === 'active').length} icon={<FolderOpen size={19} />} /><StatsCard label="In progress" value={work.filter(item => item.implementation === 'in_progress' || item.implementation === 'partial').length} icon={<Activity size={19} />} /><StatsCard label="Archived" value={work.filter(item => item.location === 'archived').length} icon={<Archive size={19} />} /><StatsCard label="Files" value={snapshot.documents.filter(file => repository === 'all' || file.repositories.includes(repository)).length} icon={<FileText size={19} />} /></div>
-          <div className="work-toolbar"><div className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search work" aria-label="Search work" />{search && <button aria-label="Clear search" onClick={() => setSearch('')}><X size={15} /></button>}</div><div className="segmented">{['active', 'archived', 'all'].map(value => <button key={value} className={location === value ? 'active' : ''} onClick={() => setLocation(value)}>{pretty(value)}</button>)}</div></div>
-          <div className="work-grid">{work.filter(item => (location === 'all' || item.location === location) && matches(item)).sort((a, b) => b.id.localeCompare(a.id)).map(item => <WorkCard key={item.id} work={item} />)}</div>
-          {!work.some(item => (location === 'all' || item.location === location) && matches(item)) && <Empty title="No matching work" />}
+          <div className="page-title overview-title"><h1>Work</h1><div className="overview-metrics"><span><strong>{activeCount}</strong> active</span><span><strong>{work.filter(item => item.implementation === 'in_progress' || item.implementation === 'partial').length}</strong> in progress</span><span><strong>{archivedCount}</strong> archived</span><span><strong>{snapshot.documents.filter(file => repository === 'all' || file.repositories.includes(repository)).length}</strong> files</span></div></div>
+          <div className="work-toolbar">
+            <div className="segmented" role="group" aria-label="Work location">{['active', 'archived', 'all'].map(value => <button key={value} className={location === value ? 'active' : ''} aria-pressed={location === value} onClick={() => setLocation(value)}>{pretty(value)}</button>)}</div>
+            <div className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search work" aria-label="Search work" />{search && <button aria-label="Clear search" onClick={() => setSearch('')}><X size={15} /></button>}</div>
+          </div>
+          {visibleWork.length ? <div className="work-grid"><div className="work-columns" aria-hidden="true"><span>Work</span><span>Implementation</span><span>Updated</span></div>{visibleWork.map(item => <WorkCard key={item.id} work={item} />)}</div> : <Empty title="No matching work" />}
         </> : route.view === 'insights' ? <Insights snapshot={snapshot} repository={repository} /> :
         route.view === 'history' ? <>
           <div className="page-title"><h1>Activity</h1></div>
-          <div className="history-list">{snapshot.history.filter(entry => repository === 'all' || entry.repositories.includes(repository) || entry.files.some(file => snapshot.documents.some(document => samePath(document.path, file, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths) && document.workId === null && document.repositories.includes(repository)))).map(entry => <div className="history-row" key={entry.id}><span className="history-icon"><GitCommitHorizontal size={19} /></span><div><strong>{entry.title}</strong><small>{day(entry.date)} · {entry.id.slice(0, 7)} · {entry.files.length} changed records</small><div className="changed-files">{entry.files.slice(0, 4).map(file => <button key={file} disabled={!snapshot.documents.some(document => samePath(document.path, file, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths))} onClick={() => { const document = snapshot.documents.find(document => samePath(document.path, file, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths)); if (document) documentOpen(document); }}>{file.split('/').at(-1)}</button>)}{entry.files.length > 4 && <span>+{entry.files.length - 4} more</span>}</div></div></div>)}</div>
+          <div className="history-list">{snapshot.history.filter(entry => repository === 'all' || entry.repositories.includes(repository) || entry.files.some(file => snapshot.documents.some(document => samePath(document.path, file, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths) && document.workId === null && document.repositories.includes(repository)))).map(entry => <div className="history-row" key={entry.id}>
+            <span className="history-icon"><GitCommitHorizontal size={19} /></span><div className="history-content"><div className="history-heading"><strong>{entry.title}</strong><small>{day(entry.date)} · {entry.id.slice(0, 7)}</small></div>
+            <div className="changed-files">{entry.files.slice(0, 4).map(file => <button key={file} disabled={!snapshot.documents.some(document => samePath(document.path, file, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths))} onClick={() => { const document = snapshot.documents.find(document => samePath(document.path, file, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths)); if (document) documentOpen(document); }}>{file.split('/').at(-1)}</button>)}{entry.files.length > 4 && <span>+{entry.files.length - 4} more</span>}<small className="history-file-count">{entry.files.length} files</small></div></div>
+          </div>)}</div>
           {!snapshot.gitAvailable && <Empty title="History unavailable">The connected folder needs its own readable local Git history.</Empty>}
         </> : <>
           <div className="page-title"><h1>{route.view === 'knowledge' ? 'Knowledge' : 'All records'}</h1></div>
-          <div className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search files" aria-label="Search documents" /></div>
-          <div className="document-grid">{snapshot.documents.filter(file => (route.view !== 'knowledge' || file.category === 'knowledge') && (repository === 'all' || file.repositories.includes(repository)) && (file.title + ' ' + file.path).toLowerCase().includes(searchTerm)).map(file => <button className="document-card" key={file.path} onClick={() => documentOpen(file)}><span className="document-icon"><FileText size={20} /></span><strong>{file.title}</strong><small>{file.path}</small>{route.view !== 'knowledge' && <Badge>{pretty(file.category)}</Badge>}</button>)}</div>
+          <div className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search files" aria-label="Search documents" />{search && <button aria-label="Clear search" onClick={() => setSearch('')}><X size={15} /></button>}</div>
+          <Records snapshot={snapshot} repository={repository} search={search} knowledge={route.view === 'knowledge'} />
         </>}
         {snapshot && snapshot.issues.length > 0 && !selectedWork && !selectedFile && <details className="health"><summary><ShieldCheck size={16} />Record health <Badge tone={snapshot.issues.some(issue => issue.level === 'error') ? 'amber' : 'neutral'}>{snapshot.issues.length} notes</Badge></summary><ul>{snapshot.issues.map((issue, index) => <li key={index}>{issue.workId && <button className="text-link" onClick={() => navigate({ work: issue.workId })}>{issue.workId}</button>} {issue.message}</li>)}</ul></details>}
       </main>
-    </div>
     </div>
   </div>;
 }
