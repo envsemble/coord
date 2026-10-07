@@ -216,6 +216,16 @@ test('invalid non-null dates and chronology produce health errors while unknown 
     const alignedUpdate = await loadPlanning(setup.root);
     assert.equal(alignedUpdate.issues.filter(issue => issue.level === 'error').length, 0, 'updated may equal the latest milestone');
     assert.equal(alignedUpdate.work[0].durationDays, 1);
+    for (const design of ['draft', 'invalid']) {
+      await writeFile(filename, original.replace('design_status: accepted', 'design_status: ' + design).replace('accepted_at: null', 'accepted_at: "2026-10-05"').replace('completed_at: null', 'completed_at: "2026-10-06"'));
+      const invalidAcceptance = await loadPlanning(setup.root);
+      assert.ok(invalidAcceptance.issues.some(issue => issue.level === 'error'));
+      assert.equal(invalidAcceptance.work[0].durationDays, null, 'an invalid acceptance/design combination must not enter duration statistics');
+    }
+    for (const design of ['superseded', 'abandoned']) {
+      await writeFile(filename, original.replace('design_status: accepted', 'design_status: ' + design).replace('accepted_at: null', 'accepted_at: "2026-10-05"').replace('completed_at: null', 'completed_at: "2026-10-06"'));
+      assert.equal((await loadPlanning(setup.root)).work[0].durationDays, 1, 'a later design disposition preserves a known historical acceptance');
+    }
   } finally { await setup.cleanup(); }
 });
 test('registry paths retain safe POSIX aliases while rejecting parent segments and duplicate locations', async () => {

@@ -299,7 +299,7 @@ export async function loadPlanning(inputRoot: string) {
         if (chronologyInvalid) issues.push({ level: 'error', workId: item.id, message: 'Recorded lifecycle dates are out of order.' });
         if (entry.completed && entry.implementation !== 'complete') issues.push({ level: 'error', workId: item.id, message: 'A completion date requires complete implementation status.' });
         if (entry.accepted && entry.design === 'draft') issues.push({ level: 'error', workId: item.id, message: 'A draft cannot claim an acceptance date.' });
-        if (entry.implementation === 'complete' && entry.accepted && entry.completed && !chronologyInvalid) {
+        if (entry.implementation === 'complete' && designStates.has(entry.design) && entry.design !== 'draft' && entry.accepted && entry.completed && !chronologyInvalid) {
           entry.durationDays = Math.round((Date.parse(entry.completed) - Date.parse(entry.accepted)) / 86400000);
         }
       } catch (error) { issues.push({ level: 'error', workId: item.id, message: error instanceof Error ? error.message : 'The selected plan could not be read.' }); }
