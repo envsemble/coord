@@ -41,7 +41,7 @@ test('view collection is deduplicated and cannot claim agent consultation', () =
 });
 
 test('Unicode cache-root aliases share Node/Python storage only when the filesystem equates them', async () => {
-  const temporary = await mkdtemp(path.join(tmpdir(), 'planning-unicode-cache-'));
+  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'planning-unicode-cache-')));
   try {
     const root = path.join(temporary, 'planning-cafe\u0301'); await mkdir(root);
     await writeFile(path.join(root, 'planning.json'), '{}');
