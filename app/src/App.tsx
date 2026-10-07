@@ -56,6 +56,7 @@ function textContent(children: ReactNode): string {
   return Children.toArray(children).map(child => typeof child === 'string' || typeof child === 'number' ? String(child) : isValidElement<{ children?: ReactNode }>(child) ? textContent(child.props.children) : '').join('');
 }
 function slug(children: ReactNode) { return textContent(children).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, ''); }
+function scrollToHeading(anchor: string) { (document.getElementById(anchor) ?? document.getElementById(slug(anchor)))?.scrollIntoView(); }
 
 function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
   const [content, setContent] = useState<DocumentContent | null>(null);
@@ -78,7 +79,7 @@ function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot
     } catch { setCollectionError('This document opened, but browser session storage is unavailable for view collection.'); }
   }, [content]);
   useEffect(() => {
-    if (content && anchor) requestAnimationFrame(() => (document.getElementById(anchor) ?? document.getElementById(slug(anchor)))?.scrollIntoView());
+    if (content && anchor) requestAnimationFrame(() => scrollToHeading(anchor));
   }, [content, anchor]);
   function destination(href: string) {
     return resolveLink(href, file.path, snapshot.documents, snapshot.work, snapshot.caseSensitivePaths);
@@ -92,12 +93,15 @@ function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot
         h1: ({ children }) => <h1 id={slug(children)}>{children}</h1>,
         h2: ({ children }) => <h2 id={slug(children)}>{children}</h2>,
         h3: ({ children }) => <h3 id={slug(children)}>{children}</h3>,
+        h4: ({ children }) => <h4 id={slug(children)}>{children}</h4>,
+        h5: ({ children }) => <h5 id={slug(children)}>{children}</h5>,
+        h6: ({ children }) => <h6 id={slug(children)}>{children}</h6>,
         a: ({ href = '', children }) => {
           const target = destination(href);
           if (target.external) return <a href={target.external} target="_blank" rel="noreferrer">{children}<ArrowUpRight className="external-icon" size={12} /></a>;
           if (target.file) return <a href={'#file=' + encodeURIComponent(target.file.path)} onClick={event => { event.preventDefault(); navigate({ view: target.file?.category === 'knowledge' ? 'knowledge' : target.file?.workId ? 'work' : 'records', work: target.file?.workId, file: target.file?.path, anchor: target.anchor }); }}>{children}</a>;
           if (target.work) return <a href={'#work=' + encodeURIComponent(target.work.id)} onClick={event => { event.preventDefault(); navigate({ work: target.work?.id }); }}>{children}</a>;
-          if (href.startsWith('#')) return <a href={href} onClick={event => { event.preventDefault(); document.getElementById(target.anchor ?? '')?.scrollIntoView(); }}>{children}</a>;
+          if (href.startsWith('#')) return <a href={href} onClick={event => { event.preventDefault(); scrollToHeading(target.anchor ?? ''); }}>{children}</a>;
           return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
         },
         img: ({ src = '', alt = '' }) => {
