@@ -23,26 +23,74 @@ CREATE INDEX IF NOT EXISTS event_document ON events(document_key);
 CREATE TABLE IF NOT EXISTS failures (timestamp TEXT NOT NULL, detail TEXT NOT NULL);
 """
 
+def filesystem_case_sensitive(root: Path) -> bool:
+    """Read-only detection for the connected filesystem, including macOS volumes."""
+    def probe(directory: Path, names: list[str]) -> bool | None:
+        for name in names:
+            alternate = re.sub(r"[a-zA-Z]", lambda match: match[0].swapcase(), name, count=1)
+            if alternate == name:
+                continue
+            if alternate in names:
+                return True
+            try:
+                original, other = (directory / name).lstat(), (directory / alternate).lstat()
+                return (original.st_dev, original.st_ino) != (other.st_dev, other.st_ino)
+            except FileNotFoundError:
+                return True
+            except OSError:
+                continue
+        return None
+    try:
+        result = probe(root, os.listdir(root))
+        if result is not None:
+            return result
+        names = os.listdir(root.parent)
+        if root.name in names:
+            result = probe(root.parent, [root.name] + [name for name in names if name != root.name])
+            if result is not None:
+                return result
+    except OSError:
+        pass
+    return True
+
+def retained_relative(actual: Path, root: Path, case_sensitive: bool) -> str:
+    original, parent = actual.parts, root.parts
+    compare = (lambda value: value) if case_sensitive else str.lower
+    if len(original) <= len(parent) or tuple(map(compare, original[:len(parent)])) != tuple(map(compare, parent)):
+        raise ValueError("Document is outside the planning folder")
+    parts = list(original[len(parent):])
+    if not case_sensitive:
+        # Path.resolve on POSIX does not restore the directory-entry spelling.
+        directory = root
+        for index, part in enumerate(parts):
+            spelling = next((name for name in os.listdir(directory) if name.lower() == part.lower()), None)
+            if spelling is None:
+                raise ValueError("Document entry is no longer available")
+            parts[index] = spelling
+            directory = directory / parts[index]
+    return PurePosixPath(*parts).as_posix()
+
 def data_directory(root: Path, base: Path | None = None) -> Path:
     override = base or os.environ.get("PLANNING_DASHBOARD_DATA_DIR")
     normalized = str(root.expanduser().resolve()).replace("\\", "/")
-    if os.name == "nt":
+    if not filesystem_case_sensitive(root.expanduser().resolve()):
         normalized = normalized.lower()
     identity = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
     cache_base = Path(override).expanduser().resolve() if override else Path.home() / ".cache" / "planning-dashboard"
     return cache_base / identity
 
-def document_identity(relative: str, registry: dict) -> str:
-    identity = relative.lower() if os.name == "nt" else relative
+def document_identity(relative: str, registry: dict, case_sensitive: bool = True) -> str:
+    normalize = (lambda value: value) if case_sensitive else str.lower
+    identity = normalize(relative)
     matches = [work for work in registry.get("work_items", [])
-               if identity == (work["path"].lower() if os.name == "nt" else work["path"])
-               or identity.startswith((work["path"].lower() if os.name == "nt" else work["path"]) + "/")]
+               if identity == normalize(work["path"])
+               or identity.startswith(normalize(work["path"]) + "/")]
     selected = [work for work in matches if work.get("current_plan") is not None
-                and (work["current_plan"].lower() if os.name == "nt" else work["current_plan"]) == identity]
+                and normalize(work["current_plan"]) == identity]
     work = selected[0] if selected else max(matches, key=lambda item: len(item["path"]), default=None)
     if work:
         location = work["path"]
-        return work["id"] + ":" + (Path(relative).name if identity == (location.lower() if os.name == "nt" else location) else relative[len(location) + 1:])
+        return work["id"] + ":" + (Path(relative).name if identity == normalize(location) else relative[len(location) + 1:])
     return "root:" + relative
 
 def normalized_location(value: object) -> str:
@@ -58,7 +106,9 @@ def normalized_location(value: object) -> str:
 
 def cache_outside_planning(root: Path, destination: Path) -> Path:
     destination = destination.expanduser().resolve()
-    if destination.is_relative_to(root.expanduser().resolve()):
+    planning = root.expanduser().resolve()
+    normalize = (lambda value: value) if filesystem_case_sensitive(planning) else str.lower
+    if tuple(map(normalize, destination.parts[:len(planning.parts)])) == tuple(map(normalize, planning.parts)):
         raise ValueError("Choose statistics storage outside the planning folder")
     return destination
 
@@ -76,6 +126,8 @@ def record_collection_gap(root: Path, destination: Path) -> None:
 def report(root: Path, files: list[str], task: str | None = None,
            session: str | None = None, destination: Path | None = None) -> tuple[int, int]:
     root = root.expanduser().resolve(strict=True)
+    case_sensitive = filesystem_case_sensitive(root)
+    normalize = (lambda value: value) if case_sensitive else str.lower
     registry = json.loads((root / "planning.json").read_text(encoding="utf-8-sig"))
     if not isinstance(registry, dict) or registry.get("schema_version") != 1:
         raise ValueError("Unrecognized planning registry")
@@ -90,12 +142,12 @@ def report(root: Path, files: list[str], task: str | None = None,
     for work in registry["work_items"]:
         location = normalized_location(work["path"])
         work["path"] = location
-        identity = location.lower() if os.name == "nt" else location
+        identity = normalize(location)
         if work["id"] in identities or identity in locations:
             raise ValueError("Duplicate planning work identity or retained location")
         if work.get("current_plan") is not None:
             work["current_plan"] = normalized_location(work["current_plan"])
-            selected = work["current_plan"].lower() if os.name == "nt" else work["current_plan"]
+            selected = normalize(work["current_plan"])
             if selected in selected_plans:
                 raise ValueError("Conflicting selected plan pointers")
             selected_plans.add(selected)
@@ -107,7 +159,7 @@ def report(root: Path, files: list[str], task: str | None = None,
     try:
         top = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True, timeout=3, check=True)
-        if Path(top.stdout.strip()).resolve() == root:
+        if tuple(map(normalize, Path(top.stdout.strip()).resolve().parts)) == tuple(map(normalize, root.parts)):
             result = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
                                     capture_output=True, text=True, timeout=3, check=True)
             revision = result.stdout.strip() or None
@@ -128,7 +180,7 @@ def report(root: Path, files: list[str], task: str | None = None,
                     if not candidate.is_absolute():
                         candidate = root / candidate
                     actual = candidate.resolve(strict=True)
-                    relative = actual.relative_to(root).as_posix()
+                    relative = retained_relative(actual, root, case_sensitive)
                     if (not actual.is_file() or any(
                         part.startswith(".") or part in {"node_modules", "__pycache__", "dist", "build"}
                         for part in Path(relative).parts)):
@@ -142,7 +194,7 @@ def report(root: Path, files: list[str], task: str | None = None,
                             digest.update(block)
                     connection.execute(
                         "INSERT INTO events (id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (str(uuid.uuid4()), "agent_report", document_identity(relative, registry),
+                        (str(uuid.uuid4()), "agent_report", document_identity(relative, registry, case_sensitive),
                          relative, task or None, session or None, timestamp, revision, digest.hexdigest()))
                     recorded += 1
                 except (OSError, ValueError):

@@ -7,7 +7,7 @@ export function samePath(left: string, right: string, caseSensitive = true) {
 export function resolveLink(href: string, source: string, documents: Document[], work: Work[] = [], caseSensitive = true): Destination {
   try {
     if (href.startsWith('#')) return { anchor: decodeURIComponent(href.slice(1)) };
-    const target = new URL(href, 'http://planning.local/' + source);
+    const target = new URL(href, 'http://planning.local/' + source.split('/').map(encodeURIComponent).join('/'));
     if (target.origin !== 'http://planning.local') return ['http:', 'https:'].includes(target.protocol) ? { external: href } : {};
     const relative = decodeURIComponent(target.pathname.slice(1));
     // URL resolution normalizes dot segments; only registered, retained targets are navigable.

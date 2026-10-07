@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { parse } from 'yaml';
 import { createHash } from 'node:crypto';
+import { filesystemCaseSensitive } from './filesystem.ts';
 import type { Document, DocumentContent, HistoryEntry, Issue, Repository, Work } from '../src/types.ts';
 
 const execute = promisify(execFile);
@@ -36,8 +37,9 @@ function normalizedLocation(value: unknown): string {
   if (normalized === '.') throw new PlanningError('A work or plan path must identify a record inside the planning folder.');
   return normalized;
 }
-function locationIdentity(relative: string) { return process.platform === 'win32' ? relative.toLowerCase() : relative; }
-function documentOwner<T extends HistoricalWork>(work: T[], relative: string): T | undefined {
+function pathIdentity(relative: string, caseSensitive: boolean) { return caseSensitive ? relative : relative.toLowerCase(); }
+function documentOwner<T extends HistoricalWork>(work: T[], relative: string, caseSensitive: boolean): T | undefined {
+  const locationIdentity = (value: string) => pathIdentity(value, caseSensitive);
   const identity = locationIdentity(relative);
   const matches = work.filter(item => identity === locationIdentity(item.path) || identity.startsWith(locationIdentity(item.path) + '/'));
   return matches.find(item => item.currentPlan !== null && locationIdentity(item.currentPlan) === identity) ?? matches.sort((a, b) => b.path.length - a.path.length)[0];
@@ -106,13 +108,16 @@ async function files(root: string, directory = root): Promise<string[]> {
   }
   return result;
 }
-export async function gitHistory(root: string, currentWork: HistoricalWork[] = []): Promise<{ history: HistoryEntry[]; available: boolean }> {
+export async function gitHistory(root: string, currentWork: HistoricalWork[] = [], sensitivity?: boolean): Promise<{ history: HistoryEntry[]; available: boolean }> {
   try {
+    const caseSensitive = sensitivity ?? await filesystemCaseSensitive(root);
+    const locationIdentity = (value: string) => pathIdentity(value, caseSensitive);
+    const cacheKey = root + '\0' + caseSensitive;
     const { stdout: top } = await execute('git', ['-C', root, 'rev-parse', '--show-toplevel']);
     if (locationIdentity(await realpath(top.trim())) !== locationIdentity(await realpath(root))) return { history: [], available: false };
     const { stdout: revision } = await execute('git', ['-C', root, 'rev-parse', 'HEAD']);
     const head = revision.trim();
-    let retained = historyCache.get(root);
+    let retained = historyCache.get(cacheKey);
     if (!retained || retained.head !== head) {
       const { stdout } = await execute('git', ['-C', root, 'log', '-30', '--format=%x1e%H%x00%aI%x00%s%x00%P'], { maxBuffer: 1024 * 1024 });
       const firstParents = new Map<string, string | undefined>();
@@ -161,7 +166,7 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
             const snapshots = status === 'D' ? [previous] : status === 'A' ? [current] : [previous, current];
             let attributed = false;
             for (const snapshot of snapshots) {
-              const owner = documentOwner(snapshot, file);
+              const owner = documentOwner(snapshot, file, caseSensitive);
               if (owner) { matches.push(owner); attributed = true; }
             }
             if (!attributed) unowned.push(file);
@@ -172,11 +177,11 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
         }));
       }
       retained = { head, entries, unattributedFiles };
-      historyCache.set(root, retained);
+      historyCache.set(cacheKey, retained);
     }
     return { available: true, history: retained.entries.map(entry => {
       // A newly adopted, uncommitted registration can identify previously unregistered records.
-      const matches = (retained.unattributedFiles.get(entry.id) ?? []).map(file => documentOwner(currentWork, file)).filter((item): item is HistoricalWork => Boolean(item));
+      const matches = (retained.unattributedFiles.get(entry.id) ?? []).map(file => documentOwner(currentWork, file, caseSensitive)).filter((item): item is HistoricalWork => Boolean(item));
       return { ...entry, workIds: [...new Set([...entry.workIds, ...matches.map(item => item.id)])], repositories: [...new Set([...entry.repositories, ...matches.flatMap(item => item.repositories)])] };
     }) };
   } catch { return { history: [], available: false }; }
@@ -190,6 +195,8 @@ export async function loadPlanning(inputRoot: string) {
   if (!registry || registry.schema_version !== 1 || !Array.isArray(registry.repositories) || !Array.isArray(registry.work_items)) {
     throw new PlanningError('The planning registry must use schema version 1 with repositories and work_items.');
   }
+  const caseSensitivePaths = await filesystemCaseSensitive(root);
+  const locationIdentity = (value: string) => pathIdentity(value, caseSensitivePaths);
   const repositoryIds = new Set<string>();
   for (const repository of registry.repositories) {
     if (!repository || typeof repository.id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(repository.id) || repositoryIds.has(repository.id) || typeof repository.name !== 'string' || !repository.name.trim()) {
@@ -274,7 +281,7 @@ export async function loadPlanning(inputRoot: string) {
   for (const relative of await files(root)) {
     const filename = await resolveDocument(root, relative);
     const information = await stat(filename);
-    const owner = documentOwner(work, relative);
+    const owner = documentOwner(work, relative, caseSensitivePaths);
     const identity = locationIdentity(relative);
     const scope = identity.startsWith('knowledge/') ? [...repositoryIds].filter(id => locationIdentity(id) === identity.split('/')[1]) : [];
     let title = path.basename(filename);
@@ -296,7 +303,7 @@ export async function loadPlanning(inputRoot: string) {
     if (selected) item.currentPlan = selected.path;
     item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
   }
-  const history = await gitHistory(root, work);
+  const history = await gitHistory(root, work, caseSensitivePaths);
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
-  return { root, loadedAt: new Date().toISOString(), caseSensitivePaths: process.platform !== 'win32', repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
+  return { root, loadedAt: new Date().toISOString(), caseSensitivePaths, repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

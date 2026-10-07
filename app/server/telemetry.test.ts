@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { Telemetry } from './telemetry.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { statisticsDirectory } from './storage.ts';
+import { filesystemCaseSensitive } from './filesystem.ts';
 
 test('cache overrides resolve home shorthand identically in Node and the Python collector', async () => {
   const root = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,11 @@ test('cache overrides resolve home shorthand identically in Node and the Python 
   const script = 'import importlib.util, pathlib, sys; spec = importlib.util.spec_from_file_location("collector", sys.argv[1]); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.data_directory(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])))';
   const collected = execFileSync(process.env.PYTHON ?? 'python', ['-c', script, helper, root, shorthand], { encoding: 'utf8' }).trim();
   assert.equal(path.normalize(collected), expected);
+  if (!(await filesystemCaseSensitive(root))) {
+    assert.equal(await statisticsDirectory(root.toUpperCase(), shorthand), expected);
+    const aliased = execFileSync(process.env.PYTHON ?? 'python', ['-c', script, helper, root.toUpperCase(), shorthand], { encoding: 'utf8' }).trim();
+    assert.equal(path.normalize(aliased), expected, 'POSIX case folding must share the same Node/Python cache');
+  }
 });
 
 test('view collection is deduplicated and cannot claim agent consultation', () => {

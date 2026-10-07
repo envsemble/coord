@@ -19,6 +19,15 @@ test('malformed legacy references never crash the reader', () => {
   }
 });
 
+test('relative links keep reserved filename characters in the source directory', () => {
+  for (const folder of ['foo#bar', 'foo?bar', 'foo%bar', 'foo bar']) {
+    const target = { path: 'active/' + folder + '/note.md' } as Document;
+    assert.equal(resolveLink('note.md#The-Choice', 'active/' + folder + '/plan.md', [target]).file, target);
+    assert.equal(resolveLink('./note.md', 'active/' + folder + '/plan.md', [target]).file, target);
+    assert.equal(resolveLink('note.md#The-Choice', 'active/' + folder + '/plan.md', [target]).anchor, 'The-Choice');
+  }
+});
+
 test('Windows targets use indexed spelling while case-sensitive hosts retain distinct names', () => {
   assert.equal(resolveLink('DOCS/Decision.md#The-Choice', 'ACTIVE/0001-EXAMPLE/plan.md', [file], [work], false).file, file);
   assert.equal(resolveLink('ACTIVE/0001-EXAMPLE/', 'README.md', [file], [work], false).work, work);

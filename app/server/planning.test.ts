@@ -7,6 +7,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { loadPlanning, readDocument, resolveDocument } from './planning.ts';
+import { filesystemCaseSensitive } from './filesystem.ts';
 
 async function fixture() {
   const temporary = await mkdtemp(path.join(tmpdir(), 'planning-reader-'));
@@ -142,7 +143,7 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
       await writeRegistry([{ ...item, id }]);
       await assert.rejects(loadPlanning(setup.root), /invalid or duplicate identity/);
     }
-    if (process.platform === 'win32') {
+    if (!(await filesystemCaseSensitive(setup.root))) {
       await writeRegistry([item, { ...item, id: 'work-0003', path: 'Active/0002-Real', current_plan: 'Active/0002-Real/plan.md' }]);
       await assert.rejects(loadPlanning(setup.root), /same retained location/);
     }
@@ -158,7 +159,7 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
     assert.equal(await readFile(filename, 'utf8'), original);
   } finally { await setup.cleanup(); }
 });
-test('Windows path casing preserves selected plans, ownership, and Git attribution', { skip: process.platform !== 'win32' }, async () => {
+test('case-insensitive filesystem paths preserve selected plans, ownership, and Git attribution', async t => {
   const setup = await fixture();
   try {
     await mkdir(path.join(setup.root, 'active/0001-example'), { recursive: true });
@@ -170,6 +171,7 @@ test('Windows path casing preserves selected plans, ownership, and Git attributi
     await writeFile(path.join(setup.root, 'Knowledge/Example/note.md'), '# Scoped knowledge\n');
     const registry = JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: 'ACTIVE/0001-EXAMPLE', repositories: ['example'], current_plan: 'Active/0001-Example/pLAN.md' }, { id: 'work-0002', path: 'LEGACY.MD', repositories: ['example'], current_plan: 'Legacy.md' }] });
     await writeFile(path.join(setup.root, 'planning.json'), registry);
+    if (await filesystemCaseSensitive(setup.root)) { t.skip('Connected filesystem is case-sensitive'); return; }
     const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
     git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
     git('add', '.'); git('commit', '--no-verify', '-m', 'Register differently cased paths');

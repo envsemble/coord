@@ -2,10 +2,11 @@ import path from 'node:path';
 import { realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
+import { filesystemCaseSensitive } from './filesystem.ts';
 
 export async function statisticsDirectory(root: string, base?: string) {
   const canonical = await realpath(root).catch(() => path.resolve(root));
-  const normalized = (process.platform === 'win32' ? canonical.toLowerCase() : canonical).replaceAll('\\', '/');
+  const normalized = (await filesystemCaseSensitive(canonical) ? canonical : canonical.toLowerCase()).replaceAll('\\', '/');
   const identity = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
   const directory = base ? path.resolve(base.replace(/^~(?=$|[\\/])/, () => homedir())) : path.join(homedir(), '.cache', 'planning-dashboard');
   return path.join(directory, identity);
@@ -25,7 +26,8 @@ export async function cacheOutsidePlanning(root: string, destination: string) {
     }
   }
   const directory = path.join(canonical, ...suffix);
-  const relative = path.relative(planning, directory);
+  const sensitive = await filesystemCaseSensitive(planning);
+  const relative = path.relative(sensitive ? planning : planning.toLowerCase(), sensitive ? directory : directory.toLowerCase());
   if (!relative || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))) {
     throw new Error('Choose a statistics cache outside the planning folder.');
   }
