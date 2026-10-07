@@ -1,5 +1,6 @@
 import reference from "./reference.json";
 export const documentationURL = (key) =>
+  reference[key]?.url ||
   `https://ontouml.readthedocs.io/en/latest/${reference[key]?.path || ""}`;
 export function lessonFor(key) {
   return (

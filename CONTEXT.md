@@ -28,6 +28,14 @@ _Avoid_: Separate ontology, model copy
 The positions, orthogonal routes, and labels used to display a view.
 _Avoid_: Semantic model, diagram script
 
+**Generalization set**:
+A named group of inheritances with a shared supertype and explicit completeness and disjointness constraints. A complete, disjoint set is a partition; other combinations are generalization sets too.
+_Avoid_: Partition for every set, joint constraint
+
+**Joined inheritance**:
+Several inheritances drawn with a shared branch and one arrow to their supertype. Joining lines alone says nothing about whether subtype membership is complete or disjoint.
+_Avoid_: Automatic partition, merged identities
+
 **Validation finding**:
 A reported violation of an implemented structural or ontology rule, with its affected identity and explanation.
 _Avoid_: Domain fact, proof of correctness

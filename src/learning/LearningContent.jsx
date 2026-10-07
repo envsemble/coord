@@ -21,16 +21,20 @@ export function Lesson({ stereotype, children }) {
         target="_blank"
         rel="noopener noreferrer"
       >
-        OntoUML specification ↗
+        {stereotype === "generalizationSet"
+          ? "UML specification ↗"
+          : "OntoUML specification ↗"}
       </a>
     </div>
   );
 }
 export function ElementLearning({ element, model, relation = false }) {
   const key = relation
-    ? element.type === "generalization"
-      ? "generalization"
-      : element.stereotype || "association"
+    ? element.type === "generalizationSet"
+      ? "generalizationSet"
+      : element.type === "generalization"
+        ? "generalization"
+        : element.stereotype || "association"
     : element.stereotype;
   const providers = relation ? [] : identityProviders(model, element.id);
   const issues = model.validation.issues.filter(
@@ -60,14 +64,18 @@ export function ElementLearning({ element, model, relation = false }) {
           </details>
         ))}
       <details className="learn-concept">
-        <summary>Understand «{key || "unspecified"}»</summary>
+        <summary>
+          {key === "generalizationSet"
+            ? "Understand generalization sets"
+            : `Understand «${key || "unspecified"}»`}
+        </summary>
         <Lesson stereotype={key}>
           {providers.length > 0 && (
             <p>
               Identity supplied by {providers.map((p) => p.name).join(", ")}.
             </p>
           )}
-          {relation && element.type !== "generalization" && (
+          {relation && element.type === "association" && (
             <div className="counts-reading">
               {readMultiplicity(element).map((sentence) => (
                 <p key={sentence}>{sentence}</p>
@@ -104,7 +112,9 @@ export function LearningLibrary({ model, onInspect }) {
   const elementNames = useMemo(
     () =>
       new Map(
-        [...model.classes, ...model.relations].map((e) => [e.id, e.name]),
+        [...model.classes, ...model.relations, ...(model.partitions || [])].map(
+          (e) => [e.id, e.name],
+        ),
       ),
     [model],
   );
@@ -192,7 +202,9 @@ export function LearningLibrary({ model, onInspect }) {
             .map(([key, lesson]) => (
               <details className="learn-concept" key={key}>
                 <summary>
-                  {lesson.title} · «{key}»
+                  {key === "generalizationSet"
+                    ? lesson.title
+                    : `${lesson.title} · «${key}»`}
                 </summary>
                 <Lesson stereotype={key} />
               </details>

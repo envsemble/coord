@@ -62,6 +62,15 @@ export function RelationDetails({ relation, onChoose, model, snippets }) {
         ))}
       </div>
       <ElementLearning element={relation} model={model} relation />
+      {relation.type === "generalization" &&
+        (model.partitions || [])
+          .filter((set) => set.generalizations.includes(relation.id))
+          .map((set) => (
+            <div className="generalization-set-summary" key={set.id}>
+              <h2>{set.name}</h2>
+              <p>{`{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}`}</p>
+            </div>
+          ))}
       <SourceEvidence
         evidence={
           relation.evidence?.length
@@ -71,6 +80,66 @@ export function RelationDetails({ relation, onChoose, model, snippets }) {
         sources={model.sources}
         snippets={snippets}
         label={relation.evidence?.length ? "Source" : "Endpoint evidence"}
+      />
+    </>
+  );
+}
+export function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
+  const declared = group.type === "generalizationSet";
+  return (
+    <>
+      <span className="tag">
+        {declared ? "Generalization set" : "Joined inheritance"}
+      </span>
+      <h1>{group.name}</h1>
+      {group.description && <p>{group.description}</p>}
+      <div className="relation-ends">
+        <h2>Supertype</h2>
+        <div className="relation-end">
+          <button onClick={() => onChoose(group.target.id)}>
+            {group.target.name}
+          </button>
+        </div>
+        <h2>Subtypes</h2>
+        {group.sources.map((node) => (
+          <div className="relation-end" key={node.id}>
+            <button onClick={() => onChoose(node.id)}>{node.name}</button>
+          </div>
+        ))}
+      </div>
+      {declared ? (
+        <>
+          <p className="set-constraints">{`{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}`}</p>
+          <p>
+            {group.complete
+              ? "Every instance of the supertype belongs to at least one subtype in this set."
+              : "Instances of the supertype may belong to none of the subtypes in this set."}
+          </p>
+          <p>
+            {group.disjoint
+              ? "An instance cannot belong to two subtypes in this set at the same time."
+              : "An instance may belong to more than one subtype in this set at the same time."}
+          </p>
+          {group.memberIds.length < group.totalMembers && (
+            <p className="muted">
+              {group.memberIds.length} of {group.totalMembers} members are
+              shown. These constraints apply to the full set.
+            </p>
+          )}
+          <ElementLearning element={group} model={model} relation />
+        </>
+      ) : (
+        <p className="muted">
+          These inheritance branches share a supertype. Joining their lines does
+          not assert completeness or disjointness. Declare a generalization set
+          in the model to express those constraints.
+        </p>
+      )}
+      <SourceEvidence
+        evidence={group.evidence}
+        primary={group.primarySource}
+        sources={model.sources}
+        snippets={snippets}
       />
     </>
   );

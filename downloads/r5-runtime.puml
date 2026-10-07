@@ -99,7 +99,9 @@ C18 <|-- C19
 C18 <|-- C21
 C24 <|-- C25
 C24 <|-- C28
+note on link: Selected intrinsic player phases {incomplete, disjoint}
 C24 <|-- C29
+note on link: Selected intrinsic player phases {incomplete, disjoint}
 C8 <|-- C30
 C5 "1" -- "0..1" C6 : current game context
 C6 "0..*" -- "1" C7 : configured by

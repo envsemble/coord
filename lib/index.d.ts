@@ -101,6 +101,15 @@ export interface ViewerGeneralization extends ElementEvidence {
   generalId: string;
   evidence: string[];
 }
+export interface ViewerGeneralizationSet extends ElementEvidence {
+  id: string;
+  name: string;
+  description?: string;
+  complete: boolean;
+  disjoint: boolean;
+  generalizations: string[];
+  evidence: string[];
+}
 export interface ViewerModel {
   id: string;
   title: string;
@@ -112,7 +121,7 @@ export interface ViewerModel {
   classes: ViewerClass[];
   relations: ViewerAssociation[];
   generalizations: ViewerGeneralization[];
-  partitions: unknown[];
+  partitions: ViewerGeneralizationSet[];
   constraints: string[][];
   unknowns: string[];
   validation?: ValidationReport;
@@ -125,6 +134,8 @@ export interface ViewSettings {
   edgeIds?: string[];
   focusIds?: string[];
   columns?: string[][];
+  mergeGeneralizations?: boolean;
+  direction?: "RIGHT" | "DOWN";
 }
 export interface DiagramNode {
   id: string;
@@ -161,6 +172,22 @@ export interface DiagramEdge {
   sourceAggregation?: string;
   targetAggregation?: string;
   paths: string[];
+  branchPaths?: string[];
+  labels: DiagramLabel[];
+}
+export interface DiagramGeneralizationGroup {
+  id: string;
+  type: "generalizationSet" | "generalizationJoin";
+  name: string;
+  complete?: boolean;
+  disjoint?: boolean;
+  memberIds: string[];
+  sourceIds: string[];
+  target: string;
+  sourceNames: string[];
+  targetName: string;
+  totalMembers: number;
+  paths: string[];
   labels: DiagramLabel[];
 }
 export interface DiagramScene {
@@ -172,6 +199,7 @@ export interface DiagramScene {
   initialFocus: string[];
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  generalizationGroups?: DiagramGeneralizationGroup[];
 }
 export interface PreparedView {
   key: string;

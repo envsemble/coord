@@ -30,6 +30,7 @@ function focusedElements(diagram, target) {
   if (!target) return null;
   const nodes = /* @__PURE__ */ new Set();
   const edges = /* @__PURE__ */ new Set();
+  const groups = /* @__PURE__ */ new Set();
   if (target.kind === "node") {
     if (!diagram.nodes.some((n) => n.id === target.id)) return null;
     nodes.add(target.id);
@@ -39,6 +40,14 @@ function focusedElements(diagram, target) {
       nodes.add(edge.source);
       nodes.add(edge.target);
     }
+  } else if (target.kind === "group") {
+    const group = (diagram.generalizationGroups || []).find(
+      (g) => g.id === target.id
+    );
+    if (!group) return null;
+    group.memberIds.forEach((id) => edges.add(id));
+    group.sourceIds.forEach((id) => nodes.add(id));
+    nodes.add(group.target);
   } else {
     const edge = diagram.edges.find((e) => e.id === target.id);
     if (!edge) return null;
@@ -46,14 +55,16 @@ function focusedElements(diagram, target) {
     nodes.add(edge.source);
     nodes.add(edge.target);
   }
-  return { nodes, edges, primary: target };
+  for (const group of diagram.generalizationGroups || [])
+    if (group.memberIds.some((id) => edges.has(id))) groups.add(group.id);
+  return { nodes, edges, groups, primary: target };
 }
 function elementClass(kind, id, focus, selected) {
   const target = { kind, id };
   const classes = ["diagram-element", kind === "node" ? "node" : "edge"];
   if (focus)
     classes.push(
-      focus[kind === "node" ? "nodes" : "edges"].has(id) ? "highlighted" : "dimmed"
+      focus[kind === "node" ? "nodes" : kind === "group" ? "groups" : "edges"]?.has(id) ? "highlighted" : "dimmed"
     );
   if (sameTarget(target, focus?.primary)) classes.push("primary");
   if (sameTarget(target, selected)) classes.push("selected");
@@ -185,24 +196,35 @@ import { Fragment as Fragment2, jsx as jsx2, jsxs as jsxs2 } from "react/jsx-run
 function relationName(edge) {
   return edge.type === "generalization" ? `${edge.sourceName} inherits ${edge.targetName}` : `${edge.name}: ${edge.sourceName} (${edge.sourceMultiplicity}), ${edge.targetName} (${edge.targetMultiplicity})`;
 }
-function UMLRelation({ edge, focus, selected, handlers, markerId }) {
-  const target = { kind: "edge", id: edge.id };
-  const aggregationMarker = (kind) => ["SHARED", "COMPOSITE"].includes(kind) ? `url(#${markerId}-${kind}${focus?.edges.has(edge.id) ? "-active" : ""})` : void 0;
+function UMLRelation({
+  edge,
+  focus,
+  selected,
+  handlers,
+  markerId,
+  kind = "edge",
+  accessibleName
+}) {
+  const target = { kind, id: edge.id };
+  const highlighted = focus?.[kind === "group" ? "groups" : "edges"]?.has(
+    edge.id
+  );
+  const aggregationMarker = (kind2) => ["SHARED", "COMPOSITE"].includes(kind2) ? `url(#${markerId}-${kind2}${focus?.edges.has(edge.id) ? "-active" : ""})` : void 0;
   return /* @__PURE__ */ jsxs2(
     "g",
     {
-      className: `${elementClass("edge", edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}`,
+      className: `${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}`,
       "data-edge": edge.id,
-      "data-element-kind": "edge",
+      "data-element-kind": kind,
       "data-element-id": edge.id,
       "data-source": edge.source,
       "data-target": edge.target,
-      "aria-label": relationName(edge),
+      "aria-label": accessibleName || relationName(edge),
       "aria-pressed": handlers ? sameTarget(target, selected) : void 0,
       ...interactionProps(target, handlers),
       children: [
-        /* @__PURE__ */ jsx2("title", { children: relationName(edge) }),
-        edge.paths.map((d, i) => /* @__PURE__ */ jsxs2("g", { children: [
+        /* @__PURE__ */ jsx2("title", { children: accessibleName || relationName(edge) }),
+        (edge.branchPaths || edge.paths).map((d, i) => /* @__PURE__ */ jsxs2("g", { children: [
           /* @__PURE__ */ jsx2(
             "path",
             {
@@ -212,7 +234,7 @@ function UMLRelation({ edge, focus, selected, handlers, markerId }) {
               stroke: edge.type === "generalization" ? "var(--diagram-inheritance,#59636e)" : "var(--diagram-edge,#59636e)",
               strokeWidth: "1.4",
               markerStart: edge.type === "association" ? aggregationMarker(edge.sourceAggregation) : void 0,
-              markerEnd: edge.type === "generalization" ? `url(#${markerId}${focus?.edges.has(edge.id) ? "-active" : ""})` : aggregationMarker(edge.targetAggregation)
+              markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${highlighted ? "-active" : ""})` : aggregationMarker(edge.targetAggregation)
             }
           ),
           handlers && /* @__PURE__ */ jsx2(
@@ -267,14 +289,20 @@ function MultiplicityLabel({ label }) {
     }
   );
 }
-function UMLRelationLabels({ edge, focus, selected, handlers }) {
-  const target = { kind: "edge", id: edge.id };
+function UMLRelationLabels({
+  edge,
+  focus,
+  selected,
+  handlers,
+  kind = "edge"
+}) {
+  const target = { kind, id: edge.id };
   return /* @__PURE__ */ jsx2(
     "g",
     {
-      className: `${elementClass("edge", edge.id, focus, selected)} relation-labels`,
+      className: `${elementClass(kind, edge.id, focus, selected)} relation-labels`,
       "data-edge": edge.id,
-      "data-element-kind": "edge",
+      "data-element-kind": kind,
       "data-element-id": edge.id,
       "aria-hidden": "true",
       ...interactionProps(target, handlers, false),
@@ -321,8 +349,27 @@ function UMLRelationLabels({ edge, focus, selected, handlers }) {
   );
 }
 
+// src/visualization/UMLGeneralizationGroup.jsx
+import { jsx as jsx3 } from "react/jsx-runtime";
+function generalizationGroupName(group) {
+  const constraints = group.type === "generalizationSet" ? `; ${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}` : "";
+  return `${group.name}: ${group.sourceNames.join(", ")} inherit ${group.targetName}${constraints}`;
+}
+function UMLGeneralizationGroup({ group, labels = false, ...props }) {
+  const edge = { ...group, type: "generalization" };
+  return labels ? /* @__PURE__ */ jsx3(UMLRelationLabels, { ...props, edge, kind: "group" }) : /* @__PURE__ */ jsx3(
+    UMLRelation,
+    {
+      ...props,
+      edge,
+      kind: "group",
+      accessibleName: generalizationGroupName(group)
+    }
+  );
+}
+
 // src/visualization/UMLDiagram.jsx
-import { jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
+import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 function UMLDiagram({
   diagram,
   active = null,
@@ -349,7 +396,7 @@ function UMLDiagram({
       children: [
         /* @__PURE__ */ jsxs3("defs", { children: [
           ["SHARED", "COMPOSITE"].flatMap(
-            (aggregation) => [false, true].map((active2) => /* @__PURE__ */ jsx3(
+            (aggregation) => [false, true].map((active2) => /* @__PURE__ */ jsx4(
               "marker",
               {
                 id: `${markerId}-${aggregation}${active2 ? "-active" : ""}`,
@@ -359,7 +406,7 @@ function UMLDiagram({
                 refY: "6",
                 orient: "auto-start-reverse",
                 markerUnits: "userSpaceOnUse",
-                children: /* @__PURE__ */ jsx3(
+                children: /* @__PURE__ */ jsx4(
                   "path",
                   {
                     d: "M1 6 L7 1 L13 6 L7 11 Z",
@@ -372,7 +419,7 @@ function UMLDiagram({
               `${aggregation}-${active2}`
             ))
           ),
-          /* @__PURE__ */ jsx3(
+          /* @__PURE__ */ jsx4(
             "marker",
             {
               id: markerId,
@@ -382,7 +429,7 @@ function UMLDiagram({
               refY: "6",
               orient: "auto",
               markerUnits: "userSpaceOnUse",
-              children: /* @__PURE__ */ jsx3(
+              children: /* @__PURE__ */ jsx4(
                 "path",
                 {
                   d: "M1 1 L11 6 L1 11 Z",
@@ -393,7 +440,7 @@ function UMLDiagram({
               )
             }
           ),
-          /* @__PURE__ */ jsx3(
+          /* @__PURE__ */ jsx4(
             "marker",
             {
               id: `${markerId}-active`,
@@ -403,7 +450,7 @@ function UMLDiagram({
               refY: "6",
               orient: "auto",
               markerUnits: "userSpaceOnUse",
-              children: /* @__PURE__ */ jsx3(
+              children: /* @__PURE__ */ jsx4(
                 "path",
                 {
                   d: "M1 1 L11 6 L1 11 Z",
@@ -415,21 +462,40 @@ function UMLDiagram({
             }
           )
         ] }),
-        /* @__PURE__ */ jsx3("g", { className: "relation-routes", children: diagram.edges.map((edge) => /* @__PURE__ */ jsx3(
-          UMLRelation,
-          {
-            ...{ edge, focus, selected, handlers, markerId }
-          },
-          edge.id
-        )) }),
-        /* @__PURE__ */ jsx3("g", { className: "relation-label-layer", children: diagram.edges.map((edge) => /* @__PURE__ */ jsx3(
-          UMLRelationLabels,
-          {
-            ...{ edge, focus, selected, handlers }
-          },
-          edge.id
-        )) }),
-        /* @__PURE__ */ jsx3("g", { className: "node-layer", children: diagram.nodes.map((node) => /* @__PURE__ */ jsx3(UMLNode, { ...{ node, focus, selected, handlers } }, node.id)) })
+        /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
+          (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
+            UMLGeneralizationGroup,
+            {
+              ...{ group, focus, selected, handlers, markerId }
+            },
+            group.id
+          )),
+          diagram.edges.map((edge) => /* @__PURE__ */ jsx4(
+            UMLRelation,
+            {
+              ...{ edge, focus, selected, handlers, markerId }
+            },
+            edge.id
+          ))
+        ] }),
+        /* @__PURE__ */ jsxs3("g", { className: "relation-label-layer", children: [
+          (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
+            UMLGeneralizationGroup,
+            {
+              labels: true,
+              ...{ group, focus, selected, handlers }
+            },
+            group.id
+          )),
+          diagram.edges.map((edge) => /* @__PURE__ */ jsx4(
+            UMLRelationLabels,
+            {
+              ...{ edge, focus, selected, handlers }
+            },
+            edge.id
+          ))
+        ] }),
+        /* @__PURE__ */ jsx4("g", { className: "node-layer", children: diagram.nodes.map((node) => /* @__PURE__ */ jsx4(UMLNode, { ...{ node, focus, selected, handlers } }, node.id)) })
       ]
     }
   );
@@ -810,7 +876,7 @@ function useDiagramCamera({
 }
 
 // src/visualization/DiagramCanvas.jsx
-import { jsx as jsx4 } from "react/jsx-runtime";
+import { jsx as jsx5 } from "react/jsx-runtime";
 var DiagramCanvas = memo(
   forwardRef(function DiagramCanvas2({
     diagram,
@@ -860,14 +926,14 @@ var DiagramCanvas = memo(
         if (e.type === "keydown" || !controls.hasDragged()) onSelect(value);
       }
     };
-    return /* @__PURE__ */ jsx4(
+    return /* @__PURE__ */ jsx5(
       "main",
       {
         ref: canvasRef,
         id: "canvas",
         "aria-label": "Interactive OntoUML diagram",
         onPointerLeave: () => onHover(null),
-        children: /* @__PURE__ */ jsx4("div", { ref: worldRef, id: "world", children: /* @__PURE__ */ jsx4(
+        children: /* @__PURE__ */ jsx5("div", { ref: worldRef, id: "world", children: /* @__PURE__ */ jsx5(
           UMLDiagram,
           {
             diagram,
@@ -938,7 +1004,7 @@ function useSVGExport(svgSource, theme) {
 }
 
 // src/model/domainModel.js
-function indexViewerModel(model) {
+function indexViewerModel(model, generalizationGroups = []) {
   const nodes = new Map(model.classes.map((node) => [node.id, node]));
   const names = new Map(model.classes.map((node) => [node.name, node]));
   const edges = new Map([
@@ -961,11 +1027,25 @@ function indexViewerModel(model) {
       }
     ])
   ]);
+  const sets = new Map((model.partitions || []).map((set) => [set.id, set]));
+  const groups = new Map(
+    generalizationGroups.map((group) => [
+      group.id,
+      {
+        ...group,
+        ...sets.get(group.id),
+        evidence: sets.get(group.id)?.evidence || [],
+        sources: group.sourceIds.map((id) => nodes.get(id)),
+        target: nodes.get(group.target)
+      }
+    ])
+  );
   return {
     nodes,
     names,
     edges,
-    getElement: (target) => target?.kind === "node" ? nodes.get(target.id) : edges.get(target?.id)
+    groups,
+    getElement: (target) => target?.kind === "node" ? nodes.get(target.id) : target?.kind === "group" ? groups.get(target.id) : edges.get(target?.id)
   };
 }
 function viewForNode(views, currentKey, node) {
@@ -975,7 +1055,7 @@ function viewForNode(views, currentKey, node) {
 }
 
 // src/ui/Button.jsx
-import { jsx as jsx5 } from "react/jsx-runtime";
+import { jsx as jsx6 } from "react/jsx-runtime";
 function IconButton({
   label,
   title = label,
@@ -983,7 +1063,7 @@ function IconButton({
   children,
   ...props
 }) {
-  return /* @__PURE__ */ jsx5(
+  return /* @__PURE__ */ jsx6(
     "button",
     {
       className: `icon ${className}`,
@@ -995,11 +1075,11 @@ function IconButton({
   );
 }
 function ToggleButton({ pressed, className = "", children, ...props }) {
-  return /* @__PURE__ */ jsx5("button", { className, "aria-pressed": pressed, ...props, children });
+  return /* @__PURE__ */ jsx6("button", { className, "aria-pressed": pressed, ...props, children });
 }
 
 // src/ui/Panel.jsx
-import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
+import { jsx as jsx7, jsxs as jsxs4 } from "react/jsx-runtime";
 function Panel({
   open,
   onClose,
@@ -1017,7 +1097,7 @@ function Panel({
       "aria-label": label,
       ...props,
       children: [
-        onClose && /* @__PURE__ */ jsx6(
+        onClose && /* @__PURE__ */ jsx7(
           IconButton,
           {
             className: "panel-close",
@@ -1026,7 +1106,7 @@ function Panel({
             children: "\xD7"
           }
         ),
-        /* @__PURE__ */ jsx6("div", { className: "panel-content", children })
+        /* @__PURE__ */ jsx7("div", { className: "panel-content", children })
       ]
     }
   );
@@ -1053,9 +1133,9 @@ function useTheme(storageKey) {
 }
 
 // src/ui/Tabs.jsx
-import { jsx as jsx7 } from "react/jsx-runtime";
+import { jsx as jsx8 } from "react/jsx-runtime";
 function Tabs({ items, value, onChange, label = "Diagram" }) {
-  return /* @__PURE__ */ jsx7("nav", { className: "tabs", "aria-label": label, children: items.map((item) => /* @__PURE__ */ jsx7(
+  return /* @__PURE__ */ jsx8("nav", { className: "tabs", "aria-label": label, children: items.map((item) => /* @__PURE__ */ jsx8(
     "button",
     {
       "data-view": item.key,
@@ -1068,10 +1148,10 @@ function Tabs({ items, value, onChange, label = "Diagram" }) {
 }
 
 // src/ui/CameraControls.jsx
-import { jsx as jsx8, jsxs as jsxs5 } from "react/jsx-runtime";
+import { jsx as jsx9, jsxs as jsxs5 } from "react/jsx-runtime";
 function CameraControls({ zoom, onZoom, onReset, onFit }) {
   return /* @__PURE__ */ jsxs5("div", { className: "camera-controls", children: [
-    /* @__PURE__ */ jsx8(
+    /* @__PURE__ */ jsx9(
       IconButton,
       {
         id: "zoom-out",
@@ -1094,7 +1174,7 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
         ]
       }
     ),
-    /* @__PURE__ */ jsx8(
+    /* @__PURE__ */ jsx9(
       IconButton,
       {
         id: "zoom-in",
@@ -1104,7 +1184,7 @@ function CameraControls({ zoom, onZoom, onReset, onFit }) {
         children: "+"
       }
     ),
-    /* @__PURE__ */ jsx8("button", { id: "fit", title: "Fit diagram (0)", onClick: onFit, children: "Fit" })
+    /* @__PURE__ */ jsx9("button", { id: "fit", title: "Fit diagram (0)", onClick: onFit, children: "Fit" })
   ] });
 }
 
@@ -1136,7 +1216,7 @@ function usePopupDismiss(onClose, ...roots) {
 }
 
 // src/ui/ConceptSearch.jsx
-import { Fragment as Fragment3, jsx as jsx9, jsxs as jsxs6 } from "react/jsx-runtime";
+import { Fragment as Fragment3, jsx as jsx10, jsxs as jsxs6 } from "react/jsx-runtime";
 function ConceptSearch({ classes, onChoose }) {
   const [query, setQuery] = useState5("");
   const [open, setOpen] = useState5(false);
@@ -1161,7 +1241,7 @@ function ConceptSearch({ classes, onChoose }) {
     inputRef.current.blur();
   }
   return /* @__PURE__ */ jsxs6(Fragment3, { children: [
-    /* @__PURE__ */ jsx9(
+    /* @__PURE__ */ jsx10(
       "button",
       {
         ref: toggleRef,
@@ -1174,7 +1254,7 @@ function ConceptSearch({ classes, onChoose }) {
       }
     ),
     /* @__PURE__ */ jsxs6("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "input",
         {
           ref: inputRef,
@@ -1204,7 +1284,7 @@ function ConceptSearch({ classes, onChoose }) {
           }
         }
       ),
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "div",
         {
           ref: suggestionsRef,
@@ -1212,7 +1292,7 @@ function ConceptSearch({ classes, onChoose }) {
           className: `suggestions${showHits && hits.length ? " open" : ""}`,
           role: "listbox",
           "aria-label": "Concepts",
-          children: hits.map((c) => /* @__PURE__ */ jsx9("button", { role: "option", onClick: () => choose(c.id), children: c.name }, c.id))
+          children: hits.map((c) => /* @__PURE__ */ jsx10("button", { role: "option", onClick: () => choose(c.id), children: c.name }, c.id))
         }
       )
     ] })
@@ -1221,13 +1301,13 @@ function ConceptSearch({ classes, onChoose }) {
 
 // src/ui/ExportMenu.jsx
 import { useRef as useRef5, useState as useState6 } from "react";
-import { jsx as jsx10, jsxs as jsxs7 } from "react/jsx-runtime";
+import { jsx as jsx11, jsxs as jsxs7 } from "react/jsx-runtime";
 function ExportMenu({ children }) {
   const [open, setOpen] = useState6(false);
   const root = useRef5(null);
   usePopupDismiss(() => setOpen(false), root);
   return /* @__PURE__ */ jsxs7("div", { className: "menu-wrap", ref: root, children: [
-    /* @__PURE__ */ jsx10(
+    /* @__PURE__ */ jsx11(
       IconButton,
       {
         id: "export",
@@ -1237,7 +1317,7 @@ function ExportMenu({ children }) {
         children: "\u2193"
       }
     ),
-    /* @__PURE__ */ jsx10("div", { id: "export-menu", className: `menu${open ? " open" : ""}`, children })
+    /* @__PURE__ */ jsx11("div", { id: "export-menu", className: `menu${open ? " open" : ""}`, children })
   ] });
 }
 
@@ -1254,7 +1334,7 @@ function useBlobURL(data, type = "text/plain;charset=utf-8") {
 }
 
 // src/ui/DownloadLink.jsx
-import { jsx as jsx11 } from "react/jsx-runtime";
+import { jsx as jsx12 } from "react/jsx-runtime";
 function DownloadLink({
   data,
   filename,
@@ -1264,11 +1344,11 @@ function DownloadLink({
   className = "source"
 }) {
   const href = useBlobURL(data, type);
-  return /* @__PURE__ */ jsx11("a", { id, className, href, download: filename, children });
+  return /* @__PURE__ */ jsx12("a", { id, className, href, download: filename, children });
 }
 
 // src/viewer/ViewerToolbar.jsx
-import { jsx as jsx12, jsxs as jsxs8 } from "react/jsx-runtime";
+import { jsx as jsx13, jsxs as jsxs8 } from "react/jsx-runtime";
 function ViewerToolbar({
   model,
   views,
@@ -1290,10 +1370,10 @@ function ViewerToolbar({
 }) {
   const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
   return /* @__PURE__ */ jsxs8("header", { children: [
-    /* @__PURE__ */ jsx12("span", { className: "brand", title: model.title, children: "OntoUML" }),
-    /* @__PURE__ */ jsx12(Tabs, { items: views, value: viewKey, onChange: onView }),
-    /* @__PURE__ */ jsx12("span", { className: "spacer" }),
-    /* @__PURE__ */ jsx12(
+    /* @__PURE__ */ jsx13("span", { className: "brand", title: model.title, children: "OntoUML" }),
+    /* @__PURE__ */ jsx13(Tabs, { items: views, value: viewKey, onChange: onView }),
+    /* @__PURE__ */ jsx13("span", { className: "spacer" }),
+    /* @__PURE__ */ jsx13(
       ConceptSearch,
       {
         classes: model.classes.filter(
@@ -1302,7 +1382,7 @@ function ViewerToolbar({
         onChoose
       }
     ),
-    /* @__PURE__ */ jsx12(
+    /* @__PURE__ */ jsx13(
       ToggleButton,
       {
         id: "fields",
@@ -1313,11 +1393,11 @@ function ViewerToolbar({
         children: "Fields"
       }
     ),
-    /* @__PURE__ */ jsx12(CameraControls, { ...{ zoom, onZoom, onReset, onFit } }),
-    /* @__PURE__ */ jsx12("span", { className: "divider" }),
-    /* @__PURE__ */ jsx12(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? "\u2600" : "\u263E" }),
+    /* @__PURE__ */ jsx13(CameraControls, { ...{ zoom, onZoom, onReset, onFit } }),
+    /* @__PURE__ */ jsx13("span", { className: "divider" }),
+    /* @__PURE__ */ jsx13(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? "\u2600" : "\u263E" }),
     /* @__PURE__ */ jsxs8(ExportMenu, { children: [
-      /* @__PURE__ */ jsx12(
+      /* @__PURE__ */ jsx13(
         "a",
         {
           id: "svg-download",
@@ -1326,7 +1406,7 @@ function ViewerToolbar({
           children: "Diagram \xB7 SVG"
         }
       ),
-      /* @__PURE__ */ jsx12(
+      /* @__PURE__ */ jsx13(
         DownloadLink,
         {
           id: "puml-download",
@@ -1336,7 +1416,7 @@ function ViewerToolbar({
           children: "Diagram \xB7 PlantUML"
         }
       ),
-      /* @__PURE__ */ jsx12(
+      /* @__PURE__ */ jsx13(
         DownloadLink,
         {
           id: "model-download",
@@ -1347,7 +1427,7 @@ function ViewerToolbar({
           children: "Model \xB7 OntoUML JSON"
         }
       ),
-      /* @__PURE__ */ jsx12(
+      /* @__PURE__ */ jsx13(
         DownloadLink,
         {
           id: "bundle-download",
@@ -1368,31 +1448,31 @@ function ViewerToolbar({
         "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
         children: [
           "Learn",
-          model.validation.counts.error > 0 && /* @__PURE__ */ jsx12("span", { className: "validation-count", children: model.validation.counts.error })
+          model.validation.counts.error > 0 && /* @__PURE__ */ jsx13("span", { className: "validation-count", children: model.validation.counts.error })
         ]
       }
     ),
-    /* @__PURE__ */ jsx12(IconButton, { id: "info", label: "About and controls", onClick: onAbout, children: "\u24D8" })
+    /* @__PURE__ */ jsx13(IconButton, { id: "info", label: "About and controls", onClick: onAbout, children: "\u24D8" })
   ] });
 }
 
 // src/ui/CodeSnippet.jsx
 import { Fragment as Fragment4 } from "react";
-import { jsx as jsx13, jsxs as jsxs9 } from "react/jsx-runtime";
+import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
 function CodeSnippet({ snippet, label }) {
-  return /* @__PURE__ */ jsx13("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx13("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs9(Fragment4, { children: [
-    /* @__PURE__ */ jsx13("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx13("span", { style: token.style, children: token.content }, j)) }),
+  return /* @__PURE__ */ jsx14("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx14("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs9(Fragment4, { children: [
+    /* @__PURE__ */ jsx14("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx14("span", { style: token.style, children: token.content }, j)) }),
     i < snippet.lines.length - 1 ? "\n" : null
   ] }, i)) }) });
 }
 
 // src/viewer/SourceEvidence.jsx
-import { jsx as jsx14, jsxs as jsxs10 } from "react/jsx-runtime";
+import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
 function SourceExcerpt({ source, snippet }) {
   if (!snippet)
     return /* @__PURE__ */ jsxs10("div", { className: "source-excerpt", children: [
-      /* @__PURE__ */ jsx14("p", { children: source.claim }),
-      source.url && /* @__PURE__ */ jsx14(
+      /* @__PURE__ */ jsx15("p", { children: source.claim }),
+      source.url && /* @__PURE__ */ jsx15(
         "a",
         {
           className: "source-github",
@@ -1409,7 +1489,7 @@ function SourceExcerpt({ source, snippet }) {
       " \xB7 ",
       snippet.language
     ] }),
-    /* @__PURE__ */ jsx14(
+    /* @__PURE__ */ jsx15(
       CodeSnippet,
       {
         snippet,
@@ -1443,9 +1523,9 @@ function SourceEvidence({
   const records = [...new Set(primary ? [primary, ...evidence] : evidence)].filter((id) => evidence.includes(id)).map((id) => sources.find((s) => s.id === id)).filter(Boolean);
   if (!records.length) return null;
   return /* @__PURE__ */ jsxs10("section", { className: "source-evidence", "aria-label": label, children: [
-    /* @__PURE__ */ jsx14("h2", { children: label }),
+    /* @__PURE__ */ jsx15("h2", { children: label }),
     records.map(
-      (source, i) => i === 0 ? /* @__PURE__ */ jsx14(
+      (source, i) => i === 0 ? /* @__PURE__ */ jsx15(
         SourceExcerpt,
         {
           source,
@@ -1453,8 +1533,8 @@ function SourceEvidence({
         },
         source.id
       ) : /* @__PURE__ */ jsxs10("details", { className: "additional-source", children: [
-        /* @__PURE__ */ jsx14("summary", { children: source.title }),
-        /* @__PURE__ */ jsx14(SourceExcerpt, { source, snippet: snippets[source.id] })
+        /* @__PURE__ */ jsx15("summary", { children: source.title }),
+        /* @__PURE__ */ jsx15(SourceExcerpt, { source, snippet: snippets[source.id] })
       ] }, source.id)
     )
   ] });
@@ -1592,6 +1672,13 @@ var reference_default = {
     question: "Is every instance of the specific type necessarily an instance of the general type?",
     path: "theory/identity.html"
   },
+  generalizationSet: {
+    title: "Generalization set",
+    summary: "A named group of inheritances sharing a supertype. Complete means its subtypes cover every instance of that supertype; incomplete permits instances outside them. Disjoint forbids simultaneous membership in different subtypes; overlapping permits it. These two constraints are independent.",
+    question: "Do the listed alternatives cover every instance, and may one instance belong to more than one at the same time?",
+    example: "Active and Suspended can form a complete, disjoint partition of Enrollment. Joining lines alone does not assert either constraint.",
+    url: "https://www.omg.org/spec/UML/2.5.1/PDF"
+  },
   association: {
     title: "Association",
     summary: "A link between instances of two types. Its multiplicities constrain the number of instances allowed at each end.",
@@ -1601,7 +1688,7 @@ var reference_default = {
 };
 
 // src/learning/modelHelp.js
-var documentationURL = (key) => `https://ontouml.readthedocs.io/en/latest/${reference_default[key]?.path || ""}`;
+var documentationURL = (key) => reference_default[key]?.url || `https://ontouml.readthedocs.io/en/latest/${reference_default[key]?.path || ""}`;
 function lessonFor(key) {
   return reference_default[key] || {
     title: key || "Unspecified stereotype",
@@ -1645,28 +1732,28 @@ function identityProviders(model, id) {
 }
 
 // src/learning/LearningContent.jsx
-import { Fragment as Fragment5, jsx as jsx15, jsxs as jsxs11 } from "react/jsx-runtime";
+import { Fragment as Fragment5, jsx as jsx16, jsxs as jsxs11 } from "react/jsx-runtime";
 function Lesson({ stereotype, children }) {
   const lesson = lessonFor(stereotype);
   return /* @__PURE__ */ jsxs11("div", { className: "lesson", children: [
-    /* @__PURE__ */ jsx15("p", { children: lesson.summary }),
+    /* @__PURE__ */ jsx16("p", { children: lesson.summary }),
     children,
-    /* @__PURE__ */ jsx15("p", { className: "learning-question", children: lesson.question }),
-    lesson.example && /* @__PURE__ */ jsx15("p", { className: "muted", children: lesson.example }),
-    /* @__PURE__ */ jsx15(
+    /* @__PURE__ */ jsx16("p", { className: "learning-question", children: lesson.question }),
+    lesson.example && /* @__PURE__ */ jsx16("p", { className: "muted", children: lesson.example }),
+    /* @__PURE__ */ jsx16(
       "a",
       {
         className: "source",
         href: documentationURL(stereotype),
         target: "_blank",
         rel: "noopener noreferrer",
-        children: "OntoUML specification \u2197"
+        children: stereotype === "generalizationSet" ? "UML specification \u2197" : "OntoUML specification \u2197"
       }
     )
   ] });
 }
 function ElementLearning({ element, model, relation = false }) {
-  const key = relation ? element.type === "generalization" ? "generalization" : element.stereotype || "association" : element.stereotype;
+  const key = relation ? element.type === "generalizationSet" ? "generalizationSet" : element.type === "generalization" ? "generalization" : element.stereotype || "association" : element.stereotype;
   const providers = relation ? [] : identityProviders(model, element.id);
   const issues = model.validation.issues.filter(
     (i) => i.elementId === element.id
@@ -1679,8 +1766,8 @@ function ElementLearning({ element, model, relation = false }) {
         " ",
         issue.code.replaceAll("_", " ").toLowerCase()
       ] }),
-      /* @__PURE__ */ jsx15("p", { children: issue.message }),
-      issue.documentation && /* @__PURE__ */ jsx15(
+      /* @__PURE__ */ jsx16("p", { children: issue.message }),
+      issue.documentation && /* @__PURE__ */ jsx16(
         "a",
         {
           className: "source",
@@ -1692,29 +1779,25 @@ function ElementLearning({ element, model, relation = false }) {
       )
     ] }, issue.code)),
     /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
-      /* @__PURE__ */ jsxs11("summary", { children: [
-        "Understand \xAB",
-        key || "unspecified",
-        "\xBB"
-      ] }),
+      /* @__PURE__ */ jsx16("summary", { children: key === "generalizationSet" ? "Understand generalization sets" : `Understand \xAB${key || "unspecified"}\xBB` }),
       /* @__PURE__ */ jsxs11(Lesson, { stereotype: key, children: [
         providers.length > 0 && /* @__PURE__ */ jsxs11("p", { children: [
           "Identity supplied by ",
           providers.map((p) => p.name).join(", "),
           "."
         ] }),
-        relation && element.type !== "generalization" && /* @__PURE__ */ jsx15("div", { className: "counts-reading", children: readMultiplicity(element).map((sentence) => /* @__PURE__ */ jsx15("p", { children: sentence }, sentence)) })
+        relation && element.type === "association" && /* @__PURE__ */ jsx16("div", { className: "counts-reading", children: readMultiplicity(element).map((sentence) => /* @__PURE__ */ jsx16("p", { children: sentence }, sentence)) })
       ] })
     ] }),
     element.rationale && element.rationale !== element.description && /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
-      /* @__PURE__ */ jsx15("summary", { children: "Why this classification?" }),
-      /* @__PURE__ */ jsx15("p", { children: element.rationale })
+      /* @__PURE__ */ jsx16("summary", { children: "Why this classification?" }),
+      /* @__PURE__ */ jsx16("p", { children: element.rationale })
     ] }),
     (element.questions || []).map((question) => /* @__PURE__ */ jsxs11("details", { className: "learn-concept uncertainty", children: [
-      /* @__PURE__ */ jsx15("summary", { children: question.question }),
-      /* @__PURE__ */ jsx15("p", { children: question.why }),
-      /* @__PURE__ */ jsx15("h2", { children: "How to resolve it" }),
-      /* @__PURE__ */ jsx15("p", { children: question.resolve })
+      /* @__PURE__ */ jsx16("summary", { children: question.question }),
+      /* @__PURE__ */ jsx16("p", { children: question.why }),
+      /* @__PURE__ */ jsx16("h2", { children: "How to resolve it" }),
+      /* @__PURE__ */ jsx16("p", { children: question.resolve })
     ] }, question.question))
   ] });
 }
@@ -1727,13 +1810,15 @@ function LearningLibrary({ model, onInspect }) {
   const coverage = model.validation.issues.filter((i) => i.severity === "info");
   const elementNames = useMemo2(
     () => new Map(
-      [...model.classes, ...model.relations].map((e) => [e.id, e.name])
+      [...model.classes, ...model.relations, ...model.partitions || []].map(
+        (e) => [e.id, e.name]
+      )
     ),
     [model]
   );
   const renderIssue = (issue, i) => /* @__PURE__ */ jsxs11("div", { className: `validation-issue ${issue.severity}`, children: [
-    /* @__PURE__ */ jsx15("span", { className: "tag", children: issue.severity }),
-    /* @__PURE__ */ jsx15("p", { children: issue.message }),
+    /* @__PURE__ */ jsx16("span", { className: "tag", children: issue.severity }),
+    /* @__PURE__ */ jsx16("p", { children: issue.message }),
     issue.elementId && /* @__PURE__ */ jsxs11(
       "button",
       {
@@ -1747,10 +1832,10 @@ function LearningLibrary({ model, onInspect }) {
     )
   ] }, i);
   return /* @__PURE__ */ jsxs11(Fragment5, { children: [
-    /* @__PURE__ */ jsx15("span", { className: "tag", children: "OntoUML Atlas" }),
-    /* @__PURE__ */ jsx15("h1", { children: "Understand the model" }),
+    /* @__PURE__ */ jsx16("span", { className: "tag", children: "OntoUML Atlas" }),
+    /* @__PURE__ */ jsx16("h1", { children: "Understand the model" }),
     /* @__PURE__ */ jsxs11("div", { className: "learning-tabs", children: [
-      /* @__PURE__ */ jsx15("button", { "aria-pressed": tab === "learn", onClick: () => setTab("learn"), children: "Learn" }),
+      /* @__PURE__ */ jsx16("button", { "aria-pressed": tab === "learn", onClick: () => setTab("learn"), children: "Learn" }),
       /* @__PURE__ */ jsxs11(
         "button",
         {
@@ -1759,11 +1844,11 @@ function LearningLibrary({ model, onInspect }) {
           children: [
             "Checks",
             " ",
-            /* @__PURE__ */ jsx15("span", { className: "validation-count", children: model.validation.counts.error })
+            /* @__PURE__ */ jsx16("span", { className: "validation-count", children: model.validation.counts.error })
           ]
         }
       ),
-      /* @__PURE__ */ jsx15(
+      /* @__PURE__ */ jsx16(
         "button",
         {
           "aria-pressed": tab === "questions",
@@ -1773,7 +1858,7 @@ function LearningLibrary({ model, onInspect }) {
       )
     ] }),
     tab === "learn" && /* @__PURE__ */ jsxs11(Fragment5, { children: [
-      /* @__PURE__ */ jsx15(
+      /* @__PURE__ */ jsx16(
         "input",
         {
           className: "learning-search",
@@ -1785,11 +1870,11 @@ function LearningLibrary({ model, onInspect }) {
         }
       ),
       /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsx15("summary", { children: "How to read counts" }),
-        /* @__PURE__ */ jsx15("p", { children: "The count next to a type says how many of its instances can relate to one instance at the opposite end." }),
-        /* @__PURE__ */ jsx15("p", { children: "1 = exactly one \xB7 0..1 = optional, at most one \xB7 1..* = at least one \xB7 * = zero or more." }),
-        /* @__PURE__ */ jsx15("p", { className: "learning-question", children: "Person [1] \u2014 [0..*] Enrollment. How many people does each enrollment require?" }),
-        /* @__PURE__ */ jsx15(
+        /* @__PURE__ */ jsx16("summary", { children: "How to read counts" }),
+        /* @__PURE__ */ jsx16("p", { children: "The count next to a type says how many of its instances can relate to one instance at the opposite end." }),
+        /* @__PURE__ */ jsx16("p", { children: "1 = exactly one \xB7 0..1 = optional, at most one \xB7 1..* = at least one \xB7 * = zero or more." }),
+        /* @__PURE__ */ jsx16("p", { className: "learning-question", children: "Person [1] \u2014 [0..*] Enrollment. How many people does each enrollment require?" }),
+        /* @__PURE__ */ jsx16(
           "button",
           {
             className: "answer-button",
@@ -1797,23 +1882,18 @@ function LearningLibrary({ model, onInspect }) {
             children: reveal ? "Hide answer" : "Check your understanding"
           }
         ),
-        reveal && /* @__PURE__ */ jsx15("p", { children: "Exactly one Person per Enrollment. The 0..* beside Enrollment permits a Person to have no enrollments or many." })
+        reveal && /* @__PURE__ */ jsx16("p", { children: "Exactly one Person per Enrollment. The 0..* beside Enrollment permits a Person to have no enrollments or many." })
       ] }),
       Object.entries(reference_default).filter(
         ([key, value]) => `${key} ${value.summary}`.toLowerCase().includes(query.toLowerCase())
       ).map(([key, lesson]) => /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsxs11("summary", { children: [
-          lesson.title,
-          " \xB7 \xAB",
-          key,
-          "\xBB"
-        ] }),
-        /* @__PURE__ */ jsx15(Lesson, { stereotype: key })
+        /* @__PURE__ */ jsx16("summary", { children: key === "generalizationSet" ? lesson.title : `${lesson.title} \xB7 \xAB${key}\xBB` }),
+        /* @__PURE__ */ jsx16(Lesson, { stereotype: key })
       ] }, key))
     ] }),
     tab === "checks" && /* @__PURE__ */ jsxs11(Fragment5, { children: [
-      /* @__PURE__ */ jsx15("p", { children: model.validation.counts.error ? `${model.validation.counts.error} findings need review.` : "The implemented checks pass." }),
-      /* @__PURE__ */ jsx15("p", { className: "muted", children: "Official JSON schema, reference integrity, and a documented subset of ontology rules. Domain accuracy still needs judgment." }),
+      /* @__PURE__ */ jsx16("p", { children: model.validation.counts.error ? `${model.validation.counts.error} findings need review.` : "The implemented checks pass." }),
+      /* @__PURE__ */ jsx16("p", { className: "muted", children: "Official JSON schema, reference integrity, and a documented subset of ontology rules. Domain accuracy still needs judgment." }),
       visibleIssues.map(renderIssue),
       coverage.length > 0 && /* @__PURE__ */ jsxs11("details", { className: "learn-concept", children: [
         /* @__PURE__ */ jsxs11("summary", { children: [
@@ -1823,17 +1903,17 @@ function LearningLibrary({ model, onInspect }) {
         ] }),
         coverage.map(renderIssue)
       ] }),
-      model.validation.limitations.map((limit) => /* @__PURE__ */ jsx15("p", { className: "muted", children: limit }, limit))
+      model.validation.limitations.map((limit) => /* @__PURE__ */ jsx16("p", { className: "muted", children: limit }, limit))
     ] }),
     tab === "questions" && /* @__PURE__ */ jsxs11(Fragment5, { children: [
-      model.unknowns.length ? model.unknowns.map((question) => /* @__PURE__ */ jsx15("p", { className: "open-question", children: question }, question)) : /* @__PURE__ */ jsx15("p", { className: "muted", children: "No project-wide questions recorded. Individual concepts may have their own questions." }),
-      /* @__PURE__ */ jsx15("p", { className: "muted", children: "Inspect a concept for its evidence, classification rationale, and ways to resolve uncertainty." })
+      model.unknowns.length ? model.unknowns.map((question) => /* @__PURE__ */ jsx16("p", { className: "open-question", children: question }, question)) : /* @__PURE__ */ jsx16("p", { className: "muted", children: "No project-wide questions recorded. Individual concepts may have their own questions." }),
+      /* @__PURE__ */ jsx16("p", { className: "muted", children: "Inspect a concept for its evidence, classification rationale, and ways to resolve uncertainty." })
     ] })
   ] });
 }
 
 // src/viewer/DetailsContent.jsx
-import { Fragment as Fragment6, jsx as jsx16, jsxs as jsxs12 } from "react/jsx-runtime";
+import { Fragment as Fragment6, jsx as jsx17, jsxs as jsxs12 } from "react/jsx-runtime";
 function ConceptDetails({ concept, model, snippets }) {
   return /* @__PURE__ */ jsxs12(Fragment6, { children: [
     /* @__PURE__ */ jsxs12("span", { className: "tag", children: [
@@ -1841,10 +1921,10 @@ function ConceptDetails({ concept, model, snippets }) {
       concept.stereotype || "unspecified",
       "\xBB"
     ] }),
-    concept.status && /* @__PURE__ */ jsx16("span", { className: "tag evidence-status", children: concept.status }),
-    /* @__PURE__ */ jsx16("h1", { children: concept.name }),
-    concept.description && /* @__PURE__ */ jsx16("p", { children: concept.description }),
-    /* @__PURE__ */ jsx16(
+    concept.status && /* @__PURE__ */ jsx17("span", { className: "tag evidence-status", children: concept.status }),
+    /* @__PURE__ */ jsx17("h1", { children: concept.name }),
+    concept.description && /* @__PURE__ */ jsx17("p", { children: concept.description }),
+    /* @__PURE__ */ jsx17(
       SourceEvidence,
       {
         evidence: concept.evidence,
@@ -1853,12 +1933,12 @@ function ConceptDetails({ concept, model, snippets }) {
         snippets
       }
     ),
-    /* @__PURE__ */ jsx16(ElementLearning, { element: concept, model }),
+    /* @__PURE__ */ jsx17(ElementLearning, { element: concept, model }),
     concept.attributes.length > 0 && /* @__PURE__ */ jsxs12("details", { className: "concept-fields", children: [
-      /* @__PURE__ */ jsx16("summary", { children: "Fields" }),
+      /* @__PURE__ */ jsx17("summary", { children: "Fields" }),
       concept.attributes.map(
         ({ name, type, multiplicity: cardinality }, i) => /* @__PURE__ */ jsxs12("div", { className: "field-row", children: [
-          /* @__PURE__ */ jsx16("span", { children: name }),
+          /* @__PURE__ */ jsx17("span", { children: name }),
           /* @__PURE__ */ jsxs12("span", { children: [
             type,
             cardinality ? ` [${cardinality}]` : ""
@@ -1870,17 +1950,21 @@ function ConceptDetails({ concept, model, snippets }) {
 }
 function RelationDetails({ relation, onChoose, model, snippets }) {
   return /* @__PURE__ */ jsxs12(Fragment6, { children: [
-    /* @__PURE__ */ jsx16("span", { className: "tag", children: relation.type === "generalization" ? "Generalization" : relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association" }),
-    /* @__PURE__ */ jsx16("h1", { children: relation.type === "generalization" ? "Inheritance" : relation.name }),
-    /* @__PURE__ */ jsx16("div", { className: "relation-ends", children: [
+    /* @__PURE__ */ jsx17("span", { className: "tag", children: relation.type === "generalization" ? "Generalization" : relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association" }),
+    /* @__PURE__ */ jsx17("h1", { children: relation.type === "generalization" ? "Inheritance" : relation.name }),
+    /* @__PURE__ */ jsx17("div", { className: "relation-ends", children: [
       [relation.source, relation.sourceMultiplicity],
       [relation.target, relation.targetMultiplicity]
     ].map(([node, count], i) => /* @__PURE__ */ jsxs12("div", { className: "relation-end", children: [
-      /* @__PURE__ */ jsx16("button", { onClick: () => onChoose(node.id), children: node.name }),
-      count && /* @__PURE__ */ jsx16("span", { className: "count-badge", children: count })
+      /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(node.id), children: node.name }),
+      count && /* @__PURE__ */ jsx17("span", { className: "count-badge", children: count })
     ] }, i)) }),
-    /* @__PURE__ */ jsx16(ElementLearning, { element: relation, model, relation: true }),
-    /* @__PURE__ */ jsx16(
+    /* @__PURE__ */ jsx17(ElementLearning, { element: relation, model, relation: true }),
+    relation.type === "generalization" && (model.partitions || []).filter((set) => set.generalizations.includes(relation.id)).map((set) => /* @__PURE__ */ jsxs12("div", { className: "generalization-set-summary", children: [
+      /* @__PURE__ */ jsx17("h2", { children: set.name }),
+      /* @__PURE__ */ jsx17("p", { children: `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}` })
+    ] }, set.id)),
+    /* @__PURE__ */ jsx17(
       SourceEvidence,
       {
         evidence: relation.evidence?.length ? relation.evidence : [...relation.source.evidence, ...relation.target.evidence],
@@ -1891,24 +1975,59 @@ function RelationDetails({ relation, onChoose, model, snippets }) {
     )
   ] });
 }
+function GeneralizationSetDetails({ group, onChoose, model, snippets }) {
+  const declared = group.type === "generalizationSet";
+  return /* @__PURE__ */ jsxs12(Fragment6, { children: [
+    /* @__PURE__ */ jsx17("span", { className: "tag", children: declared ? "Generalization set" : "Joined inheritance" }),
+    /* @__PURE__ */ jsx17("h1", { children: group.name }),
+    group.description && /* @__PURE__ */ jsx17("p", { children: group.description }),
+    /* @__PURE__ */ jsxs12("div", { className: "relation-ends", children: [
+      /* @__PURE__ */ jsx17("h2", { children: "Supertype" }),
+      /* @__PURE__ */ jsx17("div", { className: "relation-end", children: /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(group.target.id), children: group.target.name }) }),
+      /* @__PURE__ */ jsx17("h2", { children: "Subtypes" }),
+      group.sources.map((node) => /* @__PURE__ */ jsx17("div", { className: "relation-end", children: /* @__PURE__ */ jsx17("button", { onClick: () => onChoose(node.id), children: node.name }) }, node.id))
+    ] }),
+    declared ? /* @__PURE__ */ jsxs12(Fragment6, { children: [
+      /* @__PURE__ */ jsx17("p", { className: "set-constraints", children: `{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}` }),
+      /* @__PURE__ */ jsx17("p", { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
+      /* @__PURE__ */ jsx17("p", { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." }),
+      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs12("p", { className: "muted", children: [
+        group.memberIds.length,
+        " of ",
+        group.totalMembers,
+        " members are shown. These constraints apply to the full set."
+      ] }),
+      /* @__PURE__ */ jsx17(ElementLearning, { element: group, model, relation: true })
+    ] }) : /* @__PURE__ */ jsx17("p", { className: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }),
+    /* @__PURE__ */ jsx17(
+      SourceEvidence,
+      {
+        evidence: group.evidence,
+        primary: group.primarySource,
+        sources: model.sources,
+        snippets
+      }
+    )
+  ] });
+}
 function About({ model, exports }) {
   return /* @__PURE__ */ jsxs12(Fragment6, { children: [
-    /* @__PURE__ */ jsx16("span", { className: "tag", children: "OntoUML Atlas" }),
-    /* @__PURE__ */ jsx16("h1", { children: model.title }),
-    /* @__PURE__ */ jsx16("p", { children: "Two fingers to pan. Pinch to zoom. Select a concept or relation for evidence and learning help." }),
+    /* @__PURE__ */ jsx17("span", { className: "tag", children: "OntoUML Atlas" }),
+    /* @__PURE__ */ jsx17("h1", { children: model.title }),
+    /* @__PURE__ */ jsx17("p", { children: "Two fingers to pan. Pinch to zoom. Select a concept or relation for evidence and learning help." }),
     /* @__PURE__ */ jsxs12("p", { children: [
-      /* @__PURE__ */ jsx16("kbd", { children: "+" }),
+      /* @__PURE__ */ jsx17("kbd", { children: "+" }),
       " / ",
-      /* @__PURE__ */ jsx16("kbd", { children: "\u2212" }),
+      /* @__PURE__ */ jsx17("kbd", { children: "\u2212" }),
       " zoom \xB7 ",
-      /* @__PURE__ */ jsx16("kbd", { children: "0" }),
+      /* @__PURE__ */ jsx17("kbd", { children: "0" }),
       " fit \xB7 ",
-      /* @__PURE__ */ jsx16("kbd", { children: "Esc" }),
+      /* @__PURE__ */ jsx17("kbd", { children: "Esc" }),
       " ",
       "clear"
     ] }),
-    /* @__PURE__ */ jsx16("p", { className: "muted", children: model.status }),
-    /* @__PURE__ */ jsx16(
+    /* @__PURE__ */ jsx17("p", { className: "muted", children: model.status }),
+    /* @__PURE__ */ jsx17(
       DownloadLink,
       {
         data: exports.readText(`${exports.slug}-model-notes.txt`),
@@ -1916,7 +2035,7 @@ function About({ model, exports }) {
         children: "Source notes \u2193"
       }
     ),
-    /* @__PURE__ */ jsx16(
+    /* @__PURE__ */ jsx17(
       DownloadLink,
       {
         data: exports.readText(`${exports.slug}-validation.json`),
@@ -1982,7 +2101,7 @@ function useArtifactArchive(exportData) {
 }
 
 // src/viewer/OntoUMLViewer.jsx
-import { jsx as jsx17, jsxs as jsxs13 } from "react/jsx-runtime";
+import { jsx as jsx18, jsxs as jsxs13 } from "react/jsx-runtime";
 function OntoUMLViewer({
   model,
   views,
@@ -1990,7 +2109,6 @@ function OntoUMLViewer({
   snippets = {}
 }) {
   const exports = useArtifactArchive(exportData);
-  const index = useMemo4(() => indexViewerModel(model), [model]);
   const [viewKey, setViewKey] = useState10(views[0].key), [fields, setFields] = useState10(false);
   const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
   const [selected, setSelected] = useState10(null);
@@ -2001,6 +2119,10 @@ function OntoUMLViewer({
   const cameraRef = useRef7(null);
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
+  const index = useMemo4(
+    () => indexViewerModel(model, diagram.generalizationGroups),
+    [model, diagram.generalizationGroups]
+  );
   const diagramURL = useSVGExport(
     exports.readText(
       `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`
@@ -2054,14 +2176,14 @@ function OntoUMLViewer({
     setFocusRequest({ id: node.id });
   }
   return /* @__PURE__ */ jsxs13("div", { className: `viewer${element || learningOpen ? " inspecting" : ""}`, children: [
-    /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsx18(
       ViewerToolbar,
       {
         ...{ model, views, exports, viewKey, fields, theme, zoom, diagramURL },
         onView: (key) => {
           if (key === viewKey) return;
           const next = views.find((v) => v.key === key).diagram;
-          const elements = selected?.kind === "edge" ? next.edges : next.nodes;
+          const elements = selected?.kind === "edge" ? next.edges : selected?.kind === "group" ? next.generalizationGroups || [] : next.nodes;
           if (!elements.some((item) => item.id === selected?.id)) clear();
           setFocusRequest(null);
           setViewKey(key);
@@ -2084,7 +2206,7 @@ function OntoUMLViewer({
         onFit: () => cameraRef.current.fit()
       }
     ),
-    /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsx18(
       DiagramCanvas,
       {
         ref: cameraRef,
@@ -2109,13 +2231,21 @@ function OntoUMLViewer({
           if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
         },
         children: [
-          learningOpen && /* @__PURE__ */ jsx17(
+          learningOpen && /* @__PURE__ */ jsx18(
             LearningLibrary,
             {
               model,
               onInspect: (id) => {
                 if (index.nodes.has(id)) choose(id);
                 else {
+                  const groupView = views.find(
+                    (v) => v.diagram.generalizationGroups?.some((g) => g.id === id)
+                  );
+                  if (groupView) {
+                    setViewKey(groupView.key);
+                    select({ kind: "group", id });
+                    return;
+                  }
                   const edge = index.edges.get(id);
                   const next = views.find(
                     (v) => v.diagram.edges.some((e) => e.id === id)
@@ -2128,8 +2258,8 @@ function OntoUMLViewer({
               }
             }
           ),
-          !learningOpen && element && inspected.kind === "node" && /* @__PURE__ */ jsx17(ConceptDetails, { concept: element, model, snippets }),
-          !learningOpen && element && inspected.kind === "edge" && /* @__PURE__ */ jsx17(
+          !learningOpen && element && inspected.kind === "node" && /* @__PURE__ */ jsx18(ConceptDetails, { concept: element, model, snippets }),
+          !learningOpen && element && inspected.kind === "edge" && /* @__PURE__ */ jsx18(
             RelationDetails,
             {
               relation: element,
@@ -2137,11 +2267,20 @@ function OntoUMLViewer({
               model,
               snippets
             }
+          ),
+          !learningOpen && element && inspected.kind === "group" && /* @__PURE__ */ jsx18(
+            GeneralizationSetDetails,
+            {
+              group: element,
+              model,
+              snippets,
+              onChoose: choose
+            }
           )
         ]
       }
     ),
-    /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsx18(
       Panel,
       {
         id: "about-panel",
@@ -2149,7 +2288,7 @@ function OntoUMLViewer({
         label: "About and controls",
         open: aboutOpen,
         onClose: () => setAboutOpen(false),
-        children: /* @__PURE__ */ jsx17(About, { model, exports })
+        children: /* @__PURE__ */ jsx18(About, { model, exports })
       }
     )
   ] });
@@ -2157,7 +2296,7 @@ function OntoUMLViewer({
 
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
+import { jsx as jsx19, jsxs as jsxs14 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -2169,9 +2308,9 @@ var ViewerErrorBoundary = class extends Component {
   render() {
     if (this.state.failed)
       return /* @__PURE__ */ jsxs14("main", { className: "viewer-error", role: "alert", children: [
-        /* @__PURE__ */ jsx18("h1", { children: "The model could not be displayed" }),
-        /* @__PURE__ */ jsx18("p", { children: "Rebuild the viewer from the model and check its validation report." }),
-        /* @__PURE__ */ jsx18("button", { onClick: () => location.reload(), children: "Reload" })
+        /* @__PURE__ */ jsx19("h1", { children: "The model could not be displayed" }),
+        /* @__PURE__ */ jsx19("p", { children: "Rebuild the viewer from the model and check its validation report." }),
+        /* @__PURE__ */ jsx19("button", { onClick: () => location.reload(), children: "Reload" })
       ] });
     return this.props.children;
   }
@@ -2183,6 +2322,7 @@ export {
   Lesson,
   OntoUMLViewer,
   UMLDiagram,
+  UMLGeneralizationGroup,
   UMLNode,
   UMLRelation,
   ViewerErrorBoundary

@@ -6,26 +6,37 @@ export function relationName(edge) {
     : `${edge.name}: ${edge.sourceName} (${edge.sourceMultiplicity}), ${edge.targetName} (${edge.targetMultiplicity})`;
 }
 
-export function UMLRelation({ edge, focus, selected, handlers, markerId }) {
-  const target = { kind: "edge", id: edge.id };
+export function UMLRelation({
+  edge,
+  focus,
+  selected,
+  handlers,
+  markerId,
+  kind = "edge",
+  accessibleName,
+}) {
+  const target = { kind, id: edge.id };
+  const highlighted = focus?.[kind === "group" ? "groups" : "edges"]?.has(
+    edge.id,
+  );
   const aggregationMarker = (kind) =>
     ["SHARED", "COMPOSITE"].includes(kind)
       ? `url(#${markerId}-${kind}${focus?.edges.has(edge.id) ? "-active" : ""})`
       : undefined;
   return (
     <g
-      className={`${elementClass("edge", edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}`}
+      className={`${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}`}
       data-edge={edge.id}
-      data-element-kind="edge"
+      data-element-kind={kind}
       data-element-id={edge.id}
       data-source={edge.source}
       data-target={edge.target}
-      aria-label={relationName(edge)}
+      aria-label={accessibleName || relationName(edge)}
       aria-pressed={handlers ? sameTarget(target, selected) : undefined}
       {...interactionProps(target, handlers)}
     >
-      <title>{relationName(edge)}</title>
-      {edge.paths.map((d, i) => (
+      <title>{accessibleName || relationName(edge)}</title>
+      {(edge.branchPaths || edge.paths).map((d, i) => (
         <g key={i}>
           <path
             className="edge-path"
@@ -43,8 +54,8 @@ export function UMLRelation({ edge, focus, selected, handlers, markerId }) {
                 : undefined
             }
             markerEnd={
-              edge.type === "generalization"
-                ? `url(#${markerId}${focus?.edges.has(edge.id) ? "-active" : ""})`
+              edge.type === "generalization" && !edge.branchPaths
+                ? `url(#${markerId}${highlighted ? "-active" : ""})`
                 : aggregationMarker(edge.targetAggregation)
             }
           />
@@ -94,13 +105,19 @@ export function MultiplicityLabel({ label }) {
   );
 }
 
-export function UMLRelationLabels({ edge, focus, selected, handlers }) {
-  const target = { kind: "edge", id: edge.id };
+export function UMLRelationLabels({
+  edge,
+  focus,
+  selected,
+  handlers,
+  kind = "edge",
+}) {
+  const target = { kind, id: edge.id };
   return (
     <g
-      className={`${elementClass("edge", edge.id, focus, selected)} relation-labels`}
+      className={`${elementClass(kind, edge.id, focus, selected)} relation-labels`}
       data-edge={edge.id}
-      data-element-kind="edge"
+      data-element-kind={kind}
       data-element-id={edge.id}
       aria-hidden="true"
       {...interactionProps(target, handlers, false)}

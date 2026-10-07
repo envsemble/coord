@@ -9,3 +9,4 @@ export {
   ElementLearning,
   LearningLibrary,
 } from "./learning/LearningContent";
+export { UMLGeneralizationGroup } from "./visualization/UMLGeneralizationGroup";

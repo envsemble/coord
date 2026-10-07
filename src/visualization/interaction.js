@@ -14,6 +14,7 @@ export function focusedElements(diagram, target) {
   if (!target) return null;
   const nodes = new Set();
   const edges = new Set();
+  const groups = new Set();
   if (target.kind === "node") {
     if (!diagram.nodes.some((n) => n.id === target.id)) return null;
     nodes.add(target.id);
@@ -23,6 +24,14 @@ export function focusedElements(diagram, target) {
       nodes.add(edge.source);
       nodes.add(edge.target);
     }
+  } else if (target.kind === "group") {
+    const group = (diagram.generalizationGroups || []).find(
+      (g) => g.id === target.id,
+    );
+    if (!group) return null;
+    group.memberIds.forEach((id) => edges.add(id));
+    group.sourceIds.forEach((id) => nodes.add(id));
+    nodes.add(group.target);
   } else {
     const edge = diagram.edges.find((e) => e.id === target.id);
     if (!edge) return null;
@@ -30,7 +39,9 @@ export function focusedElements(diagram, target) {
     nodes.add(edge.source);
     nodes.add(edge.target);
   }
-  return { nodes, edges, primary: target };
+  for (const group of diagram.generalizationGroups || [])
+    if (group.memberIds.some((id) => edges.has(id))) groups.add(group.id);
+  return { nodes, edges, groups, primary: target };
 }
 
 export function elementClass(kind, id, focus, selected) {
@@ -38,7 +49,9 @@ export function elementClass(kind, id, focus, selected) {
   const classes = ["diagram-element", kind === "node" ? "node" : "edge"];
   if (focus)
     classes.push(
-      focus[kind === "node" ? "nodes" : "edges"].has(id)
+      focus[
+        kind === "node" ? "nodes" : kind === "group" ? "groups" : "edges"
+      ]?.has(id)
         ? "highlighted"
         : "dimmed",
     );

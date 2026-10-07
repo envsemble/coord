@@ -1825,7 +1825,9 @@
       "generalizations": [
         "generalization-HiddenListing-ServerListing",
         "generalization-PublicListing-ServerListing"
-      ]
+      ],
+      "description": "",
+      "evidence": []
     },
     {
       "id": "generalization-set-selected-intrinsic-player-phases",
@@ -1835,7 +1837,9 @@
       "generalizations": [
         "generalization-ReadyPlayer-PlayerEntity",
         "generalization-DownedPlayer-PlayerEntity"
-      ]
+      ],
+      "description": "",
+      "evidence": []
     }
   ],
   "validation": {
@@ -2061,9 +2065,10 @@
         "fields": false,
         "nodes": 28,
         "edges": 37,
-        "orthogonalSegments": 151,
-        "width": 2218,
-        "height": 1814,
+        "orthogonalSegments": 143,
+        "width": 2206,
+        "height": 1972,
+        "generalizationGroups": 2,
         "multiplicityLabels": 62,
         "maxMultiplicityDistance": 47
       },
@@ -2072,9 +2077,10 @@
         "fields": true,
         "nodes": 28,
         "edges": 37,
-        "orthogonalSegments": 143,
-        "width": 2306,
-        "height": 2178,
+        "orthogonalSegments": 140,
+        "width": 2262,
+        "height": 2243,
+        "generalizationGroups": 2,
         "multiplicityLabels": 62,
         "maxMultiplicityDistance": 47
       },
@@ -2083,9 +2089,10 @@
         "fields": false,
         "nodes": 10,
         "edges": 12,
-        "orthogonalSegments": 40,
-        "width": 1583,
-        "height": 682,
+        "orthogonalSegments": 43,
+        "width": 1574,
+        "height": 639,
+        "generalizationGroups": 1,
         "multiplicityLabels": 18,
         "maxMultiplicityDistance": 47
       },
@@ -2094,9 +2101,10 @@
         "fields": true,
         "nodes": 10,
         "edges": 12,
-        "orthogonalSegments": 42,
-        "width": 1583,
-        "height": 682,
+        "orthogonalSegments": 45,
+        "width": 1590,
+        "height": 643,
+        "generalizationGroups": 1,
         "multiplicityLabels": 18,
         "maxMultiplicityDistance": 47
       }

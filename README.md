@@ -31,6 +31,10 @@ Validation exits with 0 when implemented checks pass, 1 when findings include er
 
 Two source projects can contribute to one OntoUML project using separate packages and deliberate shared identities. `mergeProjects` namespaces IDs when combining independently authored models; identical names stay distinct. Author cross-project relations against those IDs afterwards, and namespace accompanying evidence keys in the same way.
 
+Generalization sets in the standard model produce shared inheritance branches with one hollow triangle pointing to the supertype. Their names and `{complete/incomplete, disjoint/overlapping}` constraints appear beside the shared trunk. Hover or select the trunk or label to inspect the set and highlight its visible members. Individual branches retain their own relation identity and two-endpoint focus. If a view omits members, the label states how many are shown; completeness still applies to the full set. Generalizations without a declared set can share a trunk without acquiring constraints. A view can set `mergeGeneralizations: false` to keep separate arrows, or `direction: "DOWN"` for a vertical layout (the default is `"RIGHT"`). These are presentation preferences only.
+
+For a teaching example like the enrollment pattern, run `node scripts/build-enrollment.cjs work/enrollment-site` and open `work/enrollment-site/index.html`. Its named state and degree-level sets are authored examples, separate from the R5 model.
+
 See [the agent workflow](agents/MODELING.md) for the contract, supported excerpt languages and modeling guidance.
 
 ## Node and React APIs
@@ -82,7 +86,7 @@ The R5 example currently has three phase-partition findings. Its ActiveClientSlo
 
 ## Viewer behavior
 
-Two fingers pan; pinch zooms slowly and smoothly. Drag also pans. Hover takes priority over selection in the wide sidebar. Hover or selection dims unrelated elements; a relation keeps only itself and its two endpoints highlighted. The active entity has an amber outline and connected entities have blue outlines. Selection survives navigation, theme changes and field toggling. Escape clears it.
+Two fingers pan; pinch zooms slowly and smoothly. Drag also pans. Hover takes priority over selection in the wide sidebar. Hover or selection dims unrelated elements; a relation keeps only itself and its two endpoints highlighted. The active entity has an amber outline and connected entities have blue outlines. Selection survives navigation, theme changes and field toggling. Clicking the background or pressing Escape clears it.
 
 Each association shows counts at both ends. Inheritance uses a hollow triangle and no counts. Routes have only horizontal and vertical segments, checked during generation. Dark is the default; light is available and remembered when browser storage permits. Source snippets include line numbers and pinned GitHub links. SVG, standard JSON, evidence, views, notes, validation and ZIP downloads work directly from disk.
 

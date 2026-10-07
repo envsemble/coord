@@ -2,6 +2,7 @@ import { useId, useMemo } from "react";
 import { UMLNode } from "./UMLNode";
 import { UMLRelation, UMLRelationLabels } from "./UMLRelation";
 import { focusedElements } from "./interaction";
+import { UMLGeneralizationGroup } from "./UMLGeneralizationGroup";
 
 // A domain-independent renderer. The input is ordinary graph/geometry data;
 // this component has no knowledge of R5, model evidence, or application panels.
@@ -95,6 +96,12 @@ export function UMLDiagram({
         </marker>
       </defs>
       <g className="relation-routes">
+        {(diagram.generalizationGroups || []).map((group) => (
+          <UMLGeneralizationGroup
+            key={group.id}
+            {...{ group, focus, selected, handlers, markerId }}
+          />
+        ))}
         {diagram.edges.map((edge) => (
           <UMLRelation
             key={edge.id}
@@ -103,6 +110,13 @@ export function UMLDiagram({
         ))}
       </g>
       <g className="relation-label-layer">
+        {(diagram.generalizationGroups || []).map((group) => (
+          <UMLGeneralizationGroup
+            key={group.id}
+            labels
+            {...{ group, focus, selected, handlers }}
+          />
+        ))}
         {diagram.edges.map((edge) => (
           <UMLRelationLabels
             key={edge.id}

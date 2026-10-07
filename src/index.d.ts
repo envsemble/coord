@@ -5,7 +5,10 @@ import type {
   ReactNode,
 } from "react";
 import type { DiagramScene, ViewerPayload, ViewerModel } from "../lib/index";
-export type InspectionTarget = { kind: "node" | "edge"; id: string } | null;
+export type InspectionTarget = {
+  kind: "node" | "edge" | "group";
+  id: string;
+} | null;
 export const OntoUMLViewer: ComponentType<ViewerPayload>;
 export const ViewerErrorBoundary: ComponentType<{ children?: ReactNode }>;
 export interface CameraControls {
@@ -34,6 +37,7 @@ export const UMLDiagram: ComponentType<{
 }>;
 export const UMLNode: ComponentType<Record<string, unknown>>;
 export const UMLRelation: ComponentType<Record<string, unknown>>;
+export const UMLGeneralizationGroup: ComponentType<Record<string, unknown>>;
 export const Lesson: ComponentType<{
   stereotype: string;
   children?: ReactNode;

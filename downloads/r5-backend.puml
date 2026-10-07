@@ -43,7 +43,9 @@ class "ServerLookup" as C17 <<event>> {
 }
 C11 <|-- C12
 C11 <|-- C14
+note on link: Listing visibility {complete, disjoint}
 C11 <|-- C15
+note on link: Listing visibility {complete, disjoint}
 C13 "0..*" -- "1" C10 : <<mediation>>\nmediates
 C13 "1..*" -- "1" C12 : <<mediation>>\nmediates
 C11 "0..*" -- "1" C5 : advertises

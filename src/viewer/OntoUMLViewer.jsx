@@ -6,7 +6,12 @@ import { indexViewerModel, viewForNode } from "../model/domainModel";
 import { Panel } from "../ui/Panel";
 import { useTheme } from "../ui/useTheme";
 import { ViewerToolbar } from "./ViewerToolbar";
-import { ConceptDetails, RelationDetails, About } from "./DetailsContent";
+import {
+  ConceptDetails,
+  RelationDetails,
+  GeneralizationSetDetails,
+  About,
+} from "./DetailsContent";
 import { useInspection, inspectedTarget } from "./useInspection";
 import { LearningLibrary } from "../learning/LearningContent";
 import { useArtifactArchive } from "./useArtifactArchive";
@@ -18,7 +23,6 @@ export function OntoUMLViewer({
   snippets = {},
 }) {
   const exports = useArtifactArchive(exportData);
-  const index = useMemo(() => indexViewerModel(model), [model]);
   const [viewKey, setViewKey] = useState(views[0].key),
     [fields, setFields] = useState(false);
   const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
@@ -31,6 +35,10 @@ export function OntoUMLViewer({
   const cameraRef = useRef(null);
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
+  const index = useMemo(
+    () => indexViewerModel(model, diagram.generalizationGroups),
+    [model, diagram.generalizationGroups],
+  );
   const diagramURL = useSVGExport(
     exports.readText(
       `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`,
@@ -90,7 +98,12 @@ export function OntoUMLViewer({
         onView={(key) => {
           if (key === viewKey) return;
           const next = views.find((v) => v.key === key).diagram;
-          const elements = selected?.kind === "edge" ? next.edges : next.nodes;
+          const elements =
+            selected?.kind === "edge"
+              ? next.edges
+              : selected?.kind === "group"
+                ? next.generalizationGroups || []
+                : next.nodes;
           if (!elements.some((item) => item.id === selected?.id)) clear();
           setFocusRequest(null);
           setViewKey(key);
@@ -138,6 +151,14 @@ export function OntoUMLViewer({
             onInspect={(id) => {
               if (index.nodes.has(id)) choose(id);
               else {
+                const groupView = views.find((v) =>
+                  v.diagram.generalizationGroups?.some((g) => g.id === id),
+                );
+                if (groupView) {
+                  setViewKey(groupView.key);
+                  select({ kind: "group", id });
+                  return;
+                }
                 const edge = index.edges.get(id);
                 const next = views.find((v) =>
                   v.diagram.edges.some((e) => e.id === id),
@@ -159,6 +180,14 @@ export function OntoUMLViewer({
             onChoose={choose}
             model={model}
             snippets={snippets}
+          />
+        )}
+        {!learningOpen && element && inspected.kind === "group" && (
+          <GeneralizationSetDetails
+            group={element}
+            model={model}
+            snippets={snippets}
+            onChoose={choose}
           />
         )}
       </Panel>

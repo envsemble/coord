@@ -126,6 +126,13 @@
     "question": "Is every instance of the specific type necessarily an instance of the general type?",
     "path": "theory/identity.html"
   },
+  "generalizationSet": {
+    "title": "Generalization set",
+    "summary": "A named group of inheritances sharing a supertype. Complete means its subtypes cover every instance of that supertype; incomplete permits instances outside them. Disjoint forbids simultaneous membership in different subtypes; overlapping permits it. These two constraints are independent.",
+    "question": "Do the listed alternatives cover every instance, and may one instance belong to more than one at the same time?",
+    "example": "Active and Suspended can form a complete, disjoint partition of Enrollment. Joining lines alone does not assert either constraint.",
+    "url": "https://www.omg.org/spec/UML/2.5.1/PDF"
+  },
   "association": {
     "title": "Association",
     "summary": "A link between instances of two types. Its multiplicities constrain the number of instances allowed at each end.",

@@ -1,5 +1,5 @@
 // Semantic records only. No coordinates, DOM elements, styles, or React state.
-export function indexViewerModel(model) {
+export function indexViewerModel(model, generalizationGroups = []) {
   const nodes = new Map(model.classes.map((node) => [node.id, node]));
   const names = new Map(model.classes.map((node) => [node.name, node]));
   const edges = new Map([
@@ -22,12 +22,30 @@ export function indexViewerModel(model) {
       },
     ]),
   ]);
+  const sets = new Map((model.partitions || []).map((set) => [set.id, set]));
+  const groups = new Map(
+    generalizationGroups.map((group) => [
+      group.id,
+      {
+        ...group,
+        ...sets.get(group.id),
+        evidence: sets.get(group.id)?.evidence || [],
+        sources: group.sourceIds.map((id) => nodes.get(id)),
+        target: nodes.get(group.target),
+      },
+    ]),
+  );
   return {
     nodes,
     names,
     edges,
+    groups,
     getElement: (target) =>
-      target?.kind === "node" ? nodes.get(target.id) : edges.get(target?.id),
+      target?.kind === "node"
+        ? nodes.get(target.id)
+        : target?.kind === "group"
+          ? groups.get(target.id)
+          : edges.get(target?.id),
   };
 }
 
