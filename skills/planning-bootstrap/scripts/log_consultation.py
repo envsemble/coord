@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import sqlite3
 import subprocess
 import sys
+import unicodedata
 import uuid
 
 SCHEMA = """
@@ -55,19 +56,24 @@ def filesystem_case_sensitive(root: Path) -> bool:
 
 def retained_relative(actual: Path, root: Path, case_sensitive: bool) -> str:
     original, parent = actual.parts, root.parts
-    compare = (lambda value: value) if case_sensitive else str.lower
-    if len(original) <= len(parent) or tuple(map(compare, original[:len(parent)])) != tuple(map(compare, parent)):
+    if len(original) <= len(parent) or not Path(*original[:len(parent)]).samefile(root):
         raise ValueError("Document is outside the planning folder")
     parts = list(original[len(parent):])
-    if not case_sensitive:
-        # Path.resolve on POSIX does not restore the directory-entry spelling.
-        directory = root
-        for index, part in enumerate(parts):
-            spelling = next((name for name in os.listdir(directory) if name.lower() == part.lower()), None)
-            if spelling is None:
-                raise ValueError("Document entry is no longer available")
-            parts[index] = spelling
-            directory = directory / parts[index]
+    # POSIX resolution can preserve a supplied spelling even when the filesystem
+    # accepts a case or Unicode-normalization alias. Verify candidate identities;
+    # normalization alone must never equate distinct files on another volume.
+    def comparable(name: str) -> str:
+        normalized = unicodedata.normalize("NFC", name)
+        return normalized if case_sensitive else normalized.lower()
+    directory = root
+    for index, part in enumerate(parts):
+        names = os.listdir(directory)
+        spelling = part if part in names else next((name for name in names
+            if comparable(name) == comparable(part) and (directory / name).samefile(directory / part)), None)
+        if spelling is None:
+            raise ValueError("Document entry is no longer available")
+        parts[index] = spelling
+        directory = directory / spelling
     return PurePosixPath(*parts).as_posix()
 
 def data_directory(root: Path, base: Path | None = None) -> Path:

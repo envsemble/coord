@@ -13,6 +13,26 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 class ConsultationTests(unittest.TestCase):
+    def test_native_normalization_alias_retains_original_document_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "planning"
+            work = root / "active/0001-example"
+            work.mkdir(parents=True)
+            name = "cafe\u0301.md"
+            original = work / name
+            original.write_text("Original Unicode filename\n", encoding="utf-8")
+            supplied = work / "caf\u00e9.md"
+            if not supplied.exists() or not supplied.samefile(original):
+                self.skipTest("Connected filesystem does not resolve Unicode normalization aliases")
+            retained = next(path.name for path in work.iterdir())
+            registry = {"schema_version": 1, "work_items": [{"id": "work-0001", "path": "active/0001-example"}]}
+            (root / "planning.json").write_text(json.dumps(registry), encoding="utf-8")
+            destination = Path(directory) / "metrics"
+            self.assertEqual(module.report(root, ["active/0001-example/caf\u00e9.md"], destination=destination), (1, 0))
+            with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
+                self.assertEqual(db.execute("SELECT document_key, path FROM events").fetchone(), ("work-0001:" + retained, "active/0001-example/" + retained))
+            self.assertEqual(original.read_text(encoding="utf-8"), "Original Unicode filename\n")
+
     def test_ambiguous_registry_locations_never_write_usage(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "planning"
