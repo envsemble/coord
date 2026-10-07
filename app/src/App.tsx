@@ -6,16 +6,14 @@ import type { Document, DocumentContent, Snapshot, Work } from './types';
 import { resolveLink, samePath } from './links';
 import { findHeadingId, rehypeHeadingIds } from './headings';
 import { defaultDocument, primaryDocuments, relativeDocumentPath } from './work';
+import { documentRoute, routeHref, type Route } from './routes';
 
-type Route = { view: string; work: string | null; file: string | null; anchor: string | null };
 function currentRoute(): Route {
   const parameters = new URLSearchParams(window.location.hash.slice(1));
   return { view: parameters.get('view') ?? 'work', work: parameters.get('work'), file: parameters.get('file'), anchor: parameters.get('anchor') };
 }
 function navigate(route: Partial<Route>) {
-  const parameters = new URLSearchParams();
-  for (const [name, value] of Object.entries({ view: 'work', ...route })) if (value) parameters.set(name, value);
-  window.location.hash = parameters.toString();
+  window.location.hash = routeHref(route);
 }
 function pretty(value: string) { return value.replaceAll('_', ' ').replace(/^\w/, character => character.toUpperCase()); }
 function day(value: string | null) {
@@ -38,7 +36,7 @@ function Empty({ title, children }: { title: string; children?: ReactNode }) { r
 function StatsCard({ label, value, note, icon }: { label: string; value: ReactNode; note: ReactNode; icon: ReactNode }) {
   return <div className="stat"><div className="stat-top"><span>{label}</span>{icon}</div><strong>{value}</strong><small>{note}</small></div>;
 }
-function documentOpen(file: Document) { navigate({ view: file.category === 'knowledge' ? 'knowledge' : file.workId ? 'work' : 'records', work: file.workId, file: file.path }); }
+function documentOpen(file: Document) { navigate(documentRoute(file)); }
 function WorkCard({ work }: { work: Work }) {
   const ledgers = work.documents.filter(file => file.category === 'ledger').length;
   const decisions = work.documents.filter(file => file.category === 'decision').length;
@@ -115,9 +113,12 @@ function Reader({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot
         a: ({ href = '', children, id }) => {
           const target = destination(href);
           if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<ArrowUpRight className="external-icon" size={12} /></a>;
-          if (target.file) return <a id={id} href={'#file=' + encodeURIComponent(target.file.path)} onClick={event => { event.preventDefault(); navigate({ view: target.file?.category === 'knowledge' ? 'knowledge' : target.file?.workId ? 'work' : 'records', work: target.file?.workId, file: target.file?.path, anchor: target.anchor }); }}>{children}</a>;
-          if (target.work) return <a id={id} href={'#work=' + encodeURIComponent(target.work.id)} onClick={event => { event.preventDefault(); navigate({ work: target.work?.id }); }}>{children}</a>;
-          if (href.startsWith('#')) return <a id={id} href={href} onClick={event => { event.preventDefault(); scrollToHeading(target.anchor ?? ''); }}>{children}</a>;
+          const route = target.file ? documentRoute(target.file, target.anchor) : target.work ? { view: 'work', work: target.work.id, anchor: target.anchor } : href.startsWith('#') && target.anchor !== undefined ? documentRoute(file, target.anchor) : null;
+          if (route) return <a id={id} href={routeHref(route)} onClick={event => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault(); navigate(route);
+            if (target.anchor && !target.work && (!target.file || target.file.path === file.path)) scrollToHeading(target.anchor);
+          }}>{children}</a>;
           return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
         },
         img: ({ src = '', alt = '' }) => {

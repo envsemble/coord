@@ -2,9 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveLink } from '../src/links.ts';
 import type { Document, Work } from '../src/types.ts';
+import { documentRoute, routeHref } from '../src/routes.ts';
 
 const file = { path: 'active/0001-example/docs/decision.md' } as Document;
 const work = { path: 'active/0001-example', id: 'work-0001' } as Work;
+
+test('rendered internal URLs retain document ownership, view and heading without a click handler', () => {
+  const current = { path: 'active/0001-example/plan.md', workId: 'work-0001', category: 'plan' } as Document;
+  const nested = { path: 'active/0001-example/docs/decision #1.md', workId: 'work-0001', category: 'decision' } as Document;
+  const knowledge = { path: 'knowledge/terms.md', workId: null, category: 'knowledge' } as Document;
+  for (const [document, anchor, view] of [[current, 'whats-new', 'work'], [nested, 'déjà-vu--choices', 'work'], [knowledge, 'api_contract', 'knowledge']] as const) {
+    const url = new URL(routeHref(documentRoute(document, anchor)), 'http://127.0.0.1:4317/');
+    const parameters = new URLSearchParams(url.hash.slice(1));
+    assert.equal(parameters.get('view'), view);
+    assert.equal(parameters.get('work'), document.workId);
+    assert.equal(parameters.get('file'), document.path);
+    assert.equal(parameters.get('anchor'), anchor);
+  }
+  const folder = new URLSearchParams(routeHref({ work: 'work-0001', anchor: 'overview' }).slice(1));
+  assert.equal(folder.get('view'), 'work');
+  assert.equal(folder.get('work'), 'work-0001');
+  assert.equal(folder.get('anchor'), 'overview');
+  assert.equal(folder.has('file'), false);
+});
 
 test('parent traversal cannot clamp escaped references onto retained root documents', () => {
   const retained = { path: 'README.md' } as Document;
