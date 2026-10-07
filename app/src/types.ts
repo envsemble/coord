@@ -22,7 +22,7 @@ export interface Usage {
   documents: DocumentUsage[];
 }
 export interface Snapshot {
-  root: string; loadedAt: string; caseSensitivePaths: boolean; repositories: Repository[]; work: Work[];
+  root: string; loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; repositories: Repository[]; work: Work[];
   documents: Document[]; history: HistoryEntry[]; issues: Issue[];
   gitAvailable: boolean; usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
 }

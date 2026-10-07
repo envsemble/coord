@@ -24,7 +24,7 @@ The reader uses planning.json schema version 1 and the planning workflow's [meta
 
 Registry locations use POSIX-relative paths. Safe aliases such as ./ prefixes and trailing slashes normalize in memory without rewriting records. Parent segments, absolute paths, backslashes, and duplicate retained work locations produce a clear registry error.
 
-Path comparisons follow the connected folder's filesystem case behavior, detected without writing a probe file. Case-insensitive macOS and Windows folders retain indexed document spelling and shared collector identities; case-sensitive folders keep distinct names separate.
+Path comparisons follow the connected folder's case and Unicode-normalization behavior, detected from existing entries without writing probe files. Filesystem aliases retain indexed document spelling and shared collector identities; distinct names remain separate.
 
 Work IDs follow the shared work-0001 format. Explicit selected-plan pointers establish plan ownership; other documents belong to their most-specific registered location in both the viewer and consultation logger. Git activity uses the registry before deletions and after additions, preserving ownership when nested work is archived. Previously unregistered files can use their current registration without overriding established historical owners.
 

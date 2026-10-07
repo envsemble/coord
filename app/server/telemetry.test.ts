@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { Telemetry } from './telemetry.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { statisticsDirectory } from './storage.ts';
-import { filesystemCaseSensitive } from './filesystem.ts';
+import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 
 test('cache overrides resolve home shorthand identically in Node and the Python collector', async () => {
   const root = path.dirname(fileURLToPath(import.meta.url));
@@ -38,6 +38,29 @@ test('view collection is deduplicated and cannot claim agent consultation', () =
     assert.equal(summary.documents[0].tasks, 0);
     assert.throws(() => store.recordView({ ...event, id: '' }));
   } finally { store.close(); }
+});
+
+test('Unicode cache-root aliases share Node/Python storage only when the filesystem equates them', async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), 'planning-unicode-cache-'));
+  try {
+    const root = path.join(temporary, 'planning-cafe\u0301'); await mkdir(root);
+    await writeFile(path.join(root, 'planning.json'), '{}');
+    const alias = root.normalize('NFC');
+    const metrics = path.join(temporary, 'metrics');
+    const expected = await statisticsDirectory(root, metrics);
+    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
+    const script = 'import importlib.util, pathlib, sys; spec = importlib.util.spec_from_file_location("collector", sys.argv[1]); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.data_directory(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])))';
+    const collect = (folder: string) => execFileSync(process.env.PYTHON ?? 'python', ['-c', script, helper, folder, metrics], { encoding: 'utf8' }).trim();
+    assert.equal(path.normalize(collect(root)), expected);
+    if (await filesystemNormalizesUnicode(root)) {
+      assert.equal(await statisticsDirectory(alias, metrics), expected);
+      assert.equal(path.normalize(collect(alias)), expected);
+    } else {
+      await mkdir(alias); await writeFile(path.join(alias, 'planning.json'), '{}');
+      assert.notEqual(await statisticsDirectory(alias, metrics), expected);
+      assert.notEqual(path.normalize(collect(alias)), expected);
+    }
+  } finally { await rm(temporary, { recursive: true }); }
 });
 test('Python reports written with no dashboard running are readable by Node with source and unknown identities preserved', async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), 'planning-usage-'));

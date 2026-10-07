@@ -13,6 +13,46 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 class ConsultationTests(unittest.TestCase):
+    def test_distinct_unicode_hardlink_names_do_not_establish_normalization_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            retained = "cafe\u0301.md"
+            composed = "caf\u00e9.md"
+            (root / retained).write_text("Original retained record\n", encoding="utf-8")
+            if module.filesystem_normalizes_unicode(root, [retained]):
+                self.skipTest("Filesystem resolves these names as one entry")
+            os.link(root / retained, root / composed)
+            self.assertFalse(module.filesystem_normalizes_unicode(root, [retained]))
+
+    def test_unicode_work_keys_and_nested_ownership_use_retained_path_segments(self):
+        parent = "active/" + "e\u0301" * 12
+        composed = "active/" + "\u00e9" * 12
+        registry = {"work_items": [{"id": "work-0001", "path": parent}, {"id": "work-0002", "path": composed + "/child"}]}
+        self.assertEqual(module.document_identity(composed + "/plan.md", registry, True, True), "work-0001:plan.md")
+        self.assertEqual(module.document_identity(parent + "/child/note.md", registry, True, True), "work-0002:note.md")
+
+    def test_unicode_registry_aliases_keep_work_scope_without_merging_distinct_folders(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "planning"
+            retained = "active/cafe\u0301"
+            composed = "active/caf\u00e9"
+            (root / retained).mkdir(parents=True)
+            (root / retained / "plan.md").write_text("Original plan\n", encoding="utf-8")
+            equivalent = module.filesystem_normalizes_unicode(root, [retained + "/plan.md"])
+            selected = composed if equivalent else retained
+            entries = [{"id": "work-0001", "path": selected, "current_plan": selected + "/plan.md"}]
+            files = [retained + "/plan.md"]
+            if not equivalent:
+                (root / composed).mkdir()
+                (root / composed / "plan.md").write_text("Another distinct plan\n", encoding="utf-8")
+                entries.append({"id": "work-0002", "path": composed, "current_plan": composed + "/plan.md"})
+                files.append(composed + "/plan.md")
+            (root / "planning.json").write_text(json.dumps({"schema_version": 1, "work_items": entries}), encoding="utf-8")
+            destination = Path(directory) / "metrics"
+            self.assertEqual(module.report(root, files, destination=destination), (len(entries), 0))
+            with closing(sqlite3.connect(module.data_directory(root, destination) / "usage.sqlite")) as db:
+                self.assertEqual(db.execute("SELECT document_key FROM events ORDER BY document_key").fetchall(), [(entry["id"] + ":plan.md",) for entry in entries])
+
     def test_native_normalization_alias_retains_original_document_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "planning"

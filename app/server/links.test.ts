@@ -36,3 +36,10 @@ test('Windows targets use indexed spelling while case-sensitive hosts retain dis
   assert.equal(resolveLink('ACTIVE/0001-EXAMPLE/', 'README.md', [file], [work], true).work, undefined);
   assert.equal(resolveLink('../../private.md', 'README.md', [file], [work], false).file, undefined);
 });
+
+test('Unicode aliases navigate with connected semantics without merging distinct filenames', () => {
+  const retained = { path: 'active/cafe\u0301/plan.md' } as Document;
+  const composed = 'active/caf\u00e9/plan.md';
+  assert.equal(resolveLink(composed, 'README.md', [retained], [], false, true).file, retained);
+  assert.equal(resolveLink(composed, 'README.md', [retained], [], false, false).file, undefined);
+});

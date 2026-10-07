@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, realpath, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, realpath, rename, link } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { loadPlanning, readDocument, resolveDocument } from './planning.ts';
-import { filesystemCaseSensitive } from './filesystem.ts';
+import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 
 async function fixture() {
   const temporary = await mkdtemp(path.join(tmpdir(), 'planning-reader-'));
@@ -80,6 +80,54 @@ test('invalid planning roots fail with a useful message', async () => {
   const setup = await fixture();
   try { await assert.rejects(loadPlanning(setup.root), /readable planning.json/); }
   finally { await setup.cleanup(); }
+});
+
+test('distinct Unicode hardlink names do not establish normalization aliases', async t => {
+  const setup = await fixture();
+  try {
+    const retained = 'cafe\u0301.md'; const composed = 'caf\u00e9.md';
+    await writeFile(path.join(setup.root, retained), 'Original retained record.');
+    if (await filesystemNormalizesUnicode(setup.root, [retained])) { t.skip('Filesystem resolves these names as one entry'); return; }
+    await link(path.join(setup.root, retained), path.join(setup.root, composed));
+    assert.equal(await filesystemNormalizesUnicode(setup.root, [retained]), false);
+  } finally { await setup.cleanup(); }
+});
+
+test('native Unicode folder aliases retain ownership while distinct normalization names stay separate', async () => {
+  const setup = await fixture();
+  try {
+    const retained = 'active/' + 'e\u0301'.repeat(12); const composed = 'active/' + '\u00e9'.repeat(12);
+    await mkdir(path.join(setup.root, retained), { recursive: true });
+    await writeFile(path.join(setup.root, retained, 'plan.md'), header('work-0001', 'accepted', 'not_started'));
+    const equivalent = await filesystemNormalizesUnicode(setup.root, [retained + '/plan.md']);
+    const entries = [{ id: 'work-0001', path: retained, repositories: ['example'], current_plan: (equivalent ? composed : retained) + '/plan.md' }];
+    if (equivalent) {
+      await mkdir(path.join(setup.root, retained, 'child'));
+      await writeFile(path.join(setup.root, retained, 'child/plan.md'), header('work-0002', 'accepted', 'not_started'));
+      await writeFile(path.join(setup.root, retained, 'child/note.md'), 'Nested retained record.');
+      entries.push({ id: 'work-0002', path: composed + '/child', repositories: ['example'], current_plan: composed + '/child/plan.md' });
+    } else {
+      await mkdir(path.join(setup.root, composed), { recursive: true });
+      await writeFile(path.join(setup.root, composed, 'plan.md'), header('work-0002', 'accepted', 'not_started'));
+      entries.push({ id: 'work-0002', path: composed, repositories: ['example'], current_plan: composed + '/plan.md' });
+    }
+    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: entries }));
+    const git = (...arguments_: string[]) => execFileSync('git', ['-C', setup.root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
+    git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');
+    git('add', '.'); git('commit', '--no-verify', '-m', 'Register Unicode work paths');
+    const result = await loadPlanning(setup.root);
+    assert.equal(result.normalizationInsensitivePaths, equivalent);
+    assert.equal(result.work.length, 2);
+    assert.equal(result.issues.filter(issue => issue.level === 'error').length, 0);
+    for (const item of result.work) {
+      assert.equal(item.documents.length, equivalent && item.id === 'work-0002' ? 2 : 1);
+      for (const document of item.documents) assert.equal(document.key, item.id + ':' + document.name);
+      assert.equal(item.documents[0].category, 'plan');
+      assert.deepEqual(item.documents[0].repositories, ['example']);
+      assert.equal(item.currentPlan, item.documents[0].path);
+      assert.ok(result.history[0].workIds.includes(item.id));
+    }
+  } finally { await setup.cleanup(); }
 });
 test('Windows BOM registries load and invalid repository records fail before reaching the UI', async () => {
   const setup = await fixture();

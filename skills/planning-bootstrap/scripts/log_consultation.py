@@ -54,6 +54,32 @@ def filesystem_case_sensitive(root: Path) -> bool:
         pass
     return True
 
+def filesystem_normalizes_unicode(root: Path, retained: list[str] | None = None) -> bool:
+    for filename in [root, *(root / relative for relative in retained or [])]:
+        source = str(filename)
+        alternate = unicodedata.normalize("NFC", source)
+        if alternate == source:
+            alternate = unicodedata.normalize("NFD", source)
+        if alternate == source:
+            continue
+        try:
+            original = filename.lstat()
+            try:
+                other = Path(alternate).lstat()
+                parts, aliases = filename.parts, Path(alternate).parts
+                for index, (part, alias) in enumerate(zip(parts, aliases)):
+                    if part == alias:
+                        continue
+                    names = os.listdir(Path(*parts[:index]))
+                    if part in names and alias in names:
+                        return False
+                return (original.st_dev, original.st_ino) == (other.st_dev, other.st_ino)
+            except FileNotFoundError:
+                return False
+        except OSError:
+            continue
+    return False
+
 def retained_relative(actual: Path, root: Path, case_sensitive: bool) -> str:
     original, parent = actual.parts, root.parts
     if len(original) <= len(parent) or not Path(*original[:len(parent)]).samefile(root):
@@ -79,24 +105,28 @@ def retained_relative(actual: Path, root: Path, case_sensitive: bool) -> str:
 def data_directory(root: Path, base: Path | None = None) -> Path:
     override = base or os.environ.get("PLANNING_DASHBOARD_DATA_DIR")
     normalized = str(root.expanduser().resolve()).replace("\\", "/")
+    if filesystem_normalizes_unicode(root.expanduser().resolve()):
+        normalized = unicodedata.normalize("NFC", normalized)
     if not filesystem_case_sensitive(root.expanduser().resolve()):
         normalized = normalized.lower()
     identity = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
     cache_base = Path(override).expanduser().resolve() if override else Path.home() / ".cache" / "planning-dashboard"
     return cache_base / identity
 
-def document_identity(relative: str, registry: dict, case_sensitive: bool = True) -> str:
-    normalize = (lambda value: value) if case_sensitive else str.lower
+def document_identity(relative: str, registry: dict, case_sensitive: bool = True, normalizes_unicode: bool = False) -> str:
+    def normalize(value: str) -> str:
+        spelling = unicodedata.normalize("NFC", value) if normalizes_unicode else value
+        return spelling if case_sensitive else spelling.lower()
     identity = normalize(relative)
     matches = [work for work in registry.get("work_items", [])
                if identity == normalize(work["path"])
                or identity.startswith(normalize(work["path"]) + "/")]
     selected = [work for work in matches if work.get("current_plan") is not None
                 and normalize(work["current_plan"]) == identity]
-    work = selected[0] if selected else max(matches, key=lambda item: len(item["path"]), default=None)
+    work = selected[0] if selected else max(matches, key=lambda item: len(PurePosixPath(item["path"]).parts), default=None)
     if work:
         location = work["path"]
-        return work["id"] + ":" + (Path(relative).name if identity == normalize(location) else relative[len(location) + 1:])
+        return work["id"] + ":" + (Path(relative).name if identity == normalize(location) else PurePosixPath(*PurePosixPath(relative).parts[len(PurePosixPath(location).parts):]).as_posix())
     return "root:" + relative
 
 def normalized_location(value: object) -> str:
@@ -113,7 +143,11 @@ def normalized_location(value: object) -> str:
 def cache_outside_planning(root: Path, destination: Path) -> Path:
     destination = destination.expanduser().resolve()
     planning = root.expanduser().resolve()
-    normalize = (lambda value: value) if filesystem_case_sensitive(planning) else str.lower
+    case_sensitive = filesystem_case_sensitive(planning)
+    unicode = filesystem_normalizes_unicode(planning)
+    def normalize(value: str) -> str:
+        spelling = unicodedata.normalize("NFC", value) if unicode else value
+        return spelling if case_sensitive else spelling.lower()
     if tuple(map(normalize, destination.parts[:len(planning.parts)])) == tuple(map(normalize, planning.parts)):
         raise ValueError("Choose statistics storage outside the planning folder")
     return destination
@@ -133,7 +167,6 @@ def report(root: Path, files: list[str], task: str | None = None,
            session: str | None = None, destination: Path | None = None) -> tuple[int, int]:
     root = root.expanduser().resolve(strict=True)
     case_sensitive = filesystem_case_sensitive(root)
-    normalize = (lambda value: value) if case_sensitive else str.lower
     registry = json.loads((root / "planning.json").read_text(encoding="utf-8-sig"))
     if not isinstance(registry, dict) or registry.get("schema_version") != 1:
         raise ValueError("Unrecognized planning registry")
@@ -142,6 +175,12 @@ def report(root: Path, files: list[str], task: str | None = None,
         or not isinstance(work.get("path"), str) for work in registry["work_items"]
     ):
         raise ValueError("Invalid planning work identities")
+    paths = [normalized_location(work[field]) for work in registry["work_items"]
+             for field in ["path", "current_plan"] if work.get(field) is not None]
+    normalizes_unicode = filesystem_normalizes_unicode(root, paths)
+    def normalize(value: str) -> str:
+        spelling = unicodedata.normalize("NFC", value) if normalizes_unicode else value
+        return spelling if case_sensitive else spelling.lower()
     identities: set[str] = set()
     locations: set[str] = set()
     selected_plans: set[str] = set()
@@ -200,7 +239,7 @@ def report(root: Path, files: list[str], task: str | None = None,
                             digest.update(block)
                     connection.execute(
                         "INSERT INTO events (id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (str(uuid.uuid4()), "agent_report", document_identity(relative, registry, case_sensitive),
+                        (str(uuid.uuid4()), "agent_report", document_identity(relative, registry, case_sensitive, normalizes_unicode),
                          relative, task or None, session or None, timestamp, revision, digest.hexdigest()))
                     recorded += 1
                 except (OSError, ValueError):

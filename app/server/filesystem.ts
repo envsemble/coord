@@ -29,3 +29,27 @@ export async function filesystemCaseSensitive(root: string): Promise<boolean> {
   } catch { /* Missing/unreadable roots cannot establish case folding. */ }
   return true;
 }
+
+export async function filesystemNormalizesUnicode(root: string, retained: string[] = []): Promise<boolean> {
+  for (const filename of [root, ...retained.map(relative => path.resolve(root, relative))]) {
+    const alternate = filename.normalize('NFC') === filename ? filename.normalize('NFD') : filename.normalize('NFC');
+    if (alternate === filename) continue;
+    try {
+      const original = await lstat(filename);
+      try {
+        const other = await lstat(alternate);
+        const parts = filename.split(path.sep); const aliases = alternate.split(path.sep);
+        for (let index = 0; index < parts.length; index++) {
+          if (parts[index] === aliases[index]) continue;
+          const directory = parts.slice(0, index).join(path.sep) || path.parse(filename).root;
+          const names = await readdir(directory);
+          if (names.includes(parts[index]) && names.includes(aliases[index])) return false;
+        }
+        return original.dev === other.dev && original.ino === other.ino;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      }
+    } catch { /* A missing registry target cannot establish normalization behavior. */ }
+  }
+  return false;
+}
