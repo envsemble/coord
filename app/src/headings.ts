@@ -1,6 +1,8 @@
+import { slug } from 'github-slugger';
+
 export const headingPrefix = 'planning-heading-';
 export function headingSlug(text: string) {
-  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+  return slug(text);
 }
 export interface HeadingNode {
   type: string; tagName?: string; value?: string;
