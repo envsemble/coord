@@ -273,7 +273,8 @@ export async function loadPlanning(inputRoot: string) {
         }
         entry.created = lifecycleDate('created'); entry.updated = lifecycleDate('updated');
         entry.accepted = lifecycleDate('accepted_at'); entry.completed = lifecycleDate('completed_at');
-        const chronologyInvalid = (entry.created && ((entry.updated && entry.updated < entry.created) || (entry.accepted && entry.accepted < entry.created))) || (entry.completed && (entry.accepted && entry.completed < entry.accepted || entry.created && entry.completed < entry.created));
+        const updated = entry.updated;
+        const chronologyInvalid = (updated && [entry.created, entry.accepted, entry.completed].some(milestone => milestone && updated < milestone)) || (entry.created && entry.accepted && entry.accepted < entry.created) || (entry.completed && (entry.accepted && entry.completed < entry.accepted || entry.created && entry.completed < entry.created));
         if (chronologyInvalid) issues.push({ level: 'error', workId: item.id, message: 'Recorded lifecycle dates are out of order.' });
         if (entry.completed && entry.implementation !== 'complete') issues.push({ level: 'error', workId: item.id, message: 'A completion date requires complete implementation status.' });
         if (entry.accepted && entry.design === 'draft') issues.push({ level: 'error', workId: item.id, message: 'A draft cannot claim an acceptance date.' });

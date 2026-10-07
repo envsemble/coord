@@ -163,6 +163,19 @@ test('invalid non-null dates and chronology produce health errors while unknown 
     assert.equal((await loadPlanning(setup.root)).work[0].durationDays, null, 'a reversed creation date must not enter duration statistics');
     await writeFile(filename, original.replace('created: null', 'created: "2026-10-07"'));
     assert.ok((await loadPlanning(setup.root)).issues.some(issue => issue.message.includes('out of order')), 'an update before creation is invalid even with unknown acceptance and completion');
+    for (const { accepted, completed } of [
+      { accepted: '2026-10-07', completed: null },
+      { accepted: '2026-10-05', completed: '2026-10-07' },
+    ]) {
+      await writeFile(filename, original.replace('accepted_at: null', 'accepted_at: "' + accepted + '"').replace('completed_at: null', 'completed_at: ' + JSON.stringify(completed)));
+      const staleUpdate = await loadPlanning(setup.root);
+      assert.ok(staleUpdate.issues.some(issue => issue.message.includes('out of order')), 'updated must not precede acceptance or completion');
+      assert.equal(staleUpdate.work[0].durationDays, null, 'a stale update must not enter duration statistics');
+    }
+    await writeFile(filename, original.replace('accepted_at: null', 'accepted_at: "2026-10-05"').replace('completed_at: null', 'completed_at: "2026-10-06"'));
+    const alignedUpdate = await loadPlanning(setup.root);
+    assert.equal(alignedUpdate.issues.filter(issue => issue.level === 'error').length, 0, 'updated may equal the latest milestone');
+    assert.equal(alignedUpdate.work[0].durationDays, 1);
   } finally { await setup.cleanup(); }
 });
 test('registry paths retain safe POSIX aliases while rejecting parent segments and duplicate locations', async () => {
