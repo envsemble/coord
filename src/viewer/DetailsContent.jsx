@@ -32,6 +32,28 @@ export const ConceptDetails = memo(function ConceptDetails({
         <CapturedSchema element={concept} />
       )}
       <CaptureDetails model={model} />
+      {model.document?.profile === "code" && (
+        <>
+          {concept.definition && (
+            <details className="concept-fields">
+              <summary>Definition</summary>
+              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                <code>{concept.definition}</code>
+              </pre>
+            </details>
+          )}
+          {concept.methods?.length > 0 && (
+            <details className="concept-fields">
+              <summary>Methods</summary>
+              {concept.methods.map((method) => (
+                <p key={method.id}>
+                  {method.modifiers?.join(" ")} {method.type}
+                </p>
+              ))}
+            </details>
+          )}
+        </>
+      )}
       {concept.attributes.length > 0 &&
         model.document?.profile !== "database" && (
           <details className="concept-fields">
@@ -62,7 +84,11 @@ export const RelationDetails = memo(function RelationDetails({
     <>
       <DetailHeader
         title={
-          relation.type === "generalization" ? "Inheritance" : relation.name
+          relation.type === "generalization"
+            ? relation.realization
+              ? "Implementation"
+              : "Inheritance"
+            : relation.name
         }
         icon={GitBranchIcon}
         tag={

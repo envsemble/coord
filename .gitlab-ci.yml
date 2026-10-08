@@ -1,4 +1,4 @@
-image: node:24
+image: node:24-trixie
 stages:
   - verify
 verify:
@@ -13,6 +13,7 @@ verify:
     ATLAS_TEST_POSTGRES: postgresql://atlas_fixture:fixture_only@postgres:5432/atlas_fixture
     WRANGLER_SEND_METRICS: "false"
   script:
+    - apt-get update && apt-get install -y --no-install-recommends openjdk-21-jdk-headless
     - npm ci
     - npm run format:check
     - npm run check:types

@@ -9,8 +9,8 @@
     "preview": "node scripts/preview.cjs",
     "check": "node scripts/check.cjs",
     "test": "node scripts/test.cjs",
-    "format": "prettier --write development vite.config.mjs src lib bin scripts tests examples schemas/*.json agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json",
-    "format:check": "prettier --check development vite.config.mjs src lib bin scripts tests examples agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json",
+    "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples schemas/*.json agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
+    "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples agents README.md CONTEXT.md THIRD_PARTY_NOTICES.md package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
     "check:types": "tsc --noEmit -p tsconfig.contracts.json",
     "build:library": "node scripts/build-library.cjs",
     "prepack": "node scripts/build-library.cjs",
@@ -25,6 +25,7 @@
     "postcss": "8.5.29",
     "postcss-selector-parser": "7.1.6",
     "prettier": "3.8.0",
+    "prettier-plugin-java": "2.11.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "typescript": "7.0.2",
@@ -42,7 +43,8 @@
     "ontouml-js": "1.0.0",
     "parse5": "8.0.1",
     "pg": "8.23.1",
-    "shiki": "4.5.0"
+    "shiki": "4.5.0",
+    "typescript-compiler": "npm:typescript@6.0.3"
   },
   "license": "UNLICENSED",
   "main": "./lib/index.cjs",
@@ -67,7 +69,8 @@
     "./schema": "./schemas/ontouml-schema.json",
     "./evidence-schema": "./schemas/evidence-schema.json",
     "./document-schema": "./schemas/document-schema.json",
-    "./database-source-schema": "./schemas/database-source-schema.json"
+    "./database-source-schema": "./schemas/database-source-schema.json",
+    "./code-source-schema": "./schemas/code-source-schema.json"
   },
   "files": [
     "lib/",

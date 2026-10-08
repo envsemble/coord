@@ -2,7 +2,7 @@ import { elementClass, interactionProps, sameTarget } from "./interaction";
 
 export function relationName(edge) {
   return edge.type === "generalization"
-    ? `${edge.sourceName} inherits ${edge.targetName}`
+    ? `${edge.sourceName} ${edge.realization ? "implements" : "inherits"} ${edge.targetName}`
     : `${edge.name}: ${edge.sourceName} (${edge.sourceMultiplicity}), ${edge.targetName} (${edge.targetMultiplicity})`;
 }
 
@@ -53,6 +53,11 @@ export function UMLRelation({
                 : "var(--diagram-edge,#59636e)"
             }
             strokeWidth="1.4"
+            strokeDasharray={
+              edge.realization || edge.stereotype === "dependency"
+                ? "6 4"
+                : undefined
+            }
             markerStart={
               edge.type === "association"
                 ? aggregationMarker(edge.sourceAggregation)
@@ -61,7 +66,9 @@ export function UMLRelation({
             markerEnd={
               edge.type === "generalization" && !edge.branchPaths
                 ? `url(#${markerId}${markerState})`
-                : aggregationMarker(edge.targetAggregation)
+                : edge.stereotype === "dependency"
+                  ? `url(#${markerId}-DEPENDENCY${markerState})`
+                  : aggregationMarker(edge.targetAggregation)
             }
           />
           {handlers && (

@@ -94,6 +94,25 @@ export const UMLDiagram = memo(function UMLDiagram({
         }}
       >
         <defs>
+          {markerStates.map((state) => (
+            <marker
+              key={`dependency${state}`}
+              id={`${markerId}-DEPENDENCY${state}`}
+              markerWidth="12"
+              markerHeight="12"
+              refX="10"
+              refY="6"
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+            >
+              <path
+                d="M1 1 L10 6 L1 11"
+                fill="none"
+                stroke={markerColor(state, "var(--diagram-edge,#59636e)")}
+                strokeWidth="1.4"
+              />
+            </marker>
+          ))}
           {["SHARED", "COMPOSITE"].flatMap((aggregation) =>
             markerStates.map((state) => (
               <marker

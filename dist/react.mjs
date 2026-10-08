@@ -148,7 +148,8 @@ var colorFamilies = {
 };
 function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
-  const header = node.attributes.length ? 66 : node.height;
+  const methods = node.methods || [];
+  const header = node.attributes.length || methods.length ? 66 : node.height;
   const color = colorFamilies[node.stereotype] || node.stereotype;
   return /* @__PURE__ */ jsxs(
     "g",
@@ -205,7 +206,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             children: node.name
           }
         ),
-        node.attributes.length > 0 && /* @__PURE__ */ jsxs(Fragment, { children: [
+        (node.attributes.length > 0 || methods.length > 0) && /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx(
             "path",
             {
@@ -226,7 +227,33 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                 attribute.multiplicity ? ` [${attribute.multiplicity}]` : ""
               ] }, attribute.id || i))
             }
-          )
+          ),
+          methods.length > 0 && /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx(
+              "path",
+              {
+                d: `M0 ${node.attributes.length ? 76 + node.attributes.length * 20 : 66} H${node.width}`,
+                stroke: "var(--diagram-divider,#d1d9e0)"
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              "g",
+              {
+                className: "methods",
+                fill: "var(--diagram-attribute,#59636e)",
+                fontSize: "12",
+                children: methods.map((method, i) => /* @__PURE__ */ jsx(
+                  "text",
+                  {
+                    x: "14",
+                    y: (node.attributes.length ? 97 + node.attributes.length * 20 : 85) + i * 20,
+                    children: method.type
+                  },
+                  method.id || i
+                ))
+              }
+            )
+          ] })
         ] })
       ]
     }
@@ -236,7 +263,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
 // src/visualization/UMLRelation.jsx
 import { Fragment as Fragment2, jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
 function relationName(edge) {
-  return edge.type === "generalization" ? `${edge.sourceName} inherits ${edge.targetName}` : `${edge.name}: ${edge.sourceName} (${edge.sourceMultiplicity}), ${edge.targetName} (${edge.targetMultiplicity})`;
+  return edge.type === "generalization" ? `${edge.sourceName} ${edge.realization ? "implements" : "inherits"} ${edge.targetName}` : `${edge.name}: ${edge.sourceName} (${edge.sourceMultiplicity}), ${edge.targetName} (${edge.targetMultiplicity})`;
 }
 function UMLRelation({
   edge,
@@ -276,8 +303,9 @@ function UMLRelation({
               fill: "none",
               stroke: edge.type === "generalization" ? "var(--diagram-inheritance,#59636e)" : "var(--diagram-edge,#59636e)",
               strokeWidth: "1.4",
+              strokeDasharray: edge.realization || edge.stereotype === "dependency" ? "6 4" : void 0,
               markerStart: edge.type === "association" ? aggregationMarker(edge.sourceAggregation) : void 0,
-              markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${markerState})` : aggregationMarker(edge.targetAggregation)
+              markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${markerState})` : edge.stereotype === "dependency" ? `url(#${markerId}-DEPENDENCY${markerState})` : aggregationMarker(edge.targetAggregation)
             }
           ),
           handlers && /* @__PURE__ */ jsx2(
@@ -396,7 +424,7 @@ function UMLRelationLabels({
 import { jsx as jsx3 } from "react/jsx-runtime";
 function generalizationGroupName(group) {
   const constraints = group.type === "generalizationSet" ? `; ${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}` : "";
-  return `${group.name}: ${group.sourceNames.join(", ")} inherit ${group.targetName}${constraints}`;
+  return `${group.name}: ${group.sourceNames.join(", ")} ${group.realization ? "implement" : "inherit"} ${group.targetName}${constraints}`;
 }
 function UMLGeneralizationGroup({ group, labels = false, ...props }) {
   const edge = { ...group, type: "generalization" };
@@ -576,6 +604,28 @@ var UMLDiagram = memo(function UMLDiagram2({
         },
         children: [
           /* @__PURE__ */ jsxs3("defs", { children: [
+            markerStates.map((state) => /* @__PURE__ */ jsx4(
+              "marker",
+              {
+                id: `${markerId}-DEPENDENCY${state}`,
+                markerWidth: "12",
+                markerHeight: "12",
+                refX: "10",
+                refY: "6",
+                orient: "auto",
+                markerUnits: "userSpaceOnUse",
+                children: /* @__PURE__ */ jsx4(
+                  "path",
+                  {
+                    d: "M1 1 L10 6 L1 11",
+                    fill: "none",
+                    stroke: markerColor(state, "var(--diagram-edge,#59636e)"),
+                    strokeWidth: "1.4"
+                  }
+                )
+              },
+              `dependency${state}`
+            )),
             ["SHARED", "COMPOSITE"].flatMap(
               (aggregation) => markerStates.map((state) => /* @__PURE__ */ jsx4(
                 "marker",
@@ -2441,6 +2491,20 @@ var ConceptDetails = memo5(function ConceptDetails2({
     (!model.document || model.document.profile === "ontouml") && /* @__PURE__ */ jsx18(ElementLearning, { element: concept, model }),
     model.document?.profile === "database" && /* @__PURE__ */ jsx18(CapturedSchema, { element: concept }),
     /* @__PURE__ */ jsx18(CaptureDetails, { model }),
+    model.document?.profile === "code" && /* @__PURE__ */ jsxs14(Fragment6, { children: [
+      concept.definition && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
+        /* @__PURE__ */ jsx18("summary", { children: "Definition" }),
+        /* @__PURE__ */ jsx18("pre", { style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere" }, children: /* @__PURE__ */ jsx18("code", { children: concept.definition }) })
+      ] }),
+      concept.methods?.length > 0 && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
+        /* @__PURE__ */ jsx18("summary", { children: "Methods" }),
+        concept.methods.map((method) => /* @__PURE__ */ jsxs14("p", { children: [
+          method.modifiers?.join(" "),
+          " ",
+          method.type
+        ] }, method.id))
+      ] })
+    ] }),
     concept.attributes.length > 0 && model.document?.profile !== "database" && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
       /* @__PURE__ */ jsx18("summary", { children: "Fields" }),
       concept.attributes.map(
@@ -2465,7 +2529,7 @@ var RelationDetails = memo5(function RelationDetails2({
     /* @__PURE__ */ jsx18(
       DetailHeader,
       {
-        title: relation.type === "generalization" ? "Inheritance" : relation.name,
+        title: relation.type === "generalization" ? relation.realization ? "Implementation" : "Inheritance" : relation.name,
         icon: GitBranchIcon,
         tag: relation.type === "generalization" ? "Generalization" : relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association",
         stereotype: relation.stereotype

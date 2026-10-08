@@ -40,13 +40,21 @@ try {
   );
   const smoke = `
     const assert = require('node:assert/strict');
-    const {Project,validateModel,buildViewer,writeViewer}=require('ontouml-atlas');
+    const {Project,validateModel,buildViewer,writeViewer,captureTypeScript,captureJava}=require('ontouml-atlas');
     const p=new Project(); p.name.add('Installed package test');
     const root=p.packageBuilder().root().name('Orders').build();
     root.classBuilder().kind().name('Order').build();
     const project=JSON.parse(JSON.stringify(p));
     assert(validateModel(project).valid);
     (async()=>{
+      const fs=require('node:fs');
+      fs.writeFileSync('tsconfig.json',JSON.stringify({files:['consumer.ts'],compilerOptions:{target:'ES2022',skipLibCheck:true}}));
+      fs.writeFileSync('consumer.ts','export class Consumer { value!: string; }');
+      const ts=await captureTypeScript({identity:'consumer',projects:[{identity:'ts',path:process.cwd()}]});
+      assert.equal(ts.model.nodes[0].name,'Consumer');
+      fs.writeFileSync('Consumer.java','class Consumer { String value; }');
+      const java=await captureJava({identity:'consumer',projects:[{identity:'java',path:process.cwd(),files:['Consumer.java']}]});
+      assert.equal(java.model.nodes[0].name,'Consumer');
       const react=await import('ontouml-atlas/react');
       assert.equal(typeof react.OntoUMLViewer,'function');
       assert.equal(typeof react.AtlasPanel,'function');
@@ -55,7 +63,7 @@ try {
       assert(built.html.includes('Installed package test'));
       assert(built.payload.views.length===1);
       writeViewer(built,'site');
-      console.log('Passed: clean tarball install, public Node API, compiled React API, and offline viewer build.');
+      console.log('Passed: clean tarball install, TypeScript and Java captures, public Node and React APIs, and offline viewer build.');
     })().catch(e=>{console.error(e);process.exitCode=1});
   `;
   process.stdout.write(
