@@ -97,7 +97,7 @@ async function assemble({ outputDirectory = "artifacts/release" } = {}) {
     if (
       [...committedDist].some(
         ([name, data]) =>
-          !data.equals(fs.readFileSync(path.join(sourceRoot, name))),
+          !Buffer.from(data).equals(fs.readFileSync(path.join(sourceRoot, name))),
       )
     )
       throw new Error(
