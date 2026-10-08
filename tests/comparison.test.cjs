@@ -53,6 +53,24 @@ function revise(d, change) {
   change(model);
   return atlas.reviseDocument(d, { model });
 }
+test("Retained baseline and proposal exports stay reproducible across wall-clock changes", async (t) => {
+  const proposal = atlas.createProposal(example());
+  t.mock.timers.enable({
+    apis: ["Date"],
+    now: Date.parse("2026-10-10T00:00:00Z"),
+  });
+  const baseline = baselineDocument(proposal);
+  const first = await atlas.buildViewer({ document: proposal });
+  t.mock.timers.tick(3000);
+  assert.deepEqual(baselineDocument(proposal), baseline);
+  const second = await atlas.buildViewer({ document: proposal });
+  assert.equal(second.html, first.html);
+  assert.equal(
+    baseline.revision.createdAt,
+    proposal.snapshots.find((s) => s.id === proposal.baselineId).capture
+      .capturedAt,
+  );
+});
 test("Semantic comparison separates identified renames, fields, counts and constraints from presentation", () => {
   const a = example();
   const b = revise(a, (m) => {

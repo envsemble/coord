@@ -674,7 +674,7 @@ export interface AuthoredMapping {
   reason: string;
   targetProfile?: ModelProfile;
   targetTitle?: string;
-  targetRevision?: string;
+  sourceRevision?: string;
 }
 export function compareModels(
   base: unknown,

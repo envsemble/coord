@@ -8,9 +8,21 @@ import {
   reviseDocument,
   validateDocument,
   type ExchangeProject,
+  type AuthoredMapping,
 } from "../lib";
 import { OntoUMLViewer, UMLDiagram, AtlasPanel } from "../src";
 async function smoke() {
+  const mapping: AuthoredMapping = {
+    id: "mapping",
+    kind: "authored",
+    elementId: "class",
+    snapshotId: "snapshot",
+    targetElementId: "table",
+    reason: "Declared correspondence",
+    sourceRevision: "retained-revision",
+  };
+  const retainedRevision: string | undefined = mapping.sourceRevision;
+  void retainedRevision;
   const project = JSON.parse(JSON.stringify(new Project())) as ExchangeProject;
   validateProject(project);
   const document = createDocument({ project, profile: "ontouml" });

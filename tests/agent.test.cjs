@@ -26,6 +26,42 @@ const structural = () => ({
   generalizations: [],
   generalizationSets: [],
 });
+test("MCP annotations distinguish observation, additive creation and destructive updates", () => {
+  const definitions = new Map(
+    require("../lib/agent/service.cjs").toolDefinitions.map((tool) => [
+      tool.name,
+      tool.annotations,
+    ]),
+  );
+  for (const name of ["list", "inspect", "validate", "compare", "scenarios"]) {
+    assert.equal(definitions.get(`atlas_${name}`).readOnlyHint, true);
+    assert.equal(definitions.get(`atlas_${name}`).destructiveHint, false);
+  }
+  for (const name of [
+    "revise",
+    "map",
+    "resolve_merge",
+    "adopt_snapshot",
+    "export",
+  ]) {
+    assert.equal(definitions.get(`atlas_${name}`).readOnlyHint, false);
+    assert.equal(definitions.get(`atlas_${name}`).destructiveHint, true);
+  }
+  for (const name of [
+    "create",
+    "proposal",
+    "merge",
+    "load",
+    "import",
+    "capture_code",
+    "capture_database",
+    "prepare",
+  ]) {
+    assert.equal(definitions.get(`atlas_${name}`).readOnlyHint, false);
+    assert.equal(definitions.get(`atlas_${name}`).destructiveHint, false);
+  }
+  assert.equal(definitions.get("atlas_capture_database").openWorldHint, true);
+});
 test("atomic batches, optimistic conflicts, restart, scoped paths and paginated inspection", async (t) => {
   const { root, workspace: w } = workspace(t);
   const created = await w.execute("atlas_create", {
