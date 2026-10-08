@@ -26,7 +26,7 @@ function embeddedCSS(css) {
       }),
     ).processSync(rule.selector);
   });
-  return root.toString();
+  return root.toString().replace(/[ \t]+$/gm, "");
 }
 function buildEmbeddedCSS(root) {
   const css =
