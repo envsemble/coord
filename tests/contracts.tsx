@@ -12,6 +12,10 @@ import {
 } from "../lib";
 import { OntoUMLViewer, UMLDiagram, AtlasPanel } from "../src";
 async function smoke() {
+  // @ts-expect-error A document requires a model or OntoUML project.
+  createDocument({});
+  // @ts-expect-error Metadata alone does not supply a model.
+  createDocument({ title: "Missing model" });
   // @ts-expect-error A viewer needs an authored project or versioned document.
   await buildViewer({});
   // @ts-expect-error Options alone do not identify model input.

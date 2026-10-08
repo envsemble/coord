@@ -407,14 +407,17 @@ export interface AtlasDocument {
     reason: string;
   };
 }
-export function createDocument(
-  input: Partial<Omit<AtlasDocument, "revision">> & {
-    project?: ExchangeProject;
-    parentId?: string;
-    createdAt?: string;
-    reason?: string;
-  },
-): AtlasDocument;
+export type CreateDocumentInput = Partial<
+  Omit<AtlasDocument, "revision" | "model">
+> & {
+  parentId?: string;
+  createdAt?: string;
+  reason?: string;
+} & (
+    | { model: ExchangeProject | StructuralModel; project?: ExchangeProject }
+    | { project: ExchangeProject; model?: ExchangeProject | StructuralModel }
+  );
+export function createDocument(input: CreateDocumentInput): AtlasDocument;
 export function reviseDocument(
   document: AtlasDocument,
   changes: Partial<

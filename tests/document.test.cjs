@@ -32,6 +32,11 @@ const graph = () => ({
   generalizations: [],
   generalizationSets: [],
 });
+test("Document creation rejects a missing source with a useful input error", () => {
+  for (const input of [undefined, null, {}, { title: "Missing model" }])
+    assert.throws(() => createDocument(input), /DOCUMENT_INPUT/);
+});
+
 test("all profiles retain semantic data across serialization and share generic layout", async () => {
   for (const profile of ["ontouml", "database", "code"]) {
     const document = createDocument({
