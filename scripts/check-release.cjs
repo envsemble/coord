@@ -28,7 +28,7 @@ async function check() {
         archive: fs.readFileSync(path.join(other, secondResult.filename)),
       };
     assert.deepEqual(
-      first.archive,
+      Buffer.from(first.archive),
       second.archive,
       "Release assembly is not reproducible at the same commit",
     );
