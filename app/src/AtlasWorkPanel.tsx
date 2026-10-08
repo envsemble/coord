@@ -19,8 +19,15 @@ export function PlanDiagrams({ file, work, navigate }: { file: Document; work?: 
   const [links, setLinks] = useState<ModelReference[]>([]);
   useEffect(() => {
     const controller = new AbortController();
-    get<ModelReference[]>('/api/atlas/references?' + new URLSearchParams({ ...(work ? { work: work.id } : {}), path: file.path }), controller.signal).then(setLinks).catch(() => setLinks([]));
-    return () => controller.abort();
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try { const next = await get<ModelReference[]>('/api/atlas/references?' + new URLSearchParams({ ...(work ? { work: work.id } : {}), path: file.path }), controller.signal); if (!controller.signal.aborted) setLinks(next); }
+      catch { if (!controller.signal.aborted) setLinks([]); }
+      finally { if (!controller.signal.aborted) timer = setTimeout(poll, 2000); }
+    };
+    setLinks([]);
+    void poll();
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [work?.id, file.path, file.modified]);
   return links.length > 0 ? <nav className="plan-diagrams" aria-label="Referenced diagrams">{links.map((link, index) => <button key={index} onClick={() => navigate({ view: 'work', work: link.workId, tab: 'diagrams', diagram: link.handle, element: link.elementId })}>{link.title} · {link.label}</button>)}</nav> : null;
 }
@@ -71,6 +78,6 @@ export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work
   return <section className={'atlas-work ' + (maximized ? 'maximized' : '')} aria-label="Work diagrams">
     <div className="atlas-work-toolbar"><select aria-label="Atlas model" value={handle} onChange={event => navigate({ view: 'work', work: work.id, tab: 'diagrams', diagram: event.target.value })}>{catalog.models.map(entry => <option key={entry.handle} value={entry.handle}>{entry.title}</option>)}{handle && !catalog.models.some(entry => entry.handle === handle) && <option value={handle}>Unavailable model</option>}</select><button aria-pressed={maximized} onClick={() => setMaximized(value => !value)}>{maximized ? 'Exit full view' : 'Full view'}</button></div>
     {[catalogError, modelError, referenceError, ...catalog.issues].filter(Boolean).map((message, i) => <div className="notice warning" key={i}>{message}</div>)}
-    <div className="atlas-work-canvas">{payload ? <ViewerErrorBoundary key={handle}><AtlasPanel payload={payload} theme="dark" focus={route.element ? { kind: 'node', id: route.element } : null} onReference={onReference} /></ViewerErrorBoundary> : <div className="empty"><h3>{handle ? 'Loading diagram…' : 'No models for this work item'}</h3>{!handle && <p>Create or load a model with Atlas and set its workId to {work.id}.</p>}</div>}</div>
+    <div className="atlas-work-canvas">{payload ? <ViewerErrorBoundary key={handle} resetKey={payload.model.document?.revision.id}><AtlasPanel payload={payload} theme="dark" focus={route.element ? { kind: 'node', id: route.element } : null} onReference={onReference} /></ViewerErrorBoundary> : <div className="empty"><h3>{handle ? 'Loading diagram…' : 'No models for this work item'}</h3>{!handle && <p>Create or load a model with Atlas and set its workId to {work.id}.</p>}</div>}</div>
   </section>;
 }
