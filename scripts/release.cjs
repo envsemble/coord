@@ -73,6 +73,13 @@ async function assemble({ outputDirectory = "artifacts/release" } = {}) {
     const version = JSON.parse(
       fs.readFileSync(path.join(sourceRoot, "package.json"), "utf8"),
     ).version;
+    // ESM imports do not use NODE_PATH. Link only installed dependencies into
+    // the sealed source stage; npm pack excludes node_modules from artifacts.
+    fs.symlinkSync(
+      path.join(root, "node_modules"),
+      path.join(sourceRoot, "node_modules"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
     const env = { ...process.env, NODE_PATH: path.join(root, "node_modules") };
     const committedDist = new Map(
       Object.entries(tracked).filter(([name]) => name.startsWith("dist/")),
