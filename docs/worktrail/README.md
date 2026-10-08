@@ -1,110 +1,71 @@
-# Jacob's Codex Skills
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/worktrail-banner-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/worktrail-banner-light.svg">
+  <img alt="Worktrail — Plans, evidence, shared understanding" src="assets/worktrail-banner-light.svg" width="1200">
+</picture>
 
-Personal, reusable skills for [Codex](https://openai.com/codex/). This repository is the source of truth for the skills I have written, adapted, or keep handy across projects.
+[![CI](https://github.com/envsemble/worktrail/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/worktrail/actions/workflows/ci.yml)
+[![Node 24](https://img.shields.io/badge/Node-24-43853d)](dashboard/README.md)
+[![Python 3](https://img.shields.io/badge/Python-3-blue)](requirements-dev.txt)
+[![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)
 
-The collection is intentionally small and practical: Cloudflare development, design-to-code work, repository workflows, legal/product reviews, writing, and a few useful automations.
+Worktrail brings an agent's planning workflow and a local React dashboard together. Keep plans, decisions, implementation evidence and useful knowledge in a versioned `planning` repository. Inspect them alongside [Atlas](https://github.com/envsemble/atlas) models, dated source baselines, proposed changes and teaching reports.
 
-## Install
+![Worktrail with Atlas diagrams and plan navigation](dashboard/assets/atlas-dashboard.jpg)
 
-Codex discovers skills as folders directly inside its skills directory. Clone this repository there to install the complete collection:
+## Install the skills
 
-```bash
-git clone https://github.com/jakubg05/skills.git ~/.codex/skills
+Install the seven `skills/worktrail-*` folders as siblings in your Codex skills directory. The wrapper `skills` folder is not a skill.
+
+```sh
+cp -R skills/worktrail-* ~/.codex/skills/
 ```
 
-Or install only one skill into an existing skills directory:
-
-```bash
-cp -R ./repo-commit-splitter ~/.codex/skills/
-```
-
-On Windows PowerShell, the equivalent is:
+PowerShell:
 
 ```powershell
-Copy-Item .\repo-commit-splitter "$env:USERPROFILE\.codex\skills\" -Recurse
+Get-ChildItem -Directory ./skills/worktrail-* | ForEach-Object {
+  Copy-Item -LiteralPath $_.FullName -Destination "$env:USERPROFILE/.codex/skills" -Recurse -Force
+}
 ```
 
-Restart or refresh Codex after installing a new skill if it does not appear immediately.
-
-## Catalogue
-
-### Cloudflare and Workers
-
-| Skill | What it helps with |
+| Skill | Purpose |
 | --- | --- |
-| [`agents-sdk`](./agents-sdk) | Stateful AI agents, workflows, realtime apps, MCP servers, and agent UI. |
-| [`cloudflare`](./cloudflare) | Broad Cloudflare platform work, with focused references for individual products. |
-| [`cloudflare-email-service`](./cloudflare-email-service) | Email Sending, Email Routing, deliverability, and email integrations. |
-| [`cloudflare-one`](./cloudflare-one) | Cloudflare One, Zero Trust, SASE, Access, Gateway, WARP, and Tunnel. |
-| [`cloudflare-one-migrations`](./cloudflare-one-migrations) | Migration planning from Zscaler, Palo Alto, VPN, SWG, and similar stacks. |
-| [`durable-objects`](./durable-objects) | Durable Objects design, implementation, storage, WebSockets, and testing. |
-| [`sandbox-migrate-to-next`](./sandbox-migrate-to-next) | Porting stable Cloudflare Sandbox apps to the 1.0 preview package. |
-| [`sandbox-next`](./sandbox-next) | Building and changing apps with `@cloudflare/sandbox@next`. |
-| [`sandbox-stable`](./sandbox-stable) | Building and changing apps with the stable Sandbox package. |
-| [`turnstile-spin`](./turnstile-spin) | End-to-end Cloudflare Turnstile setup and server-side verification. |
-| [`workers-best-practices`](./workers-best-practices) | Production reviews and implementation guidance for Workers. |
-| [`wrangler`](./wrangler) | Current, retrieval-first guidance for the Wrangler CLI. |
+| [worktrail-bootstrap](skills/worktrail-bootstrap) | Create or adopt a planning repository with governance and explicit scope. |
+| [worktrail-organize](skills/worktrail-organize) | Organize retained plans and evidence without losing originals. |
+| [worktrail-grill](skills/worktrail-grill) | Clarify a design and record shared understanding as it settles. |
+| [worktrail-implement](skills/worktrail-implement) | Execute an explicitly selected plan through review and CI. |
+| [worktrail-record](skills/worktrail-record) | Retain useful outcomes, decisions and scoped knowledge. |
+| [worktrail-babysit-pr](skills/worktrail-babysit-pr) | Carry explicitly selected PRs through current-head CI and Codex review. |
+| [worktrail-atlas](skills/worktrail-atlas) | Capture, inspect, revise, validate and reopen architecture models with Atlas. |
 
-### Design, browser, and performance
+Implementation and PR babysitting remain explicit-only. Existing authorization, local governance and selected plan identities remain authoritative. See [migration](docs/migration.md) before replacing older installed names; installation does not remove local customizations or publish planning content.
 
-| Skill | What it helps with |
-| --- | --- |
-| [`figma`](./figma) | Fetching Figma context, screenshots, variables, assets, and MCP guidance. |
-| [`figma-implement-design`](./figma-implement-design) | Translating Figma nodes into production-ready, visually faithful code. |
-| [`playwright`](./playwright) | Browser automation from the terminal with Playwright CLI. |
-| [`web-perf`](./web-perf) | Core Web Vitals, dependency chains, layout shifts, and performance audits. |
+## Open the dashboard
 
-### Repository and delivery workflows
+Use Node 24 and Python 3. From the repository root:
 
-| Skill | What it helps with |
-| --- | --- |
-| [`babysit-pr`](./babysit-pr) | Driving existing pull requests through review, fixes, CI, and conflicts. |
-| [`implement-plan`](./implement-plan) | Carrying out an explicitly selected implementation plan through PR readiness. |
-| [`issue-writing`](./issue-writing) | Concise, actionable issue titles and bodies. |
-| [`refactor-codebase`](./refactor-codebase) | Behavior-preserving refactoring with disciplined repository checks. |
-| [`repo-commit-splitter`](./repo-commit-splitter) | Turning a working-tree diff into focused local Conventional Commits. |
-
-### Product, legal, and domain thinking
-
-| Skill | What it helps with |
-| --- | --- |
-| [`domain-modeling`](./domain-modeling) | Sharpening terminology, context documents, and architecture decisions. |
-| [`grilling`](./grilling) | Stress-testing a plan or idea through structured questioning. |
-| [`grill-with-docs`](./grill-with-docs) | Combining plan interrogation with live glossary and ADR writing. |
-| [`legal-oss-review`](./legal-oss-review) | Open-source licence, attribution, dependency, and notice hygiene. |
-| [`legal-privacy-review`](./legal-privacy-review) | Data flows, privacy obligations, DPIA/PIA triage, and product-policy drift. |
-| [`legal-product-review`](./legal-product-review) | Practical legal risk review for products, launches, and public claims. |
-| [`unslop`](./unslop) | Removing AI writing tells while preserving meaning and adding a human voice. |
-
-### Utilities
-
-| Skill | What it helps with |
-| --- | --- |
-| [`create-daily-excel`](./create-daily-excel) | Creating a sourced Slovak nameday and birthday almanac workbook. |
-
-## Skill layout
-
-Every skill is self-contained and follows the Codex convention:
-
-```text
-skill-name/
-├── SKILL.md          # required instructions and trigger description
-├── references/       # optional supporting guidance
-├── scripts/          # optional helper scripts
-├── tests/            # optional validation material
-└── agents/            # optional UI metadata
+```sh
+npm --prefix dashboard ci
+npm --prefix dashboard run dev
 ```
 
-The folders stay flat on purpose: Codex loads skills from immediate subdirectories of its configured skills directory. The README provides the human-friendly organization without changing that discovery layout.
+Open **http://127.0.0.1:4317/**. By default the dashboard reads a sibling `planning` folder. Connect another folder with `npm --prefix dashboard run dev -- --planning-dir /path/to/planning`. Plans, ledgers, knowledge, Git history and actual consultation statistics stay local. No model service or API key is required.
 
-## Notes
+Atlas renders directly in React; diagrams remain read-only. An agent edits through the Atlas library/CLI/MCP, with stable semantic IDs linking plan passages and pinned code evidence. Offline HTML export/reopen is a separate submission/review mode. The dashboard pins a committed Atlas tarball and SHA-256, so its installation and CI require no sibling Atlas checkout.
 
-- `SKILL.md` is the authoritative contract for each skill, including trigger rules and safety boundaries.
-- Several skills are retrieval-first because Cloudflare, browser tooling, and legal requirements change over time.
-- Some skills are intentionally manual-only or require explicit invocation. Check the front matter and opening section of the skill before using it.
-- The platform-managed `.system` skills are not copied here; this repository contains the personal collection only.
-- Upstream notices and licence files included inside individual skill folders are kept with those skills.
+## Check and package
 
-## Contributing
+```sh
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -s skills/tests -v
+python -m unittest discover -s skills/worktrail-bootstrap/scripts/tests -v
+npm --prefix dashboard test
+npm --prefix dashboard run build
+npm --prefix dashboard run check:release
+npm --prefix dashboard run release:assemble
+```
 
-When adding a skill, create a new kebab-case folder with a complete `SKILL.md`, keep supporting material inside that folder, and add one concise row to the appropriate catalogue section above. Prefer small, composable skills over one large instruction file.
+GitHub Actions runs skill checks, Ubuntu/macOS dashboard consumers, review/export/reopen, reproducible release checks and the required `CI` / `Betterleaks` gates. Versioned artifacts include source, skills, documentation, branding and the pinned Atlas package. User planning records, local `.atlas` models and usage databases are excluded. Assembly publishes and deploys nothing.
+
+[Dashboard guide](dashboard/README.md) · [Migration and preserved history](docs/migration.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Notices](THIRD_PARTY_NOTICES.md)
