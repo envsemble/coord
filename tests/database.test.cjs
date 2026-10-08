@@ -74,6 +74,26 @@ test("failed source configuration and storage publication leave no captured docu
           (handle) => fs.readdirSync(path.join(history, handle)).length === 0,
         ),
   );
+  fs.writeFileSync(
+    path.join(root, ".atlas/results"),
+    "fixture blocked response directory",
+  );
+  const config = JSON.parse(fs.readFileSync(path.join(root, "source.json")));
+  fs.writeFileSync(
+    path.join(root, "source.json"),
+    JSON.stringify({ ...config, title: "A".repeat(20000) }),
+  );
+  await assert.rejects(
+    w.execute("atlas_capture_database", { file: "source.json" }),
+    /CAPTURE_CONFIG/,
+  );
+  assert.equal((await w.execute("atlas_list", {})).total, 0);
+  fs.writeFileSync(path.join(root, "source.json"), JSON.stringify(config));
+  const captured = await w.execute("atlas_capture_database", {
+    file: "source.json",
+  });
+  assert(captured.handle);
+  assert.equal((await w.execute("atlas_list", {})).total, 1);
 });
 const sql = `PRAGMA foreign_keys=ON;
 CREATE TABLE account (tenant TEXT NOT NULL, code TEXT NOT NULL, name TEXT DEFAULT 'anonymous', PRIMARY KEY(tenant,code)) WITHOUT ROWID;
