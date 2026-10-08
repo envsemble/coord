@@ -17,8 +17,18 @@ import { LearningLibrary } from "../learning/LearningContent";
 import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
 import { CaptureStamp } from "./CaptureStamp";
+import { ComparisonViewer } from "./ComparisonViewer";
 
 export function OntoUMLViewer(props) {
+  if (props.comparison)
+    return (
+      <ComparisonViewer
+        payload={props}
+        render={(payload, focus) => (
+          <OntoUMLViewer {...payload} focus={focus} />
+        )}
+      />
+    );
   if (!props.views.length)
     return (
       <div className="viewer-error">
@@ -28,7 +38,13 @@ export function OntoUMLViewer(props) {
     );
   return <ViewerContent {...props} />;
 }
-function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
+function ViewerContent({
+  model,
+  views,
+  exports: exportData,
+  snippets = {},
+  focus = null,
+}) {
   const exports = useArtifactArchive(exportData);
   const [viewKey, setViewKey] = useState(views[0].key),
     [fields, setFields] = useState(false);
@@ -97,7 +113,16 @@ function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
   const choose = useCallback(
     (id) => {
       const node = index.nodes.get(id);
-      if (!node) return;
+      if (!node) {
+        const next = views.find((v) =>
+          v.diagram.edges.some((e) => e.id === id),
+        );
+        if (next) {
+          setViewKey(next.key);
+          select({ kind: "edge", id });
+        }
+        return;
+      }
       const next = viewForNode(views, viewKey, node);
       if (!next) return;
       setViewKey(next.key);
@@ -106,6 +131,16 @@ function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
     },
     [index, views, viewKey, select],
   );
+  const lastExternalFocus = useRef(null);
+  useEffect(() => {
+    if (focus && focus !== lastExternalFocus.current) {
+      lastExternalFocus.current = focus;
+      choose(focus.id);
+    }
+  }, [focus, choose]);
+  useEffect(() => {
+    if (selected && !index.getElement(selected)) select(null);
+  }, [index, selected, select]);
   return (
     <div className={`viewer${sidebarOpen ? " inspecting" : ""}`}>
       <ViewerToolbar

@@ -40,6 +40,7 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       data-node-id={node.id}
       data-element-kind="node"
       data-element-id={node.id}
+      data-change={node.changeStatus}
       aria-label={node.name}
       aria-pressed={handlers ? sameTarget(target, selected) : undefined}
       transform={`translate(${node.x} ${node.y})`}
@@ -77,6 +78,15 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       >
         {node.name}
       </text>
+      {node.changeStatus && node.changeStatus !== "unchanged" && (
+        <text x="8" y="15" fill="var(--text)" fontSize="12">
+          {node.changeStatus === "added"
+            ? "+"
+            : node.changeStatus === "removed"
+              ? "−"
+              : "Δ"}
+        </text>
+      )}
       {(node.attributes.length > 0 || methods.length > 0) && (
         <>
           <path

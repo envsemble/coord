@@ -4,6 +4,61 @@ import { ElementLearning } from "../learning/LearningContent";
 import { DetailHeader } from "../ui/DetailHeader";
 import { GitBranchIcon } from "../ui/Icons";
 import { memo } from "react";
+function ChangeDetails({ element, model }) {
+  const ids = new Set([
+    element.id,
+    ...(element.attributes || []).map((a) => a.id),
+    ...(element.methods || []).map((m) => m.id),
+  ]);
+  const changes =
+    model.document?.comparison?.changes?.changes.filter((c) =>
+      ids.has(c.elementId),
+    ) || [];
+  const mappings =
+    model.document?.mappings?.filter((m) => ids.has(m.elementId)) || [];
+  if (!changes.length && !mappings.length) return null;
+  return (
+    <>
+      {!!changes.length && (
+        <details>
+          <summary>Changes · {changes.length}</summary>
+          {changes.map((c) => (
+            <div key={c.id}>
+              <p>
+                {c.kind} ·{" "}
+                {typeof c.name === "string" ? c.name : JSON.stringify(c.name)}
+              </p>
+              {c.properties.map((p) => (
+                <p key={p.key}>
+                  {p.key}:{" "}
+                  {p.before.present ? JSON.stringify(p.before.value) : "absent"}{" "}
+                  → {p.after.present ? JSON.stringify(p.after.value) : "absent"}
+                </p>
+              ))}
+              {c.rationale.map((r) => (
+                <p key={r.id}>{r.text}</p>
+              ))}
+            </div>
+          ))}
+        </details>
+      )}
+      {!!mappings.length && (
+        <details>
+          <summary>Mappings</summary>
+          {mappings.map((m) => (
+            <div key={m.id}>
+              <p>
+                {m.targetTitle} · {m.targetElementId}
+              </p>
+              <p>{m.reason}</p>
+              <small>Authored link · retained {m.targetProfile} snapshot</small>
+            </div>
+          ))}
+        </details>
+      )}
+    </>
+  );
+}
 
 export const ConceptDetails = memo(function ConceptDetails({
   concept,
@@ -32,6 +87,7 @@ export const ConceptDetails = memo(function ConceptDetails({
         <CapturedSchema element={concept} />
       )}
       <CaptureDetails model={model} />
+      <ChangeDetails element={concept} model={model} />
       {model.document?.profile === "code" && (
         <>
           {concept.definition && (
@@ -111,6 +167,7 @@ export const RelationDetails = memo(function RelationDetails({
           </div>
         ))}
       </div>
+      <ChangeDetails element={relation} model={model} />
       {(!model.document || model.document.profile === "ontouml") && (
         <ElementLearning element={relation} model={model} relation />
       )}

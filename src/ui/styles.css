@@ -22,6 +22,70 @@
   --border-muted: #373e47;
   --inspector-width: clamp(440px, 42vw, 640px);
 }
+.atlas-comparison {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+}
+.comparison-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  z-index: 30;
+}
+.comparison-summary > summary {
+  cursor: pointer;
+  padding: 7px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.comparison-summary > summary:hover {
+  background: var(--hover);
+}
+.comparison-list {
+  position: absolute;
+  right: 8px;
+  top: 100%;
+  width: min(480px, calc(100vw - 16px));
+  max-height: 65vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.comparison-list > details {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.comparison-list summary {
+  cursor: pointer;
+}
+.comparison-list pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.comparison-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.comparison-content > .atlas-panel,
+.comparison-content .viewer {
+  height: 100%;
+}
+.comparison-content #canvas,
+.comparison-content .panel {
+  position: absolute;
+}
 :root[data-theme="light"] {
   color-scheme: light;
   --canvas: #ffffff;

@@ -10,6 +10,8 @@ Versioned model documents separate source snapshots, authored revisions, evidenc
 
 Reopen exported HTML with `importDocument` and continue modeling without the original workspace. See [portable documents](docs/portable-documents.md) and the [MCP/CLI interface](docs/agent-interface.md) for the shared persistent workflow.
 
+[Proposals and comparison](docs/comparison.md) preserve a frozen baseline, show semantic changes in shared positions, retain explicit three-way merge conflicts and support authored cross-layer mappings. The agent edits the model; both the dashboard and offline HTML inspect Baseline, Proposed and Changes.
+
 Use Node 22.12 or newer (Node 24 is the development runtime).
 
 ```sh

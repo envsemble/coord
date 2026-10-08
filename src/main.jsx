@@ -9,6 +9,7 @@ createRoot(document.getElementById("root")).render(
       views={VIEWS}
       exports={EXPORTS}
       snippets={SNIPPETS}
+      comparison={typeof COMPARISON === "undefined" ? undefined : COMPARISON}
     />
   </ViewerErrorBoundary>,
 );

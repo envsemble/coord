@@ -1,4 +1,5 @@
 import { CaptureStamp } from "./CaptureStamp";
+import { ComparisonViewer } from "./ComparisonViewer";
 import {
   useCallback,
   useEffect,
@@ -31,6 +32,20 @@ import {
 import { LearningLibrary } from "../learning/LearningContent";
 
 export function AtlasPanel(props) {
+  if (props.payload.comparison)
+    return (
+      <ComparisonViewer
+        payload={props.payload}
+        theme={props.theme}
+        render={(payload, focus) => (
+          <AtlasPanel
+            {...props}
+            payload={payload}
+            focus={focus || props.focus}
+          />
+        )}
+      />
+    );
   if (!props.payload.views.length)
     return (
       <div

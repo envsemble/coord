@@ -81,6 +81,7 @@ export interface ViewerClass extends ElementEvidence {
   isAbstract?: boolean;
   evidence: string[];
   attributes: Attribute[];
+  methods?: Attribute[];
 }
 export interface ViewerAssociation extends ElementEvidence {
   id: string;
@@ -134,6 +135,8 @@ export interface ViewerModel {
     snapshots: Omit<SourceSnapshot, "model">[];
     context: PlanningContext;
     imported?: boolean;
+    comparison?: AtlasDocument["comparison"] & { changes?: SemanticComparison };
+    mappings?: AuthoredMapping[];
   };
 }
 export interface ViewSettings {
@@ -158,6 +161,7 @@ export interface DiagramNode {
   isAbstract?: boolean;
   attributes: Attribute[];
   methods?: Attribute[];
+  changeStatus?: "added" | "removed" | "modified" | "unchanged";
 }
 export interface DiagramLabel {
   id: string;
@@ -186,6 +190,7 @@ export interface DiagramEdge {
   paths: string[];
   branchPaths?: string[];
   labels: DiagramLabel[];
+  changeStatus?: "added" | "removed" | "modified" | "unchanged";
 }
 export interface DiagramGeneralizationGroup {
   id: string;
@@ -252,6 +257,15 @@ export interface ViewerPayload {
   >[];
   exports: ExportData;
   snippets: Record<string, HighlightedExcerpt>;
+  comparison?: {
+    baseline: Pick<ViewerPayload, "model" | "views" | "snippets" | "exports">;
+    changeView?: Pick<
+      ViewerPayload,
+      "model" | "views" | "snippets" | "exports"
+    >;
+    changes: SemanticComparison;
+    conflicts: MergeConflict[];
+  } | null;
 }
 export interface PreparedViewer {
   artifacts: Map<string, string | Uint8Array>;
@@ -370,6 +384,15 @@ export interface AtlasDocument {
   snapshots: SourceSnapshot[];
   baselineId: string | null;
   imported?: boolean;
+  mappings?: AuthoredMapping[];
+  comparison?: {
+    originDocumentId?: string;
+    ancestorRevision?: string;
+    ancestorRevisions?: string[];
+    parents?: string[];
+    conflicts?: MergeConflict[];
+    [key: string]: unknown;
+  };
   workId?: string;
   revision: {
     id: string;
@@ -406,6 +429,37 @@ export function createSnapshot(input: {
 export function documentViewerModel(document: AtlasDocument): ViewerModel;
 export function importDocument(input: string | Uint8Array): AtlasDocument;
 export interface AtlasToolArguments {
+  atlas_map: {
+    handle: string;
+    targetHandle: string;
+    expectedRevision: string;
+    id: string;
+    elementId: string;
+    targetElementId: string;
+    reason: string;
+  };
+  atlas_proposal: { handle: string; title?: string };
+  atlas_compare: {
+    handle: string;
+    baseHandle?: string;
+    offset?: number;
+    limit?: number;
+  };
+  atlas_merge: {
+    ancestorHandle: string;
+    leftHandle: string;
+    rightHandle: string;
+  };
+  atlas_resolve_merge: {
+    handle: string;
+    expectedRevision: string;
+    choices: { conflictId: string; choice: "left" | "right" | "base" }[];
+  };
+  atlas_adopt_snapshot: {
+    handle: string;
+    capturedHandle: string;
+    expectedRevision: string;
+  };
   atlas_capture_code: { file: string; workId?: string };
   atlas_capture_database: { file: string; workId?: string };
   atlas_create: { input: Parameters<typeof createDocument>[0] };
@@ -454,6 +508,7 @@ export interface AtlasModelSummary {
   state: AtlasDocument["state"];
   revision: string;
   workId: string | null;
+  conflicts: number;
   elements: number;
   baselineId: string | null;
   file: string;
@@ -470,6 +525,12 @@ export interface AtlasResultReference {
   notice: string;
 }
 export interface AtlasToolResults {
+  atlas_map: AtlasModelSummary;
+  atlas_proposal: AtlasModelSummary;
+  atlas_compare: SemanticComparison & { total: number; offset: number };
+  atlas_merge: AtlasModelSummary;
+  atlas_resolve_merge: AtlasModelSummary;
+  atlas_adopt_snapshot: AtlasModelSummary;
   atlas_capture_code: AtlasModelSummary;
   atlas_capture_database: AtlasModelSummary;
   atlas_create: AtlasModelSummary;
@@ -500,6 +561,86 @@ export interface AtlasToolResults {
   };
 }
 export function createWorkspace(root: string): AtlasWorkspace;
+export interface ValueCell {
+  present: boolean;
+  value?: unknown;
+}
+export interface SemanticChange {
+  id: string;
+  elementId: string | null;
+  ownerId: string | null;
+  kind: "added" | "removed" | "modified";
+  name: unknown;
+  properties: { key: string; before: ValueCell; after: ValueCell }[];
+  rationale?: PlanningContext["records"];
+  evidence?: unknown;
+}
+export interface SemanticComparison {
+  changes: SemanticChange[];
+  counts: Record<"added" | "removed" | "modified", number>;
+  limitations: string[];
+  baseRevision?: string;
+  proposedRevision?: string;
+  missingRationale?: string[];
+}
+export interface MergeConflict {
+  id: string;
+  path: string[];
+  base: ValueCell;
+  left: ValueCell;
+  right: ValueCell;
+  reason: string;
+}
+export interface AuthoredMapping {
+  id: string;
+  kind: "authored";
+  elementId: string;
+  snapshotId: string;
+  targetElementId: string;
+  reason: string;
+  targetProfile?: ModelProfile;
+  targetTitle?: string;
+  targetRevision?: string;
+}
+export function compareModels(
+  base: unknown,
+  proposed: unknown,
+): SemanticComparison;
+export function compareDocuments(
+  base: AtlasDocument,
+  proposed: AtlasDocument,
+): SemanticComparison;
+export function createProposal(
+  base: AtlasDocument,
+  options?: { id?: string; title?: string; reason?: string },
+): AtlasDocument;
+export function mergeDocuments(
+  ancestor: AtlasDocument,
+  left: AtlasDocument,
+  right: AtlasDocument,
+  options?: { id?: string; reason?: string },
+): AtlasDocument;
+export function resolveMerge(
+  document: AtlasDocument,
+  choices: { conflictId: string; choice: "left" | "right" | "base" }[],
+  expectedRevision?: string,
+): AtlasDocument;
+export function adoptSnapshot(
+  document: AtlasDocument,
+  captured: AtlasDocument,
+  expectedRevision?: string,
+): AtlasDocument;
+export function linkMapping(
+  document: AtlasDocument,
+  target: AtlasDocument,
+  mapping: {
+    id: string;
+    elementId: string;
+    targetElementId: string;
+    reason: string;
+  },
+  expectedRevision?: string,
+): AtlasDocument;
 export interface CodeCaptureProject {
   identity: string;
   path: string;

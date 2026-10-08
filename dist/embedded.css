@@ -22,6 +22,70 @@
   --border-muted: #373e47;
   --inspector-width: clamp(440px, 42vw, 640px);
 }
+.atlas-panel .atlas-comparison {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+}
+.atlas-panel .comparison-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  z-index: 30;
+}
+.atlas-panel .comparison-summary > summary {
+  cursor: pointer;
+  padding: 7px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.atlas-panel .comparison-summary > summary:hover {
+  background: var(--hover);
+}
+.atlas-panel .comparison-list {
+  position: absolute;
+  right: 8px;
+  top: 100%;
+  width: min(480px, calc(100vw - 16px));
+  max-height: 65vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.atlas-panel .comparison-list > details {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.atlas-panel .comparison-list summary {
+  cursor: pointer;
+}
+.atlas-panel .comparison-list pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.atlas-panel .comparison-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.atlas-panel .comparison-content > .atlas-panel,.atlas-panel 
+.comparison-content .viewer {
+  height: 100%;
+}
+.atlas-panel .comparison-content #canvas,.atlas-panel 
+.comparison-content .panel {
+  position: absolute;
+}
 .atlas-panel[data-theme="light"] {
   color-scheme: light;
   --canvas: #ffffff;
@@ -1152,6 +1216,21 @@ button[aria-selected="true"] {
     animation: none;
   }
 }
+.atlas-panel [data-change="added"] .node-box,.atlas-panel 
+[data-change="added"] .edge-path {
+  stroke: #57ab5a;
+  stroke-width: 2;
+}
+.atlas-panel [data-change="removed"] .node-box,.atlas-panel 
+[data-change="removed"] .edge-path {
+  stroke: #e5534b;
+  stroke-dasharray: 5 3;
+}
+.atlas-panel [data-change="modified"] .node-box,.atlas-panel 
+[data-change="modified"] .edge-path {
+  stroke: #c69026;
+  stroke-width: 2;
+}
 
 .atlas-panel {
   position: relative;
@@ -1238,4 +1317,10 @@ button[aria-selected="true"] {
   .atlas-panel .atlas-capture {
     font-size: 10px;
   }
+}
+.atlas-panel.atlas-comparison {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }

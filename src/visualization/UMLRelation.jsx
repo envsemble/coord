@@ -36,6 +36,7 @@ export function UMLRelation({
       data-element-id={edge.id}
       data-source={edge.source}
       data-target={edge.target}
+      data-change={edge.changeStatus}
       aria-label={accessibleName || relationName(edge)}
       aria-pressed={handlers ? sameTarget(target, selected) : undefined}
       {...interactionProps(target, handlers)}
