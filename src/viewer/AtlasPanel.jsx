@@ -1,5 +1,7 @@
+import { inspectionTarget } from "../model/inspectionTarget";
 import { CaptureStamp } from "./CaptureStamp";
 import { ComparisonViewer } from "./ComparisonViewer";
+import { ReportViewer } from "./ReportViewer";
 import {
   useCallback,
   useEffect,
@@ -32,6 +34,21 @@ import {
 import { LearningLibrary } from "../learning/LearningContent";
 
 export function AtlasPanel(props) {
+  if (props.payload.report)
+    return (
+      <ReportViewer
+        payload={props.payload}
+        theme={props.theme}
+        onReference={props.onReference}
+        render={(payload, focus) => (
+          <AtlasPanel
+            {...props}
+            payload={payload}
+            focus={focus || props.focus}
+          />
+        )}
+      />
+    );
   if (props.payload.comparison)
     return (
       <ComparisonViewer
@@ -98,28 +115,13 @@ function AtlasPanelContent({
   );
   const choose = useCallback(
     (id) => {
-      const node =
-        index.nodes.get(id) ||
-        model.classes.find((c) => c.attributes.some((a) => a.id === id));
-      if (node) id = node.id;
-      const next = node
-        ? viewForNode(views, viewKey, node)
-        : views.find(
-            (v) =>
-              v.diagram.edges.some((e) => e.id === id) ||
-              v.diagram.generalizationGroups?.some(
-                (g) => g.id === id || g.memberIds.includes(id),
-              ),
-          );
+      const next = inspectionTarget(model, index, views, viewKey, id);
       if (!next) return;
-      setViewKey(next.key);
-      select({
-        kind: node ? "node" : index.edges.has(id) ? "edge" : "group",
-        id,
-      });
-      if (node) setFocusRequest({ id });
+      setViewKey(next.viewKey);
+      select(next.target);
+      if (next.nodeId) setFocusRequest({ id: next.nodeId });
     },
-    [index, model.classes, views, viewKey, select],
+    [index, model, views, viewKey, select],
   );
   useEffect(() => {
     select(null);
@@ -151,8 +153,10 @@ function AtlasPanelContent({
     if (sameTarget(lastFocus.current, focus)) return;
     lastFocus.current = focus;
     if (!focus) return;
-    choose(focus.id);
-  }, [focus, choose]);
+    if (focus.kind === "view" && views.some((v) => v.key === focus.id))
+      setViewKey(focus.id);
+    else choose(focus.id);
+  }, [focus, choose, views]);
   useEffect(() => {
     const escape = (e) => {
       if (e.key === "Escape" && e.target.closest?.(".atlas-panel"))

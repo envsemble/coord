@@ -10,6 +10,7 @@ createRoot(document.getElementById("root")).render(
       exports={EXPORTS}
       snippets={SNIPPETS}
       comparison={typeof COMPARISON === "undefined" ? undefined : COMPARISON}
+      report={typeof REPORT === "undefined" ? undefined : REPORT}
     />
   </ViewerErrorBoundary>,
 );

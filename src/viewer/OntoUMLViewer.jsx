@@ -1,3 +1,4 @@
+import { inspectionTarget } from "../model/inspectionTarget";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DiagramCanvas } from "../visualization/DiagramCanvas";
 import { useSVGExport } from "../visualization/useSVGExport";
@@ -18,8 +19,18 @@ import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
 import { CaptureStamp } from "./CaptureStamp";
 import { ComparisonViewer } from "./ComparisonViewer";
+import { ReportViewer } from "./ReportViewer";
 
 export function OntoUMLViewer(props) {
+  if (props.report)
+    return (
+      <ReportViewer
+        payload={props}
+        render={(payload, focus) => (
+          <OntoUMLViewer {...payload} focus={focus} />
+        )}
+      />
+    );
   if (props.comparison)
     return (
       <ComparisonViewer
@@ -112,32 +123,23 @@ function ViewerContent({
   }, [clear]);
   const choose = useCallback(
     (id) => {
-      const node = index.nodes.get(id);
-      if (!node) {
-        const next = views.find((v) =>
-          v.diagram.edges.some((e) => e.id === id),
-        );
-        if (next) {
-          setViewKey(next.key);
-          select({ kind: "edge", id });
-        }
-        return;
-      }
-      const next = viewForNode(views, viewKey, node);
+      const next = inspectionTarget(model, index, views, viewKey, id);
       if (!next) return;
-      setViewKey(next.key);
-      select({ kind: "node", id: node.id });
-      setFocusRequest({ id: node.id });
+      setViewKey(next.viewKey);
+      select(next.target);
+      if (next.nodeId) setFocusRequest({ id: next.nodeId });
     },
-    [index, views, viewKey, select],
+    [index, model, views, viewKey, select],
   );
   const lastExternalFocus = useRef(null);
   useEffect(() => {
     if (focus && focus !== lastExternalFocus.current) {
       lastExternalFocus.current = focus;
-      choose(focus.id);
+      if (focus.kind === "view" && views.some((v) => v.key === focus.id))
+        setViewKey(focus.id);
+      else choose(focus.id);
     }
-  }, [focus, choose]);
+  }, [focus, choose, views]);
   useEffect(() => {
     if (selected && !index.getElement(selected)) select(null);
   }, [index, selected, select]);

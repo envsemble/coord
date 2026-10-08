@@ -250,6 +250,7 @@ export interface ExportData {
   bundle: string;
 }
 export interface ViewerPayload {
+  report?: ModelReport | null;
   model: ViewerModel & { validation: ValidationReport };
   views: Pick<
     PreparedView,
@@ -370,6 +371,8 @@ export interface PlanningContext {
   links: { elementId: string; recordId: string; [field: string]: unknown }[];
 }
 export interface AtlasDocument {
+  learning?: LearningContent;
+  reporting?: { scope: string; author?: string };
   format: "atlas/document";
   formatVersion: 1;
   id: string;
@@ -414,7 +417,14 @@ export function reviseDocument(
   changes: Partial<
     Pick<
       AtlasDocument,
-      "title" | "model" | "evidence" | "views" | "snippets" | "context"
+      | "title"
+      | "model"
+      | "evidence"
+      | "views"
+      | "snippets"
+      | "context"
+      | "learning"
+      | "reporting"
     >
   > & { reason?: string },
   expectedRevision?: string,
@@ -429,6 +439,7 @@ export function createSnapshot(input: {
 export function documentViewerModel(document: AtlasDocument): ViewerModel;
 export function importDocument(input: string | Uint8Array): AtlasDocument;
 export interface AtlasToolArguments {
+  atlas_scenarios: { handle: string; offset?: number; limit?: number };
   atlas_map: {
     handle: string;
     targetHandle: string;
@@ -525,6 +536,14 @@ export interface AtlasResultReference {
   notice: string;
 }
 export interface AtlasToolResults {
+  atlas_scenarios: {
+    total: number;
+    offset: number;
+    scenarios: (ScenarioResult & {
+      title: string;
+      expected: Scenario["expected"];
+    })[];
+  };
   atlas_map: AtlasModelSummary;
   atlas_proposal: AtlasModelSummary;
   atlas_compare: SemanticComparison & { total: number; offset: number };
@@ -565,6 +584,61 @@ export interface ValueCell {
   present: boolean;
   value?: unknown;
 }
+export interface Scenario {
+  id: string;
+  title: string;
+  description?: string;
+  expected: "valid" | "invalid";
+  elementIds?: string[];
+  contextIds?: string[];
+  instances: { id: string; label?: string; classIds: string[] }[];
+  links: { relationId: string; sourceId: string; targetId: string }[];
+}
+export interface LearningContent {
+  walkthroughs: {
+    id: string;
+    title: string;
+    contextIds?: string[];
+    elementIds?: string[];
+    steps: { text: string; viewKey?: string; elementIds: string[] }[];
+  }[];
+  scenarios: Scenario[];
+}
+export interface ScenarioResult {
+  id: string;
+  outcome: "valid" | "invalid" | "unassessed";
+  expectationMet: boolean | null;
+  issues: {
+    code: string;
+    message: string;
+    elementId: string;
+    instanceId: string;
+  }[];
+  unassessed: { elementId: string | null; message: string }[];
+  limitations: string[];
+}
+export interface ModelReport {
+  title: string;
+  profile: ModelProfile;
+  state: AtlasDocument["state"];
+  revision: AtlasDocument["revision"] | null;
+  scope: string;
+  author: string | null;
+  imported: boolean;
+  snapshots: Omit<SourceSnapshot, "model">[];
+  baselineId: string | null;
+  context: PlanningContext;
+  walkthroughs: LearningContent["walkthroughs"];
+  scenarios: (Scenario & { result: ScenarioResult })[];
+  explanations: { elementId: string; text: string; assessed: boolean }[];
+  limitations: string[];
+  diagrams: { key: string; title: string; svg: string }[];
+}
+export function checkScenario(
+  document: AtlasDocument,
+  scenarioId: string,
+): ScenarioResult;
+export function explainModel(model: ViewerModel): ModelReport["explanations"];
 export interface SemanticChange {
   id: string;
   elementId: string | null;

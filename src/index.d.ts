@@ -18,7 +18,7 @@ export const OntoUMLViewer: ComponentType<ViewerPayload>;
 export const AtlasPanel: ComponentType<{
   payload: ViewerPayload;
   theme?: "dark" | "light";
-  focus?: InspectionTarget;
+  focus?: InspectionTarget | { kind: "view"; id: string };
   onReference?(record: PlanningContext["records"][number]): void;
 }>;
 export const ViewerErrorBoundary: ComponentType<{

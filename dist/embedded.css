@@ -1009,6 +1009,179 @@ button[aria-selected="true"] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.atlas-panel .atlas-report-host {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--canvas);
+}
+.atlas-panel .report-diagram {
+  height: 100%;
+}
+.atlas-panel .report-diagram[hidden] {
+  display: none;
+}
+.atlas-panel .report-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 12;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.atlas-panel .report-toggle:hover {
+  border-color: var(--accent);
+}
+.atlas-panel .report-toggle:active {
+  transform: translateY(1px);
+}
+.atlas-panel .model-report {
+  height: 100%;
+  overflow-y: auto;
+  padding: 48px max(24px, calc((100% - 920px) / 2)) 72px;
+  color: var(--text);
+  line-height: 1.65;
+}
+.atlas-panel .model-report section {
+  margin: 32px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.atlas-panel .model-report h1 {
+  font-size: 32px;
+  line-height: 1.2;
+}
+.atlas-panel .model-report h2 {
+  margin-bottom: 16px;
+  font-size: 22px;
+}
+.atlas-panel .model-report h3 {
+  margin: 20px 0 8px;
+  font-size: 17px;
+}
+.atlas-panel .model-report p {
+  margin: 10px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.atlas-panel .model-report pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.atlas-panel .model-report img {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  background: white;
+  border-radius: 6px;
+}
+.atlas-panel .model-report figure {
+  margin: 24px 0;
+}
+.atlas-panel .model-report figcaption {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.atlas-panel .model-report table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.atlas-panel .model-report td,.atlas-panel 
+.model-report th {
+  text-align: left;
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.atlas-panel .model-report button {
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.atlas-panel .model-report button:hover {
+  color: var(--text);
+}
+.atlas-panel .model-report blockquote {
+  border-left: 3px solid var(--border);
+  margin: 16px 0;
+  padding-left: 16px;
+}
+.atlas-panel .report-revision {
+  font-size: 12px;
+  color: var(--muted);
+}
+.atlas-panel .report-scenario {
+  padding: 16px 0;
+}
+@media print {
+  .atlas-panel {
+    color-scheme: light;
+  }
+  .atlas-panel,.atlas-panel 
+  #root,.atlas-panel 
+  .atlas-panel,.atlas-panel 
+  .atlas-report-host {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    color: #1f2328 !important;
+  }
+  .atlas-panel .report-open .report-diagram,.atlas-panel 
+  .report-toggle,.atlas-panel 
+  .report-print,.atlas-panel 
+  .model-report button,.atlas-panel 
+  .model-report a[download] {
+    display: none !important;
+  }
+  .atlas-panel .model-report {
+    height: auto;
+    overflow: visible;
+    padding: 0;
+    color: #1f2328;
+    font-size: 10pt;
+  }
+  .atlas-panel .model-report section,.atlas-panel 
+  .model-report table,.atlas-panel 
+  .model-report td,.atlas-panel 
+  .model-report th {
+    border-color: #d1d9e0;
+  }
+  .atlas-panel .model-report figure,.atlas-panel 
+  .model-report tr {
+    break-inside: avoid;
+  }
+  .atlas-panel .model-report img {
+    max-height: 230mm;
+    object-fit: contain;
+  }
+  .atlas-panel .model-report .report-reference {
+    display: inline !important;
+    color: #1f2328;
+    text-decoration: none;
+  }
+  .atlas-panel .model-report details {
+    display: block;
+  }
+  .atlas-panel .model-report details > * {
+    display: block !important;
+  }
+  .atlas-panel .model-report a {
+    color: #0969da;
+  }
+}
+@media print {
+  .atlas-panel .model-report .muted,.atlas-panel 
+  .model-report .report-revision {
+    color: #59636e;
+  }
+}
 
 .atlas-panel {
   --diagram-border: #768390;
@@ -1323,4 +1496,11 @@ button[aria-selected="true"] {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+.atlas-panel.atlas-report-host {
+  height: 100%;
+  min-height: 0;
+}
+.atlas-panel .report-diagram > .atlas-panel {
+  height: 100%;
 }

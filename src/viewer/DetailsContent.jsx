@@ -1,3 +1,4 @@
+import { printable } from "../model/printable";
 import { DownloadLink } from "../ui/DownloadLink";
 import { SourceEvidence } from "./SourceEvidence";
 import { ElementLearning } from "../learning/LearningContent";
@@ -285,13 +286,13 @@ function CaptureDetails({ model }) {
       <p>
         {capture.source.kind} · {capture.source.identity}
       </p>
-      <p>{capture.consistency?.kind}</p>
+      <p>{printable(capture.consistency?.kind)}</p>
       {(capture.coverage.diagnostics || []).map((d, i) => (
-        <p key={i}>{d.message}</p>
+        <p key={i}>{printable(d.message ?? d)}</p>
       ))}
-      {(capture.limitations || []).map((text, i) => (
+      {[].concat(capture.limitations || []).map((text, i) => (
         <p className="muted" key={i}>
-          {text}
+          {printable(text)}
         </p>
       ))}
     </details>

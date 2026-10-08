@@ -59,6 +59,8 @@ Generalization sets in the standard model produce shared inheritance branches wi
 
 For a teaching example like the enrollment pattern, run `node scripts/build-enrollment.cjs work/enrollment-site` and open `work/enrollment-site/index.html`. Its named state and degree-level sets are authored examples, separate from the R5 model.
 
+Add `--report` for a guided semester example with finite instances and counterexamples. **Report** opens the printable reading view; diagrams, context, capture claims and learning content stay embedded for reopening. See [learning and reports](docs/learning-reports.md) for scope and checker limits.
+
 See [the agent workflow](agents/MODELING.md) for the contract, supported excerpt languages and modeling guidance.
 
 ## Node and React APIs
