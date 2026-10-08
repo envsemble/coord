@@ -66,14 +66,18 @@ export class AtlasCatalog {
     }
     return pending;
   }
-  references(snapshot: PlanningIndex, work: string, filename: string) {
-    this.work(snapshot, work);
+  references(snapshot: PlanningIndex, work: string | undefined, filename: string): { handle: string; workId: string; title: string; elementId: string; label: string; section: string | null }[] {
     const same = (first: string, second: string) => samePath(first, second, snapshot.caseSensitivePaths ?? true, snapshot.normalizationInsensitivePaths ?? false);
+    if (!work) {
+      if (!snapshot.documents.some(file => same(file.path, filename) && file.category === 'knowledge')) throw new PlanningError('Choose an indexed shared knowledge document.', 403);
+      return snapshot.work.flatMap(item => this.references(snapshot, item.id, filename));
+    }
+    this.work(snapshot, work);
     if (!snapshot.documents.some(file => same(file.path, filename) && (file.workId === work || file.category === 'knowledge'))) throw new PlanningError('Choose an indexed work or knowledge document.', 403);
     return this.list(snapshot, work).models.flatMap(entry => {
       const document = this.load(snapshot, work, entry.handle);
       const records = document.context.records.filter(record => typeof record.path === 'string' && same(record.path, filename));
-      return records.flatMap(record => document.context.links.filter(link => link.recordId === record.id).map(link => ({ handle: entry.handle, title: entry.title, elementId: link.elementId, label: String(record.title || record.kind), section: typeof record.section === 'string' ? record.section : null })));
+      return records.flatMap(record => document.context.links.filter(link => link.recordId === record.id).map(link => ({ handle: entry.handle, workId: work, title: entry.title, elementId: link.elementId, label: String(record.title || record.kind), section: typeof record.section === 'string' ? record.section : null })));
     });
   }
 }

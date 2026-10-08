@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { existsSync } from 'node:fs';
-import { realpath } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
@@ -13,6 +13,7 @@ import type { Usage } from '../src/types.ts';
 import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
 import { localOrigin } from './origin.ts';
 import { AtlasCatalog } from './atlas.ts';
+import { createScopeCache } from './atlasScope.ts';
 
 const { values } = parseArgs({ options: {
   dev: { type: 'boolean', default: false }, 'planning-dir': { type: 'string' }, 'atlas-dir': { type: 'string' }, port: { type: 'string', default: '4317' }, 'data-dir': { type: 'string' },
@@ -20,6 +21,10 @@ const { values } = parseArgs({ options: {
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const planningRoot = path.resolve(values['planning-dir'] ?? path.join(appRoot, '../../planning'));
 const atlas = new AtlasCatalog(path.resolve(values['atlas-dir'] ?? planningRoot));
+const planningIndex = createScopeCache(() => loadPlanning(planningRoot), async () => {
+  const file = await stat(path.join(planningRoot, 'planning.json'));
+  return file.mtimeMs + ':' + file.size;
+});
 const port = Number(values.port);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a valid --port.');
 const dataRoot = await statisticsDirectory(planningRoot, values['data-dir'] ?? process.env.PLANNING_DASHBOARD_DATA_DIR);
@@ -47,7 +52,7 @@ app.use('/api', express.json({ limit: '12kb' }));
 app.get('/api/snapshot', async (_request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   const unavailable = { dashboardSince: null, agentSince: null, views: 0, documentsViewed: 0, sessions: 0, reports: 0, documentsConsulted: 0, tasks: 0, unassigned: 0, failures: 0, documents: [] };
-  const snapshot = await loadPlanning(planningRoot);
+  const snapshot = await planningIndex(true);
   let usage: Usage = unavailable;
   const usageByRepository: Record<string, Usage> = Object.create(null);
   let currentCollectionError = collectionError;
@@ -65,16 +70,17 @@ app.get('/api/document', async (request, response) => {
   response.json(await readDocument(planningRoot, request.query.path));
 });
 for (const endpoint of ['models', 'model', 'references']) app.get('/api/atlas/' + endpoint, async (request, response) => {
-  if (typeof request.query.work !== 'string') throw new PlanningError('Choose a work item.');
-  const snapshot = await loadPlanning(planningRoot);
+  const work = typeof request.query.work === 'string' ? request.query.work : undefined;
+  if (!work && endpoint !== 'references') throw new PlanningError('Choose a work item.');
+  const snapshot = await planningIndex();
   response.setHeader('Cache-Control', 'no-store');
-  if (endpoint === 'models') response.json(atlas.list(snapshot, request.query.work));
+  if (endpoint === 'models') response.json(atlas.list(snapshot, work!));
   else if (endpoint === 'model') {
     if (typeof request.query.handle !== 'string') throw new PlanningError('Choose an Atlas model.');
-    response.json(await atlas.prepared(snapshot, request.query.work, request.query.handle));
+    response.json(await atlas.prepared(snapshot, work!, request.query.handle));
   } else {
     if (typeof request.query.path !== 'string') throw new PlanningError('Choose an indexed document.');
-    response.json(atlas.references(snapshot, request.query.work, request.query.path));
+    response.json(atlas.references(snapshot, work, request.query.path));
   }
 });
 app.get('/api/file', async (request, response) => {
@@ -88,7 +94,7 @@ app.get('/api/file', async (request, response) => {
 app.post('/api/events', async (request, response) => {
   const event = request.body as { id: string; path: string; session: string; contentHash?: string };
   if (typeof event?.path !== 'string') throw new PlanningError('Choose a document for this event.');
-  const snapshot = await loadPlanning(planningRoot);
+  const snapshot = await planningIndex();
   const document = snapshot.documents.find(file => file.path === event.path);
   if (!document) throw new PlanningError('This document is not in the connected planning folder.', 403);
   let revision: string | null = null;
