@@ -125,6 +125,16 @@ export interface ViewerModel {
   constraints: string[][];
   unknowns: string[];
   validation?: ValidationReport;
+  document?: {
+    id: string;
+    profile: ModelProfile;
+    state: AtlasDocument["state"];
+    revision: AtlasDocument["revision"];
+    baselineId: string | null;
+    snapshots: Omit<SourceSnapshot, "model">[];
+    context: PlanningContext;
+    imported?: boolean;
+  };
 }
 export interface ViewSettings {
   key: string;
