@@ -4,6 +4,7 @@ import {
   prepareViewer,
   validateProject,
   createDocument,
+  createWorkspace,
   reviseDocument,
   validateDocument,
   type ExchangeProject,
@@ -14,6 +15,9 @@ async function smoke() {
   validateProject(project);
   const document = createDocument({ project, profile: "ontouml" });
   validateDocument(reviseDocument(document, { title: "Planning revision" }));
+  await createWorkspace("workspace").execute("atlas_create", {
+    input: { project },
+  });
   await prepareViewer({ document, includeArtifacts: false });
   createDocument({
     profile: "database",

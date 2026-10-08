@@ -69,6 +69,7 @@
     "imported": {
       "type": "boolean"
     },
+    "workId": { "type": "string", "minLength": 1 },
     "revision": {
       "type": "object",
       "required": [

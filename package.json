@@ -1,6 +1,6 @@
 {
   "name": "ontouml-atlas",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Agent-ready OntoUML validation, offline visualization and learning",
   "scripts": {
@@ -29,6 +29,7 @@
     "vite": "8.3.3"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@primer/octicons-react": "19.40.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
@@ -43,6 +44,7 @@
   "main": "./lib/index.cjs",
   "types": "./lib/index.d.ts",
   "bin": {
+    "atlas": "./bin/atlas.cjs",
     "ontouml-atlas": "./bin/ontouml.cjs"
   },
   "exports": {

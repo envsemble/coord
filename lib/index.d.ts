@@ -357,6 +357,7 @@ export interface AtlasDocument {
   snapshots: SourceSnapshot[];
   baselineId: string | null;
   imported?: boolean;
+  workId?: string;
   revision: {
     id: string;
     parentId: string | null;
@@ -391,6 +392,102 @@ export function createSnapshot(input: {
 }): SourceSnapshot;
 export function documentViewerModel(document: AtlasDocument): ViewerModel;
 export function importDocument(input: string | Uint8Array): AtlasDocument;
+export interface AtlasToolArguments {
+  atlas_create: { input: Parameters<typeof createDocument>[0] };
+  atlas_load: { file: string };
+  atlas_import: { file: string };
+  atlas_list: { workId?: string; offset?: number; limit?: number };
+  atlas_inspect: {
+    handle: string;
+    elementId?: string;
+    offset?: number;
+    limit?: number;
+  };
+  atlas_revise: {
+    handle: string;
+    expectedRevision: string;
+    changes?: Parameters<typeof reviseDocument>[1];
+    operations?: {
+      action: "upsert" | "delete";
+      collection:
+        | "elements"
+        | "nodes"
+        | "relations"
+        | "generalizations"
+        | "generalizationSets";
+      id: string;
+      value?: Record<string, unknown>;
+    }[];
+  };
+  atlas_validate: { handle: string; offset?: number; limit?: number };
+  atlas_prepare: { handle: string };
+  atlas_export: { handle: string; file?: string };
+}
+export interface AtlasWorkspace {
+  readonly root: string;
+  load(handle: string): AtlasDocument;
+  execute<T extends keyof AtlasToolArguments>(
+    name: T,
+    args: AtlasToolArguments[T],
+  ): Promise<AtlasToolResults[T] | AtlasResultReference>;
+}
+export interface AtlasModelSummary {
+  handle: string;
+  id: string;
+  title: string;
+  profile: ModelProfile;
+  state: AtlasDocument["state"];
+  revision: string;
+  workId: string | null;
+  elements: number;
+  baselineId: string | null;
+  file: string;
+  captures: {
+    id: string;
+    capturedAt: string;
+    coverage: "complete" | "partial";
+  }[];
+}
+export interface AtlasResultReference {
+  handle: string | null;
+  revision: string | null;
+  resultFile: string;
+  notice: string;
+}
+export interface AtlasToolResults {
+  atlas_create: AtlasModelSummary;
+  atlas_load: AtlasModelSummary;
+  atlas_import: AtlasModelSummary;
+  atlas_revise: AtlasModelSummary;
+  atlas_list: { total: number; offset: number; models: AtlasModelSummary[] };
+  atlas_inspect: AtlasModelSummary & {
+    offset?: number;
+    items?: { id: string; name: unknown; type: string }[];
+    element?: Record<string, unknown>;
+    evidence?: Record<string, unknown>;
+    context?: PlanningContext["records"];
+  };
+  atlas_validate: Pick<
+    ValidationReport,
+    "valid" | "counts" | "issues" | "limitations" | "schema"
+  > & { total: number; offset: number };
+  atlas_prepare: AtlasModelSummary & {
+    payloadFile: string;
+    views: { key: string; title: string; nodes: number }[];
+    validation: ValidationReport["counts"];
+  };
+  atlas_export: AtlasModelSummary & {
+    htmlFile: string;
+    bytes: number;
+    validation: ValidationReport["counts"];
+  };
+}
+export function createWorkspace(root: string): AtlasWorkspace;
+export const toolDefinitions: {
+  name: keyof AtlasToolArguments;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}[];
 export function prepareViewer(input: ViewerBuildInput): Promise<PreparedViewer>;
 export function buildViewer(input: ViewerBuildInput): Promise<BuildResult>;
 export function writeViewer(result: BuildResult, outputPath: string): void;
