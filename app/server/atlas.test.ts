@@ -38,6 +38,15 @@ test('dashboard serves scoped native payloads, caches revisions and retains vali
     const backlinks = catalog.references(snapshot, undefined, 'knowledge/glossary.md');
     assert.equal(backlinks[0].workId, 'work-1');
     assert.equal(backlinks[0].elementId, 'order');
+    const prototype = Object.getPrototypeOf(workspace) as { load: typeof workspace.load };
+    const originalLoad = prototype.load;
+    let reads = 0;
+    prototype.load = function(handle: string) { reads++; return originalLoad.call(this, handle); };
+    try {
+      const manyWorks = { ...snapshot, work: [...snapshot.work, ...Array.from({length:200}, (_,i)=>({id:'other-'+i}))] } as Snapshot;
+      assert.equal(catalog.references(manyWorks, undefined, 'knowledge/glossary.md').length,1);
+      assert.equal(reads,1,'shared backlinks integrity-load each model once, independent of work count');
+    } finally { prototype.load = originalLoad; }
     assert.equal(catalog.references({ ...snapshot, caseSensitivePaths: false }, undefined, 'KNOWLEDGE/GLOSSARY.MD')[0].workId, 'work-1');
     const next = await catalog.prepared(snapshot, 'work-1', handle);
     assert.notEqual(first, next);

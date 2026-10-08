@@ -70,14 +70,22 @@ export class AtlasCatalog {
     const same = (first: string, second: string) => samePath(first, second, snapshot.caseSensitivePaths ?? true, snapshot.normalizationInsensitivePaths ?? false);
     if (!work) {
       if (!snapshot.documents.some(file => same(file.path, filename) && file.category === 'knowledge')) throw new PlanningError('Choose an indexed shared knowledge document.', 403);
-      return snapshot.work.flatMap(item => this.references(snapshot, item.id, filename));
+    } else {
+      this.work(snapshot, work);
+      if (!snapshot.documents.some(file => same(file.path, filename) && (file.workId === work || file.category === 'knowledge'))) throw new PlanningError('Choose an indexed work or knowledge document.', 403);
     }
-    this.work(snapshot, work);
-    if (!snapshot.documents.some(file => same(file.path, filename) && (file.workId === work || file.category === 'knowledge'))) throw new PlanningError('Choose an indexed work or knowledge document.', 403);
-    return this.list(snapshot, work).models.flatMap(entry => {
-      const document = this.load(snapshot, work, entry.handle);
+    const directory = path.join(this.root, '.atlas/models');
+    if (!existsSync(directory)) return [];
+    const workspace = this.workspace();
+    const registered = new Set(snapshot.work.map(item => item.id));
+    return readdirSync(directory).filter(name => /^m-[a-f0-9]{24}\.json$/.test(name)).sort().flatMap(name => {
+      const handle = name.slice(0, -5);
+      let document: AtlasDocument;
+      try { document = workspace.load(handle); } catch { return []; }
+      const owner = document.workId;
+      if (!owner || !registered.has(owner) || (work && owner !== work)) return [];
       const records = document.context.records.filter(record => typeof record.path === 'string' && same(record.path, filename));
-      return records.flatMap(record => document.context.links.filter(link => link.recordId === record.id).map(link => ({ handle: entry.handle, workId: work, title: entry.title, elementId: link.elementId, label: String(record.title || record.kind), section: typeof record.section === 'string' ? record.section : null })));
+      return records.flatMap(record => document.context.links.filter(link => link.recordId === record.id).map(link => ({ handle, workId: owner, title: document.title, elementId: link.elementId, label: String(record.title || record.kind), section: typeof record.section === 'string' ? record.section : null })));
     });
   }
 }
