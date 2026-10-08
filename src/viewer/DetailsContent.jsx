@@ -7,7 +7,7 @@ import { GitBranchIcon } from "../ui/Icons";
 import { memo } from "react";
 function ChangeDetails({ element, model }) {
   const ids = new Set([
-    element.id,
+    element.originalId || element.id,
     ...(element.attributes || []).map((a) => a.id),
     ...(element.methods || []).map((m) => m.id),
   ]);
@@ -177,7 +177,9 @@ export const RelationDetails = memo(function RelationDetails({
       )}
       {relation.type === "generalization" &&
         (model.partitions || [])
-          .filter((set) => set.generalizations.includes(relation.id))
+          .filter((set) =>
+            set.generalizations.includes(relation.originalId || relation.id),
+          )
           .map((set) => (
             <div className="generalization-set-summary" key={set.id}>
               <h2>{set.name}</h2>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Tabs } from "../ui/Tabs";
+import { reconcileComparisonFocus } from "./comparisonSelection";
 const modes = [
   { key: "baseline", label: "Baseline" },
   { key: "proposed", label: "Proposed" },
@@ -7,9 +8,21 @@ const modes = [
 ];
 const readable = (value) =>
   typeof value === "string" ? value : JSON.stringify(value);
-export function ComparisonViewer({ payload, theme = "dark", render }) {
-  const [mode, setMode] = useState("proposed"),
-    [focus, setFocus] = useState(null);
+export function ComparisonViewer({
+  payload,
+  focus: incomingFocus = payload.focus,
+  theme = "dark",
+  render,
+}) {
+  const [selection, setSelection] = useState({
+    mode: "proposed",
+    focus: null,
+    externalFocus: undefined,
+  });
+  const current = reconcileComparisonFocus(selection, payload, incomingFocus);
+  if (current !== selection) setSelection(current);
+  const { mode, focus } = current;
+  const setMode = (mode) => setSelection((old) => ({ ...old, mode }));
   const comparison = payload.comparison;
   const active =
     mode === "baseline"
@@ -73,8 +86,11 @@ export function ComparisonViewer({ payload, theme = "dark", render }) {
                 {inspectTarget(c) && (
                   <button
                     onClick={() => {
-                      setMode("changes");
-                      setFocus(inspectTarget(c));
+                      setSelection((old) => ({
+                        ...old,
+                        mode: "changes",
+                        focus: inspectTarget(c),
+                      }));
                     }}
                   >
                     Inspect

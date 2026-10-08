@@ -2547,7 +2547,7 @@ import { memo as memo5 } from "react";
 import { Fragment as Fragment6, jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
 function ChangeDetails({ element, model }) {
   const ids = /* @__PURE__ */ new Set([
-    element.id,
+    element.originalId || element.id,
     ...(element.attributes || []).map((a) => a.id),
     ...(element.methods || []).map((m) => m.id)
   ]);
@@ -2682,7 +2682,9 @@ var RelationDetails = memo5(function RelationDetails2({
     /* @__PURE__ */ jsx19(ChangeDetails, { element: relation, model }),
     (!model.document || model.document.profile === "ontouml") && /* @__PURE__ */ jsx19(ElementLearning, { element: relation, model, relation: true }),
     model.document?.profile === "database" && /* @__PURE__ */ jsx19(CapturedSchema, { element: relation }),
-    relation.type === "generalization" && (model.partitions || []).filter((set) => set.generalizations.includes(relation.id)).map((set) => /* @__PURE__ */ jsxs15("div", { className: "generalization-set-summary", children: [
+    relation.type === "generalization" && (model.partitions || []).filter(
+      (set) => set.generalizations.includes(relation.originalId || relation.id)
+    ).map((set) => /* @__PURE__ */ jsxs15("div", { className: "generalization-set-summary", children: [
       /* @__PURE__ */ jsx19("h2", { children: set.name }),
       /* @__PURE__ */ jsx19("p", { children: `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}` })
     ] }, set.id)),
@@ -3045,6 +3047,38 @@ ${snapshot.capture.coverage.status} coverage; ${meta.imported ? "imported claims
 
 // src/viewer/ComparisonViewer.jsx
 import { useState as useState10 } from "react";
+
+// src/viewer/comparisonSelection.js
+function containsTarget(payload, target) {
+  const owner = payload?.model?.classes?.find(
+    (node) => [...node.attributes || [], ...node.methods || []].some(
+      (member) => member.id === target.id
+    )
+  );
+  return payload?.views?.some((view) => {
+    if (target.kind === "view") return view.key === target.id;
+    const diagram = view.diagram;
+    return diagram.nodes.some(
+      (node) => node.id === target.id || node.id === owner?.id
+    ) || diagram.edges.some((edge) => edge.id === target.id) || diagram.generalizationGroups?.some(
+      (group) => group.id === target.id || group.memberIds.includes(target.id)
+    );
+  });
+}
+function reconcileComparisonFocus(selection, payload, target = payload.focus) {
+  if (selection.externalFocus === target) return selection;
+  const models = {
+    proposed: payload,
+    baseline: payload.comparison.baseline,
+    changes: payload.comparison.changeView
+  };
+  const mode = !target || containsTarget(models[selection.mode], target) ? selection.mode : ["proposed", "baseline", "changes"].find(
+    (key) => containsTarget(models[key], target)
+  ) || selection.mode;
+  return { mode, focus: null, externalFocus: target };
+}
+
+// src/viewer/ComparisonViewer.jsx
 import { jsx as jsx20, jsxs as jsxs17 } from "react/jsx-runtime";
 var modes = [
   { key: "baseline", label: "Baseline" },
@@ -3052,8 +3086,21 @@ var modes = [
   { key: "changes", label: "Changes" }
 ];
 var readable = (value) => typeof value === "string" ? value : JSON.stringify(value);
-function ComparisonViewer({ payload, theme = "dark", render }) {
-  const [mode, setMode] = useState10("proposed"), [focus, setFocus] = useState10(null);
+function ComparisonViewer({
+  payload,
+  focus: incomingFocus = payload.focus,
+  theme = "dark",
+  render
+}) {
+  const [selection, setSelection] = useState10({
+    mode: "proposed",
+    focus: null,
+    externalFocus: void 0
+  });
+  const current = reconcileComparisonFocus(selection, payload, incomingFocus);
+  if (current !== selection) setSelection(current);
+  const { mode, focus } = current;
+  const setMode = (mode2) => setSelection((old) => ({ ...old, mode: mode2 }));
   const comparison = payload.comparison;
   const active = mode === "baseline" ? comparison.baseline : mode === "changes" ? comparison.changeView : payload;
   const selected = { ...payload, ...active, comparison: void 0 };
@@ -3105,8 +3152,11 @@ function ComparisonViewer({ payload, theme = "dark", render }) {
               "button",
               {
                 onClick: () => {
-                  setMode("changes");
-                  setFocus(inspectTarget(c));
+                  setSelection((old) => ({
+                    ...old,
+                    mode: "changes",
+                    focus: inspectTarget(c)
+                  }));
                 },
                 children: "Inspect"
               }
@@ -3415,7 +3465,7 @@ function OntoUMLViewer(props) {
       ReportViewer,
       {
         payload: props,
-        render: (payload, focus) => /* @__PURE__ */ jsx23(OntoUMLViewer, { ...payload, focus })
+        render: (payload, focus) => /* @__PURE__ */ jsx23(OntoUMLViewer, { ...payload, focus: focus || props.focus })
       }
     );
   if (props.comparison)
@@ -3423,7 +3473,8 @@ function OntoUMLViewer(props) {
       ComparisonViewer,
       {
         payload: props,
-        render: (payload, focus) => /* @__PURE__ */ jsx23(OntoUMLViewer, { ...payload, focus })
+        focus: props.focus,
+        render: (payload, focus) => /* @__PURE__ */ jsx23(OntoUMLViewer, { ...payload, focus: focus || props.focus })
       }
     );
   if (!props.views.length)
@@ -3704,6 +3755,7 @@ function AtlasPanel(props) {
       ComparisonViewer,
       {
         payload: props.payload,
+        focus: props.focus,
         theme: props.theme,
         render: (payload, focus) => /* @__PURE__ */ jsx24(
           AtlasPanel,

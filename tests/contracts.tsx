@@ -12,6 +12,10 @@ import {
 } from "../lib";
 import { OntoUMLViewer, UMLDiagram, AtlasPanel } from "../src";
 async function smoke() {
+  // @ts-expect-error A viewer needs an authored project or versioned document.
+  await buildViewer({});
+  // @ts-expect-error Options alone do not identify model input.
+  await prepareViewer({ includeArtifacts: false });
   const mapping: AuthoredMapping = {
     id: "mapping",
     kind: "authored",

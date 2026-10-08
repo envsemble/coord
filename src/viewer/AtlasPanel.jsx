@@ -53,6 +53,7 @@ export function AtlasPanel(props) {
     return (
       <ComparisonViewer
         payload={props.payload}
+        focus={props.focus}
         theme={props.theme}
         render={(payload, focus) => (
           <AtlasPanel

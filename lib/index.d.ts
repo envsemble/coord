@@ -295,15 +295,18 @@ export function mergeProjects(
   inputs: { key: string; project: ExchangeProject }[],
   options?: { id?: string; name?: string },
 ): ExchangeProject;
-export interface ViewerBuildInput {
-  project?: ExchangeProject;
-  document?: AtlasDocument;
+export interface ViewerBuildOptions {
   includeArtifacts?: boolean;
   evidence?: ModelEvidence;
   views?: ViewSettings[];
   snippets?: Record<string, SourceExcerpt>;
   slug?: string;
 }
+export type ViewerBuildInput = ViewerBuildOptions &
+  (
+    | { project: ExchangeProject; document?: AtlasDocument }
+    | { document: AtlasDocument; project?: ExchangeProject }
+  );
 export type ModelProfile = "ontouml" | "database" | "code";
 export interface StructuralNode {
   id: string;

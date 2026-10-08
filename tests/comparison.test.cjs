@@ -191,6 +191,86 @@ test("Comparison shares orthogonal geometry and retains removed entities and rou
   for (const scene of [a, b, c])
     require("../lib/layout/validateDiagram.cjs").validateDiagram(scene);
 });
+test("Changes retains old and new endpoint routes with unique selectable identities", async () => {
+  const model = clone(example().model);
+  model.nodes.push({ id: "course", name: "Course", attributes: [] });
+  model.generalizations.push({
+    id: "category",
+    specificId: "student",
+    generalId: "enrollment",
+  });
+  const base = atlas.createDocument({
+    id: "changed-routes",
+    profile: "code",
+    model,
+  });
+  const changed = revise(atlas.createProposal(base), (m) => {
+    m.relations[0].targetId = "course";
+    m.generalizations[0].generalId = "course";
+  });
+  const payload = (
+    await atlas.prepareViewer({ document: changed, includeArtifacts: false })
+  ).payload;
+  const before = payload.comparison.baseline.views[0].diagram;
+  const after = payload.views[0].diagram;
+  const scene = payload.comparison.changeView.views[0].diagram;
+  assert.equal(scene.edges.length, 4);
+  assert.equal(new Set(scene.edges.map((e) => e.id)).size, 4);
+  for (const id of ["enrolled", "category"]) {
+    const oldRoute = scene.edges.find(
+      (e) => e.originalId === id && e.changeStatus === "removed",
+    );
+    const newRoute = scene.edges.find(
+      (e) => e.id === id && e.changeStatus === "modified",
+    );
+    assert(oldRoute && newRoute);
+    assert.notEqual(oldRoute.id, newRoute.id);
+    assert.deepEqual(
+      oldRoute.points,
+      before.edges.find((e) => e.id === id).points,
+    );
+    assert.deepEqual(
+      newRoute.points,
+      after.edges.find((e) => e.id === id).points,
+    );
+    assert.equal(oldRoute.target, "enrollment");
+    assert.equal(newRoute.target, "course");
+    assert(
+      [
+        ...payload.comparison.changeView.model.relations,
+        ...payload.comparison.changeView.model.generalizations,
+      ].some((e) => e.id === oldRoute.id),
+    );
+  }
+  require("../lib/layout/validateDiagram.cjs").validateDiagram(scene);
+  assert.deepEqual(baselineDocument(changed).model, base.model);
+});
+
+test("Changes preserves both route kinds when an association becomes a generalization", async () => {
+  const base = example();
+  const changed = revise(atlas.createProposal(base), (model) => {
+    const relation = model.relations.pop();
+    model.generalizations.push({
+      id: relation.id,
+      specificId: relation.sourceId,
+      generalId: relation.targetId,
+    });
+  });
+  const { payload } = await atlas.prepareViewer({
+    document: changed,
+    includeArtifacts: false,
+  });
+  const scene = payload.comparison.changeView.views[0].diagram;
+  assert.equal(scene.edges.length, 2);
+  assert.equal(new Set(scene.edges.map((edge) => edge.id)).size, 2);
+  const previous = scene.edges.find((edge) => edge.changeStatus === "removed");
+  assert.equal(previous.originalId, "enrolled");
+  assert.notEqual(previous.id, "enrolled");
+  assert(scene.edges.some((edge) => edge.id === "enrolled"));
+  require("../lib/layout/validateDiagram.cjs").validateDiagram(scene);
+  assert.deepEqual(baselineDocument(changed).model, base.model);
+});
+
 test("Independent planning references survive three-way merging", () => {
   const ancestor = example(),
     a = atlas.createProposal(ancestor),

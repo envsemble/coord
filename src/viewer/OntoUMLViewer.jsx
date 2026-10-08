@@ -27,7 +27,7 @@ export function OntoUMLViewer(props) {
       <ReportViewer
         payload={props}
         render={(payload, focus) => (
-          <OntoUMLViewer {...payload} focus={focus} />
+          <OntoUMLViewer {...payload} focus={focus || props.focus} />
         )}
       />
     );
@@ -35,8 +35,9 @@ export function OntoUMLViewer(props) {
     return (
       <ComparisonViewer
         payload={props}
+        focus={props.focus}
         render={(payload, focus) => (
-          <OntoUMLViewer {...payload} focus={focus} />
+          <OntoUMLViewer {...payload} focus={focus || props.focus} />
         )}
       />
     );

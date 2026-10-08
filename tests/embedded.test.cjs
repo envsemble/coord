@@ -13,9 +13,9 @@ const {
   importDocument,
 } = require("../lib/index.cjs");
 const { buildEmbeddedCSS } = require("../scripts/build-embedded-css.cjs");
-function components() {
+function components(entryPoint = "src/index.js") {
   const code = buildSync({
-    entryPoints: ["src/index.js"],
+    entryPoints: [entryPoint],
     bundle: true,
     platform: "node",
     format: "cjs",
@@ -84,6 +84,93 @@ test("empty captures prepare and export a readable portable document", async () 
   );
   const exported = await buildViewer({ document });
   assert.deepEqual(importDocument(exported.html).model.nodes, []);
+});
+
+test("Standalone report focus survives its nested comparison wrapper", () => {
+  const { OntoUMLViewer } = components();
+  const target = { kind: "node", id: "course", request: "report-course" };
+  const payload = { report: {}, comparison: {}, model: {}, views: [] };
+  const report = OntoUMLViewer(payload);
+  const nested = report.props.render({ ...payload, report: undefined }, target);
+  const comparison = OntoUMLViewer(nested.props);
+  assert.equal(comparison.props.focus, target);
+  const diagram = comparison.props.render(
+    { ...payload, report: undefined, comparison: undefined },
+    null,
+  );
+  assert.deepEqual(diagram.props.focus, target);
+  const changed = {
+    kind: "edge",
+    id: "registration",
+    request: "comparison-registration",
+  };
+  assert.deepEqual(comparison.props.render({}, changed).props.focus, changed);
+  const { AtlasPanel } = components();
+  const panel = AtlasPanel({ payload });
+  const panelNested = panel.props.render(
+    { ...payload, report: undefined },
+    target,
+  );
+  const panelComparison = AtlasPanel(panelNested.props);
+  assert.equal(panelComparison.props.focus, target);
+});
+
+test("Repeated report navigation clears retained comparison focus and chooses a visible target", () => {
+  const { reconcileComparisonFocus } = components(
+    "src/viewer/comparisonSelection.js",
+  );
+  const scene = (ids) => ({
+    views: [
+      {
+        key: "model",
+        diagram: {
+          nodes: ids.map((id) => ({ id })),
+          edges: [],
+          generalizationGroups: [],
+        },
+      },
+    ],
+  });
+  const first = { kind: "node", id: "a" };
+  const local = { kind: "edge", id: "route" };
+  const payload = {
+    ...scene(["b"]),
+    focus: first,
+    comparison: { baseline: scene(["a"]), changeView: scene(["a", "b"]) },
+  };
+  const retained = { mode: "baseline", focus: local, externalFocus: first };
+  assert.equal(reconcileComparisonFocus(retained, payload), retained);
+  const second = { kind: "node", id: "b" };
+  const next = reconcileComparisonFocus(retained, {
+    ...payload,
+    focus: second,
+  });
+  assert.equal(next.mode, "proposed");
+  assert.equal(next.focus, null);
+  assert.equal(next.externalFocus, second);
+  const removed = reconcileComparisonFocus(next, payload);
+  assert.equal(removed.mode, "baseline");
+  assert.equal(removed.focus, null);
+  assert.equal(removed.externalFocus, first);
+  assert.equal(reconcileComparisonFocus(removed, payload), removed);
+  const field = { kind: "edge", id: "new-field" };
+  const withField = {
+    ...payload,
+    model: {
+      classes: [{ id: "b", attributes: [{ id: "new-field" }], methods: [] }],
+    },
+  };
+  const memberFocus = reconcileComparisonFocus(removed, withField, field);
+  assert.equal(memberFocus.mode, "proposed");
+  assert.equal(memberFocus.focus, null);
+  assert.equal(memberFocus.externalFocus, field);
+});
+
+test("Viewer input failures identify the missing source without a raw TypeError", async () => {
+  for (const build of [prepareViewer, buildViewer]) {
+    await assert.rejects(build({}), /VIEWER_INPUT/);
+    await assert.rejects(build(), /VIEWER_INPUT/);
+  }
 });
 test("standalone structural documents render their profile-specific exports and capture inspector", async () => {
   const document = createDocument({
