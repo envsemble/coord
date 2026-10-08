@@ -1,8 +1,8 @@
 {
   "name": "ontouml-atlas",
   "version": "0.5.0",
-  "file": "ontouml-atlas-acc79e0a2934.tgz",
+  "file": "ontouml-atlas-04b307d0a979.tgz",
   "source": "git@github.com:envsemble/atlas.git",
-  "commit": "acc79e0a29343bc88c13e468f21fdc7d4e1ba2c2",
-  "sha256": "6461d8e2fa047557b515ecb5f9a32a7023d4336e61f54a7e411defd2a2e8e2f4"
+  "commit": "04b307d0a97998a464096beb49849e1c17e41fca",
+  "sha256": "cfa1fdd8cb9c4e7c7ca427aba312073cbc012cd25613233609223cb1c86d1126"
 }

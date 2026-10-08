@@ -300,6 +300,7 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
         for field, allowed in (("design_status", DESIGN), ("implementation_status", IMPLEMENTATION)):
             if not isinstance(metadata.get(field), str) or metadata[field] not in allowed:
                 errors.append(prefix + "invalid " + field)
+        parsed_dates = {}
         for field in ("created", "updated", "accepted_at", "completed_at"):
             value = metadata.get(field)
             if value is None:
@@ -307,9 +308,17 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
             try:
                 if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
                     raise ValueError()
-                date.fromisoformat(value)
+                parsed_dates[field] = date.fromisoformat(value)
             except ValueError:
                 errors.append(prefix + field + " must be an ISO date string or null")
+        chronology_pairs = (
+            ("created", "updated"), ("accepted_at", "updated"),
+            ("completed_at", "updated"), ("created", "accepted_at"),
+            ("created", "completed_at"), ("accepted_at", "completed_at"),
+        )
+        if any(earlier in parsed_dates and later in parsed_dates and parsed_dates[earlier] > parsed_dates[later]
+               for earlier, later in chronology_pairs):
+            errors.append(prefix + "Recorded lifecycle dates are out of order")
         if metadata.get("completed_at") is not None and metadata.get("implementation_status") != "complete":
             errors.append(prefix + "completed_at requires complete implementation_status")
         if metadata.get("accepted_at") is not None and metadata.get("design_status") == "draft":

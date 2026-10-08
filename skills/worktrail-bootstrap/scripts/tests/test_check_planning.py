@@ -133,6 +133,23 @@ class PlanningFixture(unittest.TestCase):
         self.assertTrue(any("id disagrees" in item for item in errors))
         self.assertTrue(any("unknown repository" in item for item in errors))
 
+    def test_lifecycle_chronology_matches_dashboard_and_preserves_unknown_dates(self):
+        valid = {**self.header, "created": "2026-10-01", "accepted_at": "2026-10-03",
+                 "completed_at": "2026-10-05", "updated": "2026-10-05", "implementation_status": "complete"}
+        for changes in ({"updated": "2026-09-30"}, {"updated": "2026-10-02"},
+                        {"updated": "2026-10-04"}, {"accepted_at": "2026-09-30"},
+                        {"completed_at": "2026-09-30"}, {"completed_at": "2026-10-02"}):
+            with self.subTest(changes=changes):
+                self.header = {**valid, **changes}
+                self.write()
+                original = self.plan.read_bytes()
+                self.assertTrue(any("out of order" in error for error in validate(self.root)[0]))
+                self.assertEqual(original, self.plan.read_bytes())
+        for values in (valid, {**valid, "created": None, "accepted_at": None, "completed_at": None, "updated": None}):
+            self.header = values
+            self.write()
+            self.assertEqual(validate(self.root), ([], []))
+
     def test_metadata_plain_dates_block_lists_and_comments(self):
         text = "---\nschema_version: 1\ntitle: 'A title, with ''quotes''' # note\nupdated: 2026-10-06\nrepositories:\n  - example-app\nsupersedes: [] # none\n---\nFlexible body"
         parsed = parse_frontmatter(text)
