@@ -125,7 +125,7 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
   response.status(status).json({ error: message });
 });
 http.listen(port, '127.0.0.1', () => {
-  console.log('Planning dashboard: http://127.0.0.1:' + port);
+  console.log('Worktrail: http://127.0.0.1:' + port);
   console.log('Reading: ' + planningRoot);
   console.log('Local view statistics: ' + dataRoot);
 });

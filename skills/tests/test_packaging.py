@@ -13,9 +13,9 @@ GROUP = Path(__file__).resolve().parents[1]
 class PackagingTests(unittest.TestCase):
     def test_public_skills_and_invocation_policy(self):
         expected = {
-            "planning-bootstrap", "planning-organize", "planning-grill",
-            "planning-implement", "planning-record", "babysit-pr",
-            "atlas-modeling",
+            "worktrail-bootstrap", "worktrail-organize", "worktrail-grill",
+            "worktrail-implement", "worktrail-record", "worktrail-babysit-pr",
+            "worktrail-atlas",
         }
         skills = {p.name: p for p in GROUP.iterdir() if (p / "SKILL.md").is_file()}
         self.assertEqual(set(skills), expected)
@@ -30,7 +30,7 @@ class PackagingTests(unittest.TestCase):
                 policy_file = path / "agents" / "openai.yaml"
                 policy = yaml.safe_load(policy_file.read_text(encoding="utf-8")) if policy_file.exists() else {}
                 implicit = policy.get("policy", {}).get("allow_implicit_invocation", True)
-                self.assertEqual(implicit, name not in {"planning-implement", "babysit-pr"})
+                self.assertEqual(implicit, name not in {"worktrail-implement", "worktrail-babysit-pr"})
 
     def test_instruction_resource_links_exist(self):
         for path in GROUP.rglob("*.md"):
@@ -46,7 +46,7 @@ class PackagingTests(unittest.TestCase):
 
     def test_retired_implementation_entrypoint_is_not_active(self):
         self.assertFalse((GROUP.parent / "implement-plan").exists())
-        self.assertFalse((GROUP.parent / "babysit-pr").exists())
+        self.assertFalse((GROUP.parent / "worktrail-babysit-pr").exists())
 
 
 if __name__ == "__main__":

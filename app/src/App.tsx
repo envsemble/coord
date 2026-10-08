@@ -8,6 +8,7 @@ import { findHeadingId, rehypeHeadingIds } from './headings';
 import { defaultDocument, primaryDocuments, relativeDocumentPath } from './work';
 import { documentRoute, routeHref, type Route } from './routes';
 import { AtlasWorkPanel, PlanDiagrams } from './AtlasWorkPanel';
+import worktrailIcon from '../../assets/worktrail-icon.svg';
 
 function currentRoute(): Route {
   const parameters = new URLSearchParams(window.location.hash.slice(1));
@@ -257,7 +258,7 @@ export default function App() {
   const archivedCount = work.filter(item => item.location === 'archived').length;
   return <div className="app">
     <aside className="app-sidebar">
-      <a className="brand" href="#view=work" title={snapshot?.root}><Workflow size={24} /><strong>Planning</strong></a>
+      <a className="brand" href="#view=work" title={snapshot?.root}><img src={worktrailIcon} alt="" width={24} height={24} /><strong>Worktrail</strong></a>
       <nav className="workspace-nav" aria-label="Workspace">
         {navigation.map(item => <button key={item.id} className={(route.view === item.id ? 'active ' : '') + (item.id === 'history' ? 'secondary-start' : '')} aria-label={item.label} aria-current={route.view === item.id ? 'page' : undefined} title={item.label} onClick={() => { setWorkSearch(''); setRecordSearch(''); navigate({ view: item.id }); }}>
           {item.icon}<span className="nav-label">{item.label}</span>{item.id === 'work' && <span className="nav-count">{snapshot?.work.filter(work => work.location === 'active').length ?? '—'}</span>}

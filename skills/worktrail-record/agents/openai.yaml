@@ -1,0 +1,6 @@
+interface:
+  display_name: "Worktrail Record"
+  short_description: "Retain useful knowledge and close verified work"
+  default_prompt: "Use $worktrail-record to retain this task's useful outcomes and reconcile its planning records."
+policy:
+  allow_implicit_invocation: true

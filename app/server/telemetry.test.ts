@@ -24,7 +24,7 @@ test('POSIX backslash planning roots remain separate from nested roots in both c
     const expected = await statisticsDirectory(root, metrics);
     assert.notEqual(await statisticsDirectory(nested, metrics), expected);
     await writeFile(path.join(root, 'foo\\bar.md'), '# Consulted original\n');
-    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
+    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/worktrail-bootstrap/scripts/log_consultation.py');
     execFileSync(process.env.PYTHON ?? 'python', [helper, root, '--data-dir', metrics, '--files', 'foo\\bar.md']);
     const store = new Telemetry(path.join(expected, 'usage.sqlite'));
     try {
@@ -35,10 +35,21 @@ test('POSIX backslash planning roots remain separate from nested roots in both c
   } finally { await rm(temporary, { recursive: true }); }
 });
 
+test('default cache remains compatible between Node and the renamed Python collector', async () => {
+  const root = path.dirname(fileURLToPath(import.meta.url));
+  const helper = path.resolve(root, '../../skills/worktrail-bootstrap/scripts/log_consultation.py');
+  const env = { ...process.env };
+  delete env.PLANNING_DASHBOARD_DATA_DIR;
+  const expected = await statisticsDirectory(root, path.join(homedir(), '.cache', 'planning-dashboard'));
+  const script = 'import importlib.util, pathlib, sys; spec = importlib.util.spec_from_file_location("collector", sys.argv[1]); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.data_directory(pathlib.Path(sys.argv[2])))';
+  const collected = execFileSync(process.env.PYTHON ?? 'python', ['-c', script, helper, root], { encoding: 'utf8', env }).trim();
+  assert.equal(path.normalize(collected), expected);
+});
+
 test('cache overrides resolve home shorthand identically in Node and the Python collector', async () => {
   const root = path.dirname(fileURLToPath(import.meta.url));
   const shorthand = '~/.planning-dashboard-path-test';
-  const helper = path.resolve(root, '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
+  const helper = path.resolve(root, '../../skills/worktrail-bootstrap/scripts/log_consultation.py');
   const expected = await statisticsDirectory(root, path.join(homedir(), '.planning-dashboard-path-test'));
   assert.equal(await statisticsDirectory(root, shorthand), expected);
   const script = 'import importlib.util, pathlib, sys; spec = importlib.util.spec_from_file_location("collector", sys.argv[1]); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.data_directory(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])))';
@@ -72,7 +83,7 @@ test('Unicode cache-root aliases share Node/Python storage only when the filesys
     const alias = root.normalize('NFC');
     const metrics = path.join(temporary, 'metrics');
     const expected = await statisticsDirectory(root, metrics);
-    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
+    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/worktrail-bootstrap/scripts/log_consultation.py');
     const script = 'import importlib.util, pathlib, sys; spec = importlib.util.spec_from_file_location("collector", sys.argv[1]); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.data_directory(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])))';
     const collect = (folder: string) => execFileSync(process.env.PYTHON ?? 'python', ['-c', script, helper, folder, metrics], { encoding: 'utf8' }).trim();
     assert.equal(path.normalize(collect(root)), expected);
@@ -95,7 +106,7 @@ test('Python reports written with no dashboard running are readable by Node with
     await writeFile(path.join(root, 'note.md'), 'A consulted record.\n');
     await writeFile(path.join(root, 'other.md'), 'Another scoped record.\n');
     const metrics = path.join(temporary, 'metrics');
-    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../planning-workflow/planning-bootstrap/scripts/log_consultation.py');
+    const helper = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../skills/worktrail-bootstrap/scripts/log_consultation.py');
     execFileSync(process.env.PYTHON ?? 'python', [helper, root, '--data-dir', metrics, '--files', 'note.md']);
     execFileSync(process.env.PYTHON ?? 'python', [helper, root, '--data-dir', metrics, '--task', 'real-task', '--files', 'note.md', '../not-a-document.md']);
     const filename = path.join(await statisticsDirectory(root, metrics), 'usage.sqlite');

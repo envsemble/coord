@@ -1,0 +1,4 @@
+interface:
+  display_name: "Worktrail Atlas"
+  short_description: "Inspect and iterate on models while planning"
+  default_prompt: "Use $worktrail-atlas to inspect this baseline and visualize the proposed architecture."

@@ -1,6 +1,6 @@
-# Planning dashboard
+# Worktrail dashboard
 
-[![Dashboard checks](https://github.com/jakubg05/skills/actions/workflows/planning-dashboard.yml/badge.svg?branch=codex%2Fatlas-planning-integration)](https://github.com/jakubg05/skills/actions/workflows/planning-dashboard.yml)
+[![CI](https://github.com/envsemble/worktrail/actions/workflows/ci.yml/badge.svg?branch=codex%2Fworktrail-migration)](https://github.com/envsemble/worktrail/actions/workflows/ci.yml)
 
 ![Atlas diagram comparison embedded beside planning navigation](assets/atlas-dashboard.jpg)
 
@@ -16,7 +16,7 @@ Start the dashboard with one command:
 
     npm run dev
 
-Open [the local dashboard](http://127.0.0.1:4317). By default it reads the sibling planning folder two levels above this directory: a layout of workspace/skills/planning-dashboard and workspace/planning. To read another repository:
+Open [the local dashboard](http://127.0.0.1:4317). By default it reads the sibling planning folder two levels above this directory: a layout of workspace/worktrail/dashboard and workspace/planning. To read another repository:
 
     npm run dev -- --planning-dir "C:/path/to/planning"
 
@@ -24,7 +24,7 @@ Optional arguments: --port 4318 and --data-dir "C:/path/to/local-cache". For a b
 
 ## Records and progress
 
-The reader uses planning.json schema version 1 and the planning workflow's [metadata contract](../planning-workflow/planning-bootstrap/assets/planning/PLANS.md). It follows each registered current_plan pointer. Work without a selected plan retains its original files and an explicit notice; filename order never selects a plan.
+The reader uses planning.json schema version 1 and the planning workflow's [metadata contract](../skills/worktrail-bootstrap/assets/planning/PLANS.md). It follows each registered current_plan pointer. Work without a selected plan retains its original files and an explicit notice; filename order never selects a plan.
 
 Registry locations use POSIX-relative paths. Safe aliases such as ./ prefixes and trailing slashes normalize in memory without rewriting records. Parent segments, absolute paths, backslashes, and duplicate retained work locations produce a clear registry error.
 
@@ -40,7 +40,7 @@ Contained Markdown links open their original records. External web references op
 
 Two sources remain distinct: document opens in the browser and agent-reported consultation. Statistics show most/least recorded use, known task identities, recent consultation, and collection coverage. They do not measure whether the workflow improved an outcome. Zero recorded use does not mean a record was never read or should be removed.
 
-The five planning skills use bootstrap's [consultation helper](../planning-workflow/planning-bootstrap/references/USAGE.md), which requires Python 3 with SQLite support and only the standard library. It writes while the dashboard is closed. No model calls, API keys, or paid API account are needed. Install the updated skills together using the repository's [installation instructions](../README.md#install).
+The five planning skills use bootstrap's [consultation helper](../skills/worktrail-bootstrap/references/USAGE.md), which requires Python 3 with SQLite support and only the standard library. It writes while the dashboard is closed. No model calls, API keys, or paid API account are needed. Install the updated skills together using the repository's [installation instructions](../README.md#install-the-skills).
 
 Usage is local, outside the planning and product repositories: ~/.cache/planning-dashboard/&lt;canonical-folder-hash&gt;/usage.sqlite. Both runtimes share this SQLite store. PLANNING_DASHBOARD_DATA_DIR or --data-dir overrides the cache base; both always add the folder hash so one override can safely serve several planning roots. Give the helper that same base directory. Moving the entire planning root changes the cache identity. Stable work IDs preserve per-document use through active/archive moves within the same root.
 
@@ -57,7 +57,7 @@ Portable tests cover legacy records, explicit plan selection, path containment, 
 
 The interface uses [GitHub Primer](https://primer.style/product/components/underline-nav/) Dark dimmed tokens and Octicons, system typography, repository navigation, compact rows, folder disclosure, and GitHub-like Markdown presentation. It is dark-only. Root `plan.md` and `ledger.md` have primary navigation and also remain in the searchable full file browser. An explicit file URL always wins; otherwise work opens the plan before implementation and the root ledger for in-progress, partial, or complete implementation, falling back to the explicit selected plan when no ledger exists.
 
-The root ledger's optional version-1 status header reports current, next, blocked, and updated values under the shared [contract](../planning-workflow/planning-bootstrap/assets/planning/PLANS.md#ledger-status-version-1). The viewer never infers current activity from historical narrative. Skills update that header at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.
+The root ledger's optional version-1 status header reports current, next, blocked, and updated values under the shared [contract](../skills/worktrail-bootstrap/assets/planning/PLANS.md#ledger-status-version-1). The viewer never infers current activity from historical narrative. Skills update that header at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.
 ## Atlas diagrams
 
 Work items have a **Diagrams** tab. Atlas renders directly in React, with a full-view control and a hideable inspector; model editing stays with the agent. Assign the model's `workId` to the registered planning work identity. Models live in the configured Atlas workspace independently of the dashboard. The default is the planning folder; `--atlas-dir /path/to/workspace` connects another location.
@@ -66,7 +66,7 @@ The tab checks model revision summaries every two seconds while visible. Model, 
 
 An element's retained plan/glossary/decision passages appear in its inspector. **Open plan** follows an indexed record and optional `section` heading. The referenced document also exposes links back into the diagram. Shared knowledge pages aggregate backlinks from their registered work items. References outside the indexed work and shared knowledge are unavailable; retained passage text still helps explain the model offline. Code evidence remains pinned and uses Atlas's syntax-highlighted snippets.
 
-The dashboard installs the canonical Atlas package from `vendor/ontouml-atlas-<source-commit>.tgz`. Its manifest records the source commit and SHA-256. To update it from a clean, committed Atlas checkout, run `npm run atlas:package -- /path/to/atlas`, then `npm install` and the checks. CI needs no sibling Atlas checkout. See [Atlas planning guidance](../planning-workflow/atlas-modeling/SKILL.md).
+The dashboard installs the canonical Atlas package from `vendor/ontouml-atlas-<source-commit>.tgz`. Its manifest records the source commit and SHA-256. To update it from a clean, committed Atlas checkout, run `npm run atlas:package -- /path/to/atlas`, then `npm install` and the checks. CI needs no sibling Atlas checkout. See [Atlas planning guidance](../skills/worktrail-atlas/SKILL.md).
 
 **Report** opens authored walkthroughs, checked finite instances/counterexamples, guided SVG diagrams, selected glossary/evidence and print presentation. It returns to the existing diagram without discarding its camera/selection. Model state, source scopes and imported claims remain visible; learning checks do not establish domain accuracy.
 
