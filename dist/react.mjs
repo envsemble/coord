@@ -3029,7 +3029,9 @@ function AtlasPanelContent({
       const node = index.nodes.get(id) || model.classes.find((c) => c.attributes.some((a) => a.id === id));
       if (node) id = node.id;
       const next = node ? viewForNode(views, viewKey, node) : views.find(
-        (v) => v.diagram.edges.some((e) => e.id === id) || v.diagram.generalizationGroups?.some((g) => g.id === id)
+        (v) => v.diagram.edges.some((e) => e.id === id) || v.diagram.generalizationGroups?.some(
+          (g) => g.id === id || g.memberIds.includes(id)
+        )
       );
       if (!next) return;
       setViewKey(next.key);
@@ -3049,7 +3051,9 @@ function AtlasPanelContent({
   }, [model.id, select]);
   useEffect8(() => {
     const visible = selected?.kind === "node" ? diagram.nodes : selected?.kind === "edge" ? diagram.edges : diagram.generalizationGroups || [];
-    if (selected && (!index.getElement(selected) || !visible.some((item) => item.id === selected.id)))
+    if (selected && (!index.getElement(selected) || !visible.some((item) => item.id === selected.id) && !(selected.kind === "edge" && diagram.generalizationGroups?.some(
+      (g) => g.memberIds.includes(selected.id)
+    ))))
       select(null);
   }, [index, diagram, selected, select]);
   useEffect8(() => {

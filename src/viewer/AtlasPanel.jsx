@@ -91,7 +91,9 @@ function AtlasPanelContent({
         : views.find(
             (v) =>
               v.diagram.edges.some((e) => e.id === id) ||
-              v.diagram.generalizationGroups?.some((g) => g.id === id),
+              v.diagram.generalizationGroups?.some(
+                (g) => g.id === id || g.memberIds.includes(id),
+              ),
           );
       if (!next) return;
       setViewKey(next.key);
@@ -119,7 +121,13 @@ function AtlasPanelContent({
     if (
       selected &&
       (!index.getElement(selected) ||
-        !visible.some((item) => item.id === selected.id))
+        (!visible.some((item) => item.id === selected.id) &&
+          !(
+            selected.kind === "edge" &&
+            diagram.generalizationGroups?.some((g) =>
+              g.memberIds.includes(selected.id),
+            )
+          )))
     )
       select(null);
   }, [index, diagram, selected, select]);
