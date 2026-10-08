@@ -15,6 +15,7 @@ class PackagingTests(unittest.TestCase):
         expected = {
             "planning-bootstrap", "planning-organize", "planning-grill",
             "planning-implement", "planning-record", "babysit-pr",
+            "atlas-modeling",
         }
         skills = {p.name: p for p in GROUP.iterdir() if (p / "SKILL.md").is_file()}
         self.assertEqual(set(skills), expected)

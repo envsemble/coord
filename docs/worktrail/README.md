@@ -11,6 +11,7 @@ Reusable skills for [Codex](https://openai.com/codex/). The planning workflow is
 | [planning-grill](planning-workflow/planning-grill) | Clarify work and record plans, vocabulary, and decisions during discussion. |
 | [planning-implement](planning-workflow/planning-implement) | Explicitly execute a selected plan persistently through PR readiness. |
 | [planning-record](planning-workflow/planning-record) | Retain scoped knowledge, reconcile outcomes, and archive verified closure. |
+| [atlas-modeling](planning-workflow/atlas-modeling) | Inspect and revise models with Atlas while planning; reopen portable diagrams and retain source baseline provenance. |
 | [babysit-pr](planning-workflow/babysit-pr) | Independently guide existing PRs through review, CI, fixes, and conflicts. |
 
 Install the group together: bootstrap owns the shared governance/metadata assets; organization supports adoption; grill includes Pocock's preserved methods and formats with [attribution](planning-workflow/planning-grill/references/ATTRIBUTION.md) and [MIT license](planning-workflow/planning-grill/references/LICENSE). Skills read the associated repo's own governance explicitly.
@@ -22,7 +23,7 @@ Install the group together: bootstrap owns the shared governance/metadata assets
 Copy individual skill folders, keeping sibling dependencies together. Do not install the wrapper directory itself as a skill.
 
 ```bash
-cp -R planning-workflow/planning-* planning-workflow/babysit-pr ~/.codex/skills/
+cp -R planning-workflow/planning-* planning-workflow/babysit-pr planning-workflow/atlas-modeling ~/.codex/skills/
 cp -R issue-writing ~/.codex/skills/
 ```
 

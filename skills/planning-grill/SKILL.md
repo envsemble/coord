@@ -26,6 +26,8 @@ Read and compose these resources directly; no separate `Skill` tool or installed
 
 Treat already answered questions as settled. Investigate facts yourself before asking the user to choose. Ask only genuine unresolved choices at the current frontier, then wait and recompute it; do not invent questions to fill a round. If the frontier is already empty, record the clear agreement and proceed within the user's authorization.
 
+When a diagram helps settle model boundaries or architectural alternatives, compose [atlas-modeling](../atlas-modeling/SKILL.md) with this discussion and retain the same work identity. Link semantic elements to useful plan/glossary passages rather than creating another plan inside the visualization. Atlas source capture is limited to its advertised adapters; conceptual interpretation remains part of the interview.
+
 Record resolved requirements and choices in `plan.md` as they settle. Label proposals and unresolved questions explicitly; do not present a recommendation as the user's decision. Update the work item's `CONTEXT.md` immediately when a domain term resolves, keeping it a glossary only. Create `docs/adr/` lazily and offer an ADR only when the decision is hard to reverse, surprising without context, and a real tradeoff. Preserve work-specific original records in this folder and link canonical product docs rather than duplicating competing current truth.
 
 Use [planning-record](../planning-record/SKILL.md) for selective reusable knowledge, outcomes, and closure. A useful record carries source, scope, and confidence; routine conversation and task activity need no durable lesson. Make reasonable incremental planning commits when meaningful changes warrant them, independently of product Git, without a commit per answer.
