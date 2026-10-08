@@ -4,7 +4,7 @@
   <img alt="Atlas — Models for shared understanding" src="assets/atlas-banner-light.svg" width="1200">
 </picture>
 
-[![CI](https://github.com/envsemble/atlas/actions/workflows/ci.yml/badge.svg?branch=codex%2Fatlas-github)](https://github.com/envsemble/atlas/actions/workflows/ci.yml)
+[![CI](https://github.com/envsemble/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/atlas/actions/workflows/ci.yml)
 [![Version 0.5.0](https://img.shields.io/badge/version-0.5.0-blue)](CHANGELOG.md)
 [![Node 24](https://img.shields.io/badge/Node-24-43853d)](docs/releases.md)
 [![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)
@@ -49,9 +49,9 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 ## Plan, inspect, iterate
 
 - Standard [OntoUML exchange JSON](https://github.com/OntoUML/ontouml-schema) and versioned [Atlas documents](docs/architecture.md) keep model semantics separate from scenes and UI.
-- [CLI/stdio MCP](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results. Use [worktrail-atlas](https://github.com/envsemble/worktrail/tree/codex/worktrail-migration/skills/worktrail-atlas) with your existing coding agent.
+- [CLI/stdio MCP](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results. Use [worktrail-atlas](https://github.com/envsemble/worktrail/tree/main/skills/worktrail-atlas) with your existing coding agent.
 - [Proposals](docs/comparison.md) retain frozen baselines. Baseline/Proposed/Changes share positions; three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
-- The [Worktrail dashboard](https://github.com/envsemble/worktrail/tree/codex/worktrail-migration/dashboard) embeds Atlas directly in React. Elements link to selected plan passages, glossary, decisions and retained code evidence.
+- The [Worktrail dashboard](https://github.com/envsemble/worktrail/tree/main/dashboard) embeds Atlas directly in React. Elements link to selected plan passages, glossary, decisions and retained code evidence.
 - [Learning reports](docs/learning-reports.md) include walkthroughs, finite scenario checks, glossary, source dates, coverage, SVG diagrams and printing. Exported HTML can be imported and revised later.
 
 ![Semantic comparison highlights a proposed Course while retaining baseline identities](assets/comparison-dark.jpg)
