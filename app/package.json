@@ -25,7 +25,7 @@
     "express": "^5.2.1",
     "fflate": "0.8.3",
     "github-slugger": "2.0.0",
-    "ontouml-atlas": "file:vendor/ontouml-atlas-7a6a320714a2.tgz",
+    "ontouml-atlas": "file:vendor/ontouml-atlas-acc79e0a2934.tgz",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "latest",

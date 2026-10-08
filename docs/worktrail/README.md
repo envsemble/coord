@@ -4,7 +4,7 @@
   <img alt="Worktrail — Plans, evidence, shared understanding" src="assets/worktrail-banner-light.svg" width="1200">
 </picture>
 
-[![CI](https://github.com/envsemble/worktrail/actions/workflows/ci.yml/badge.svg?branch=codex%2Fworktrail-migration)](https://github.com/envsemble/worktrail/actions/workflows/ci.yml)
+[![CI](https://github.com/envsemble/worktrail/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/worktrail/actions/workflows/ci.yml)
 [![Node 24](https://img.shields.io/badge/Node-24-43853d)](dashboard/README.md)
 [![Python 3](https://img.shields.io/badge/Python-3-blue)](requirements-dev.txt)
 [![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)

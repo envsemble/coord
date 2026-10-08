@@ -1,6 +1,6 @@
 # Worktrail dashboard
 
-[![CI](https://github.com/envsemble/worktrail/actions/workflows/ci.yml/badge.svg?branch=codex%2Fworktrail-migration)](https://github.com/envsemble/worktrail/actions/workflows/ci.yml)
+[![CI](https://github.com/envsemble/worktrail/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/worktrail/actions/workflows/ci.yml)
 
 ![Atlas diagram comparison embedded beside planning navigation](assets/atlas-dashboard.jpg)
 
