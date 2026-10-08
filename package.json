@@ -22,6 +22,8 @@
   "devDependencies": {
     "@types/react": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
+    "postcss": "8.5.29",
+    "postcss-selector-parser": "7.1.6",
     "prettier": "3.8.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -59,6 +61,7 @@
     },
     "./viewer.css": "./src/ui/styles.css",
     "./diagram.css": "./src/visualization/styles.css",
+    "./embedded.css": "./dist/embedded.css",
     "./schema": "./schemas/ontouml-schema.json",
     "./evidence-schema": "./schemas/evidence-schema.json",
     "./document-schema": "./schemas/document-schema.json"

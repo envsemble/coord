@@ -1,6 +1,9 @@
 const path = require("node:path");
 const { build } = require("esbuild");
 async function buildLibrary() {
+  require("./build-embedded-css.cjs").buildEmbeddedCSS(
+    path.resolve(__dirname, ".."),
+  );
   await build({
     absWorkingDir: path.resolve(__dirname, ".."),
     entryPoints: ["src/index.js"],

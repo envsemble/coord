@@ -17,12 +17,17 @@ import { LearningLibrary } from "../learning/LearningContent";
 import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
 
-export function OntoUMLViewer({
-  model,
-  views,
-  exports: exportData,
-  snippets = {},
-}) {
+export function OntoUMLViewer(props) {
+  if (!props.views.length)
+    return (
+      <div className="viewer-error">
+        <h1>{props.model.title}</h1>
+        <p>No entities in this model.</p>
+      </div>
+    );
+  return <ViewerContent {...props} />;
+}
+function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
   const exports = useArtifactArchive(exportData);
   const [viewKey, setViewKey] = useState(views[0].key),
     [fields, setFields] = useState(false);

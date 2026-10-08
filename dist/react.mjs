@@ -2737,12 +2737,15 @@ function createZoomStore() {
 
 // src/viewer/OntoUMLViewer.jsx
 import { jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
-function OntoUMLViewer({
-  model,
-  views,
-  exports: exportData,
-  snippets = {}
-}) {
+function OntoUMLViewer(props) {
+  if (!props.views.length)
+    return /* @__PURE__ */ jsxs15("div", { className: "viewer-error", children: [
+      /* @__PURE__ */ jsx19("h1", { children: props.model.title }),
+      /* @__PURE__ */ jsx19("p", { children: "No entities in this model." })
+    ] });
+  return /* @__PURE__ */ jsx19(ViewerContent, { ...props });
+}
+function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
   const exports = useArtifactArchive(exportData);
   const [viewKey, setViewKey] = useState10(views[0].key), [fields, setFields] = useState10(false);
   const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
@@ -2963,9 +2966,266 @@ function OntoUMLViewer({
   ] });
 }
 
+// src/viewer/AtlasPanel.jsx
+import {
+  useCallback as useCallback4,
+  useEffect as useEffect8,
+  useId as useId2,
+  useMemo as useMemo9,
+  useRef as useRef8,
+  useState as useState11
+} from "react";
+import { jsx as jsx20, jsxs as jsxs16 } from "react/jsx-runtime";
+function AtlasPanel(props) {
+  if (!props.payload.views.length)
+    return /* @__PURE__ */ jsxs16(
+      "div",
+      {
+        className: "atlas-panel atlas-empty",
+        "data-theme": props.theme || "dark",
+        children: [
+          /* @__PURE__ */ jsx20("h3", { children: props.payload.model.title }),
+          /* @__PURE__ */ jsx20("p", { children: "No entities in this model." })
+        ]
+      }
+    );
+  return /* @__PURE__ */ jsx20(AtlasPanelContent, { ...props });
+}
+function AtlasPanelContent({
+  payload,
+  theme = "dark",
+  onReference,
+  focus = null
+}) {
+  const { model, views, snippets } = payload;
+  const [viewKey, setViewKey] = useState11(views[0].key);
+  const [fields, setFields] = useState11(false), [selected, setSelected] = useState11(null);
+  const [hidden, setHidden] = useState11(false), [learning, setLearning] = useState11(false);
+  const [focusRequest, setFocusRequest] = useState11(null);
+  const camera = useRef8(null), zoomStore = useMemo9(createZoomStore, []);
+  const lastFocus = useRef8(null), inspectorId = useId2();
+  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
+    previewEnabled: !hidden,
+    previewVisible: !!selected || learning
+  });
+  const view = views.find((v) => v.key === viewKey) || views[0];
+  const diagram = fields ? view.diagramFields : view.diagram;
+  const index = useMemo9(
+    () => indexViewerModel(model, diagram.generalizationGroups),
+    [model, diagram.generalizationGroups]
+  );
+  const inspected = inspectedTarget(preview, selected), element = index.getElement(inspected);
+  const open = !hidden && (!!element || learning);
+  const select = useCallback4(
+    (target) => {
+      clearHover();
+      setSelected((old) => sameTarget(old, target) ? old : target);
+      setLearning(false);
+    },
+    [clearHover]
+  );
+  const choose = useCallback4(
+    (id) => {
+      const node = index.nodes.get(id) || model.classes.find((c) => c.attributes.some((a) => a.id === id));
+      if (node) id = node.id;
+      const next = node ? viewForNode(views, viewKey, node) : views.find(
+        (v) => v.diagram.edges.some((e) => e.id === id) || v.diagram.generalizationGroups?.some((g) => g.id === id)
+      );
+      if (!next) return;
+      setViewKey(next.key);
+      select({
+        kind: node ? "node" : index.edges.has(id) ? "edge" : "group",
+        id
+      });
+      if (node) setFocusRequest({ id });
+    },
+    [index, model.classes, views, viewKey, select]
+  );
+  useEffect8(() => {
+    select(null);
+    setViewKey(views[0].key);
+    setFocusRequest(null);
+    lastFocus.current = null;
+  }, [model.id, select]);
+  useEffect8(() => {
+    const visible = selected?.kind === "node" ? diagram.nodes : selected?.kind === "edge" ? diagram.edges : diagram.generalizationGroups || [];
+    if (selected && (!index.getElement(selected) || !visible.some((item) => item.id === selected.id)))
+      select(null);
+  }, [index, diagram, selected, select]);
+  useEffect8(() => {
+    if (sameTarget(lastFocus.current, focus)) return;
+    lastFocus.current = focus;
+    if (!focus) return;
+    choose(focus.id);
+  }, [focus, choose]);
+  useEffect8(() => {
+    const escape = (e) => {
+      if (e.key === "Escape" && e.target.closest?.(".atlas-panel"))
+        select(null);
+    };
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [select]);
+  const meta = model.document, capture = meta?.snapshots.find((s) => s.id === meta.baselineId);
+  const context = meta?.context || { records: [], links: [] };
+  const contextIds = /* @__PURE__ */ new Set([
+    inspected?.id,
+    ...inspected?.kind === "node" ? element?.attributes.map((a) => a.id) || [] : []
+  ]);
+  const linked = context.records.filter(
+    (r) => context.links.some(
+      (l) => contextIds.has(l.elementId) && l.recordId === r.id
+    )
+  );
+  return /* @__PURE__ */ jsx20("div", { className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs16("div", { className: `viewer${open ? " inspecting" : ""}`, children: [
+    /* @__PURE__ */ jsxs16("header", { className: "viewer-toolbar", children: [
+      /* @__PURE__ */ jsx20(
+        Tabs,
+        {
+          items: views,
+          value: view.key,
+          onChange: (key) => {
+            setViewKey(key);
+            setFocusRequest(null);
+            clearHover();
+          }
+        }
+      ),
+      /* @__PURE__ */ jsx20("span", { className: "spacer" }),
+      /* @__PURE__ */ jsxs16("div", { className: "toolbar-actions", children: [
+        /* @__PURE__ */ jsx20(ConceptSearch, { classes: model.classes, onChoose: choose }),
+        /* @__PURE__ */ jsx20(
+          ToggleButton,
+          {
+            pressed: fields,
+            "aria-label": "Fields",
+            title: "Show attributes",
+            onClick: () => setFields((v) => !v),
+            children: /* @__PURE__ */ jsx20(TableIcon, { size: 16 })
+          }
+        ),
+        /* @__PURE__ */ jsx20(
+          CameraControls,
+          {
+            zoomStore,
+            onZoom: (factor) => camera.current?.zoomBy(factor),
+            onReset: () => camera.current?.reset(),
+            onFit: () => camera.current?.fit()
+          }
+        ),
+        (!meta || meta.profile === "ontouml") && /* @__PURE__ */ jsx20(
+          ToggleButton,
+          {
+            pressed: learning && open,
+            "aria-label": "Understand model",
+            onClick: () => {
+              clearHover();
+              setHidden(false);
+              setLearning((v) => !v);
+            },
+            children: /* @__PURE__ */ jsx20(BookIcon, { size: 16 })
+          }
+        ),
+        /* @__PURE__ */ jsx20(
+          IconButton,
+          {
+            label: hidden ? "Show sidebar" : "Hide sidebar",
+            "aria-controls": inspectorId,
+            "aria-expanded": open,
+            onClick: () => setHidden((v) => !v),
+            children: hidden ? /* @__PURE__ */ jsx20(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx20(SidebarCollapseIcon, { size: 16 })
+          }
+        )
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx20(
+      DiagramCanvas,
+      {
+        ref: camera,
+        diagram,
+        selected,
+        hovered,
+        focusRequest,
+        onSelect: select,
+        onZoom: zoomStore.set,
+        onHover: hover,
+        onClearHover: clearHover
+      }
+    ),
+    meta && /* @__PURE__ */ jsxs16(
+      "span",
+      {
+        className: "atlas-capture",
+        title: capture ? `${capture.capture.source.kind}: ${capture.capture.source.identity}
+${capture.capture.coverage.status} coverage; ${meta.imported ? "imported claims" : "retained capture"}` : `Revision ${meta.revision.id}`,
+        children: [
+          meta.profile,
+          " \xB7 ",
+          meta.state,
+          " \xB7",
+          " ",
+          capture ? capture.capture.capturedAt : meta.revision.createdAt,
+          meta.imported ? " \xB7 imported" : ""
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxs16(
+      Panel,
+      {
+        id: inspectorId,
+        className: "inspector",
+        title: null,
+        label: "Model details",
+        open,
+        closeLabel: "Hide sidebar",
+        onClose: () => setHidden(true),
+        onPointerEnter: keepHover,
+        onPointerLeave: () => hover(null),
+        children: [
+          open && learning && /* @__PURE__ */ jsx20(LearningLibrary, { model, onInspect: choose }),
+          open && !learning && element && inspected.kind === "node" && /* @__PURE__ */ jsx20(
+            ConceptDetails,
+            {
+              concept: element,
+              model,
+              snippets
+            }
+          ),
+          open && !learning && element && inspected.kind === "edge" && /* @__PURE__ */ jsx20(
+            RelationDetails,
+            {
+              relation: element,
+              model,
+              snippets,
+              onChoose: choose
+            }
+          ),
+          open && !learning && element && inspected.kind === "group" && /* @__PURE__ */ jsx20(
+            GeneralizationSetDetails,
+            {
+              group: element,
+              model,
+              snippets,
+              onChoose: choose
+            }
+          ),
+          open && !learning && linked.length > 0 && /* @__PURE__ */ jsx20("section", { className: "atlas-context", "aria-label": "Planning references", children: linked.map((record) => /* @__PURE__ */ jsxs16("details", { children: [
+            /* @__PURE__ */ jsx20("summary", { children: record.title || record.kind }),
+            /* @__PURE__ */ jsx20("p", { children: record.text }),
+            onReference && typeof record.path === "string" && /* @__PURE__ */ jsxs16("button", { onClick: () => onReference(record), children: [
+              "Open ",
+              record.kind
+            ] })
+          ] }, record.id)) })
+        ]
+      }
+    )
+  ] }) });
+}
+
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { jsx as jsx20, jsxs as jsxs16 } from "react/jsx-runtime";
+import { jsx as jsx21, jsxs as jsxs17 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -2976,15 +3236,16 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsxs16("main", { className: "viewer-error", role: "alert", children: [
-        /* @__PURE__ */ jsx20("h1", { children: "The model could not be displayed" }),
-        /* @__PURE__ */ jsx20("p", { children: "Rebuild the viewer from the model and check its validation report." }),
-        /* @__PURE__ */ jsx20("button", { onClick: () => location.reload(), children: "Reload" })
+      return /* @__PURE__ */ jsxs17("main", { className: "viewer-error", role: "alert", children: [
+        /* @__PURE__ */ jsx21("h1", { children: "The model could not be displayed" }),
+        /* @__PURE__ */ jsx21("p", { children: "Rebuild the viewer from the model and check its validation report." }),
+        /* @__PURE__ */ jsx21("button", { onClick: () => location.reload(), children: "Reload" })
       ] });
     return this.props.children;
   }
 };
 export {
+  AtlasPanel,
   DiagramCanvas,
   ElementLearning,
   LearningLibrary,

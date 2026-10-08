@@ -49,6 +49,8 @@ try {
     (async()=>{
       const react=await import('ontouml-atlas/react');
       assert.equal(typeof react.OntoUMLViewer,'function');
+      assert.equal(typeof react.AtlasPanel,'function');
+      assert(require('node:fs').existsSync(require.resolve('ontouml-atlas/embedded.css')));
       const built=await buildViewer({project});
       assert(built.html.includes('Installed package test'));
       assert(built.payload.views.length===1);

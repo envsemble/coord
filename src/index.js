@@ -1,4 +1,5 @@
 export { OntoUMLViewer } from "./viewer/OntoUMLViewer";
+export { AtlasPanel } from "./viewer/AtlasPanel";
 export { ViewerErrorBoundary } from "./viewer/ViewerErrorBoundary";
 export { DiagramCanvas } from "./visualization/DiagramCanvas";
 export { UMLDiagram } from "./visualization/UMLDiagram";
