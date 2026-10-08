@@ -6,6 +6,7 @@ import type { Snapshot, Work, Document } from './types';
 import type { Route } from './routes';
 import { documentRoute } from './routes';
 import { samePath } from './links';
+import { pollWhileVisible } from './visiblePoll';
 
 interface Entry { handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean }
 export interface ModelReference { handle: string; workId: string; title: string; elementId: string; label: string; section: string | null }
@@ -18,16 +19,12 @@ async function get<T>(url: string, signal: AbortSignal): Promise<T> {
 export function PlanDiagrams({ file, work, navigate }: { file: Document; work?: Work; navigate(route: Partial<Route>): void }) {
   const [links, setLinks] = useState<ModelReference[]>([]);
   useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      try { const next = await get<ModelReference[]>('/api/atlas/references?' + new URLSearchParams({ ...(work ? { work: work.id } : {}), path: file.path }), controller.signal); if (!controller.signal.aborted) setLinks(next); }
-      catch { if (!controller.signal.aborted) setLinks([]); }
-      finally { if (!controller.signal.aborted) timer = setTimeout(poll, 2000); }
-    };
     setLinks([]);
-    void poll();
-    return () => { controller.abort(); clearTimeout(timer); };
+    return pollWhileVisible(async signal => {
+      try { const next = await get<ModelReference[]>('/api/atlas/references?' + new URLSearchParams({ ...(work ? { work: work.id } : {}), path: file.path }), signal); if (!signal.aborted) setLinks(next); }
+      catch { if (!signal.aborted) setLinks([]); }
+      return 2000;
+    });
   }, [work?.id, file.path, file.modified]);
   return links.length > 0 ? <nav className="plan-diagrams" aria-label="Referenced diagrams">{links.map((link, index) => <button key={index} onClick={() => navigate({ view: 'work', work: link.workId, tab: 'diagrams', diagram: link.handle, element: link.elementId })}>{link.title} · {link.label}</button>)}</nav> : null;
 }
@@ -43,32 +40,27 @@ export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work
   const handle = route.diagram || defaultHandle || catalog.models[0]?.handle || '';
   const revision = catalog.models.find(entry => entry.handle === handle)?.revision;
   useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      try { const next = await get<typeof catalog>('/api/atlas/models?' + new URLSearchParams({ work: work.id }), controller.signal); if (!controller.signal.aborted) { setCatalog(next); setDefaultHandle(previous => previous || next.models[0]?.handle || ''); setCatalogError(''); } }
-      catch (error) { if (!controller.signal.aborted) setCatalogError((error as Error).message); }
-      finally { if (!controller.signal.aborted) timer = setTimeout(poll, 2000); }
-    };
-    void poll();
-    return () => { controller.abort(); clearTimeout(timer); };
+    return pollWhileVisible(async signal => {
+      try { const next = await get<typeof catalog>('/api/atlas/models?' + new URLSearchParams({ work: work.id }), signal); if (!signal.aborted) { setCatalog(next); setDefaultHandle(previous => previous || next.models[0]?.handle || ''); setCatalogError(''); } }
+      catch (error) { if (!signal.aborted) setCatalogError((error as Error).message); }
+      return 2000;
+    });
   }, [work.id]);
   useEffect(() => {
     if (!handle) return;
-    const controller = new AbortController();
     if (loaded !== handle) { setPayload(null); setModelError(''); }
-    let timer: ReturnType<typeof setTimeout>;
     let retryDelay = 2000;
-    const load = async () => {
+    return pollWhileVisible(async signal => {
       try {
-        const next = await get<ViewerPayload>('/api/atlas/model?' + new URLSearchParams({ work: work.id, handle }), controller.signal);
-        if (!controller.signal.aborted) { setPayload(next); setLoaded(handle); setReferenceError(''); setModelError(''); }
+        const next = await get<ViewerPayload>('/api/atlas/model?' + new URLSearchParams({ work: work.id, handle }), signal);
+        if (!signal.aborted) { setPayload(next); setLoaded(handle); setReferenceError(''); setModelError(''); }
+        return null;
       } catch (error) {
-        if (!controller.signal.aborted) { setModelError((error as Error).message); timer = setTimeout(load, retryDelay); retryDelay = Math.min(30000, retryDelay * 2); }
+        if (!signal.aborted) setModelError((error as Error).message);
+        const delay = retryDelay; retryDelay = Math.min(30000, retryDelay * 2);
+        return delay;
       }
-    };
-    void load();
-    return () => { controller.abort(); clearTimeout(timer); };
+    });
   }, [handle, revision, work.id]);
   const onReference = (record: PlanningContext['records'][number]) => {
     const file = snapshot.documents.find(file => typeof record.path === 'string' && samePath(file.path, record.path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths) && (file.workId === work.id || file.category === 'knowledge'));
