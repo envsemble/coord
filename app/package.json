@@ -14,7 +14,7 @@
     "atlas:package": "node scripts/package-atlas.mjs"
   },
   "dependencies": {
-    "ontouml-atlas": "file:vendor/ontouml-atlas-83dfe7538887.tgz",
+    "ontouml-atlas": "file:vendor/ontouml-atlas-159cd8879976.tgz",
     "@primer/primitives": "^11.10.0",
     "express": "^5.2.1",
     "github-slugger": "2.0.0",
