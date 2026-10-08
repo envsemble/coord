@@ -1,8 +1,13 @@
 const { createEnrollmentModel } = require("../examples/enrollment/model.cjs");
 const { buildViewer, writeViewer } = require("../lib/index.cjs");
-async function buildEnrollment(outputPath) {
+async function buildEnrollment(outputPath, report = false) {
   const built = await buildViewer({
-    ...createEnrollmentModel(),
+    ...(report
+      ? {
+          document:
+            require("../examples/enrollment/learning.cjs").createEnrollmentDocument(),
+        }
+      : createEnrollmentModel()),
     slug: "enrollment",
   });
   writeViewer(built, outputPath);
@@ -10,7 +15,7 @@ async function buildEnrollment(outputPath) {
 }
 if (require.main === module) {
   if (!process.argv[2]) throw new Error("Provide an output directory");
-  buildEnrollment(process.argv[2])
+  buildEnrollment(process.argv[2], process.argv.includes("--report"))
     .then(({ report }) =>
       console.log(`Built enrollment example: ${report.counts.error} findings`),
     )

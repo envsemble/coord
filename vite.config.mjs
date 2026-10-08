@@ -7,7 +7,7 @@ import modelTools from "./scripts/vite-model-plugin.cjs";
 const root = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root: path.join(root, "development"),
-  publicDir: false,
+  publicDir: path.join(root, "assets"),
   cacheDir: path.join(root, "node_modules/.vite"),
   plugins: [react(), modelTools.modelPlugin({ root })],
   server: {

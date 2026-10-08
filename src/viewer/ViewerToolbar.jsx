@@ -5,12 +5,12 @@ import { ConceptSearch } from "../ui/ConceptSearch";
 import { ExportMenu } from "../ui/ExportMenu";
 import { DownloadLink } from "../ui/DownloadLink";
 import { useMemo } from "react";
+import { AtlasMark } from "../ui/AtlasMark";
 import {
   BookIcon,
   SunIcon,
   MoonIcon,
   QuestionIcon,
-  RepoIcon,
   TableIcon,
   FileMediaIcon,
   FileCodeIcon,
@@ -46,6 +46,8 @@ export function ViewerToolbar({
   const themeLabel =
     theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
   const sidebarLabel = sidebarHidden ? "Show sidebar" : "Hide sidebar";
+  const conceptual = !model.document || model.document.profile === "ontouml";
+  const modelFile = `${exports.slug}-${conceptual ? "ontouml" : "structural"}.json`;
   const searchClasses = useMemo(() => {
     const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
     return model.classes.filter((concept) => visibleIds.has(concept.id));
@@ -54,7 +56,7 @@ export function ViewerToolbar({
     <header className="viewer-toolbar">
       <div className="toolbar-identity" title={model.title}>
         <span className="brand-mark">
-          <RepoIcon size={20} />
+          <AtlasMark />
         </span>
       </div>
       <div className="view-navigation">
@@ -100,12 +102,12 @@ export function ViewerToolbar({
           <DownloadLink
             id="model-download"
             className=""
-            data={exports.readText(`${exports.slug}-ontouml.json`)}
-            filename={`${exports.slug}-ontouml.json`}
+            data={exports.readText(modelFile)}
+            filename={modelFile}
             type="application/json"
           >
             <FileCodeIcon size={16} />
-            OntoUML JSON
+            {conceptual ? "OntoUML JSON" : "Structural JSON"}
           </DownloadLink>
           <DownloadLink
             id="bundle-download"
@@ -118,21 +120,23 @@ export function ViewerToolbar({
             Models ZIP
           </DownloadLink>
         </ExportMenu>
-        <button
-          id="learn-toggle"
-          className="learn-toggle"
-          aria-pressed={learningOpen && sidebarOpen}
-          onClick={onLearn}
-          aria-label={`Learn OntoUML; ${model.validation.counts.error} findings`}
-          title="Learn OntoUML"
-        >
-          <BookIcon size={16} />
-          {model.validation.counts.error > 0 && (
-            <span className="validation-count">
-              {model.validation.counts.error}
-            </span>
-          )}
-        </button>
+        {conceptual && (
+          <button
+            id="learn-toggle"
+            className="learn-toggle"
+            aria-pressed={learningOpen && sidebarOpen}
+            onClick={onLearn}
+            aria-label={`Learn OntoUML; ${model.validation.counts.error} findings`}
+            title="Learn OntoUML"
+          >
+            <BookIcon size={16} />
+            {model.validation.counts.error > 0 && (
+              <span className="validation-count">
+                {model.validation.counts.error}
+              </span>
+            )}
+          </button>
+        )}
         <IconButton
           id="sidebar-toggle"
           label={sidebarLabel}

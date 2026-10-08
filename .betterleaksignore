@@ -1,0 +1,8 @@
+# Exact historical false positives: disposable PostgreSQL service credentials.
+# These hashes/paths/lines are fixed; future findings remain subject to scanning.
+0ae3e32c67d0eca49a163ee47b11b77a5415d03b:.github/workflows/atlas.yml:generic-credential-uri:25
+0ae3e32c67d0eca49a163ee47b11b77a5415d03b:.github/workflows/atlas.yml:generic-password:16
+4c18d163e7d970c638a50cfb6e4417972b8d4569:.github/workflows/ci.yml:generic-credential-uri:25
+4c18d163e7d970c638a50cfb6e4417972b8d4569:.github/workflows/ci.yml:generic-password:16
+4291a80fdf97b769073abe5aab98c5407b2109a6:.gitlab-ci.yml:generic-credential-uri:13
+4291a80fdf97b769073abe5aab98c5407b2109a6:.gitlab-ci.yml:generic-password:11

@@ -5,7 +5,7 @@ export function generalizationGroupName(group) {
     group.type === "generalizationSet"
       ? `; ${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}`
       : "";
-  return `${group.name}: ${group.sourceNames.join(", ")} inherit ${group.targetName}${constraints}`;
+  return `${group.name}: ${group.sourceNames.join(", ")} ${group.realization ? "implement" : "inherit"} ${group.targetName}${constraints}`;
 }
 export function UMLGeneralizationGroup({ group, labels = false, ...props }) {
   const edge = { ...group, type: "generalization" };

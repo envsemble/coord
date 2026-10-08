@@ -4,6 +4,10 @@ export class ViewerErrorBoundary extends Component {
   static getDerivedStateFromError() {
     return { failed: true };
   }
+  componentDidUpdate(previous) {
+    if (this.state.failed && previous.resetKey !== this.props.resetKey)
+      this.setState({ failed: false });
+  }
   render() {
     if (this.state.failed)
       return (

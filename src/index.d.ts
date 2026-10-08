@@ -4,13 +4,27 @@ import type {
   RefAttributes,
   ReactNode,
 } from "react";
-import type { DiagramScene, ViewerPayload, ViewerModel } from "../lib/index";
+import type {
+  DiagramScene,
+  ViewerPayload,
+  ViewerModel,
+  PlanningContext,
+} from "../lib/index";
 export type InspectionTarget = {
   kind: "node" | "edge" | "group";
   id: string;
 } | null;
 export const OntoUMLViewer: ComponentType<ViewerPayload>;
-export const ViewerErrorBoundary: ComponentType<{ children?: ReactNode }>;
+export const AtlasPanel: ComponentType<{
+  payload: ViewerPayload;
+  theme?: "dark" | "light";
+  focus?: InspectionTarget | { kind: "view"; id: string };
+  onReference?(record: PlanningContext["records"][number]): void;
+}>;
+export const ViewerErrorBoundary: ComponentType<{
+  children?: ReactNode;
+  resetKey?: string;
+}>;
 export interface CameraControls {
   fit(): void;
   reset(): void;

@@ -29,7 +29,8 @@ const colorFamilies = {
 
 export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
-  const header = node.attributes.length ? 66 : node.height;
+  const methods = node.methods || [];
+  const header = node.attributes.length || methods.length ? 66 : node.height;
   const color = colorFamilies[node.stereotype] || node.stereotype;
   return (
     <g
@@ -39,6 +40,7 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       data-node-id={node.id}
       data-element-kind="node"
       data-element-id={node.id}
+      data-change={node.changeStatus}
       aria-label={node.name}
       aria-pressed={handlers ? sameTarget(target, selected) : undefined}
       transform={`translate(${node.x} ${node.y})`}
@@ -76,7 +78,16 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       >
         {node.name}
       </text>
-      {node.attributes.length > 0 && (
+      {node.changeStatus && node.changeStatus !== "unchanged" && (
+        <text x="8" y="15" fill="var(--text)" fontSize="12">
+          {node.changeStatus === "added"
+            ? "+"
+            : node.changeStatus === "removed"
+              ? "−"
+              : "Δ"}
+        </text>
+      )}
+      {(node.attributes.length > 0 || methods.length > 0) && (
         <>
           <path
             d={`M0 66 H${node.width}`}
@@ -94,6 +105,34 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
               </text>
             ))}
           </g>
+          {methods.length > 0 && (
+            <>
+              <path
+                d={`M0 ${node.attributes.length ? 76 + node.attributes.length * 20 : 66} H${node.width}`}
+                stroke="var(--diagram-divider,#d1d9e0)"
+              />
+              <g
+                className="methods"
+                fill="var(--diagram-attribute,#59636e)"
+                fontSize="12"
+              >
+                {methods.map((method, i) => (
+                  <text
+                    key={method.id || i}
+                    x="14"
+                    y={
+                      (node.attributes.length
+                        ? 97 + node.attributes.length * 20
+                        : 85) +
+                      i * 20
+                    }
+                  >
+                    {method.type}
+                  </text>
+                ))}
+              </g>
+            </>
+          )}
         </>
       )}
     </g>

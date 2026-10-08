@@ -1,3 +1,4 @@
+import { inspectionTarget } from "../model/inspectionTarget";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DiagramCanvas } from "../visualization/DiagramCanvas";
 import { useSVGExport } from "../visualization/useSVGExport";
@@ -16,12 +17,45 @@ import { useInspection, inspectedTarget } from "./useInspection";
 import { LearningLibrary } from "../learning/LearningContent";
 import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
+import { CaptureStamp } from "./CaptureStamp";
+import { ComparisonViewer } from "./ComparisonViewer";
+import { ReportViewer } from "./ReportViewer";
 
-export function OntoUMLViewer({
+export function OntoUMLViewer(props) {
+  if (props.report)
+    return (
+      <ReportViewer
+        payload={props}
+        render={(payload, focus) => (
+          <OntoUMLViewer {...payload} focus={focus || props.focus} />
+        )}
+      />
+    );
+  if (props.comparison)
+    return (
+      <ComparisonViewer
+        payload={props}
+        focus={props.focus}
+        render={(payload, focus) => (
+          <OntoUMLViewer {...payload} focus={focus || props.focus} />
+        )}
+      />
+    );
+  if (!props.views.length)
+    return (
+      <div className="viewer-error">
+        <h1>{props.model.title}</h1>
+        <p>No entities in this model.</p>
+      </div>
+    );
+  return <ViewerContent {...props} />;
+}
+function ViewerContent({
   model,
   views,
   exports: exportData,
   snippets = {},
+  focus = null,
 }) {
   const exports = useArtifactArchive(exportData);
   const [viewKey, setViewKey] = useState(views[0].key),
@@ -90,16 +124,26 @@ export function OntoUMLViewer({
   }, [clear]);
   const choose = useCallback(
     (id) => {
-      const node = index.nodes.get(id);
-      if (!node) return;
-      const next = viewForNode(views, viewKey, node);
+      const next = inspectionTarget(model, index, views, viewKey, id);
       if (!next) return;
-      setViewKey(next.key);
-      select({ kind: "node", id: node.id });
-      setFocusRequest({ id: node.id });
+      setViewKey(next.viewKey);
+      select(next.target);
+      if (next.nodeId) setFocusRequest({ id: next.nodeId });
     },
-    [index, views, viewKey, select],
+    [index, model, views, viewKey, select],
   );
+  const lastExternalFocus = useRef(null);
+  useEffect(() => {
+    if (focus && focus !== lastExternalFocus.current) {
+      lastExternalFocus.current = focus;
+      if (focus.kind === "view" && views.some((v) => v.key === focus.id))
+        setViewKey(focus.id);
+      else choose(focus.id);
+    }
+  }, [focus, choose, views]);
+  useEffect(() => {
+    if (selected && !index.getElement(selected)) select(null);
+  }, [index, selected, select]);
   return (
     <div className={`viewer${sidebarOpen ? " inspecting" : ""}`}>
       <ViewerToolbar
@@ -157,6 +201,7 @@ export function OntoUMLViewer({
         onHover={onHover}
         onClearHover={clearHover}
       />
+      <CaptureStamp model={model} />
       <Panel
         id="inspector"
         className="inspector"

@@ -1,23 +1,57 @@
 name: CI
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   verify:
     name: CI
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: atlas_fixture
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: atlas_fixture
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ATLAS_TEST_POSTGRES: postgresql://atlas_fixture:fixture_only@127.0.0.1:5432/atlas_fixture
+      WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - run: npm ci
-      - run: npm run check:types
+      - run: npm run format:check && npm run check:types
       - run: npm test
-      - run: npm run check
+      - run: npm run check && npm run check:package && npm run check:performance
+      - run: git diff --exit-code -- index.html downloads dist
+      - run: npm run check:release
+      - run: npm run review:example -- artifacts/review --git
+      - run: npm run release:assemble -- artifacts/release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
   betterleaks:
     name: Betterleaks
     runs-on: ubuntu-latest
@@ -29,8 +63,8 @@ jobs:
           persist-credentials: false
       - name: Install pinned Betterleaks
         env:
-          BETTERLEAKS_VERSION: '1.8.1'
-          BETTERLEAKS_SHA256: efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a
+          BETTERLEAKS_VERSION: "1.8.1"
+          BETTERLEAKS_SHA256: "efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a"
         run: |
           archive="$RUNNER_TEMP/betterleaks.tar.gz"
           curl -fsSL "https://github.com/betterleaks/betterleaks/releases/download/v${BETTERLEAKS_VERSION}/betterleaks_${BETTERLEAKS_VERSION}_linux_x64.tar.gz" -o "$archive"

@@ -22,6 +22,70 @@
   --border-muted: #373e47;
   --inspector-width: clamp(440px, 42vw, 640px);
 }
+.atlas-comparison {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+}
+.comparison-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  z-index: 30;
+}
+.comparison-summary > summary {
+  cursor: pointer;
+  padding: 7px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.comparison-summary > summary:hover {
+  background: var(--hover);
+}
+.comparison-list {
+  position: absolute;
+  right: 8px;
+  top: 100%;
+  width: min(480px, calc(100vw - 16px));
+  max-height: 65vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.comparison-list > details {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.comparison-list summary {
+  cursor: pointer;
+}
+.comparison-list pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.comparison-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.comparison-content > .atlas-panel,
+.comparison-content .viewer {
+  height: 100%;
+}
+.comparison-content #canvas,
+.comparison-content .panel {
+  position: absolute;
+}
 :root[data-theme="light"] {
   color-scheme: light;
   --canvas: #ffffff;
@@ -926,5 +990,195 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   .diagram-element {
     transition: none;
+  }
+}
+
+.atlas-capture {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 2;
+  max-width: calc(100% - 24px);
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--canvas);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.atlas-report-host {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--canvas);
+}
+.report-diagram {
+  height: 100%;
+}
+.report-diagram[hidden] {
+  display: none;
+}
+.report-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 12;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.report-toggle:hover {
+  border-color: var(--accent);
+}
+.report-toggle:active {
+  transform: translateY(1px);
+}
+.model-report {
+  height: 100%;
+  overflow-y: auto;
+  padding: 48px max(24px, calc((100% - 920px) / 2)) 72px;
+  color: var(--text);
+  line-height: 1.65;
+}
+.model-report section {
+  margin: 32px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.model-report h1 {
+  font-size: 32px;
+  line-height: 1.2;
+}
+.model-report h2 {
+  margin-bottom: 16px;
+  font-size: 22px;
+}
+.model-report h3 {
+  margin: 20px 0 8px;
+  font-size: 17px;
+}
+.model-report p {
+  margin: 10px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.model-report pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.model-report img {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  background: white;
+  border-radius: 6px;
+}
+.model-report figure {
+  margin: 24px 0;
+}
+.model-report figcaption {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.model-report table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.model-report td,
+.model-report th {
+  text-align: left;
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.model-report button {
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.model-report button:hover {
+  color: var(--text);
+}
+.model-report blockquote {
+  border-left: 3px solid var(--border);
+  margin: 16px 0;
+  padding-left: 16px;
+}
+.report-revision {
+  font-size: 12px;
+  color: var(--muted);
+}
+.report-scenario {
+  padding: 16px 0;
+}
+@media print {
+  :root {
+    color-scheme: light;
+  }
+  body,
+  #root,
+  .atlas-panel,
+  .atlas-report-host {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    color: #1f2328 !important;
+  }
+  .report-open .report-diagram,
+  .report-toggle,
+  .report-print,
+  .model-report button,
+  .model-report a[download] {
+    display: none !important;
+  }
+  .model-report {
+    height: auto;
+    overflow: visible;
+    padding: 0;
+    color: #1f2328;
+    font-size: 10pt;
+  }
+  .model-report section,
+  .model-report table,
+  .model-report td,
+  .model-report th {
+    border-color: #d1d9e0;
+  }
+  .model-report figure,
+  .model-report tr {
+    break-inside: avoid;
+  }
+  .model-report img {
+    max-height: 230mm;
+    object-fit: contain;
+  }
+  .model-report .report-reference {
+    display: inline !important;
+    color: #1f2328;
+    text-decoration: none;
+  }
+  .model-report details {
+    display: block;
+  }
+  .model-report details > * {
+    display: block !important;
+  }
+  .model-report a {
+    color: #0969da;
+  }
+}
+@media print {
+  .model-report .muted,
+  .model-report .report-revision {
+    color: #59636e;
   }
 }

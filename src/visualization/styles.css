@@ -204,3 +204,18 @@ svg.has-focus .diagram-element.highlighted {
     animation: none;
   }
 }
+[data-change="added"] .node-box,
+[data-change="added"] .edge-path {
+  stroke: #57ab5a;
+  stroke-width: 2;
+}
+[data-change="removed"] .node-box,
+[data-change="removed"] .edge-path {
+  stroke: #e5534b;
+  stroke-dasharray: 5 3;
+}
+[data-change="modified"] .node-box,
+[data-change="modified"] .edge-path {
+  stroke: #c69026;
+  stroke-width: 2;
+}

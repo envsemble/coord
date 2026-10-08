@@ -1,7 +1,11 @@
 const path = require("node:path");
+const fs = require("node:fs");
 const { build } = require("esbuild");
 async function buildLibrary() {
-  await build({
+  require("./build-embedded-css.cjs").buildEmbeddedCSS(
+    path.resolve(__dirname, ".."),
+  );
+  const built = await build({
     absWorkingDir: path.resolve(__dirname, ".."),
     entryPoints: ["src/index.js"],
     outfile: "dist/react.mjs",
@@ -13,7 +17,21 @@ async function buildLibrary() {
     target: "es2020",
     sourcemap: true,
     legalComments: "inline",
+    write: false,
   });
+  for (const output of built.outputFiles) {
+    const data = Buffer.from(output.contents);
+    if (fs.existsSync(output.path) && fs.readFileSync(output.path).equals(data))
+      continue;
+    fs.mkdirSync(path.dirname(output.path), { recursive: true });
+    const temporary = `${output.path}.${process.pid}.tmp`;
+    try {
+      fs.writeFileSync(temporary, data);
+      fs.renameSync(temporary, output.path);
+    } finally {
+      fs.rmSync(temporary, { force: true });
+    }
+  }
 }
 module.exports = { buildLibrary };
 if (require.main === module)
