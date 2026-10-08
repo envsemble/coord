@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Atlas">
+  <style>.surface{fill:#22272e}.line{stroke:#adbac7}@media(prefers-color-scheme:light){.surface{fill:#fff}.line{stroke:#57606a}}</style>
+  <rect class="surface" x="1" y="1" width="62" height="62" rx="14"/>
+  <path class="line" fill="none" stroke-width="4" stroke-linejoin="round" d="M16 47V32h16V17m0 15h16v15"/>
+  <path fill="#e3b341" d="m32 9-8 12h16z"/>
+  <rect x="9" y="42" width="14" height="14" rx="4" fill="#539bf5"/>
+  <rect x="41" y="42" width="14" height="14" rx="4" fill="#57ab5a"/>
+</svg>

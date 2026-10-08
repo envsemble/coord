@@ -20,4 +20,6 @@ PostgreSQL capture uses node-postgres (`pg`) under its MIT license, retained in 
 
 Dependencies are pinned in package-lock.json and retain their upstream licenses in their npm distributions. This repository is private and does not currently grant a public source-code license.
 
+Atlas logos, icons and banners in `assets/` are original editable SVG artwork created for this repository; application screenshots show the actual local viewer and planning integration. They follow the repository's current private/UNLICENSED status. The symbol uses a shared inheritance trunk and colored entities. No upstream documentation imagery or third-party logo was copied into it. GitHub-style interface tokens and Octicons retain the notices above; Atlas branding does not imply affiliation.
+
 TypeScript 6.0.3 is distributed as the `typescript-compiler` npm alias under Apache-2.0, including its upstream license. Atlas uses its classic compiler API for source inspection. TypeScript 7.0.2 remains a development type checker. The Java inspector is Atlas source using standard JDK 21 compiler APIs; the JDK is an external prerequisite. prettier-plugin-java 2.11.0 is a development formatter under its upstream Apache-2.0 license.

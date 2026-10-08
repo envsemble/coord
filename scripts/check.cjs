@@ -36,7 +36,9 @@ async function check() {
     );
   assert(!/<script\b[^>]*\bsrc\s*=/i.test(html), "External runtime script");
   assert(
-    !/<link\b[^>]*\b(?:href|rel)\s*=/i.test(html),
+    !/<link\b[^>]*\b(?:href|rel)\s*=/i.test(
+      html.replace(/<link rel="icon" href="data:image\/svg\+xml,[^"]+">/, ""),
+    ),
     "External runtime stylesheet or resource",
   );
   assert(

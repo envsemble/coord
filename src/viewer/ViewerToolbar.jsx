@@ -5,12 +5,12 @@ import { ConceptSearch } from "../ui/ConceptSearch";
 import { ExportMenu } from "../ui/ExportMenu";
 import { DownloadLink } from "../ui/DownloadLink";
 import { useMemo } from "react";
+import { AtlasMark } from "../ui/AtlasMark";
 import {
   BookIcon,
   SunIcon,
   MoonIcon,
   QuestionIcon,
-  RepoIcon,
   TableIcon,
   FileMediaIcon,
   FileCodeIcon,
@@ -56,7 +56,7 @@ export function ViewerToolbar({
     <header className="viewer-toolbar">
       <div className="toolbar-identity" title={model.title}>
         <span className="brand-mark">
-          <RepoIcon size={20} />
+          <AtlasMark />
         </span>
       </div>
       <div className="view-navigation">

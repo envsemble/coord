@@ -770,6 +770,80 @@ export const toolDefinitions: {
 export function prepareViewer(input: ViewerBuildInput): Promise<PreparedViewer>;
 export function buildViewer(input: ViewerBuildInput): Promise<BuildResult>;
 export function writeViewer(result: BuildResult, outputPath: string): void;
+export type ReviewRevision =
+  | { file: string }
+  | { repository: string; ref: string; path: string };
+export interface EvidenceRepository {
+  identity: string;
+  repository: string;
+  baseRef: string;
+  headRef: string;
+}
+export interface ModelReview {
+  format: "atlas/review";
+  formatVersion: 1;
+  base: {
+    documentId: string;
+    revision: string;
+    commit?: string;
+    path?: string;
+    contentHash?: string;
+  };
+  head: {
+    documentId: string;
+    revision: string;
+    commit?: string;
+    path?: string;
+    contentHash?: string;
+  };
+  outcome: "pass" | "findings";
+  exitCode: 0 | 1;
+  changes: SemanticComparison;
+  validation: ValidationReport;
+  scenarios: ScenarioResult[];
+  unresolvedConflicts: number;
+  evidence: {
+    checks: {
+      id: string;
+      repo: string | null;
+      file: string;
+      status: "unchanged" | "changed" | "missing" | "stale" | "unassessed";
+      reason: string;
+      baseCommit?: string;
+      headCommit?: string;
+      baseHash?: string | null;
+      headHash?: string | null;
+      capturedHash?: string | null;
+    }[];
+    counts: Record<string, number>;
+    sources: { identity: string; baseCommit: string; headCommit: string }[];
+    limitations: string[];
+  };
+  limitations: string[];
+}
+export interface ReviewBuildInput {
+  base: ReviewRevision;
+  head: ReviewRevision;
+  sources?: EvidenceRepository[];
+}
+export function reviewDocuments(
+  base: AtlasDocument,
+  head: AtlasDocument,
+  options?: { sources?: EvidenceRepository[] },
+): ModelReview;
+export function buildReview(
+  input: ReviewBuildInput,
+): Promise<{ report: ModelReview; files: Map<string, string | Uint8Array> }>;
+export function writeReview(
+  input: ReviewBuildInput & { outputDirectory: string },
+): Promise<{
+  exitCode: 0 | 1;
+  outcome: "pass" | "findings";
+  base: ModelReview["base"];
+  head: ModelReview["head"];
+  outputDirectory: string;
+  files: string[];
+}>;
 export interface ModelingJob {
   formatVersion: 1;
   title: string;

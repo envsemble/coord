@@ -20,9 +20,17 @@ verify:
     - npm test
     - npm run check
     - npm run check:package
+    - npm run check:performance
+    - npm run check:release
+    - npm run review:example -- artifacts/review --git
+    - npm run release:assemble -- artifacts/release
     - git diff --exit-code -- index.html downloads dist
   artifacts:
+    name: "atlas-$CI_COMMIT_SHORT_SHA"
+    when: always
     paths:
       - index.html
       - downloads/
+      - artifacts/review/
+      - artifacts/release/
     expire_in: 1 week
