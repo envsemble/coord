@@ -1,5 +1,11 @@
 # Changelog
 
+## GitHub migration — 2026-10-08
+
+- Moved canonical source to `envsemble/atlas` with its original Git history.
+- Replaced GitLab delivery with GitHub Actions and required `CI`/`Betterleaks` checks, retaining all adapter, consumer and reproducible artifact gates.
+- Linked the Worktrail planning skills/dashboard and updated package metadata.
+
 ## 0.5.0 — 2026-10-08
 
 - Versioned documents for authored OntoUML, captured database/code structure and proposals, preserving immutable baselines and selected planning context.

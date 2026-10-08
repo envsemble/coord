@@ -3,6 +3,14 @@
   "version": "0.5.0",
   "private": true,
   "description": "Agent-ready OntoUML validation, offline visualization and learning",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/envsemble/atlas.git"
+  },
+  "homepage": "https://github.com/envsemble/atlas",
+  "bugs": {
+    "url": "https://github.com/envsemble/atlas/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build.cjs",
