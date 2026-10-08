@@ -1,8 +1,8 @@
 {
   "name": "ontouml-atlas",
   "version": "0.5.0",
-  "file": "ontouml-atlas-077a33edf2e5.tgz",
+  "file": "ontouml-atlas-f03a72b77bd7.tgz",
   "source": "git@gitlab.fit.cvut.cz:gordijak/kom-apex-legends.git",
-  "commit": "077a33edf2e50a398a913fda189e222e6fb9a2a3",
-  "sha256": "bffa0bf082b149ef5155227c274dd15cda355f7451598f8ebe2ee98cddf725fc"
+  "commit": "f03a72b77bd737c196ba1e3483f899788c5d4b62",
+  "sha256": "d348e360b147d834dc506c151c2f9f47568e97617875b6b2267d5ab16861aa3f"
 }
