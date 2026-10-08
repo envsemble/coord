@@ -208,9 +208,17 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
         if path.is_absolute() or ".." in path.parts or ":" in value or not path.parts:
             errors.append(label + " must stay inside planning")
             return None
+        if any(part.startswith('.') or part in {'node_modules', '__pycache__', 'dist', 'build'}
+               for part in path.parts):
+            errors.append(label + " is hidden from the dashboard")
+            return None
         target = (root / value).resolve()
         if not target.is_relative_to(root):
             errors.append(label + " resolves outside planning")
+            return None
+        if any(part.startswith('.') or part in {'node_modules', '__pycache__', 'dist', 'build'}
+               for part in target.relative_to(root).parts):
+            errors.append(label + " resolves to a path hidden from the dashboard")
             return None
         if not target.exists():
             errors.append(label + " does not exist: " + value)

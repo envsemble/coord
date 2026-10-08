@@ -7,6 +7,7 @@ import atlas, { type AtlasDocument } from 'ontouml-atlas';
 const { createWorkspace } = atlas;
 import { AtlasCatalog } from './atlas.ts';
 import { createScopeCache } from './atlasScope.ts';
+import { selectModelHandle } from '../src/modelSelection.ts';
 import type { Snapshot } from '../src/types.ts';
 
 test('dashboard serves scoped native payloads, caches revisions and retains valid snapshots', async () => {
@@ -56,8 +57,19 @@ test('dashboard serves scoped native payloads, caches revisions and retains vali
     const damaged = JSON.parse(readFileSync(filename, 'utf8')) as AtlasDocument;
     damaged.title = 'Unrecorded edit'; writeFileSync(filename, JSON.stringify(damaged));
     assert.equal(catalog.list(snapshot, 'work-1').issues.length, 1);
+    assert.deepEqual(catalog.list(snapshot, 'work-1').invalidHandles, [handle]);
+    const invalid = catalog.list(snapshot, 'work-1');
+    assert.equal(selectModelHandle(invalid.models, handle, '', invalid.invalidHandles), handle);
     await assert.rejects(catalog.prepared(snapshot, 'work-1', handle), /invalid update/);
     assert.equal(next.model.title, 'Proposed orders');
+    const second = await workspace.execute('atlas_create', { input: { id: 'second', workId: 'work-1', profile: 'code', model: { type: 'StructuralModel', nodes: [{ id: 'other', name: 'Other', attributes: [] }], relations: [], generalizations: [], generalizationSets: [] } } });
+    const withOther = catalog.list(snapshot, 'work-1');
+    assert.equal(selectModelHandle(withOther.models, handle, '', withOther.invalidHandles), handle);
+    rmSync(filename);
+    const removed = catalog.list(snapshot, 'work-1');
+    assert.deepEqual(removed.invalidHandles, []);
+    assert.equal(selectModelHandle(removed.models, handle, '', removed.invalidHandles), second.handle);
+    assert.equal(selectModelHandle(removed.models, handle, handle, removed.invalidHandles), handle);
   } finally {
     assert.equal(path.dirname(realpathSync(root)), realpathSync(os.tmpdir()));
     rmSync(root, { recursive: true, force: true });

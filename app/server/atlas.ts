@@ -22,9 +22,9 @@ export class AtlasCatalog {
   list(snapshot: PlanningIndex, work: string) {
     this.work(snapshot, work);
     const directory = path.join(this.root, '.atlas/models');
-    if (!existsSync(directory)) return { models: [] as AtlasEntry[], issues: [] as string[] };
+    if (!existsSync(directory)) return { models: [] as AtlasEntry[], issues: [] as string[], invalidHandles: [] as string[] };
     const workspace = this.workspace();
-    const models: AtlasEntry[] = [], issues: string[] = [];
+    const models: AtlasEntry[] = [], issues: string[] = [], invalidHandles: string[] = [];
     for (const name of readdirSync(directory).filter(name => /^m-[a-f0-9]{24}\.json$/.test(name)).sort()) {
       const handle = name.slice(0, -5);
       try {
@@ -41,10 +41,13 @@ export class AtlasCatalog {
           const relative = path.relative(realpathSync(this.root), realpathSync(filename));
           if (!owner && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep) && statSync(filename).size <= 1024 * 1024) owner = JSON.parse(readFileSync(filename, 'utf8')).workId;
         } catch { /* Unattributed malformed files cannot be served. */ }
-        if (owner === work) issues.push(`Model ${handle} has an invalid or unrecorded update. The last valid view is retained.`);
+        if (owner === work) {
+          invalidHandles.push(handle);
+          issues.push(`Model ${handle} has an invalid or unrecorded update. The last valid view is retained.`);
+        }
       }
     }
-    return { models, issues };
+    return { models, issues, invalidHandles };
   }
   load(snapshot: PlanningIndex, work: string, handle: string): AtlasDocument {
     this.work(snapshot, work);

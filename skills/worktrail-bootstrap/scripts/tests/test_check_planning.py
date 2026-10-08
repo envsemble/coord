@@ -109,6 +109,28 @@ class PlanningFixture(unittest.TestCase):
                 self.write()
                 self.assertTrue(validate(self.root)[0])
 
+    def test_work_locations_and_selected_plans_reject_dashboard_hidden_components(self):
+        original = copy.deepcopy(self.registry)
+        for component in ('.private', 'node_modules', '__pycache__', 'dist', 'build'):
+            for field in ('path', 'current_plan'):
+                with self.subTest(component=component, field=field):
+                    self.registry = copy.deepcopy(original)
+                    entry = self.registry['work_items'][0]
+                    if field == 'path':
+                        location = 'active/' + component + '/0001-example'
+                        entry['path'] = location
+                        entry['current_plan'] = location + '/plan.md'
+                    else:
+                        entry['current_plan'] = entry['path'] + '/' + component + '/plan.md'
+                    target = self.root / entry['current_plan']
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(self.plan.read_bytes())
+                    self.write()
+                    before = (target.read_bytes(), (self.root / 'planning.json').read_bytes())
+                    errors, _ = validate(self.root)
+                    self.assertTrue(any('hidden from the dashboard' in error for error in errors), errors)
+                    self.assertEqual((target.read_bytes(), (self.root / 'planning.json').read_bytes()), before)
+
     def test_pointer_outside_own_work(self):
         other = self.root / "archive/other.md"
         other.parent.mkdir()

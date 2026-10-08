@@ -7,6 +7,7 @@ import type { Route } from './routes';
 import { documentRoute } from './routes';
 import { samePath } from './links';
 import { pollWhileVisible } from './visiblePoll';
+import { selectModelHandle } from './modelSelection';
 
 interface Entry { handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean }
 export interface ModelReference { handle: string; workId: string; title: string; elementId: string; label: string; section: string | null }
@@ -29,7 +30,7 @@ export function PlanDiagrams({ file, work, navigate }: { file: Document; work?: 
   return links.length > 0 ? <nav className="plan-diagrams" aria-label="Referenced diagrams">{links.map((link, index) => <button key={index} onClick={() => navigate({ view: 'work', work: link.workId, tab: 'diagrams', diagram: link.handle, element: link.elementId })}>{link.title} · {link.label}</button>)}</nav> : null;
 }
 export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work; snapshot: Snapshot; route: Route; navigate(route: Partial<Route>): void }) {
-  const [catalog, setCatalog] = useState<{ models: Entry[]; issues: string[] }>({ models: [], issues: [] });
+  const [catalog, setCatalog] = useState<{ models: Entry[]; issues: string[]; invalidHandles: string[] }>({ models: [], issues: [], invalidHandles: [] });
   const [catalogError, setCatalogError] = useState('');
   const [modelError, setModelError] = useState('');
   const [payload, setPayload] = useState<ViewerPayload | null>(null);
@@ -37,17 +38,17 @@ export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work
   const [referenceError, setReferenceError] = useState('');
   const [maximized, setMaximized] = useState(false);
   const [defaultHandle, setDefaultHandle] = useState('');
-  const handle = route.diagram || defaultHandle || catalog.models[0]?.handle || '';
+  const handle = selectModelHandle(catalog.models, defaultHandle, route.diagram || '', catalog.invalidHandles);
   const revision = catalog.models.find(entry => entry.handle === handle)?.revision;
   useEffect(() => {
     return pollWhileVisible(async signal => {
-      try { const next = await get<typeof catalog>('/api/atlas/models?' + new URLSearchParams({ work: work.id }), signal); if (!signal.aborted) { setCatalog(next); setDefaultHandle(previous => previous || next.models[0]?.handle || ''); setCatalogError(''); } }
+      try { const next = await get<typeof catalog>('/api/atlas/models?' + new URLSearchParams({ work: work.id }), signal); if (!signal.aborted) { setCatalog(next); setDefaultHandle(previous => selectModelHandle(next.models, previous, '', next.invalidHandles)); setCatalogError(''); } }
       catch (error) { if (!signal.aborted) setCatalogError((error as Error).message); }
       return 2000;
     });
   }, [work.id]);
   useEffect(() => {
-    if (!handle) return;
+    if (!handle) { setPayload(null); setLoaded(''); setModelError(''); return; }
     if (loaded !== handle) { setPayload(null); setModelError(''); }
     let retryDelay = 2000;
     return pollWhileVisible(async signal => {
