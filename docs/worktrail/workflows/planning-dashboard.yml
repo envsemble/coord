@@ -24,5 +24,14 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: node scripts/check-review.mjs
+      - run: npm run check:release
+      - run: npm run release:assemble
+      - uses: actions/upload-artifact@v4
+        with:
+          name: planning-atlas-${{ matrix.os }}-${{ github.sha }}
+          path: planning-dashboard/artifacts/
+          if-no-files-found: error
+          retention-days: 7
       - run: python -m unittest discover -s planning-workflow/planning-bootstrap/scripts/tests -q
         working-directory: .

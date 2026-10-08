@@ -1,5 +1,9 @@
 # Planning dashboard
 
+[![Dashboard checks](https://github.com/jakubg05/skills/actions/workflows/planning-dashboard.yml/badge.svg?branch=codex%2Fatlas-planning-integration)](https://github.com/jakubg05/skills/actions/workflows/planning-dashboard.yml)
+
+![Atlas diagram comparison embedded beside planning navigation](assets/atlas-dashboard.jpg)
+
 A local React viewer for a planning repository. Browse active and archived work, selected plans, ledgers, glossary, ADRs, evidence, scoped knowledge, and recorded Git activity. Discuss changes with your agent in chat.
 
 ## Run locally
@@ -63,3 +67,7 @@ The tab checks model revision summaries every two seconds while open. Planning s
 An element's retained plan/glossary/decision passages appear in its inspector. **Open plan** follows an indexed record and optional `section` heading. The referenced document also exposes links back into the diagram. Shared knowledge pages aggregate backlinks from their registered work items. References outside the indexed work and shared knowledge are unavailable; retained passage text still helps explain the model offline. Code evidence remains pinned and uses Atlas's syntax-highlighted snippets.
 
 The dashboard installs the canonical Atlas package from `vendor/ontouml-atlas-<source-commit>.tgz`. Its manifest records the source commit and SHA-256. To update it from a clean, committed Atlas checkout, run `npm run atlas:package -- /path/to/atlas`, then `npm install` and the checks. CI needs no sibling Atlas checkout. See [Atlas planning guidance](../planning-workflow/atlas-modeling/SKILL.md).
+
+**Report** opens authored walkthroughs, checked finite instances/counterexamples, guided SVG diagrams, selected glossary/evidence and print presentation. It returns to the existing diagram without discarding its camera/selection. Model state, source scopes and imported claims remain visible; learning checks do not establish domain accuracy.
+
+The installed consumer CI also runs `node scripts/check-review.mjs`, testing semantic review and HTML export/reopen without the Atlas source checkout. Revision-labelled review files are retained as workflow artifacts. `npm run release:assemble` builds a versioned planning/dashboard source ZIP from the committed Git tree with its pinned Atlas tarball; `npm run check:release` verifies hashes and repeatable packaging without publishing. See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md). Models in a user's local `.atlas` workspace are excluded from distribution.

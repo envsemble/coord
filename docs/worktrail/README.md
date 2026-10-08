@@ -1,5 +1,9 @@
 # Jacob's Codex Skills
 
+[![Planning checks](https://github.com/jakubg05/skills/actions/workflows/validate.yml/badge.svg?branch=codex%2Fatlas-planning-integration)](https://github.com/jakubg05/skills/actions/workflows/validate.yml)
+[![Dashboard checks](https://github.com/jakubg05/skills/actions/workflows/planning-dashboard.yml/badge.svg?branch=codex%2Fatlas-planning-integration)](https://github.com/jakubg05/skills/actions/workflows/planning-dashboard.yml)
+[![Node 24](https://img.shields.io/badge/dashboard-Node_24-43853d)](planning-dashboard/README.md)
+
 Reusable skills for [Codex](https://openai.com/codex/). The planning workflow is grouped in one source folder; its skills install as individual sibling folders.
 
 ## Planning workflow
@@ -47,6 +51,14 @@ Use `planning-bootstrap` to create/adopt a folder named `planning` in the releva
 The [planning dashboard](planning-dashboard) is a local React viewer for plans, implementation records, knowledge, Git history, and usage statistics. From that directory, run npm ci once, then npm run dev. It reads the sibling planning repository by default, with --planning-dir for another location. Node.js 24+ is required; nothing needs a model API or remote hosting.
 
 The five planning skills report actual document consultation through the shared bootstrap helper, even while the dashboard is closed. Browser views are collected separately. Usage stays in a local cache outside planning documents. See the [dashboard guide](planning-dashboard/README.md) for launch options and collection limitations.
+
+### Plan with Atlas
+
+Use [atlas-modeling](planning-workflow/atlas-modeling) to inspect a dated database/class snapshot, author a conceptual proposal, compare changes and retain selected plan/glossary/code references. Atlas is the modeling tool; the planning records still own decisions and progress. The dashboard embeds its React viewer directly. Portable HTML is a separate offline submission/review mode that an agent can reopen later.
+
+![Atlas comparison inside the planning dashboard, with plan and ledger navigation](planning-dashboard/assets/atlas-dashboard.jpg)
+
+The [Atlas repository](https://gitlab.fit.cvut.cz/gordijak/kom-apex-legends) owns capture, validation, diagrams and export. This repository owns the planning skill and dashboard integration, with a reproducible commit/hash-pinned consumer package. [Integration and distribution](planning-dashboard/README.md#atlas-diagrams) describe the boundary and nonpublishing CI artifacts.
 
 ## Other skills and archive
 
