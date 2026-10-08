@@ -1799,6 +1799,8 @@ function ViewerToolbar({
 }) {
   const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
   const sidebarLabel = sidebarHidden ? "Show sidebar" : "Hide sidebar";
+  const conceptual = !model.document || model.document.profile === "ontouml";
+  const modelFile = `${exports.slug}-${conceptual ? "ontouml" : "structural"}.json`;
   const searchClasses = useMemo4(() => {
     const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
     return model.classes.filter((concept) => visibleIds.has(concept.id));
@@ -1856,12 +1858,12 @@ function ViewerToolbar({
           {
             id: "model-download",
             className: "",
-            data: exports.readText(`${exports.slug}-ontouml.json`),
-            filename: `${exports.slug}-ontouml.json`,
+            data: exports.readText(modelFile),
+            filename: modelFile,
             type: "application/json",
             children: [
               /* @__PURE__ */ jsx13(FileCodeIcon, { size: 16 }),
-              "OntoUML JSON"
+              conceptual ? "OntoUML JSON" : "Structural JSON"
             ]
           }
         ),
@@ -1880,7 +1882,7 @@ function ViewerToolbar({
           }
         )
       ] }),
-      /* @__PURE__ */ jsxs9(
+      conceptual && /* @__PURE__ */ jsxs9(
         "button",
         {
           id: "learn-toggle",
@@ -2436,8 +2438,10 @@ var ConceptDetails = memo5(function ConceptDetails2({
         snippets
       }
     ),
-    /* @__PURE__ */ jsx18(ElementLearning, { element: concept, model }),
-    concept.attributes.length > 0 && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
+    (!model.document || model.document.profile === "ontouml") && /* @__PURE__ */ jsx18(ElementLearning, { element: concept, model }),
+    model.document?.profile === "database" && /* @__PURE__ */ jsx18(CapturedSchema, { element: concept }),
+    /* @__PURE__ */ jsx18(CaptureDetails, { model }),
+    concept.attributes.length > 0 && model.document?.profile !== "database" && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
       /* @__PURE__ */ jsx18("summary", { children: "Fields" }),
       concept.attributes.map(
         ({ name, type, multiplicity: cardinality }, i) => /* @__PURE__ */ jsxs14("div", { className: "field-row", children: [
@@ -2474,7 +2478,8 @@ var RelationDetails = memo5(function RelationDetails2({
       /* @__PURE__ */ jsx18("button", { onClick: () => onChoose(node.id), children: node.name }),
       count && /* @__PURE__ */ jsx18("span", { className: "count-badge", children: count })
     ] }, i)) }),
-    /* @__PURE__ */ jsx18(ElementLearning, { element: relation, model, relation: true }),
+    (!model.document || model.document.profile === "ontouml") && /* @__PURE__ */ jsx18(ElementLearning, { element: relation, model, relation: true }),
+    model.document?.profile === "database" && /* @__PURE__ */ jsx18(CapturedSchema, { element: relation }),
     relation.type === "generalization" && (model.partitions || []).filter((set) => set.generalizations.includes(relation.id)).map((set) => /* @__PURE__ */ jsxs14("div", { className: "generalization-set-summary", children: [
       /* @__PURE__ */ jsx18("h2", { children: set.name }),
       /* @__PURE__ */ jsx18("p", { children: `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}` })
@@ -2542,6 +2547,81 @@ var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
     )
   ] });
 });
+function CaptureDetails({ model }) {
+  const document2 = model.document;
+  const snapshot = document2?.snapshots.find(
+    (s) => s.id === document2.baselineId
+  );
+  if (!snapshot) return null;
+  const capture = snapshot.capture;
+  return /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
+    /* @__PURE__ */ jsxs14("summary", { children: [
+      "Capture \xB7 ",
+      capture.coverage.status,
+      document2.imported ? " \xB7 imported claims" : ""
+    ] }),
+    /* @__PURE__ */ jsx18("p", { children: capture.capturedAt }),
+    /* @__PURE__ */ jsxs14("p", { children: [
+      capture.source.kind,
+      " \xB7 ",
+      capture.source.identity
+    ] }),
+    /* @__PURE__ */ jsx18("p", { children: capture.consistency?.kind }),
+    (capture.coverage.diagnostics || []).map((d, i) => /* @__PURE__ */ jsx18("p", { children: d.message }, i)),
+    (capture.limitations || []).map((text, i) => /* @__PURE__ */ jsx18("p", { className: "muted", children: text }, i))
+  ] });
+}
+function CapturedSchema({ element }) {
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    element.attributes?.length > 0 && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", open: true, children: [
+      /* @__PURE__ */ jsx18("summary", { children: "Columns" }),
+      element.attributes.map((column) => /* @__PURE__ */ jsxs14("div", { className: "field-row", children: [
+        /* @__PURE__ */ jsxs14("span", { children: [
+          column.name,
+          /* @__PURE__ */ jsxs14("small", { children: [
+            column.primaryKeyOrder ? ` \xB7 PK ${column.primaryKeyOrder}` : "",
+            column.generated ? " \xB7 generated" : ""
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxs14("span", { children: [
+          column.type,
+          " \xB7 ",
+          column.nullable ? "nullable" : "required",
+          column.default !== null && column.default !== void 0 ? ` \xB7 default ${column.default}` : ""
+        ] })
+      ] }, column.id))
+    ] }),
+    element.keys?.length > 0 && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
+      /* @__PURE__ */ jsx18("summary", { children: "Keys" }),
+      element.keys.map((key) => /* @__PURE__ */ jsxs14("p", { children: [
+        key.primary ? "Primary" : "Unique",
+        " \xB7 ",
+        key.columns.join(", ")
+      ] }, key.name))
+    ] }),
+    [
+      element.definition,
+      ...(element.constraints || []).map((c) => c.definition),
+      ...(element.indexes || []).map((i) => i.definition),
+      ...(element.triggers || []).map((t) => t.definition || t.sql)
+    ].filter(Boolean).length > 0 && /* @__PURE__ */ jsxs14("details", { className: "concept-fields", children: [
+      /* @__PURE__ */ jsx18("summary", { children: "Captured SQL" }),
+      [
+        element.definition,
+        ...(element.constraints || []).map((c) => c.definition),
+        ...(element.indexes || []).map((i) => i.definition),
+        ...(element.triggers || []).map((t) => t.definition || t.sql)
+      ].filter(Boolean).map((sql, i) => /* @__PURE__ */ jsx18(
+        "pre",
+        {
+          style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
+          children: /* @__PURE__ */ jsx18("code", { children: sql })
+        },
+        i
+      ))
+    ] })
+  ] });
+}
 function About({ model, exports }) {
   return /* @__PURE__ */ jsxs14(Fragment6, { children: [
     /* @__PURE__ */ jsx18("h1", { children: model.title }),
@@ -2735,11 +2815,37 @@ function createZoomStore() {
   };
 }
 
+// src/viewer/CaptureStamp.jsx
+import { jsxs as jsxs15 } from "react/jsx-runtime";
+function CaptureStamp({ model }) {
+  const meta = model.document;
+  if (!meta) return null;
+  const snapshot = meta.snapshots.find((s) => s.id === meta.baselineId);
+  return /* @__PURE__ */ jsxs15(
+    "span",
+    {
+      className: "atlas-capture",
+      title: snapshot ? `${snapshot.capture.source.kind}: ${snapshot.capture.source.identity}
+${snapshot.capture.coverage.status} coverage; ${meta.imported ? "imported claims" : "retained capture"}` : `Revision ${meta.revision.id}`,
+      children: [
+        meta.profile,
+        " \xB7 ",
+        meta.state,
+        " \xB7",
+        " ",
+        snapshot ? snapshot.capture.capturedAt : meta.revision.createdAt,
+        snapshot ? ` \xB7 ${snapshot.capture.coverage.status}` : "",
+        meta.imported ? " \xB7 imported" : ""
+      ]
+    }
+  );
+}
+
 // src/viewer/OntoUMLViewer.jsx
-import { jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
+import { jsx as jsx19, jsxs as jsxs16 } from "react/jsx-runtime";
 function OntoUMLViewer(props) {
   if (!props.views.length)
-    return /* @__PURE__ */ jsxs15("div", { className: "viewer-error", children: [
+    return /* @__PURE__ */ jsxs16("div", { className: "viewer-error", children: [
       /* @__PURE__ */ jsx19("h1", { children: props.model.title }),
       /* @__PURE__ */ jsx19("p", { children: "No entities in this model." })
     ] });
@@ -2822,7 +2928,7 @@ function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
     },
     [index, views, viewKey, select]
   );
-  return /* @__PURE__ */ jsxs15("div", { className: `viewer${sidebarOpen ? " inspecting" : ""}`, children: [
+  return /* @__PURE__ */ jsxs16("div", { className: `viewer${sidebarOpen ? " inspecting" : ""}`, children: [
     /* @__PURE__ */ jsx19(
       ViewerToolbar,
       {
@@ -2879,7 +2985,8 @@ function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
         onClearHover: clearHover
       }
     ),
-    /* @__PURE__ */ jsxs15(
+    /* @__PURE__ */ jsx19(CaptureStamp, { model }),
+    /* @__PURE__ */ jsxs16(
       Panel,
       {
         id: "inspector",
@@ -2975,10 +3082,10 @@ import {
   useRef as useRef8,
   useState as useState11
 } from "react";
-import { jsx as jsx20, jsxs as jsxs16 } from "react/jsx-runtime";
+import { jsx as jsx20, jsxs as jsxs17 } from "react/jsx-runtime";
 function AtlasPanel(props) {
   if (!props.payload.views.length)
-    return /* @__PURE__ */ jsxs16(
+    return /* @__PURE__ */ jsxs17(
       "div",
       {
         className: "atlas-panel atlas-empty",
@@ -3070,7 +3177,7 @@ function AtlasPanelContent({
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [select]);
-  const meta = model.document, capture = meta?.snapshots.find((s) => s.id === meta.baselineId);
+  const meta = model.document;
   const context = meta?.context || { records: [], links: [] };
   const contextIds = /* @__PURE__ */ new Set([
     inspected?.id,
@@ -3081,8 +3188,8 @@ function AtlasPanelContent({
       (l) => contextIds.has(l.elementId) && l.recordId === r.id
     )
   );
-  return /* @__PURE__ */ jsx20("div", { className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs16("div", { className: `viewer${open ? " inspecting" : ""}`, children: [
-    /* @__PURE__ */ jsxs16("header", { className: "viewer-toolbar", children: [
+  return /* @__PURE__ */ jsx20("div", { className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs17("div", { className: `viewer${open ? " inspecting" : ""}`, children: [
+    /* @__PURE__ */ jsxs17("header", { className: "viewer-toolbar", children: [
       /* @__PURE__ */ jsx20(
         Tabs,
         {
@@ -3096,7 +3203,7 @@ function AtlasPanelContent({
         }
       ),
       /* @__PURE__ */ jsx20("span", { className: "spacer" }),
-      /* @__PURE__ */ jsxs16("div", { className: "toolbar-actions", children: [
+      /* @__PURE__ */ jsxs17("div", { className: "toolbar-actions", children: [
         /* @__PURE__ */ jsx20(ConceptSearch, { classes: model.classes, onChoose: choose }),
         /* @__PURE__ */ jsx20(
           ToggleButton,
@@ -3156,24 +3263,8 @@ function AtlasPanelContent({
         onClearHover: clearHover
       }
     ),
-    meta && /* @__PURE__ */ jsxs16(
-      "span",
-      {
-        className: "atlas-capture",
-        title: capture ? `${capture.capture.source.kind}: ${capture.capture.source.identity}
-${capture.capture.coverage.status} coverage; ${meta.imported ? "imported claims" : "retained capture"}` : `Revision ${meta.revision.id}`,
-        children: [
-          meta.profile,
-          " \xB7 ",
-          meta.state,
-          " \xB7",
-          " ",
-          capture ? capture.capture.capturedAt : meta.revision.createdAt,
-          meta.imported ? " \xB7 imported" : ""
-        ]
-      }
-    ),
-    /* @__PURE__ */ jsxs16(
+    /* @__PURE__ */ jsx20(CaptureStamp, { model }),
+    /* @__PURE__ */ jsxs17(
       Panel,
       {
         id: inspectorId,
@@ -3213,10 +3304,10 @@ ${capture.capture.coverage.status} coverage; ${meta.imported ? "imported claims"
               onChoose: choose
             }
           ),
-          open && !learning && linked.length > 0 && /* @__PURE__ */ jsx20("section", { className: "atlas-context", "aria-label": "Planning references", children: linked.map((record) => /* @__PURE__ */ jsxs16("details", { children: [
+          open && !learning && linked.length > 0 && /* @__PURE__ */ jsx20("section", { className: "atlas-context", "aria-label": "Planning references", children: linked.map((record) => /* @__PURE__ */ jsxs17("details", { children: [
             /* @__PURE__ */ jsx20("summary", { children: record.title || record.kind }),
             /* @__PURE__ */ jsx20("p", { children: record.text }),
-            onReference && typeof record.path === "string" && /* @__PURE__ */ jsxs16("button", { onClick: () => onReference(record), children: [
+            onReference && typeof record.path === "string" && /* @__PURE__ */ jsxs17("button", { onClick: () => onReference(record), children: [
               "Open ",
               record.kind
             ] })
@@ -3229,7 +3320,7 @@ ${capture.capture.coverage.status} coverage; ${meta.imported ? "imported claims"
 
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { jsx as jsx21, jsxs as jsxs17 } from "react/jsx-runtime";
+import { jsx as jsx21, jsxs as jsxs18 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -3238,9 +3329,13 @@ var ViewerErrorBoundary = class extends Component {
   static getDerivedStateFromError() {
     return { failed: true };
   }
+  componentDidUpdate(previous) {
+    if (this.state.failed && previous.resetKey !== this.props.resetKey)
+      this.setState({ failed: false });
+  }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsxs17("main", { className: "viewer-error", role: "alert", children: [
+      return /* @__PURE__ */ jsxs18("main", { className: "viewer-error", role: "alert", children: [
         /* @__PURE__ */ jsx21("h1", { children: "The model could not be displayed" }),
         /* @__PURE__ */ jsx21("p", { children: "Rebuild the viewer from the model and check its validation report." }),
         /* @__PURE__ */ jsx21("button", { onClick: () => location.reload(), children: "Reload" })

@@ -15,7 +15,7 @@ const {
 const { buildEmbeddedCSS } = require("../scripts/build-embedded-css.cjs");
 function components() {
   const code = buildSync({
-    entryPoints: ["src/viewer/AtlasPanel.jsx"],
+    entryPoints: ["src/index.js"],
     bundle: true,
     platform: "node",
     format: "cjs",
@@ -84,4 +84,23 @@ test("empty captures prepare and export a readable portable document", async () 
   );
   const exported = await buildViewer({ document });
   assert.deepEqual(importDocument(exported.html).model.nodes, []);
+});
+test("standalone structural documents render their profile-specific exports and capture inspector", async () => {
+  const document = createDocument({
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [{ id: "table", name: "Table", attributes: [] }],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
+    },
+  });
+  const prepared = await prepareViewer({ document });
+  const { OntoUMLViewer } = components();
+  const html = renderToStaticMarkup(
+    createElement(OntoUMLViewer, prepared.payload),
+  );
+  assert(html.includes("Structural JSON"));
+  assert(!html.includes("Learn OntoUML"));
 });

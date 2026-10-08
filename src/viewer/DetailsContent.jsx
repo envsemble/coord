@@ -25,23 +25,30 @@ export const ConceptDetails = memo(function ConceptDetails({
         sources={model.sources}
         snippets={snippets}
       />
-      <ElementLearning element={concept} model={model} />
-      {concept.attributes.length > 0 && (
-        <details className="concept-fields">
-          <summary>Fields</summary>
-          {concept.attributes.map(
-            ({ name, type, multiplicity: cardinality }, i) => (
-              <div className="field-row" key={i}>
-                <span>{name}</span>
-                <span>
-                  {type}
-                  {cardinality ? ` [${cardinality}]` : ""}
-                </span>
-              </div>
-            ),
-          )}
-        </details>
+      {(!model.document || model.document.profile === "ontouml") && (
+        <ElementLearning element={concept} model={model} />
       )}
+      {model.document?.profile === "database" && (
+        <CapturedSchema element={concept} />
+      )}
+      <CaptureDetails model={model} />
+      {concept.attributes.length > 0 &&
+        model.document?.profile !== "database" && (
+          <details className="concept-fields">
+            <summary>Fields</summary>
+            {concept.attributes.map(
+              ({ name, type, multiplicity: cardinality }, i) => (
+                <div className="field-row" key={i}>
+                  <span>{name}</span>
+                  <span>
+                    {type}
+                    {cardinality ? ` [${cardinality}]` : ""}
+                  </span>
+                </div>
+              ),
+            )}
+          </details>
+        )}
     </>
   );
 });
@@ -78,7 +85,12 @@ export const RelationDetails = memo(function RelationDetails({
           </div>
         ))}
       </div>
-      <ElementLearning element={relation} model={model} relation />
+      {(!model.document || model.document.profile === "ontouml") && (
+        <ElementLearning element={relation} model={model} relation />
+      )}
+      {model.document?.profile === "database" && (
+        <CapturedSchema element={relation} />
+      )}
       {relation.type === "generalization" &&
         (model.partitions || [])
           .filter((set) => set.generalizations.includes(relation.id))
@@ -173,6 +185,100 @@ export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
     </>
   );
 });
+function CaptureDetails({ model }) {
+  const document = model.document;
+  const snapshot = document?.snapshots.find(
+    (s) => s.id === document.baselineId,
+  );
+  if (!snapshot) return null;
+  const capture = snapshot.capture;
+  return (
+    <details className="concept-fields">
+      <summary>
+        Capture · {capture.coverage.status}
+        {document.imported ? " · imported claims" : ""}
+      </summary>
+      <p>{capture.capturedAt}</p>
+      <p>
+        {capture.source.kind} · {capture.source.identity}
+      </p>
+      <p>{capture.consistency?.kind}</p>
+      {(capture.coverage.diagnostics || []).map((d, i) => (
+        <p key={i}>{d.message}</p>
+      ))}
+      {(capture.limitations || []).map((text, i) => (
+        <p className="muted" key={i}>
+          {text}
+        </p>
+      ))}
+    </details>
+  );
+}
+function CapturedSchema({ element }) {
+  return (
+    <>
+      {element.attributes?.length > 0 && (
+        <details className="concept-fields" open>
+          <summary>Columns</summary>
+          {element.attributes.map((column) => (
+            <div className="field-row" key={column.id}>
+              <span>
+                {column.name}
+                <small>
+                  {column.primaryKeyOrder
+                    ? ` · PK ${column.primaryKeyOrder}`
+                    : ""}
+                  {column.generated ? " · generated" : ""}
+                </small>
+              </span>
+              <span>
+                {column.type} · {column.nullable ? "nullable" : "required"}
+                {column.default !== null && column.default !== undefined
+                  ? ` · default ${column.default}`
+                  : ""}
+              </span>
+            </div>
+          ))}
+        </details>
+      )}
+      {element.keys?.length > 0 && (
+        <details className="concept-fields">
+          <summary>Keys</summary>
+          {element.keys.map((key) => (
+            <p key={key.name}>
+              {key.primary ? "Primary" : "Unique"} · {key.columns.join(", ")}
+            </p>
+          ))}
+        </details>
+      )}
+      {[
+        element.definition,
+        ...(element.constraints || []).map((c) => c.definition),
+        ...(element.indexes || []).map((i) => i.definition),
+        ...(element.triggers || []).map((t) => t.definition || t.sql),
+      ].filter(Boolean).length > 0 && (
+        <details className="concept-fields">
+          <summary>Captured SQL</summary>
+          {[
+            element.definition,
+            ...(element.constraints || []).map((c) => c.definition),
+            ...(element.indexes || []).map((i) => i.definition),
+            ...(element.triggers || []).map((t) => t.definition || t.sql),
+          ]
+            .filter(Boolean)
+            .map((sql, i) => (
+              <pre
+                key={i}
+                style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+              >
+                <code>{sql}</code>
+              </pre>
+            ))}
+        </details>
+      )}
+    </>
+  );
+}
 export function About({ model, exports }) {
   return (
     <>

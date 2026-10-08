@@ -119,7 +119,7 @@ test("real SDK client and JSON CLI share conceptual create/revise/validate/expor
   await client.connect(transport);
   t.after(() => client.close());
   const tools = await client.listTools();
-  assert.equal(tools.tools.length, 9);
+  assert(tools.tools.some((tool) => tool.name === "atlas_capture_database"));
   const call = async (name, args) => {
     const result = await client.callTool({ name, arguments: args });
     assert(!result.isError, result.content[0].text);

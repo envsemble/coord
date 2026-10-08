@@ -16,4 +16,6 @@ Learning guidance paraphrases the community [OntoUML specification](https://onto
 
 The R5 SDK and Flowstate repositories are evidence for the separate example at pinned commits. Short, unmodified excerpts remain in examples/r5/source-snippets.json and its generated HTML with repository, commit, file and line attribution. Copyright in those excerpts remains with their upstream authors. The core library package excludes the example and its excerpts. Complete repositories and game binaries are not bundled.
 
+PostgreSQL capture uses node-postgres (`pg`) under its MIT license, retained in its npm distribution. Local D1 fixtures use Wrangler (MIT/Apache 2.0) and workerd (Apache 2.0); these development tools are not bundled in exported HTML.
+
 Dependencies are pinned in package-lock.json and retain their upstream licenses in their npm distributions. This repository is private and does not currently grant a public source-code license.

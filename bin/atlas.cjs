@@ -9,7 +9,7 @@ async function main(args) {
   const command = args.shift();
   if (!command || ["help", "--help"].includes(command)) {
     console.log(
-      "Atlas\n  atlas <create|load|list|inspect|revise|validate|prepare|import|export> --root <workspace> --input <request.json|->\n  atlas mcp --root <workspace>\n  atlas tools\n\nAll operation arguments use the same JSON contract as MCP. Output is JSON; errors exit 2, validation findings exit 1.",
+      "Atlas\n  atlas <operation> --root <workspace> --input <request.json|->\n  atlas mcp --root <workspace>\n  atlas tools\n\nRun atlas tools for typed operation contracts, including capture_database. Output is JSON; errors exit 2, validation findings exit 1.",
     );
     return;
   }

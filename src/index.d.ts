@@ -21,7 +21,10 @@ export const AtlasPanel: ComponentType<{
   focus?: InspectionTarget;
   onReference?(record: PlanningContext["records"][number]): void;
 }>;
-export const ViewerErrorBoundary: ComponentType<{ children?: ReactNode }>;
+export const ViewerErrorBoundary: ComponentType<{
+  children?: ReactNode;
+  resetKey?: string;
+}>;
 export interface CameraControls {
   fit(): void;
   reset(): void;

@@ -1,8 +1,17 @@
-image: node:22
+image: node:24
 stages:
   - verify
 verify:
   stage: verify
+  services:
+    - name: postgres:17
+      alias: postgres
+  variables:
+    POSTGRES_USER: atlas_fixture
+    POSTGRES_PASSWORD: fixture_only
+    POSTGRES_DB: atlas_fixture
+    ATLAS_TEST_POSTGRES: postgresql://atlas_fixture:fixture_only@postgres:5432/atlas_fixture
+    WRANGLER_SEND_METRICS: "false"
   script:
     - npm ci
     - npm run format:check

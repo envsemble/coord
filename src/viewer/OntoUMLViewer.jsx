@@ -16,6 +16,7 @@ import { useInspection, inspectedTarget } from "./useInspection";
 import { LearningLibrary } from "../learning/LearningContent";
 import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
+import { CaptureStamp } from "./CaptureStamp";
 
 export function OntoUMLViewer(props) {
   if (!props.views.length)
@@ -162,6 +163,7 @@ function ViewerContent({ model, views, exports: exportData, snippets = {} }) {
         onHover={onHover}
         onClearHover={clearHover}
       />
+      <CaptureStamp model={model} />
       <Panel
         id="inspector"
         className="inspector"

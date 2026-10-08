@@ -929,6 +929,23 @@ button[aria-selected="true"] {
   }
 }
 
+.atlas-panel .atlas-capture {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 2;
+  max-width: calc(100% - 24px);
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--canvas);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .atlas-panel {
   --diagram-border: #768390;
   --diagram-divider: #636e7b;

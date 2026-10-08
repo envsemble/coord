@@ -6,7 +6,7 @@ Open [index.html](index.html) to explore the included R5Reloaded example. It use
 
 ## Development and offline builds
 
-Versioned model documents separate source snapshots, authored revisions, evidence and selected planning context from visualization. See [the core contracts](docs/architecture.md) for OntoUML, database and code profiles and `includeArtifacts: false` embedding preparation. Automatic source adapters are being implemented against explicit coverage matrices.
+Versioned model documents separate source snapshots, authored revisions, evidence and selected planning context from visualization. See [the core contracts](docs/architecture.md) for OntoUML, database and code profiles and `includeArtifacts: false` embedding preparation. [Database captures](docs/database-capture.md) support PostgreSQL 17, SQLite 3.45+ with Node 24, and separately tested local D1 with explicit coverage limits.
 
 Reopen exported HTML with `importDocument` and continue modeling without the original workspace. See [portable documents](docs/portable-documents.md) and the [MCP/CLI interface](docs/agent-interface.md) for the shared persistent workflow.
 

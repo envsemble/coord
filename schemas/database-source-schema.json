@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["formatVersion", "adapter", "identity"],
+  "additionalProperties": false,
+  "properties": {
+    "formatVersion": {"const": 1},
+    "adapter": {"enum": ["sqlite", "postgresql", "d1-local"]},
+    "identity": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"},
+    "title": {"type": "string", "minLength": 1},
+    "workId": {"type": "string", "minLength": 1},
+    "file": {"type": "string", "minLength": 1},
+    "connectionEnv": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "config": {"type": "string", "minLength": 1},
+    "database": {"type": "string", "minLength": 1},
+    "wranglerJS": {"type": "string", "minLength": 1},
+    "schemas": {"type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1024}},
+    "tables": {"type": "array", "minItems": 1, "maxItems": 200, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1024}},
+    "references": {"type": "array", "maxItems": 200, "items": {"type": "object", "required": ["table", "file"], "additionalProperties": false, "properties": {"table": {"type": "string"}, "schema": {"type": "string"}, "file": {"type": "string"}, "title": {"type": "string"}, "url": {"type": "string", "pattern": "^https?://"}}}}
+  },
+  "allOf": [
+    {"if": {"properties": {"adapter": {"const": "sqlite"}}}, "then": {"required": ["file"], "not": {"anyOf": [{"required": ["config"]}, {"required": ["database"]}, {"required": ["connectionEnv"]}, {"required": ["wranglerJS"]}]}}},
+    {"if": {"properties": {"adapter": {"const": "postgresql"}}}, "then": {"required": ["connectionEnv", "schemas"], "not": {"anyOf": [{"required": ["file"]}, {"required": ["tables"]}, {"required": ["config"]}, {"required": ["database"]}, {"required": ["wranglerJS"]}]}}},
+    {"if": {"properties": {"adapter": {"const": "d1-local"}}}, "then": {"required": ["config", "database"], "not": {"anyOf": [{"required": ["file"]}, {"required": ["connectionEnv"]}]}}}
+  ]
+}

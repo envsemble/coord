@@ -1,3 +1,4 @@
+import { CaptureStamp } from "./CaptureStamp";
 import {
   useCallback,
   useEffect,
@@ -145,8 +146,7 @@ function AtlasPanelContent({
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [select]);
-  const meta = model.document,
-    capture = meta?.snapshots.find((s) => s.id === meta.baselineId);
+  const meta = model.document;
   const context = meta?.context || { records: [], links: [] };
   const contextIds = new Set([
     inspected?.id,
@@ -227,20 +227,7 @@ function AtlasPanelContent({
           onHover={hover}
           onClearHover={clearHover}
         />
-        {meta && (
-          <span
-            className="atlas-capture"
-            title={
-              capture
-                ? `${capture.capture.source.kind}: ${capture.capture.source.identity}\n${capture.capture.coverage.status} coverage; ${meta.imported ? "imported claims" : "retained capture"}`
-                : `Revision ${meta.revision.id}`
-            }
-          >
-            {meta.profile} · {meta.state} ·{" "}
-            {capture ? capture.capture.capturedAt : meta.revision.createdAt}
-            {meta.imported ? " · imported" : ""}
-          </span>
-        )}
+        <CaptureStamp model={model} />
         <Panel
           id={inspectorId}
           className="inspector"

@@ -403,6 +403,7 @@ export function createSnapshot(input: {
 export function documentViewerModel(document: AtlasDocument): ViewerModel;
 export function importDocument(input: string | Uint8Array): AtlasDocument;
 export interface AtlasToolArguments {
+  atlas_capture_database: { file: string; workId?: string };
   atlas_create: { input: Parameters<typeof createDocument>[0] };
   atlas_load: { file: string };
   atlas_import: { file: string };
@@ -465,6 +466,7 @@ export interface AtlasResultReference {
   notice: string;
 }
 export interface AtlasToolResults {
+  atlas_capture_database: AtlasModelSummary;
   atlas_create: AtlasModelSummary;
   atlas_load: AtlasModelSummary;
   atlas_import: AtlasModelSummary;
@@ -493,6 +495,35 @@ export interface AtlasToolResults {
   };
 }
 export function createWorkspace(root: string): AtlasWorkspace;
+export interface DatabaseCaptureOptions {
+  identity: string;
+  title?: string;
+  workId?: string;
+  schemas?: string[];
+  tables?: string[];
+  references?: {
+    table: string;
+    schema?: string;
+    file: string;
+    title?: string;
+    url?: string;
+  }[];
+}
+export function captureSQLite(
+  options: DatabaseCaptureOptions & { file: string },
+): Promise<AtlasDocument>;
+export function capturePostgres(
+  options: Omit<DatabaseCaptureOptions, "tables"> & {
+    connectionString: string;
+    schemas: string[];
+  },
+): Promise<AtlasDocument>;
+export function captureD1(
+  options: DatabaseCaptureOptions & {
+    queryBatch(queries: string[]): Promise<Record<string, unknown>[][]>;
+    execution?: string;
+  },
+): Promise<AtlasDocument>;
 export const toolDefinitions: {
   name: keyof AtlasToolArguments;
   description: string;

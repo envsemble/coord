@@ -28,7 +28,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "typescript": "7.0.2",
-    "vite": "8.3.3"
+    "vite": "8.3.3",
+    "wrangler": "4.148.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
@@ -40,6 +41,7 @@
     "fflate": "0.8.3",
     "ontouml-js": "1.0.0",
     "parse5": "8.0.1",
+    "pg": "8.23.1",
     "shiki": "4.5.0"
   },
   "license": "UNLICENSED",
@@ -64,7 +66,8 @@
     "./embedded.css": "./dist/embedded.css",
     "./schema": "./schemas/ontouml-schema.json",
     "./evidence-schema": "./schemas/evidence-schema.json",
-    "./document-schema": "./schemas/document-schema.json"
+    "./document-schema": "./schemas/document-schema.json",
+    "./database-source-schema": "./schemas/database-source-schema.json"
   },
   "files": [
     "lib/",
@@ -81,5 +84,8 @@
   "peerDependencies": {
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
+  },
+  "overrides": {
+    "sharp": "0.35.5"
   }
 }
