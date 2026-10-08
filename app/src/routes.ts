@@ -1,6 +1,6 @@
 import type { Document } from './types';
 
-export type Route = { view: string; work: string | null; file: string | null; anchor: string | null };
+export type Route = { view: string; work: string | null; file: string | null; anchor: string | null; tab?: string | null; diagram?: string | null; element?: string | null };
 
 export function routeHref(route: Partial<Route>) {
   const parameters = new URLSearchParams();

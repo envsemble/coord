@@ -10,9 +10,11 @@
     "dev": "tsx server/index.ts --dev",
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
-    "test": "tsx --test server/planning.test.ts server/telemetry.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts"
+    "test": "node scripts/check-atlas.mjs && tsx --test server/planning.test.ts server/telemetry.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts server/atlas.test.ts",
+    "atlas:package": "node scripts/package-atlas.mjs"
   },
   "dependencies": {
+    "ontouml-atlas": "file:vendor/ontouml-atlas-0d36530f4b0e.tgz",
     "@primer/primitives": "^11.10.0",
     "express": "^5.2.1",
     "github-slugger": "2.0.0",

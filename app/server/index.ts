@@ -12,12 +12,14 @@ import { Telemetry, recordCollectionGap } from './telemetry.ts';
 import type { Usage } from '../src/types.ts';
 import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
 import { localOrigin } from './origin.ts';
+import { AtlasCatalog } from './atlas.ts';
 
 const { values } = parseArgs({ options: {
-  dev: { type: 'boolean', default: false }, 'planning-dir': { type: 'string' }, port: { type: 'string', default: '4317' }, 'data-dir': { type: 'string' },
+  dev: { type: 'boolean', default: false }, 'planning-dir': { type: 'string' }, 'atlas-dir': { type: 'string' }, port: { type: 'string', default: '4317' }, 'data-dir': { type: 'string' },
 } });
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const planningRoot = path.resolve(values['planning-dir'] ?? path.join(appRoot, '../../planning'));
+const atlas = new AtlasCatalog(path.resolve(values['atlas-dir'] ?? planningRoot));
 const port = Number(values.port);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a valid --port.');
 const dataRoot = await statisticsDirectory(planningRoot, values['data-dir'] ?? process.env.PLANNING_DASHBOARD_DATA_DIR);
@@ -61,6 +63,19 @@ app.get('/api/document', async (request, response) => {
   if (typeof request.query.path !== 'string') throw new PlanningError('Choose a document.');
   response.setHeader('Cache-Control', 'no-store');
   response.json(await readDocument(planningRoot, request.query.path));
+});
+for (const endpoint of ['models', 'model', 'references']) app.get('/api/atlas/' + endpoint, async (request, response) => {
+  if (typeof request.query.work !== 'string') throw new PlanningError('Choose a work item.');
+  const snapshot = await loadPlanning(planningRoot);
+  response.setHeader('Cache-Control', 'no-store');
+  if (endpoint === 'models') response.json(atlas.list(snapshot, request.query.work));
+  else if (endpoint === 'model') {
+    if (typeof request.query.handle !== 'string') throw new PlanningError('Choose an Atlas model.');
+    response.json(await atlas.prepared(snapshot, request.query.work, request.query.handle));
+  } else {
+    if (typeof request.query.path !== 'string') throw new PlanningError('Choose an indexed document.');
+    response.json(atlas.references(snapshot, request.query.work, request.query.path));
+  }
 });
 app.get('/api/file', async (request, response) => {
   if (typeof request.query.path !== 'string') throw new PlanningError('Choose an attachment.');

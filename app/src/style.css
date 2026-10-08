@@ -338,3 +338,14 @@ select option { background: var(--bg); color: var(--text); }
   .prose { padding: 16px; }
   .prose h1 { font-size: 1.5em; }
 }
+/* Atlas is a packaged renderer; all renderer styles are scoped by its root. */
+.atlas-work { display: flex; flex-direction: column; min-width: 0; }
+.atlas-work-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--borderColor-default); }
+.atlas-work-toolbar select { max-width: calc(100% - 120px); flex: 1; }
+.atlas-work-toolbar button, .plan-diagrams button { background: var(--bgColor-muted); color: var(--fgColor-default); border: 1px solid var(--borderColor-default); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.atlas-work-toolbar button:hover, .plan-diagrams button:hover { background: var(--bgColor-neutral-muted); }
+.atlas-work-canvas { position: relative; height: max(520px, calc(100vh - 290px)); min-width: 0; }
+.atlas-work.maximized { position: fixed; z-index: 100; inset: 0; background: var(--bgColor-default); }
+.atlas-work.maximized .atlas-work-canvas { height: auto; flex: 1; min-height: 0; }
+.atlas-work.maximized .atlas-panel { min-height: 0; }
+.plan-diagrams { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--borderColor-default); }

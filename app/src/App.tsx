@@ -7,10 +7,11 @@ import { resolveLink, samePath } from './links';
 import { findHeadingId, rehypeHeadingIds } from './headings';
 import { defaultDocument, primaryDocuments, relativeDocumentPath } from './work';
 import { documentRoute, routeHref, type Route } from './routes';
+import { AtlasWorkPanel, PlanDiagrams } from './AtlasWorkPanel';
 
 function currentRoute(): Route {
   const parameters = new URLSearchParams(window.location.hash.slice(1));
-  return { view: parameters.get('view') ?? 'work', work: parameters.get('work'), file: parameters.get('file'), anchor: parameters.get('anchor') };
+  return { view: parameters.get('view') ?? 'work', work: parameters.get('work'), file: parameters.get('file'), anchor: parameters.get('anchor'), tab: parameters.get('tab'), diagram: parameters.get('diagram'), element: parameters.get('element') };
 }
 function navigate(route: Partial<Route>) {
   window.location.hash = routeHref(route);
@@ -296,8 +297,8 @@ export default function App() {
               {selectedWork && snapshot.issues.some(issue => issue.workId === selectedWork.id) && <div className={'notice ' + (snapshot.issues.some(issue => issue.workId === selectedWork.id && issue.level === 'error') ? 'error' : 'warning')}><ShieldCheck size={17} /><div><strong>Record health</strong>{snapshot.issues.filter(issue => issue.workId === selectedWork.id).map((issue, index) => <span key={index}>{issue.level === 'error' ? 'Error: ' : 'Note: '}{issue.message}</span>)}</div></div>}
             </aside>
             <div className="document-pane">
-              {selectedWork && <nav className="document-tabs" aria-label="Main work records">{(['plan', 'ledger'] as const).map(kind => { const file = primaryDocuments(selectedWork)[kind]; return <button key={kind} disabled={!file} className={file?.path === reading?.path ? 'active' : ''} aria-current={file?.path === reading?.path ? 'page' : undefined} onClick={() => file && documentOpen(file)}>{kind === 'plan' ? <ListChecks size={16} /> : <GitCommitHorizontal size={16} />}{kind === 'plan' ? 'Plan' : 'Ledger'}</button>; })}</nav>}
-              {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={route.anchor} scrollToDocument={Boolean(selectedFile)} /> : <Empty title="No retained documents" />}
+              {selectedWork && <nav className="document-tabs" aria-label="Main work records">{(['plan', 'ledger'] as const).map(kind => { const file = primaryDocuments(selectedWork)[kind]; const active = route.tab !== 'diagrams' && file?.path === reading?.path; return <button key={kind} disabled={!file} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => file && documentOpen(file)}>{kind === 'plan' ? <ListChecks size={16} /> : <GitCommitHorizontal size={16} />}{kind === 'plan' ? 'Plan' : 'Ledger'}</button>; })}<button className={route.tab === 'diagrams' ? 'active' : ''} aria-current={route.tab === 'diagrams' ? 'page' : undefined} onClick={() => navigate({ view: 'work', work: selectedWork.id, tab: 'diagrams' })}><Layers3 size={16} />Diagrams</button></nav>}
+              {route.tab === 'diagrams' && selectedWork ? <AtlasWorkPanel key={selectedWork.id} work={selectedWork} snapshot={snapshot} route={route} navigate={navigate} /> : reading ? <>{selectedWork && <PlanDiagrams file={reading} work={selectedWork} navigate={navigate} />}<Reader key={reading.path} file={reading} snapshot={snapshot} anchor={route.anchor} scrollToDocument={Boolean(selectedFile)} /></> : <Empty title="No retained documents" />}
             </div>
           </div>
         </> : route.view === 'work' ? <>
