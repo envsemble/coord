@@ -221,6 +221,35 @@ test('atlas plan export and import share a work item with a preview, --dry-run a
   assert.match(tampered.stderr, /SHA-256/);
   assert.equal(atlas(['plan', 'import', file, '--planning-dir', directory]).status, 1, 'a folder that is not a planning repository is refused');
   assert.equal(atlas(['plan', 'export', 'work-0042', '--planning-dir', source]).status, 1);
+
+  // Text from an export cannot drive the terminal: control characters are refused, other invisible controls replaced.
+  const payload = /<script id="atlas-plan-export" type="application\/json">([\s\S]*?)<\/script>/.exec(html.toString())!;
+  const restyled = (change: (value: { source: { title: string } }) => void) => {
+    const value = JSON.parse(payload[1]); change(value);
+    return html.toString().replace(payload[0], () => `<script id="atlas-plan-export" type="application/json">${JSON.stringify(value).replaceAll('<', '\\u003c')}</script>`);
+  };
+  writeFileSync(path.join(shared, 'escape.html'), restyled(value => { value.source.title = 'Harmless' + String.fromCharCode(0x1b) + ']52;c;ZWNobw==' + String.fromCharCode(7); }));
+  const escaped = atlas(['plan', 'import', path.join(shared, 'escape.html'), '--planning-dir', target, '--dry-run']);
+  assert.equal(escaped.status, 1);
+  assert.match(escaped.stderr, /control characters/);
+  assert.ok(!escaped.stdout.includes(String.fromCharCode(0x1b)) && !escaped.stderr.includes(String.fromCharCode(0x1b)));
+  writeFileSync(path.join(shared, 'bidi.html'), restyled(value => { value.source.title = 'Plan ' + String.fromCharCode(0x202e) + 'txt.exe'; }));
+  const bidi = atlas(['plan', 'import', path.join(shared, 'bidi.html'), '--planning-dir', target, '--dry-run']);
+  assert.equal(bidi.status, 0, bidi.stderr);
+  assert.match(bidi.stdout, /Plan export: “Plan \?txt\.exe”/);
+
+  // Filesystem problems are one-line messages, never stack traces.
+  for (const [args, message] of [
+    [['plan', 'export', 'work-0001', '--planning-dir', source, '--out', shared], /is a folder/],
+    [['plan', 'export', 'work-0001', '--planning-dir', source, '--out', path.join(shared, 'missing/x.html')], /does not exist/],
+    [['plan', 'import', shared, '--planning-dir', target], /is a folder/],
+    [['plan', 'import', path.join(shared, 'absent.html'), '--planning-dir', target], /does not exist/],
+  ] as const) {
+    const failed = atlas([...args]);
+    assert.equal(failed.status, 1, args.join(' '));
+    assert.match(failed.stderr, message);
+    assert.doesNotMatch(failed.stderr, /\n\s+at /, 'no stack trace');
+  }
   for (const args of [['plan', 'import'], ['plan', 'import', file, '--dry-run=yes'], ['plan', 'export'], ['plan', 'export', 'work-0001', '--forse'], ['plan', 'export', 'a', 'b']]) {
     assert.equal(atlas(args).status, 2, args.join(' '));
   }
