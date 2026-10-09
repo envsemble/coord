@@ -43,8 +43,8 @@
   --type-mode: #0a3069;
 }
 #canvas {
-  position: fixed;
-  inset: var(--toolbar-height, 50px) 0 0;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   touch-action: none;
   overscroll-behavior: none;

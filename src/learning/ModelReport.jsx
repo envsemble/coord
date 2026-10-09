@@ -1,5 +1,7 @@
 import { printable } from "../model/printable";
 import { SourceEvidence } from "../viewer/SourceEvidence";
+import { ProvenanceBadge } from "../viewer/ProvenanceBadge";
+import { formatCaptureDate } from "../viewer/provenance";
 const inspectKind = (model, id) =>
   model.classes.some((n) => n.id === id)
     ? "node"
@@ -46,9 +48,7 @@ export function ModelReport({
   return (
     <article className="model-report" aria-label="Model report">
       <header>
-        <p className="muted">
-          Atlas · {report.profile} · {report.state}
-        </p>
+        <ProvenanceBadge document={report} className="inline" />
         <h1>{report.title}</h1>
         <p>{report.scope}</p>
         {report.author && <p>{report.author}</p>}
@@ -56,7 +56,7 @@ export function ModelReport({
           <p className="report-revision">
             Revision {report.revision.id}
             <br />
-            {report.revision.createdAt}
+            {formatCaptureDate(report.revision.createdAt)}
           </p>
         )}
         <button className="report-print" onClick={() => window.print()}>
@@ -79,8 +79,9 @@ export function ModelReport({
                 {s.capture.source.identity}
               </summary>
               <p>
-                {s.capture.capturedAt} · {s.capture.adapter.id}{" "}
-                {s.capture.adapter.version} · {s.capture.coverage.status}
+                Captured {formatCaptureDate(s.capture.capturedAt)} ·{" "}
+                {s.capture.adapter.id} {s.capture.adapter.version} ·{" "}
+                {s.capture.coverage.status}
               </p>
               <p>{s.capture.source.scope.join(", ")}</p>
               <pre>{printable(s.capture.source.revision || s.integrity)}</pre>

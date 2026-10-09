@@ -5,6 +5,7 @@ import { ElementLearning } from "../learning/LearningContent";
 import { DetailHeader } from "../ui/DetailHeader";
 import { GitBranchIcon } from "../ui/Icons";
 import { memo } from "react";
+import { formatCaptureDate, sourceKindLabel } from "./provenance";
 function ChangeDetails({ element, model }) {
   const ids = new Set([
     element.originalId || element.id,
@@ -284,9 +285,9 @@ function CaptureDetails({ model }) {
         Capture · {capture.coverage.status}
         {document.imported ? " · imported claims" : ""}
       </summary>
-      <p>{capture.capturedAt}</p>
+      <p>Captured {formatCaptureDate(capture.capturedAt)}</p>
       <p>
-        {capture.source.kind} · {capture.source.identity}
+        {sourceKindLabel(capture.source.kind)} · {capture.source.identity}
       </p>
       <p>{printable(capture.consistency?.kind)}</p>
       {(capture.coverage.diagnostics || []).map((d, i) => (

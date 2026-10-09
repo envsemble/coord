@@ -1,5 +1,5 @@
 import { IconButton } from "./Button";
-import { DashIcon, PlusIcon, ScreenFullIcon } from "./Icons";
+import { DashIcon, PlusIcon, FocusCenterIcon } from "./Icons";
 import { useSyncExternalStore } from "react";
 
 function ZoomReadout({ zoom, onReset }) {
@@ -8,6 +8,7 @@ function ZoomReadout({ zoom, onReset }) {
       id="zoom-value"
       className="zoom-readout"
       title="Reset to 100%"
+      aria-label={`Zoom ${zoom}%; reset to 100%`}
       onClick={onReset}
     >
       {zoom}%
@@ -26,11 +27,12 @@ function ObservedZoomReadout({ store, onReset }) {
 
 export function CameraControls({ zoom, zoomStore, onZoom, onReset, onFit }) {
   return (
-    <div className="camera-controls">
+    <div className="camera-controls" role="group" aria-label="Zoom">
       <IconButton
         id="zoom-out"
         label="Zoom out"
         title="Zoom out (−)"
+        aria-keyshortcuts="-"
         onClick={() => onZoom(1 / 1.25)}
       >
         <DashIcon size={16} />
@@ -44,13 +46,20 @@ export function CameraControls({ zoom, zoomStore, onZoom, onReset, onFit }) {
         id="zoom-in"
         label="Zoom in"
         title="Zoom in (+)"
+        aria-keyshortcuts="+"
         onClick={() => onZoom(1.25)}
       >
         <PlusIcon size={16} />
       </IconButton>
-      <button id="fit" aria-label="Fit" title="Fit diagram (0)" onClick={onFit}>
-        <ScreenFullIcon size={16} />
-      </button>
+      <IconButton
+        id="fit"
+        label="Fit"
+        title="Fit diagram (0)"
+        aria-keyshortcuts="0"
+        onClick={onFit}
+      >
+        <FocusCenterIcon size={16} />
+      </IconButton>
     </div>
   );
 }

@@ -66,7 +66,13 @@ async function smoke() {
   return (
     <>
       <OntoUMLViewer {...prepared.payload} />
-      <AtlasPanel payload={prepared.payload} theme="dark" />
+      <AtlasPanel
+        payload={prepared.payload}
+        theme="dark"
+        leading={<select aria-label="Model" />}
+        fullscreen={false}
+        onFullscreenChange={(next: boolean) => void next}
+      />
       <ProvenanceBadge document={document} />
       <UMLDiagram diagram={built.views[0].diagram} />
     </>

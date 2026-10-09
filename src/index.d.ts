@@ -21,6 +21,12 @@ export const AtlasPanel: ComponentType<{
   theme?: "dark" | "light";
   focus?: InspectionTarget | { kind: "view"; id: string };
   onReference?(record: PlanningContext["records"][number]): void;
+  /** Host content rendered at the start of the floating top-left toolbar island (e.g. a model picker). */
+  leading?: ReactNode;
+  /** Whether the host currently shows the panel fullscreen. */
+  fullscreen?: boolean;
+  /** When provided, a fullscreen toggle button appears in the top-right island. */
+  onFullscreenChange?(next: boolean): void;
 }>;
 /** Document fields that determine where a model came from. */
 export type ProvenanceSource = Partial<
