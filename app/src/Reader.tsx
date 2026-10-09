@@ -10,7 +10,7 @@ import { documentRoute, navigate, routeHref } from './routes';
 import { bytes, workNumber } from './format';
 import { pollWhileVisible } from './visiblePoll';
 import { Blankslate, ProvenanceLabel, Spinner } from './ui';
-import type { Provenance } from './provenance';
+import type { Provenance } from '@atlas/planning/provenance';
 
 export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }
 export const fileUrl = (path: string, download = false) => '/api/file?' + new URLSearchParams({ path, ...(download ? { download: '1' } : {}), ...rootQuery() });

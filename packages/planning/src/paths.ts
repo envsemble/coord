@@ -1,4 +1,8 @@
-import { samePath } from './links.ts';
+/** Compare planning paths under the connected filesystem's case and Unicode-normalization rules. */
+export function samePath(left: string, right: string, caseSensitive = true, normalizesUnicode = false) {
+  if (normalizesUnicode) { left = left.normalize('NFC'); right = right.normalize('NFC'); }
+  return caseSensitive ? left === right : left.toLowerCase() === right.toLowerCase();
+}
 
 interface IndexedDocument { path: string }
 type Same = (left: string, right: string) => boolean;

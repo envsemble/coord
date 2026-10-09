@@ -8,8 +8,8 @@ import { documentRoute, type Route } from './routes';
 import { samePath } from './links';
 import { pollWhileVisible } from './visiblePoll';
 import { selectModelHandle } from './modelSelection';
-import { resolveRecordPath } from './modelPaths';
-import type { Provenance, ProvenanceKind } from './provenance';
+import { resolveRecordPath } from '@atlas/planning/paths';
+import type { Provenance, ProvenanceKind } from '@atlas/planning/provenance';
 import { CheckIcon, TriangleDownIcon, WorkflowIcon } from './icons';
 import { Blankslate, Dropdown, ProvenanceLabel, Spinner } from './ui';
 

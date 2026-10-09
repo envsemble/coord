@@ -62,9 +62,10 @@ export async function discoverPlanningRoots(current: string, { depth = 2, limit 
   return found.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-/** Recently opened planning folders, kept in the dashboard's data directory (never in planning). */
+/** Recently opened planning folders, kept in the Atlas data folder (never in planning). */
 export class RecentPlanningRoots {
-  constructor(private readonly filename: string) {}
+  private readonly filename: string;
+  constructor(filename: string) { this.filename = filename; }
   async list(): Promise<string[]> {
     try {
       const value = JSON.parse(await readFile(this.filename, 'utf8'));

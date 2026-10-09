@@ -7,24 +7,25 @@ import atlas, { type AtlasDocument } from '@atlas/diagrams';
 const { createWorkspace } = atlas;
 import { AtlasCatalog } from './atlas.ts';
 import { createScopeCache } from './atlasScope.ts';
-import { selectModelHandle } from '../src/modelSelection.ts';
-import { describeProvenance } from '../src/provenance.ts';
-import { resolveRecordPath } from '../src/modelPaths.ts';
-import type { Snapshot } from '../src/types.ts';
+import { describeProvenance } from './provenance.ts';
+import { resolveRecordPath } from './paths.ts';
+import type { PlanningIndex as Snapshot } from './types.ts';
 
 test('dashboard serves scoped native payloads, caches revisions and retains valid snapshots', async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-dashboard-'));
   try {
     const catalog = new AtlasCatalog(root);
-    const snapshot = { work: [{ id: 'work-1' }, { id: 'work-2', location: 'archive' }], documents: [{ path: 'active/1/plan.md', workId: 'work-1' }, { path: 'knowledge/glossary.md', category: 'knowledge' }, { path: 'active/2/plan.md', workId: 'work-2' }] } as unknown as Snapshot;
+    const snapshot = { work: [{ id: 'work-1', path: 'active/1' }, { id: 'work-2', path: 'active/2', location: 'archive' }], documents: [{ path: 'active/1/plan.md', workId: 'work-1' }, { path: 'knowledge/glossary.md', category: 'knowledge' }, { path: 'active/2/plan.md', workId: 'work-2' }] } as unknown as Snapshot;
     assert.deepEqual(catalog.list(snapshot, 'work-1').models, []);
-    assert.equal(existsSync(path.join(root, '.atlas')), false, 'viewing does not create model state');
-    const workspace = createWorkspace(root);
+    mkdirSync(path.join(root, 'active/1'), { recursive: true }); mkdirSync(path.join(root, 'active/2'), { recursive: true });
+    assert.deepEqual(catalog.list(snapshot, 'work-1').models, []);
+    assert.equal(existsSync(path.join(root, 'active/1/.atlas')), false, 'viewing does not create model state');
+    const workspace = createWorkspace(path.join(root, 'active/1'));
     const created = await workspace.execute('atlas_create', { input: { id: 'sample', title: 'Orders', profile: 'code', workId: 'work-1', model: { type: 'StructuralModel', nodes: [{ id: 'order', name: 'Order', attributes: [{ id: 'total', name: 'total', type: 'number' }] }], relations: [], generalizations: [], generalizationSets: [] }, context: { records: [{ id: 'plan', kind: 'plan', text: 'A retained passage.', path: 'active/1/plan.md', section: 'Orders' }], links: [{ elementId: 'total', recordId: 'plan' }] } } });
     const handle = created.handle as string;
     assert.equal(catalog.list(snapshot, 'work-1').models.length, 1);
     assert.equal(catalog.list(snapshot, 'work-2').models.length, 0);
-    assert.throws(() => catalog.load(snapshot, 'work-2', handle), /another work/);
+    assert.throws(() => catalog.load(snapshot, 'work-2', handle), /unavailable/, 'another work folder is not searched');
     assert.throws(() => catalog.load(snapshot, 'unindexed', handle), /indexed/);
     assert.throws(() => catalog.references(snapshot, 'work-1', '../../outside'), /indexed/);
     assert.throws(() => catalog.references(snapshot, 'work-1', 'active/2/plan.md'), /indexed/);
@@ -55,23 +56,23 @@ test('dashboard serves scoped native payloads, caches revisions and retains vali
     assert.notEqual(first, next);
     assert.equal(next.model.title, 'Proposed orders');
     assert.equal(first.model.title, 'Orders');
-    const filename = path.join(root, '.atlas/models', handle + '.json');
+    const filename = path.join(root, 'active/1/.atlas/models', handle + '.json');
     const damaged = JSON.parse(readFileSync(filename, 'utf8')) as AtlasDocument;
     damaged.title = 'Unrecorded edit'; writeFileSync(filename, JSON.stringify(damaged));
     assert.equal(catalog.list(snapshot, 'work-1').issues.length, 1);
     assert.deepEqual(catalog.list(snapshot, 'work-1').invalidHandles, [handle]);
     const invalid = catalog.list(snapshot, 'work-1');
-    assert.equal(selectModelHandle(invalid.models, handle, '', invalid.invalidHandles), handle);
+    assert.deepEqual(invalid.models, [], 'an invalid update is listed only as an invalid handle, so selection can keep it');
     await assert.rejects(catalog.prepared(snapshot, 'work-1', handle), /invalid update/);
     assert.equal(next.model.title, 'Proposed orders');
     const second = await workspace.execute('atlas_create', { input: { id: 'second', workId: 'work-1', profile: 'code', model: { type: 'StructuralModel', nodes: [{ id: 'other', name: 'Other', attributes: [] }], relations: [], generalizations: [], generalizationSets: [] } } });
     const withOther = catalog.list(snapshot, 'work-1');
-    assert.equal(selectModelHandle(withOther.models, handle, '', withOther.invalidHandles), handle);
+    assert.deepEqual(withOther.models.map(model => model.handle), [second.handle]);
+    assert.deepEqual(withOther.invalidHandles, [handle]);
     rmSync(filename);
     const removed = catalog.list(snapshot, 'work-1');
     assert.deepEqual(removed.invalidHandles, []);
-    assert.equal(selectModelHandle(removed.models, handle, '', removed.invalidHandles), second.handle);
-    assert.equal(selectModelHandle(removed.models, handle, handle, removed.invalidHandles), handle);
+    assert.deepEqual(removed.models.map(model => model.handle), [second.handle], 'a removed model is no longer listed');
   } finally {
     assert.equal(path.dirname(realpathSync(root)), realpathSync(os.tmpdir()));
     rmSync(root, { recursive: true, force: true });
@@ -105,7 +106,7 @@ test('scope changes during a concurrent load cannot serve the previous work inde
   assert(results.every(result => result.version === 'new'));
 });
 
-test('models are discovered per work folder, legacy root models stay readable, and record paths resolve work-first', async () => {
+test('models are discovered per work folder and record paths resolve work-first', async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-work-'));
   const outside = mkdtempSync(path.join(os.tmpdir(), 'atlas-outside-'));
   try {
@@ -130,13 +131,14 @@ test('models are discovered per work folder, legacy root models stay readable, a
         { id: 'glossary', kind: 'glossary', text: 'Shared', path: '../../knowledge/glossary.md' },
         { id: 'escape', kind: 'plan', text: 'Outside', path: '../../../outside.md' },
       ], links: [{ elementId: 'order', recordId: 'plan' }, { elementId: 'total', recordId: 'plan' }, { elementId: 'order', recordId: 'glossary' }] } });
-    const legacy = await create(root, { id: 'legacy', title: 'Legacy orders', profile: 'code', workId: 'work-1', model: structural('Legacy order'),
+    const rooted = await create(folder, { id: 'rooted', title: 'Rooted orders', profile: 'code', workId: 'work-1', model: structural('Rooted order'),
       context: { records: [{ id: 'old', kind: 'plan', text: 'Older passage', path: 'active/0001-orders/plan.md', section: 'Overview' }], links: [] } });
-    await create(root, { id: 'elsewhere', title: 'Other work', profile: 'code', workId: 'work-2', model: structural('Other') });
+    await create(root, { id: 'root-model', title: 'Planning-root model', profile: 'code', workId: 'work-1', model: structural('Ignored') });
+    await create(path.join(root, 'active/0002-other'), { id: 'elsewhere', title: 'Other work', profile: 'code', workId: 'work-2', model: structural('Other') });
 
     const listed = catalog.list(snapshot, 'work-1');
-    assert.deepEqual(listed.models.map(model => [model.handle, model.source]), [[own.handle, 'work'], [legacy.handle, 'legacy']]);
-    const orders = listed.models[0];
+    assert.deepEqual(listed.models.map(model => model.handle).sort(), [own.handle, rooted.handle].sort(), 'a planning-root .atlas folder is not read');
+    const orders = listed.models.find(model => model.handle === own.handle)!;
     assert.equal(orders.provenance.label, 'Agent-authored');
     assert.equal(orders.provenance.detail, 'Structural model');
     assert.deepEqual(orders.explains.map(item => [item.path, item.reference, item.section]), [
@@ -144,26 +146,18 @@ test('models are discovered per work folder, legacy root models stay readable, a
       ['knowledge/glossary.md', 'knowledge/glossary.md', null],
       [null, '../../../outside.md', null],
     ]);
-    assert.deepEqual(listed.models[1].explains.map(item => [item.path, item.reference]), [['active/0001-orders/plan.md', 'plan.md']], 'legacy planning-root paths still resolve');
-    assert.deepEqual(catalog.list(snapshot, 'work-2').models.map(model => model.source), ['legacy']);
+    assert.deepEqual(listed.models.find(model => model.handle === rooted.handle)!.explains.map(item => [item.path, item.reference]), [['active/0001-orders/plan.md', 'plan.md']], 'planning-root-relative record paths resolve');
+    assert.deepEqual(catalog.list(snapshot, 'work-2').models.map(model => model.title), ['Other work']);
     assert.deepEqual(catalog.counts(snapshot), { 'work-1': 2, 'work-2': 1 });
 
     const references = catalog.references(snapshot, 'work-1', 'active/0001-orders/plan.md');
-    assert.deepEqual(references.map(item => [item.handle, item.section, item.elementName]), [[own.handle, 'Data model', 'Order'], [own.handle, 'Data model', 'total'], [legacy.handle, 'Overview', null]]);
-    assert.equal(references[0].provenance.kind, 'authored');
+    const order = (handle: string) => handle === own.handle ? 0 : 1;
+    assert.deepEqual(references.map(item => [item.handle, item.section, item.elementName]).sort((a, b) => order(a[0]!) - order(b[0]!)), [[own.handle, 'Data model', 'Order'], [own.handle, 'Data model', 'total'], [rooted.handle, 'Overview', null]]);
+    assert.equal(references.find(item => item.handle === own.handle)!.provenance.kind, 'authored');
     assert.deepEqual(catalog.references(snapshot, undefined, 'knowledge/glossary.md').map(item => [item.workId, item.elementId]), [['work-1', 'order']]);
     assert.equal((await catalog.prepared(snapshot, 'work-1', own.handle)).model.title, 'Orders');
     assert.throws(() => catalog.load(snapshot, 'work-2', own.handle), /unavailable/, 'another work folder is not searched');
     assert.throws(() => catalog.load(snapshot, 'work-1', '../m-000000000000000000000000'), /Choose an Atlas model/);
-
-    // The same handle in the work folder and the legacy root: the work folder wins.
-    const duplicate = await create(folder, { id: 'legacy', title: 'Moved orders', profile: 'code', workId: 'work-1', model: structural('Moved') });
-    assert.equal(duplicate.handle, legacy.handle);
-    const moved = catalog.list(snapshot, 'work-1').models.filter(model => model.handle === legacy.handle);
-    assert.deepEqual(moved.map(model => [model.title, model.source]), [['Moved orders', 'work']]);
-    assert.equal(catalog.load(snapshot, 'work-1', legacy.handle).title, 'Moved orders');
-    assert.deepEqual(catalog.counts(snapshot), { 'work-1': 2, 'work-2': 1 });
-    assert.equal(catalog.references(snapshot, 'work-1', 'active/0001-orders/plan.md').some(item => item.section === 'Overview'), false);
 
     // A model in a work folder that claims another work item is not served there.
     await create(folder, { id: 'misfiled', title: 'Misfiled', profile: 'code', workId: 'work-2', model: structural('X') });
@@ -172,9 +166,12 @@ test('models are discovered per work folder, legacy root models stay readable, a
     assert.match(misfiled.issues.join('\n'), /assigned to work-2/);
 
     // A work folder whose model directory escapes the planning root is ignored.
-    await create(outside, { id: 'outside', title: 'Outside', profile: 'code', workId: 'work-2', model: structural('Outside') });
-    symlinkSync(path.join(outside, '.atlas'), path.join(root, 'active/0002-other/.atlas'), process.platform === 'win32' ? 'junction' : 'dir');
-    assert.deepEqual(catalog.list(snapshot, 'work-2').models.map(model => model.title), ['Other work']);
+    await create(outside, { id: 'outside', title: 'Outside', profile: 'code', workId: 'work-3', model: structural('Outside') });
+    mkdirSync(path.join(root, 'active/0003-escape'));
+    symlinkSync(path.join(outside, '.atlas'), path.join(root, 'active/0003-escape/.atlas'), process.platform === 'win32' ? 'junction' : 'dir');
+    const escaping = { ...snapshot, work: [...snapshot.work, { id: 'work-3', path: 'active/0003-escape' }] } as Snapshot;
+    assert.deepEqual(catalog.list(escaping, 'work-3').models, []);
+    assert.equal(catalog.counts(escaping)['work-3'], undefined);
   } finally {
     rmSync(root, { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });

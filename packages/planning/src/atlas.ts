@@ -3,29 +3,26 @@ import path from 'node:path';
 import atlas, { type AtlasDocument, type ViewerPayload } from '@atlas/diagrams';
 const { createWorkspace, prepareViewer } = atlas;
 import { PlanningError } from './planning.ts';
-import type { Snapshot } from '../src/types.ts';
-import { samePath } from '../src/links.ts';
-import { describeProvenance, type Provenance } from '../src/provenance.ts';
-import { resolveRecordPath, workRelative } from '../src/modelPaths.ts';
+import type { Document, PlanningIndex as LoadedIndex } from './types.ts';
+import { describeProvenance, type Provenance } from './provenance.ts';
+import { resolveRecordPath, samePath, workRelative } from './paths.ts';
 
 type IndexedWork = { id: string; path?: string };
-type PlanningIndex = { work: IndexedWork[]; documents: Pick<Snapshot['documents'][number], 'path' | 'workId' | 'category'>[] } & Partial<Pick<Snapshot, 'caseSensitivePaths' | 'normalizationInsensitivePaths'>>;
-export type ModelSource = 'work' | 'legacy';
+type PlanningIndex = { work: IndexedWork[]; documents: Pick<Document, 'path' | 'workId' | 'category'>[] } & Partial<Pick<LoadedIndex, 'caseSensitivePaths' | 'normalizationInsensitivePaths'>>;
 export interface ModelExplains { path: string | null; reference: string; section: string | null; title: string | null }
 export interface AtlasEntry {
   handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  source: ModelSource; provenance: Provenance; explains: ModelExplains[];
+  provenance: Provenance; explains: ModelExplains[];
 }
 export interface ModelReference {
   handle: string; workId: string; title: string; elementId: string | null; elementName: string | null;
   label: string; section: string | null; provenance: Provenance;
 }
-interface Location { root: string; directory: string; source: ModelSource }
+interface Location { root: string; directory: string }
 
 const modelFile = /^m-[a-f0-9]{24}\.json$/;
 const handlePattern = /^m-[a-f0-9]{24}$/;
 const claimLimit = 1024 * 1024;
-const countLimit = 16 * 1024 * 1024;
 
 function inside(parent: string, child: string) {
   const relative = path.relative(parent, child);
@@ -50,16 +47,15 @@ function elementNames(model: unknown): Map<string, string> {
 }
 
 /**
- * Atlas models are discovered per work item: each work folder is an Atlas workspace
- * (`<work>/.atlas/models`). Models in the legacy planning-root workspace remain readable,
- * filtered by `workId`. A handle present in both is served from the work folder.
+ * Atlas models live with their plan: each work folder is an Atlas workspace
+ * (`<work>/.atlas/models`). A model without a work ID belongs to the folder it is in;
+ * a model assigned to another work item is reported, never served.
  */
 export class AtlasCatalog {
   private cache = new Map<string, Promise<ViewerPayload>>();
   private owners = new Map<string, string | undefined>();
-  private claims = new Map<string, { stamp: string; workId: string | undefined }>();
-  readonly legacyRoot: string;
-  constructor(readonly planningRoot: string, legacyRoot?: string) { this.legacyRoot = legacyRoot ?? planningRoot; }
+  readonly planningRoot: string;
+  constructor(planningRoot: string) { this.planningRoot = planningRoot; }
 
   private work(snapshot: PlanningIndex, id: string) {
     const work = snapshot.work.find(item => item.id === id);
@@ -69,39 +65,24 @@ export class AtlasCatalog {
   private same(snapshot: PlanningIndex) {
     return (first: string, second: string) => samePath(first, second, snapshot.caseSensitivePaths ?? true, snapshot.normalizationInsensitivePaths ?? false);
   }
-  /** Existing, contained model directories: the work folder first, then the legacy root. */
-  private locations(work: IndexedWork | null): Location[] {
-    const result: Location[] = [];
-    let workFolder: string | null = null;
-    if (work?.path) {
-      const root = path.resolve(this.planningRoot, work.path);
-      const directory = path.join(root, '.atlas', 'models');
-      try {
-        if (existsSync(directory)) {
-          const planning = realpathSync(this.planningRoot), actualRoot = realpathSync(root), actual = realpathSync(directory);
-          if (inside(planning, actualRoot) && actualRoot !== planning && inside(actualRoot, actual)) { result.push({ root, directory, source: 'work' }); workFolder = actualRoot; }
-        }
-      } catch { /* An unreadable work folder has no diagrams. */ }
-    }
-    const legacy = this.legacyLocation();
-    if (legacy && legacy.real !== workFolder) result.push(legacy.location);
-    return result;
-  }
-  private legacyLocation(): { location: Location; real: string } | null {
-    const directory = path.join(this.legacyRoot, '.atlas', 'models');
+  /** The work folder's model directory, when it exists inside the planning folder. */
+  private location(work: IndexedWork): Location | null {
+    if (!work.path) return null;
+    const root = path.resolve(this.planningRoot, work.path);
+    const directory = path.join(root, '.atlas', 'models');
     try {
       if (!existsSync(directory)) return null;
-      const real = realpathSync(this.legacyRoot);
-      if (!inside(real, realpathSync(directory))) return null;
-      return { location: { root: this.legacyRoot, directory, source: 'legacy' }, real };
-    } catch { return null; }
+      const planning = realpathSync(this.planningRoot), actualRoot = realpathSync(root), actual = realpathSync(directory);
+      if (inside(planning, actualRoot) && actualRoot !== planning && inside(actualRoot, actual)) return { root, directory };
+    } catch { /* An unreadable work folder has no diagrams. */ }
+    return null;
   }
   private handles(directory: string) {
     try { return readdirSync(directory).filter(name => modelFile.test(name)).sort().map(name => name.slice(0, -5)); }
     catch { return []; }
   }
-  private belongs(document: AtlasDocument, work: IndexedWork, source: ModelSource) {
-    return source === 'work' ? !document.workId || document.workId === work.id : document.workId === work.id;
+  private belongs(document: AtlasDocument, work: IndexedWork) {
+    return !document.workId || document.workId === work.id;
   }
   /** The work ID a malformed file claims, read only from a contained, bounded file. */
   private claimedOwner(location: Location, handle: string) {
@@ -130,41 +111,34 @@ export class AtlasCatalog {
     }
     return result;
   }
-  private entry(handle: string, document: AtlasDocument, location: Location, work: IndexedWork, snapshot: PlanningIndex): AtlasEntry {
+  private entry(handle: string, document: AtlasDocument, work: IndexedWork, snapshot: PlanningIndex): AtlasEntry {
     const capture = document.snapshots.find(item => item.id === document.baselineId)?.capture;
     return {
       handle, title: document.title, revision: document.revision.id, profile: document.profile, state: document.state,
       capturedAt: capture?.capturedAt ?? null, coverage: capture?.coverage.status ?? null, imported: !!document.imported,
-      source: location.source, provenance: describeProvenance(document), explains: this.explains(document, work, snapshot),
+      provenance: describeProvenance(document), explains: this.explains(document, work, snapshot),
     };
   }
 
   list(snapshot: PlanningIndex, workId: string) {
     const work = this.work(snapshot, workId);
     const models: AtlasEntry[] = [], issues: string[] = [], invalidHandles: string[] = [];
-    const seen = new Set<string>();
-    for (const location of this.locations(work)) {
-      let workspace: ReturnType<typeof createWorkspace> | null = null;
-      for (const handle of this.handles(location.directory)) {
-        if (seen.has(handle)) continue;
-        try {
-          workspace ??= createWorkspace(location.root);
-          const document = workspace.load(handle);
-          this.owners.set(location.directory + '\0' + handle, document.workId);
-          if (!this.belongs(document, work, location.source)) {
-            if (location.source === 'work') issues.push(`Model “${document.title}” in this work folder is assigned to ${document.workId}.`);
-            continue;
-          }
-          seen.add(handle);
-          models.push(this.entry(handle, document, location, work, snapshot));
-        } catch {
-          // The claimed work ID is used only to display a generic error, never to serve invalid content.
-          const owner = this.claimedOwner(location, handle);
-          if (owner === work.id || (location.source === 'work' && owner === undefined)) {
-            seen.add(handle);
-            invalidHandles.push(handle);
-            issues.push(`Model ${handle} has an invalid or unrecorded update. The last valid view is retained.`);
-          }
+    const location = this.location(work);
+    if (!location) return { models, issues, invalidHandles };
+    let workspace: ReturnType<typeof createWorkspace> | null = null;
+    for (const handle of this.handles(location.directory)) {
+      try {
+        workspace ??= createWorkspace(location.root);
+        const document = workspace.load(handle);
+        this.owners.set(location.directory + '\0' + handle, document.workId);
+        if (!this.belongs(document, work)) { issues.push(`Model “${document.title}” in this work folder is assigned to ${document.workId}.`); continue; }
+        models.push(this.entry(handle, document, work, snapshot));
+      } catch {
+        // The claimed work ID is used only to display a generic error, never to serve invalid content.
+        const owner = this.claimedOwner(location, handle);
+        if (owner === work.id || owner === undefined) {
+          invalidHandles.push(handle);
+          issues.push(`Model ${handle} has an invalid or unrecorded update. The last valid view is retained.`);
         }
       }
     }
@@ -174,15 +148,13 @@ export class AtlasCatalog {
   private find(snapshot: PlanningIndex, workId: string, handle: string): { document: AtlasDocument; location: Location } {
     const work = this.work(snapshot, workId);
     if (!handlePattern.test(handle)) throw new PlanningError('Choose an Atlas model.', 400);
-    for (const location of this.locations(work)) {
-      if (!existsSync(path.join(location.directory, handle + '.json'))) continue;
-      let document: AtlasDocument;
-      try { document = createWorkspace(location.root).load(handle); }
-      catch { throw new PlanningError('This model has an invalid update or is unavailable.', 409); }
-      if (!this.belongs(document, work, location.source)) throw new PlanningError('This model belongs to another work item.', 403);
-      return { document, location };
-    }
-    throw new PlanningError('This model has an invalid update or is unavailable.', 404);
+    const location = this.location(work);
+    if (!location || !existsSync(path.join(location.directory, handle + '.json'))) throw new PlanningError('This model has an invalid update or is unavailable.', 404);
+    let document: AtlasDocument;
+    try { document = createWorkspace(location.root).load(handle); }
+    catch { throw new PlanningError('This model has an invalid update or is unavailable.', 409); }
+    if (!this.belongs(document, work)) throw new PlanningError('This model belongs to another work item.', 403);
+    return { document, location };
   }
   load(snapshot: PlanningIndex, workId: string, handle: string): AtlasDocument {
     return this.find(snapshot, workId, handle).document;
@@ -210,84 +182,38 @@ export class AtlasCatalog {
       if (!snapshot.documents.some(file => same(file.path, filename) && (file.workId === workId || file.category === 'knowledge'))) throw new PlanningError('Choose an indexed work or knowledge document.', 403);
     }
     const targets = workId ? [this.work(snapshot, workId)] : snapshot.work;
-    const registered = new Map(snapshot.work.map(item => [item.id, item]));
     const results: ModelReference[] = [];
-    const served = new Map<string, Set<string>>();
-    const collect = (handle: string, document: AtlasDocument, work: IndexedWork) => {
-      const names = elementNames(document.model);
-      const provenance = describeProvenance(document);
-      for (const record of document.context.records) {
-        const resolved = resolveRecordPath(record.path, work.path, snapshot.documents, same);
-        if (!resolved || !same(resolved.path, filename)) continue;
-        const links = document.context.links.filter(link => link.recordId === record.id);
-        const base = { handle, workId: work.id, title: document.title, label: String(record.title || record.kind), section: typeof record.section === 'string' ? record.section : null, provenance };
-        if (!links.length) results.push({ ...base, elementId: null, elementName: null });
-        for (const link of links) results.push({ ...base, elementId: link.elementId, elementName: names.get(link.elementId) ?? null });
-      }
-    };
     for (const work of targets) {
-      const location = this.locations(work).find(item => item.source === 'work');
+      const location = this.location(work);
       if (!location) continue;
-      const handles = new Set<string>();
-      served.set(work.id, handles);
       let workspace: ReturnType<typeof createWorkspace> | null = null;
       for (const handle of this.handles(location.directory)) {
         let document: AtlasDocument;
         try { workspace ??= createWorkspace(location.root); document = workspace.load(handle); } catch { continue; }
-        if (!this.belongs(document, work, 'work')) continue;
-        handles.add(handle);
-        collect(handle, document, work);
-      }
-    }
-    const legacy = this.legacyLocation()?.location;
-    if (legacy) {
-      let workspace: ReturnType<typeof createWorkspace> | null = null;
-      for (const handle of this.handles(legacy.directory)) {
-        let document: AtlasDocument;
-        try { workspace ??= createWorkspace(legacy.root); document = workspace.load(handle); } catch { continue; }
-        const owner = document.workId ? registered.get(document.workId) : undefined;
-        // The work folder's copy of a handle wins over the legacy one.
-        if (!owner || (workId && owner.id !== workId) || served.get(owner.id)?.has(handle)) continue;
-        collect(handle, document, owner);
+        if (!this.belongs(document, work)) continue;
+        const names = elementNames(document.model);
+        const provenance = describeProvenance(document);
+        for (const record of document.context.records) {
+          const resolved = resolveRecordPath(record.path, work.path, snapshot.documents, same);
+          if (!resolved || !same(resolved.path, filename)) continue;
+          const links = document.context.links.filter(link => link.recordId === record.id);
+          const base = { handle, workId: work.id, title: document.title, label: String(record.title || record.kind), section: typeof record.section === 'string' ? record.section : null, provenance };
+          if (!links.length) results.push({ ...base, elementId: null, elementName: null });
+          for (const link of links) results.push({ ...base, elementId: link.elementId, elementName: names.get(link.elementId) ?? null });
+        }
       }
     }
     return results;
   }
 
-  /** Model counts per work item for list indicators. Reads only the claimed workId of legacy files. */
+  /** Model counts per work item for list indicators. */
   counts(snapshot: PlanningIndex): Record<string, number> {
     const counts: Record<string, number> = {};
-    const workHandles = new Map<string, Set<string>>();
     for (const work of snapshot.work) {
-      const location = this.locations(work).find(item => item.source === 'work');
-      const handles = new Set(location ? this.handles(location.directory) : []);
-      workHandles.set(work.id, handles);
-      if (handles.size) counts[work.id] = handles.size;
-    }
-    const legacy = this.legacyLocation()?.location;
-    if (legacy) {
-      for (const handle of this.handles(legacy.directory)) {
-        const owner = this.legacyClaim(legacy, handle);
-        if (!owner || !workHandles.has(owner) || workHandles.get(owner)!.has(handle)) continue;
-        counts[owner] = (counts[owner] ?? 0) + 1;
-      }
+      const location = this.location(work);
+      const total = location ? this.handles(location.directory).length : 0;
+      if (total) counts[work.id] = total;
     }
     return counts;
-  }
-  private legacyClaim(location: Location, handle: string) {
-    const filename = path.join(location.directory, handle + '.json');
-    try {
-      const information = statSync(filename);
-      const stamp = information.mtimeMs + ':' + information.size;
-      const cached = this.claims.get(filename);
-      if (cached?.stamp === stamp) return cached.workId;
-      let workId: string | undefined;
-      if (information.size <= countLimit && inside(realpathSync(location.root), realpathSync(filename))) {
-        const value = JSON.parse(readFileSync(filename, 'utf8')).workId;
-        workId = typeof value === 'string' ? value : undefined;
-      }
-      this.claims.set(filename, { stamp, workId });
-      return workId;
-    } catch { return undefined; }
   }
 }

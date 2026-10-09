@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { parse } from 'yaml';
 import { createHash } from 'node:crypto';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
-import type { Document, DocumentContent, HistoryEntry, Issue, Repository, Work } from '../src/types.ts';
+import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Repository, Work } from './types.ts';
 
 const execute = promisify(execFile);
 const textExtensions = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.puml', '.mmd', '.mermaid', '.dot', '.html', '.css', '.js', '.ts', '.tsx', '.py', '.ps1', '.sh', '.sql', '.log']);
@@ -21,7 +21,8 @@ type HistoricalRegistry = { work: HistoricalWork[]; repositories: string[] };
 const historyCache = new Map<string, { head: string; entries: HistoryEntry[]; unattributedFiles: Map<string, string[]> }>();
 
 export class PlanningError extends Error {
-  constructor(message: string, public status = 400) { super(message); }
+  status: number;
+  constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 function within(root: string, candidate: string) {
   const relative = path.relative(root, candidate);
@@ -30,7 +31,7 @@ function within(root: string, candidate: string) {
 function hidden(relative: string) {
   return relative.split(path.sep).join('/').split('/').some(part => part.startsWith('.') || excludedDirectories.has(part));
 }
-function normalizedLocation(value: unknown): string {
+export function normalizedLocation(value: unknown): string {
   if (typeof value !== 'string' || !value || value.includes('\\') || value.includes('\0') || value.includes(':') || path.posix.isAbsolute(value) || value.split('/').includes('..')) {
     throw new PlanningError('Work and selected plan paths must be POSIX-relative paths without parent segments.');
   }
@@ -211,7 +212,7 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
     }) };
   } catch { return { history: [], available: false }; }
 }
-export async function loadPlanning(inputRoot: string) {
+export async function loadPlanning(inputRoot: string): Promise<PlanningIndex> {
   let root: string;
   try { root = await realpath(inputRoot); } catch { throw new PlanningError('The planning folder does not exist. Check --planning-dir.'); }
   let registry: { schema_version: number; repositories: Repository[]; work_items: { id: string; path: string; repositories: string[]; current_plan: string | null }[] };

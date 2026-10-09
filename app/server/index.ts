@@ -6,26 +6,22 @@ import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
-import { PlanningError, readDocument, resolveDocument } from './planning.ts';
-import { recordCollectionGap } from './telemetry.ts';
+import { PlanningError, readDocument, recentRootsFile, recordCollectionGap, resolveDocument, discoverPlanningRoots, inspectPlanningRoot, RecentPlanningRoots, samePlatformPath, type PlanningRootInfo } from '@atlas/planning';
+import { PlanningSession } from '@atlas/planning/session';
 import type { Usage } from '../src/types.ts';
-import { dataBaseDirectory } from './storage.ts';
 import { localOrigin } from './origin.ts';
-import { PlanningSession } from './session.ts';
-import { discoverPlanningRoots, inspectPlanningRoot, RecentPlanningRoots, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
 
 const { values } = parseArgs({ options: {
-  dev: { type: 'boolean', default: false }, 'planning-dir': { type: 'string' }, 'atlas-dir': { type: 'string' }, port: { type: 'string', default: '4317' }, 'data-dir': { type: 'string' },
+  dev: { type: 'boolean', default: false }, 'planning-dir': { type: 'string' }, port: { type: 'string', default: '4317' }, 'data-dir': { type: 'string' },
 } });
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const initialRoot = path.resolve(values['planning-dir'] ?? path.join(appRoot, '../../planning'));
-const dataBase = values['data-dir'] ?? process.env.PLANNING_DASHBOARD_DATA_DIR;
+// --data-dir overrides the Atlas data folder (ATLAS_DATA_DIR, else the per-user default).
+const dataBase = values['data-dir'];
 const port = Number(values.port);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a valid --port.');
-const recents = new RecentPlanningRoots(path.join(dataBaseDirectory(dataBase), 'planning-roots.json'));
-// --atlas-dir connects a legacy Atlas workspace to the folder given on the command line only.
-const sessionOptions = (root: string) => ({ dataBase, atlasDir: samePlatformPath(root, initialRoot) ? values['atlas-dir'] : undefined });
-let session = await PlanningSession.open(initialRoot, sessionOptions(initialRoot));
+const recents = new RecentPlanningRoots(recentRootsFile(dataBase));
+let session = await PlanningSession.open(initialRoot, { dataBase });
 await inspectPlanningRoot(initialRoot).then(info => recents.remember(info.path)).catch(() => undefined);
 let discovery: { root: string; expires: number; roots: Promise<PlanningRootInfo[]> } | null = null;
 let switching: Promise<unknown> = Promise.resolve();
@@ -95,7 +91,7 @@ app.post('/api/planning-root', async (request, response) => {
     const info = await inspectPlanningRoot(requested);
     if (!samePlatformPath(info.path, session.root)) {
       const previous = session;
-      session = await PlanningSession.open(info.path, sessionOptions(info.path));
+      session = await PlanningSession.open(info.path, { dataBase });
       discovery = null;
       // Let in-flight requests on the previous folder finish before closing its usage store.
       setTimeout(() => previous.close(), 5000).unref();
