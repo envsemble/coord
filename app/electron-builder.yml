@@ -1,0 +1,50 @@
+# Packages the desktop app: an unsigned NSIS installer on Windows and an AppImage on Linux.
+appId: dev.envsemble.atlas
+productName: Atlas
+copyright: Copyright © 2026 envsemble
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - "!out/**/*.map"
+  - package.json
+  # Only the diagram package's runtime files (its development pages and tooling are not needed).
+  - "!node_modules/@envsemble/atlas-diagrams/{development,downloads,scripts,examples,tests,index.html,vite.config.mjs,tsconfig.contracts.json}"
+# No asar archive: diagram preparation runs esbuild (a native binary) over the diagram package's
+# own sources, which it cannot read from inside an archive. The integrity fuses below need an
+# archive, and only add protection to signed builds; these builds are unsigned (ADR 0001).
+asar: false
+npmRebuild: false
+publish: null
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  # Kept on so the end-to-end suite can drive the packaged app with Playwright.
+  enableNodeCliInspectArguments: true
+  enableEmbeddedAsarIntegrityValidation: false
+  onlyLoadAppFromAsar: false
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  artifactName: Atlas-Setup-${version}.${ext}
+  shortcutName: Atlas
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  executableName: atlas-desktop
+  icon: build/icon.png
+  category: Development
+  synopsis: Plans, models and shared understanding
+  artifactName: Atlas-${version}-${arch}.${ext}
