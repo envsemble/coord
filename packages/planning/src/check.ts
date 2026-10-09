@@ -119,7 +119,7 @@ function flowList(value: string): Scalar[] {
   throw new FrontmatterError('missing flow list closing delimiter outside quotes/comments');
 }
 
-/** Python's str.splitlines(): every line boundary, without a trailing empty line. */
+/** Split on every Unicode line boundary, without a trailing empty line. */
 function splitLines(text: string) {
   const lines = text.split(/\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]/);
   if (lines.at(-1) === '') lines.pop();
@@ -164,7 +164,7 @@ const isInteger = (value: unknown) => typeof value === 'number' && Number.isInte
 const exists = (target: string) => statSync(target, { throwIfNoEntry: false }) !== undefined;
 const isDirectory = (target: string) => statSync(target, { throwIfNoEntry: false })?.isDirectory() ?? false;
 const isFile = (target: string) => statSync(target, { throwIfNoEntry: false })?.isFile() ?? false;
-// Path comparisons follow the host's path rules, like the former Python checker's Path objects.
+// Path comparisons follow the host's path rules: case-insensitive on Windows.
 const pathKey = (value: string) => process.platform === 'win32' ? value.toLowerCase() : value;
 function within(parent: string, child: string) {
   const relative = path.relative(parent, child);

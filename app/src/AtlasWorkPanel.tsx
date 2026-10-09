@@ -16,7 +16,7 @@ import { Blankslate, Dropdown, ProvenanceLabel, Spinner } from './ui';
 interface Explains { path: string | null; reference: string; section: string | null; title: string | null }
 export interface CatalogEntry {
   handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  source?: 'work' | 'legacy'; provenance: Provenance; explains: Explains[];
+  provenance: Provenance; explains: Explains[];
 }
 interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
 

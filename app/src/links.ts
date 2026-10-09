@@ -25,7 +25,7 @@ export function resolveLink(href: string, source: string, documents: Document[],
       work: work.find(candidate => samePath(candidate.path, relative.replace(/\/$/, ''), caseSensitive, normalizesUnicode)),
       anchor: decodeURIComponent(target.hash.slice(1)) };
   } catch {
-    // Legacy references can contain malformed URLs or percent encodings. Keep their surrounding prose readable.
+    // Hand-written references can contain malformed URLs or percent encodings. Keep their surrounding prose readable.
     return {};
   }
 }

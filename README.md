@@ -127,7 +127,7 @@ npm run review:example -- artifacts/review
 npm run check:release
 ```
 
-Full database tests require `ATLAS_TEST_POSTGRES` pointing to a disposable PostgreSQL 17 fixture. CI runs checks and builds revision-labelled [review artifacts](docs/review-ci.md) and versioned [release ZIPs](docs/releases.md). No release is published or deployed. Clean-package checks exercise Node/React, actual TS/Java capture and offline output. Legacy 0.4 HTML compatibility and export/reopen have dedicated fixtures.
+Full database tests require `ATLAS_TEST_POSTGRES` pointing to a disposable PostgreSQL 17 fixture. CI runs checks and builds revision-labelled [review artifacts](docs/review-ci.md) and versioned [release ZIPs](docs/releases.md). No release is published or deployed. Clean-package checks exercise Node/React, actual TS/Java capture and offline output. Export/reopen has dedicated fixtures.
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Release instructions](docs/releases.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 

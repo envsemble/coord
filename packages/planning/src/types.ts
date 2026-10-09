@@ -10,7 +10,7 @@ export interface Work {
   created: string | null; updated: string | null; accepted: string | null;
   completed: string | null; durationDays: number | null; documents: Document[];
   ledger?: string | null; progress?: WorkProgress | null;
-  /** Atlas models for this work item (work folder and legacy root). */
+  /** Number of Atlas models in this work folder's `.atlas/models`. */
   diagrams?: number;
 }
 export interface WorkProgress { current: string | null; next: string[]; blocked: string | null; updated: string | null }

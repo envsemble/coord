@@ -327,8 +327,8 @@ async function prepareModel({
 async function buildViewer(input) {
   const { documentFromInput } = require("../document/portable.cjs");
   const document = input?.document || documentFromInput(input);
-  // Keep the legacy projection's labels/validation stable while embedding its
-  // lossless editable envelope as a separate delivery contract.
+  // Keep the OntoUML projection's labels/validation stable while embedding the
+  // lossless editable document as a separate delivery contract.
   const prepared = await prepareViewer({
     ...input,
     includeArtifacts: true,

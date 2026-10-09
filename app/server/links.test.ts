@@ -44,7 +44,7 @@ test('contained document and work-folder links resolve without granting arbitrar
   assert.deepEqual(resolveLink('file:///C:/private/notes.md', 'README.md', []), {});
   assert.equal(resolveLink('../outside.md', 'README.md', []).file, undefined);
 });
-test('malformed legacy references never crash the reader', () => {
+test('malformed references never crash the reader', () => {
   for (const href of ['http://', 'http://localhost:99999/', 'caf%E9.md', '#%ZZ', 'decision.md#%E9']) {
     assert.deepEqual(resolveLink(href, 'README.md', [file]), {});
   }

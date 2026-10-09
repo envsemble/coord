@@ -21,7 +21,7 @@ test('dashboard serves scoped native payloads, caches revisions and retains vali
     assert.deepEqual(catalog.list(snapshot, 'work-1').models, []);
     assert.equal(existsSync(path.join(root, 'active/1/.atlas')), false, 'viewing does not create model state');
     const workspace = createWorkspace(path.join(root, 'active/1'));
-    const created = await workspace.execute('atlas_create', { input: { id: 'sample', title: 'Orders', profile: 'code', workId: 'work-1', model: { type: 'StructuralModel', nodes: [{ id: 'order', name: 'Order', attributes: [{ id: 'total', name: 'total', type: 'number' }] }], relations: [], generalizations: [], generalizationSets: [] }, context: { records: [{ id: 'plan', kind: 'plan', text: 'A retained passage.', path: 'active/1/plan.md', section: 'Orders' }], links: [{ elementId: 'total', recordId: 'plan' }] } } });
+    const created = await workspace.execute('atlas_create', { input: { id: 'sample', title: 'Orders', profile: 'code', workId: 'work-1', model: { type: 'StructuralModel', nodes: [{ id: 'order', name: 'Order', attributes: [{ id: 'total', name: 'total', type: 'number' }] }], relations: [], generalizations: [], generalizationSets: [] }, context: { records: [{ id: 'plan', kind: 'plan', text: 'A retained passage.', path: 'plan.md', section: 'Orders' }], links: [{ elementId: 'total', recordId: 'plan' }] } } });
     const handle = created.handle as string;
     assert.equal(catalog.list(snapshot, 'work-1').models.length, 1);
     assert.equal(catalog.list(snapshot, 'work-2').models.length, 0);
@@ -36,7 +36,7 @@ test('dashboard serves scoped native payloads, caches revisions and retains vali
     const first = await catalog.prepared(snapshot, 'work-1', handle);
     assert.equal(first, await catalog.prepared(snapshot, 'work-1', handle));
     assert.equal(first.exports.bundle, '');
-    const glossary = { id: 'glossary', kind: 'glossary' as const, text: 'Shared definition', path: 'knowledge/glossary.md' };
+    const glossary = { id: 'glossary', kind: 'glossary' as const, text: 'Shared definition', path: '../../knowledge/glossary.md' };
     const document = workspace.load(handle);
     await workspace.execute('atlas_revise', { handle, expectedRevision: created.revision as string, changes: { title: 'Proposed orders', context: { records: [...document.context.records, glossary], links: [...document.context.links, { elementId: 'order', recordId: glossary.id }] }, reason: 'Plan revision' } });
     const backlinks = catalog.references(snapshot, undefined, 'knowledge/glossary.md');
@@ -106,7 +106,7 @@ test('scope changes during a concurrent load cannot serve the previous work inde
   assert(results.every(result => result.version === 'new'));
 });
 
-test('models are discovered per work folder and record paths resolve work-first', async () => {
+test('models are discovered per work folder and record paths resolve against it', async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-work-'));
   const outside = mkdtempSync(path.join(os.tmpdir(), 'atlas-outside-'));
   try {
@@ -131,8 +131,8 @@ test('models are discovered per work folder and record paths resolve work-first'
         { id: 'glossary', kind: 'glossary', text: 'Shared', path: '../../knowledge/glossary.md' },
         { id: 'escape', kind: 'plan', text: 'Outside', path: '../../../outside.md' },
       ], links: [{ elementId: 'order', recordId: 'plan' }, { elementId: 'total', recordId: 'plan' }, { elementId: 'order', recordId: 'glossary' }] } });
-    const rooted = await create(folder, { id: 'rooted', title: 'Rooted orders', profile: 'code', workId: 'work-1', model: structural('Rooted order'),
-      context: { records: [{ id: 'old', kind: 'plan', text: 'Older passage', path: 'active/0001-orders/plan.md', section: 'Overview' }], links: [] } });
+    const rooted = await create(folder, { id: 'rooted', title: 'Planning-root paths', profile: 'code', workId: 'work-1', model: structural('Rooted order'),
+      context: { records: [{ id: 'rooted', kind: 'plan', text: 'A planning-root-relative path', path: 'active/0001-orders/plan.md', section: 'Overview' }], links: [] } });
     await create(root, { id: 'root-model', title: 'Planning-root model', profile: 'code', workId: 'work-1', model: structural('Ignored') });
     await create(path.join(root, 'active/0002-other'), { id: 'elsewhere', title: 'Other work', profile: 'code', workId: 'work-2', model: structural('Other') });
 
@@ -146,13 +146,13 @@ test('models are discovered per work folder and record paths resolve work-first'
       ['knowledge/glossary.md', 'knowledge/glossary.md', null],
       [null, '../../../outside.md', null],
     ]);
-    assert.deepEqual(listed.models.find(model => model.handle === rooted.handle)!.explains.map(item => [item.path, item.reference]), [['active/0001-orders/plan.md', 'plan.md']], 'planning-root-relative record paths resolve');
+    assert.deepEqual(listed.models.find(model => model.handle === rooted.handle)!.explains.map(item => [item.path, item.reference]), [[null, 'active/0001-orders/plan.md']], 'planning-root-relative record paths do not resolve');
     assert.deepEqual(catalog.list(snapshot, 'work-2').models.map(model => model.title), ['Other work']);
     assert.deepEqual(catalog.counts(snapshot), { 'work-1': 2, 'work-2': 1 });
 
     const references = catalog.references(snapshot, 'work-1', 'active/0001-orders/plan.md');
     const order = (handle: string) => handle === own.handle ? 0 : 1;
-    assert.deepEqual(references.map(item => [item.handle, item.section, item.elementName]).sort((a, b) => order(a[0]!) - order(b[0]!)), [[own.handle, 'Data model', 'Order'], [own.handle, 'Data model', 'total'], [rooted.handle, 'Overview', null]]);
+    assert.deepEqual(references.map(item => [item.handle, item.section, item.elementName]).sort((a, b) => order(a[0]!) - order(b[0]!)), [[own.handle, 'Data model', 'Order'], [own.handle, 'Data model', 'total']]);
     assert.equal(references.find(item => item.handle === own.handle)!.provenance.kind, 'authored');
     assert.deepEqual(catalog.references(snapshot, undefined, 'knowledge/glossary.md').map(item => [item.workId, item.elementId]), [['work-1', 'order']]);
     assert.equal((await catalog.prepared(snapshot, 'work-1', own.handle)).model.title, 'Orders');
@@ -205,12 +205,12 @@ test('dashboard provenance matches the Atlas viewer wording and tones', async ()
   for (const document of documents) assert.deepEqual(describeProvenance(document as never), viewer.describeProvenance(document as never));
 });
 
-test('record paths resolve against the work folder first and never escape the planning root', () => {
+test('record paths resolve against the work folder only and never escape the planning root', () => {
   const documents = [{ path: 'active/1/plan.md' }, { path: 'plan.md' }, { path: 'knowledge/a.md' }];
   assert.equal(resolveRecordPath('plan.md', 'active/1', documents)?.path, 'active/1/plan.md');
   assert.equal(resolveRecordPath('./plan.md', 'active/1', documents)?.path, 'active/1/plan.md');
-  assert.equal(resolveRecordPath('active/1/plan.md', 'active/1', documents)?.path, 'active/1/plan.md');
-  assert.equal(resolveRecordPath('plan.md', null, documents)?.path, 'plan.md');
+  assert.equal(resolveRecordPath('active/1/plan.md', 'active/1', documents), undefined, 'planning-root-relative paths do not resolve');
+  assert.equal(resolveRecordPath('plan.md', null, documents), undefined, 'a record without a work folder does not resolve');
   assert.equal(resolveRecordPath('../../knowledge/a.md', 'active/1', documents)?.path, 'knowledge/a.md');
   for (const escape of ['../../../a.md', '/etc/passwd', 'C:/x.md', 'https://example.com/plan.md', '', 7]) assert.equal(resolveRecordPath(escape, 'active/1', documents), undefined);
 });

@@ -1,7 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { execFileSync } = require("node:child_process");
-const { unzipSync, zipSync, strToU8 } = require("fflate");
+const { unzipSync } = require("fflate");
 const {
   createDocument,
   createSnapshot,
@@ -10,8 +9,6 @@ const {
   importDocument,
 } = require("../lib/index.cjs");
 const { createProject } = require("../examples/r5/create-project.cjs");
-const { createEvidence, createViews } = require("../examples/r5/metadata.cjs");
-const snippets = require("../examples/r5/source-snippets.json");
 test("portable export reopens without workspace, retains baselines/context and can be revised and exported", async () => {
   const graph = {
     type: "StructuralModel",
@@ -104,23 +101,6 @@ test("portable export reopens without workspace, retains baselines/context and c
     changed,
   );
   assert.equal(second.artifacts.has("animals-structural.json"), true);
-});
-test("existing 0.4 exports recover their exact conceptual model, counts, views and code excerpts", async () => {
-  const html = execFileSync("git", ["show", "864d3e6:index.html"], {
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-  });
-  const imported = importDocument(html);
-  const project = createProject();
-  assert.deepEqual(imported.model, project);
-  assert.deepEqual(imported.evidence, createEvidence(project));
-  assert.deepEqual(imported.views, createViews(project));
-  for (const [id, excerpt] of Object.entries(snippets)) {
-    assert.equal(imported.snippets[id].code, excerpt.code);
-    assert.equal(imported.snippets[id].commit, excerpt.commit);
-  }
-  const exported = await buildViewer({ document: imported, slug: "legacy" });
-  assert.deepEqual(importDocument(exported.html).model, project);
 });
 test("import validates inert data and never runs surrounding scripts", async () => {
   const project = createProject();
@@ -221,23 +201,13 @@ test("project title survives export and reopening without evidence", async () =>
     first.model.title,
   );
 });
-test("legacy model and static snippets share one decoded size budget", () => {
-  const project = createProject();
-  project.description = { en: "x".repeat(20 * 1024 * 1024) };
-  const bundle = Buffer.from(
-    zipSync({
-      "large-ontouml.json": strToU8(JSON.stringify(project)),
-      "large-evidence.json": strToU8("{}"),
-      "large-views.json": strToU8("[]"),
-    }),
-  ).toString("base64");
-  const snippet = {
-    source: {
-      code: "y".repeat(20 * 1024 * 1024),
-      language: "text",
-      startLine: 1,
-    },
-  };
-  const html = `<script>const EXPORTS=${JSON.stringify({ slug: "large", bundle })};const SNIPPETS=${JSON.stringify(snippet)};\n</script>`;
-  assert.throws(() => importDocument(html), /IMPORT_LIMIT/);
+test("HTML without an inert Atlas document payload is rejected", () => {
+  for (const html of [
+    "<!doctype html><html><body><p>No model here</p></body></html>",
+    '<script>const EXPORTS={"slug":"old","bundle":""};</script>',
+  ])
+    assert.throws(
+      () => importDocument(html),
+      /IMPORT_FORMAT: no Atlas document payload/,
+    );
 });
