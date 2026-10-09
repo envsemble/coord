@@ -28,6 +28,7 @@ import { ProvenanceBadge } from "./ProvenanceBadge";
 import { ComparisonViewer } from "./ComparisonViewer";
 import { ReportViewer } from "./ReportViewer";
 import { useOverlayInsets } from "./useOverlayInsets";
+import { useToolbarDensity } from "./useToolbarDensity";
 
 export function OntoUMLViewer(props) {
   // Report and comparison controls travel as extras into the nested viewer.
@@ -88,6 +89,10 @@ function ViewerContent({
   const viewerRef = useRef(null),
     toolbarRef = useRef(null);
   const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
+  const density = useToolbarDensity(
+    toolbarRef,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`,
+  );
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
   const index = useMemo(
@@ -172,6 +177,7 @@ function ViewerContent({
     >
       <ViewerToolbar
         ref={toolbarRef}
+        density={density}
         comparisonControls={comparisonControls}
         reportControl={reportControl}
         {...{

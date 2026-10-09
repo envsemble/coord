@@ -1227,6 +1227,69 @@ button[aria-selected="true"] {
   cursor: default;
 }
 
+/* Measured density: when the islands no longer fit on one row, search
+   collapses to a button whose field opens as an anchored popover. */
+.atlas-panel .atlas-overlay-top.tight .search-toggle {
+  display: inline-flex;
+}
+.atlas-panel .atlas-overlay-top.tight .search-field {
+  display: none;
+  position: absolute;
+  z-index: 31;
+  top: calc(100% + 8px);
+  right: -1px;
+  width: min(320px, calc(100cqw - 16px));
+  padding: 6px;
+  background: var(--overlay-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--island-shadow);
+}
+.atlas-panel .atlas-overlay-top.tight .search.open .search-field {
+  display: block;
+}
+.atlas-panel .atlas-overlay-top.tight .search-icon {
+  left: 14px;
+}
+.atlas-panel .atlas-overlay-top.tight .search-shortcut {
+  right: 12px;
+}
+.atlas-panel .atlas-overlay-top.tight .suggestions {
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+}
+.atlas-panel .atlas-overlay-top.tight .island-title,.atlas-panel
+.atlas-overlay-top.tight .collapsible-label {
+  display: none;
+}
+.atlas-panel .atlas-overlay-top.tighter #zoom-in,.atlas-panel
+.atlas-overlay-top.tighter #zoom-out,.atlas-panel
+.atlas-overlay-top.tighter .change-counts svg {
+  display: none;
+}
+.atlas-panel .view-select {
+  height: 28px;
+  max-width: 180px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.atlas-panel .view-select:hover {
+  border-color: var(--muted);
+}
+.atlas-panel .view-select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 /* Narrow panels (embedded cards, phones): collapse search, full-width panels. */
 @container atlas-viewer (max-width: 640px) {
   .atlas-panel .atlas-overlay-top {
@@ -1234,38 +1297,6 @@ button[aria-selected="true"] {
     left: 8px;
     right: 8px;
     gap: 6px;
-  }
-  .atlas-panel .search-toggle {
-    display: inline-flex;
-  }
-  .atlas-panel .search-field {
-    display: none;
-    position: absolute;
-    z-index: 31;
-    top: calc(100% + 8px);
-    right: -1px;
-    width: min(320px, calc(100cqw - 16px));
-    padding: 6px;
-    background: var(--overlay-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: var(--island-shadow);
-  }
-  .atlas-panel .search.open .search-field {
-    display: block;
-  }
-  .atlas-panel .search-icon {
-    left: 14px;
-  }
-  .atlas-panel .search-shortcut {
-    right: 12px;
-  }
-  .atlas-panel .suggestions {
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    width: auto;
-    max-width: none;
   }
   .atlas-panel .panel,.atlas-panel
   .inspector,.atlas-panel

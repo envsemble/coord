@@ -1227,6 +1227,69 @@ button:disabled {
   cursor: default;
 }
 
+/* Measured density: when the islands no longer fit on one row, search
+   collapses to a button whose field opens as an anchored popover. */
+.atlas-overlay-top.tight .search-toggle {
+  display: inline-flex;
+}
+.atlas-overlay-top.tight .search-field {
+  display: none;
+  position: absolute;
+  z-index: 31;
+  top: calc(100% + 8px);
+  right: -1px;
+  width: min(320px, calc(100cqw - 16px));
+  padding: 6px;
+  background: var(--overlay-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--island-shadow);
+}
+.atlas-overlay-top.tight .search.open .search-field {
+  display: block;
+}
+.atlas-overlay-top.tight .search-icon {
+  left: 14px;
+}
+.atlas-overlay-top.tight .search-shortcut {
+  right: 12px;
+}
+.atlas-overlay-top.tight .suggestions {
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+}
+.atlas-overlay-top.tight .island-title,
+.atlas-overlay-top.tight .collapsible-label {
+  display: none;
+}
+.atlas-overlay-top.tighter #zoom-in,
+.atlas-overlay-top.tighter #zoom-out,
+.atlas-overlay-top.tighter .change-counts svg {
+  display: none;
+}
+.view-select {
+  height: 28px;
+  max-width: 180px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.view-select:hover {
+  border-color: var(--muted);
+}
+.view-select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 /* Narrow panels (embedded cards, phones): collapse search, full-width panels. */
 @container atlas-viewer (max-width: 640px) {
   .atlas-overlay-top {
@@ -1234,38 +1297,6 @@ button:disabled {
     left: 8px;
     right: 8px;
     gap: 6px;
-  }
-  .search-toggle {
-    display: inline-flex;
-  }
-  .search-field {
-    display: none;
-    position: absolute;
-    z-index: 31;
-    top: calc(100% + 8px);
-    right: -1px;
-    width: min(320px, calc(100cqw - 16px));
-    padding: 6px;
-    background: var(--overlay-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: var(--island-shadow);
-  }
-  .search.open .search-field {
-    display: block;
-  }
-  .search-icon {
-    left: 14px;
-  }
-  .search-shortcut {
-    right: 12px;
-  }
-  .suggestions {
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    width: auto;
-    max-width: none;
   }
   .panel,
   .inspector,

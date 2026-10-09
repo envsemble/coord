@@ -3,6 +3,7 @@ import { ComparisonViewer } from "./ComparisonViewer";
 import { ReportViewer } from "./ReportViewer";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useOverlayInsets } from "./useOverlayInsets";
+import { useToolbarDensity } from "./useToolbarDensity";
 import {
   useCallback,
   useEffect,
@@ -132,6 +133,10 @@ function AtlasPanelContent({
   const viewerRef = useRef(null),
     topRef = useRef(null);
   const fitInsets = useOverlayInsets(viewerRef, topRef);
+  const density = useToolbarDensity(
+    topRef,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`,
+  );
   const lastFocus = useRef(null),
     inspectorId = useId();
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
@@ -230,7 +235,10 @@ function AtlasPanelContent({
   return (
     <div className="atlas-panel" data-theme={theme}>
       <div ref={viewerRef} className={`viewer${open ? " inspecting" : ""}`}>
-        <div className="atlas-overlay-top" ref={topRef}>
+        <div
+          className={`atlas-overlay-top${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
+          ref={topRef}
+        >
           {hasStart && (
             <Island label="Diagram navigation" className="island-start">
               {leading && <div className="island-leading">{leading}</div>}
@@ -238,6 +246,7 @@ function AtlasPanelContent({
               {showTabs && (
                 <Tabs
                   items={views}
+                  compact={density > 0}
                   value={view.key}
                   onChange={(key) => {
                     setViewKey(key);

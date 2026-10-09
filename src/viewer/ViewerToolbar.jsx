@@ -38,6 +38,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     aboutOpen,
     comparisonControls,
     reportControl,
+    density = 0,
     onSidebar,
     onView,
     onFields,
@@ -61,7 +62,10 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     return model.classes.filter((concept) => visibleIds.has(concept.id));
   }, [model.classes, views]);
   return (
-    <header className="atlas-overlay-top viewer-toolbar" ref={ref}>
+    <header
+      className={`atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
+      ref={ref}
+    >
       <Island label="Diagram navigation" className="island-start">
         <span className="brand-mark" title={model.title}>
           <AtlasMark />
@@ -71,7 +75,12 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
         </span>
         {(views.length > 1 || comparisonControls) && <IslandDivider />}
         {views.length > 1 && (
-          <Tabs items={views} value={viewKey} onChange={onView} />
+          <Tabs
+            items={views}
+            value={viewKey}
+            onChange={onView}
+            compact={density > 0}
+          />
         )}
         {views.length > 1 && comparisonControls && <IslandDivider />}
         {comparisonControls}

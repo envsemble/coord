@@ -81,10 +81,10 @@ function inspectionTarget(model, index, views, viewKey, id) {
 import {
   useCallback as useCallback4,
   useEffect as useEffect8,
-  useLayoutEffect as useLayoutEffect9,
+  useLayoutEffect as useLayoutEffect10,
   useMemo as useMemo9,
-  useRef as useRef9,
-  useState as useState12
+  useRef as useRef10,
+  useState as useState13
 } from "react";
 
 // src/visualization/DiagramCanvas.jsx
@@ -1650,7 +1650,24 @@ import { forwardRef as forwardRef2, useMemo as useMemo4 } from "react";
 
 // src/ui/Tabs.jsx
 import { jsx as jsx8 } from "react/jsx-runtime";
-function Tabs({ items, value, onChange, label = "Diagram" }) {
+function Tabs({
+  items,
+  value,
+  onChange,
+  label = "Diagram",
+  compact = false
+}) {
+  if (compact)
+    return /* @__PURE__ */ jsx8(
+      "select",
+      {
+        className: "view-select",
+        "aria-label": label,
+        value,
+        onChange: (e) => onChange(e.target.value),
+        children: items.map((item) => /* @__PURE__ */ jsx8("option", { value: item.key, children: item.label }, item.key))
+      }
+    );
   return /* @__PURE__ */ jsx8("nav", { className: "tabs", "aria-label": label, children: items.map((item) => /* @__PURE__ */ jsx8(
     "button",
     {
@@ -2061,6 +2078,7 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
   aboutOpen,
   comparisonControls,
   reportControl,
+  density = 0,
   onSidebar,
   onView,
   onFields,
@@ -2080,130 +2098,145 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
     const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
     return model.classes.filter((concept) => visibleIds.has(concept.id));
   }, [model.classes, views]);
-  return /* @__PURE__ */ jsxs10("header", { className: "atlas-overlay-top viewer-toolbar", ref, children: [
-    /* @__PURE__ */ jsxs10(Island, { label: "Diagram navigation", className: "island-start", children: [
-      /* @__PURE__ */ jsx15("span", { className: "brand-mark", title: model.title, children: /* @__PURE__ */ jsx15(AtlasMark, {}) }),
-      /* @__PURE__ */ jsx15("span", { className: "island-title", title: model.title, children: model.title }),
-      (views.length > 1 || comparisonControls) && /* @__PURE__ */ jsx15(IslandDivider, {}),
-      views.length > 1 && /* @__PURE__ */ jsx15(Tabs, { items: views, value: viewKey, onChange: onView }),
-      views.length > 1 && comparisonControls && /* @__PURE__ */ jsx15(IslandDivider, {}),
-      comparisonControls
-    ] }),
-    /* @__PURE__ */ jsxs10(Island, { label: "Diagram tools", className: "island-end", children: [
-      /* @__PURE__ */ jsx15(ConceptSearch, { classes: searchClasses, onChoose }),
-      /* @__PURE__ */ jsx15(IslandDivider, {}),
-      /* @__PURE__ */ jsx15(
-        ToggleButton,
-        {
-          id: "fields",
-          className: "icon fields",
-          pressed: fields,
-          "aria-label": "Fields",
-          title: "Show attributes in the diagram",
-          onClick: onFields,
-          children: /* @__PURE__ */ jsx15(TableIcon, { size: 16 })
-        }
-      ),
-      /* @__PURE__ */ jsx15(CameraControls, { ...{ zoomStore, onZoom, onReset, onFit } }),
-      /* @__PURE__ */ jsx15(IslandDivider, {}),
-      conceptual && /* @__PURE__ */ jsxs10(
-        "button",
-        {
-          id: "learn-toggle",
-          type: "button",
-          className: "icon learn-toggle",
-          "aria-pressed": learningOpen && sidebarOpen,
-          onClick: onLearn,
-          "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
-          title: "Learn OntoUML",
-          children: [
-            /* @__PURE__ */ jsx15(BookIcon, { size: 16 }),
-            model.validation.counts.error > 0 && /* @__PURE__ */ jsx15("span", { className: "validation-count", children: model.validation.counts.error })
-          ]
-        }
-      ),
-      reportControl,
-      /* @__PURE__ */ jsx15(
-        IconButton,
-        {
-          id: "sidebar-toggle",
-          label: sidebarLabel,
-          "aria-controls": "inspector",
-          "aria-expanded": sidebarOpen,
-          onClick: onSidebar,
-          children: sidebarHidden ? /* @__PURE__ */ jsx15(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx15(SidebarCollapseIcon, { size: 16 })
-        }
-      ),
-      /* @__PURE__ */ jsx15(IslandDivider, {}),
-      /* @__PURE__ */ jsx15(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? /* @__PURE__ */ jsx15(SunIcon, { size: 16 }) : /* @__PURE__ */ jsx15(MoonIcon, { size: 16 }) }),
-      /* @__PURE__ */ jsxs10(ExportMenu, { children: [
-        /* @__PURE__ */ jsxs10(
-          "a",
-          {
-            id: "svg-download",
-            href: diagramURL,
-            download: `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
-            children: [
-              /* @__PURE__ */ jsx15(FileMediaIcon, { size: 16 }),
-              "SVG"
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxs10(
-          DownloadLink,
-          {
-            id: "puml-download",
-            className: "",
-            data: exports.readText(`${exports.slug}-${viewKey}.puml`),
-            filename: `${exports.slug}-${viewKey}.puml`,
-            children: [
-              /* @__PURE__ */ jsx15(FileCodeIcon, { size: 16 }),
-              "PlantUML"
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxs10(
-          DownloadLink,
-          {
-            id: "model-download",
-            className: "",
-            data: exports.readText(modelFile),
-            filename: modelFile,
-            type: "application/json",
-            children: [
-              /* @__PURE__ */ jsx15(FileCodeIcon, { size: 16 }),
-              conceptual ? "OntoUML JSON" : "Structural JSON"
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxs10(
-          DownloadLink,
-          {
-            id: "bundle-download",
-            className: "",
-            data: exports.bundle,
-            filename: `${exports.slug}-models.zip`,
-            type: "application/zip",
-            children: [
-              /* @__PURE__ */ jsx15(DownloadIcon, { size: 16 }),
-              "Models ZIP"
-            ]
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsx15(
-        IconButton,
-        {
-          id: "info",
-          label: "About and controls",
-          onClick: onAbout,
-          "aria-controls": "about-panel",
-          "aria-expanded": aboutOpen,
-          children: /* @__PURE__ */ jsx15(QuestionIcon, { size: 16 })
-        }
-      )
-    ] })
-  ] });
+  return /* @__PURE__ */ jsxs10(
+    "header",
+    {
+      className: `atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
+      ref,
+      children: [
+        /* @__PURE__ */ jsxs10(Island, { label: "Diagram navigation", className: "island-start", children: [
+          /* @__PURE__ */ jsx15("span", { className: "brand-mark", title: model.title, children: /* @__PURE__ */ jsx15(AtlasMark, {}) }),
+          /* @__PURE__ */ jsx15("span", { className: "island-title", title: model.title, children: model.title }),
+          (views.length > 1 || comparisonControls) && /* @__PURE__ */ jsx15(IslandDivider, {}),
+          views.length > 1 && /* @__PURE__ */ jsx15(
+            Tabs,
+            {
+              items: views,
+              value: viewKey,
+              onChange: onView,
+              compact: density > 0
+            }
+          ),
+          views.length > 1 && comparisonControls && /* @__PURE__ */ jsx15(IslandDivider, {}),
+          comparisonControls
+        ] }),
+        /* @__PURE__ */ jsxs10(Island, { label: "Diagram tools", className: "island-end", children: [
+          /* @__PURE__ */ jsx15(ConceptSearch, { classes: searchClasses, onChoose }),
+          /* @__PURE__ */ jsx15(IslandDivider, {}),
+          /* @__PURE__ */ jsx15(
+            ToggleButton,
+            {
+              id: "fields",
+              className: "icon fields",
+              pressed: fields,
+              "aria-label": "Fields",
+              title: "Show attributes in the diagram",
+              onClick: onFields,
+              children: /* @__PURE__ */ jsx15(TableIcon, { size: 16 })
+            }
+          ),
+          /* @__PURE__ */ jsx15(CameraControls, { ...{ zoomStore, onZoom, onReset, onFit } }),
+          /* @__PURE__ */ jsx15(IslandDivider, {}),
+          conceptual && /* @__PURE__ */ jsxs10(
+            "button",
+            {
+              id: "learn-toggle",
+              type: "button",
+              className: "icon learn-toggle",
+              "aria-pressed": learningOpen && sidebarOpen,
+              onClick: onLearn,
+              "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
+              title: "Learn OntoUML",
+              children: [
+                /* @__PURE__ */ jsx15(BookIcon, { size: 16 }),
+                model.validation.counts.error > 0 && /* @__PURE__ */ jsx15("span", { className: "validation-count", children: model.validation.counts.error })
+              ]
+            }
+          ),
+          reportControl,
+          /* @__PURE__ */ jsx15(
+            IconButton,
+            {
+              id: "sidebar-toggle",
+              label: sidebarLabel,
+              "aria-controls": "inspector",
+              "aria-expanded": sidebarOpen,
+              onClick: onSidebar,
+              children: sidebarHidden ? /* @__PURE__ */ jsx15(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx15(SidebarCollapseIcon, { size: 16 })
+            }
+          ),
+          /* @__PURE__ */ jsx15(IslandDivider, {}),
+          /* @__PURE__ */ jsx15(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? /* @__PURE__ */ jsx15(SunIcon, { size: 16 }) : /* @__PURE__ */ jsx15(MoonIcon, { size: 16 }) }),
+          /* @__PURE__ */ jsxs10(ExportMenu, { children: [
+            /* @__PURE__ */ jsxs10(
+              "a",
+              {
+                id: "svg-download",
+                href: diagramURL,
+                download: `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
+                children: [
+                  /* @__PURE__ */ jsx15(FileMediaIcon, { size: 16 }),
+                  "SVG"
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxs10(
+              DownloadLink,
+              {
+                id: "puml-download",
+                className: "",
+                data: exports.readText(`${exports.slug}-${viewKey}.puml`),
+                filename: `${exports.slug}-${viewKey}.puml`,
+                children: [
+                  /* @__PURE__ */ jsx15(FileCodeIcon, { size: 16 }),
+                  "PlantUML"
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxs10(
+              DownloadLink,
+              {
+                id: "model-download",
+                className: "",
+                data: exports.readText(modelFile),
+                filename: modelFile,
+                type: "application/json",
+                children: [
+                  /* @__PURE__ */ jsx15(FileCodeIcon, { size: 16 }),
+                  conceptual ? "OntoUML JSON" : "Structural JSON"
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxs10(
+              DownloadLink,
+              {
+                id: "bundle-download",
+                className: "",
+                data: exports.bundle,
+                filename: `${exports.slug}-models.zip`,
+                type: "application/zip",
+                children: [
+                  /* @__PURE__ */ jsx15(DownloadIcon, { size: 16 }),
+                  "Models ZIP"
+                ]
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsx15(
+            IconButton,
+            {
+              id: "info",
+              label: "About and controls",
+              onClick: onAbout,
+              "aria-controls": "about-panel",
+              "aria-expanded": aboutOpen,
+              children: /* @__PURE__ */ jsx15(QuestionIcon, { size: 16 })
+            }
+          )
+        ] })
+      ]
+    }
+  );
 });
 
 // src/model/printable.js
@@ -4016,6 +4049,49 @@ function useOverlayInsets(viewerRef, topRef) {
   );
 }
 
+// src/viewer/useToolbarDensity.js
+import { useLayoutEffect as useLayoutEffect9, useRef as useRef9, useState as useState12 } from "react";
+var MAX_LEVEL = 3;
+var HYSTERESIS = 24;
+function useToolbarDensity(topRef, resetKey) {
+  const [level, setLevel] = useState12(0);
+  const limits = useRef9([]);
+  useLayoutEffect9(() => {
+    limits.current = [];
+    setLevel(0);
+  }, [resetKey]);
+  useLayoutEffect9(() => {
+    const top = topRef.current;
+    if (!top || typeof ResizeObserver !== "function") return;
+    const check = () => {
+      const width = top.clientWidth;
+      const islands = [...top.children].filter(
+        (child) => child.classList.contains("atlas-island")
+      );
+      if (!width || !islands.length) return;
+      const row = Math.min(...islands.map((island) => island.offsetTop));
+      const crowded = islands.some(
+        (island) => island.offsetTop > row + 4 || island.offsetHeight > 48
+      );
+      setLevel((current) => {
+        if (current > 0 && width > limits.current[current - 1] + HYSTERESIS)
+          return current - 1;
+        if (crowded && current < MAX_LEVEL) {
+          limits.current[current] = width;
+          return current + 1;
+        }
+        return current;
+      });
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(top);
+    for (const child of top.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [topRef, level, resetKey]);
+  return level;
+}
+
 // src/viewer/OntoUMLViewer.jsx
 import { jsx as jsx25, jsxs as jsxs20 } from "react/jsx-runtime";
 function OntoUMLViewer(props) {
@@ -4057,21 +4133,25 @@ function ViewerContent({
   provenanceDocument
 }) {
   const exports = useArtifactArchive(exportData);
-  const [viewKey, setViewKey] = useState12(views[0].key), [fields, setFields] = useState12(false);
+  const [viewKey, setViewKey] = useState13(views[0].key), [fields, setFields] = useState13(false);
   const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
-  const [selected, setSelected] = useState12(null);
-  const [aboutOpen, setAboutOpen] = useState12(false);
-  const [learningOpen, setLearningOpen] = useState12(false);
-  const [sidebarHidden, setSidebarHidden] = useState12(false);
+  const [selected, setSelected] = useState13(null);
+  const [aboutOpen, setAboutOpen] = useState13(false);
+  const [learningOpen, setLearningOpen] = useState13(false);
+  const [sidebarHidden, setSidebarHidden] = useState13(false);
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
     previewEnabled: !sidebarHidden,
     previewVisible: !!selected || learningOpen
   });
-  const [focusRequest, setFocusRequest] = useState12(null);
+  const [focusRequest, setFocusRequest] = useState13(null);
   const zoomStore = useMemo9(createZoomStore, []);
-  const cameraRef = useRef9(null);
-  const viewerRef = useRef9(null), toolbarRef = useRef9(null);
+  const cameraRef = useRef10(null);
+  const viewerRef = useRef10(null), toolbarRef = useRef10(null);
   const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
+  const density = useToolbarDensity(
+    toolbarRef,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`
+  );
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
   const index = useMemo9(
@@ -4132,7 +4212,7 @@ function ViewerContent({
     },
     [index, model, views, viewKey, select]
   );
-  const lastExternalFocus = useRef9(null);
+  const lastExternalFocus = useRef10(null);
   useEffect8(() => {
     if (focus && focus !== lastExternalFocus.current) {
       lastExternalFocus.current = focus;
@@ -4144,7 +4224,7 @@ function ViewerContent({
   useEffect8(() => {
     if (selected && !index.getElement(selected)) select(null);
   }, [index, selected, select]);
-  useLayoutEffect9(() => {
+  useLayoutEffect10(() => {
     if (sidebarOpen && selected?.kind === "node")
       cameraRef.current?.revealNode(selected.id);
   }, [sidebarOpen]);
@@ -4158,6 +4238,7 @@ function ViewerContent({
           ViewerToolbar,
           {
             ref: toolbarRef,
+            density,
             comparisonControls,
             reportControl,
             ...{
@@ -4309,10 +4390,10 @@ import {
   useCallback as useCallback5,
   useEffect as useEffect9,
   useId as useId4,
-  useLayoutEffect as useLayoutEffect10,
+  useLayoutEffect as useLayoutEffect11,
   useMemo as useMemo10,
-  useRef as useRef10,
-  useState as useState13
+  useRef as useRef11,
+  useState as useState14
 } from "react";
 import { jsx as jsx26, jsxs as jsxs21 } from "react/jsx-runtime";
 function AtlasPanel(props) {
@@ -4390,14 +4471,18 @@ function AtlasPanelContent({
   provenanceDocument
 }) {
   const { model, views, snippets } = payload;
-  const [viewKey, setViewKey] = useState13(views[0].key);
-  const [fields, setFields] = useState13(false), [selected, setSelected] = useState13(null);
-  const [hidden, setHidden] = useState13(false), [learning, setLearning] = useState13(false);
-  const [focusRequest, setFocusRequest] = useState13(null);
-  const camera = useRef10(null), zoomStore = useMemo10(createZoomStore, []);
-  const viewerRef = useRef10(null), topRef = useRef10(null);
+  const [viewKey, setViewKey] = useState14(views[0].key);
+  const [fields, setFields] = useState14(false), [selected, setSelected] = useState14(null);
+  const [hidden, setHidden] = useState14(false), [learning, setLearning] = useState14(false);
+  const [focusRequest, setFocusRequest] = useState14(null);
+  const camera = useRef11(null), zoomStore = useMemo10(createZoomStore, []);
+  const viewerRef = useRef11(null), topRef = useRef11(null);
   const fitInsets = useOverlayInsets(viewerRef, topRef);
-  const lastFocus = useRef10(null), inspectorId = useId4();
+  const density = useToolbarDensity(
+    topRef,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`
+  );
+  const lastFocus = useRef11(null), inspectorId = useId4();
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
     previewEnabled: !hidden,
     previewVisible: !!selected || learning
@@ -4449,7 +4534,7 @@ function AtlasPanelContent({
       setViewKey(focus.id);
     else choose(focus.id);
   }, [focus, choose, views]);
-  useLayoutEffect10(() => {
+  useLayoutEffect11(() => {
     if (open && selected?.kind === "node")
       camera.current?.revealNode(selected.id);
   }, [open]);
@@ -4475,89 +4560,97 @@ function AtlasPanelContent({
   const showTabs = views.length > 1;
   const hasStart = !!leading || showTabs || !!comparisonControls;
   return /* @__PURE__ */ jsx26("div", { className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs21("div", { ref: viewerRef, className: `viewer${open ? " inspecting" : ""}`, children: [
-    /* @__PURE__ */ jsxs21("div", { className: "atlas-overlay-top", ref: topRef, children: [
-      hasStart && /* @__PURE__ */ jsxs21(Island, { label: "Diagram navigation", className: "island-start", children: [
-        leading && /* @__PURE__ */ jsx26("div", { className: "island-leading", children: leading }),
-        leading && (showTabs || comparisonControls) && /* @__PURE__ */ jsx26(IslandDivider, {}),
-        showTabs && /* @__PURE__ */ jsx26(
-          Tabs,
-          {
-            items: views,
-            value: view.key,
-            onChange: (key) => {
-              setViewKey(key);
-              setFocusRequest(null);
-              clearHover();
-            }
-          }
-        ),
-        showTabs && comparisonControls && /* @__PURE__ */ jsx26(IslandDivider, {}),
-        comparisonControls
-      ] }),
-      /* @__PURE__ */ jsxs21(Island, { label: "Diagram tools", className: "island-end", children: [
-        /* @__PURE__ */ jsx26(ConceptSearch, { classes: model.classes, onChoose: choose }),
-        /* @__PURE__ */ jsx26(IslandDivider, {}),
-        /* @__PURE__ */ jsx26(
-          ToggleButton,
-          {
-            className: "icon",
-            pressed: fields,
-            "aria-label": "Fields",
-            title: "Show attributes",
-            onClick: () => {
-              setFocusRequest(null);
-              setFields((v) => !v);
-            },
-            children: /* @__PURE__ */ jsx26(TableIcon, { size: 16 })
-          }
-        ),
-        /* @__PURE__ */ jsx26(
-          CameraControls,
-          {
-            zoomStore,
-            onZoom: (factor) => camera.current?.zoomBy(factor),
-            onReset: () => camera.current?.reset(),
-            onFit: () => camera.current?.fit()
-          }
-        ),
-        /* @__PURE__ */ jsx26(IslandDivider, {}),
-        (!meta || meta.profile === "ontouml") && /* @__PURE__ */ jsx26(
-          ToggleButton,
-          {
-            className: "icon",
-            pressed: learning && open,
-            "aria-label": "Understand model",
-            title: "Understand model",
-            onClick: () => {
-              clearHover();
-              setHidden(false);
-              setLearning((v) => !v);
-            },
-            children: /* @__PURE__ */ jsx26(BookIcon, { size: 16 })
-          }
-        ),
-        reportControl,
-        /* @__PURE__ */ jsx26(
-          IconButton,
-          {
-            label: hidden ? "Show details" : "Hide details",
-            "aria-controls": inspectorId,
-            "aria-expanded": open,
-            onClick: () => setHidden((v) => !v),
-            children: hidden ? /* @__PURE__ */ jsx26(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx26(SidebarCollapseIcon, { size: 16 })
-          }
-        ),
-        onFullscreenChange && /* @__PURE__ */ jsx26(
-          IconButton,
-          {
-            label: fullscreen ? "Exit fullscreen" : "Enter fullscreen",
-            "aria-pressed": fullscreen,
-            onClick: () => onFullscreenChange(!fullscreen),
-            children: fullscreen ? /* @__PURE__ */ jsx26(ScreenNormalIcon, { size: 16 }) : /* @__PURE__ */ jsx26(ScreenFullIcon, { size: 16 })
-          }
-        )
-      ] })
-    ] }),
+    /* @__PURE__ */ jsxs21(
+      "div",
+      {
+        className: `atlas-overlay-top${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
+        ref: topRef,
+        children: [
+          hasStart && /* @__PURE__ */ jsxs21(Island, { label: "Diagram navigation", className: "island-start", children: [
+            leading && /* @__PURE__ */ jsx26("div", { className: "island-leading", children: leading }),
+            leading && (showTabs || comparisonControls) && /* @__PURE__ */ jsx26(IslandDivider, {}),
+            showTabs && /* @__PURE__ */ jsx26(
+              Tabs,
+              {
+                items: views,
+                compact: density > 0,
+                value: view.key,
+                onChange: (key) => {
+                  setViewKey(key);
+                  setFocusRequest(null);
+                  clearHover();
+                }
+              }
+            ),
+            showTabs && comparisonControls && /* @__PURE__ */ jsx26(IslandDivider, {}),
+            comparisonControls
+          ] }),
+          /* @__PURE__ */ jsxs21(Island, { label: "Diagram tools", className: "island-end", children: [
+            /* @__PURE__ */ jsx26(ConceptSearch, { classes: model.classes, onChoose: choose }),
+            /* @__PURE__ */ jsx26(IslandDivider, {}),
+            /* @__PURE__ */ jsx26(
+              ToggleButton,
+              {
+                className: "icon",
+                pressed: fields,
+                "aria-label": "Fields",
+                title: "Show attributes",
+                onClick: () => {
+                  setFocusRequest(null);
+                  setFields((v) => !v);
+                },
+                children: /* @__PURE__ */ jsx26(TableIcon, { size: 16 })
+              }
+            ),
+            /* @__PURE__ */ jsx26(
+              CameraControls,
+              {
+                zoomStore,
+                onZoom: (factor) => camera.current?.zoomBy(factor),
+                onReset: () => camera.current?.reset(),
+                onFit: () => camera.current?.fit()
+              }
+            ),
+            /* @__PURE__ */ jsx26(IslandDivider, {}),
+            (!meta || meta.profile === "ontouml") && /* @__PURE__ */ jsx26(
+              ToggleButton,
+              {
+                className: "icon",
+                pressed: learning && open,
+                "aria-label": "Understand model",
+                title: "Understand model",
+                onClick: () => {
+                  clearHover();
+                  setHidden(false);
+                  setLearning((v) => !v);
+                },
+                children: /* @__PURE__ */ jsx26(BookIcon, { size: 16 })
+              }
+            ),
+            reportControl,
+            /* @__PURE__ */ jsx26(
+              IconButton,
+              {
+                label: hidden ? "Show details" : "Hide details",
+                "aria-controls": inspectorId,
+                "aria-expanded": open,
+                onClick: () => setHidden((v) => !v),
+                children: hidden ? /* @__PURE__ */ jsx26(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx26(SidebarCollapseIcon, { size: 16 })
+              }
+            ),
+            onFullscreenChange && /* @__PURE__ */ jsx26(
+              IconButton,
+              {
+                label: fullscreen ? "Exit fullscreen" : "Enter fullscreen",
+                "aria-pressed": fullscreen,
+                onClick: () => onFullscreenChange(!fullscreen),
+                children: fullscreen ? /* @__PURE__ */ jsx26(ScreenNormalIcon, { size: 16 }) : /* @__PURE__ */ jsx26(ScreenFullIcon, { size: 16 })
+              }
+            )
+          ] })
+        ]
+      }
+    ),
     /* @__PURE__ */ jsx26(
       DiagramCanvas,
       {
