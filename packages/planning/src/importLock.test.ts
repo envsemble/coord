@@ -80,3 +80,12 @@ test('a lock whose holder cannot be judged is taken over only when it is old', a
   await assert.rejects(acquireImportLock(directory, 150), ImportLockBusyError);
   await unlock();
 });
+
+test('a waiter gives up at its deadline while another takeover guard is held', async t => {
+  const directory = folder(t);
+  writeFileSync(path.join(directory, importLockName), deadHolder());
+  writeFileSync(path.join(directory, importLockName + '.takeover'), 'crashed mid-takeover');
+  const started = Date.now();
+  await assert.rejects(acquireImportLock(directory, 300), ImportLockBusyError);
+  assert.ok(Date.now() - started < 5000, 'the deadline bounds the wait instead of the guard\'s 60 s staleness');
+});

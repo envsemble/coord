@@ -52,19 +52,20 @@ async function readBytes(file: string) {
   try { return await readFile(file); } catch { return null; }
 }
 
-/** Delete the lock only if it still has `judged` bytes, under the takeover guard. */
-async function takeOver(lockFile: string, judged: Buffer) {
+/** Delete the lock only if it still has `judged` bytes, under the takeover guard. False while another waiter holds the guard. */
+async function takeOver(lockFile: string, judged: Buffer): Promise<boolean> {
   const guard = lockFile + '.takeover';
   try { await writeFile(guard, processToken, { flag: 'wx' }); }
   catch (error) {
     if (!busyCodes.has(code(error))) throw error;
     try { if (Date.now() - (await stat(guard)).mtimeMs > guardStaleMs) await rm(guard, { force: true }); } catch { /* Gone already. */ }
-    return;
+    return false;
   }
   try {
     const current = await readBytes(lockFile);
     if (current && current.equals(judged)) await rm(lockFile, { force: true });
   } finally { await rm(guard, { force: true, maxRetries: 5, retryDelay: 20 }); }
+  return true;
 }
 
 /** Hold the import lock of `root` until the returned release function is called. */
@@ -90,7 +91,8 @@ export async function acquireImportLock(root: string, waitMs: number): Promise<(
     if (bytes) {
       try { holder = JSON.parse(bytes.toString('utf8')); } catch { /* Being written, or damaged. */ }
       try { ageMs = Date.now() - (await stat(lockFile)).mtimeMs; } catch { /* Released meanwhile. */ }
-      if (stale(holder, ageMs)) { await takeOver(lockFile, bytes); continue; }
+      // Retry at once after a takeover, but never past the deadline or in a busy loop on a held guard.
+      if (stale(holder, ageMs) && await takeOver(lockFile, bytes) && Date.now() < deadline) continue;
     }
     if (Date.now() >= deadline) throw new ImportLockBusyError(lockFile, holder);
     await sleep(10 + Math.random() * 40);
