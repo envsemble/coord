@@ -1,11 +1,10 @@
-import { mkdir, readdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PlanningError } from './planning.ts';
 
 export interface PlanningRootInfo { path: string; name: string; parent: string; workItems: number }
 
 const registryLimit = 2 * 1024 * 1024;
-const skipped = new Set(['node_modules', '__pycache__', 'dist', 'build', 'vendor', 'target', 'out', 'coverage']);
 const recentLimit = 8;
 
 function absolute(value: string) {
@@ -36,32 +35,6 @@ export async function inspectPlanningRoot(input: unknown): Promise<PlanningRootI
   return { path: canonical, name: path.basename(canonical), parent: path.dirname(canonical), workItems: registry.work_items.length };
 }
 
-/**
- * Find planning folders near the current one: its parent, the parent's children and grandchildren.
- * The walk is bounded, skips hidden/dependency folders and symlinks, and never descends into a planning folder.
- */
-export async function discoverPlanningRoots(current: string, { depth = 2, limit = 600 } = {}): Promise<PlanningRootInfo[]> {
-  const base = path.dirname(current);
-  const found: PlanningRootInfo[] = [];
-  const queue: { directory: string; level: number }[] = [{ directory: base, level: 0 }];
-  let visited = 0;
-  while (queue.length && visited < limit) {
-    const { directory, level } = queue.shift()!;
-    visited++;
-    let entries;
-    try { entries = await readdir(directory, { withFileTypes: true }); } catch { continue; }
-    if (entries.some(entry => entry.name === 'planning.json' && entry.isFile())) {
-      try { found.push(await inspectPlanningRoot(directory)); continue; } catch { /* Not a usable planning folder. */ }
-    }
-    if (level >= depth) continue;
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name.startsWith('.') || entry.name.startsWith('$') || skipped.has(entry.name)) continue;
-      queue.push({ directory: path.join(directory, entry.name), level: level + 1 });
-    }
-  }
-  return found.sort((a, b) => a.path.localeCompare(b.path));
-}
-
 /** Recently opened planning folders, kept in the Atlas data folder (never in planning). */
 export class RecentPlanningRoots {
   private readonly filename: string;
@@ -73,13 +46,21 @@ export class RecentPlanningRoots {
     } catch { return []; }
   }
   async remember(root: string) {
-    const recent = [root, ...(await this.list()).filter(item => !samePlatformPath(item, root))].slice(0, recentLimit);
+    return this.save([root, ...(await this.list()).filter(item => !samePlatformPath(item, root))].slice(0, recentLimit));
+  }
+  async forget(root: string) {
+    return this.save((await this.list()).filter(item => !samePlatformPath(item, root)));
+  }
+  async clear() {
+    return this.save([]);
+  }
+  private async save(recent: string[]) {
     try {
       await mkdir(path.dirname(this.filename), { recursive: true });
       const temporary = this.filename + '.' + process.pid + '.tmp';
       await writeFile(temporary, JSON.stringify({ recent }, null, 2) + '\n');
       await rename(temporary, this.filename);
-    } catch { /* Recents are a convenience; switching still works without them. */ }
+    } catch { /* Recents are a convenience; opening folders still works without them. */ }
     return recent;
   }
 }

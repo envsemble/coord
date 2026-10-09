@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { discoverPlanningRoots, inspectPlanningRoot, RecentPlanningRoots } from './planningRoots.ts';
+import { inspectPlanningRoot, RecentPlanningRoots } from './planningRoots.ts';
 
 const registry = (work = 0) => JSON.stringify({ schema_version: 1, repositories: [], work_items: Array.from({ length: work }, (_, index) => ({ id: 'work-' + String(index + 1).padStart(4, '0'), path: 'active/' + index, repositories: [], current_plan: null })) });
 
@@ -18,7 +18,7 @@ async function workspace() {
   return { temporary, current, demo, future, broken };
 }
 
-test('planning folders are validated before switching', async () => {
+test('planning folders are validated before opening', async () => {
   const { temporary, current, demo, future, broken } = await workspace();
   try {
     assert.deepEqual(await inspectPlanningRoot(demo), { path: demo, name: 'planning', parent: path.dirname(demo), workItems: 3 });
@@ -36,17 +36,18 @@ test('planning folders are validated before switching', async () => {
   } finally { await rm(temporary, { recursive: true }); }
 });
 
-test('nearby planning folders are discovered to depth two and recents persist outside planning', async () => {
+test('recent folders persist outside planning and can be forgotten', async () => {
   const { temporary, current, demo } = await workspace();
   try {
-    const found = (await discoverPlanningRoots(current)).map(item => item.path);
-    assert.deepEqual(found, [demo, current].sort((a, b) => a.localeCompare(b)), 'hidden, invalid and deeper folders are skipped');
     const recents = new RecentPlanningRoots(path.join(temporary, 'cache/planning-roots.json'));
     assert.deepEqual(await recents.list(), []);
     await recents.remember(current); await recents.remember(demo); await recents.remember(current);
     assert.deepEqual(await recents.list(), [current, demo]);
     for (let index = 0; index < 12; index++) await recents.remember(path.join(temporary, 'other-' + index));
     assert.equal((await recents.list()).length, 8);
+    const [first, second] = await recents.list();
+    assert.deepEqual((await recents.forget(first)).slice(0, 1), [second]);
+    assert.deepEqual(await recents.clear(), []);
     await writeFile(path.join(temporary, 'cache/planning-roots.json'), '{"recent": ["relative/path", 5]}');
     assert.deepEqual(await recents.list(), []);
   } finally { await rm(temporary, { recursive: true }); }
