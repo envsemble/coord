@@ -20,11 +20,11 @@ Open [the local dashboard](http://127.0.0.1:4317). By default it reads the sibli
 
     npm run dev -- --planning-dir "C:/path/to/planning"
 
-Optional arguments: --port 4318 and --data-dir "C:/path/to/local-cache". For a built version, run npm run build once, then npm start with the same options. The server listens only on 127.0.0.1; nothing is hosted remotely. Stop it with Ctrl+C.
+Optional arguments: --port 4318 and --data-dir "C:/path/to/atlas-data", which overrides the [Atlas data folder](#usage-statistics) for this run. For a built version, run npm run build once, then npm start with the same options. The server listens only on 127.0.0.1; nothing is hosted remotely. Stop it with Ctrl+C.
 
 ### Switching planning folders
 
-The folder switcher at the top of the sidebar shows the open folder; its full path is in the tooltip. It lists recently opened folders, planning folders found nearby (the parent of the open folder and two levels below it, for example a sibling `worktrail-demo/planning`), and accepts any absolute path. A folder must contain a readable `planning.json` with schema version 1. Switching replaces the planning index, Atlas models and usage statistics, which are kept per folder, and returns to the work list. `--planning-dir` still chooses the first folder. Recent folders are kept in the data directory (`planning-roots.json`), never in planning.
+The folder switcher at the top of the sidebar shows the open folder; its full path is in the tooltip. It lists recently opened folders, planning folders found nearby (the parent of the open folder and two levels below it, for example a sibling `worktrail-demo/planning`), and accepts any absolute path. A folder must contain a readable `planning.json` with schema version 1. Switching replaces the planning index, Atlas models and usage statistics, which are kept per folder, and returns to the work list. `--planning-dir` still chooses the first folder. Recent folders are kept in the Atlas data folder (`planning-roots.json`), never in planning.
 
 The switch endpoints are `GET /api/planning-roots` and `POST /api/planning-root` with a JSON body of the form `{ "path": "…" }`. Like view events, the POST accepts only local, same-origin JSON requests.
 
@@ -46,9 +46,9 @@ Contained Markdown links open their original records. External web references op
 
 Two sources remain distinct: document opens in the browser and agent-reported consultation. Statistics show most/least recorded use, known task identities, recent consultation, and collection coverage. They do not measure whether the workflow improved an outcome. Zero recorded use does not mean a record was never read or should be removed.
 
-The five planning skills use bootstrap's [consultation helper](../skills/worktrail-bootstrap/references/USAGE.md), which requires Python 3 with SQLite support and only the standard library. It writes while the dashboard is closed. No model calls, API keys, or paid API account are needed. Install the updated skills together using the repository's [installation instructions](../README.md#install-the-skills).
+The planning skills report consultation with `atlas usage log <planning-root> --files …` (see the [consultation guidance](../skills/worktrail-bootstrap/references/USAGE.md) and [installing the atlas command](../README.md#install-the-atlas-command)). It needs only Node and writes while the dashboard is closed. No model calls, API keys, or paid API account are needed.
 
-Usage is local, outside the planning and product repositories: ~/.cache/planning-dashboard/&lt;canonical-folder-hash&gt;/usage.sqlite. Both runtimes share this SQLite store. PLANNING_DASHBOARD_DATA_DIR or --data-dir overrides the cache base; both always add the folder hash so one override can safely serve several planning roots. Give the helper that same base directory. Moving the entire planning root changes the cache identity. Stable work IDs preserve per-document use through active/archive moves within the same root.
+Usage is local, in the per-user Atlas data folder, outside the planning and product repositories: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, as `usage/<canonical-folder-hash>/usage.sqlite`. The dashboard and the `atlas` command share this SQLite store; the shared reader lives in `packages/planning`. `ATLAS_DATA_DIR`, or `--data-dir` for one run, overrides the data folder; the folder hash is always added, so one data folder safely serves several planning roots. Moving the entire planning root changes its identity. Stable work IDs preserve per-document use through active/archive moves within the same root. Statistics from the retired `~/.cache/planning-dashboard` cache are not read.
 
 Events retain document identity, source, timestamp, known task/session IDs, available Git revision, and content hash. Bodies and transcripts are not stored. Browser views within 30 seconds of the same document/session are deduplicated. Agent reports deduplicate paths within each batch; they remain self-reported. Missing identities and incomplete collection are shown honestly. Failed database writes retain generic coverage markers alongside the database when that directory is writable; a wholly unavailable cache is disclosed in the task. Logging failure does not block reading or authorized implementation work.
 
@@ -57,7 +57,7 @@ Events retain document identity, source, timestamp, known task/session IDs, avai
     npm test
     npm run build
 
-Portable tests cover legacy records, explicit plan selection, path containment, statistics, and Python/Node interoperability while the dashboard is closed. A local-only test also reads the sibling workspace's actual planning registry when present; CI does not need private planning records. The repository's CI validates the dashboard and planning helper tests.
+The planning reader's tests live in `packages/planning` and cover legacy records, explicit plan selection, path containment, statistics, and consultation written by the `atlas` command while the dashboard is closed; the app's tests cover its HTTP layer and client logic. A local-only test also reads the sibling workspace's actual planning registry when present; CI does not need private planning records. The repository's CI runs them all on Linux and Windows.
 
 ## Viewer conventions
 
@@ -70,7 +70,7 @@ A work page has a GitHub-repository layout: **Plan | Ledger | Diagrams | Files**
 The root ledger's optional version-1 status header reports current, next, blocked, and updated values under the shared [contract](../skills/worktrail-bootstrap/assets/planning/PLANS.md#ledger-status-version-1). The viewer never infers current activity from historical narrative. Skills update that header at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.
 ## Atlas diagrams
 
-Diagrams belong to their plan. Each work folder is its own Atlas workspace (`<work>/.atlas/models`), so archiving or moving the folder carries its diagrams along; model editing stays with the agent. Models in the older shared workspace at `<planning>/.atlas/models` remain readable and are matched by `workId`. If the same model exists in both places, the work folder's copy wins. `--atlas-dir /path/to/workspace` connects a different legacy workspace for the folder given on the command line.
+Diagrams belong to their plan. Each work folder is its own Atlas workspace (`<work>/.atlas/models`), so archiving or moving the folder carries its diagrams along; model editing stays with the agent. A planning-root `.atlas` folder is not read; move such models into their work folder.
 
 A plan shows an inline diagram card under each heading that a model references through its context records. Records give `path` relative to the work folder (`plan.md`); older paths relative to the planning root still resolve. A card shows the diagram title, its provenance, and the linked elements; it opens the **Diagrams** tab focused on that element. References without a matching heading are listed at the top of the document.
 
