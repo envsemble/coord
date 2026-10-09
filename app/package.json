@@ -1,11 +1,11 @@
 {
-  "name": "@envsemble/worktrail-dashboard",
+  "name": "@atlas/app",
   "version": "0.1.0",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/envsemble/worktrail.git",
-    "directory": "dashboard"
+    "url": "git+https://github.com/envsemble/atlas.git",
+    "directory": "app"
   },
   "type": "module",
   "engines": {
@@ -15,18 +15,16 @@
     "dev": "tsx server/index.ts --dev",
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
-    "test": "node scripts/check-atlas.mjs && node --test scripts/package-atlas.test.mjs && tsx --test src/visiblePoll.test.ts src/modelSelection.test.ts src/status.test.ts server/planning.test.ts server/telemetry.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts server/atlas.test.ts server/planningRoots.test.ts",
-    "atlas:package": "node scripts/package-atlas.mjs",
-    "release:assemble": "node scripts/assemble-worktrail.mjs",
-    "check:release": "node scripts/check-release.mjs"
+    "test": "tsx --test src/visiblePoll.test.ts src/modelSelection.test.ts src/status.test.ts server/planning.test.ts server/telemetry.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts server/atlas.test.ts server/planningRoots.test.ts",
+    "check:types": "tsc --noEmit",
+    "check:review": "node scripts/check-review.mjs"
   },
   "dependencies": {
+    "@atlas/diagrams": "*",
     "@primer/octicons-react": "19.40.0",
     "@primer/primitives": "^11.10.0",
     "express": "^5.2.1",
-    "fflate": "0.8.3",
     "github-slugger": "2.0.0",
-    "ontouml-atlas": "file:vendor/ontouml-atlas-fdb485dcd4ec.tgz",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "latest",

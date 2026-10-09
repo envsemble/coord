@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import atlas, { type AtlasDocument, type ViewerPayload } from 'ontouml-atlas';
+import atlas, { type AtlasDocument, type ViewerPayload } from '@atlas/diagrams';
 const { createWorkspace, prepareViewer } = atlas;
 import { PlanningError } from './planning.ts';
 import type { Snapshot } from '../src/types.ts';

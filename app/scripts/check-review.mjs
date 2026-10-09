@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
-import atlas from "ontouml-atlas";
+import atlas from "@atlas/diagrams";
+const diagrams = JSON.parse(fs.readFileSync(new URL("../../packages/diagrams/package.json", import.meta.url), "utf8"));
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), "planning-atlas-review-"));
 try {
   const model = { type: "StructuralModel", nodes: [{ id: "task", name: "Task", attributes: [] }], relations: [], generalizations: [], generalizationSets: [] };
@@ -18,8 +19,8 @@ try {
     fs.mkdirSync(path.dirname(path.join(output, name)), { recursive: true });
     fs.writeFileSync(path.join(output, name), content);
   }
-  fs.writeFileSync(path.join(output, "consumer.json"), JSON.stringify({ workflowCommit: process.env.GITHUB_SHA || null, atlas: JSON.parse(fs.readFileSync("vendor/atlas-package.json", "utf8")), scope: "Installed consumer review/export/reopen fixture; no live project inspection." }, null, 2));
-  console.log("Installed Atlas review, semantic change and export/reopen passed.");
+  fs.writeFileSync(path.join(output, "consumer.json"), JSON.stringify({ workflowCommit: process.env.GITHUB_SHA || null, diagrams: { name: diagrams.name, version: diagrams.version }, scope: "Workspace consumer review/export/reopen fixture; no live project inspection." }, null, 2));
+  console.log("Workspace diagram package review, semantic change and export/reopen passed.");
 } finally {
   if (!path.resolve(stage).startsWith(path.resolve(os.tmpdir()) + path.sep)) throw new Error("Unsafe consumer-check cleanup");
   fs.rmSync(stage, { recursive: true, force: true });

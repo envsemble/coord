@@ -1,8 +1,8 @@
 import { apiFetch } from './api';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AtlasPanel, ViewerErrorBoundary } from 'ontouml-atlas/react';
-import type { PlanningContext, ViewerPayload } from 'ontouml-atlas';
-import 'ontouml-atlas/embedded.css';
+import { AtlasPanel, ViewerErrorBoundary } from '@atlas/diagrams/react';
+import type { PlanningContext, ViewerPayload } from '@atlas/diagrams';
+import '@atlas/diagrams/embedded.css';
 import type { Snapshot, Work } from './types';
 import { documentRoute, type Route } from './routes';
 import { samePath } from './links';

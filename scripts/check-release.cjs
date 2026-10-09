@@ -51,6 +51,12 @@ async function check() {
     assert(files["packages/diagrams/examples/review/head.atlas.json"]);
     assert(files["app/package.json"]);
     assert(files["app/src/App.tsx"]);
+    assert(files["app/assets/atlas-dashboard.jpg"]);
+    assert(files["assets/worktrail/worktrail-icon.svg"]);
+    assert(
+      !Object.keys(files).some((name) => name.startsWith("app/vendor/")),
+      "The app must use the workspace diagram package, not a vendored tarball",
+    );
     assert(files["skills/worktrail-atlas/SKILL.md"]);
     assert(files["assets/atlas-banner-dark.svg"]);
     assert(files["docs/worktrail/history/skills-commit-map.txt"]);

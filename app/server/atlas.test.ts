@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync, existsSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import atlas, { type AtlasDocument } from 'ontouml-atlas';
+import atlas, { type AtlasDocument } from '@atlas/diagrams';
 const { createWorkspace } = atlas;
 import { AtlasCatalog } from './atlas.ts';
 import { createScopeCache } from './atlasScope.ts';
@@ -194,7 +194,7 @@ test('provenance labels follow the shared taxonomy', () => {
 });
 
 test('dashboard provenance matches the Atlas viewer wording and tones', async () => {
-  const viewer = await import('ontouml-atlas/react');
+  const viewer = await import('@atlas/diagrams/react');
   const capture = (kind: string, identity: string, status: 'complete' | 'partial') => ({ capturedAt: '2026-09-14T08:42:00.000Z', source: { kind, identity, scope: [] }, coverage: { status, diagnostics: [] }, adapter: { id: kind, version: '1' } });
   const documents = [
     { state: 'snapshot', profile: 'code', baselineId: 'c', snapshots: [{ id: 'c', capture: capture('typescript', 'shop', 'partial') }] },

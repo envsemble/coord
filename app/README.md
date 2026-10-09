@@ -8,15 +8,15 @@ A local React viewer for a planning repository. Browse active and archived work,
 
 ## Run locally
 
-Requires Node.js 24 or newer, npm, and Git for planning history. From this directory, install dependencies once:
+Requires Node.js 24 or newer, npm, and Git for planning history. The app is part of the repository's npm workspace; from the repository root, install dependencies once:
 
     npm ci
 
-Start the dashboard with one command:
+Then, from this directory, start the dashboard with one command:
 
     npm run dev
 
-Open [the local dashboard](http://127.0.0.1:4317). By default it reads the sibling planning folder two levels above this directory: a layout of workspace/worktrail/dashboard and workspace/planning. To read another repository:
+Open [the local dashboard](http://127.0.0.1:4317). By default it reads the sibling planning folder two levels above this directory: a layout of workspace/atlas/app and workspace/planning. To read another repository:
 
     npm run dev -- --planning-dir "C:/path/to/planning"
 
@@ -80,8 +80,8 @@ The tab checks model revision summaries every two seconds while visible. Model, 
 
 An element's retained plan/glossary/decision passages appear in its inspector. **Open plan** follows an indexed record and optional `section` heading. The referenced document also exposes links back into the diagram. Shared knowledge pages aggregate backlinks from their registered work items. References outside the indexed work and shared knowledge are unavailable; retained passage text still helps explain the model offline. Code evidence remains pinned and uses Atlas's syntax-highlighted snippets.
 
-The dashboard installs the canonical Atlas package from `vendor/ontouml-atlas-<source-commit>.tgz`. Its manifest records the source commit and SHA-256. To update it from a clean, committed Atlas checkout, run `npm run atlas:package -- /path/to/atlas`, then `npm install` and the checks. CI needs no sibling Atlas checkout. See [Atlas planning guidance](../skills/worktrail-atlas/SKILL.md).
+The dashboard depends on the diagram package (`@atlas/diagrams`, in `packages/diagrams`) through the repository's npm workspace, so diagram changes and dashboard changes land in one commit with no packaged tarball or pinned hash. See [Atlas planning guidance](../skills/worktrail-atlas/SKILL.md).
 
 **Report** opens authored walkthroughs, checked finite instances/counterexamples, guided SVG diagrams, selected glossary/evidence and print presentation. It returns to the existing diagram without discarding its camera/selection. Model state, source scopes and imported claims remain visible; learning checks do not establish domain accuracy.
 
-The installed consumer CI also runs `node scripts/check-review.mjs`, testing semantic review and HTML export/reopen without the Atlas source checkout. Revision-labelled review files are retained as workflow artifacts. `npm run release:assemble` builds a versioned planning/dashboard source ZIP from the committed Git tree with its pinned Atlas tarball; `npm run check:release` verifies hashes and repeatable packaging without publishing. See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md). Models in a user's local `.atlas` workspace are excluded from distribution.
+CI also runs `npm run check:review`, testing semantic review and HTML export/reopen through the workspace diagram package. Revision-labelled review files are retained as workflow artifacts. From the repository root, `npm run release:assemble` builds one versioned Atlas ZIP from the committed Git tree, including this app; `npm run check:release` verifies hashes and repeatable packaging without publishing. See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md). Models in a user's local `.atlas` workspace are excluded from distribution.
