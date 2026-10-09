@@ -22,4 +22,4 @@ Assembly rejects dirty source or stale committed build output and uses an isolat
 
 Install the included tarball with `npm install ./atlas-diagrams-<version>.tgz`. The package contains the Node and MCP APIs and precompiled React entry point (the `atlas` command lives in `packages/cli`), schemas, agent guidance and the viewer icon. Source examples remain in the repository/release ZIP rather than the core package. React 19.3 is a peer dependency. Use default ESM import (`import atlas from '@atlas/diagrams'`) or CommonJS; the lazy CJS exports do not promise static named ESM import detection.
 
-The dashboard in `app/` depends on the diagram package through the npm workspace; there is no separately pinned tarball. GitHub Actions assembles artifacts; the default-branch name affects badge status but does not publish an artifact release. Required checks are `CI` and `Betterleaks`.
+The app in `app/` depends on the diagram package through the npm workspace; there is no separately pinned tarball. GitHub Actions assembles artifacts; the default-branch name affects badge status but does not publish an artifact release. Required checks are `CI` and `Betterleaks`.

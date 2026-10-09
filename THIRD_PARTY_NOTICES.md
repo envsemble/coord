@@ -6,6 +6,10 @@ The [ontouml-js](https://github.com/OntoUML/ontouml-js) dependency supplies stan
 
 React and React DOM 19.3.0 are bundled into offline HTML under their MIT licenses. Full license text remains embedded in the HTML, with copies in licenses/. The reusable React module uses peer dependencies instead of bundling another React runtime.
 
+GitHub [Primer primitives](https://github.com/primer/primitives) supply the app's design tokens under their MIT license, distributed with the npm dependency.
+
+The `atlas-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's work and keep their [attribution](skills/atlas-grill/references/ATTRIBUTION.md) and [MIT license](skills/atlas-grill/references/LICENSE).
+
 GitHub's [Octicons](https://github.com/primer/octicons) React package 19.40.0 supplies the interface icons. The MIT license is preserved in licenses/octicons-LICENSE and embedded in offline HTML. The reusable viewer imports the local package dependency; the offline build bundles its used icons. No icon service or CDN is required.
 
 Vite 8.3.3 and its React plugin 6.1.2 provide the development server and Fast Refresh under their upstream MIT licenses, distributed with the npm dependencies. They are not bundled into offline HTML or required by the library at runtime.

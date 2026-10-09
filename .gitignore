@@ -11,10 +11,6 @@ Desktop.ini
 .atlas/exports/
 artifacts/
 
-# Python caches from the skills' tests
-__pycache__/
-*.py[cod]
-
 # Local secrets and environment files
 .env
 .env.*

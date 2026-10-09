@@ -63,8 +63,8 @@ async function check() {
     );
     assert(files["app/assets/atlas-dashboard.jpg"]);
     assert(
-      !Object.keys(files).some((name) => name.startsWith("assets/worktrail/")),
-      "Release branding is Atlas only",
+      !Object.keys(files).some((name) => /work[t]rail/i.test(name)),
+      "Release files use Atlas names only",
     );
     assert(
       !Object.keys(files).some((name) => name.startsWith("app/vendor/")),
@@ -72,7 +72,8 @@ async function check() {
     );
     assert(files["skills/atlas-model/SKILL.md"]);
     assert(files["assets/atlas-banner-dark.svg"]);
-    assert(files["docs/worktrail/history/skills-commit-map.txt"]);
+    assert(files["docs/history/skills-commit-map.txt"]);
+    assert(files["docs/history/atlas-import-commit-map.txt"]);
     assert(files["CHANGELOG.md"]);
     assert(files["package-lock.json"]);
     assert(
