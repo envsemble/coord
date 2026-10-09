@@ -1,9 +1,9 @@
 ---
-name: worktrail-bootstrap
-description: Guide creation or adoption of a locally versioned planning repository, preserving existing knowledge and establishing scope, governance, and a usable index. Use when setting up the planning workflow, not for ordinary coding or independent PR babysitting.
+name: atlas-bootstrap
+description: Guide creation or adoption of a locally versioned planning repository, preserving existing knowledge and establishing scope, governance, and a usable index. Use when setting up the planning workflow, not for ordinary coding or independent PR babysitting. Formerly worktrail-bootstrap and planning-bootstrap.
 ---
 
-# Planning bootstrap
+# Atlas Bootstrap
 
 Create a usable planning repository through inspection and guided decisions. A remote, template clone, initialization script, and product-repository pointer are not prerequisites. Keep local paths, repository names, and user preferences in the resulting repository rather than in the skill.
 
@@ -42,13 +42,13 @@ Index existing records before relocating them when that preserves a usable start
 
 ## Compose organization and finish
 
-Load the sibling [worktrail-organize](../worktrail-organize/SKILL.md) and use its inspection, selective retention, and preservation workflow; bootstrap and later maintenance share that workflow. Organization must include relevant material outside planning. An existing baseline protects only the records actually captured: retain useful external contents in planning's recoverable history before moving their source. Keep the original location and destination/source links, repair affected references, and verify preservation. Inspection itself does not authorize deletion of external artifacts.
+Load the sibling [atlas-organize](../atlas-organize/SKILL.md) and use its inspection, selective retention, and preservation workflow; bootstrap and later maintenance share that workflow. Organization must include relevant material outside planning. An existing baseline protects only the records actually captured: retain useful external contents in planning's recoverable history before moving their source. Keep the original location and destination/source links, repair affected references, and verify preservation. Inspection itself does not authorize deletion of external artifacts.
 
 Pilot a bounded work item or copy before broad relocation. Finish enough adoption for current use rather than delaying availability until every legacy file is normalized. A usable result has local Git history, reconciled governance, repository scope, an explicit registry and entry points, and preserved originals or indexed legacy locations. Check registry pointers and links, and verify retained contents against the baseline/move mapping. For significant migration, use body/file comparisons and an actual recovery check, not document counts alone.
 
 Use the read-only stdlib helper `python scripts/check_planning.py <planning-root>` when checking registry and selected-plan consistency. It accepts the flat contract's scalar fields and flow/block lists; it does not migrate records, interpret arbitrary YAML structures, check Markdown links, or prove preservation. Legacy plans without frontmatter and unknown legacy pointers/scope are reported as warnings rather than forced normalization. Its semantic fixtures run with `python -m unittest discover -s scripts/tests` from this skill folder.
 
-Report the usable location, what was adopted, verification evidence, and any unresolved legacy locations or genuinely blocked choices. Keep acceptance, implementation, PR readiness, merge, and release distinct. Subsequent planning-dependent operations read this repository's `AGENTS.md` and `PLANS.md`; ordinary coding and independent `worktrail-babysit-pr` remain available without planning.
+Report the usable location, what was adopted, verification evidence, and any unresolved legacy locations or genuinely blocked choices. Keep acceptance, implementation, PR readiness, merge, and release distinct. Subsequent planning-dependent operations read this repository's `AGENTS.md` and `PLANS.md`; ordinary coding and independent `atlas-babysit-pr` remain available without planning.
 
 ## Passive usage reporting
 

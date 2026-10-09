@@ -1,9 +1,9 @@
 ---
-name: worktrail-babysit-pr
-description: Guide existing GitHub PRs through review, fixes, CI, and conflicts until ready for human review. Use only when explicitly invoked as $worktrail-babysit-pr or by name, or directed by another explicitly invoked skill; no planning repository is required.
+name: atlas-babysit-pr
+description: Guide existing GitHub PRs through review, fixes, CI, and conflicts until ready for human review. Use only when explicitly invoked as $atlas-babysit-pr or by name, or directed by another explicitly invoked skill; no planning repository is required. Formerly worktrail-babysit-pr and babysit-pr.
 ---
 
-# Worktrail Babysit PR
+# Atlas Babysit PR
 
 Guide one or more existing PRs, across repositories if needed, until the current head passes validation and completed GitHub Codex review leaves no valid unresolved findings. Relevant issue links and metadata polish happen alongside this loop, preferably during waits.
 

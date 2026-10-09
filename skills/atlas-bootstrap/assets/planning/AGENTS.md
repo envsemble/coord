@@ -6,7 +6,7 @@ This repository preserves intended work, decisions, implementation evidence, and
 
 An explicit planning location is valid. Otherwise look for a folder named `planning` in the relevant repository/workspace context, including nearby siblings. No mandatory pointer in every product's `AGENTS.md` is required. Compare candidate registries with the task before asking about genuine ambiguity. Do not search unrelated machine locations.
 
-A planning-dependent operation requires a usable associated planning repository: local Git history, governance, scope registry, and entry points. If missing or uninitialized, explain the missing prerequisite and offer guided `worktrail-bootstrap` in the same conversation. Bootstrap creates this prerequisite. Its absence does not block ordinary authorized coding or independent `worktrail-babysit-pr`.
+A planning-dependent operation requires a usable associated planning repository: local Git history, governance, scope registry, and entry points. If missing or uninitialized, explain the missing prerequisite and offer guided `atlas-bootstrap` in the same conversation. Bootstrap creates this prerequisite. Its absence does not block ordinary authorized coding or independent `atlas-babysit-pr`.
 
 Use only knowledge whose repository/domain scope applies to the task. A shared planning repository does not make one product's constraints apply to another product or an unrelated internal tool. Repository paths in the registry are hints; confirm the actual checkout and source ownership.
 
@@ -30,7 +30,7 @@ Retain decisions, grounded lessons, outcomes, and observations that improve late
 
 Plan metadata is governed by `PLANS.md`. Design acceptance, implementation completion, PR readiness, merge, and release are separate facts. Do not guess dates or turn uncertain historical status into completion.
 
-The complete `worktrail-implement` workflow requires an explicit invocation. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
+The complete `atlas-implement` workflow requires an explicit invocation. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
 
 Before plan implementation, record the selected plan path and planning Git revision in the work item's ledger. A later edit must not silently change its agreed scope. Use the root `plan.md` and `ledger.md` conventions in `PLANS.md`. Keep the ledger status header current at meaningful transitions so current, next, and blocked work can be viewed; missing historical status stays unknown. Keep the ledger concise and resumable: actual progress, verification evidence, relevant product revisions/PRs, consequential departures, unresolved delivery milestones, and next actions. Independent PR babysitting uses the PR as its record and requires no second ledger.
 

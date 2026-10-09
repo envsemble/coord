@@ -1,15 +1,15 @@
 ---
-name: worktrail-atlas
-description: Use Atlas to inspect, validate, revise and visualize conceptual models while planning, reopen portable HTML, and work from explicitly captured source baselines. Model editing happens through its tools, not a diagram editor.
+name: atlas-model
+description: Use Atlas to inspect, validate, revise and visualize conceptual models while planning, reopen portable HTML, and work from explicitly captured source baselines. Model editing happens through its tools, not a diagram editor. Formerly worktrail-atlas and atlas-modeling.
 ---
 
-# Worktrail Atlas
+# Atlas Model
 
 Use Atlas as a modeling tool within the user's planning work. Keep plans, decisions, glossary ownership and lifecycle in the associated planning repository. Link diagram identities to selected passages; embedded context is supporting evidence, not a second authoritative plan.
 
 Prefer the configured Atlas MCP tools. If unavailable, use the installed `atlas` CLI (`atlas tools` exposes its JSON contracts) or the package's `createWorkspace(root).execute` API. A checkout also runs with `node /path/to/bin/atlas.cjs`. Do not install or reconfigure the user's MCP client unless requested.
 
-The work folder is the Atlas workspace root: `createWorkspace(<absolute work folder>)` or `--root <work folder>`, so models live in `<work>/.atlas/models` with revisions in `<work>/.atlas/history` and travel with the work item when it is archived. If the configured MCP root is anything else, use the CLI/API with the work folder. Never create models in the planning root; a legacy planning-root `.atlas/` stays readable and [worktrail-organize](../worktrail-organize/SKILL.md) relocates it. Do not hand-edit or copy-modify model JSON; change models only through Atlas operations so revisions stay valid.
+The work folder is the Atlas workspace root: `createWorkspace(<absolute work folder>)` or `--root <work folder>`, so models live in `<work>/.atlas/models` with revisions in `<work>/.atlas/history` and travel with the work item when it is archived. If the configured MCP root is anything else, use the CLI/API with the work folder. Never create models in the planning root; a legacy planning-root `.atlas/` stays readable and [atlas-organize](../atlas-organize/SKILL.md) relocates it. Do not hand-edit or copy-modify model JSON; change models only through Atlas operations so revisions stay valid.
 
 Load/reopen an existing document before recreating it. `atlas_load` preserves Atlas JSON revisions; `atlas_import` recovers an exported HTML's model without executing the page. Import preserves capture claims and marks them imported; it does not verify an unavailable source. `atlas_inspect` returns handles, revisions and focused elements. Inspect by identity, use small pages, and read a returned file reference only when needed.
 

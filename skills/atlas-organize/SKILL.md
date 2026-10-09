@@ -1,15 +1,15 @@
 ---
-name: worktrail-organize
-description: Organize an existing planning repository and retain valuable plans, ledgers, decisions, and evidence scattered around its workspace. Use for planning maintenance, adoption of legacy records, and selective recovery from root-level artifacts.
+name: atlas-organize
+description: Organize an existing planning repository and retain valuable plans, ledgers, decisions, and evidence scattered around its workspace. Use for planning maintenance, adoption of legacy records, and selective recovery from root-level artifacts. Formerly worktrail-organize and planning-organize.
 ---
 
-# Organize planning
+# Atlas Organize
 
-Make useful information discoverable while preserving its meaning and provenance. Read [the organization workflow](references/organization.md); it is also the workflow used by `worktrail-bootstrap` after initialization.
+Make useful information discoverable while preserving its meaning and provenance. Read [the organization workflow](references/organization.md); it is also the workflow used by `atlas-bootstrap` after initialization.
 
-Find the relevant folder named `planning` in the workspace or use the supplied location. Read its `AGENTS.md`, `PLANS.md`, and registry explicitly. Scope searches by participating repositories and the task. If the folder is missing or not yet usable, guide setup through [worktrail-bootstrap](../worktrail-bootstrap/SKILL.md) before the planning operation. Independent coding does not depend on this prerequisite.
+Find the relevant folder named `planning` in the workspace or use the supplied location. Read its `AGENTS.md`, `PLANS.md`, and registry explicitly. Scope searches by participating repositories and the task. If the folder is missing or not yet usable, guide setup through [atlas-bootstrap](../atlas-bootstrap/SKILL.md) before the planning operation. Independent coding does not depend on this prerequisite.
 
-Start from the existing conventions and content. Use the bootstrap [governance assets](../worktrail-bootstrap/assets/planning/AGENTS.md) and [metadata contract](../worktrail-bootstrap/assets/planning/PLANS.md) when missing contracts need to be adopted, preserving local instructions and surfacing substantive conflicts. Do not overwrite established governance from a template.
+Start from the existing conventions and content. Use the bootstrap [governance assets](../atlas-bootstrap/assets/planning/AGENTS.md) and [metadata contract](../atlas-bootstrap/assets/planning/PLANS.md) when missing contracts need to be adopted, preserving local instructions and surfacing substantive conflicts. Do not overwrite established governance from a template.
 
 Organization includes relevant surrounding workspace and repository roots, obvious artifact/output locations, and user-identified sources. Choose what to inspect based on filenames, task context, and evidence. Preserve useful external records or extract their valuable evidence with source context; leave repetitive logs and reproducible scratch output out of durable knowledge.
 
@@ -21,4 +21,4 @@ Finish with useful entry points, an accurate registry, verified preservation, an
 
 ## Passive usage reporting
 
-After consulting planning records, follow [passive usage reporting](../worktrail-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.
+After consulting planning records, follow [passive usage reporting](../atlas-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.
