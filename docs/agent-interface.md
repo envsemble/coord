@@ -2,7 +2,7 @@
 
 Atlas exposes the same operations through `createWorkspace(root).execute(name, arguments)`, the `atlas` JSON CLI, and its stdio MCP server. Model data persists independently of a dashboard or agent session under `.atlas/models`. Immutable revision files live under `.atlas/history`; prepared scenes/results and exports are separate output files. Keep model/history files when moving a workspace. No hosted AI or HTTP model service is required.
 
-Install from the verified package (`npm pack`, then `npm install /path/to/ontouml-atlas-0.5.0.tgz`), or use `node packages/diagrams/bin/atlas.cjs` from a checkout. Run `atlas tools` for the authoritative JSON schemas. CLI operation names omit the MCP `atlas_` prefix:
+Install from the verified package (`npm pack`, then `npm install /path/to/atlas-diagrams-0.5.0.tgz`), or use `node packages/diagrams/bin/atlas.cjs` from a checkout. Run `atlas tools` for the authoritative JSON schemas. CLI operation names omit the MCP `atlas_` prefix:
 
 ```sh
 atlas create --root /workspace --input create-request.json

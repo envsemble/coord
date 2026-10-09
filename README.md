@@ -58,10 +58,10 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 
 ## Library and React
 
-Create a local package with `npm pack`, then install the tarball in a consumer. Core Node APIs use CommonJS or default ESM import:
+Inside Atlas, the app uses the private `@atlas/diagrams` workspace package directly. Elsewhere, create a local package with `npm pack` in `packages/diagrams`, then install the tarball in a consumer. Core Node APIs use CommonJS or default ESM import:
 
 ```js
-import atlas from "ontouml-atlas";
+import atlas from "@atlas/diagrams";
 const document = atlas.importDocument(exportedHtml);
 const proposal = atlas.createProposal(document);
 const payload = (
@@ -72,8 +72,8 @@ atlas.writeViewer(built, "./site");
 ```
 
 ```jsx
-import { AtlasPanel, ViewerErrorBoundary } from "ontouml-atlas/react";
-import "ontouml-atlas/embedded.css";
+import { AtlasPanel, ViewerErrorBoundary } from "@atlas/diagrams/react";
+import "@atlas/diagrams/embedded.css";
 
 <ViewerErrorBoundary>
   <AtlasPanel
