@@ -20,39 +20,46 @@ The skills call the `atlas` command (`atlas planning check`, `atlas usage log`, 
 
 Copy the seven `atlas-*` folders as siblings into each harness's skills directory: `~/.codex/skills` for Codex and `~/.claude/skills` for Claude Code. This `skills` folder and its `tests` are not skills. Exactly one set should remain installed, so first move earlier copies to a dated backup outside the skills directories: `planning-*`, `worktrail-*`, `implement-plan`, `babysit-pr`, `atlas-modeling` and any previous `atlas-*` copies of these skills. Each `atlas-*` skill replaces the `planning-*` and `worktrail-*` skill of the same role; `atlas-implement` also replaces `implement-plan`, `atlas-babysit-pr` replaces `babysit-pr`, and `atlas-model` replaces `worktrail-atlas` and `atlas-modeling`. Start a new agent session afterwards.
 
-From an Atlas checkout on macOS or Linux:
+From an Atlas checkout on macOS or Linux (the subshell stops at the first failure without closing your shell):
 
 ```sh
-backup="$HOME/skill-backups/$(date +%F)"
-for harness in codex claude; do
-  dir="$HOME/.$harness/skills"
-  [ -d "$dir" ] || continue
-  mkdir -p "$backup/$harness"
-  for old in "$dir"/*/; do
-    case "$(basename "$old")" in
-      planning-*|worktrail-*|implement-plan|babysit-pr|atlas-modeling|atlas-bootstrap|atlas-organize|atlas-grill|atlas-implement|atlas-record|atlas-babysit-pr|atlas-model)
-        mv "$old" "$backup/$harness/" ;;
-    esac
+(
+  set -eu
+  backup="$HOME/skill-backups/$(date +%F)"
+  for harness in codex claude; do
+    dir="$HOME/.$harness/skills"
+    [ -d "$dir" ] || continue
+    mkdir -p "$backup/$harness"
+    for old in "$dir"/*/; do
+      [ -d "$old" ] || continue
+      case "$(basename "$old")" in
+        planning-*|worktrail-*|implement-plan|babysit-pr|atlas-modeling|atlas-bootstrap|atlas-organize|atlas-grill|atlas-implement|atlas-record|atlas-babysit-pr|atlas-model)
+          mv "$old" "$backup/$harness/" ;;
+      esac
+    done
+    cp -R skills/atlas-* "$dir/"
   done
-  cp -R skills/atlas-* "$dir/"
-done
+)
 ```
 
-On Windows PowerShell:
+On Windows PowerShell (the script block keeps `Stop` scoped to this run):
 
 ```powershell
-$backup = Join-Path $HOME "skill-backups\$(Get-Date -Format yyyy-MM-dd)"
-$old = '^(planning-.+|worktrail-.+|implement-plan|babysit-pr|atlas-modeling|atlas-(bootstrap|organize|grill|implement|record|babysit-pr|model))$'
-foreach ($harness in 'codex', 'claude') {
-  $dir = Join-Path $HOME ".$harness\skills"
-  if (-not (Test-Path $dir)) { continue }
-  $target = New-Item -ItemType Directory -Force (Join-Path $backup $harness)
-  Get-ChildItem -Directory $dir | Where-Object Name -Match $old | Move-Item -Destination $target
-  Get-ChildItem -Directory skills\atlas-* | Copy-Item -Destination $dir -Recurse
+& {
+  $ErrorActionPreference = 'Stop'
+  $backup = Join-Path $HOME "skill-backups\$(Get-Date -Format yyyy-MM-dd)"
+  $old = '^(planning-.+|worktrail-.+|implement-plan|babysit-pr|atlas-modeling|atlas-(bootstrap|organize|grill|implement|record|babysit-pr|model))$'
+  foreach ($harness in 'codex', 'claude') {
+    $dir = Join-Path $HOME ".$harness\skills"
+    if (-not (Test-Path $dir)) { continue }
+    $target = New-Item -ItemType Directory -Force (Join-Path $backup $harness)
+    Get-ChildItem -Directory $dir | Where-Object Name -Match $old | Move-Item -Destination $target
+    Get-ChildItem -Directory skills\atlas-* | Copy-Item -Destination $dir -Recurse
+  }
 }
 ```
 
-Both scripts skip a harness whose skills directory does not exist; create it first for a harness you use but have not set up.
+Both scripts skip a harness whose skills directory does not exist; create it first for a harness you use but have not set up. They never delete anything, and they stop at the first move that fails (for example, when that day's backup already holds a folder of the same name) before copying new skills into that harness; folders already moved stay in the backup.
 
 ## Test
 

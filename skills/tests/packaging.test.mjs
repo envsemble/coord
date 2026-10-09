@@ -147,6 +147,20 @@ test("no old skill or product name appears anywhere in skills/", () => {
   }
 });
 
+test("skills promise no compatibility with old model layouts", () => {
+  const COMPAT_CLAIMS = [
+    /stays? readable/i,
+    /root-relative record paths? (?:remain|stay|are) valid/i,
+    /without editing model JSON/i,
+    /legacy planning-root/i,
+  ];
+  for (const file of textFiles())
+    for (const claim of COMPAT_CLAIMS) assert.doesNotMatch(read(file), claim, `${rel(file)} promises compatibility`);
+  const organize = read(path.join(GROUP, "atlas-organize", "references", "organization.md"));
+  assert.match(organize, /atlas model revise/, "atlas-organize migrates record paths through an Atlas revision");
+  assert.match(organize, /expectedRevision/);
+});
+
 test("the README install section backs up every old skill folder", () => {
   const section = installSection(read(README));
   for (const old of BACKED_UP) assert.match(section, old, `install section backs up ${old.source}`);
