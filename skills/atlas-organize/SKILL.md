@@ -21,4 +21,4 @@ Finish with useful entry points, an accurate registry, verified preservation, an
 
 ## Passive usage reporting
 
-After consulting planning records, follow [passive usage reporting](../atlas-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the dashboard is closed. A missing helper or logging failure must not interrupt the authorized task.
+After consulting planning records, follow [passive usage reporting](../atlas-bootstrap/references/USAGE.md) to record the actual consulted files in useful batches, with known task identity when available. Collection works while the Atlas app is closed. A missing `atlas` command or logging failure must not interrupt the authorized task.
