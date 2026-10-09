@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ontouml-atlas.local/schema/job/v1",
+  "$id": "https://atlas.local/schemas/job/v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["formatVersion", "title", "question", "projects", "model"],

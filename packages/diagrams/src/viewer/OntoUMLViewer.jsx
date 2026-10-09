@@ -74,7 +74,7 @@ function ViewerContent({
   const exports = useArtifactArchive(exportData);
   const [viewKey, setViewKey] = useState(views[0].key),
     [fields, setFields] = useState(false);
-  const [theme, toggleTheme] = useTheme("ontouml-atlas-theme");
+  const [theme, toggleTheme] = useTheme("atlas-theme");
   const [selected, setSelected] = useState(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [learningOpen, setLearningOpen] = useState(false);

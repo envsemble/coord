@@ -1,5 +1,5 @@
 const path = require("node:path");
-const virtualId = "virtual:ontouml-atlas/model";
+const virtualId = "virtual:atlas/model";
 const resolvedId = `\0${virtualId}`;
 
 function createPayloadCache(build) {
@@ -99,7 +99,7 @@ function modelPlugin({ root, buildPayload } = {}) {
         err: {
           message: error.message,
           stack: error.stack || "",
-          plugin: "ontouml-atlas-model",
+          plugin: "atlas-model",
         },
       });
     }
@@ -111,7 +111,7 @@ function modelPlugin({ root, buildPayload } = {}) {
     timer = setTimeout(refresh, 80);
   }
   return {
-    name: "ontouml-atlas-model",
+    name: "atlas-model",
     apply: "serve",
     resolveId(id) {
       if (id === virtualId) return resolvedId;

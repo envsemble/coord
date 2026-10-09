@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import initialPayload from "virtual:ontouml-atlas/model";
+import initialPayload from "virtual:atlas/model";
 import { OntoUMLViewer } from "../src/viewer/OntoUMLViewer";
 import { ViewerErrorBoundary } from "../src/viewer/ViewerErrorBoundary";
 

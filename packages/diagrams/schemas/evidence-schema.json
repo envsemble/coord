@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ontouml-atlas.local/schema/evidence/v1",
+  "$id": "https://atlas.local/schemas/evidence/v1",
   "type": "object",
   "additionalProperties": false,
   "properties": {
