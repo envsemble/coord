@@ -1,6 +1,6 @@
 {
   "name": "atlas",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Plans, models and shared understanding for agents and the people they work with",
   "repository": {

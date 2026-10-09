@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — Desktop app — 2026-10-10
+
+- Atlas is now a desktop app for Windows (unsigned NSIS installer) and Linux (AppImage), built with Electron. The local web server, its HTTP endpoints and browser mode are gone; `npm run dev` starts the desktop app with hot reload.
+- One window per planning folder: File › Open Folder…, Open Recent and New Window, a single running instance that also takes folders from the command line, and windows restored with their size, sidebar and tabs. The in-app folder switcher is gone.
+- A VS Code-style layout: an activity bar (Explorer, Work, Activity, Statistics), a resizable explorer that mirrors the planning folder (work status and titles, and a Diagrams entry per work item), preview and pinned tabs, and Ctrl+P quick open. The explorer replaces the Files and Knowledge pages and the per-work Files tab.
+- The app watches the folder instead of polling. A broken `planning.json` keeps the last good view with an error, a moved or deleted folder offers Locate… and Close, and a crashed window reloads with its tabs.
+- Security: context isolation, the Chromium sandbox, a checked message list between the window and the app, a strict content security policy, file access confined to each window's folder, and no remote content. A rotating local log (Help › Open Logs) and an About dialog; nothing leaves the machine.
+- File › Import Plan… and Export Plan… for portable plan exports (work-0012).
+- End-to-end tests drive the packaged app on Windows and Linux in CI.
+
 ## One Atlas — 2026-10-09
 
 - Combined the planning app, the planning skills and the diagram engine into this repository as one product, Atlas. The app's and skills' history came along with their files; [history maps](docs/history/README.md) translate their earlier commit IDs.

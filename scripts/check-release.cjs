@@ -80,7 +80,19 @@ async function check() {
       ),
       "Atlas ships no Python helpers",
     );
-    assert(files["app/assets/atlas-dashboard.jpg"]);
+    assert(files["app/assets/atlas-desktop.jpg"]);
+    assert(
+      files["app/main/index.ts"],
+      "Missing the desktop app's main process",
+    );
+    assert(
+      files["app/electron-builder.yml"],
+      "Missing the desktop packaging configuration",
+    );
+    assert(
+      !Object.keys(files).some((name) => name.startsWith("app/server/")),
+      "The desktop app has no web server",
+    );
     assert(
       !Object.keys(files).some((name) => /work[t]rail/i.test(name)),
       "Release files use Atlas names only",

@@ -1,30 +1,120 @@
-# Atlas app
+# Atlas desktop app
 
-![An agent's proposed database change in the Diagrams tab of an archived work item](assets/atlas-dashboard.jpg)
+![An agent's proposed change to captured code, full-bleed in the Diagrams view of a work item, with the explorer on the left](assets/atlas-desktop.jpg)
 
-The Atlas app is a local React viewer for a planning repository. Browse active and archived work, selected plans, ledgers, glossary, ADRs, evidence, scoped knowledge, and recorded Git activity. Discuss changes with your agent in chat.
+Atlas is a desktop app for a planning repository: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, usage statistics and each plan's diagrams. Each planning folder opens in its own window. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 
-## Run locally
+## Install
 
-Requires Node.js 24 or newer, npm, and Git for planning history. The app is part of the repository's npm workspace; from the repository root, install dependencies once:
+Atlas is built for Windows and Linux. Builds are unsigned, by decision for a single user; a newer version installs over an older one, and there is no auto-update.
+
+- **Windows:** run `Atlas-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user (you can pick the folder) and adds Atlas to the Start menu. Uninstall it from **Settings › Apps**; your data folder is kept.
+- **Linux:** make `Atlas-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
+
+The installer and AppImage come from the `Desktop` CI job's artifacts, or from `npm run package` in a checkout (they land in `app/release/`).
+
+To open a folder from a terminal or a file manager's "Open with", pass it on the command line: `Atlas.exe C:\work\planning` or `./Atlas-<version>-x86_64.AppImage ~/work/planning`. If Atlas is already running, the folder opens in that instance; a folder that is already open just gets focus.
+
+### Linux sandbox
+
+Atlas keeps Chromium's sandbox on and never disables it. An AppImage cannot use Chromium's setuid sandbox helper, so it needs unprivileged user namespaces. Ubuntu 23.10 and later restrict those through AppArmor; there Atlas exits at start with a message such as `No usable sandbox!` or `The SUID sandbox helper binary was found, but is not configured correctly`. Either:
+
+- allow them until the next reboot: `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` (add `kernel.apparmor_restrict_unprivileged_userns=0` to a file in `/etc/sysctl.d/` to keep it), or
+- give the AppImage its own AppArmor profile, `/etc/apparmor.d/atlas-desktop`, then run `sudo apparmor_parser -r /etc/apparmor.d/atlas-desktop`:
+
+      abi <abi/4.0>,
+      include <tunables/global>
+      profile atlas-desktop /home/*/Applications/Atlas-*.AppImage flags=(unconfined) {
+        userns,
+        include if exists <local/atlas-desktop>
+      }
+
+  Adjust the path to where you keep the AppImage.
+
+Do not start Atlas with `--no-sandbox`.
+
+## Develop
+
+Requires Node.js 24 or newer, npm, and Git for planning history. From the repository root:
 
     npm ci
+    npm run dev                          # the desktop app, with hot reload
+    npm run dev -- C:/path/to/planning   # …opening a planning folder
 
-Then start the app from the repository root:
+`npm run dev` runs electron-vite: the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode.
 
-    npm run dev --workspace @envsemble/atlas-app
+    npm run package    # app/release: NSIS installer on Windows, AppImage on Linux
+    npm run test:e2e   # Playwright drives the packaged app (run npm run package first)
 
-Open [the local app](http://127.0.0.1:4317). By default it reads the planning folder next to the checkout: a layout of workspace/atlas and workspace/planning. To read another repository:
+`npm test --workspace @envsemble/atlas-app` runs the unit tests, and `npm run check:types` type-checks the renderer and the main process. The end-to-end suite copies `e2e/fixtures/planning` (a copy of the demo workspace's planning folder) into a temporary Git repository and uses a temporary data folder (`ATLAS_DATA_DIR`), so it never touches your own data. `ATLAS_E2E_UNPACKAGED=1` runs it against `out/` without packaging, and `ATLAS_E2E_INSTALLER=1` also installs and uninstalls the Windows installer (CI does both on a disposable runner).
 
-    npm run dev --workspace @envsemble/atlas-app -- --planning-dir "C:/path/to/planning"
+## Code layout
 
-Optional arguments: --port 4318 and --data-dir "C:/path/to/atlas-data", which overrides the [Atlas data folder](#usage-statistics) for this run. For a built version, run npm run build --workspace @envsemble/atlas-app once, then npm start --workspace @envsemble/atlas-app with the same options. The server listens only on 127.0.0.1; nothing is hosted remotely. Stop it with Ctrl+C.
+| Path | What it is |
+| --- | --- |
+| `main/` | The main process: windows, the menu, the folder reader and watcher, the `atlas:` protocol, the message handlers, the log and saved state. It reads planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
+| `preload/` | The bridge: `window.atlas`, one method per message. |
+| `shared/` | The message contract and the validator every message argument goes through. |
+| `src/` | The React window. `src/components/` holds the building blocks (tree, menus, popover, split pane, tabs, dialog, notices), kept together so a later move to envUI stays mechanical. |
+| `e2e/` | The Playwright suite and its fixture planning folder. |
 
-### Switching planning folders
+## Windows and folders
 
-The folder switcher at the top of the sidebar shows the open folder; its full path is in the tooltip. It lists recently opened folders, planning folders found nearby (the parent of the open folder and two levels below it, for example a sibling `demo/planning`), and accepts any absolute path. A folder must contain a readable `planning.json` with schema version 1. Switching replaces the planning index, Atlas models and usage statistics, which are kept per folder, and returns to the work list. `--planning-dir` still chooses the first folder. Recent folders are kept in the Atlas data folder (`planning-roots.json`), never in planning.
+Each window shows exactly one planning folder, like VS Code:
 
-The switch endpoints are `GET /api/planning-roots` and `POST /api/planning-root` with a JSON body of the form `{ "path": "…" }`. Like view events, the POST accepts only local, same-origin JSON requests.
+- **File › Open Folder…** (Ctrl+O) picks a folder. It must contain a readable `planning.json` with schema version 1; otherwise Atlas explains why and opens nothing. A window without a folder is reused; otherwise the folder opens in a new window, and a folder that is already open gets focus instead.
+- **File › Open Recent** lists recently opened folders (missing ones are marked); **New Window** (Ctrl+Shift+N) opens an empty window that offers Open Folder and the recent list.
+- Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility, expanded folders and open tabs. Closing windows one by one keeps the last one.
+- Two windows may show overlapping folders, such as nested planning roots; each reads only its own folder.
+
+Atlas keeps its own data in the per-user Atlas data folder, shared with the `atlas` command: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR`. There it keeps `desktop-state.json` (windows and per-folder layout), `planning-roots.json` (recent folders), `usage/` (statistics), `logs/` and `chromium/` (the window engine's own files). Nothing is written into a planning folder except by an explicit import.
+
+## Layout
+
+- **Activity bar** (far left): **Explorer** toggles the sidebar; **Work**, **Activity** and **Statistics** open those views in a tab. A health indicator at the bottom lists record-health notes.
+- **Explorer** (Ctrl+B toggles it, drag its edge or use the arrow keys on the edge to resize): the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its number and plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, Enter (open pinned) and Space (preview) work in the tree, and a context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**.
+- **Tabs:** a single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab (choosing a section or a diagram), pins it. Ctrl+W closes a tab; middle-click closes it too.
+- **Opening things:** clicking a work folder expands it and opens its overview. Clicking a file opens it in a tab; clicking a diagram opens the Diagrams view focused on it. Links between records open their target in a tab (Ctrl+click pins it).
+- **Quick open** (Ctrl+P) jumps to any work item, diagram or file by name.
+
+| Shortcut | Action |
+| --- | --- |
+| Ctrl+P | Quick open |
+| Ctrl+B | Toggle the explorer |
+| Ctrl+Shift+E | Show and focus the explorer |
+| Ctrl+W | Close the tab |
+| Ctrl+O | Open a folder |
+| Ctrl+Shift+N | New window |
+| Ctrl+Shift+W | Close the window |
+
+## Staying current and recovering
+
+Atlas watches the planning folder instead of polling. Changes are collected for a moment and applied together, so an editor's atomic save, a Git checkout or a commit (which updates Activity) each cause one refresh. The open document, the diagrams and their inline cards follow.
+
+- A **`planning.json` that breaks** while open keeps the last good view, with the error above it; the view recovers as soon as the file is readable again.
+- A **folder that is moved or deleted** shows a clear state with **Locate…** (choose its new place; the window keeps its tabs) and **Close**. If the folder comes back, the window reopens it.
+- A folder that **cannot be read at all** shows why, with the same two choices.
+- A **window that crashes** reloads with its tabs. If it crashes three times within a minute, Atlas asks whether to reload again or close it.
+
+## Import and export
+
+**File › Export Plan…** (also on a work folder's context menu) saves a work item as one self-contained HTML file; **File › Import Plan…** previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and adds it as new work, without committing. These run the `packages/planning` export from work-0012 in a worker thread, so large files do not block the window. Builds without that code say "Plan export is not available in this build."
+
+## Security and privacy
+
+The app follows Electron's security checklist (the desktop-only decision is work-0011's ADR 0001 in the planning repository):
+
+- The window runs with context isolation and Chromium's sandbox, without Node.js integration, `remote` or `<webview>`.
+- The window talks to the main process only through `window.atlas`: a fixed list of messages, each argument checked by `shared/validate.ts`, errors returned as structured values. Messages from any other page or frame are refused.
+- A strict content security policy: no inline or remote scripts, no `eval`, and no network connections.
+- Each window has its own session whose `atlas:` protocol serves the app and only that window's planning folder, through the same containment as the reader (no paths outside it, no hidden or excluded folders). Every other request is blocked.
+- Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
+- Electron fuses turn off running as Node.js and `NODE_OPTIONS`. Inspector arguments stay available so the end-to-end suite can drive the packaged app. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
+- No data leaves the machine: there is no telemetry, update check or crash upload.
+
+## Diagnostics
+
+**Help › Open Logs** opens `logs/` in the data folder: `atlas.log` and up to three older files, 1 MB each, with start-up, folder, watcher and window events and any failures. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions and the data folder.
 
 ## Records and progress
 
@@ -36,47 +126,39 @@ Path comparisons follow the connected folder's case and Unicode-normalization be
 
 Work IDs follow the shared work-0001 format. Explicit selected-plan pointers establish plan ownership; other documents belong to their most-specific registered location in both the viewer and consultation logger. Git activity uses the registry before deletions and after additions, preserving ownership when nested work is archived. Previously unregistered files can use their current registration without overriding established historical owners.
 
-Design acceptance, implementation status, archive location, and known dates are displayed separately. Ledger prose supplies actual progress. Unknown dates stay unknown; invalid dates and chronology generate health errors. Recorded calendar durations are not engineering time. Git activity shows recent checkpoints, associating work through retained registry identities so archiving or renaming its folder preserves earlier activity. Filesystem and Git reads do not update plans or lifecycle state. Refresh manually or let the visible app refresh every 20 seconds.
+Design acceptance, implementation status, archive location, and known dates are displayed separately. Ledger prose supplies actual progress. Unknown dates stay unknown; invalid dates and chronology generate health errors. Recorded calendar durations are not engineering time. Git activity shows recent checkpoints, associating work through retained registry identities so archiving or renaming its folder preserves earlier activity. Filesystem and Git reads do not update plans or lifecycle state.
 
-Contained Markdown links open their original records. External web references open separately; references outside the planning root are marked. Raw HTML is not executed. Text and common images render in the reader; other attachments can be downloaded. The text reader has a 4 MiB limit, with original downloads retained.
+Contained Markdown links open their original records. External web references open in the system browser; references outside the planning root are marked. Raw HTML is not executed. Text and common images render in the reader; for other attachments, **Show in folder** reveals the file. The text reader has a 4 MiB limit.
 
 ## Usage statistics
 
-Two sources remain distinct: document opens in the browser and agent-reported consultation. Statistics show most/least recorded use, known task identities, recent consultation, and collection coverage. They do not measure whether the workflow improved an outcome. Zero recorded use does not mean a record was never read or should be removed.
+Two sources remain distinct: documents opened in Atlas and agent-reported consultation. Statistics show most/least recorded use, known task identities, recent consultation, and collection coverage. They do not measure whether the workflow improved an outcome. Zero recorded use does not mean a record was never read or should be removed.
 
-The planning skills report consultation with `atlas usage log <planning-root> --files …` (see the [consultation guidance](../skills/atlas-bootstrap/references/USAGE.md) and [installing the atlas command](../README.md#install-the-atlas-command)). It needs only Node and writes while the app is closed. No model calls, API keys, or paid API account are needed.
+The planning skills report consultation with `atlas usage log <planning-root> --files …` (see the [consultation guidance](../skills/atlas-bootstrap/references/USAGE.md) and [installing the atlas command](../README.md#install-the-atlas-command)). It needs only Node. No model calls, API keys, or paid API account are needed.
 
-Usage is local, in the per-user Atlas data folder, outside the planning and product repositories: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, as `usage/<canonical-folder-hash>/usage.sqlite`. The app and the `atlas` command share this SQLite store; the shared reader lives in `packages/planning`. `ATLAS_DATA_DIR`, or `--data-dir` for one run, overrides the data folder; the folder hash is always added, so one data folder safely serves several planning roots. Moving the entire planning root changes its identity. Stable work IDs preserve per-document use through active/archive moves within the same root.
+Usage is local, in the Atlas data folder, outside the planning and product repositories, as `usage/<canonical-folder-hash>/usage.sqlite`. The app and the `atlas` command share this SQLite store; the shared reader lives in `packages/planning`. The folder hash is always added, so one data folder safely serves several planning roots. Moving the entire planning root changes its identity. Stable work IDs preserve per-document use through active/archive moves within the same root.
 
-Events retain document identity, source, timestamp, known task/session IDs, available Git revision, and content hash. Bodies and transcripts are not stored. Browser views within 30 seconds of the same document/session are deduplicated. Agent reports deduplicate paths within each batch; they remain self-reported. Missing identities and incomplete collection are shown honestly. Failed database writes retain generic coverage markers alongside the database when that directory is writable; a wholly unavailable cache is disclosed in the task. Logging failure does not block reading or authorized implementation work.
-
-## Verify
-
-From the repository root:
-
-    npm test --workspace @envsemble/atlas-app
-    npm run build --workspace @envsemble/atlas-app
-
-The planning reader's tests live in `packages/planning` and cover retained (not yet normalized) records, explicit plan selection, path containment, statistics, and consultation written by the `atlas` command while the app is closed; the app's tests cover its HTTP layer and client logic. A local-only test also reads the sibling workspace's actual planning registry when present; CI does not need private planning records. The repository's CI runs them all on Linux and Windows.
+Events retain document identity, source, timestamp, known task/session IDs, available Git revision, and content hash. Bodies and transcripts are not stored. Views of the same document within 30 seconds in one window session are deduplicated. Agent reports deduplicate paths within each batch; they remain self-reported. Missing identities and incomplete collection are shown honestly. Failed database writes retain generic coverage markers alongside the database when that directory is writable. Logging failure does not block reading or authorized implementation work.
 
 ## Viewer conventions
 
-The interface uses [GitHub Primer](https://primer.style/product/components/underline-nav/) Dark dimmed tokens and Octicons, system typography, and GitHub-like Markdown presentation. It is dark-only. The sidebar holds the folder switcher, a record-health indicator, navigation (Work, Knowledge, Files, Activity, Statistics) and a refresh control. Repository filters sit in each list's toolbar.
+The interface uses [GitHub Primer](https://primer.style/) Dark dimmed tokens and Octicons, system typography, and GitHub-like Markdown presentation. It is dark-only. Repository filters sit in each list's toolbar.
 
 Each work row shows one status, styled like a GitHub issue: Not started, In progress, Partially done, Complete, Blocked (with the reason), Draft plan, Superseded or Abandoned. The design status appears only when it adds information. Rows also show the reported current focus, the repositories, a diagram count and a relative date.
 
-A work page has a GitHub-repository layout: **Plan | Ledger | Diagrams | Files** tabs with an About sidebar holding the reported status (current, next, blocked), known dates, recent commits and any record-health notes for that work. An explicit file URL always wins: the plan and root ledger open in their tabs, and any other file opens in Files with a tree and reader. Otherwise work opens the plan before implementation and the root ledger for in-progress, partial or complete implementation, falling back to the explicit selected plan when no ledger exists.
+A work item's overview has a GitHub-repository layout: **Plan | Ledger | Diagrams** sections with an About sidebar holding the reported status (current, next, blocked), known dates, recent commits and any record-health notes for that work. It opens the plan before implementation and the root ledger for in-progress, partial or complete implementation, falling back to the selected plan when no ledger exists. Other files in the work folder open from the explorer.
 
 The root ledger's optional version-1 status header reports current, next, blocked, and updated values under the shared [contract](../skills/atlas-bootstrap/assets/planning/PLANS.md#ledger-status-version-1). The viewer never infers current activity from historical narrative. Skills update that header at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.
+
 ## Atlas diagrams
 
 Diagrams belong to their plan. Each work folder is its own Atlas workspace (`<work>/.atlas/models`), so archiving or moving the folder carries its diagrams along; model editing stays with the agent. Models elsewhere in the planning folder are not read.
 
-A plan shows an inline diagram card under each heading that a model references through its context records. Records give `path` relative to the work folder (`plan.md`, or `../../knowledge/glossary.md` for shared knowledge); other paths do not resolve. A card shows the diagram title, its provenance, and the linked elements; it opens the **Diagrams** tab focused on that element. References without a matching heading are listed at the top of the document.
+A plan shows an inline diagram card under each heading that a model references through its context records. Records give `path` relative to the work folder (`plan.md`, or `../../knowledge/glossary.md` for shared knowledge); other paths do not resolve. A card shows the diagram title, its provenance, and the linked elements; it opens the **Diagrams** section focused on that element. References without a matching heading are listed at the top of the document.
 
-On the Diagrams tab, the Atlas canvas takes the full width and remaining height, with its controls floating over the grid. The model picker sits at the start of the canvas toolbar, and the canvas's full-view toggle covers the whole app (Esc exits). The picker groups models by provenance, using the same wording and colours as Atlas (`describeProvenance`; a test keeps the app's copy in step). **Generated from code** and **Generated from database** mark captured snapshots, with source, capture date and coverage. **Agent proposal** marks proposed changes to a captured source, and **Agent-authored** marks conceptual or structural models. Each model lists the plan sections it explains.
+In the Diagrams section, the Atlas canvas takes the full width and remaining height of the tab, with its controls floating over the grid. The model picker sits at the start of the canvas toolbar, and the canvas's full-view toggle covers the whole window (Esc exits). The picker groups models by provenance, using the same wording and colours as Atlas (`describeProvenance`; a test keeps the app's copy in step). **Generated from code** and **Generated from database** mark captured snapshots, with source, capture date and coverage. **Agent proposal** marks proposed changes to a captured source, and **Agent-authored** marks conceptual or structural models. Each model lists the plan sections it explains.
 
-The tab checks model revision summaries every two seconds while visible. Model, backlink and retry polling pauses in background tabs and resumes on return. Planning scope reads are coalesced and cached for 20 seconds, invalidated by registry changes; a manual records refresh reloads that index. Valid authored revisions update the view, preserving camera/selection where their identities remain. Invalid or unrecorded edits retain the last valid diagram and display an error. Model-load failures keep their own warning and retry with bounded backoff until that revision loads; successful catalog polls do not dismiss them. Captured sources are never recaptured by polling. Source dates, coverage and imported claims stay visible in the model metadata.
+When a model file changes on disk, the view updates, preserving camera and selection where their identities remain. Invalid or unrecorded edits retain the last valid diagram and display an error until a valid revision arrives. Captured sources are never recaptured by the app. Source dates, coverage and imported claims stay visible in the model metadata.
 
 An element's retained plan/glossary/decision passages appear in its inspector. **Open plan** follows an indexed record and optional `section` heading. The referenced document also exposes links back into the diagram. Shared knowledge pages aggregate backlinks from their registered work items. References outside the indexed work and shared knowledge are unavailable; retained passage text still helps explain the model offline. Code evidence remains pinned and uses Atlas's syntax-highlighted snippets.
 
@@ -84,4 +166,4 @@ The app depends on the diagram package (`@envsemble/atlas-diagrams`, in `package
 
 **Report** opens authored walkthroughs, checked finite instances/counterexamples, guided SVG diagrams, selected glossary/evidence and print presentation. It returns to the existing diagram without discarding its camera/selection. Model state, source scopes and imported claims remain visible; learning checks do not establish domain accuracy.
 
-CI also runs `npm run check:review`, testing semantic review and HTML export/reopen through the workspace diagram package. Revision-labelled review files are retained as workflow artifacts. From the repository root, `npm run release:assemble` builds one versioned Atlas ZIP from the committed Git tree, including this app; `npm run check:release` verifies hashes and repeatable packaging without publishing. See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md). Models in a user's local `.atlas` workspace are excluded from distribution.
+CI also runs `npm run check:review`, testing semantic review and HTML export/reopen through the workspace diagram package. From the repository root, `npm run release:assemble` builds one versioned Atlas ZIP from the committed Git tree, including this app's source; the installers are separate CI artifacts (see [releases](../docs/releases.md)). See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md). Models in a user's local `.atlas` workspace are excluded from distribution.
