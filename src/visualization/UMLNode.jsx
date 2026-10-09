@@ -31,7 +31,10 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
   const header = node.attributes.length || methods.length ? 66 : node.height;
-  const color = colorFamilies[node.stereotype] || node.stereotype;
+  // Stereotypes such as "type alias" must become valid custom property names.
+  const color = String(
+    colorFamilies[node.stereotype] || node.stereotype || "none",
+  ).replace(/[^\w-]/g, "-");
   return (
     <g
       id={`${idPrefix}node-${node.id}`}
