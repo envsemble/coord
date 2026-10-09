@@ -30,9 +30,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
       # GitHub service containers run only on Linux runners, so the
       # PostgreSQL 17 capture fixture exists only on Linux. The disposable
       # fixture uses trust authentication and has no credentials.
@@ -56,6 +53,7 @@ jobs:
         run: echo "::notice title=PostgreSQL fixture skipped::The PostgreSQL 17 capture test runs on Linux only; GitHub service containers are unavailable on ${{ runner.os }}."
       - run: npm ci
       - run: npm run format:check && npm run check:types
+      # Workspace tests: diagrams, planning (reader and ported helpers), the atlas command and the app.
       - run: npm test
       - run: npm run build --workspace @atlas/app
       - run: npm run check && npm run check:package && npm run check:performance
@@ -85,12 +83,13 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.13"
-      - run: python -m pip install -r skills/requirements-dev.txt
-      - run: python -m unittest discover -s skills/tests -v
-      - run: python -m unittest discover -s skills/worktrail-bootstrap/scripts/tests -v
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      # Node skill tests (skills/tests/*.test.mjs); the skills need only Node and the atlas command.
+      - run: npm run test:skills
   verify:
     name: CI
     needs: [node, skills]

@@ -1,0 +1,31 @@
+{
+  "name": "@atlas/cli",
+  "version": "0.5.0",
+  "private": true,
+  "description": "The atlas command: model tools, the MCP server, planning checks and consultation logging",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/envsemble/atlas.git",
+    "directory": "packages/cli"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "atlas": "./bin/atlas.js"
+  },
+  "scripts": {
+    "test": "node --test \"src/*.test.ts\"",
+    "check:types": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@atlas/diagrams": "*",
+    "@atlas/planning": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "7.0.2"
+  }
+}

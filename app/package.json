@@ -15,12 +15,13 @@
     "dev": "tsx server/index.ts --dev",
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
-    "test": "tsx --test src/visiblePoll.test.ts src/modelSelection.test.ts src/status.test.ts server/planning.test.ts server/telemetry.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts server/atlas.test.ts server/planningRoots.test.ts",
+    "test": "tsx --test src/visiblePoll.test.ts src/modelSelection.test.ts src/status.test.ts src/work.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts server/switching.test.ts",
     "check:types": "tsc --noEmit",
     "check:review": "node scripts/check-review.mjs"
   },
   "dependencies": {
     "@atlas/diagrams": "*",
+    "@atlas/planning": "*",
     "@primer/octicons-react": "19.40.0",
     "@primer/primitives": "^11.10.0",
     "express": "^5.2.1",
@@ -29,8 +30,7 @@
     "react-dom": "^19.3.0",
     "react-markdown": "latest",
     "remark-gfm": "latest",
-    "tsx": "latest",
-    "yaml": "latest"
+    "tsx": "latest"
   },
   "devDependencies": {
     "@types/express": "^5",

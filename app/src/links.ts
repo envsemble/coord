@@ -1,10 +1,8 @@
 import type { Document, Work } from './types';
+import { samePath } from '@atlas/planning/paths';
 
+export { samePath };
 export type Destination = { file?: Document; work?: Work; anchor?: string; external?: string };
-export function samePath(left: string, right: string, caseSensitive = true, normalizesUnicode = false) {
-  if (normalizesUnicode) { left = left.normalize('NFC'); right = right.normalize('NFC'); }
-  return caseSensitive ? left === right : left.toLowerCase() === right.toLowerCase();
-}
 function containedReference(href: string, source: string) {
   // Check before URL resolution can clamp excessive parent traversal to the root.
   const rawPath = href.replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '').replace(/[\t\r\n]/g, '').replaceAll('\\', '/').split(/[?#]/, 1)[0].replace(/^http:/i, '').replace(/^\/{2,}[^/]*/, '');

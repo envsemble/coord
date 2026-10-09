@@ -18,8 +18,8 @@
     "preview": "node scripts/preview.cjs",
     "check": "node scripts/check.cjs",
     "test": "node scripts/test.cjs",
-    "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples schemas/*.json agents package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
-    "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples agents package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
+    "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" scripts tests examples schemas/*.json agents package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
+    "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" scripts tests examples agents package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
     "check:types": "tsc --noEmit -p tsconfig.contracts.json",
     "build:library": "node scripts/build-library.cjs",
     "prepack": "node scripts/build-library.cjs",
@@ -60,10 +60,6 @@
   "license": "UNLICENSED",
   "main": "./lib/index.cjs",
   "types": "./lib/index.d.ts",
-  "bin": {
-    "atlas": "./bin/atlas.cjs",
-    "ontouml-atlas": "./bin/ontouml.cjs"
-  },
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
@@ -74,6 +70,8 @@
       "types": "./src/index.d.ts",
       "default": "./dist/react.mjs"
     },
+    "./cli": "./lib/agent/cli.cjs",
+    "./job-cli": "./lib/agent/jobCli.cjs",
     "./viewer.css": "./src/ui/styles.css",
     "./diagram.css": "./src/visualization/styles.css",
     "./embedded.css": "./dist/embedded.css",
@@ -85,7 +83,6 @@
   },
   "files": [
     "lib/",
-    "bin/",
     "src/",
     "schemas/",
     "licenses/",

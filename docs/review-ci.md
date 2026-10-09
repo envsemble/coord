@@ -1,6 +1,6 @@
 # Model review in a PR or MR
 
-`atlas review --input request.json` is provider independent. It reads Atlas document JSON from explicit files or Git commits, validates the head, compares stable semantic identities and builds an offline review bundle. It never runs a source project's scripts or alters the model. Git revisions must exist locally; fetch the selected base/head before running.
+`atlas model review --input request.json` is provider independent. It reads Atlas document JSON from explicit files or Git commits, validates the head, compares stable semantic identities and builds an offline review bundle. It never runs a source project's scripts or alters the model. Git revisions must exist locally; fetch the selected base/head before running.
 
 ```json
 {

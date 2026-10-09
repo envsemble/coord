@@ -51,6 +51,16 @@ async function check() {
     assert(files["packages/diagrams/examples/review/head.atlas.json"]);
     assert(files["app/package.json"]);
     assert(files["app/src/App.tsx"]);
+    assert(files["packages/planning/src/planning.ts"]);
+    assert(files["packages/planning/src/check.ts"]);
+    assert(files["packages/cli/package.json"]);
+    assert(files["packages/cli/bin/atlas.js"]);
+    assert(
+      !Object.keys(files).some((name) =>
+        /(?:^|\/)(?:check_planning|log_consultation)\.py$/.test(name),
+      ),
+      "The Python planning helpers were replaced by the atlas command",
+    );
     assert(files["app/assets/atlas-dashboard.jpg"]);
     assert(files["assets/worktrail/worktrail-icon.svg"]);
     assert(
@@ -71,7 +81,7 @@ async function check() {
       "Installed dependencies leaked into the release",
     );
     console.log(
-      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, skills, branding/docs/schemas and reopenable report; no local model data.",
+      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, skills, branding/docs/schemas and reopenable report; no local model data.",
     );
   } finally {
     if (!path.resolve(stage).startsWith(path.resolve(os.tmpdir()) + path.sep))

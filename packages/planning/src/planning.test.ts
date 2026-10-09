@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { loadPlanning, readDocument, resolveDocument } from './planning.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
-import { defaultDocument, relativeDocumentPath } from '../src/work.ts';
+import type { Document } from './types.ts';
+
+const relativeDocumentPath = (file: Document) => file.workId ? file.key.slice(file.workId.length + 1) : file.path;
 
 async function fixture() {
   const temporary = await mkdtemp(path.join(tmpdir(), 'planning-reader-'));
@@ -43,7 +45,6 @@ test('root ledger reports current and agreed next work; defaults follow implemen
       assert.equal(relativeDocumentPath(work.documents.find(file => file.name === 'ledger.md' && file.path.includes('/supporting/'))!), 'supporting/ledger.md');
       assert.equal(work.ledger, folder + '/ledger.md');
       assert.deepEqual(work.progress, { current: metadata.current, next: metadata.next, blocked: null, updated: metadata.updated });
-      assert.equal(defaultDocument(work)?.path, folder + (implementation === 'not_started' ? '/plan.md' : '/ledger.md'));
     }
     for (const invalid of [{ ...metadata, work_id: 'work-9999' }, { ...metadata, next: 'Guess a phase' }, { ...metadata, updated: '2026-02-30' }, { ...metadata, current: '' }]) {
       await writeFile(ledgerFile, source(invalid));
@@ -56,8 +57,7 @@ test('root ledger reports current and agreed next work; defaults follow implemen
     assert.equal((await loadPlanning(setup.root)).work[0].progress, null);
     await rename(ledgerFile, path.join(setup.root, folder, 'supporting/older-ledger.md'));
     const withoutMain = (await loadPlanning(setup.root)).work[0];
-    assert.equal(withoutMain.ledger, null);
-    assert.equal(defaultDocument(withoutMain)?.path, folder + '/plan.md', 'a nested historical ledger must not become the main record');
+    assert.equal(withoutMain.ledger, null, 'a nested historical ledger must not become the main record');
   } finally { await setup.cleanup(); }
 });
 
@@ -471,7 +471,7 @@ test('work activity follows stable registry identity through archive and folder 
     assert.ok(activity.every(entry => entry.repositories.includes('example')));
   } finally { await setup.cleanup(); }
 });
-const actualRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../planning');
+const actualRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../planning');
 
 test('deleted and transferred knowledge retains its directional historical repository scope', async () => {
   const setup = await fixture();

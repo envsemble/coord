@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { DocumentUsage, Usage } from '../src/types.ts';
+import type { DocumentUsage, Usage } from './types.ts';
 import { PlanningError } from './planning.ts';
 
 export const schema = 'CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, source TEXT NOT NULL, document_key TEXT NOT NULL, path TEXT NOT NULL, task_id TEXT, session_id TEXT, timestamp TEXT NOT NULL, revision TEXT, content_hash TEXT); CREATE INDEX IF NOT EXISTS event_document ON events(document_key); CREATE TABLE IF NOT EXISTS failures (timestamp TEXT NOT NULL, detail TEXT NOT NULL);';
@@ -14,7 +14,9 @@ export function recordCollectionGap(directory: string, source: 'dashboard_view' 
 }
 export class Telemetry {
   private db: DatabaseSync;
-  constructor(private filename: string) {
+  private filename: string;
+  constructor(filename: string) {
+    this.filename = filename;
     if (filename !== ':memory:') mkdirSync(path.dirname(filename), { recursive: true });
     this.db = new DatabaseSync(filename);
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 2000;' + schema);

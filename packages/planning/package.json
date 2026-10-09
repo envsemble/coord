@@ -1,0 +1,36 @@
+{
+  "name": "@atlas/planning",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Internal Atlas planning-folder reader shared by the atlas command and the app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/envsemble/atlas.git",
+    "directory": "packages/planning"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./atlas": "./src/atlas.ts",
+    "./session": "./src/session.ts",
+    "./paths": "./src/paths.ts",
+    "./provenance": "./src/provenance.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "test": "node --test \"src/*.test.ts\"",
+    "check:types": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@atlas/diagrams": "*",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "7.0.2"
+  }
+}

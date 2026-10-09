@@ -11,7 +11,7 @@
 
 Atlas helps an agent and a human agree on a model before implementation. Capture declared database or class structure, keep it as a dated baseline, author a conceptual UML/OntoUML proposal, inspect semantic changes and export a reopenable offline HTML document. The React viewer is read-only; the agent edits through the library, CLI or MCP.
 
-[Setup](#start) · [Agent interface](docs/agent-interface.md) · [Embedding](docs/embedding.md) · [Export/reopen](docs/portable-documents.md) · [Comparison](docs/comparison.md) · [Learning reports](docs/learning-reports.md) · [PR/MR review](docs/review-ci.md)
+[Setup](#start) · [The atlas command](#install-the-atlas-command) · [Agent interface](docs/agent-interface.md) · [Embedding](docs/embedding.md) · [Export/reopen](docs/portable-documents.md) · [Comparison](docs/comparison.md) · [Learning reports](docs/learning-reports.md) · [PR/MR review](docs/review-ci.md)
 
 ![Atlas viewer with colored entities, named generalization sets and a focused inspector](assets/viewer-dark.jpg)
 
@@ -28,11 +28,37 @@ Open `http://127.0.0.1:5173/` for React/Vite live updates. `npm run build` produ
 
 ```sh
 node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --report
-node packages/diagrams/bin/atlas.cjs tools
-node packages/diagrams/bin/atlas.cjs mcp --root /path/to/workspace
+npx atlas model tools
+npx atlas mcp --root /path/to/workspace
 ```
 
 The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation. Example source stays separate from the core package.
+
+## Install the atlas command
+
+One `atlas` command covers the model tools, the MCP server, planning checks and consultation logging. It needs only Node 24. From a checkout:
+
+```sh
+npm ci
+npm link --workspace @atlas/cli
+atlas --version
+```
+
+`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @atlas/cli` removes it. Inside the checkout, `npx atlas …` works without linking.
+
+```text
+atlas model <operation> --root <workspace> [--input <request.json|->]
+atlas model review --input <request.json|->
+atlas model tools
+atlas model job <init|validate|build> ...
+atlas mcp --root <workspace>
+atlas planning check <planning-root>
+atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
+```
+
+Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr.
+
+Usage statistics and recent planning folders live in the per-user **Atlas data folder**: `%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR` when set. Statistics are kept per planning folder under `usage/<hash of its canonical path>/`; nothing is written into planning folders.
 
 ## Supported source snapshots
 
@@ -49,7 +75,7 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 ## Plan, inspect, iterate
 
 - Standard [OntoUML exchange JSON](https://github.com/OntoUML/ontouml-schema) and versioned [Atlas documents](docs/architecture.md) keep model semantics separate from scenes and UI.
-- [CLI/stdio MCP](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results. Use [worktrail-atlas](https://github.com/envsemble/worktrail/tree/main/skills/worktrail-atlas) with your existing coding agent.
+- The [atlas command and stdio MCP server](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results. Use [worktrail-atlas](https://github.com/envsemble/worktrail/tree/main/skills/worktrail-atlas) with your existing coding agent.
 - [Proposals](docs/comparison.md) retain frozen baselines. Baseline/Changes share positions; three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
 - The [Worktrail dashboard](https://github.com/envsemble/worktrail/tree/main/dashboard) embeds Atlas directly in React. Elements link to selected plan passages, glossary, decisions and retained code evidence.
 - [Learning reports](docs/learning-reports.md) include walkthroughs, finite scenario checks, glossary, source dates, coverage, SVG diagrams and printing. Exported HTML can be imported and revised later.
