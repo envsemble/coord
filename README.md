@@ -50,11 +50,11 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 
 - Standard [OntoUML exchange JSON](https://github.com/OntoUML/ontouml-schema) and versioned [Atlas documents](docs/architecture.md) keep model semantics separate from scenes and UI.
 - [CLI/stdio MCP](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results. Use [worktrail-atlas](https://github.com/envsemble/worktrail/tree/main/skills/worktrail-atlas) with your existing coding agent.
-- [Proposals](docs/comparison.md) retain frozen baselines. Baseline/Proposed/Changes share positions; three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
+- [Proposals](docs/comparison.md) retain frozen baselines. Baseline/Changes share positions; three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
 - The [Worktrail dashboard](https://github.com/envsemble/worktrail/tree/main/dashboard) embeds Atlas directly in React. Elements link to selected plan passages, glossary, decisions and retained code evidence.
 - [Learning reports](docs/learning-reports.md) include walkthroughs, finite scenario checks, glossary, source dates, coverage, SVG diagrams and printing. Exported HTML can be imported and revised later.
 
-![Semantic comparison highlights a proposed Course while retaining baseline identities](assets/comparison-dark.jpg)
+![Agent proposal compared with its captured baseline: Baseline and Changes modes, and a change list grouping added and modified elements with before and after values and linked rationale](assets/comparison-dark.jpg)
 
 ## Library and React
 
