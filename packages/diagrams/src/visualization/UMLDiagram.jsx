@@ -88,6 +88,11 @@ export const UMLDiagram = memo(function UMLDiagram({
         viewBox={`0 0 ${diagram.width} ${diagram.height}`}
         role={handlers ? "group" : "img"}
         aria-label={diagram.title}
+        // Chromium hints SVG text for the unscaled size, so inside a CSS-scaled
+        // canvas (any zoom but 100%) glyphs are wider than the laid-out text and
+        // centred labels drift right past their box. Geometric precision keeps
+        // glyphs and layout at the same scale.
+        textRendering="geometricPrecision"
         style={{
           fontFamily:
             "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif",
@@ -214,6 +219,7 @@ export const UMLDiagram = memo(function UMLDiagram({
         height={diagram.height}
         viewBox={`0 0 ${diagram.width} ${diagram.height}`}
         aria-hidden="true"
+        textRendering="geometricPrecision"
         style={{
           fontFamily:
             "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif",

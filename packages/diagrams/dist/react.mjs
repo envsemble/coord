@@ -686,6 +686,7 @@ var UMLDiagram = memo(function UMLDiagram2({
         viewBox: `0 0 ${diagram.width} ${diagram.height}`,
         role: handlers2 ? "group" : "img",
         "aria-label": diagram.title,
+        textRendering: "geometricPrecision",
         style: {
           fontFamily: "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif"
         },
@@ -815,6 +816,7 @@ var UMLDiagram = memo(function UMLDiagram2({
         height: diagram.height,
         viewBox: `0 0 ${diagram.width} ${diagram.height}`,
         "aria-hidden": "true",
+        textRendering: "geometricPrecision",
         style: {
           fontFamily: "-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif"
         },
