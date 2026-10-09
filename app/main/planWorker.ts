@@ -1,7 +1,7 @@
 // Runs work-0012's portable plan export and import (from @envsemble/atlas-planning) off the main
 // thread: parsing a large export takes seconds, and the windows must stay responsive meanwhile.
 // The functions are looked up at runtime, so a build without them answers "unavailable".
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { parentPort } from 'node:worker_threads';
 import * as planning from '@envsemble/atlas-planning';
 
@@ -11,13 +11,15 @@ export type WorkerRequest =
   | { id: number; op: 'write'; token: string; file: string }
   | { id: number; op: 'discard'; token: string }
   | { id: number; op: 'read'; root: string; file: string }
-  | { id: number; op: 'import'; root: string; file: string; size: number; modified: number };
+  | { id: number; op: 'import'; root: string; token: string }
+  | { id: number; op: 'forget'; token: string };
 export type WorkerResponse = { id: number; ok: true; value: unknown } | { id: number; ok: false; error: { name: string; code: string | null; message: string } };
 
 type Functions = {
   exportPlan(root: string, work: string): Promise<{ html: string | Uint8Array; bytes?: number; warnings?: string[] }>;
   readPlanExport(html: string | Uint8Array): unknown;
-  importPlan(root: string, html: string | Uint8Array): Promise<unknown>;
+  /** Accepts the frozen preview from readPlanExport, so the file is not decoded twice. */
+  importPlan(root: string, source: unknown): Promise<unknown>;
   planImportTarget?(root: string, manifest: unknown): Promise<{ workId: string; path: string }>;
 };
 
@@ -30,6 +32,7 @@ function functions(): Functions {
 }
 
 const exports = new Map<string, Uint8Array | string>();
+const previews = new Map<string, unknown>();
 let next = 0;
 
 async function handle(request: WorkerRequest): Promise<unknown> {
@@ -54,18 +57,26 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       exports.delete(request.token);
       return null;
     case 'read': {
+      // The validated preview stays here until the import is confirmed or cancelled.
       const { readPlanExport, planImportTarget } = functions();
-      const information = await stat(request.file);
       const preview = readPlanExport(await readFile(request.file)) as Record<string, unknown>;
       const manifest = (preview.manifest ?? preview) as unknown;
       const target = planImportTarget ? await planImportTarget(request.root, manifest).catch(() => null) : null;
-      return { preview, target, size: information.size, modified: information.mtimeMs };
+      const token = 'import-' + ++next;
+      previews.clear();
+      previews.set(token, preview);
+      // Only the fields the preview dialog needs cross back; file contents stay in the worker.
+      return { token, preview: { manifest: preview.manifest, files: preview.files, diagrams: preview.diagrams, totalBytes: preview.totalBytes }, target };
     }
     case 'import': {
-      const information = await stat(request.file);
-      if (information.size !== request.size || information.mtimeMs !== request.modified) throw new Error('The file changed after the preview. Choose it again to import.');
-      return functions().importPlan(request.root, await readFile(request.file));
+      const preview = previews.get(request.token);
+      previews.delete(request.token);
+      if (preview === undefined) throw new Error('This import preview expired. Choose the file again.');
+      return functions().importPlan(request.root, preview);
     }
+    case 'forget':
+      previews.delete(request.token);
+      return null;
   }
 }
 

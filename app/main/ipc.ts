@@ -16,7 +16,7 @@ import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts'
 type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
 interface Channel { args: Validator<unknown>[]; handle: Handler }
 
-const pendingImports = new Map<string, { window: number; file: string; size: number; modified: number; expires: number }>();
+const pendingImports = new Map<string, { window: number; preview: string; expires: number }>();
 
 /** Reveal a file or folder inside the window's planning folder (never outside it, never hidden parts). */
 async function revealInside(root: string, relative: string) {
@@ -106,7 +106,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         const target = read.target ?? expectedTarget(current.root, described.title, described.location);
         const key = randomUUID();
         for (const [old, entry] of pendingImports) if (entry.expires < Date.now() || entry.window === window.id) pendingImports.delete(old);
-        pendingImports.set(key, { window: window.id, file, size: read.size, modified: read.modified, expires: Date.now() + 10 * 60000 });
+        pendingImports.set(key, { window: window.id, preview: read.token, expires: Date.now() + 10 * 60000 });
         return { token: key, file: path.basename(file), ...described, newId: target?.workId ?? null, newFolder: target?.path ?? null, warnings: [] };
       },
     },
@@ -117,13 +117,21 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         pendingImports.delete(key);
         if (!pending || pending.window !== window.id || pending.expires < Date.now()) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
         // The explicit user action that writes into the planning folder; nothing is committed.
-        const result = describeImport(await planExport.import(folder(window).root, pending.file, pending.size, pending.modified));
+        const result = describeImport(await planExport.import(folder(window).root, pending.preview));
         manager.context.log.info('Plan imported', { workId: result.workId, files: result.files });
         await folder(window).reload();
         return result;
       },
     },
-    'plan:importCancel': { args: [token], handle: (_window, key: string) => { pendingImports.delete(key); } },
+    'plan:importCancel': {
+      args: [token],
+      handle: async (window, key: string) => {
+        const pending = pendingImports.get(key);
+        if (!pending || pending.window !== window.id) return;
+        pendingImports.delete(key);
+        await planExport.forget(pending.preview);
+      },
+    },
   };
 }
 

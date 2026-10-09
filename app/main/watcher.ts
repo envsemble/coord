@@ -25,6 +25,8 @@ export function relevantChange(relative: string | null): boolean {
   if (relative === null) return true;
   const normalized = relative.replaceAll('\\', '/');
   if (normalized === '.git' || normalized.startsWith('.git/')) return gitRelevant.test(normalized) && !normalized.endsWith('.lock');
+  // work-0012's import lock and staging folders in the planning root.
+  if (normalized.startsWith('.atlas-import')) return false;
   const parts = normalized.split('/');
   return !parts.some(part => part === 'node_modules' || part === '__pycache__') && !/(?:^|\/)\.atlas\/(?:prepared|results|exports)(?:\/|$)/.test(normalized);
 }

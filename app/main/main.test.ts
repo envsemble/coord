@@ -73,6 +73,7 @@ test('only changes that can alter the view count, and bursts coalesce', async ()
   assert.ok(!relevantChange('.git/index'));
   assert.ok(!relevantChange('.git/refs/heads/main.lock'));
   assert.ok(!relevantChange('node_modules/x/index.js'));
+  assert.ok(!relevantChange('.atlas-import.lock'));
   assert.ok(!relevantChange('active/0001/.atlas/prepared/x.json'));
   const batches: string[][] = [];
   const coalescer = createCoalescer(paths => batches.push(paths), 30, 200);

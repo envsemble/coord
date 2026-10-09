@@ -19,7 +19,7 @@ const pending = new Map<number, { resolve(value: unknown): void; reject(error: u
 
 /** PlanExportError codes from work-0012, as the window's error codes. */
 const codes: Record<string, AtlasError['code']> = {
-  FORMAT: 'invalid-argument', VERSION: 'invalid-argument', PATH: 'invalid-argument', DUPLICATE: 'invalid-argument', INTEGRITY: 'invalid-argument',
+  FORMAT: 'invalid-argument', VERSION: 'invalid-argument', PATH: 'invalid-argument', DUPLICATE: 'invalid-argument', INTEGRITY: 'invalid-argument', LIMIT: 'invalid-argument',
   SOURCE: 'folder-invalid', WORK: 'not-found', TARGET: 'folder-invalid', CONFLICT: 'unavailable',
 };
 
@@ -66,8 +66,9 @@ export const planExport = {
   prepare: (root: string, work: string) => run<{ token: string; bytes: number; warnings: string[] }>({ op: 'export', root, work }),
   write: (token: string, file: string) => run<null>({ op: 'write', token, file }),
   discard: (token: string) => run<null>({ op: 'discard', token }),
-  read: (root: string, file: string) => run<{ preview: Record<string, unknown>; target: { workId: string; path: string } | null; size: number; modified: number }>({ op: 'read', root, file }),
-  import: (root: string, file: string, size: number, modified: number) => run<Record<string, unknown>>({ op: 'import', root, file, size, modified }),
+  read: (root: string, file: string) => run<{ token: string; preview: Record<string, unknown>; target: { workId: string; path: string } | null }>({ op: 'read', root, file }),
+  import: (root: string, token: string) => run<Record<string, unknown>>({ op: 'import', root, token }),
+  forget: (token: string) => run<null>({ op: 'forget', token }),
 };
 
 /** The next free work number and folder, when the export code cannot say (used only for the preview). */
