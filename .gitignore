@@ -2,8 +2,20 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
 .codex/
 .atlas/prepared/
 .atlas/results/
 .atlas/exports/
 artifacts/
+
+# Python caches from the skills' tests
+__pycache__/
+*.py[cod]
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
