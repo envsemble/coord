@@ -468,32 +468,16 @@ function reviseDocument(
     "context",
     "learning",
     "reporting",
-    "workId",
     "reason",
   ]);
   if (Object.keys(changes).some((key) => !allowed.has(key)))
     throw new Error(
       "Revisions cannot change snapshots, identities, or profile",
     );
-  if (
-    Object.hasOwn(changes, "workId") &&
-    (typeof changes.workId !== "string" ||
-      !changes.workId ||
-      changes.workId.length > 128)
-  )
-    throw new Error("DOCUMENT_WORK: workId must be a nonempty string");
   const revised = clone(document);
   for (const [key, value] of Object.entries(changes))
     if (key !== "reason") revised[key] = clone(value);
-  // Reassigning a document to another work item (with the context paths that
-  // move with it) changes no modeled facts, so a captured snapshot stays one.
-  const reassignment =
-    Object.hasOwn(changes, "workId") &&
-    Object.keys(changes).every((key) =>
-      ["workId", "context", "reason"].includes(key),
-    );
-  revised.state =
-    document.baselineId && !reassignment ? "proposal" : document.state;
+  revised.state = document.baselineId ? "proposal" : document.state;
   revised.revision = {
     ...revised.revision,
     id: "",
@@ -504,6 +488,54 @@ function reviseDocument(
   revised.revision.id = fingerprint(revised);
   assertDocument(revised);
   return revised;
+}
+// Move a document to another work item: change only its work identity and the
+// paths of its context records. No modeled fact changes, so its state (including
+// a captured snapshot) is kept; the move is still a recorded revision.
+function relocateDocument(
+  document,
+  { workId, recordPaths = {}, reason } = {},
+  expectedRevision = document.revision.id,
+) {
+  assertDocument(document);
+  if (expectedRevision !== document.revision.id)
+    throw new Error("REVISION_CONFLICT: document has changed");
+  if (
+    workId !== undefined &&
+    (typeof workId !== "string" || !/^work-[0-9]{4,}$/.test(workId))
+  )
+    throw new Error("RELOCATE_WORK: workId must be a work-NNNN identity");
+  const records = new Map(document.context.records.map((r) => [r.id, r]));
+  for (const [id, path] of Object.entries(recordPaths)) {
+    if (!records.has(id))
+      throw new Error(`RELOCATE_RECORD: no context record ${id}`);
+    if (
+      path !== null &&
+      (typeof path !== "string" || !path || path.length > 2048)
+    )
+      throw new Error("RELOCATE_PATH: a record path must be text or null");
+  }
+  if (workId === undefined && !Object.keys(recordPaths).length)
+    throw new Error("RELOCATE_EMPTY: nothing to relocate");
+  const relocated = clone(document);
+  if (workId !== undefined) relocated.workId = workId;
+  relocated.context.records = relocated.context.records.map((record) => {
+    if (!Object.hasOwn(recordPaths, record.id)) return record;
+    const { path: ignored, ...rest } = record;
+    return recordPaths[record.id] === null
+      ? rest
+      : { ...record, path: recordPaths[record.id] };
+  });
+  relocated.revision = {
+    ...relocated.revision,
+    id: "",
+    parentId: document.revision.id,
+    createdAt: new Date().toISOString(),
+    reason: reason || "Relocated model",
+  };
+  relocated.revision.id = fingerprint(relocated);
+  assertDocument(relocated);
+  return relocated;
 }
 function createSnapshot({ profile, model, capture, id }) {
   const snapshot = {
@@ -573,6 +605,7 @@ function documentViewerModel(document) {
 module.exports = {
   createDocument,
   reviseDocument,
+  relocateDocument,
   validateDocument,
   assertDocument,
   createSnapshot,

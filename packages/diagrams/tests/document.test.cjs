@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   createDocument,
   reviseDocument,
+  relocateDocument,
   validateDocument,
   createSnapshot,
   prepareViewer,
@@ -96,7 +97,7 @@ test("snapshots resist edits, proposals keep their baseline, and stale writes fa
     ),
   );
 });
-test("reassigning a work item records a revision and keeps a captured snapshot", () => {
+test("relocating a document records a revision and keeps a captured snapshot", () => {
   const model = graph(),
     snapshot = createSnapshot({
       profile: "database",
@@ -108,30 +109,58 @@ test("reassigning a work item records a revision and keeps a captured snapshot",
         coverage: { status: "complete", diagnostics: [] },
       },
     });
-  const doc = createDocument({
-    profile: "database",
-    state: "snapshot",
-    model,
-    snapshots: [snapshot],
-    baselineId: snapshot.id,
-    workId: "work-0004",
-  });
-  const moved = reviseDocument(doc, {
-    workId: "work-0009",
-    context: { records: [], links: [] },
-    reason: "Imported as work-0009",
-  });
-  assert.equal(moved.state, "snapshot");
-  assert.equal(moved.workId, "work-0009");
-  assert.equal(moved.revision.parentId, doc.revision.id);
-  assert.equal(moved.revision.reason, "Imported as work-0009");
-  assert.equal(validateDocument(moved).valid, true);
-  // Any other change still turns a captured document into a proposal.
-  assert.equal(
-    reviseDocument(doc, { workId: "work-0009", title: "Renamed" }).state,
-    "proposal",
-  );
-  assert.throws(() => reviseDocument(doc, { workId: "" }), /DOCUMENT_WORK/);
+  const records = [
+    { id: "a", kind: "plan", text: "A", path: "../../active/0004-x/plan.md" },
+    { id: "b", kind: "plan", text: "B", path: "../../knowledge/x.md" },
+  ];
+  for (const workId of ["work-0004", undefined]) {
+    const doc = createDocument({
+      profile: "database",
+      state: "snapshot",
+      model,
+      snapshots: [snapshot],
+      baselineId: snapshot.id,
+      ...(workId ? { workId } : {}),
+      context: { records, links: [{ elementId: "account", recordId: "a" }] },
+    });
+    const moved = relocateDocument(doc, {
+      ...(workId ? { workId: "work-0009" } : {}),
+      recordPaths: { a: "plan.md", b: null },
+      reason: "Imported as work-0009",
+    });
+    assert.equal(moved.state, "snapshot");
+    assert.equal(moved.workId, workId ? "work-0009" : undefined);
+    assert.equal(moved.revision.parentId, doc.revision.id);
+    assert.equal(moved.revision.reason, "Imported as work-0009");
+    assert.deepEqual(
+      moved.context.records.map((r) => r.path),
+      ["plan.md", undefined],
+    );
+    assert.deepEqual(moved.context.links, doc.context.links);
+    assert.equal(validateDocument(moved).valid, true);
+    // Only work identity and record paths can move; other edits stay revisions.
+    assert.equal(
+      reviseDocument(doc, { context: { records, links: [] } }).state,
+      "proposal",
+    );
+    assert.throws(
+      () => reviseDocument(doc, { workId: "work-0009" }),
+      /cannot change/,
+    );
+    assert.throws(
+      () => relocateDocument(doc, { workId: "not <a> work" }),
+      /RELOCATE_WORK/,
+    );
+    assert.throws(
+      () => relocateDocument(doc, { recordPaths: { missing: "x" } }),
+      /RELOCATE_RECORD/,
+    );
+    assert.throws(() => relocateDocument(doc, {}), /RELOCATE_EMPTY/);
+    assert.throws(
+      () => relocateDocument(doc, { workId: "work-0009" }, "stale"),
+      /REVISION_CONFLICT/,
+    );
+  }
 });
 test("structural validation rejects unsupported versions, invalid counts, references, sets and cycles", () => {
   const doc = createDocument({ profile: "code", model: graph() });
