@@ -24,15 +24,15 @@ npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173/` for React/Vite live updates. `npm run build` produces `index.html`, `downloads/` and the reusable React module. Open the HTML directly from disk or run `npm run preview` at port 4173. Exported documents contain their model, selected context, source excerpts, JavaScript, styles and icon; no internet or model service is needed.
+Open `http://127.0.0.1:5173/` for React/Vite live updates. `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module. Open the HTML directly from disk or run `npm run preview` at port 4173. Exported documents contain their model, selected context, source excerpts, JavaScript, styles and icon; no internet or model service is needed.
 
 ```sh
-node scripts/build-enrollment.cjs artifacts/enrollment --report
-node bin/atlas.cjs tools
-node bin/atlas.cjs mcp --root /path/to/workspace
+node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --report
+node packages/diagrams/bin/atlas.cjs tools
+node packages/diagrams/bin/atlas.cjs mcp --root /path/to/workspace
 ```
 
-The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation. Example source stays separate from the core package.
+The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation. Example source stays separate from the core package.
 
 ## Supported source snapshots
 
@@ -105,4 +105,4 @@ Full database tests require `ATLAS_TEST_POSTGRES` pointing to a disposable Postg
 
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Release instructions](docs/releases.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-Source is currently private / `UNLICENSED`. This is a source-use status, not an open-source license. Editable branding lives in `assets/`; dependency licenses and attributed example excerpts remain preserved.
+Source is currently private / `UNLICENSED`. This is a source-use status, not an open-source license. Editable branding lives in `assets/` (the viewer icon in `packages/diagrams/assets/`); dependency licenses and attributed example excerpts remain preserved.

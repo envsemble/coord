@@ -1,6 +1,6 @@
 # Third-party sources
 
-The unmodified OntoUML exchange schema v1.0.2 comes from [OntoUML/ontouml-schema](https://github.com/OntoUML/ontouml-schema/tree/v1.0.2). Its Apache 2.0 license is preserved in schemas/LICENSE. The application evidence schema is separate.
+The unmodified OntoUML exchange schema v1.0.2 comes from [OntoUML/ontouml-schema](https://github.com/OntoUML/ontouml-schema/tree/v1.0.2). Its Apache 2.0 license is preserved in packages/diagrams/schemas/LICENSE. The application evidence schema is separate.
 
 The [ontouml-js](https://github.com/OntoUML/ontouml-js) dependency supplies standard model builders and serialization. Its Apache 2.0 license is also preserved in licenses/ontouml-js-LICENSE. ELK supplies build-time routing under its upstream EPL 2.0 license, distributed with the npm dependency.
 
@@ -14,7 +14,7 @@ fflate 0.8.3 supplies the compressed export archive and offline decompression. I
 
 Learning guidance paraphrases the community [OntoUML specification](https://ontouml.readthedocs.io/en/latest/) and links to individual pages. The upstream documentation repository [OntoUML/OntoUML](https://github.com/OntoUML/OntoUML) is CC0-1.0. No documentation images or diagrams were copied.
 
-The R5 SDK and Flowstate repositories are evidence for the separate example at pinned commits. Short, unmodified excerpts remain in examples/r5/source-snippets.json and its generated HTML with repository, commit, file and line attribution. Copyright in those excerpts remains with their upstream authors. The core library package excludes the example and its excerpts. Complete repositories and game binaries are not bundled.
+The R5 SDK and Flowstate repositories are evidence for the separate example at pinned commits. Short, unmodified excerpts remain in packages/diagrams/examples/r5/source-snippets.json and its generated HTML with repository, commit, file and line attribution. Copyright in those excerpts remains with their upstream authors. The core library package excludes the example and its excerpts. Complete repositories and game binaries are not bundled.
 
 PostgreSQL capture uses node-postgres (`pg`) under its MIT license, retained in its npm distribution. Local D1 fixtures use Wrangler (MIT/Apache 2.0) and workerd (Apache 2.0); these development tools are not bundled in exported HTML.
 

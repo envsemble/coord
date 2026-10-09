@@ -16,7 +16,7 @@ Limits: 200 tables/views, 4,000 columns, 8 MiB metadata; additional index/constr
 
 ## Agent and CLI
 
-Store a JSON configuration inside the workspace, matching [database-source-schema.json](../schemas/database-source-schema.json). Paths are relative to that file except an optional `wranglerJS`, which is relative to the workspace. Secrets are supplied only via the named environment variable.
+Store a JSON configuration inside the workspace, matching [database-source-schema.json](../packages/diagrams/schemas/database-source-schema.json). Paths are relative to that file except an optional `wranglerJS`, which is relative to the workspace. Secrets are supplied only via the named environment variable.
 
 ```json
 {

@@ -1,11 +1,12 @@
 {
-  "name": "ontouml-atlas",
+  "name": "@atlas/diagrams",
   "version": "0.5.0",
   "private": true,
-  "description": "Agent-ready OntoUML validation, offline visualization and learning",
+  "description": "Internal Atlas diagram package: capture, documents, validation, layout, the React viewer, offline export and review tooling",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/envsemble/atlas.git"
+    "url": "git+https://github.com/envsemble/atlas.git",
+    "directory": "packages/diagrams"
   },
   "homepage": "https://github.com/envsemble/atlas",
   "bugs": {
@@ -17,15 +18,13 @@
     "preview": "node scripts/preview.cjs",
     "check": "node scripts/check.cjs",
     "test": "node scripts/test.cjs",
-    "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples schemas/*.json agents docs README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
-    "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples agents docs README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
+    "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples schemas/*.json agents package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
+    "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples agents package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
     "check:types": "tsc --noEmit -p tsconfig.contracts.json",
     "build:library": "node scripts/build-library.cjs",
     "prepack": "node scripts/build-library.cjs",
     "check:package": "node scripts/check-package.cjs",
     "review:example": "node scripts/review-example.cjs",
-    "release:assemble": "node scripts/release.cjs",
-    "check:release": "node scripts/check-release.cjs",
     "check:performance": "node scripts/check-performance.cjs"
   },
   "engines": {
@@ -91,17 +90,11 @@
     "schemas/",
     "licenses/",
     "agents/",
-    "docs/",
     "assets/",
-    "README.md",
-    "THIRD_PARTY_NOTICES.md",
     "dist/"
   ],
   "peerDependencies": {
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
-  },
-  "overrides": {
-    "sharp": "0.35.5"
   }
 }
