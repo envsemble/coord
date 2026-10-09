@@ -46,7 +46,7 @@ npm link --workspace @envsemble/atlas-cli
 atlas --version
 ```
 
-`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @envsemble/atlas-cli` removes it. Inside the checkout, `npx atlas …` works without linking.
+`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @envsemble/atlas-cli` removes it. Inside the checkout, `npx atlas …` works without linking. On Windows the link is a `.cmd`/`.ps1` shim that only shells can run, so configure MCP clients with `node <checkout>/packages/cli/bin/atlas.js mcp --root <workspace>` (see the [agent interface](docs/agent-interface.md)).
 
 ```text
 atlas model <operation> --root <workspace> [--input <request.json|->]

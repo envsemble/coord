@@ -52,8 +52,10 @@ Events retain document identity, source, timestamp, known task/session IDs, avai
 
 ## Verify
 
-    npm test
-    npm run build
+From the repository root:
+
+    npm test --workspace @envsemble/atlas-app
+    npm run build --workspace @envsemble/atlas-app
 
 The planning reader's tests live in `packages/planning` and cover retained (not yet normalized) records, explicit plan selection, path containment, statistics, and consultation written by the `atlas` command while the app is closed; the app's tests cover its HTTP layer and client logic. A local-only test also reads the sibling workspace's actual planning registry when present; CI does not need private planning records. The repository's CI runs them all on Linux and Windows.
 

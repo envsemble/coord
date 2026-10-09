@@ -22,6 +22,7 @@
   "scripts": {
     "dev": "npm run dev --workspace @envsemble/atlas-diagrams",
     "dev:app": "npm run dev --workspace @envsemble/atlas-app",
+    "preview": "npm run preview --workspace @envsemble/atlas-diagrams",
     "build": "npm run build --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "test:skills": "node --test \"skills/tests/*.test.mjs\"",
