@@ -19,7 +19,7 @@ Discover each repository's configured reviewers from its documentation and setti
 The readiness gate for each PR is one of:
 
 - **Configured review:** every configured automated reviewer completed a review covering the current head.
-- **Independent review:** when no automated reviewer is configured or available, an independent adversarial review of the PR's changes, by you or a delegated reviewer, before each head is pushed. A reviewer is unavailable when it cannot be used here (no access, no subscription, or the user says so), not when it is merely slow.
+- **Independent review:** when no automated reviewer is configured or available, an independent adversarial review of the PR's full changes at the current head, by you or a delegated reviewer, with every later commit reviewed before it is pushed. A reviewer is unavailable when it cannot be used here (no access, no subscription, or the user says so), not when it is merely slow.
 
 Both gates also require passing CI on the current head. Findings from human reviewers get the same dispositions, but their approval is not part of readiness and stays with the user. Report which gate applied and why; a calling implementation workflow records it in its ledger.
 
