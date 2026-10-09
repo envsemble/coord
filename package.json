@@ -24,6 +24,7 @@
     "dev:app": "npm run dev --workspace @atlas/app",
     "build": "npm run build --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
+    "test:skills": "node --test \"skills/tests/*.test.mjs\"",
     "format": "npm run format --workspace @atlas/diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "npm run format:check --workspace @atlas/diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
     "check:types": "npm run check:types --workspaces --if-present",
