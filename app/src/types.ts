@@ -9,6 +9,8 @@ export interface Work {
   created: string | null; updated: string | null; accepted: string | null;
   completed: string | null; durationDays: number | null; documents: Document[];
   ledger?: string | null; progress?: WorkProgress | null;
+  /** Atlas models for this work item (work folder and legacy root). */
+  diagrams?: number;
 }
 export interface WorkProgress { current: string | null; next: string[]; blocked: string | null; updated: string | null }
 export interface HistoryEntry { id: string; date: string; title: string; files: string[]; workIds: string[]; repositories: string[] }
@@ -32,3 +34,5 @@ export interface DocumentContent {
   path: string; title: string; body: string; format: string;
   metadata: Record<string, unknown> | null; contentHash: string;
 }
+export interface PlanningRootInfo { path: string; name: string; parent: string; workItems: number | null; error?: string }
+export interface PlanningRoots { current: PlanningRootInfo; recent: PlanningRootInfo[]; discovered: PlanningRootInfo[] }
