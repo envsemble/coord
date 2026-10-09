@@ -83,8 +83,10 @@ export class AtlasWindow {
     const { context } = this.manager;
     const session = this.session;
     session.protocol.handle(scheme, createProtocolHandler({ rendererDirectory: context.devUrl ? null : context.rendererDirectory, planningRoot: () => this.folder?.root ?? null }));
-    session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-    session.setPermissionCheckHandler(() => false);
+    // Copying text (the viewer's copy buttons) is the only permission a window gets.
+    const allowed = (permission: string) => permission === 'clipboard-sanitized-write';
+    session.setPermissionRequestHandler((_contents, permission, callback) => callback(allowed(permission)));
+    session.setPermissionCheckHandler((_contents, permission) => allowed(permission));
     session.setDevicePermissionHandler(() => false);
     const dev = context.devUrl ? new URL(context.devUrl) : null;
     session.webRequest.onBeforeRequest((details, callback) => {
