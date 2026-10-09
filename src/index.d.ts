@@ -5,6 +5,7 @@ import type {
   ReactNode,
 } from "react";
 import type {
+  AtlasDocument,
   DiagramScene,
   ViewerPayload,
   ViewerModel,
@@ -20,6 +21,39 @@ export const AtlasPanel: ComponentType<{
   theme?: "dark" | "light";
   focus?: InspectionTarget | { kind: "view"; id: string };
   onReference?(record: PlanningContext["records"][number]): void;
+}>;
+/** Document fields that determine where a model came from. */
+export type ProvenanceSource = Partial<
+  Pick<AtlasDocument, "profile" | "state" | "baselineId" | "imported">
+> & {
+  snapshots?: {
+    id: string;
+    capture: AtlasDocument["snapshots"][number]["capture"];
+  }[];
+};
+export interface Provenance {
+  kind: "generated" | "proposal" | "authored" | "unknown";
+  /** "Generated from code", "Generated from database", "Agent proposal" or "Agent-authored". */
+  label: string;
+  /** Human-readable source, capture date and coverage, e.g. "TypeScript · shop · captured Oct 8, 2026 · complete coverage". */
+  detail: string;
+  /** Primer label tone: generated "accent", proposal "done", authored "success", unknown "neutral". */
+  tone: "accent" | "done" | "success" | "neutral";
+}
+/** Accepts an Atlas document or a viewer model's `document` metadata. */
+export function describeProvenance(
+  document: ProvenanceSource | null | undefined,
+): Provenance;
+/** Formats an ISO timestamp as "Oct 8, 2026" in UTC; returns "" when invalid. */
+export function formatCaptureDate(value: string | null | undefined): string;
+/** Provenance label and detail line, styled by the viewer CSS. */
+export const ProvenanceBadge: ComponentType<{
+  document: ProvenanceSource | null | undefined;
+  className?: string;
+}>;
+/** The provenance label alone (Primer-style pill). */
+export const ProvenanceLabel: ComponentType<{
+  document: ProvenanceSource | null | undefined;
 }>;
 export const ViewerErrorBoundary: ComponentType<{
   children?: ReactNode;

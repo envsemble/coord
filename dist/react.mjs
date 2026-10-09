@@ -1531,25 +1531,37 @@ function ToggleButton({ pressed, className = "", children, ...props }) {
 
 // src/ui/Icons.jsx
 import {
+  ArrowLeftIcon,
   BookIcon,
   CodeIcon,
   DashIcon,
+  DatabaseIcon,
+  DiffAddedIcon,
+  DiffModifiedIcon,
+  DiffRemovedIcon,
   DownloadIcon,
   FileCodeIcon,
   FileMediaIcon,
+  FocusCenterIcon,
   GitBranchIcon,
+  GitPullRequestIcon,
+  AlertIcon,
   LinkExternalIcon,
   MarkGithubIcon,
   MoonIcon,
+  NoteIcon,
+  PencilAiIcon,
   PlusIcon,
   QuestionIcon,
   RepoIcon,
   ScreenFullIcon,
+  ScreenNormalIcon,
   SearchIcon,
   SidebarCollapseIcon,
   SidebarExpandIcon,
   SunIcon,
   TableIcon,
+  TriangleDownIcon,
   XIcon
 } from "@primer/octicons-react";
 
@@ -4026,9 +4038,135 @@ function AtlasPanelContent({
   ] }) });
 }
 
+// src/viewer/provenance.js
+var MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec"
+];
+var SOURCE_KINDS = {
+  typescript: "TypeScript",
+  javascript: "JavaScript",
+  java: "Java",
+  sqlite: "SQLite",
+  d1: "Cloudflare D1",
+  postgres: "PostgreSQL",
+  postgresql: "PostgreSQL",
+  mysql: "MySQL",
+  authored: "Authored model"
+};
+function formatCaptureDate(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+}
+function sourceKindLabel(kind) {
+  if (typeof kind !== "string" || !kind) return "";
+  return SOURCE_KINDS[kind.toLowerCase()] || kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+function baselineSnapshot(document2) {
+  const snapshots = Array.isArray(document2.snapshots) ? document2.snapshots : [];
+  return snapshots.find((s) => s.id === document2.baselineId) || (document2.state === "snapshot" ? snapshots[0] : void 0);
+}
+function captureDetail(snapshot) {
+  const capture = snapshot?.capture;
+  if (!capture) return "";
+  const date = formatCaptureDate(capture.capturedAt);
+  return [
+    sourceKindLabel(capture.source?.kind),
+    capture.source?.identity,
+    date && `captured ${date}`,
+    capture.coverage?.status && `${capture.coverage.status} coverage`
+  ].filter(Boolean).join(" \xB7 ");
+}
+function describeProvenance(document2) {
+  if (!document2 || typeof document2 !== "object")
+    return { kind: "unknown", label: "", detail: "", tone: "neutral" };
+  let result;
+  if (document2.state === "snapshot") {
+    const label = document2.profile === "code" ? "Generated from code" : document2.profile === "database" ? "Generated from database" : "Generated snapshot";
+    result = {
+      kind: "generated",
+      label,
+      detail: captureDetail(baselineSnapshot(document2)),
+      tone: "accent"
+    };
+  } else if (document2.state === "proposal") {
+    const date = formatCaptureDate(
+      baselineSnapshot(document2)?.capture?.capturedAt
+    );
+    result = {
+      kind: "proposal",
+      label: "Agent proposal",
+      detail: date ? `Changes to source captured ${date}` : "",
+      tone: "done"
+    };
+  } else if (document2.state === "authored") {
+    result = {
+      kind: "authored",
+      label: "Agent-authored",
+      detail: document2.profile === "ontouml" ? "Conceptual model" : "Structural model",
+      tone: "success"
+    };
+  } else return { kind: "unknown", label: "", detail: "", tone: "neutral" };
+  if (document2.imported)
+    result.detail = result.detail ? `${result.detail} \xB7 Imported` : "Imported";
+  return result;
+}
+
+// src/viewer/ProvenanceBadge.jsx
+import { jsx as jsx25, jsxs as jsxs22 } from "react/jsx-runtime";
+function ProvenanceIcon({ provenance, profile }) {
+  if (provenance.kind === "proposal") return /* @__PURE__ */ jsx25(GitPullRequestIcon, { size: 14 });
+  if (provenance.kind === "authored") return /* @__PURE__ */ jsx25(PencilAiIcon, { size: 14 });
+  if (profile === "database") return /* @__PURE__ */ jsx25(DatabaseIcon, { size: 14 });
+  if (profile === "code") return /* @__PURE__ */ jsx25(CodeIcon, { size: 14 });
+  return /* @__PURE__ */ jsx25(FileCodeIcon, { size: 14 });
+}
+function ProvenanceLabel({ document: document2 }) {
+  const provenance = describeProvenance(document2);
+  if (provenance.kind === "unknown") return null;
+  return /* @__PURE__ */ jsxs22(
+    "span",
+    {
+      className: "provenance-label",
+      "data-tone": provenance.tone,
+      "data-kind": provenance.kind,
+      children: [
+        /* @__PURE__ */ jsx25(ProvenanceIcon, { provenance, profile: document2?.profile }),
+        provenance.label
+      ]
+    }
+  );
+}
+function ProvenanceBadge({ document: document2, className = "" }) {
+  const provenance = describeProvenance(document2);
+  if (provenance.kind === "unknown") return null;
+  return /* @__PURE__ */ jsxs22(
+    "div",
+    {
+      className: `atlas-provenance${className ? ` ${className}` : ""}`,
+      title: provenance.detail ? `${provenance.label} \xB7 ${provenance.detail}` : provenance.label,
+      children: [
+        /* @__PURE__ */ jsx25(ProvenanceLabel, { document: document2 }),
+        provenance.detail && /* @__PURE__ */ jsx25("span", { className: "provenance-detail", children: provenance.detail })
+      ]
+    }
+  );
+}
+
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { jsx as jsx25, jsxs as jsxs22 } from "react/jsx-runtime";
+import { jsx as jsx26, jsxs as jsxs23 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -4043,10 +4181,10 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsxs22("main", { className: "viewer-error", role: "alert", children: [
-        /* @__PURE__ */ jsx25("h1", { children: "The model could not be displayed" }),
-        /* @__PURE__ */ jsx25("p", { children: "Rebuild the viewer from the model and check its validation report." }),
-        /* @__PURE__ */ jsx25("button", { onClick: () => location.reload(), children: "Reload" })
+      return /* @__PURE__ */ jsxs23("main", { className: "viewer-error", role: "alert", children: [
+        /* @__PURE__ */ jsx26("h1", { children: "The model could not be displayed" }),
+        /* @__PURE__ */ jsx26("p", { children: "Rebuild the viewer from the model and check its validation report." }),
+        /* @__PURE__ */ jsx26("button", { onClick: () => location.reload(), children: "Reload" })
       ] });
     return this.props.children;
   }
@@ -4058,10 +4196,14 @@ export {
   LearningLibrary,
   Lesson,
   OntoUMLViewer,
+  ProvenanceBadge,
+  ProvenanceLabel,
   UMLDiagram,
   UMLGeneralizationGroup,
   UMLNode,
   UMLRelation,
-  ViewerErrorBoundary
+  ViewerErrorBoundary,
+  describeProvenance,
+  formatCaptureDate
 };
 //# sourceMappingURL=react.mjs.map
