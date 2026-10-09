@@ -31,7 +31,8 @@ async function assemble({ outputDirectory = "artifacts/release" } = {}) {
   const status = git("status", "--porcelain", "--untracked-files=normal");
   if (status)
     throw new Error(
-      "RELEASE_DIRTY: commit source and generated files before assembling a labelled release",
+      `RELEASE_DIRTY: commit source and generated files before assembling a labelled release:
+${status}`,
     );
   const commit = git("rev-parse", "HEAD"),
     output = path.resolve(outputDirectory),

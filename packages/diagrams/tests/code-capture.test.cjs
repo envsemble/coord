@@ -71,7 +71,10 @@ export type Choice = User | Base;`,
   assert(
     d.model.nodes.find((n) => n.name === "Choice").definition.includes("User"),
   );
-  assert(Object.values(d.snippets).every((s) => s.url?.includes("/blob/")));
+  assert(
+    Object.values(d.snippets).every((s) => s.url?.includes("/blob/")),
+    JSON.stringify(Object.values(d.snippets).map((s) => s.url)),
+  );
   assert.deepEqual((await captureTypeScript(options)).model, d.model);
   fs.appendFileSync(
     path.join(root, "model.ts"),

@@ -28,6 +28,15 @@ function contained(root, file) {
     throw new Error("CAPTURE_SCOPE: source file escapes selected project");
   return resolved;
 }
+// Git reports long, resolved paths; temporary folders can use 8.3 short names or
+// junctions on Windows. Compare both sides in their resolved form.
+function resolved(file) {
+  try {
+    return fs.realpathSync.native(file);
+  } catch {
+    return file;
+  }
+}
 function gitInfo(root, sources, repositoryUrl) {
   const git = (...args) =>
     execFileSync("git", ["--no-replace-objects", "-C", root, ...args], {
@@ -39,7 +48,7 @@ function gitInfo(root, sources, repositoryUrl) {
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
   try {
-    const top = git("rev-parse", "--show-toplevel"),
+    const top = resolved(git("rev-parse", "--show-toplevel")),
       revision = git("rev-parse", "HEAD");
     const selected = [...sources.keys()].map((file) =>
       slash(path.relative(root, file)),
@@ -79,7 +88,7 @@ function gitInfo(root, sources, repositoryUrl) {
     let exact = !dirty && tracked;
     if (exact)
       for (const [file, text] of sources) {
-        const relative = slash(path.relative(top, file));
+        const relative = slash(path.relative(top, resolved(file)));
         // Git status can hide edits through assume-unchanged/skip-worktree.
         const blob = execFileSync(
           "git",
@@ -157,7 +166,9 @@ function projectEvidence(
     const startLine = node.location.startLine,
       endLine = Math.min(node.location.endLine, startLine + 11);
     const sourceId = `code-source:${node.id}`,
-      relative = slash(path.relative(info.top || project.path, file));
+      relative = slash(
+        path.relative(info.top || resolved(project.path), resolved(file)),
+      );
     const url =
       info.pinned && info.url
         ? `${info.url}${new URL(info.url).hostname === "github.com" ? "/blob/" : "/-/blob/"}${info.revision}/${relative.split("/").map(encodeURIComponent).join("/")}#L${startLine}`
