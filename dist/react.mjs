@@ -3387,6 +3387,9 @@ function elementKind(change, model, profile) {
     return profile === "database" ? "column" : profile === "code" ? "member" : "attribute";
   return "element";
 }
+var uniqueRecords = (records = []) => records.filter(
+  (r, i) => r && records.findIndex((other) => other?.id === r.id) === i
+);
 function ValueCell({ cell, names, side }) {
   if (!cell.present)
     return /* @__PURE__ */ jsx22("span", { className: `change-value ${side} absent`, children: "absent" });
@@ -3425,7 +3428,7 @@ function ChangeItem({ change, kind, names, onInspect }) {
         /* @__PURE__ */ jsx22(ValueCell, { cell: p.after, names, side: "after" })
       ] })
     ] }, p.key)) }),
-    change.rationale?.map((r) => /* @__PURE__ */ jsxs17("p", { className: "change-rationale", children: [
+    uniqueRecords(change.rationale).map((r) => /* @__PURE__ */ jsxs17("p", { className: "change-rationale", children: [
       r.title && /* @__PURE__ */ jsxs17("strong", { children: [
         r.title,
         ": "

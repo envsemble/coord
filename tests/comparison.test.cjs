@@ -779,3 +779,24 @@ test("Comparisons keep the document's authored views and their removed members",
     ["comparison"],
   );
 });
+test("Rationale linked to both a member and its owner is listed once", () => {
+  const base = example();
+  const proposal = atlas.reviseDocument(atlas.createProposal(base), {
+    context: {
+      records: base.context.records,
+      links: [
+        ...base.context.links,
+        { elementId: "student-name", recordId: "plan" },
+      ],
+    },
+  });
+  const changed = revise(proposal, (m) => {
+    m.nodes[0].attributes[0].type = "text";
+  });
+  const diff = atlas.compareDocuments(baselineDocument(changed), changed);
+  const member = diff.changes.find((c) => c.elementId === "student-name");
+  assert.deepEqual(
+    member.rationale.map((r) => r.id),
+    ["plan"],
+  );
+});

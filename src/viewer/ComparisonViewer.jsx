@@ -97,6 +97,12 @@ function elementKind(change, model, profile) {
   return "element";
 }
 
+// Retained comparisons may predate record de-duplication.
+const uniqueRecords = (records = []) =>
+  records.filter(
+    (r, i) => r && records.findIndex((other) => other?.id === r.id) === i,
+  );
+
 function ValueCell({ cell, names, side }) {
   if (!cell.present)
     return <span className={`change-value ${side} absent`}>absent</span>;
@@ -155,7 +161,7 @@ function ChangeItem({ change, kind, names, onInspect }) {
           ))}
         </dl>
       )}
-      {change.rationale?.map((r) => (
+      {uniqueRecords(change.rationale).map((r) => (
         <p key={r.id} className="change-rationale">
           {r.title && <strong>{r.title}: </strong>}
           {r.text}
