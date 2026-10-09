@@ -47,8 +47,8 @@ try {
   const smoke = `
     const assert = require('node:assert/strict');
     const path = require('node:path');
-    assert(require.resolve('@atlas/diagrams').startsWith(path.join(process.cwd(), 'node_modules') + path.sep), 'Resolved an installation outside the clean stage');
-    const {Project,validateModel,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@atlas/diagrams');
+    assert(require.resolve('@envsemble/atlas-diagrams').startsWith(path.join(process.cwd(), 'node_modules') + path.sep), 'Resolved an installation outside the clean stage');
+    const {Project,validateModel,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@envsemble/atlas-diagrams');
     const p=new Project(); p.name.add('Installed package test');
     const root=p.packageBuilder().root().name('Orders').build();
     root.classBuilder().kind().name('Order').build();
@@ -63,10 +63,10 @@ try {
       fs.writeFileSync('Consumer.java','class Consumer { String value; }');
       const java=await captureJava({identity:'consumer',projects:[{identity:'java',path:process.cwd(),files:['Consumer.java']}]});
       assert.equal(java.model.nodes[0].name,'Consumer');
-      const react=await import('@atlas/diagrams/react');
+      const react=await import('@envsemble/atlas-diagrams/react');
       assert.equal(typeof react.OntoUMLViewer,'function');
       assert.equal(typeof react.AtlasPanel,'function');
-      assert(require('node:fs').existsSync(require.resolve('@atlas/diagrams/embedded.css')));
+      assert(require('node:fs').existsSync(require.resolve('@envsemble/atlas-diagrams/embedded.css')));
       const built=await buildViewer({project});
       assert(built.html.includes('Installed package test'));
       assert(built.payload.views.length===1);

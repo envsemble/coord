@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BlockedIcon, CheckIcon, CircleSlashIcon, IssueClosedIcon, IssueDraftIcon, IssueOpenedIcon, QuestionIcon, SkipIcon, TriangleDownIcon } from './icons';
 import type { WorkStatus } from './status';
-import type { Provenance } from '@atlas/planning/provenance';
+import type { Provenance } from '@envsemble/atlas-planning/provenance';
 
 export function Label({ children, tone = 'default', title }: { children: ReactNode; tone?: string; title?: string }) {
   return <span className={'label label-' + tone} title={title}>{children}</span>;

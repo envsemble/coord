@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
-import atlas from "@atlas/diagrams";
+import atlas from "@envsemble/atlas-diagrams";
 const diagrams = JSON.parse(fs.readFileSync(new URL("../../packages/diagrams/package.json", import.meta.url), "utf8"));
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), "planning-atlas-review-"));
 try {

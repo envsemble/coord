@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/planning",
+  "name": "@envsemble/atlas-planning",
   "version": "0.5.0",
   "private": true,
   "description": "Internal Atlas planning-folder reader shared by the atlas command and the app",
@@ -26,7 +26,7 @@
     "check:types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@atlas/diagrams": "*",
+    "@envsemble/atlas-diagrams": "*",
     "yaml": "^2.9.1"
   },
   "devDependencies": {

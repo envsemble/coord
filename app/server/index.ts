@@ -6,8 +6,8 @@ import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
-import { PlanningError, readDocument, recentRootsFile, recordCollectionGap, resolveDocument, discoverPlanningRoots, inspectPlanningRoot, RecentPlanningRoots, samePlatformPath, type PlanningRootInfo } from '@atlas/planning';
-import { PlanningSession } from '@atlas/planning/session';
+import { PlanningError, readDocument, recentRootsFile, recordCollectionGap, resolveDocument, discoverPlanningRoots, inspectPlanningRoot, RecentPlanningRoots, samePlatformPath, type PlanningRootInfo } from '@envsemble/atlas-planning';
+import { PlanningSession } from '@envsemble/atlas-planning/session';
 import type { Usage } from '../src/types.ts';
 import { localOrigin } from './origin.ts';
 

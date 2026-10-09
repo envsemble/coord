@@ -2,7 +2,7 @@
 
 Atlas exposes the same operations through `createWorkspace(root).execute(name, arguments)`, the `atlas model` JSON commands, and the `atlas mcp` stdio server. Model data persists independently of the app or an agent session under `.atlas/models`. Immutable revision files live under `.atlas/history`; prepared scenes/results and exports are separate output files. Keep model/history files when moving a workspace. No hosted AI or HTTP model service is required.
 
-[Install the atlas command](../README.md#install-the-atlas-command) from a checkout (`npm link --workspace @atlas/cli`), or use `npx atlas` inside it. Run `atlas model tools` for the authoritative JSON schemas. Command operation names omit the MCP `atlas_` prefix:
+[Install the atlas command](../README.md#install-the-atlas-command) from a checkout (`npm link --workspace @envsemble/atlas-cli`), or use `npx atlas` inside it. Run `atlas model tools` for the authoritative JSON schemas. Command operation names omit the MCP `atlas_` prefix:
 
 ```sh
 atlas model create --root /workspace --input create-request.json

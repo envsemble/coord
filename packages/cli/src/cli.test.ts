@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { Telemetry, statisticsDirectory } from '@atlas/planning';
+import { Telemetry, statisticsDirectory } from '@envsemble/atlas-planning';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const command = path.resolve(here, '../bin/atlas.js');

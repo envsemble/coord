@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, realpath, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadPlanning } from '@atlas/planning';
+import { loadPlanning } from '@envsemble/atlas-planning';
 import { defaultDocument, relativeDocumentPath } from './work.ts';
 
 const plan = (implementation: string) => ['---', 'schema_version: 1', 'kind: plan', 'id: work-0001', 'title: Example work', 'repositories: [example]', 'created: null', 'updated: "2026-10-06"', 'design_status: accepted', 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '# Original plan', ''].join('\n');

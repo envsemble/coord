@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/cli",
+  "name": "@envsemble/atlas-cli",
   "version": "0.5.0",
   "private": true,
   "description": "The atlas command: model tools, the MCP server, planning checks and consultation logging",
@@ -21,8 +21,8 @@
     "check:types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@atlas/diagrams": "*",
-    "@atlas/planning": "*"
+    "@envsemble/atlas-diagrams": "*",
+    "@envsemble/atlas-planning": "*"
   },
   "devDependencies": {
     "@types/node": "^24",

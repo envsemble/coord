@@ -9,7 +9,7 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { Telemetry, cacheOutsidePlanning, statisticsDirectory } from '@atlas/planning';
+import { Telemetry, cacheOutsidePlanning, statisticsDirectory } from '@envsemble/atlas-planning';
 import { localOrigin } from './origin.ts';
 
 test('local HTTP origins accept the default port while rejecting unrelated origins', () => {

@@ -1,7 +1,7 @@
 // The atlas command. Model tools and the MCP server delegate to the diagram package;
 // planning checks and consultation logging use the shared planning reader.
 import { createRequire } from 'node:module';
-import { logConsultation, validatePlanning } from '@atlas/planning';
+import { logConsultation, validatePlanning } from '@envsemble/atlas-planning';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -84,7 +84,7 @@ async function usageLog(args: string[], out: Output) {
   return 0;
 }
 
-async function delegate(module: '@atlas/diagrams/cli' | '@atlas/diagrams/job-cli', args: string[]) {
+async function delegate(module: '@envsemble/atlas-diagrams/cli' | '@envsemble/atlas-diagrams/job-cli', args: string[]) {
   const { run } = require(module) as { run: (args: string[]) => Promise<void> };
   await run(args);
   return typeof process.exitCode === 'number' ? process.exitCode : 0;
@@ -97,11 +97,11 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === '--version' || command === '-v' || command === 'version') { out.stdout(version); return 0; }
     if (!command || ['help', '--help', '-h'].includes(command)) { out.stdout(usage); return 0; }
     if (command === 'model') {
-      if (subcommand === 'job') return await delegate('@atlas/diagrams/job-cli', rest);
+      if (subcommand === 'job') return await delegate('@envsemble/atlas-diagrams/job-cli', rest);
       if (subcommand === 'mcp' || subcommand === '--version') throw new UsageError(subcommand === 'mcp' ? 'use atlas mcp --root <workspace>' : 'use atlas --version');
-      return await delegate('@atlas/diagrams/cli', subcommand === undefined ? [] : [subcommand, ...rest]);
+      return await delegate('@envsemble/atlas-diagrams/cli', subcommand === undefined ? [] : [subcommand, ...rest]);
     }
-    if (command === 'mcp') return await delegate('@atlas/diagrams/cli', ['mcp', ...args.slice(1)]);
+    if (command === 'mcp') return await delegate('@envsemble/atlas-diagrams/cli', ['mcp', ...args.slice(1)]);
     if (command === 'planning' && subcommand === 'check') return planningCheck(rest, out);
     if (command === 'usage' && subcommand === 'log') return await usageLog(rest, out);
     throw new UsageError(command === 'planning' || command === 'usage' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);

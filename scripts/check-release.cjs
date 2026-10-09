@@ -60,7 +60,9 @@ async function check() {
     );
     assert(files["r5.html"]);
     assert(
-      Object.keys(files).some((name) => /^atlas-diagrams-.+\.tgz$/.test(name)),
+      Object.keys(files).some((name) =>
+        /^envsemble-atlas-diagrams-.+\.tgz$/.test(name),
+      ),
       "Missing packed diagram package",
     );
     assert(files["packages/diagrams/assets/atlas-icon.svg"]);

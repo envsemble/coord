@@ -1,15 +1,15 @@
 import { apiFetch } from './api';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AtlasPanel, ViewerErrorBoundary } from '@atlas/diagrams/react';
-import type { PlanningContext, ViewerPayload } from '@atlas/diagrams';
-import '@atlas/diagrams/embedded.css';
+import { AtlasPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
+import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
+import '@envsemble/atlas-diagrams/embedded.css';
 import type { Snapshot, Work } from './types';
 import { documentRoute, type Route } from './routes';
 import { samePath } from './links';
 import { pollWhileVisible } from './visiblePoll';
 import { selectModelHandle } from './modelSelection';
-import { resolveRecordPath } from '@atlas/planning/paths';
-import type { Provenance, ProvenanceKind } from '@atlas/planning/provenance';
+import { resolveRecordPath } from '@envsemble/atlas-planning/paths';
+import type { Provenance, ProvenanceKind } from '@envsemble/atlas-planning/provenance';
 import { CheckIcon, TriangleDownIcon, WorkflowIcon } from './icons';
 import { Blankslate, Dropdown, ProvenanceLabel, Spinner } from './ui';
 

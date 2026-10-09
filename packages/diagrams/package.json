@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/diagrams",
+  "name": "@envsemble/atlas-diagrams",
   "version": "0.5.0",
   "private": true,
   "description": "Internal Atlas diagram package: capture, documents, validation, layout, the React viewer, offline export and review tooling",

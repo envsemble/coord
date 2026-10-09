@@ -29,7 +29,7 @@ Use **Node 24**, npm and Git. Java extraction also needs **JDK 21**, and Postgre
 
 ```sh
 npm ci
-npm run dev --workspace @atlas/app
+npm run dev --workspace @envsemble/atlas-app
 ```
 
 Open `http://127.0.0.1:4317/`. The app reads the `planning` folder next to this checkout; pass `-- --planning-dir /path/to/planning` to read another, or switch folders from the sidebar. Plans, models and statistics stay local, and no model service or API key is needed. The [app guide](app/README.md) covers its views, diagrams and usage statistics.
@@ -42,11 +42,11 @@ One `atlas` command covers the model tools, the MCP server, planning checks and 
 
 ```sh
 npm ci
-npm link --workspace @atlas/cli
+npm link --workspace @envsemble/atlas-cli
 atlas --version
 ```
 
-`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @atlas/cli` removes it. Inside the checkout, `npx atlas …` works without linking.
+`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @envsemble/atlas-cli` removes it. Inside the checkout, `npx atlas …` works without linking.
 
 ```text
 atlas model <operation> --root <workspace> [--input <request.json|->]
@@ -110,10 +110,10 @@ node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --repor
 
 ### Library and React
 
-Inside Atlas, the app and the command use the private `@atlas/diagrams` workspace package directly. Elsewhere, create a local package with `npm pack` in `packages/diagrams`, then install the tarball. Core Node APIs use CommonJS or default ESM import:
+Inside Atlas, the app and the command use the private `@envsemble/atlas-diagrams` workspace package directly. Elsewhere, create a local package with `npm pack` in `packages/diagrams`, then install the tarball. Core Node APIs use CommonJS or default ESM import:
 
 ```js
-import atlas from "@atlas/diagrams";
+import atlas from "@envsemble/atlas-diagrams";
 const document = atlas.importDocument(exportedHtml);
 const proposal = atlas.createProposal(document);
 const payload = (
@@ -124,8 +124,11 @@ atlas.writeViewer(built, "./site");
 ```
 
 ```jsx
-import { AtlasPanel, ViewerErrorBoundary } from "@atlas/diagrams/react";
-import "@atlas/diagrams/embedded.css";
+import {
+  AtlasPanel,
+  ViewerErrorBoundary,
+} from "@envsemble/atlas-diagrams/react";
+import "@envsemble/atlas-diagrams/embedded.css";
 
 <ViewerErrorBoundary>
   <AtlasPanel

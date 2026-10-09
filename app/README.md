@@ -12,13 +12,13 @@ Requires Node.js 24 or newer, npm, and Git for planning history. The app is part
 
 Then start the app from the repository root:
 
-    npm run dev --workspace @atlas/app
+    npm run dev --workspace @envsemble/atlas-app
 
 Open [the local app](http://127.0.0.1:4317). By default it reads the planning folder next to the checkout: a layout of workspace/atlas and workspace/planning. To read another repository:
 
-    npm run dev --workspace @atlas/app -- --planning-dir "C:/path/to/planning"
+    npm run dev --workspace @envsemble/atlas-app -- --planning-dir "C:/path/to/planning"
 
-Optional arguments: --port 4318 and --data-dir "C:/path/to/atlas-data", which overrides the [Atlas data folder](#usage-statistics) for this run. For a built version, run npm run build --workspace @atlas/app once, then npm start --workspace @atlas/app with the same options. The server listens only on 127.0.0.1; nothing is hosted remotely. Stop it with Ctrl+C.
+Optional arguments: --port 4318 and --data-dir "C:/path/to/atlas-data", which overrides the [Atlas data folder](#usage-statistics) for this run. For a built version, run npm run build --workspace @envsemble/atlas-app once, then npm start --workspace @envsemble/atlas-app with the same options. The server listens only on 127.0.0.1; nothing is hosted remotely. Stop it with Ctrl+C.
 
 ### Switching planning folders
 
@@ -78,7 +78,7 @@ The tab checks model revision summaries every two seconds while visible. Model, 
 
 An element's retained plan/glossary/decision passages appear in its inspector. **Open plan** follows an indexed record and optional `section` heading. The referenced document also exposes links back into the diagram. Shared knowledge pages aggregate backlinks from their registered work items. References outside the indexed work and shared knowledge are unavailable; retained passage text still helps explain the model offline. Code evidence remains pinned and uses Atlas's syntax-highlighted snippets.
 
-The app depends on the diagram package (`@atlas/diagrams`, in `packages/diagrams`) through the repository's npm workspace, so diagram changes and app changes land in one commit with no packaged tarball or pinned hash. See the [atlas-model skill](../skills/atlas-model/SKILL.md).
+The app depends on the diagram package (`@envsemble/atlas-diagrams`, in `packages/diagrams`) through the repository's npm workspace, so diagram changes and app changes land in one commit with no packaged tarball or pinned hash. See the [atlas-model skill](../skills/atlas-model/SKILL.md).
 
 **Report** opens authored walkthroughs, checked finite instances/counterexamples, guided SVG diagrams, selected glossary/evidence and print presentation. It returns to the existing diagram without discarding its camera/selection. Model state, source scopes and imported claims remain visible; learning checks do not establish domain accuracy.
 

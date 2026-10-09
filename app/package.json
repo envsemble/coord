@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/app",
+  "name": "@envsemble/atlas-app",
   "version": "0.1.0",
   "private": true,
   "repository": {
@@ -20,8 +20,8 @@
     "check:review": "node scripts/check-review.mjs"
   },
   "dependencies": {
-    "@atlas/diagrams": "*",
-    "@atlas/planning": "*",
+    "@envsemble/atlas-diagrams": "*",
+    "@envsemble/atlas-planning": "*",
     "@primer/octicons-react": "19.40.0",
     "@primer/primitives": "^11.10.0",
     "express": "^5.2.1",

@@ -4,7 +4,7 @@ import type { Issue, PlanningRootInfo, PlanningRoots, Snapshot } from './types';
 import { Dropdown, Spinner } from './ui';
 import { navigate, type Route } from './routes';
 import { absoluteDate, relativeDate, workNumber } from './format';
-import { AtlasMark } from '@atlas/diagrams/react';
+import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 
 export const navigation = [
   { id: 'work', label: 'Work', icon: <IssueOpenedIcon size={16} /> },

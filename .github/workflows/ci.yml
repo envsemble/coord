@@ -55,7 +55,7 @@ jobs:
       - run: npm run format:check && npm run check:types
       # Workspace tests: diagrams, planning (reader and ported helpers), the atlas command and the app.
       - run: npm test
-      - run: npm run build --workspace @atlas/app
+      - run: npm run build --workspace @envsemble/atlas-app
       - run: npm run check && npm run check:package && npm run check:performance
       - run: npm run check:review
       - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist
