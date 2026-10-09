@@ -494,9 +494,27 @@ function reviseDocument(
 // a captured snapshot) is kept; the move is still a recorded revision.
 function relocateDocument(
   document,
-  { workId, recordPaths = {}, reason } = {},
+  changes = {},
   expectedRevision = document.revision.id,
 ) {
+  const plain = (value) =>
+    value !== null &&
+    typeof value === "object" &&
+    [Object.prototype, null].includes(Object.getPrototypeOf(value));
+  if (!plain(changes))
+    throw new Error("RELOCATE_INPUT: changes must be a plain object");
+  const unknown = Object.keys(changes).filter(
+    (key) => !["workId", "recordPaths", "reason"].includes(key),
+  );
+  if (unknown.length)
+    throw new Error(
+      `RELOCATE_INPUT: relocation changes only workId and recordPaths, not ${unknown.join(", ")}`,
+    );
+  const { workId, recordPaths = {}, reason } = changes;
+  if (!plain(recordPaths))
+    throw new Error("RELOCATE_RECORD: recordPaths must be a plain object");
+  if (reason !== undefined && (typeof reason !== "string" || !reason))
+    throw new Error("RELOCATE_INPUT: reason must be nonempty text");
   assertDocument(document);
   if (expectedRevision !== document.revision.id)
     throw new Error("REVISION_CONFLICT: document has changed");

@@ -157,6 +157,19 @@ test("relocating a document records a revision and keeps a captured snapshot", (
     );
     assert.throws(() => relocateDocument(doc, {}), /RELOCATE_EMPTY/);
     assert.throws(
+      () => relocateDocument(doc, { workId: "work-0009", title: "x" }),
+      /RELOCATE_INPUT/,
+    );
+    assert.throws(
+      () => relocateDocument(doc, { recordPaths: [["a", "plan.md"]] }),
+      /RELOCATE_RECORD/,
+    );
+    assert.throws(
+      () => relocateDocument(doc, { recordPaths: new Map([["a", "x"]]) }),
+      /RELOCATE_RECORD/,
+    );
+    assert.throws(() => relocateDocument(doc, "work-0009"), /RELOCATE_INPUT/);
+    assert.throws(
       () => relocateDocument(doc, { workId: "work-0009" }, "stale"),
       /REVISION_CONFLICT/,
     );
