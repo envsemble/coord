@@ -166,7 +166,7 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
   response.status(status).json({ error: message });
 });
 http.listen(port, '127.0.0.1', () => {
-  console.log('Worktrail: http://127.0.0.1:' + port);
+  console.log('Atlas: http://127.0.0.1:' + port);
   console.log('Reading: ' + session.root);
   console.log('Local view statistics: ' + session.dataRoot);
 });

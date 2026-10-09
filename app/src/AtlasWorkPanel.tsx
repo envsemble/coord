@@ -144,7 +144,7 @@ export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work
       : <>
         {picker && <div className="diagrams-island">{picker}</div>}
         {!catalog ? <div className="diagrams-state"><Spinner /> Loading diagrams…</div>
-          : empty ? <div className="diagrams-state"><Blankslate icon={<WorkflowIcon size={24} />} title="No diagrams yet">Ask your agent to model this plan with the worktrail-atlas skill. Diagrams are saved in this work folder.</Blankslate></div>
+          : empty ? <div className="diagrams-state"><Blankslate icon={<WorkflowIcon size={24} />} title="No diagrams yet">Ask your agent to model this plan with the atlas-model skill. Diagrams are saved in this work folder.</Blankslate></div>
           : <div className="diagrams-state">{modelError ? null : <><Spinner /> Loading diagram…</>}</div>}
       </>}
       {notices.length > 0 && <div className="diagrams-notices" role="status">{notices.map((message, index) => <div className="flash flash-warning" key={index}>{message}</div>)}</div>}

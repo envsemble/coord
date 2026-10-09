@@ -2013,15 +2013,16 @@ function SegmentedControl({ items, value, onChange, label }) {
 
 // src/ui/AtlasMark.jsx
 import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
-function AtlasMark({ size = 28 }) {
+function AtlasMark({ size = 28, label = "Atlas" }) {
   return /* @__PURE__ */ jsxs9(
     "svg",
     {
       width: size,
       height: size,
       viewBox: "0 0 64 64",
-      role: "img",
-      "aria-label": "Atlas",
+      role: label ? "img" : void 0,
+      "aria-label": label || void 0,
+      "aria-hidden": label ? void 0 : true,
       children: [
         /* @__PURE__ */ jsx14(
           "path",
@@ -4758,6 +4759,7 @@ var ViewerErrorBoundary = class extends Component {
   }
 };
 export {
+  AtlasMark,
   AtlasPanel,
   DiagramCanvas,
   ElementLearning,

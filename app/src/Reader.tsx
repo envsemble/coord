@@ -112,8 +112,8 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   useEffect(() => {
     if (!content) return;
     try {
-      let session = sessionStorage.getItem('planning-dashboard-session');
-      if (!session) { session = crypto.randomUUID(); sessionStorage.setItem('planning-dashboard-session', session); }
+      let session = sessionStorage.getItem('atlas-session');
+      if (!session) { session = crypto.randomUUID(); sessionStorage.setItem('atlas-session', session); }
       apiFetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: crypto.randomUUID(), path: content.path, session, contentHash: content.contentHash }) })
         .then(response => { if (!response.ok && response.status !== 503) setCollectionError('This view was not recorded.'); })
         .catch(() => undefined);

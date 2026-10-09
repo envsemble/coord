@@ -59,15 +59,18 @@ async function check() {
       !Object.keys(files).some((name) =>
         /(?:^|\/)(?:check_planning|log_consultation)\.py$/.test(name),
       ),
-      "The Python planning helpers were replaced by the atlas command",
+      "Atlas ships no Python helpers",
     );
     assert(files["app/assets/atlas-dashboard.jpg"]);
-    assert(files["assets/worktrail/worktrail-icon.svg"]);
+    assert(
+      !Object.keys(files).some((name) => name.startsWith("assets/worktrail/")),
+      "Release branding is Atlas only",
+    );
     assert(
       !Object.keys(files).some((name) => name.startsWith("app/vendor/")),
-      "The app must use the workspace diagram package, not a vendored tarball",
+      "The app uses the workspace diagram package",
     );
-    assert(files["skills/worktrail-atlas/SKILL.md"]);
+    assert(files["skills/atlas-model/SKILL.md"]);
     assert(files["assets/atlas-banner-dark.svg"]);
     assert(files["docs/worktrail/history/skills-commit-map.txt"]);
     assert(files["CHANGELOG.md"]);

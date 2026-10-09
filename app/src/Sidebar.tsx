@@ -4,7 +4,7 @@ import type { Issue, PlanningRootInfo, PlanningRoots, Snapshot } from './types';
 import { Dropdown, Spinner } from './ui';
 import { navigate, type Route } from './routes';
 import { absoluteDate, relativeDate, workNumber } from './format';
-import worktrailIcon from '../../assets/worktrail/worktrail-icon.svg';
+import { AtlasMark } from '@atlas/diagrams/react';
 
 export const navigation = [
   { id: 'work', label: 'Work', icon: <IssueOpenedIcon size={16} /> },
@@ -103,7 +103,7 @@ export function Sidebar({ snapshot, route, refreshing, loadedAt, onRefresh, onSw
   const active = snapshot?.work.filter(work => work.location === 'active').length;
   const updated = loadedAt ? relativeDate(loadedAt) : '';
   return <aside className="app-sidebar">
-    <a className="brand" href="#view=work" aria-label="Worktrail"><img src={worktrailIcon} alt="" width={24} height={24} /><strong className="nav-label">Worktrail</strong></a>
+    <a className="brand" href="#view=work" aria-label="Atlas"><AtlasMark size={24} label="" /><strong className="nav-label">Atlas</strong></a>
     <div className="sidebar-folder">
       <FolderSwitcher root={snapshot?.root ?? ''} onSwitched={onSwitched} />
       <Health issues={snapshot?.issues ?? []} />

@@ -1,11 +1,13 @@
-export function AtlasMark({ size = 28 }) {
+/** The Atlas mark. Pass `label=""` when adjacent text already names Atlas. */
+export function AtlasMark({ size = 28, label = "Atlas" }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 64 64"
-      role="img"
-      aria-label="Atlas"
+      role={label ? "img" : undefined}
+      aria-label={label || undefined}
+      aria-hidden={label ? undefined : true}
     >
       <path
         fill="none"

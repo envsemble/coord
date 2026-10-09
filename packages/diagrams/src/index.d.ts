@@ -28,6 +28,8 @@ export const AtlasPanel: ComponentType<{
   /** When provided, a fullscreen toggle button appears in the top-right island. */
   onFullscreenChange?(next: boolean): void;
 }>;
+/** The Atlas mark (lines use `currentColor`). Pass `label=""` when adjacent text already names Atlas. */
+export const AtlasMark: ComponentType<{ size?: number; label?: string }>;
 /** Document fields that determine where a model came from. */
 export type ProvenanceSource = Partial<
   Pick<AtlasDocument, "profile" | "state" | "baselineId" | "imported">
