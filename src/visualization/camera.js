@@ -4,10 +4,23 @@ const PAN_EASING_MS = 50;
 const DRAG_EASING_MS = 28;
 const ZOOM_EASING_MS = 90;
 const clampScale = (scale) => Math.max(0.08, Math.min(3.5, scale));
+// Small diagrams may be enlarged to fill the canvas, but not beyond this zoom.
+const MAX_FIT_SCALE = 1.5;
+const FIT_PADDING = 24;
+const NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
 
 // The SVG camera updates outside React's render cycle. Only its rounded zoom
 // readout becomes React state; every animation frame can stay inexpensive.
-export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
+// `insets` reports canvas edges covered by floating UI (toolbars, inspector).
+// Fit and reveal keep the diagram inside the remaining visible area.
+export function createCamera({
+  canvasRef,
+  worldRef,
+  onZoom,
+  onTap,
+  onMotion,
+  insets = () => NO_INSETS,
+}) {
   let camera = { x: 0, y: 0, scale: 1, fitted: true };
   let destination = { ...camera };
   let activeKey = null;
@@ -115,18 +128,34 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     }
   }
 
-  function fit(animate = true) {
-    const b = worldRef.current.querySelector("svg").viewBox.baseVal;
+  function visibleArea() {
     const w = canvasRef.current.clientWidth;
     const h = canvasRef.current.clientHeight;
+    const i = { ...NO_INSETS, ...(insets(canvasRef.current) || {}) };
+    // Ignore insets that would leave too little room to show anything.
+    const left = i.left + i.right < w * 0.6 ? i.left : 0;
+    const right = i.left + i.right < w * 0.6 ? i.right : 0;
+    const top = i.top + i.bottom < h * 0.6 ? i.top : 0;
+    const bottom = i.top + i.bottom < h * 0.6 ? i.bottom : 0;
+    return {
+      x: left,
+      y: top,
+      width: Math.max(1, w - left - right),
+      height: Math.max(1, h - top - bottom),
+    };
+  }
+
+  function fit(animate = true) {
+    const b = worldRef.current.querySelector("svg").viewBox.baseVal;
+    const area = visibleArea();
     const scale = Math.min(
-      Math.max(1, w - 48) / b.width,
-      Math.max(1, h - 48) / b.height,
-      1.2,
+      Math.max(1, area.width - 2 * FIT_PADDING) / b.width,
+      Math.max(1, area.height - 2 * FIT_PADDING) / b.height,
+      MAX_FIT_SCALE,
     );
     const next = {
-      x: (w - b.width * scale) / 2,
-      y: (h - b.height * scale) / 2,
+      x: area.x + (area.width - b.width * scale) / 2,
+      y: area.y + (area.height - b.height * scale) / 2,
       scale,
       fitted: true,
     };
@@ -158,10 +187,11 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       (Math.min(...anchors.map((n) => n.y)) +
         Math.max(...anchors.map((n) => n.y + n.h))) /
       2;
+    const area = visibleArea();
     snapTo({
       scale: 0.7,
-      x: canvasRef.current.clientWidth / 2 - x * 0.7,
-      y: canvasRef.current.clientHeight / 2 - y * 0.7,
+      x: area.x + area.width / 2 - x * 0.7,
+      y: area.y + area.height / 2 - y * 0.7,
       fitted: false,
     });
   }
@@ -226,15 +256,19 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     cancelMotion();
     const m = node.transform.baseVal.consolidate().matrix;
     const r = node.querySelector("rect");
-    const canvas = canvasRef.current;
-    const freeWidth = Math.max(1, canvas.clientWidth - rightInset);
+    const area = visibleArea();
+    const freeWidth = Math.max(1, area.width - rightInset);
     const scale = Math.max(camera.scale, 0.85);
     moveTo(
       {
         scale,
-        x: freeWidth / 2 - (m.e + Number(r.getAttribute("width")) / 2) * scale,
+        x:
+          area.x +
+          freeWidth / 2 -
+          (m.e + Number(r.getAttribute("width")) / 2) * scale,
         y:
-          canvas.clientHeight / 2 -
+          area.y +
+          area.height / 2 -
           (m.f + Number(r.getAttribute("height")) / 2) * scale,
         fitted: false,
       },
@@ -247,21 +281,21 @@ export function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     if (!node) return;
     const m = node.transform.baseVal.consolidate().matrix;
     const r = node.querySelector("rect");
-    const canvas = canvasRef.current;
     const left = destination.x + m.e * destination.scale;
     const top = destination.y + m.f * destination.scale;
     const width = Number(r.getAttribute("width")) * destination.scale;
     const height = Number(r.getAttribute("height")) * destination.scale;
-    const shift = (start, size, available) =>
+    const area = visibleArea();
+    const shift = (start, size, origin, available) =>
       size > available - 48
-        ? (available - size) / 2 - start
-        : start < 24
-          ? 24 - start
-          : start + size > available - 24
-            ? available - 24 - start - size
+        ? origin + (available - size) / 2 - start
+        : start < origin + 24
+          ? origin + 24 - start
+          : start + size > origin + available - 24
+            ? origin + available - 24 - start - size
             : 0;
-    const dx = shift(left, width, canvas.clientWidth);
-    const dy = shift(top, height, canvas.clientHeight);
+    const dx = shift(left, width, area.x, area.width);
+    const dy = shift(top, height, area.y, area.height);
     if (dx || dy) {
       // Keep an in-progress focus/zoom transition; reveal checks its final pose
       // so selecting a search result cannot cancel the animation that finds it.

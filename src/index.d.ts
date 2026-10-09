@@ -39,6 +39,14 @@ export const DiagramCanvas: ForwardRefExoticComponent<
     focusRequest?: { id: string } | null;
     /** Transparent, theme-matched SVG image of this immutable scene. */
     backgroundURL?: string;
+    /** Canvas edges covered by floating UI; fit and reveal avoid them. */
+    fitInsets?:
+      | Partial<Record<"top" | "right" | "bottom" | "left", number>>
+      | ((
+          canvas: HTMLElement,
+        ) => Partial<
+          Record<"top" | "right" | "bottom" | "left", number>
+        > | null);
     onSelect(target: InspectionTarget): void;
     onZoom(zoom: number): void;
     onHover(target: InspectionTarget): void;

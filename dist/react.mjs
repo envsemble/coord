@@ -886,7 +886,17 @@ var PAN_EASING_MS = 50;
 var DRAG_EASING_MS = 28;
 var ZOOM_EASING_MS = 90;
 var clampScale = (scale) => Math.max(0.08, Math.min(3.5, scale));
-function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
+var MAX_FIT_SCALE = 1.5;
+var FIT_PADDING = 24;
+var NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
+function createCamera({
+  canvasRef,
+  worldRef,
+  onZoom,
+  onTap,
+  onMotion,
+  insets = () => NO_INSETS
+}) {
   let camera = { x: 0, y: 0, scale: 1, fitted: true };
   let destination = { ...camera };
   let activeKey = null;
@@ -973,18 +983,32 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
       motionFrame = requestAnimationFrame(animateMotion);
     }
   }
-  function fit(animate = true) {
-    const b = worldRef.current.querySelector("svg").viewBox.baseVal;
+  function visibleArea() {
     const w = canvasRef.current.clientWidth;
     const h = canvasRef.current.clientHeight;
+    const i = { ...NO_INSETS, ...insets(canvasRef.current) || {} };
+    const left = i.left + i.right < w * 0.6 ? i.left : 0;
+    const right = i.left + i.right < w * 0.6 ? i.right : 0;
+    const top = i.top + i.bottom < h * 0.6 ? i.top : 0;
+    const bottom = i.top + i.bottom < h * 0.6 ? i.bottom : 0;
+    return {
+      x: left,
+      y: top,
+      width: Math.max(1, w - left - right),
+      height: Math.max(1, h - top - bottom)
+    };
+  }
+  function fit(animate = true) {
+    const b = worldRef.current.querySelector("svg").viewBox.baseVal;
+    const area = visibleArea();
     const scale = Math.min(
-      Math.max(1, w - 48) / b.width,
-      Math.max(1, h - 48) / b.height,
-      1.2
+      Math.max(1, area.width - 2 * FIT_PADDING) / b.width,
+      Math.max(1, area.height - 2 * FIT_PADDING) / b.height,
+      MAX_FIT_SCALE
     );
     const next = {
-      x: (w - b.width * scale) / 2,
-      y: (h - b.height * scale) / 2,
+      x: area.x + (area.width - b.width * scale) / 2,
+      y: area.y + (area.height - b.height * scale) / 2,
       scale,
       fitted: true
     };
@@ -1009,10 +1033,11 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     });
     const x = (Math.min(...anchors.map((n) => n.x)) + Math.max(...anchors.map((n) => n.x + n.w))) / 2;
     const y = (Math.min(...anchors.map((n) => n.y)) + Math.max(...anchors.map((n) => n.y + n.h))) / 2;
+    const area = visibleArea();
     snapTo({
       scale: 0.7,
-      x: canvasRef.current.clientWidth / 2 - x * 0.7,
-      y: canvasRef.current.clientHeight / 2 - y * 0.7,
+      x: area.x + area.width / 2 - x * 0.7,
+      y: area.y + area.height / 2 - y * 0.7,
       fitted: false
     });
   }
@@ -1065,14 +1090,14 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     cancelMotion();
     const m = node.transform.baseVal.consolidate().matrix;
     const r = node.querySelector("rect");
-    const canvas = canvasRef.current;
-    const freeWidth = Math.max(1, canvas.clientWidth - rightInset);
+    const area = visibleArea();
+    const freeWidth = Math.max(1, area.width - rightInset);
     const scale = Math.max(camera.scale, 0.85);
     moveTo(
       {
         scale,
-        x: freeWidth / 2 - (m.e + Number(r.getAttribute("width")) / 2) * scale,
-        y: canvas.clientHeight / 2 - (m.f + Number(r.getAttribute("height")) / 2) * scale,
+        x: area.x + freeWidth / 2 - (m.e + Number(r.getAttribute("width")) / 2) * scale,
+        y: area.y + area.height / 2 - (m.f + Number(r.getAttribute("height")) / 2) * scale,
         fitted: false
       },
       ZOOM_EASING_MS
@@ -1083,14 +1108,14 @@ function createCamera({ canvasRef, worldRef, onZoom, onTap, onMotion }) {
     if (!node) return;
     const m = node.transform.baseVal.consolidate().matrix;
     const r = node.querySelector("rect");
-    const canvas = canvasRef.current;
     const left = destination.x + m.e * destination.scale;
     const top = destination.y + m.f * destination.scale;
     const width = Number(r.getAttribute("width")) * destination.scale;
     const height = Number(r.getAttribute("height")) * destination.scale;
-    const shift = (start, size, available) => size > available - 48 ? (available - size) / 2 - start : start < 24 ? 24 - start : start + size > available - 24 ? available - 24 - start - size : 0;
-    const dx = shift(left, width, canvas.clientWidth);
-    const dy = shift(top, height, canvas.clientHeight);
+    const area = visibleArea();
+    const shift = (start, size, origin, available) => size > available - 48 ? origin + (available - size) / 2 - start : start < origin + 24 ? origin + 24 - start : start + size > origin + available - 24 ? origin + available - 24 - start - size : 0;
+    const dx = shift(left, width, area.x, area.width);
+    const dy = shift(top, height, area.y, area.height);
     if (dx || dy) {
       pan(dx, dy, motionFrame === null ? 0 : easing);
     }
@@ -1304,23 +1329,28 @@ function useDiagramCamera({
   focusRequest,
   onZoom,
   onTap,
-  onMotion
+  onMotion,
+  insets
 }) {
-  const callbacks = useRef2({ onZoom, onTap, onMotion });
+  const callbacks = useRef2({ onZoom, onTap, onMotion, insets });
   const controls = useMemo2(
     () => createCamera({
       canvasRef,
       worldRef,
       onZoom: (value) => callbacks.current.onZoom(value),
       onTap: (element) => callbacks.current.onTap(element),
-      onMotion: () => callbacks.current.onMotion()
+      onMotion: () => callbacks.current.onMotion(),
+      insets: (canvas) => {
+        const value = callbacks.current.insets;
+        return typeof value === "function" ? value(canvas) : value;
+      }
     }),
     // A new camera implementation during Vite refresh needs a new controller.
     [createCamera]
   );
   useLayoutEffect2(() => {
-    callbacks.current = { onZoom, onTap, onMotion };
-  }, [onZoom, onTap, onMotion]);
+    callbacks.current = { onZoom, onTap, onMotion, insets };
+  }, [onZoom, onTap, onMotion, insets]);
   useLayoutEffect2(() => {
     controls.restoreView(diagram.key, diagram.fields, diagram.initialFocus);
   }, [controls, diagram]);
@@ -1341,6 +1371,7 @@ var DiagramCanvas = memo2(
     hovered,
     focusRequest,
     backgroundURL,
+    fitInsets,
     onSelect,
     onZoom,
     onHover,
@@ -1361,7 +1392,8 @@ var DiagramCanvas = memo2(
       // A background tap has no model target and clears selection. The camera
       // invokes this only for taps, so panning and zooming retain selection.
       onTap: (element) => onSelect(readTarget(element)),
-      onMotion: clearTransient
+      onMotion: clearTransient,
+      insets: fitInsets
     });
     useImperativeHandle(ref, () => controls, [controls]);
     useLayoutEffect3(() => {

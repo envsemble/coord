@@ -327,7 +327,8 @@ test("navigation cancels animation, restores cameras, and unmount cleans up", ()
   h.frame();
   h.controls.fit();
   h.settle();
-  close(h.read().scale, 1.2);
+  // Small diagrams fill the canvas up to the 150% fit limit.
+  close(h.read().scale, 1.5);
   h.wheel(80, { ctrlKey: false, deltaX: 120 });
   h.settle();
   const savedPose = h.world.style.transform;
