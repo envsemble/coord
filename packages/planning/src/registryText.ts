@@ -12,6 +12,7 @@ export class RegistryFormatError extends Error {
   constructor(message: string) { super(message); this.name = 'RegistryFormatError'; }
 }
 
+const BOM = String.fromCharCode(0xfeff);
 const whitespace = new Set([' ', '\t', '\r', '\n']);
 function skip(text: string, index: number) {
   while (index < text.length && whitespace.has(text[index])) index++;
@@ -113,7 +114,7 @@ function format(value: Json, template: Node | undefined, text: string, indent: s
  */
 export function appendRegistryEntries(source: string, key: string, entries: Json[]): string {
   if (!entries.length) return source;
-  const bom = source.startsWith('﻿') ? 1 : 0;
+  const bom = source.startsWith(BOM) ? 1 : 0;
   const root = scan(source, bom);
   if (root.kind !== 'object' || skip(source, root.end) !== source.length) throw new RegistryFormatError('planning.json must be one JSON object.');
   const member = root.members.find(item => item.key === key);

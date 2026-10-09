@@ -59,5 +59,6 @@ export function blobURL(file: ExportFile, purpose: 'view' | 'download') {
   return url;
 }
 export function textOf(file: ExportFile) {
-  return new TextDecoder('utf-8').decode(bytesOf(file)).replace(/^﻿/, '');
+  const text = new TextDecoder('utf-8').decode(bytesOf(file));
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }

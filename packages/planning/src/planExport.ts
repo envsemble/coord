@@ -7,9 +7,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { hostname } from 'node:os';
 import path from 'node:path';
 import type { AtlasDocument } from '@envsemble/atlas-diagrams';
-import { validatePlanning } from './check.ts';
+import { parseFrontmatter, validatePlanning } from './check.ts';
 import { PlanningError, loadPlanning } from './planning.ts';
 import { resolveRecordPath, samePath, workRelative } from './paths.ts';
 import { describeProvenance, type Provenance } from './provenance.ts';
@@ -21,12 +22,22 @@ const { version: atlasVersion } = JSON.parse(readFileSync(new URL('../package.js
 
 export const planExportFormat = 'atlas/plan-export';
 export const planExportVersion = 1;
-/** Exports above this size are written with a warning; there is no hard cap. */
+/** Exports above this size are written with a warning. */
 export const planExportWarningBytes = 50 * 1024 * 1024;
+/**
+ * The practical limit on a work folder's total file size. Base64 makes the HTML a third
+ * larger, and one JavaScript string holds at most about 512 million characters, so a
+ * larger export could be neither written nor read back.
+ */
+export const planExportMaxBytes = 300 * 1024 * 1024;
+const maxInputLength = Math.ceil(planExportMaxBytes / 3) * 4 + 64 * 1024 * 1024;
 const payloadId = 'atlas-plan-export';
 const viewId = 'atlas-plan-view';
 const modelFile = /^\.atlas\/models\/(m-[a-f0-9]{24})\.json$/;
 const workIdentity = /^work-([0-9]{4,})$/;
+const BOM = String.fromCharCode(0xfeff);
+const lockName = '.atlas-import.lock';
+const leftoverPrefix = '.atlas-import-';
 
 export interface PlanExportRepository { id: string; name: string; remote?: string }
 export interface PlanExportSource {
@@ -37,7 +48,7 @@ export interface PlanExportSource {
   location: 'active' | 'archive';
   /** Planning-relative work folder at export time. */
   path: string;
-  /** The registered main plan, relative to the work folder, or null. */
+  /** The registered main plan, a Markdown file relative to the work folder, or null. */
   currentPlan: string | null;
   /** The work's repository scope, with the names registered at export time. */
   repositories: PlanExportRepository[];
@@ -53,6 +64,7 @@ export interface PlanExportManifest {
   files: PlanExportFile[];
 }
 export interface PlanExportDiagram { title: string; provenance: Provenance }
+/** A validated plan export. It is frozen; pass it to `importPlan` to import without reading the file again. */
 export interface PlanExportPreview {
   manifest: PlanExportManifest;
   files: { path: string; size: number }[];
@@ -68,18 +80,23 @@ export interface PlanImportResult {
   files: number;
   notes: string[];
 }
+export interface PlanImportOptions {
+  /** How long to wait for another import into the same planning folder to finish (default 30 s). */
+  lockWaitMs?: number;
+}
 export type PlanExportErrorCode =
   | 'FORMAT' // not a plan export, malformed payload or manifest
   | 'VERSION' // a plan export of an unknown version
   | 'PATH' // an unsafe or non-portable file path
-  | 'DUPLICATE' // the same path more than once
+  | 'DUPLICATE' // the same path or repository more than once
   | 'INTEGRITY' // a size or SHA-256 mismatch
+  | 'LIMIT' // larger than a plan export can be
   | 'SOURCE' // the folder to export from is not a readable planning folder
   | 'WORK' // the work item to export was not found or cannot be exported
-  | 'TARGET' // the folder to import into is not a valid planning repository
-  | 'CONFLICT'; // the target changed during the import
+  | 'TARGET' // the folder to import into is not a valid planning repository, or the import would make it invalid
+  | 'CONFLICT'; // another import is running, or the target changed during the import
 
-/** A rejected export or import. Nothing has been written when this is thrown. */
+/** A rejected export or import. Nothing has been written (or everything was rolled back) when this is thrown. */
 export class PlanExportError extends Error {
   readonly code: PlanExportErrorCode;
   constructor(code: PlanExportErrorCode, message: string) {
@@ -90,8 +107,10 @@ export class PlanExportError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Paths
+// Paths and text
 
+// eslint-disable-next-line no-control-regex
+const controlCharacter = /[\u0000-\u001f\u007f-\u009f]/;
 const reservedName = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\..*)?$/i;
 /** Why a work-folder-relative path is not safe and portable, or null when it is. */
 export function planExportPathProblem(value: unknown): string | null {
@@ -99,8 +118,7 @@ export function planExportPathProblem(value: unknown): string | null {
   if (value.length > 1024) return 'is longer than 1024 characters';
   if (value.startsWith('/') || /^[a-z]:/i.test(value) || value.startsWith('\\')) return 'is absolute';
   if (value.includes('\\')) return 'uses a backslash; paths use forward slashes';
-  // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u001f\u007f:*?"<>|]/.test(value)) return 'contains a character that is not portable';
+  if (controlCharacter.test(value) || /[:*?"<>|]/.test(value)) return 'contains a character that is not portable';
   const segments = value.split('/');
   for (const [index, segment] of segments.entries()) {
     if (!segment) return 'has an empty segment';
@@ -112,7 +130,10 @@ export function planExportPathProblem(value: unknown): string | null {
   }
   return null;
 }
+/** Paths that one case-insensitive or normalizing filesystem would store as the same entry. */
 const pathKey = (value: string) => value.normalize('NFC').toLowerCase();
+const printableTitle = (value: string) => value.replace(new RegExp(controlCharacter.source, 'g'), String.fromCharCode(0xfffd));
+const isMarkdown = (name: string) => /\.md$/i.test(name) && !name.startsWith('.atlas/');
 
 // ---------------------------------------------------------------------------
 // Reading an export
@@ -122,13 +143,22 @@ type ParsedNode = { nodeName: string; tagName?: string; attrs?: { name: string; 
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const base64 = /^[A-Za-z0-9+/]*={0,2}$/;
+const tooLarge = () => new PlanExportError('LIMIT', `This file is too large to be a plan export; plan exports carry at most ${planExportMaxBytes / 1048576} MB of files.`);
+/** Decoded contents of validated previews, so an import need not read the file again. */
+const decodedPreviews = new WeakMap<PlanExportPreview, Map<string, Buffer>>();
 
 function payloadText(input: string | Uint8Array): string {
   let html: string;
-  if (typeof input === 'string') html = input;
-  else if (input instanceof Uint8Array) {
+  if (typeof input === 'string') {
+    if (input.length > maxInputLength) throw tooLarge();
+    html = input;
+  } else if (input instanceof Uint8Array) {
+    if (input.length > maxInputLength) throw tooLarge();
     try { html = new TextDecoder('utf-8', { fatal: true }).decode(input); }
-    catch { throw new PlanExportError('FORMAT', 'This file is not UTF-8 text, so it is not an Atlas plan export.'); }
+    catch (error) {
+      if (error instanceof RangeError) throw tooLarge();
+      throw new PlanExportError('FORMAT', 'This file is not UTF-8 text, so it is not an Atlas plan export.');
+    }
   } else throw new PlanExportError('FORMAT', 'Provide the plan export as HTML text or bytes.');
   const { parse } = require('parse5') as typeof import('parse5');
   let tree: ParsedNode;
@@ -136,6 +166,7 @@ function payloadText(input: string | Uint8Array): string {
     tree = parse(html, { onParseError: error => { if (error.code === 'duplicate-attribute') throw new PlanExportError('FORMAT', 'The plan export repeats an HTML attribute, so its payload is ambiguous.'); } }) as unknown as ParsedNode;
   } catch (error) {
     if (error instanceof PlanExportError) throw error;
+    if (error instanceof RangeError) throw tooLarge();
     throw new PlanExportError('FORMAT', 'This file could not be read as HTML.');
   }
   const found: ParsedNode[] = [];
@@ -160,80 +191,98 @@ function payloadText(input: string | Uint8Array): string {
   return (found[0].childNodes ?? []).map(node => node.value ?? '').join('');
 }
 
-function stringField(record: Record<string, unknown>, field: string, label: string, optional = false): string {
+/** A nonempty string without control characters, which could otherwise rewrite a terminal or log. */
+function textField(record: Record<string, unknown>, field: string, label: string, optional = false): string {
   const value = record[field];
   if (optional && value === undefined) return undefined as unknown as string;
   if (typeof value !== 'string' || !value.trim()) throw new PlanExportError('FORMAT', `The plan export's ${label} must be a nonempty string.`);
+  if (controlCharacter.test(value)) throw new PlanExportError('FORMAT', `The plan export's ${label} contains control characters.`);
   return value;
 }
 
-function decodePlanExport(input: string | Uint8Array): Decoded {
-  let payload: unknown;
-  try { payload = JSON.parse(payloadText(input)); }
-  catch (error) {
-    if (error instanceof PlanExportError) throw error;
-    throw new PlanExportError('FORMAT', 'The plan payload is not valid JSON.');
-  }
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object') { for (const child of Object.values(value)) deepFreeze(child); Object.freeze(value); }
+  return value;
+}
+
+/** Validate a parsed payload completely: format, text, paths, duplicates, sizes and hashes. */
+function validatePayload(payload: unknown): Decoded {
   if (!isObject(payload) || payload.format !== planExportFormat) throw new PlanExportError('FORMAT', `This file is not an ${planExportFormat} payload.`);
   if (payload.version !== planExportVersion) throw new PlanExportError('VERSION', `This plan export uses version ${JSON.stringify(payload.version)}; this Atlas reads version ${planExportVersion}. Use an Atlas release that supports it.`);
-  const exportedAt = stringField(payload, 'exportedAt', 'export time');
+  const exportedAt = textField(payload, 'exportedAt', 'export time');
   if (!Number.isFinite(Date.parse(exportedAt))) throw new PlanExportError('FORMAT', "The plan export's export time is not a date.");
-  const version = stringField(payload, 'atlasVersion', 'Atlas version');
+  const version = textField(payload, 'atlasVersion', 'Atlas version');
   if (!isObject(payload.source)) throw new PlanExportError('FORMAT', 'The plan export does not describe its source work item.');
   const source = payload.source;
-  const workId = stringField(source, 'workId', 'work ID');
+  const workId = textField(source, 'workId', 'work ID');
   if (!workIdentity.test(workId)) throw new PlanExportError('FORMAT', "The plan export's work ID is not a work-NNNN identity.");
   if (source.location !== 'active' && source.location !== 'archive') throw new PlanExportError('FORMAT', "The plan export's location must be active or archive.");
-  const sourcePath = stringField(source, 'path', 'source folder');
+  const sourcePath = textField(source, 'path', 'source folder');
   const sourceProblem = planExportPathProblem(sourcePath);
   if (sourceProblem) throw new PlanExportError('PATH', `The source folder ${JSON.stringify(sourcePath)} ${sourceProblem}.`);
+  const title = textField(source, 'title', 'title');
+  const planningFolder = textField(source, 'planningFolder', 'planning folder');
   if (source.currentPlan !== null && typeof source.currentPlan !== 'string') throw new PlanExportError('FORMAT', "The plan export's main plan must be a path or null.");
   if (!Array.isArray(source.repositories)) throw new PlanExportError('FORMAT', "The plan export's repositories must be a list.");
   const repositories: PlanExportRepository[] = source.repositories.map(item => {
     if (!isObject(item)) throw new PlanExportError('FORMAT', 'A repository in the plan export is not an object.');
-    const id = stringField(item, 'id', 'repository ID');
+    const id = textField(item, 'id', 'repository ID');
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new PlanExportError('FORMAT', `The repository ID ${JSON.stringify(id)} is invalid.`);
-    const remote = stringField(item, 'remote', 'repository remote', true);
-    return { id, name: stringField(item, 'name', 'repository name'), ...(remote === undefined ? {} : { remote }) };
+    const remote = textField(item, 'remote', 'repository remote', true);
+    return { id, name: textField(item, 'name', 'repository name'), ...(remote === undefined ? {} : { remote }) };
   });
   if (new Set(repositories.map(item => item.id)).size !== repositories.length) throw new PlanExportError('DUPLICATE', 'The plan export lists a repository twice.');
   if (!Array.isArray(payload.files)) throw new PlanExportError('FORMAT', 'The plan export has no file list.');
 
-  const files: PlanExportFile[] = [];
-  const contents = new Map<string, Buffer>();
-  const seen = new Map<string, string>();
-  for (const item of payload.files) {
+  // Check every entry's shape and the declared total before decoding anything.
+  let declared = 0;
+  const entries = payload.files.map(item => {
     if (!isObject(item)) throw new PlanExportError('FORMAT', 'A file entry in the plan export is not an object.');
-    const filePath = item.path;
-    const problem = planExportPathProblem(filePath);
-    if (problem) throw new PlanExportError('PATH', `The path ${JSON.stringify(filePath)} ${problem}.`);
-    const name = filePath as string;
-    const key = pathKey(name);
-    if (seen.has(key)) throw new PlanExportError('DUPLICATE', `The plan export contains ${name} more than once${seen.get(key) === name ? '' : ` (also as ${seen.get(key)})`}.`);
-    seen.set(key, name);
+    const problem = planExportPathProblem(item.path);
+    if (problem) throw new PlanExportError('PATH', `The path ${JSON.stringify(item.path)} ${problem}.`);
+    const name = item.path as string;
     if (typeof item.size !== 'number' || !Number.isSafeInteger(item.size) || item.size < 0) throw new PlanExportError('FORMAT', `The size of ${name} is invalid.`);
     if (typeof item.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(item.sha256)) throw new PlanExportError('FORMAT', `The SHA-256 of ${name} is invalid.`);
-    if (typeof item.data !== 'string' || item.data.length % 4 !== 0 || !base64.test(item.data)) throw new PlanExportError('INTEGRITY', `The contents of ${name} are not valid base64.`);
-    const bytes = Buffer.from(item.data, 'base64');
-    if (bytes.length !== item.size) throw new PlanExportError('INTEGRITY', `${name} has ${bytes.length} bytes, but the manifest records ${item.size}.`);
-    if (createHash('sha256').update(bytes).digest('hex') !== item.sha256) throw new PlanExportError('INTEGRITY', `${name} does not match its recorded SHA-256; the file was changed after export.`);
-    files.push({ path: name, size: item.size, sha256: item.sha256 });
-    contents.set(name, bytes);
-  }
-  // A path cannot be both a file and a folder.
-  for (const name of seen.keys()) {
+    declared += item.size;
+    return { name, size: item.size, sha256: item.sha256, data: item.data };
+  });
+  if (declared > planExportMaxBytes) throw tooLarge();
+
+  // One entry per path, and no file or folder that a case-insensitive or normalizing filesystem would merge.
+  const fileKeys = new Map<string, string>(), folderKeys = new Map<string, string>();
+  for (const { name } of entries) {
+    const key = pathKey(name);
+    if (fileKeys.has(key)) throw new PlanExportError('DUPLICATE', `The plan export contains ${name} more than once${fileKeys.get(key) === name ? '' : ` (also as ${fileKeys.get(key)})`}.`);
+    fileKeys.set(key, name);
     const segments = name.split('/');
     for (let index = 1; index < segments.length; index++) {
       const folder = segments.slice(0, index).join('/');
-      if (seen.has(folder)) throw new PlanExportError('PATH', `${seen.get(folder)} is both a file and a folder in the plan export.`);
+      const spelled = folderKeys.get(pathKey(folder));
+      if (spelled !== undefined && spelled !== folder) throw new PlanExportError('DUPLICATE', `The plan export has the folders ${spelled}/ and ${folder}/, which one filesystem would merge.`);
+      folderKeys.set(pathKey(folder), folder);
     }
   }
+  for (const [key, folder] of folderKeys) if (fileKeys.has(key)) throw new PlanExportError('PATH', `${folder} is both a file and a folder in the plan export.`);
+
+  const files: PlanExportFile[] = [];
+  const contents = new Map<string, Buffer>();
+  for (const { name, size, sha256, data } of entries) {
+    if (typeof data !== 'string' || data.length % 4 !== 0 || !base64.test(data)) throw new PlanExportError('INTEGRITY', `The contents of ${name} are not valid base64.`);
+    const bytes = Buffer.from(data, 'base64');
+    if (bytes.length !== size) throw new PlanExportError('INTEGRITY', `${name} has ${bytes.length} bytes, but the manifest records ${size}.`);
+    if (createHash('sha256').update(bytes).digest('hex') !== sha256) throw new PlanExportError('INTEGRITY', `${name} does not match its recorded SHA-256; the file was changed after export.`);
+    files.push({ path: name, size, sha256 });
+    contents.set(name, bytes);
+  }
   const currentPlan = source.currentPlan as string | null;
-  if (currentPlan !== null && !contents.has(currentPlan)) throw new PlanExportError('FORMAT', `The main plan ${currentPlan} is not among the exported files.`);
+  if (currentPlan !== null) {
+    if (!contents.has(currentPlan)) throw new PlanExportError('FORMAT', `The main plan ${currentPlan} is not among the exported files.`);
+    if (!isMarkdown(currentPlan)) throw new PlanExportError('FORMAT', `The main plan ${currentPlan} must be a Markdown file in the work folder, outside .atlas/.`);
+  }
 
   const manifest: PlanExportManifest = {
     format: planExportFormat, version: planExportVersion, atlasVersion: version, exportedAt,
-    source: { planningFolder: stringField(source, 'planningFolder', 'planning folder'), workId, title: stringField(source, 'title', 'title'), location: source.location, path: sourcePath, currentPlan, repositories },
+    source: { planningFolder, workId, title, location: source.location, path: sourcePath, currentPlan, repositories },
     files,
   };
   const diagrams: PlanExportDiagram[] = [];
@@ -241,18 +290,29 @@ function decodePlanExport(input: string | Uint8Array): Decoded {
     if (!modelFile.test(file.path)) continue;
     let document: Partial<AtlasDocument> | null = null;
     try { document = JSON.parse(contents.get(file.path)!.toString('utf8')); } catch { /* Listed by file name. */ }
-    const title = isObject(document) && typeof document.title === 'string' && document.title.trim() ? document.title : path.posix.basename(file.path);
-    diagrams.push({ title, provenance: describeProvenance(isObject(document) ? document : null) });
+    const named = isObject(document) && typeof document.title === 'string' && document.title.trim() ? document.title : path.posix.basename(file.path);
+    diagrams.push({ title: printableTitle(named), provenance: describeProvenance(isObject(document) ? document : null) });
   }
-  return {
-    preview: { manifest, files: files.map(({ path: name, size }) => ({ path: name, size })), diagrams, totalBytes: files.reduce((sum, file) => sum + file.size, 0) },
-    contents,
-  };
+  const preview = deepFreeze({ manifest, files: files.map(({ path: name, size }) => ({ path: name, size })), diagrams, totalBytes: files.reduce((sum, file) => sum + file.size, 0) });
+  decodedPreviews.set(preview, contents);
+  return { preview, contents };
+}
+
+function decodePlanExport(input: string | Uint8Array): Decoded {
+  let payload: unknown;
+  try { payload = JSON.parse(payloadText(input)); }
+  catch (error) {
+    if (error instanceof PlanExportError) throw error;
+    if (error instanceof RangeError) throw tooLarge();
+    throw new PlanExportError('FORMAT', 'The plan payload is not valid JSON.');
+  }
+  return validatePayload(payload);
 }
 
 /**
  * Validate a plan export and describe it without writing anything. Throws a
- * {@link PlanExportError} for any invalid input.
+ * {@link PlanExportError} for any invalid input. The frozen result can be passed to
+ * `importPlan` instead of the file.
  */
 export function readPlanExport(html: string | Uint8Array): PlanExportPreview {
   return decodePlanExport(html).preview;
@@ -275,7 +335,7 @@ interface PlanView {
 
 const transient = /^\.atlas\/(?:results|prepared|exports)(?:\/|$)|^\.atlas\/.*\.(?:lock|tmp)$/;
 async function workFiles(folder: string, warnings: string[]) {
-  const result: string[] = [];
+  const result: { name: string; size: number }[] = [];
   async function walk(directory: string, relative: string) {
     const entries = await readdir(directory, { withFileTypes: true });
     for (const entry of entries) {
@@ -290,12 +350,12 @@ async function workFiles(folder: string, warnings: string[]) {
       } else if (entry.isFile()) {
         const problem = planExportPathProblem(child);
         if (problem) throw new PlanExportError('PATH', `${child} ${problem}; rename it before exporting so the plan can be imported elsewhere.`);
-        result.push(child);
+        result.push({ name: child, size: (await stat(path.join(directory, entry.name))).size });
       } else warnings.push(`Skipped ${child}, which is not a regular file.`);
     }
   }
   await walk(folder, '');
-  return result.sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+  return result.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 }
 
 function inline(value: unknown) {
@@ -372,7 +432,9 @@ async function diagramsFor(folder: string, work: Work, documents: Work['document
 
 /**
  * Export a work item, by work ID or planning-relative folder, as one self-contained
- * HTML file. Nothing is written; the caller saves `html`.
+ * HTML file. Nothing is written; the caller saves `html`. An export that no import
+ * would accept (non-portable paths, control characters, a non-Markdown main plan,
+ * more than {@link planExportMaxBytes}) is refused.
  */
 export async function exportPlan(planningRoot: string, work: string, options: { now?: Date } = {}): Promise<PlanExportResult> {
   let index;
@@ -393,7 +455,11 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
     throw new PlanExportError('WORK', `${item.id} is not a folder inside the planning folder, so it cannot be exported.`);
   }
   const warnings: string[] = [];
-  const names = await workFiles(actual, warnings);
+  const listed = await workFiles(actual, warnings);
+  if (listed.reduce((sum, file) => sum + file.size, 0) > planExportMaxBytes) {
+    throw new PlanExportError('LIMIT', `${item.id} holds more than ${planExportMaxBytes / 1048576} MB of files, more than a plan export can carry. Move large evidence elsewhere and link to it.`);
+  }
+  const names = listed.map(file => file.name);
   const files: (PlanExportFile & { data: string })[] = [];
   for (const name of names) {
     const bytes = await readFile(path.join(actual, ...name.split('/')));
@@ -412,6 +478,12 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
     source: { planningFolder: path.basename(index.root), workId: item.id, title: item.title, location, path: item.path, currentPlan, repositories },
     files: files.map(({ path: name, size, sha256 }) => ({ path: name, size, sha256 })),
   };
+  // Refuse what every import would refuse, rather than writing an unimportable file.
+  try { validatePayload({ ...manifest, files }); }
+  catch (error) {
+    if (error instanceof PlanExportError) throw new PlanExportError(error.code, `${item.id} cannot be exported: ${error.message}`);
+    throw error;
+  }
   const view: PlanView = {
     work: { id: item.id, title: item.title, path: item.path, design: item.design, implementation: item.implementation, created: item.created, updated: item.updated, accepted: item.accepted, completed: item.completed, progress: item.progress ?? null, location, repositories },
     plan: currentPlan,
@@ -430,18 +502,20 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
 // ---------------------------------------------------------------------------
 // Importing
 
-interface TargetState { root: string; registryText: string; registry: { repositories: Record<string, unknown>[]; work_items: Record<string, unknown>[] } }
+interface Registry { repositories: Record<string, unknown>[]; work_items: Record<string, unknown>[] }
+interface TargetState { root: string; registryText: string; registry: Registry; errors: string[] }
 
-async function targetState(planningRoot: string): Promise<TargetState> {
-  let root: string;
-  try { root = await realpath(planningRoot); }
-  catch { throw new PlanExportError('TARGET', `${planningRoot} does not exist. Choose a planning folder, or create one with the atlas-bootstrap skill.`); }
+async function planningRoot(input: string) {
+  try { return await realpath(input); }
+  catch { throw new PlanExportError('TARGET', `${input} does not exist. Choose a planning folder, or create one with the atlas-bootstrap skill.`); }
+}
+async function targetState(root: string): Promise<TargetState> {
   const { errors } = validatePlanning(root);
   if (errors.length) {
     throw new PlanExportError('TARGET', `${root} is not a valid planning repository, so nothing was imported. Create one with the atlas-bootstrap skill, or fix what atlas planning check reports:\n` + errors.slice(0, 10).map(error => '  ' + error).join('\n'));
   }
   const registryText = await readFile(path.join(root, 'planning.json'), 'utf8');
-  return { root, registryText, registry: JSON.parse(registryText.replace(/^﻿/, '')) };
+  return { root, registryText, registry: JSON.parse(registryText.startsWith(BOM) ? registryText.slice(1) : registryText), errors };
 }
 
 function nextTarget(state: TargetState, source: PlanExportSource): PlanImportTarget {
@@ -460,84 +534,187 @@ function nextTarget(state: TargetState, source: PlanExportSource): PlanImportTar
   let next = highest + 1;
   while (taken.has(next)) next++;
   const number = String(next).padStart(4, '0');
-  const slug = path.posix.basename(source.path).replace(/^[0-9]+-/, '') || 'imported-plan';
+  const slug = path.posix.basename(source.path).replace(/^[0-9]+-/, '').slice(0, 100).replace(/[-. ]+$/, '') || 'imported-plan';
   return { workId: 'work-' + number, path: source.location + '/' + number + '-' + slug };
 }
 
 /** The work ID and folder an import into `planningRoot` would use now. Writes nothing. */
-export async function planImportTarget(planningRoot: string, manifest: PlanExportManifest): Promise<PlanImportTarget> {
-  return nextTarget(await targetState(planningRoot), manifest.source);
+export async function planImportTarget(planningRootPath: string, manifest: PlanExportManifest): Promise<PlanImportTarget> {
+  return nextTarget(await targetState(await planningRoot(planningRootPath)), manifest.source);
 }
 
-/** Rewrite one top-level frontmatter field whose value is `from`, keeping quoting and line endings. */
-function rewriteFrontmatter(bytes: Buffer, field: string, from: string, to: string): Buffer | null {
-  let text: string;
-  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { return null; }
-  const bom = text.startsWith('﻿') ? '﻿' : '';
-  const header = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text.slice(bom.length));
-  if (!header) return null;
-  const start = bom.length + 4 + (text[bom.length + 3] === '\r' ? 1 : 0);
-  const block = header[1];
-  const line = new RegExp(`^(${field}:[ \\t]*)(["']?)${from}\\2([ \\t]*(?:#.*)?)$`, 'm');
-  const match = line.exec(block);
+/** Hold the planning folder's import lock; another import waits, a dead holder's lock is removed. */
+async function acquireLock(root: string, waitMs: number): Promise<() => Promise<void>> {
+  const file = path.join(root, lockName);
+  const deadline = Date.now() + waitMs;
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; } };
+  for (;;) {
+    try {
+      await writeFile(file, JSON.stringify({ pid: process.pid, hostname: hostname(), createdAt: new Date().toISOString() }), { flag: 'wx' });
+      return () => rm(file, { force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    let holder: { pid?: unknown; hostname?: unknown; createdAt?: unknown } | null = null;
+    try { holder = JSON.parse(await readFile(file, 'utf8')); } catch { /* Being written, or damaged. */ }
+    if (holder && holder.hostname === hostname() && Number.isSafeInteger(holder.pid) && !alive(holder.pid as number)) {
+      await rm(file, { force: true });
+      continue;
+    }
+    if (Date.now() >= deadline) {
+      const who = holder ? ` (process ${String(holder.pid)} on ${String(holder.hostname)} since ${String(holder.createdAt)})` : '';
+      throw new PlanExportError('CONFLICT', `Another import into this planning folder is in progress${who}. If none is running, delete ${file} and try again.`);
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
+
+/** Remove hidden temporary folders that interrupted imports left behind more than an hour ago. */
+async function removeLeftovers(root: string): Promise<number> {
+  let removed = 0;
+  for (const location of ['active', 'archive']) {
+    let entries: import('node:fs').Dirent[] = [];
+    try { entries = await readdir(path.join(root, location), { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith(leftoverPrefix)) continue;
+      const folder = path.join(root, location, entry.name);
+      if (Date.now() - (await stat(folder)).mtimeMs < 3600000) continue;
+      await rm(folder, { recursive: true, force: true });
+      removed++;
+    }
+  }
+  return removed;
+}
+
+function decodeText(bytes: Buffer) {
+  try { return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes); } catch { return null; }
+}
+/** The metadata header of a Markdown text: offsets of its block, or null. */
+function header(text: string) {
+  const bom = text.startsWith(BOM) ? 1 : 0;
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text.slice(bom));
   if (!match) return null;
-  const replaced = block.slice(0, match.index) + match[1] + match[2] + to + match[2] + match[3] + block.slice(match.index + match[0].length);
-  return Buffer.from(text.slice(0, start) + replaced + text.slice(start + block.length), 'utf8');
+  const start = bom + 4 + (text[bom + 3] === '\r' ? 1 : 0);
+  return { start, end: start + match[1].length, block: match[1] };
+}
+/** Rewrite one top-level metadata field whose value is `from`, keeping quoting, line endings and any byte order mark. */
+function rewriteField(text: string, field: string, from: string, to: string): string | null {
+  const found = header(text);
+  if (!found) return null;
+  const match = new RegExp(`^(${field}:[ \\t]*)(["']?)${from}\\2([ \\t]*(?:#.*)?)$`, 'm').exec(found.block);
+  if (!match) return null;
+  const block = found.block.slice(0, match.index) + match[1] + match[2] + to + match[2] + match[3] + found.block.slice(match.index + match[0].length);
+  return text.slice(0, found.start) + block + text.slice(found.end);
+}
+/** Clear `supersedes` and `superseded_by`, which name work in the source planning folder. */
+function clearCrossWorkReferences(text: string): { text: string; supersedes: string[]; supersededBy: string | null } | null {
+  let metadata;
+  try { metadata = parseFrontmatter(text); } catch { return null; }
+  if (!metadata) return null;
+  const supersedes = Array.isArray(metadata.supersedes) ? metadata.supersedes.map(String) : [];
+  const supersededBy = typeof metadata.superseded_by === 'string' ? metadata.superseded_by : null;
+  if (!supersedes.length && supersededBy === null) return { text, supersedes, supersededBy };
+  const found = header(text)!;
+  let block = found.block;
+  if (supersedes.length) block = block.replace(/^supersedes:[^\r\n]*(?:\r?\n[ \t]*-[ \t][^\r\n]*)*/m, 'supersedes: []');
+  if (supersededBy !== null) block = block.replace(/^superseded_by:[^\r\n]*/m, 'superseded_by: null');
+  const result = text.slice(0, found.start) + block + text.slice(found.end);
+  // Accept the edit only when exactly those two fields changed.
+  let after;
+  try { after = parseFrontmatter(result); } catch { return null; }
+  if (!after || JSON.stringify({ ...metadata, supersedes: [], superseded_by: null }) !== JSON.stringify({ ...after })) return null;
+  return { text: result, supersedes, supersededBy };
 }
 
-interface Rewrite { file: string; field: string; from: string; to: string; revision?: string }
-interface PathRewrite { file: string; recordId: string; from: string; to: string }
+interface Rewrite { file: string; field: string; from: string | string[] | null; to: string | string[] | null; revision?: string }
+interface PathRewrite { file: string; recordId: string; from: string; to: string | null; reason: string }
 
 /** Rewrite a record path that reaches into the source work folder through the planning root. */
-function relocatedRecordPath(raw: unknown, sourcePath: string, contents: Map<string, Buffer>): string | null {
-  if (typeof raw !== 'string' || !raw || raw.length > 2048) return null;
+function relocatedRecordPath(raw: string, sourcePath: string, contents: Map<string, Buffer>): string | null {
   const hash = raw.indexOf('#');
   const fragment = hash < 0 ? '' : raw.slice(hash);
   const clean = (hash < 0 ? raw : raw.slice(0, hash)).replaceAll('\\', '/');
   if (!clean || clean.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(clean)) return null;
-  const inside = (candidate: string) => contents.has(candidate) ? candidate : null;
   // `active/0003-x/plan.md`: written relative to the planning root.
   if (clean.startsWith(sourcePath + '/')) {
-    const target = inside(clean.slice(sourcePath.length + 1));
-    if (target && !contents.has(clean)) return target + fragment;
+    const target = clean.slice(sourcePath.length + 1);
+    if (contents.has(target) && !contents.has(clean)) return target + fragment;
   }
   // `../../active/0003-x/plan.md`: up to the planning root and back into the source folder.
   if (!clean.split('/').includes('..')) return null;
   const resolved = path.posix.normalize(sourcePath + '/' + clean);
-  if (resolved.startsWith(sourcePath + '/')) {
-    const target = inside(resolved.slice(sourcePath.length + 1));
-    if (target) return target + fragment;
-  }
+  if (resolved.startsWith(sourcePath + '/') && contents.has(resolved.slice(sourcePath.length + 1))) return resolved.slice(sourcePath.length + 1) + fragment;
   return null;
 }
+/** Whether a record path leaves the work folder (a URL is not a planning path and stays). */
+function outsideWorkFolder(raw: string) {
+  const clean = raw.split('#', 1)[0].replaceAll('\\', '/');
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(clean)) return false;
+  if (clean.startsWith('/') || /^[a-z]:/i.test(clean)) return true;
+  let depth = 0;
+  for (const segment of clean.split('/')) {
+    if (segment === '..') { if (--depth < 0) return true; }
+    else if (segment && segment !== '.') depth++;
+  }
+  return false;
+}
 
-async function renameWithRetry(from: string, to: string) {
+async function renameWithRetry(from: string, to: string, replace: boolean) {
   for (let attempt = 0; ; attempt++) {
     try { await rename(from, to); return; }
     catch (error) {
-      // Windows briefly refuses to move folders that indexers or scanners have open.
-      if (attempt >= 20 || !['EPERM', 'EACCES', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '') || existsSync(to)) throw error;
+      // Windows briefly refuses to move or replace entries that indexers or scanners have open.
+      const busy = ['EPERM', 'EACCES', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '');
+      if (attempt >= 20 || !busy || (!replace && existsSync(to))) throw error;
       await new Promise(resolve => setTimeout(resolve, 50 + attempt * 25));
     }
   }
 }
+async function replaceFile(file: string, text: string) {
+  const temporary = file + '.' + randomUUID() + '.tmp';
+  try {
+    await writeFile(temporary, text, { flag: 'wx' });
+    await renameWithRetry(temporary, file, true);
+  } finally { await rm(temporary, { force: true }); }
+}
 
 /**
- * Import a plan export as new work under the next free number. The work folder is
- * written to a temporary folder and renamed into place, then registered in
- * planning.json. Nothing is committed and the README index is left for the user.
+ * Import a plan export as new work under the next free number. Imports into one
+ * planning folder take turns through a lock. The work folder is written to a
+ * temporary folder and renamed into place, its identity is rewritten and its
+ * references to other work are cleared, then it is registered in planning.json.
+ * When the result would not pass `atlas planning check`, everything is rolled back.
+ * Nothing is committed and the README index is left for the user.
  */
-export async function importPlan(planningRoot: string, html: string | Uint8Array): Promise<PlanImportResult> {
-  const { preview, contents } = decodePlanExport(html);
+export async function importPlan(planningRootPath: string, html: string | Uint8Array | PlanExportPreview, options: PlanImportOptions = {}): Promise<PlanImportResult> {
+  const known = isObject(html) && !(html instanceof Uint8Array) ? decodedPreviews.get(html as PlanExportPreview) : undefined;
+  if (isObject(html) && !(html instanceof Uint8Array) && !known) throw new PlanExportError('FORMAT', 'Pass the plan export file, or a preview returned by readPlanExport.');
+  const { preview, contents } = known ? { preview: html as PlanExportPreview, contents: known } : decodePlanExport(html as string | Uint8Array);
   const { manifest } = preview;
+  const root = await planningRoot(planningRootPath);
+  const release = await acquireLock(root, options.lockWaitMs ?? 30000);
+  try {
+    return await importLocked(root, manifest, contents);
+  } finally { await release(); }
+}
+
+async function importLocked(root: string, manifest: PlanExportManifest, contents: Map<string, Buffer>): Promise<PlanImportResult> {
   const source = manifest.source;
-  const state = await targetState(planningRoot);
-  const target = nextTarget(state, source);
   const notes: string[] = [];
+  const leftovers = await removeLeftovers(root);
+  if (leftovers) notes.push(`Removed ${leftovers} temporary folder${leftovers === 1 ? '' : 's'} left by interrupted imports.`);
+  const state = await targetState(root);
+  const target = nextTarget(state, source);
 
   // Prepare the registry text first, so a registry Atlas cannot extend is refused before anything is written.
-  const known = new Set(state.registry.repositories.map(item => item.id));
-  const addedRepositories = source.repositories.filter(item => !known.has(item.id));
+  const registered = new Map(state.registry.repositories.map(item => [item.id, item]));
+  const addedRepositories = source.repositories.filter(item => !registered.has(item.id));
+  for (const item of source.repositories) {
+    const existing = registered.get(item.id);
+    if (!existing) continue;
+    const differences = [existing.name !== item.name && `named “${String(existing.name)}” here and “${item.name}” in the export`, item.remote !== undefined && existing.remote !== item.remote && `with remote ${existing.remote === undefined ? 'unset' : String(existing.remote)} here and ${item.remote} in the export`].filter(Boolean);
+    if (differences.length) notes.push(`The repository ${item.id} is already registered here, ${differences.join(' and ')}; the work uses the registered entry.`);
+  }
   let registryText: string;
   try {
     registryText = appendRegistryEntries(state.registryText, 'repositories', addedRepositories.map(item => ({ ...item })));
@@ -547,12 +724,13 @@ export async function importPlan(planningRoot: string, html: string | Uint8Array
     throw error;
   }
 
-  const finalFolder = path.join(state.root, ...target.path.split('/'));
+  const finalFolder = path.join(root, ...target.path.split('/'));
   const parent = path.dirname(finalFolder);
   if (existsSync(finalFolder)) throw new PlanExportError('CONFLICT', `${target.path} already exists; nothing was imported.`);
   const createdParent = await mkdir(parent, { recursive: true });
-  const temporary = path.join(parent, '.atlas-import-' + randomUUID());
-  let moved = false;
+  const temporary = path.join(parent, leftoverPrefix + randomUUID());
+  const registryFile = path.join(root, 'planning.json');
+  let moved = false, registeredWork = false;
   try {
     for (const [name, bytes] of contents) {
       const file = path.join(temporary, ...name.split('/'));
@@ -560,15 +738,24 @@ export async function importPlan(planningRoot: string, html: string | Uint8Array
       await writeFile(file, bytes, { flag: 'wx' });
     }
     const rewrites: Rewrite[] = [];
-    const write = async (name: string, bytes: Buffer) => writeFile(path.join(temporary, ...name.split('/')), bytes);
+    const write = (name: string, text: string) => writeFile(path.join(temporary, ...name.split('/')), text);
     if (source.currentPlan) {
-      const rewritten = rewriteFrontmatter(contents.get(source.currentPlan)!, 'id', source.workId, target.workId);
-      if (rewritten) { await write(source.currentPlan, rewritten); rewrites.push({ file: source.currentPlan, field: 'id', from: source.workId, to: target.workId }); }
-      else notes.push(`The main plan ${source.currentPlan} has no id: ${source.workId} metadata line, so its identity was not rewritten.`);
+      const original = decodeText(contents.get(source.currentPlan)!);
+      let text = original === null ? null : rewriteField(original, 'id', source.workId, target.workId);
+      if (text !== null) rewrites.push({ file: source.currentPlan, field: 'id', from: source.workId, to: target.workId });
+      else { notes.push(`The main plan ${source.currentPlan} has no id: ${source.workId} metadata line, so its identity was not rewritten.`); text = original; }
+      const cleared = text === null ? null : clearCrossWorkReferences(text);
+      if (cleared && cleared.text !== text) {
+        text = cleared.text;
+        if (cleared.supersedes.length) rewrites.push({ file: source.currentPlan, field: 'supersedes', from: cleared.supersedes, to: [] });
+        if (cleared.supersededBy !== null) rewrites.push({ file: source.currentPlan, field: 'superseded_by', from: cleared.supersededBy, to: null });
+      }
+      if (text !== null && text !== original) await write(source.currentPlan, text);
     } else notes.push('This work item has no registered main plan.');
     if (contents.has('ledger.md')) {
-      const rewritten = rewriteFrontmatter(contents.get('ledger.md')!, 'work_id', source.workId, target.workId);
-      if (rewritten) { await write('ledger.md', rewritten); rewrites.push({ file: 'ledger.md', field: 'work_id', from: source.workId, to: target.workId }); }
+      const original = decodeText(contents.get('ledger.md')!);
+      const text = original === null ? null : rewriteField(original, 'work_id', source.workId, target.workId);
+      if (text !== null) { await write('ledger.md', text); rewrites.push({ file: 'ledger.md', field: 'work_id', from: source.workId, to: target.workId }); }
       else notes.push(`ledger.md has no work_id: ${source.workId} status line, so it was kept as exported.`);
     }
 
@@ -585,22 +772,18 @@ export async function importPlan(planningRoot: string, html: string | Uint8Array
         catch { notes.push(`The model ${file} has an invalid or unrecorded update; it was imported unchanged.`); continue; }
         const reassign = document.workId === source.workId;
         if (document.workId && !reassign) notes.push(`The model ${file} is assigned to ${document.workId}, not ${source.workId}; its work ID was kept.`);
-        const records = document.context.records.map(record => {
+        const recordPaths: Record<string, string | null> = {};
+        for (const record of document.context.records) {
+          if (typeof record.path !== 'string' || !record.path) continue;
           const relocated = relocatedRecordPath(record.path, source.path, contents);
-          if (!relocated) return record;
-          pathRewrites.push({ file, recordId: record.id, from: record.path as string, to: relocated });
-          return { ...record, path: relocated };
-        });
-        const relocated = records.some((record, position) => record !== document.context.records[position]);
-        if (!reassign && !relocated) continue;
-        const revised = atlas.reviseDocument(document, {
-          ...(reassign ? { workId: target.workId } : {}),
-          ...(relocated ? { context: { ...document.context, records } } : {}),
-          reason: 'Imported as ' + target.workId,
-        }, document.revision.id);
-        workspace.save(revised, document.revision.id);
+          if (relocated) { recordPaths[record.id] = relocated; pathRewrites.push({ file, recordId: record.id, from: record.path, to: relocated, reason: 'reached the work folder through the planning root' }); }
+          else if (outsideWorkFolder(record.path)) { recordPaths[record.id] = null; pathRewrites.push({ file, recordId: record.id, from: record.path, to: null, reason: 'points outside the work folder' }); }
+        }
+        if (!reassign && !Object.keys(recordPaths).length) continue;
+        const relocated = atlas.relocateDocument(document, { ...(reassign ? { workId: target.workId } : {}), recordPaths, reason: 'Imported as ' + target.workId }, document.revision.id);
+        workspace.save(relocated, document.revision.id);
         revisions++;
-        if (reassign) rewrites.push({ file, field: 'workId', from: source.workId, to: target.workId, revision: revised.revision.id });
+        if (reassign) rewrites.push({ file, field: 'workId', from: source.workId, to: target.workId, revision: relocated.revision.id });
       }
     }
 
@@ -614,6 +797,7 @@ export async function importPlan(planningRoot: string, html: string | Uint8Array
       export: { exportedAt: manifest.exportedAt, atlasVersion: manifest.atlasVersion, importedWith: atlasVersion },
       identityRewrites: rewrites,
       recordPathRewrites: pathRewrites,
+      addedRepositories,
     };
     const provenanceFile = path.join(temporary, ...provenanceName.split('/'));
     await mkdir(path.dirname(provenanceFile), { recursive: true });
@@ -621,28 +805,34 @@ export async function importPlan(planningRoot: string, html: string | Uint8Array
 
     // Place the folder, then register it, checking that nobody changed the registry meanwhile.
     if (existsSync(finalFolder)) throw new PlanExportError('CONFLICT', `${target.path} appeared during the import; nothing was imported.`);
-    await renameWithRetry(temporary, finalFolder);
+    await renameWithRetry(temporary, finalFolder, false);
     moved = true;
-    const registryFile = path.join(state.root, 'planning.json');
     if (await readFile(registryFile, 'utf8') !== state.registryText) throw new PlanExportError('CONFLICT', 'planning.json changed during the import; nothing was imported. Try again.');
-    const registryTemporary = registryFile + '.' + randomUUID() + '.tmp';
-    try {
-      await writeFile(registryTemporary, registryText, { flag: 'wx' });
-      await renameWithRetry(registryTemporary, registryFile);
-    } finally { await rm(registryTemporary, { force: true }); }
+    await replaceFile(registryFile, registryText);
+    registeredWork = true;
+
+    // The import must not make the planning folder invalid.
+    const before = new Set(state.errors);
+    const introduced = validatePlanning(root).errors.filter(error => !before.has(error));
+    if (introduced.length) throw new PlanExportError('TARGET', `Importing would leave ${root} failing atlas planning check, so nothing was imported:\n` + introduced.slice(0, 10).map(error => '  ' + error).join('\n'));
 
     const count = contents.size + 1 + revisions;
+    const describe = (value: Rewrite['from']) => Array.isArray(value) ? `[${value.join(', ')}]` : String(value);
     notes.unshift(
       `Imported ${source.workId} “${source.title}” from ${source.planningFolder} as ${target.workId} in ${target.path}.`,
-      ...rewrites.map(item => `Rewrote ${item.field} in ${item.file} from ${item.from} to ${item.to}${item.revision ? ' through a recorded model revision' : ''}.`),
-      ...pathRewrites.map(item => `Rewrote the reference ${item.from} in ${item.file} to ${item.to}.`),
-      ...addedRepositories.map(item => `Registered the repository ${item.id} (${item.name}) in planning.json.`),
+      ...rewrites.map(item => item.field === 'supersedes' || item.field === 'superseded_by'
+        ? `Cleared ${item.field} in ${item.file} (was ${describe(item.from)}): it named work in ${source.planningFolder}.`
+        : `Rewrote ${item.field} in ${item.file} from ${describe(item.from)} to ${describe(item.to)}${item.revision ? ' through a recorded model revision' : ''}.`),
+      ...pathRewrites.map(item => item.to === null
+        ? `Removed the reference ${item.from} from ${item.file}: it ${item.reason}.`
+        : `Rewrote the reference ${item.from} in ${item.file} to ${item.to}.`),
+      ...addedRepositories.map(item => `Registered the repository ${item.id} (${item.name}${item.remote ? ', remote ' + item.remote : ''}) in planning.json.`),
       `Registered ${target.workId} in planning.json and recorded the origin in ${provenanceName}.`,
     );
-    for (const error of validatePlanning(state.root).errors) notes.push('atlas planning check: ' + error);
     notes.push('Add the work item to the planning README index yourself or ask an agent; the import does not edit it.', 'Nothing was committed.');
     return { workId: target.workId, path: target.path, files: count, notes };
   } catch (error) {
+    if (registeredWork) await replaceFile(registryFile, state.registryText);
     await rm(moved ? finalFolder : temporary, { recursive: true, force: true });
     // Remove a location folder this import created; rmdir leaves it if anything else appeared there.
     if (createdParent) await rmdir(createdParent).catch(() => undefined);
@@ -651,9 +841,9 @@ export async function importPlan(planningRoot: string, html: string | Uint8Array
 }
 
 /** Planning-relative work folder for a filesystem path, when it lies inside `planningRoot`. */
-export function planningRelative(planningRoot: string, location: string): string | null {
+export function planningRelative(planningRootPath: string, location: string): string | null {
   try {
-    const root = realpathSync(planningRoot);
+    const root = realpathSync(planningRootPath);
     const target = realpathSync(path.resolve(location));
     if (!statSync(target).isDirectory()) return null;
     const relative = path.relative(root, target);

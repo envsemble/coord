@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { appendRegistryEntries, RegistryFormatError } from './registryText.ts';
 
+const BOM = String.fromCharCode(0xfeff);
 const entry = { id: 'work-0005', path: 'active/0005-example', repositories: ['shop', 'planning'], current_plan: 'active/0005-example/plan.md' };
 
 test('appends a work item in the style of the existing entries, preserving other bytes', () => {
@@ -11,9 +12,9 @@ test('appends a work item in the style of the existing entries, preserving other
 });
 
 test('keeps CRLF line endings, tabs, compact separators and a byte order mark', () => {
-  const source = '﻿{\r\n\t"schema_version":1,\r\n\t"repositories":[],\r\n\t"work_items":[\r\n\t\t{"id":"work-0001","path":"active/0001-a","repositories":[],"current_plan":null},\r\n\t\t{"id":"work-0002","path":"active/0002-b","repositories":[],"current_plan":null}\r\n\t]\r\n}';
+  const source = BOM + '{\r\n\t"schema_version":1,\r\n\t"repositories":[],\r\n\t"work_items":[\r\n\t\t{"id":"work-0001","path":"active/0001-a","repositories":[],"current_plan":null},\r\n\t\t{"id":"work-0002","path":"active/0002-b","repositories":[],"current_plan":null}\r\n\t]\r\n}';
   const result = appendRegistryEntries(source, 'work_items', [{ ...entry, repositories: ['shop'] }]);
-  assert.ok(result.startsWith('﻿'));
+  assert.ok(result.startsWith(BOM));
   assert.ok(result.endsWith('\r\n\t]\r\n}'));
   assert.ok(result.includes('"current_plan":null},\r\n\t\t{"id":"work-0005","path":"active/0005-example","repositories":["shop"],"current_plan":"active/0005-example/plan.md"}\r\n\t]'));
   assert.ok(!/[^\r]\n/.test(result));
