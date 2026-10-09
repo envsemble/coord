@@ -1,6 +1,6 @@
 ---
 name: atlas-organize
-description: Organize an existing planning repository and retain valuable plans, ledgers, decisions, and evidence scattered around its workspace. Use for planning maintenance, adoption of legacy records, and selective recovery from root-level artifacts. Formerly worktrail-organize and planning-organize.
+description: Organize an existing planning repository and retain valuable plans, ledgers, decisions, and evidence scattered around its workspace. Use for planning maintenance, adoption of legacy records, and selective recovery from root-level artifacts.
 ---
 
 # Atlas Organize

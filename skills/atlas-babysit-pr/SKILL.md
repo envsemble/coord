@@ -1,6 +1,6 @@
 ---
 name: atlas-babysit-pr
-description: Guide existing GitHub PRs through review, fixes, CI, and conflicts until ready for human review. Use only when explicitly invoked by name (for example $atlas-babysit-pr or /atlas-babysit-pr) or directed by another explicitly invoked skill; no planning repository is required. Formerly worktrail-babysit-pr and babysit-pr.
+description: Guide existing GitHub PRs through review, fixes, CI, and conflicts until ready for human review. Use only when explicitly invoked by name (for example $atlas-babysit-pr or /atlas-babysit-pr) or directed by another explicitly invoked skill; no planning repository is required.
 disable-model-invocation: true
 ---
 

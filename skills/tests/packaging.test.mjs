@@ -23,11 +23,18 @@ const EXPLICIT_ONLY = new Set(["atlas-implement", "atlas-babysit-pr"]);
 const FRONTMATTER_KEYS = new Set(["name", "description", "disable-model-invocation"]);
 const ATLAS_SUBCOMMANDS = new Set(["model", "planning", "usage", "mcp"]);
 
-const RETIRED_NAME =
-  /(?<![\w-])(worktrail\b[\w-]*|planning-(?:bootstrap|grill|implement|record|organize)\b|implement-plan\b|babysit-pr\b|atlas-modeling\b)/gi;
+// Old skill and product names. Character classes keep this file itself free of them.
+const RETIRED_NAMES = [
+  /work[t]rail[\w-]*/gi,
+  /(?<![\w-])plannin[g]-(?:bootstrap|grill|implement|record|organize)\b/gi,
+  /(?<![\w-])implement-pla[n]\b/gi,
+  /(?<![\w-])babysit-p[r]\b/gi,
+  /(?<![\w-])atlas-modelin[g]\b/gi,
+];
+// The old folders the README's install section backs up (as they appear there).
+const BACKED_UP = [/plannin[g]-\*/, /work[t]rail-\*/, /\bimplement-pla[n]\b/, /(?<![\w-])babysit-p[r]\b/, /\batlas-modelin[g]\b/];
 const PROVIDER_NAME =
   /\b(gpt[\w.-]*|chatgpt|openai|codex|anthropic|claude[\w.-]*|opus|sonnet|haiku|fable|gemini|sol|llama|mistral)\b/gi;
-const FORMERLY = /\s*Formerly [^.]+\./;
 
 const skillDirs = () =>
   readdirSync(GROUP)
@@ -45,6 +52,14 @@ const textFiles = () => skillFiles().filter((file) => /\.(md|ya?ml|json)$/.test(
 const rel = (file) => path.relative(GROUP, file).replaceAll(path.sep, "/");
 const read = (file) => readFileSync(file, "utf8");
 const withoutFences = (text) => text.replace(/```[\s\S]*?```/g, "");
+const retiredNames = (text) => RETIRED_NAMES.flatMap((pattern) => [...text.matchAll(pattern)].map((m) => m[0]));
+const README = path.join(GROUP, "README.md");
+// The README's install section is the one place allowed to name the old folders it backs up.
+function installSection(text) {
+  const match = /^## Install\r?\n[\s\S]*?(?=^## )/m.exec(text);
+  assert.ok(match, "skills/README.md has an Install section followed by another section");
+  return match[0];
+}
 
 function frontmatter(name) {
   const text = read(path.join(GROUP, name, "SKILL.md"));
@@ -124,18 +139,18 @@ test("Codex interface metadata uses the Atlas names", () => {
   }
 });
 
-test("former names appear only in one Formerly note per description", () => {
-  for (const name of EXPECTED) {
-    const { meta } = frontmatter(name);
-    assert.equal(meta.description.match(/Formerly /g)?.length, 1, `${name}: one Formerly note`);
-    assert.match(meta.description.match(FORMERLY)[0], /worktrail-/, `${name}: Formerly note names the Worktrail skill`);
-  }
-  for (const file of textFiles()) {
+test("no old skill or product name appears anywhere in skills/", () => {
+  for (const file of walk(GROUP)) {
     let text = read(file);
-    if (path.basename(file) === "SKILL.md") text = text.replace(/^(description: .*?)\s*Formerly [^.]+\./m, "$1");
-    const stale = [...text.matchAll(RETIRED_NAME)].map((m) => m[0]);
-    assert.deepEqual(stale, [], `${rel(file)} mentions retired names`);
+    if (file === README) text = text.replace(installSection(text), "");
+    assert.deepEqual(retiredNames(text), [], `${rel(file)} mentions old names`);
   }
+});
+
+test("the README install section backs up every old skill folder", () => {
+  const section = installSection(read(README));
+  for (const old of BACKED_UP) assert.match(section, old, `install section backs up ${old.source}`);
+  assert.ok(retiredNames(section).length > 0);
 });
 
 test("skills name no model, provider or harness-specific reviewer", () => {

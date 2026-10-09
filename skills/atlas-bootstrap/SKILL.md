@@ -1,6 +1,6 @@
 ---
 name: atlas-bootstrap
-description: Guide creation or adoption of a locally versioned planning repository, preserving existing knowledge and establishing scope, governance, and a usable index. Use when setting up the planning workflow, not for ordinary coding or independent PR babysitting. Formerly worktrail-bootstrap and planning-bootstrap.
+description: Guide creation or adoption of a locally versioned planning repository, preserving existing knowledge and establishing scope, governance, and a usable index. Use when setting up the planning workflow, not for ordinary coding or independent PR babysitting.
 ---
 
 # Atlas Bootstrap

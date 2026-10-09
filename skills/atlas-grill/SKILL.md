@@ -1,6 +1,6 @@
 ---
 name: atlas-grill
-description: Clarify features, decisions, or ideas through a design-tree interview and domain modeling, recording the plan as understanding settles. Use explicitly or when work deserves planning or durable recording; clear small coding requests need no manufactured interview. Formerly worktrail-grill and planning-grill.
+description: Clarify features, decisions, or ideas through a design-tree interview and domain modeling, recording the plan as understanding settles. Use explicitly or when work deserves planning or durable recording; clear small coding requests need no manufactured interview.
 ---
 
 # Atlas Grill

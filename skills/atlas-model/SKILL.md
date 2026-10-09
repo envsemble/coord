@@ -1,6 +1,6 @@
 ---
 name: atlas-model
-description: Use Atlas to inspect, validate, revise and visualize conceptual models while planning, reopen portable HTML, and work from explicitly captured source baselines. Model editing happens through its tools, not a diagram editor. Formerly worktrail-atlas and atlas-modeling.
+description: Use Atlas to inspect, validate, revise and visualize conceptual models while planning, reopen portable HTML, and work from explicitly captured source baselines. Model editing happens through its tools, not a diagram editor.
 ---
 
 # Atlas Model

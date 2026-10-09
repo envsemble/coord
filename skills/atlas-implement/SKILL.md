@@ -1,6 +1,6 @@
 ---
 name: atlas-implement
-description: Implement a selected plan persistently with revision provenance, a concise work-item ledger, proportional review, and PR readiness through atlas-babysit-pr. Use only when explicitly invoked by name (for example $atlas-implement or /atlas-implement); requires a usable associated planning repository. Formerly worktrail-implement, planning-implement and implement-plan.
+description: Implement a selected plan persistently with revision provenance, a concise work-item ledger, proportional review, and PR readiness through atlas-babysit-pr. Use only when explicitly invoked by name (for example $atlas-implement or /atlas-implement); requires a usable associated planning repository.
 disable-model-invocation: true
 ---
 

@@ -18,7 +18,7 @@ Invoke a skill by name with `$atlas-implement` in Codex or `/atlas-implement` in
 
 The skills call the `atlas` command (`atlas planning check`, `atlas usage log`, `atlas model …`, `atlas mcp`), so install it first as described in [Install the atlas command](../README.md#install-the-atlas-command). Atlas needs only Node.
 
-Copy the seven `atlas-*` folders as siblings into each harness's skills directory: `~/.codex/skills` for Codex and `~/.claude/skills` for Claude Code. This `skills` folder and its `tests` are not skills. Exactly one set should remain installed, so first move earlier copies to a dated backup outside the skills directories: `planning-*`, `worktrail-*`, `implement-plan`, `babysit-pr`, `atlas-modeling` and any previous `atlas-*` copies of these skills. Start a new agent session afterwards.
+Copy the seven `atlas-*` folders as siblings into each harness's skills directory: `~/.codex/skills` for Codex and `~/.claude/skills` for Claude Code. This `skills` folder and its `tests` are not skills. Exactly one set should remain installed, so first move earlier copies to a dated backup outside the skills directories: `planning-*`, `worktrail-*`, `implement-plan`, `babysit-pr`, `atlas-modeling` and any previous `atlas-*` copies of these skills. Each `atlas-*` skill replaces the `planning-*` and `worktrail-*` skill of the same role; `atlas-implement` also replaces `implement-plan`, `atlas-babysit-pr` replaces `babysit-pr`, and `atlas-model` replaces `worktrail-atlas` and `atlas-modeling`. Start a new agent session afterwards.
 
 From an Atlas checkout on macOS or Linux:
 
@@ -60,4 +60,4 @@ Both scripts skip a harness whose skills directory does not exist; create it fir
 node --test "skills/tests/*.test.mjs"
 ```
 
-The packaging test checks the skill set, frontmatter for both harnesses, explicit-only declarations, links, the `atlas` command contract, and that no retired names or model and provider names remain.
+The packaging test checks the skill set, frontmatter for both harnesses, explicit-only declarations, links, the `atlas` command contract, and that no old skill or product names (outside the install section above) or model and provider names remain.

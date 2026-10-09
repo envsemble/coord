@@ -1,6 +1,6 @@
 ---
 name: atlas-record
-description: Record settled decisions, scoped observations, useful lessons, progress, and outcomes in an associated planning repo. Reconcile durable knowledge and automatically archive verified closure; useful smaller tasks need no full work-item scaffold. Formerly worktrail-record and planning-record.
+description: Record settled decisions, scoped observations, useful lessons, progress, and outcomes in an associated planning repo. Reconcile durable knowledge and automatically archive verified closure; useful smaller tasks need no full work-item scaffold.
 ---
 
 # Atlas Record
