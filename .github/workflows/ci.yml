@@ -6,24 +6,17 @@ on:
 permissions:
   contents: read
 jobs:
-  verify:
-    name: CI
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: atlas_fixture
-          POSTGRES_PASSWORD: fixture_only
-          POSTGRES_DB: atlas_fixture
-        ports: [5432:5432]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+  node:
+    name: Node (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     env:
-      ATLAS_TEST_POSTGRES: postgresql://atlas_fixture:fixture_only@127.0.0.1:5432/atlas_fixture
       WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v4
@@ -37,21 +30,78 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      # GitHub service containers run only on Linux runners, so the
+      # PostgreSQL 17 capture fixture exists only on Linux. The disposable
+      # fixture uses trust authentication and has no credentials.
+      - name: Start the PostgreSQL 17 fixture
+        if: runner.os == 'Linux'
+        run: |
+          docker run --detach --name atlas-postgres --publish 5432:5432 \
+            --env POSTGRES_USER=atlas_fixture --env POSTGRES_DB=atlas_fixture \
+            --env POSTGRES_HOST_AUTH_METHOD=trust \
+            --health-cmd pg_isready --health-interval 2s --health-retries 60 \
+            postgres:17
+          for attempt in $(seq 1 60); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' atlas-postgres)
+            [ "$status" = healthy ] && break
+            sleep 2
+          done
+          [ "$status" = healthy ]
+          echo "ATLAS_TEST_POSTGRES=postgresql://atlas_fixture@127.0.0.1:5432/atlas_fixture" >> "$GITHUB_ENV"
+      - name: Note the skipped PostgreSQL fixture
+        if: runner.os != 'Linux'
+        run: echo "::notice title=PostgreSQL fixture skipped::The PostgreSQL 17 capture test runs on Linux only; GitHub service containers are unavailable on ${{ runner.os }}."
       - run: npm ci
       - run: npm run format:check && npm run check:types
       - run: npm test
+      - run: npm run build --workspace @atlas/app
       - run: npm run check && npm run check:package && npm run check:performance
-      - run: git diff --exit-code -- index.html downloads dist
+      - run: npm run check:review
+      - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist
       - run: npm run check:release
       - run: npm run review:example -- artifacts/review --git
       - run: npm run release:assemble -- artifacts/release
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: atlas-${{ github.sha }}
-          path: artifacts/
+          name: atlas-${{ matrix.os }}-${{ github.sha }}
+          path: |
+            artifacts/
+            app/artifacts/
           if-no-files-found: error
           retention-days: 7
+  skills:
+    name: Skills (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -r skills/requirements-dev.txt
+      - run: python -m unittest discover -s skills/tests -v
+      - run: python -m unittest discover -s skills/worktrail-bootstrap/scripts/tests -v
+  verify:
+    name: CI
+    needs: [node, skills]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all verification jobs to pass
+        env:
+          NODE: ${{ needs.node.result }}
+          SKILLS: ${{ needs.skills.result }}
+        run: test "$NODE" = success && test "$SKILLS" = success
   betterleaks:
     name: Betterleaks
     runs-on: ubuntu-latest

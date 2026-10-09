@@ -334,7 +334,11 @@ test(
 );
 test(
   "PostgreSQL 17 actual catalogs preserve cross-schema keys, MATCH FULL, metadata and frozen repeatability",
-  { skip: !process.env.ATLAS_TEST_POSTGRES },
+  {
+    skip: process.env.ATLAS_TEST_POSTGRES
+      ? false
+      : "set ATLAS_TEST_POSTGRES to a disposable PostgreSQL 17 fixture; CI provides one on Linux only",
+  },
   async (t) => {
     const { Client } = require("pg"),
       client = new Client({
