@@ -78,7 +78,14 @@ function inspectionTarget(model, index, views, viewKey, id) {
 }
 
 // src/viewer/OntoUMLViewer.jsx
-import { useCallback as useCallback4, useEffect as useEffect8, useMemo as useMemo9, useRef as useRef9, useState as useState12 } from "react";
+import {
+  useCallback as useCallback4,
+  useEffect as useEffect8,
+  useLayoutEffect as useLayoutEffect9,
+  useMemo as useMemo9,
+  useRef as useRef9,
+  useState as useState12
+} from "react";
 
 // src/visualization/DiagramCanvas.jsx
 import {
@@ -985,12 +992,15 @@ function createCamera({
       motionFrame = requestAnimationFrame(animateMotion);
     }
   }
-  function visibleArea() {
+  function readInsets() {
+    return { ...NO_INSETS, ...insets(canvasRef.current) || {} };
+  }
+  function visibleArea(i = readInsets(), { fullWidth = false } = {}) {
     const w = canvasRef.current.clientWidth;
     const h = canvasRef.current.clientHeight;
-    const i = { ...NO_INSETS, ...insets(canvasRef.current) || {} };
-    const left = i.left + i.right < w * 0.6 ? i.left : 0;
-    const right = i.left + i.right < w * 0.6 ? i.right : 0;
+    const rightInset = fullWidth ? 0 : i.right;
+    const left = i.left + rightInset < w * 0.6 ? i.left : 0;
+    const right = i.left + rightInset < w * 0.6 ? rightInset : 0;
     const top = i.top + i.bottom < h * 0.6 ? i.top : 0;
     const bottom = i.top + i.bottom < h * 0.6 ? i.bottom : 0;
     return {
@@ -1114,10 +1124,19 @@ function createCamera({
     const top = destination.y + m.f * destination.scale;
     const width = Number(r.getAttribute("width")) * destination.scale;
     const height = Number(r.getAttribute("height")) * destination.scale;
-    const area = visibleArea();
+    const i = readInsets();
+    const area = visibleArea(i, { fullWidth: true });
     const shift = (start, size, origin, available) => size > available - 48 ? origin + (available - size) / 2 - start : start < origin + 24 ? origin + 24 - start : start + size > origin + available - 24 ? origin + available - 24 - start - size : 0;
-    const dx = shift(left, width, area.x, area.width);
+    let dx = shift(left, width, area.x, area.width);
     const dy = shift(top, height, area.y, area.height);
+    for (const o of i.obstacles || []) {
+      const x = left + dx, y = top + dy;
+      if (x >= o.right || x + width <= o.left || y >= o.bottom || y + height <= o.top)
+        continue;
+      const room = o.left - area.x;
+      if (room >= width + 48) dx = o.left - 24 - width - left;
+      else if (room > 0) dx = area.x + (room - width) / 2 - left;
+    }
     if (dx || dy) {
       pan(dx, dy, motionFrame === null ? 0 : easing);
     }
@@ -3981,7 +4000,16 @@ function useOverlayInsets(viewerRef, topRef) {
         bottom: badge ? Math.max(0, box.bottom - badge.top) : 0,
         left: 0,
         // A full-width inspector on narrow panels covers the diagram anyway.
-        right: inspector && inspector.width < box.width * 0.6 ? Math.max(0, box.right - inspector.left) : 0
+        right: inspector && inspector.width < box.width * 0.6 ? Math.max(0, box.right - inspector.left) : 0,
+        // Panels that may cover a selected node, in canvas coordinates.
+        obstacles: inspector && inspector.width < box.width * 0.6 ? [
+          {
+            left: inspector.left - box.left,
+            top: inspector.top - box.top,
+            right: inspector.right - box.left,
+            bottom: inspector.bottom - box.top
+          }
+        ] : []
       };
     },
     [viewerRef]
@@ -4116,6 +4144,10 @@ function ViewerContent({
   useEffect8(() => {
     if (selected && !index.getElement(selected)) select(null);
   }, [index, selected, select]);
+  useLayoutEffect9(() => {
+    if (sidebarOpen && selected?.kind === "node")
+      cameraRef.current?.revealNode(selected.id);
+  }, [sidebarOpen]);
   return /* @__PURE__ */ jsxs20(
     "div",
     {
@@ -4277,6 +4309,7 @@ import {
   useCallback as useCallback5,
   useEffect as useEffect9,
   useId as useId4,
+  useLayoutEffect as useLayoutEffect10,
   useMemo as useMemo10,
   useRef as useRef10,
   useState as useState13
@@ -4416,6 +4449,10 @@ function AtlasPanelContent({
       setViewKey(focus.id);
     else choose(focus.id);
   }, [focus, choose, views]);
+  useLayoutEffect10(() => {
+    if (open && selected?.kind === "node")
+      camera.current?.revealNode(selected.id);
+  }, [open]);
   useEffect9(() => {
     const escape = (e) => {
       if (e.key === "Escape" && e.target.closest?.(".atlas-panel"))

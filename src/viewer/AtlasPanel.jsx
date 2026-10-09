@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -198,6 +199,11 @@ function AtlasPanelContent({
       setViewKey(focus.id);
     else choose(focus.id);
   }, [focus, choose, views]);
+  // Reopening details must not leave the selected node underneath them.
+  useLayoutEffect(() => {
+    if (open && selected?.kind === "node")
+      camera.current?.revealNode(selected.id);
+  }, [open]);
   useEffect(() => {
     const escape = (e) => {
       if (e.key === "Escape" && e.target.closest?.(".atlas-panel"))

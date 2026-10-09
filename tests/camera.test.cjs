@@ -51,7 +51,7 @@ function target() {
   };
 }
 
-function harness({ reducedMotion = false } = {}) {
+function harness({ reducedMotion = false, insets } = {}) {
   const canvas = target();
   const world = target();
   const document = target();
@@ -98,6 +98,7 @@ function harness({ reducedMotion = false } = {}) {
     onTap(element) {
       taps.push(element);
     },
+    ...(insets ? { insets } : {}),
   });
   controls.restoreView("runtime", false);
   const detach = controls.attach();
@@ -526,5 +527,35 @@ test("reduced motion applies movement immediately and cancels pending animation"
   h.motionPreference.emit("change", { matches: true });
   close(h.read().scale, scrolled.scale * 1.25);
   assert.equal(h.frames.size, 0);
+  h.detach();
+});
+
+test("revealing a node pans it from under a floating panel only when covered", () => {
+  let obstacles = [];
+  const h = harness({ insets: () => ({ right: 400, obstacles }) });
+  h.controls.fit();
+  h.settle();
+  h.world.querySelector = () => ({
+    transform: {
+      baseVal: { consolidate: () => ({ matrix: { e: 200, f: 50 } }) },
+    },
+    querySelector: () => ({
+      getAttribute: (name) => (name === "width" ? "100" : "80"),
+    }),
+  });
+  const before = h.read();
+  const left = () => h.read().x + 200 * h.read().scale;
+  // A panel above the node does not cover it, so the camera stays put.
+  obstacles = [{ left: 500, top: 0, right: 990, bottom: 60 }];
+  h.controls.revealNode("node");
+  h.settle();
+  assert.deepEqual(h.read(), before);
+  // A panel over the node moves it into the free area on the left.
+  obstacles = [{ left: 500, top: 60, right: 990, bottom: 690 }];
+  assert(left() + 100 * before.scale > 500, "fixture node starts covered");
+  h.controls.revealNode("node");
+  h.settle();
+  close(left() + 100 * h.read().scale, 500 - 24);
+  close(h.read().scale, before.scale);
   h.detach();
 });

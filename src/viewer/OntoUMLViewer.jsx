@@ -1,5 +1,12 @@
 import { inspectionTarget } from "../model/inspectionTarget";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { DiagramCanvas } from "../visualization/DiagramCanvas";
 import { useSVGExport } from "../visualization/useSVGExport";
 import { sameTarget } from "../visualization/interaction";
@@ -153,6 +160,11 @@ function ViewerContent({
   useEffect(() => {
     if (selected && !index.getElement(selected)) select(null);
   }, [index, selected, select]);
+  // Reopening details must not leave the selected node underneath them.
+  useLayoutEffect(() => {
+    if (sidebarOpen && selected?.kind === "node")
+      cameraRef.current?.revealNode(selected.id);
+  }, [sidebarOpen]);
   return (
     <div
       ref={viewerRef}

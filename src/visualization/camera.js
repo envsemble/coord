@@ -128,13 +128,19 @@ export function createCamera({
     }
   }
 
-  function visibleArea() {
+  function readInsets() {
+    return { ...NO_INSETS, ...(insets(canvasRef.current) || {}) };
+  }
+
+  // `fullWidth` ignores the right inset; reveal handles floating panels as
+  // obstacles so a node is moved only when a panel actually covers it.
+  function visibleArea(i = readInsets(), { fullWidth = false } = {}) {
     const w = canvasRef.current.clientWidth;
     const h = canvasRef.current.clientHeight;
-    const i = { ...NO_INSETS, ...(insets(canvasRef.current) || {}) };
+    const rightInset = fullWidth ? 0 : i.right;
     // Ignore insets that would leave too little room to show anything.
-    const left = i.left + i.right < w * 0.6 ? i.left : 0;
-    const right = i.left + i.right < w * 0.6 ? i.right : 0;
+    const left = i.left + rightInset < w * 0.6 ? i.left : 0;
+    const right = i.left + rightInset < w * 0.6 ? rightInset : 0;
     const top = i.top + i.bottom < h * 0.6 ? i.top : 0;
     const bottom = i.top + i.bottom < h * 0.6 ? i.bottom : 0;
     return {
@@ -285,7 +291,8 @@ export function createCamera({
     const top = destination.y + m.f * destination.scale;
     const width = Number(r.getAttribute("width")) * destination.scale;
     const height = Number(r.getAttribute("height")) * destination.scale;
-    const area = visibleArea();
+    const i = readInsets();
+    const area = visibleArea(i, { fullWidth: true });
     const shift = (start, size, origin, available) =>
       size > available - 48
         ? origin + (available - size) / 2 - start
@@ -294,8 +301,22 @@ export function createCamera({
           : start + size > origin + available - 24
             ? origin + available - 24 - start - size
             : 0;
-    const dx = shift(left, width, area.x, area.width);
+    let dx = shift(left, width, area.x, area.width);
     const dy = shift(top, height, area.y, area.height);
+    for (const o of i.obstacles || []) {
+      const x = left + dx,
+        y = top + dy;
+      if (
+        x >= o.right ||
+        x + width <= o.left ||
+        y >= o.bottom ||
+        y + height <= o.top
+      )
+        continue;
+      const room = o.left - area.x;
+      if (room >= width + 48) dx = o.left - 24 - width - left;
+      else if (room > 0) dx = area.x + (room - width) / 2 - left;
+    }
     if (dx || dy) {
       // Keep an in-progress focus/zoom transition; reveal checks its final pose
       // so selecting a search result cannot cancel the animation that finds it.

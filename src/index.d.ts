@@ -65,6 +65,11 @@ export const ViewerErrorBoundary: ComponentType<{
   children?: ReactNode;
   resetKey?: string;
 }>;
+export type FitInsets = Partial<
+  Record<"top" | "right" | "bottom" | "left", number>
+> & {
+  obstacles?: { left: number; top: number; right: number; bottom: number }[];
+};
 export interface CameraControls {
   fit(): void;
   reset(): void;
@@ -79,14 +84,9 @@ export const DiagramCanvas: ForwardRefExoticComponent<
     focusRequest?: { id: string } | null;
     /** Transparent, theme-matched SVG image of this immutable scene. */
     backgroundURL?: string;
-    /** Canvas edges covered by floating UI; fit and reveal avoid them. */
-    fitInsets?:
-      | Partial<Record<"top" | "right" | "bottom" | "left", number>>
-      | ((
-          canvas: HTMLElement,
-        ) => Partial<
-          Record<"top" | "right" | "bottom" | "left", number>
-        > | null);
+    /** Canvas edges covered by floating UI; fit avoids them. Reveal pans a
+     * selected node out from under `obstacles` (canvas-relative rectangles). */
+    fitInsets?: FitInsets | ((canvas: HTMLElement) => FitInsets | null);
     onSelect(target: InspectionTarget): void;
     onZoom(zoom: number): void;
     onHover(target: InspectionTarget): void;

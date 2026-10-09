@@ -41,6 +41,18 @@ export function useOverlayInsets(viewerRef, topRef) {
           inspector && inspector.width < box.width * 0.6
             ? Math.max(0, box.right - inspector.left)
             : 0,
+        // Panels that may cover a selected node, in canvas coordinates.
+        obstacles:
+          inspector && inspector.width < box.width * 0.6
+            ? [
+                {
+                  left: inspector.left - box.left,
+                  top: inspector.top - box.top,
+                  right: inspector.right - box.left,
+                  bottom: inspector.bottom - box.top,
+                },
+              ]
+            : [],
       };
     },
     [viewerRef],
