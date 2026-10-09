@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findHeadingId, headingPrefix, rehypeHeadingIds, type HeadingNode } from '../src/headings.ts';
-import { resolveLink } from '../src/links.ts';
-import type { Document } from '../src/types.ts';
+import { findHeadingId, headingPrefix, rehypeHeadingIds, type HeadingNode } from './headings.ts';
+import { resolveLink } from './links.ts';
+import type { Document } from './types.ts';
 
 const heading = (text: string, level = 2): HeadingNode => ({ type: 'element', tagName: 'h' + level, children: [{ type: 'text', value: text }] });
 const ids = (tree: HeadingNode) => tree.children!.map(node => node.properties?.id as string);

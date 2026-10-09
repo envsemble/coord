@@ -1,29 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLink } from '../src/links.ts';
-import type { Document, Work } from '../src/types.ts';
-import { documentRoute, routeHref } from '../src/routes.ts';
+import { resolveLink } from './links.ts';
+import type { Document, Work } from './types.ts';
+import { documentTarget, tabId } from './targets.ts';
 
 const file = { path: 'active/0001-example/docs/decision.md' } as Document;
 const work = { path: 'active/0001-example', id: 'work-0001' } as Work;
 
-test('rendered internal URLs retain document ownership, view and heading without a click handler', () => {
-  const current = { path: 'active/0001-example/plan.md', workId: 'work-0001', category: 'plan' } as Document;
+test('links to a plan or ledger open the work overview; other documents open as files with their heading', () => {
+  const owner = { id: 'work-0001', path: 'active/0001-example', currentPlan: 'active/0001-example/plan.md', ledger: 'active/0001-example/ledger.md' } as Work;
+  const plan = { path: 'active/0001-example/plan.md', workId: 'work-0001', category: 'plan' } as Document;
+  const ledger = { path: 'active/0001-example/ledger.md', workId: 'work-0001', category: 'ledger' } as Document;
   const nested = { path: 'active/0001-example/docs/decision #1.md', workId: 'work-0001', category: 'decision' } as Document;
   const knowledge = { path: 'knowledge/terms.md', workId: null, category: 'knowledge' } as Document;
-  for (const [document, anchor, view] of [[current, 'whats-new', 'work'], [nested, 'déjà-vu--choices', 'work'], [knowledge, 'api_contract', 'knowledge']] as const) {
-    const url = new URL(routeHref(documentRoute(document, anchor)), 'http://127.0.0.1:4317/');
-    const parameters = new URLSearchParams(url.hash.slice(1));
-    assert.equal(parameters.get('view'), view);
-    assert.equal(parameters.get('work'), document.workId);
-    assert.equal(parameters.get('file'), document.path);
-    assert.equal(parameters.get('anchor'), anchor);
-  }
-  const folder = new URLSearchParams(routeHref({ work: 'work-0001', anchor: 'overview' }).slice(1));
-  assert.equal(folder.get('view'), 'work');
-  assert.equal(folder.get('work'), 'work-0001');
-  assert.equal(folder.get('anchor'), 'overview');
-  assert.equal(folder.has('file'), false);
+  assert.deepEqual(documentTarget(plan, owner, 'whats-new'), { kind: 'work', work: 'work-0001', section: 'plan', diagram: null, element: null, anchor: 'whats-new' });
+  assert.deepEqual(documentTarget(ledger, owner), { kind: 'work', work: 'work-0001', section: 'ledger', diagram: null, element: null, anchor: null });
+  assert.deepEqual(documentTarget(nested, owner, 'déjà-vu--choices'), { kind: 'file', path: nested.path, anchor: 'déjà-vu--choices' });
+  assert.deepEqual(documentTarget(knowledge, undefined, 'api_contract'), { kind: 'file', path: 'knowledge/terms.md', anchor: 'api_contract' });
+  assert.equal(tabId(documentTarget(plan, owner, 'a')), tabId(documentTarget(ledger, owner)), 'a work item has one tab');
+  assert.notEqual(tabId(documentTarget(nested, owner)), tabId(documentTarget(plan, owner)));
 });
 
 test('parent traversal cannot clamp escaped references onto retained root documents', () => {

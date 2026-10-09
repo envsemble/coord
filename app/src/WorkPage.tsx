@@ -1,59 +1,32 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { AlertIcon, ChevronRightIcon, FileDirectoryFillIcon, FileIcon, GitCommitIcon, SearchIcon, TasklistIcon, WorkflowIcon, BookIcon } from './icons';
-import type { Document, Snapshot, Work } from './types';
-import { samePath } from './links';
-import { defaultDocument, primaryDocuments, relativeDocumentPath } from './work';
-import { navigate, routeHref, type Route, type WorkTab } from './routes';
+import type { ReactNode } from 'react';
+import { AlertIcon, BookIcon, GitCommitIcon, TasklistIcon, WorkflowIcon } from './icons';
+import type { Document, Snapshot, Target, Work, WorkSection } from './types';
+import { defaultDocument, primaryDocuments } from './work';
+import { viewTarget, workTarget } from './targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
-import { Counter, Label, StateLabel } from './ui';
+import { Blankslate, Counter, Label, StateLabel } from './ui';
 import { Reader, useReferences } from './Reader';
 import { AtlasWorkPanel } from './AtlasWorkPanel';
+import { TargetLink, useWorkbench } from './workbenchContext';
 
-export function Breadcrumb({ items }: { items: { label: ReactNode; href?: string }[] }) {
-  return <nav className="breadcrumb" aria-label="Breadcrumb"><ol>{items.map((item, index) => <li key={index}>{item.href ? <a href={item.href}>{item.label}</a> : <span aria-current="page">{item.label}</span>}</li>)}</ol></nav>;
+type WorkTarget = Extract<Target, { kind: 'work' }>;
+
+export function Breadcrumb({ items }: { items: { label: ReactNode; target?: Target }[] }) {
+  return <nav className="breadcrumb" aria-label="Breadcrumb"><ol>{items.map((item, index) => <li key={index}>{item.target ? <TargetLink target={item.target}>{item.label}</TargetLink> : <span aria-current="page">{item.label}</span>}</li>)}</ol></nav>;
 }
 
-/** The tab a route opens: explicit tab, else the tab owning an explicit file, else plan before implementation and ledger after. */
-export function workTab(route: Route, work: Work, file: Document | undefined): WorkTab {
+/** The section a target opens: explicit, else the plan before implementation and the ledger after. */
+export function workSection(target: Pick<WorkTarget, 'section'>, work: Work): WorkSection {
   const { plan, ledger } = primaryDocuments(work);
-  if (route.tab === 'diagrams' || route.tab === 'files') return route.tab;
-  if (route.tab === 'plan' && plan) return 'plan';
-  if (route.tab === 'ledger' && ledger) return 'ledger';
-  const target = file ?? defaultDocument(work);
-  return target && target.path === plan?.path ? 'plan' : target && target.path === ledger?.path ? 'ledger' : 'files';
-}
-
-function FileTree({ files, selected, onSelect }: { files: Document[]; selected?: string; onSelect(file: Document): void }) {
-  const [query, setQuery] = useState('');
-  const visible = files.filter(file => relativeDocumentPath(file).toLowerCase().includes(query.toLowerCase()));
-  function branch(prefix: string, depth: number): ReactNode {
-    const directories = new Set<string>();
-    const leaves: Document[] = [];
-    for (const file of visible) {
-      const name = relativeDocumentPath(file);
-      if (!name.startsWith(prefix)) continue;
-      const rest = name.slice(prefix.length);
-      if (rest.includes('/')) directories.add(rest.split('/')[0]); else leaves.push(file);
-    }
-    return <>
-      {[...directories].sort().map(name => <TreeFolder key={prefix + name} name={name} depth={depth} open={Boolean(query) || Boolean(selected && visible.some(file => file.path === selected && relativeDocumentPath(file).startsWith(prefix + name + '/')))}>{branch(prefix + name + '/', depth + 1)}</TreeFolder>)}
-      {leaves.map(file => <li key={file.path}><button type="button" className={'tree-item' + (selected === file.path ? ' selected' : '')} style={{ paddingLeft: 8 + depth * 16 }} aria-current={selected === file.path ? 'page' : undefined} title={relativeDocumentPath(file)} onClick={() => onSelect(file)}><FileIcon size={16} /><span>{file.name}</span></button></li>)}
-    </>;
-  }
-  return <div className="file-tree">
-    <div className="search-box search-sm"><SearchIcon size={16} /><input aria-label="Go to file" placeholder="Go to file" value={query} onChange={event => setQuery(event.target.value)} /></div>
-    <ul className="tree" role="tree">{branch('', 0)}</ul>
-    {!visible.length && <p className="muted tree-empty">No matching files.</p>}
-  </div>;
-}
-function TreeFolder({ name, depth, open: forced, children }: { name: string; depth: number; open: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(forced);
-  useEffect(() => { if (forced) setOpen(true); }, [forced]);
-  return <li role="treeitem" aria-expanded={open}>
-    <button type="button" className="tree-item tree-folder" style={{ paddingLeft: 8 + depth * 16 }} onClick={() => setOpen(value => !value)}><ChevronRightIcon size={16} className={'tree-chevron' + (open ? ' open' : '')} /><FileDirectoryFillIcon size={16} className="tree-folder-icon" /><span>{name}</span></button>
-    {open && <ul role="group">{children}</ul>}
-  </li>;
+  if (target.section === 'diagrams') return 'diagrams';
+  if (target.section === 'plan' && plan) return 'plan';
+  if (target.section === 'ledger' && ledger) return 'ledger';
+  const preferred = defaultDocument(work);
+  if (preferred && preferred.path === ledger?.path) return 'ledger';
+  if (plan) return 'plan';
+  if (ledger) return 'ledger';
+  return 'diagrams';
 }
 
 function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
@@ -82,57 +55,54 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
   </aside>;
 }
 
-export function WorkPage({ work, snapshot, route }: { work: Work; snapshot: Snapshot; route: Route }) {
-  const same = (a: string, b: string) => samePath(a, b, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths);
-  const routeFile = route.file ? work.documents.find(file => same(file.path, route.file!)) : undefined;
-  const tab = workTab(route, work, routeFile);
+export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
+  const { retarget } = useWorkbench();
+  const section = workSection(target, work);
   const { plan, ledger } = primaryDocuments(work);
   const status = workStatus(work);
   const note = designNote(work);
-  const filesSelection = tab === 'files' ? routeFile ?? work.documents.find(file => file !== plan && file !== ledger) ?? work.documents[0] : undefined;
-  const reading = tab === 'plan' ? plan : tab === 'ledger' ? ledger : filesSelection;
-  const references = useReferences(reading, work.id, tab !== 'diagrams' && reading?.format === 'markdown');
-  const tabs: { id: WorkTab; label: string; icon: ReactNode; count?: number; hidden?: boolean }[] = [
+  const reading: Document | undefined = section === 'plan' ? plan : section === 'ledger' ? ledger : undefined;
+  const references = useReferences(reading, work.id, section !== 'diagrams' && reading?.format === 'markdown');
+  const sections: { id: WorkSection; label: string; icon: ReactNode; count?: number; hidden?: boolean }[] = [
     { id: 'plan', label: 'Plan', icon: <TasklistIcon size={16} />, hidden: !plan },
     { id: 'ledger', label: 'Ledger', icon: <BookIcon size={16} />, hidden: !ledger },
     { id: 'diagrams', label: 'Diagrams', icon: <WorkflowIcon size={16} />, count: work.diagrams ?? 0 },
-    { id: 'files', label: 'Files', icon: <FileIcon size={16} />, count: work.documents.length },
   ];
-  return <div className={'work-page tab-' + tab}>
-    <Breadcrumb items={[{ label: 'Work', href: routeHref({ view: 'work' }) }, { label: workNumber(work.id) }]} />
-    <header className="work-header">
-      <h1>{work.title}</h1>
-      <div className="work-header-meta">
-        <StateLabel status={status} />
-        {work.location === 'archived' && <Label tone="attention">Archived</Label>}
-        {note && <Label>{note}</Label>}
-        {work.repositories.map(id => <Label key={id} tone="muted">{id}</Label>)}
-      </div>
-    </header>
-    <nav className="underline-nav" aria-label="Work sections">
-      {tabs.filter(item => !item.hidden).map(item => <a key={item.id} href={routeHref({ view: 'work', work: work.id, tab: item.id })} className={tab === item.id ? 'selected' : ''} aria-current={tab === item.id ? 'page' : undefined}>
-        {item.icon}<span>{item.label}</span>{item.count !== undefined && item.count > 0 && <Counter>{item.count}</Counter>}
-      </a>)}
-    </nav>
-    {tab === 'diagrams' ? <AtlasWorkPanel key={work.id} work={work} snapshot={snapshot} route={route} navigate={navigate} />
+  return <div className={'work-page tab-' + section}>
+    <div className="work-page-head">
+      <Breadcrumb items={[{ label: 'Work', target: viewTarget('work') }, { label: workNumber(work.id) }]} />
+      <header className="work-header">
+        <h1>{work.title}</h1>
+        <div className="work-header-meta">
+          <StateLabel status={status} />
+          {work.location === 'archived' && <Label tone="attention">Archived</Label>}
+          {note && <Label>{note}</Label>}
+          {work.repositories.map(id => <Label key={id} tone="muted">{id}</Label>)}
+        </div>
+      </header>
+      <nav className="underline-nav" aria-label="Work sections">
+        {sections.filter(item => !item.hidden).map(item => <a key={item.id} href="#" className={section === item.id ? 'selected' : ''} aria-current={section === item.id ? 'page' : undefined}
+          onClick={event => { event.preventDefault(); retarget(workTarget(work.id, item.id, item.id === 'diagrams' ? { diagram: target.diagram ?? null } : {})); }}>
+          {item.icon}<span>{item.label}</span>{item.count !== undefined && item.count > 0 && <Counter>{item.count}</Counter>}
+        </a>)}
+      </nav>
+    </div>
+    {section === 'diagrams' ? <AtlasWorkPanel key={work.id} work={work} snapshot={snapshot} target={target} />
       : <div className="work-layout">
         <div className="work-main">
-          {tab === 'files' ? <div className="files-tab">
-            <FileTree files={work.documents} selected={filesSelection?.path} onSelect={file => navigate({ view: 'work', work: work.id, tab: 'files', file: file.path })} />
-            {filesSelection ? <Reader key={filesSelection.path} file={filesSelection} snapshot={snapshot} anchor={route.anchor} toolbar references={references} /> : <div className="box"><p className="muted tree-empty">No retained files.</p></div>}
-          </div>
-          : reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={route.anchor} references={references} hideTitle={work.title} />
-          : null}
+          {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} />
+            : <div className="box"><Blankslate title="Nothing to read here">This work item has no plan or ledger.</Blankslate></div>}
         </div>
         <About work={work} snapshot={snapshot} />
       </div>}
   </div>;
 }
 
-export function FilePage({ file, snapshot, route, viewLabel }: { file: Document; snapshot: Snapshot; route: Route; viewLabel: string }) {
-  const references = useReferences(file, null, file.category === 'knowledge' && file.format === 'markdown');
-  return <div className="file-page">
-    <Breadcrumb items={[{ label: viewLabel, href: routeHref({ view: route.view }) }, { label: file.path }]} />
-    <Reader key={file.path} file={file} snapshot={snapshot} anchor={route.anchor} toolbar references={references} showWork />
+export function FileView({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
+  const owner = snapshot.work.find(work => work.id === file.workId);
+  const references = useReferences(file, file.workId, file.format === 'markdown' && (Boolean(file.workId) || file.category === 'knowledge'));
+  return <div className="page file-page">
+    <Breadcrumb items={[...(owner ? [{ label: workNumber(owner.id) + ' ' + owner.title, target: workTarget(owner.id) }] : []), { label: file.path }]} />
+    <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} toolbar references={references} showWork={!file.workId} />
   </div>;
 }
