@@ -1,0 +1,2 @@
+# Preserve original bytes when capturing records, including inherited autocrlf.
+* -text

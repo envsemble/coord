@@ -1,0 +1,76 @@
+name: CI
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m unittest discover -s skills/tests -v
+      - run: python -m unittest discover -s skills/worktrail-bootstrap/scripts/tests -v
+  dashboard:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/check-review.mjs
+      - run: npm run check:release
+      - run: npm run release:assemble
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worktrail-${{ matrix.os }}-${{ github.sha }}
+          path: dashboard/artifacts/
+          if-no-files-found: error
+          retention-days: 7
+  verify:
+    name: CI
+    needs: [skills, dashboard]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all verification jobs to pass
+        env:
+          SKILLS: ${{ needs.skills.result }}
+          DASHBOARD: ${{ needs.dashboard.result }}
+        run: test "$SKILLS" = success && test "$DASHBOARD" = success
+  betterleaks:
+    name: Betterleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned Betterleaks
+        env:
+          BETTERLEAKS_VERSION: '1.8.1'
+          BETTERLEAKS_SHA256: efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a
+        run: |
+          archive="$RUNNER_TEMP/betterleaks.tar.gz"
+          curl -fsSL "https://github.com/betterleaks/betterleaks/releases/download/v${BETTERLEAKS_VERSION}/betterleaks_${BETTERLEAKS_VERSION}_linux_x64.tar.gz" -o "$archive"
+          echo "${BETTERLEAKS_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/betterleaks" git . --redact
