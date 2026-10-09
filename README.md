@@ -18,10 +18,10 @@ Atlas keeps plans, decisions and models in a place both a coding agent and its h
 | Part                                          | What it does                                                                                                                        |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | [App](app/README.md)                          | Reads a planning folder: work items, plans, ledgers, knowledge, Git activity, usage statistics and each plan's diagrams. Read-only. |
-| [`atlas` command](#install-the-atlas-command) | Model tools, the MCP server, planning checks and consultation logging, for agents and scripts.                                      |
+| [`atlas` command](#install-the-atlas-command) | Model tools, the MCP server, planning checks, plan export and import, and consultation logging, for agents and scripts.             |
 | [Skills](skills/README.md)                    | Seven `atlas-*` agent skills for setting up, grilling, implementing, recording and organizing plans, and for modeling.              |
 | [Diagram package](packages/diagrams)          | Captures, validates, lays out and renders models, and exports self-contained offline HTML. Used by the app and the command.         |
-| [Planning reader](packages/planning)          | The planning-folder reader shared by the app and the command.                                                                       |
+| [Planning reader](packages/planning)          | The planning-folder reader shared by the app and the command, including [plan export and import](docs/plan-export.md).              |
 
 ## Start
 
@@ -35,6 +35,10 @@ npm run dev --workspace @envsemble/atlas-app
 Open `http://127.0.0.1:4317/`. The app reads the `planning` folder next to this checkout; pass `-- --planning-dir /path/to/planning` to read another, or switch folders from the sidebar. Plans, models and statistics stay local, and no model service or API key is needed. The [app guide](app/README.md) covers its views, diagrams and usage statistics.
 
 Each work item keeps its models in its own folder (`<work>/.atlas/`), so a plan, its ledger and its diagrams move together. Plans show a card under every heading a diagram explains, and each diagram is labelled **Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**.
+
+### Share a plan
+
+`atlas plan export <work-id>` writes the whole work item (plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history) to one `.atlas-plan.html` file. Anyone can open it in a browser to read the plan offline, with the app's look and interactive diagrams; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds a received export to a planning folder as new work under the next free number, after a preview (`--dry-run` previews only). See [plan export](docs/plan-export.md).
 
 ## Install the atlas command
 
@@ -55,10 +59,12 @@ atlas model tools
 atlas model job <init|validate|build> ...
 atlas mcp --root <workspace>
 atlas planning check <planning-root>
+atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
+atlas plan import <file> [--planning-dir <dir>] [--dry-run]
 atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
 ```
 
-Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr.
+Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas plan export` and `atlas plan import` exit 0 on success, 1 for an invalid export or a refused folder and 2 on usage errors; import never commits. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr.
 
 Usage statistics and recent planning folders live in the per-user **Atlas data folder**: `%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR` when set. Statistics are kept per planning folder under `usage/<hash of its canonical path>/`; nothing is written into planning folders.
 
@@ -80,7 +86,7 @@ The [Atlas skills](skills/README.md) work in Codex and Claude Code and name no m
 
 ## Models
 
-Capture declared database or class structure as a dated baseline, author a conceptual proposal over it, inspect the semantic changes and export a reopenable offline HTML document. The viewer is read-only; the agent edits through the library, the command or MCP.
+Capture declared database or class structure as a dated baseline, author a conceptual proposal over it, inspect the semantic changes and export a reopenable offline HTML document of the model. To share a plan with its models, use a [plan export](docs/plan-export.md). The viewer is read-only; the agent edits through the library, the command or MCP.
 
 ![Atlas viewer with colored entities, named generalization sets and a focused inspector](assets/viewer-dark.jpg)
 
