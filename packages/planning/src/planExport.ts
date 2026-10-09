@@ -7,7 +7,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { hostname } from 'node:os';
 import path from 'node:path';
 import type { AtlasDocument } from '@envsemble/atlas-diagrams';
 import { parseFrontmatter, validatePlanning } from './check.ts';
@@ -15,6 +14,7 @@ import { PlanningError, loadPlanning } from './planning.ts';
 import { resolveRecordPath, samePath, workRelative } from './paths.ts';
 import { describeProvenance, type Provenance } from './provenance.ts';
 import { appendRegistryEntries, RegistryFormatError } from './registryText.ts';
+import { acquireImportLock, ImportLockBusyError } from './importLock.ts';
 import type { Work } from './types.ts';
 
 const require = createRequire(import.meta.url);
@@ -30,14 +30,22 @@ export const planExportWarningBytes = 50 * 1024 * 1024;
  * larger export could be neither written nor read back.
  */
 export const planExportMaxBytes = 300 * 1024 * 1024;
-const maxInputLength = Math.ceil(planExportMaxBytes / 3) * 4 + 64 * 1024 * 1024;
+/**
+ * Seams for tests: the longest HTML an import reads, and faults injected into an
+ * import and its rollback. Not part of the public entry.
+ */
+export const planExportTesting: {
+  maxInputLength: number;
+  afterRegister?: () => void | Promise<void>;
+  removeFolder?: (folder: string) => Promise<void>;
+} = { maxInputLength: Math.ceil(planExportMaxBytes / 3) * 4 + 64 * 1024 * 1024 };
 const payloadId = 'atlas-plan-export';
 const viewId = 'atlas-plan-view';
 const modelFile = /^\.atlas\/models\/(m-[a-f0-9]{24})\.json$/;
 const workIdentity = /^work-([0-9]{4,})$/;
 const BOM = String.fromCharCode(0xfeff);
-const lockName = '.atlas-import.lock';
 const leftoverPrefix = '.atlas-import-';
+const leftoverName = /^\.atlas-import-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
 export interface PlanExportRepository { id: string; name: string; remote?: string }
 export interface PlanExportSource {
@@ -94,9 +102,10 @@ export type PlanExportErrorCode =
   | 'SOURCE' // the folder to export from is not a readable planning folder
   | 'WORK' // the work item to export was not found or cannot be exported
   | 'TARGET' // the folder to import into is not a valid planning repository, or the import would make it invalid
-  | 'CONFLICT'; // another import is running, or the target changed during the import
+  | 'CONFLICT' // another import is running, or the target changed during the import
+  | 'ROLLBACK'; // an import failed and could not undo everything it wrote; the message says what is left
 
-/** A rejected export or import. Nothing has been written (or everything was rolled back) when this is thrown. */
+/** A rejected export or import. Nothing has been written (or everything was rolled back) when this is thrown, except for `ROLLBACK`. */
 export class PlanExportError extends Error {
   readonly code: PlanExportErrorCode;
   constructor(code: PlanExportErrorCode, message: string) {
@@ -111,6 +120,8 @@ export class PlanExportError extends Error {
 
 // eslint-disable-next-line no-control-regex
 const controlCharacter = /[\u0000-\u001f\u007f-\u009f]/;
+// Invisible direction controls that could make a path read differently from what it is.
+const bidiControl = new RegExp('[' + String.fromCharCode(0x61c, 0x200e, 0x200f, 0x202a) + '-' + String.fromCharCode(0x202e, 0x2066) + '-' + String.fromCharCode(0x2069) + ']');
 const reservedName = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\..*)?$/i;
 /** Why a work-folder-relative path is not safe and portable, or null when it is. */
 export function planExportPathProblem(value: unknown): string | null {
@@ -119,6 +130,7 @@ export function planExportPathProblem(value: unknown): string | null {
   if (value.startsWith('/') || /^[a-z]:/i.test(value) || value.startsWith('\\')) return 'is absolute';
   if (value.includes('\\')) return 'uses a backslash; paths use forward slashes';
   if (controlCharacter.test(value) || /[:*?"<>|]/.test(value)) return 'contains a character that is not portable';
+  if (bidiControl.test(value)) return 'contains an invisible text-direction control';
   const segments = value.split('/');
   for (const [index, segment] of segments.entries()) {
     if (!segment) return 'has an empty segment';
@@ -150,10 +162,10 @@ const decodedPreviews = new WeakMap<PlanExportPreview, Map<string, Buffer>>();
 function payloadText(input: string | Uint8Array): string {
   let html: string;
   if (typeof input === 'string') {
-    if (input.length > maxInputLength) throw tooLarge();
+    if (input.length > planExportTesting.maxInputLength) throw tooLarge();
     html = input;
   } else if (input instanceof Uint8Array) {
-    if (input.length > maxInputLength) throw tooLarge();
+    if (input.length > planExportTesting.maxInputLength) throw tooLarge();
     try { html = new TextDecoder('utf-8', { fatal: true }).decode(input); }
     catch (error) {
       if (error instanceof RangeError) throw tooLarge();
@@ -491,9 +503,18 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
     documents: item.documents.map(document => ({ path: workRelative(document.path, item.path), title: document.title, category: document.category, format: document.format })).filter(document => names.includes(document.path)),
     diagrams: await diagramsFor(actual, item, item.documents, same, warnings),
   };
-  const html = viewerTemplate()
-    .replace('<!--ATLAS_TITLE-->', () => escapeHtml(item.title))
-    .replace('<!--ATLAS_PAYLOAD-->', () => `<script id="${payloadId}" type="application/json">${inline({ ...manifest, files })}</script>\n<script id="${viewId}" type="application/json">${inline(view)}</script>`);
+  const limit = () => new PlanExportError('LIMIT', `${item.id} is too large for one plan export file; move large evidence elsewhere and link to it.`);
+  let html: string;
+  try {
+    html = viewerTemplate()
+      .replace('<!--ATLAS_TITLE-->', () => escapeHtml(item.title))
+      .replace('<!--ATLAS_PAYLOAD-->', () => `<script id="${payloadId}" type="application/json">${inline({ ...manifest, files })}</script>\n<script id="${viewId}" type="application/json">${inline(view)}</script>`);
+  } catch (error) {
+    if (error instanceof RangeError) throw limit();
+    throw error;
+  }
+  // An export no import could read is refused.
+  if (html.length > planExportTesting.maxInputLength) throw limit();
   const bytes = Buffer.byteLength(html);
   if (bytes > planExportWarningBytes) warnings.push(`This export is ${(bytes / 1048576).toFixed(1)} MB, larger than 50 MB; some browsers and mail systems handle files this large slowly or not at all.`);
   return { html, manifest, bytes, warnings };
@@ -543,46 +564,25 @@ export async function planImportTarget(planningRootPath: string, manifest: PlanE
   return nextTarget(await targetState(await planningRoot(planningRootPath)), manifest.source);
 }
 
-/** Hold the planning folder's import lock; another import waits, a dead holder's lock is removed. */
-async function acquireLock(root: string, waitMs: number): Promise<() => Promise<void>> {
-  const file = path.join(root, lockName);
-  const deadline = Date.now() + waitMs;
-  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; } };
-  for (;;) {
-    try {
-      await writeFile(file, JSON.stringify({ pid: process.pid, hostname: hostname(), createdAt: new Date().toISOString() }), { flag: 'wx' });
-      return () => rm(file, { force: true });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    }
-    let holder: { pid?: unknown; hostname?: unknown; createdAt?: unknown } | null = null;
-    try { holder = JSON.parse(await readFile(file, 'utf8')); } catch { /* Being written, or damaged. */ }
-    if (holder && holder.hostname === hostname() && Number.isSafeInteger(holder.pid) && !alive(holder.pid as number)) {
-      await rm(file, { force: true });
-      continue;
-    }
-    if (Date.now() >= deadline) {
-      const who = holder ? ` (process ${String(holder.pid)} on ${String(holder.hostname)} since ${String(holder.createdAt)})` : '';
-      throw new PlanExportError('CONFLICT', `Another import into this planning folder is in progress${who}. If none is running, delete ${file} and try again.`);
-    }
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-}
-
 /** Remove hidden temporary folders that interrupted imports left behind more than an hour ago. */
 async function removeLeftovers(root: string): Promise<number> {
   let removed = 0;
+  try {
   for (const location of ['active', 'archive']) {
     let entries: import('node:fs').Dirent[] = [];
     try { entries = await readdir(path.join(root, location), { withFileTypes: true }); } catch { continue; }
     for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith(leftoverPrefix)) continue;
+      if (!entry.isDirectory() || !leftoverName.test(entry.name)) continue;
       const folder = path.join(root, location, entry.name);
-      if (Date.now() - (await stat(folder)).mtimeMs < 3600000) continue;
-      await rm(folder, { recursive: true, force: true });
-      removed++;
+      // Best effort: a folder that cannot be removed now is left for a later import.
+      try {
+        if (Date.now() - (await stat(folder)).mtimeMs < 3600000) continue;
+        await rm(folder, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+        removed++;
+      } catch { /* Left for later. */ }
     }
   }
+  } catch { /* Cleanup never stops an import. */ }
   return removed;
 }
 
@@ -659,6 +659,29 @@ function outsideWorkFolder(raw: string) {
   return false;
 }
 
+/**
+ * Where to record this import: `evidence/import-provenance.json` in the export's own
+ * spelling of the evidence folder, numbered when that name (compared as a
+ * case-insensitive, normalizing filesystem would) is already taken.
+ */
+function provenanceFileName(names: Iterable<string>) {
+  const taken = new Set<string>(), folders = new Map<string, string>();
+  for (const name of names) {
+    taken.add(pathKey(name));
+    const segments = name.split('/');
+    for (let index = 1; index < segments.length; index++) {
+      const folder = segments.slice(0, index).join('/');
+      folders.set(pathKey(folder), folder);
+      taken.add(pathKey(folder));
+    }
+  }
+  const evidence = folders.get('evidence') ?? (taken.has('evidence') ? null : 'evidence');
+  const base = evidence === null ? 'import-provenance' : evidence + '/import-provenance';
+  let name = base + '.json';
+  for (let suffix = 2; taken.has(pathKey(name)); suffix++) name = `${base}-${suffix}.json`;
+  return name;
+}
+
 async function renameWithRetry(from: string, to: string, replace: boolean) {
   for (let attempt = 0; ; attempt++) {
     try { await rename(from, to); return; }
@@ -692,7 +715,12 @@ export async function importPlan(planningRootPath: string, html: string | Uint8A
   const { preview, contents } = known ? { preview: html as PlanExportPreview, contents: known } : decodePlanExport(html as string | Uint8Array);
   const { manifest } = preview;
   const root = await planningRoot(planningRootPath);
-  const release = await acquireLock(root, options.lockWaitMs ?? 30000);
+  let release: () => Promise<void>;
+  try { release = await acquireImportLock(root, options.lockWaitMs ?? 30000); }
+  catch (error) {
+    if (error instanceof ImportLockBusyError) throw new PlanExportError('CONFLICT', error.message);
+    throw error;
+  }
   try {
     return await importLocked(root, manifest, contents);
   } finally { await release(); }
@@ -787,9 +815,8 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
       }
     }
 
-    let provenanceName = 'evidence/import-provenance.json';
-    for (let suffix = 2; contents.has(provenanceName); suffix++) provenanceName = `evidence/import-provenance-${suffix}.json`;
-    if (provenanceName !== 'evidence/import-provenance.json') notes.push(`The export already carried an import record; this import is recorded in ${provenanceName}.`);
+    const provenanceName = provenanceFileName(contents.keys());
+    if (!/^evidence\/import-provenance\.json$/i.test(provenanceName)) notes.push(`The export already carried an import record; this import is recorded in ${provenanceName}.`);
     const provenance = {
       format: 'atlas/import-provenance', version: 1, importedAt: new Date().toISOString(),
       importedAs: target,
@@ -810,6 +837,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     if (await readFile(registryFile, 'utf8') !== state.registryText) throw new PlanExportError('CONFLICT', 'planning.json changed during the import; nothing was imported. Try again.');
     await replaceFile(registryFile, registryText);
     registeredWork = true;
+    await planExportTesting.afterRegister?.();
 
     // The import must not make the planning folder invalid.
     const before = new Set(state.errors);
@@ -832,10 +860,23 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     notes.push('Add the work item to the planning README index yourself or ask an agent; the import does not edit it.', 'Nothing was committed.');
     return { workId: target.workId, path: target.path, files: count, notes };
   } catch (error) {
-    if (registeredWork) await replaceFile(registryFile, state.registryText);
-    await rm(moved ? finalFolder : temporary, { recursive: true, force: true });
-    // Remove a location folder this import created; rmdir leaves it if anything else appeared there.
+    // Undo every step on its own, so one failure does not hide what else is left.
+    const left: string[] = [];
+    if (registeredWork) {
+      try {
+        if (await readFile(registryFile, 'utf8') === registryText) await replaceFile(registryFile, state.registryText);
+        else left.push('planning.json, which changed after this import registered the work; remove the ' + target.workId + ' entry from it');
+      } catch { left.push('the ' + target.workId + ' entry in planning.json; restore it with git checkout -- planning.json if it was committed, or remove the entry'); }
+    }
+    const folder = moved ? finalFolder : temporary;
+    try { await (planExportTesting.removeFolder ?? (target => rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })))(folder); }
+    catch { left.push('the folder ' + folder + '; delete it'); }
+    // Remove a location folder this import created; rmdir leaves it if anything else is there.
     if (createdParent) await rmdir(createdParent).catch(() => undefined);
+    if (left.length) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new PlanExportError('ROLLBACK', `${reason}\nThe import could not be fully undone. Left behind: ${left.join('; ')}. Then run atlas planning check.`);
+    }
     throw error;
   }
 }

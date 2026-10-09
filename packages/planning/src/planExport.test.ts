@@ -3,7 +3,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { hostname, tmpdir } from 'node:os';
+import { hostname, release, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import atlas, { type AtlasDocument } from '@envsemble/atlas-diagrams';
@@ -11,7 +11,7 @@ import { parse } from 'parse5';
 import { validatePlanning, parseFrontmatter } from './check.ts';
 import { loadPlanning } from './planning.ts';
 import { AtlasCatalog } from './atlas.ts';
-import { PlanExportError, exportPlan, importPlan, planExportPathProblem, planImportTarget, readPlanExport, type PlanExportErrorCode } from './planExport.ts';
+import { PlanExportError, exportPlan, importPlan, planExportPathProblem, planExportTesting, planImportTarget, readPlanExport, type PlanExportErrorCode } from './planExport.ts';
 
 const BOM = String.fromCharCode(0xfeff);
 const ESC = String.fromCharCode(0x1b);
@@ -277,7 +277,8 @@ test('refuses a target that is not a valid planning repository', async t => {
 });
 
 test('portable path rules', () => {
-  for (const good of ['plan.md', 'docs/adr/0001-x.md', '.atlas/models/m-0.json', 'evidence/ünïcode.md']) assert.equal(planExportPathProblem(good), null, good);
+  for (const good of ['plan.md', 'docs/adr/0001-x.md', '.atlas/models/m-0.json', 'evidence/ünïcode.md', 'evidence/日本語 notes.md', 'evidence/' + String.fromCharCode(0x5e9, 0x5dc, 0x5d5, 0x5dd) + '.md']) assert.equal(planExportPathProblem(good), null, good);
+  for (const control of [0x202e, 0x202a, 0x2066, 0x2069, 0x200e, 0x200f, 0x61c]) assert.match(planExportPathProblem('evidence/a' + String.fromCharCode(control) + 'txt.md') ?? '', /direction/, control.toString(16));
   for (const bad of ['', '/x', 'x/', '..', 'a/../b', '.atlas', '.env', 'docs/.atlas/x', 'x*.md', 'nul', 'lpt1.txt', 'a.']) assert.notEqual(planExportPathProblem(bad), null, bad);
 });
 
@@ -373,7 +374,7 @@ test('imports into one planning folder take turns through a lock', async t => {
   assert.ok(!existsSync(path.join(target, '.atlas-import.lock')), 'the lock is released');
 
   // A lock left by a process that no longer runs is removed; a live one is waited for, then reported.
-  writeFileSync(path.join(target, '.atlas-import.lock'), JSON.stringify({ pid: 2 ** 30, hostname: hostname(), createdAt: '2026-10-10T00:00:00Z' }));
+  writeFileSync(path.join(target, '.atlas-import.lock'), JSON.stringify({ pid: 2 ** 30, hostname: hostname(), platform: process.platform, release: release(), token: 'gone', createdAt: '2026-10-10T00:00:00Z' }));
   assert.equal((await importPlan(target, two)).workId, 'work-0006');
   writeFileSync(path.join(target, '.atlas-import.lock'), JSON.stringify({ pid: process.pid, hostname: 'elsewhere', createdAt: '2026-10-10T00:00:00Z' }));
   const before = snapshot(target);
@@ -388,15 +389,16 @@ test('reuses a validated preview, cleans up after interrupted imports and report
   mkdirSync(target); fixture(target);
   const registry = readFileSync(path.join(target, 'planning.json'), 'utf8').replace('"name": "Shop"', '"name": "Our shop"');
   writeFileSync(path.join(target, 'planning.json'), registry);
-  const old = path.join(target, 'active/.atlas-import-old'), fresh = path.join(target, 'active/.atlas-import-fresh');
-  mkdirSync(old); mkdirSync(fresh);
+  const old = path.join(target, 'active/.atlas-import-0b4e8f1a-2c3d-4e5f-8a9b-0c1d2e3f4a5b'), fresh = path.join(target, 'active/.atlas-import-1b4e8f1a-2c3d-4e5f-8a9b-0c1d2e3f4a5b');
+  const unrelated = path.join(target, 'active/.atlas-import-notes');
+  mkdirSync(old); mkdirSync(fresh); mkdirSync(unrelated);
   const hourAgo = new Date(Date.now() - 2 * 3600000);
-  utimesSync(old, hourAgo, hourAgo);
+  utimesSync(old, hourAgo, hourAgo); utimesSync(unrelated, hourAgo, hourAgo);
   const preview = readPlanExport((await exportPlan(source, 'work-0001', { now })).html);
   assert.ok(Object.isFrozen(preview.manifest.source) && Object.isFrozen(preview.files), 'a preview cannot be changed before import');
   const result = await importPlan(target, preview);
   assert.equal(result.workId, 'work-0003');
-  assert.ok(!existsSync(old) && existsSync(fresh), 'only stale temporary folders are removed');
+  assert.ok(!existsSync(old) && existsSync(fresh) && existsSync(unrelated), 'only stale temporary folders an import names are removed');
   assert.ok(result.notes.some(note => /Removed 1 temporary folder/.test(note)));
   assert.ok(result.notes.some(note => /repository shop is already registered here, named “Our shop” here and “Shop” in the export/.test(note)), result.notes.join('\n'));
   await assert.rejects(importPlan(target, { ...preview }), (error: unknown) => error instanceof PlanExportError && error.code === 'FORMAT');
@@ -412,4 +414,52 @@ test('refuses to export what no import would accept', async t => {
   registry.work_items[0].current_plan = 'active/0001-checkout/evidence/notes.txt';
   writeFileSync(path.join(source, 'planning.json'), JSON.stringify(registry));
   await assert.rejects(exportPlan(source, 'work-0001'), (error: unknown) => error instanceof PlanExportError && error.code === 'FORMAT' && /Markdown/.test(error.message));
+});
+
+test('rolls back every step of a failed import, and says what is left when it cannot', async t => {
+  const directory = temporary(t);
+  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
+  mkdirSync(source); fixture(source);
+  mkdirSync(path.join(target, 'active'), { recursive: true });
+  // A registry with a byte order mark and CRLF line endings, and no archive/ folder yet.
+  const registry = BOM + '{\r\n  "schema_version": 1,\r\n  "repositories": [{ "id": "shop", "name": "Shop" }],\r\n  "work_items": []\r\n}\r\n';
+  writeFileSync(path.join(target, 'planning.json'), registry);
+  const html = (await exportPlan(source, 'work-0002', { now })).html;
+  const before = snapshot(target);
+  t.after(() => { delete planExportTesting.afterRegister; delete planExportTesting.removeFolder; });
+
+  planExportTesting.afterRegister = () => { throw new Error('disk vanished'); };
+  await assert.rejects(importPlan(target, html), /disk vanished/);
+  assert.deepEqual(snapshot(target), before, 'the registry is restored byte for byte and the folder removed');
+  assert.ok(!existsSync(path.join(target, 'archive')), 'the location folder the import created is removed');
+  assert.ok(!existsSync(path.join(target, '.atlas-import.lock')));
+
+  planExportTesting.removeFolder = async () => { throw new Error('locked by a scanner'); };
+  await assert.rejects(importPlan(target, html), (error: unknown) => error instanceof PlanExportError && error.code === 'ROLLBACK'
+    && /disk vanished/.test(error.message) && /could not be fully undone/.test(error.message) && /archive[\\/]0001-legacy; delete it/.test(error.message));
+  assert.equal(readFileSync(path.join(target, 'planning.json'), 'utf8'), registry, 'planning.json is still restored');
+});
+
+test('records the import beside an existing record, whatever its case', async t => {
+  const directory = temporary(t);
+  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
+  mkdirSync(source); const work = fixture(source);
+  writeFileSync(path.join(work, 'evidence/Import-Provenance.json'), '{"earlier": true}\n');
+  mkdirSync(target); fixture(target);
+  const result = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
+  assert.equal(readFileSync(path.join(target, result.path, 'evidence/Import-Provenance.json'), 'utf8'), '{"earlier": true}\n');
+  assert.equal(JSON.parse(readFileSync(path.join(target, result.path, 'evidence/import-provenance-2.json'), 'utf8')).source.workId, 'work-0001');
+  assert.ok(result.notes.some(note => /import-provenance-2\.json/.test(note)));
+});
+
+test('refuses an export too large for an import to read', async t => {
+  const source = temporary(t);
+  fixture(source);
+  const { html } = await exportPlan(source, 'work-0001', { now });
+  const limit = planExportTesting.maxInputLength;
+  t.after(() => { planExportTesting.maxInputLength = limit; });
+  planExportTesting.maxInputLength = html.length - 1;
+  await assert.rejects(exportPlan(source, 'work-0001', { now }), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
+  assert.throws(() => readPlanExport(html), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
+  assert.throws(() => readPlanExport(Buffer.from(html)), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
 });
