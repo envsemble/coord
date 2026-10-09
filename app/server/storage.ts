@@ -9,8 +9,12 @@ export async function statisticsDirectory(root: string, base?: string) {
   const unicode = await filesystemNormalizesUnicode(canonical) ? canonical.normalize('NFC') : canonical;
   const normalized = (await filesystemCaseSensitive(canonical) ? unicode : unicode.toLowerCase()).split(path.sep).join('/');
   const identity = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
-  const directory = base ? path.resolve(base.replace(/^~(?=$|[\\/])/, () => homedir())) : path.join(homedir(), '.cache', 'planning-dashboard');
-  return path.join(directory, identity);
+  return path.join(dataBaseDirectory(base), identity);
+}
+
+/** The shared cache base; each planning folder's data lives in a hashed subdirectory. */
+export function dataBaseDirectory(base?: string) {
+  return base ? path.resolve(base.replace(/^~(?=$|[\\/])/, () => homedir())) : path.join(homedir(), '.cache', 'planning-dashboard');
 }
 
 export async function cacheOutsidePlanning(root: string, destination: string) {

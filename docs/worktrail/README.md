@@ -50,9 +50,9 @@ npm --prefix dashboard ci
 npm --prefix dashboard run dev
 ```
 
-Open **http://127.0.0.1:4317/**. By default the dashboard reads a sibling `planning` folder. Connect another folder with `npm --prefix dashboard run dev -- --planning-dir /path/to/planning`. Plans, ledgers, knowledge, Git history and actual consultation statistics stay local. No model service or API key is required.
+Open **http://127.0.0.1:4317/**. By default the dashboard reads a sibling `planning` folder. Start with another folder with `npm --prefix dashboard run dev -- --planning-dir /path/to/planning`, or switch folders from the sidebar while it runs. Plans, ledgers, knowledge, Git history and actual consultation statistics stay local. No model service or API key is required.
 
-Atlas renders directly in React; diagrams remain read-only. An agent edits through the Atlas library/CLI/MCP, with stable semantic IDs linking plan passages and pinned code evidence. Offline HTML export/reopen is a separate submission/review mode. The dashboard pins a committed Atlas tarball and SHA-256, so its installation and CI require no sibling Atlas checkout.
+Each work item keeps its diagrams in its own folder (`<work>/.atlas/`), so a plan, its ledger and its models move together. Plans show a card under every heading a diagram explains, and each diagram is labelled **Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**. Atlas renders directly in React; diagrams remain read-only. An agent edits through the Atlas library/CLI/MCP, with stable semantic IDs linking plan passages and pinned code evidence. Offline HTML export/reopen is a separate submission/review mode. The dashboard pins a committed Atlas tarball and SHA-256, so its installation and CI require no sibling Atlas checkout.
 
 ## Check and package
 
