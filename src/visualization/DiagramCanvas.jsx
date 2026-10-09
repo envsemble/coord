@@ -20,6 +20,7 @@ export const DiagramCanvas = memo(
       hovered,
       focusRequest,
       backgroundURL,
+      fitInsets,
       onSelect,
       onZoom,
       onHover,
@@ -44,6 +45,7 @@ export const DiagramCanvas = memo(
       // invokes this only for taps, so panning and zooming retain selection.
       onTap: (element) => onSelect(readTarget(element)),
       onMotion: clearTransient,
+      insets: fitInsets,
     });
     useImperativeHandle(ref, () => controls, [controls]);
     useLayoutEffect(() => {

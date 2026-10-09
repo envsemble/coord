@@ -142,18 +142,20 @@ function Benchmark() {
 
   return (
     <>
-      <header className="viewer-toolbar">
-        <span>
-          {count} classes · {diagram.edges.length} relations
-        </span>
-        <button onClick={run} disabled={running}>
-          {running ? "Measuring…" : "Run hover benchmark"}
-        </button>
-        <button onClick={() => camera.current.fit()}>Fit</button>
-        <span>{zoom}%</span>
-        <output aria-label="Benchmark results">
-          {result && JSON.stringify(result)}
-        </output>
+      <header className="atlas-overlay-top">
+        <div className="atlas-island">
+          <span>
+            {count} classes · {diagram.edges.length} relations
+          </span>
+          <button onClick={run} disabled={running}>
+            {running ? "Measuring…" : "Run hover benchmark"}
+          </button>
+          <button onClick={() => camera.current.fit()}>Fit</button>
+          <span>{zoom}%</span>
+          <output aria-label="Benchmark results">
+            {result && JSON.stringify(result)}
+          </output>
+        </div>
       </header>
       <Profiler
         id="diagram"

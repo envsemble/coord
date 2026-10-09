@@ -145,23 +145,38 @@ test("Repeated report navigation clears retained comparison focus and chooses a 
     ...payload,
     focus: second,
   });
-  assert.equal(next.mode, "proposed");
+  assert.equal(next.mode, "changes");
   assert.equal(next.focus, null);
   assert.equal(next.externalFocus, second);
+  // The change view retains removed elements, so it can still show them.
   const removed = reconcileComparisonFocus(next, payload);
-  assert.equal(removed.mode, "baseline");
+  assert.equal(removed.mode, "changes");
   assert.equal(removed.focus, null);
   assert.equal(removed.externalFocus, first);
   assert.equal(reconcileComparisonFocus(removed, payload), removed);
+  const baselineOnly = reconcileComparisonFocus(next, {
+    ...payload,
+    comparison: { ...payload.comparison, changeView: scene(["b"]) },
+  });
+  assert.equal(baselineOnly.mode, "baseline");
+  assert.equal(baselineOnly.externalFocus, first);
   const field = { kind: "edge", id: "new-field" };
   const withField = {
     ...payload,
-    model: {
-      classes: [{ id: "b", attributes: [{ id: "new-field" }], methods: [] }],
+    comparison: {
+      ...payload.comparison,
+      changeView: {
+        ...payload.comparison.changeView,
+        model: {
+          classes: [
+            { id: "b", attributes: [{ id: "new-field" }], methods: [] },
+          ],
+        },
+      },
     },
   };
   const memberFocus = reconcileComparisonFocus(removed, withField, field);
-  assert.equal(memberFocus.mode, "proposed");
+  assert.equal(memberFocus.mode, "changes");
   assert.equal(memberFocus.focus, null);
   assert.equal(memberFocus.externalFocus, field);
 });

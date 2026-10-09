@@ -685,3 +685,118 @@ test("Imported comparison metadata rejects incomplete cells, duplicate conflicts
       .issues.some((i) => i.code === "BASELINE_CONTEXT"),
   );
 });
+test("Comparisons keep the document's authored views and their removed members", async () => {
+  const node = (id, name) => ({ id, name, attributes: [] });
+  const base = atlas.createDocument({
+    id: "authored-views",
+    profile: "code",
+    model: {
+      type: "StructuralModel",
+      nodes: [
+        node("student", "Student"),
+        node("enrollment", "Enrollment"),
+        node("course", "Course"),
+      ],
+      relations: [
+        {
+          id: "enrolled",
+          name: "enrolled",
+          sourceId: "student",
+          targetId: "enrollment",
+          sourceMultiplicity: "1",
+          targetMultiplicity: "0..*",
+        },
+      ],
+      generalizations: [],
+      generalizationSets: [],
+    },
+    views: [
+      { key: "core", label: "Core", nodeIds: ["student", "enrollment"] },
+      {
+        key: "all",
+        label: "All",
+        nodeIds: ["student", "enrollment", "course"],
+      },
+    ],
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  model.nodes = model.nodes.filter((n) => n.id !== "enrollment");
+  model.nodes.push(node("registration", "Registration"));
+  model.relations = [
+    {
+      id: "registered",
+      name: "registered",
+      sourceId: "student",
+      targetId: "registration",
+      sourceMultiplicity: "1",
+      targetMultiplicity: "0..*",
+    },
+  ];
+  const changed = atlas.reviseDocument(proposal, {
+    model,
+    views: [
+      { key: "core", label: "Core", nodeIds: ["student", "registration"] },
+      {
+        key: "all",
+        label: "All",
+        nodeIds: ["student", "course", "registration"],
+      },
+    ],
+  });
+  const { payload } = await atlas.prepareViewer({
+    document: changed,
+    includeArtifacts: false,
+  });
+  const ids = (views) =>
+    Object.fromEntries(
+      views.map((v) => [v.key, v.diagram.nodes.map((n) => n.id).sort()]),
+    );
+  assert.deepEqual(ids(payload.comparison.changeView.views), {
+    core: ["enrollment", "registration", "student"],
+    all: ["course", "enrollment", "registration", "student"],
+  });
+  assert.deepEqual(ids(payload.comparison.baseline.views), {
+    core: ["enrollment", "student"],
+    all: ["course", "enrollment", "student"],
+  });
+  assert.deepEqual(ids(payload.views), {
+    core: ["registration", "student"],
+    all: ["course", "registration", "student"],
+  });
+  assert.deepEqual(
+    payload.comparison.changeView.views.map((v) => v.label),
+    ["Core", "All"],
+  );
+  const unscoped = await atlas.prepareViewer({
+    document: revise(atlas.createProposal(example()), (m) => {
+      m.nodes[1].name = "Registration";
+    }),
+    includeArtifacts: false,
+  });
+  assert.deepEqual(
+    unscoped.payload.comparison.changeView.views.map((v) => v.key),
+    ["comparison"],
+  );
+});
+test("Rationale linked to both a member and its owner is listed once", () => {
+  const base = example();
+  const proposal = atlas.reviseDocument(atlas.createProposal(base), {
+    context: {
+      records: base.context.records,
+      links: [
+        ...base.context.links,
+        { elementId: "student-name", recordId: "plan" },
+      ],
+    },
+  });
+  const changed = revise(proposal, (m) => {
+    m.nodes[0].attributes[0].type = "text";
+  });
+  const diff = atlas.compareDocuments(baselineDocument(changed), changed);
+  const member = diff.changes.find((c) => c.elementId === "student-name");
+  assert.deepEqual(
+    member.rationale.map((r) => r.id),
+    ["plan"],
+  );
+});

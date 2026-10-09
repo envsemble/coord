@@ -1,5 +1,12 @@
 import { inspectionTarget } from "../model/inspectionTarget";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { DiagramCanvas } from "../visualization/DiagramCanvas";
 import { useSVGExport } from "../visualization/useSVGExport";
 import { sameTarget } from "../visualization/interaction";
@@ -17,35 +24,39 @@ import { useInspection, inspectedTarget } from "./useInspection";
 import { LearningLibrary } from "../learning/LearningContent";
 import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
-import { CaptureStamp } from "./CaptureStamp";
+import { ProvenanceBadge } from "./ProvenanceBadge";
 import { ComparisonViewer } from "./ComparisonViewer";
 import { ReportViewer } from "./ReportViewer";
+import { useOverlayInsets } from "./useOverlayInsets";
+import { useToolbarDensity } from "./useToolbarDensity";
 
 export function OntoUMLViewer(props) {
-  if (props.report)
-    return (
-      <ReportViewer
-        payload={props}
-        render={(payload, focus) => (
-          <OntoUMLViewer {...payload} focus={focus || props.focus} />
-        )}
-      />
-    );
+  // Report and comparison controls travel as extras into the nested viewer.
+  const nested = (payload, focus, extras) => (
+    <OntoUMLViewer
+      {...payload}
+      reportControl={props.reportControl}
+      {...extras}
+      focus={focus || props.focus}
+    />
+  );
+  if (props.report) return <ReportViewer payload={props} render={nested} />;
   if (props.comparison)
     return (
-      <ComparisonViewer
-        payload={props}
-        focus={props.focus}
-        render={(payload, focus) => (
-          <OntoUMLViewer {...payload} focus={focus || props.focus} />
-        )}
-      />
+      <ComparisonViewer payload={props} focus={props.focus} render={nested} />
     );
   if (!props.views.length)
     return (
       <div className="viewer-error">
+        <ProvenanceBadge
+          document={props.provenanceDocument || props.model.document}
+          className="inline"
+        />
         <h1>{props.model.title}</h1>
         <p>No entities in this model.</p>
+        {props.comparisonControls && (
+          <div className="atlas-island inline">{props.comparisonControls}</div>
+        )}
       </div>
     );
   return <ViewerContent {...props} />;
@@ -56,6 +67,9 @@ function ViewerContent({
   exports: exportData,
   snippets = {},
   focus = null,
+  comparisonControls,
+  reportControl,
+  provenanceDocument,
 }) {
   const exports = useArtifactArchive(exportData);
   const [viewKey, setViewKey] = useState(views[0].key),
@@ -72,6 +86,13 @@ function ViewerContent({
   const [focusRequest, setFocusRequest] = useState(null);
   const zoomStore = useMemo(createZoomStore, []);
   const cameraRef = useRef(null);
+  const viewerRef = useRef(null),
+    toolbarRef = useRef(null);
+  const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
+  const density = useToolbarDensity(
+    toolbarRef,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`,
+  );
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
   const index = useMemo(
@@ -144,9 +165,21 @@ function ViewerContent({
   useEffect(() => {
     if (selected && !index.getElement(selected)) select(null);
   }, [index, selected, select]);
+  // Reopening details must not leave the selected node underneath them.
+  useLayoutEffect(() => {
+    if (sidebarOpen && selected?.kind === "node")
+      cameraRef.current?.revealNode(selected.id);
+  }, [sidebarOpen]);
   return (
-    <div className={`viewer${sidebarOpen ? " inspecting" : ""}`}>
+    <div
+      ref={viewerRef}
+      className={`viewer${sidebarOpen ? " inspecting" : ""}`}
+    >
       <ViewerToolbar
+        ref={toolbarRef}
+        density={density}
+        comparisonControls={comparisonControls}
+        reportControl={reportControl}
         {...{
           model,
           views,
@@ -196,19 +229,20 @@ function ViewerContent({
       <DiagramCanvas
         ref={cameraRef}
         {...{ diagram, selected, hovered, focusRequest, backgroundURL }}
+        fitInsets={fitInsets}
         onSelect={select}
         onZoom={zoomStore.set}
         onHover={onHover}
         onClearHover={clearHover}
       />
-      <CaptureStamp model={model} />
+      <ProvenanceBadge document={provenanceDocument || model.document} />
       <Panel
         id="inspector"
         className="inspector"
         open={sidebarOpen}
         label={learningOpen ? "OntoUML learning library" : "Model details"}
         title={null}
-        closeLabel="Hide sidebar"
+        closeLabel="Hide details"
         onClose={() => setSidebarHidden(true)}
         onPointerEnter={keepHover}
         onPointerLeave={() => hover(null)}

@@ -9,8 +9,9 @@ export function useDiagramCamera({
   onZoom,
   onTap,
   onMotion,
+  insets,
 }) {
-  const callbacks = useRef({ onZoom, onTap, onMotion });
+  const callbacks = useRef({ onZoom, onTap, onMotion, insets });
   const controls = useMemo(
     () =>
       createCamera({
@@ -19,13 +20,17 @@ export function useDiagramCamera({
         onZoom: (value) => callbacks.current.onZoom(value),
         onTap: (element) => callbacks.current.onTap(element),
         onMotion: () => callbacks.current.onMotion(),
+        insets: (canvas) => {
+          const value = callbacks.current.insets;
+          return typeof value === "function" ? value(canvas) : value;
+        },
       }),
     // A new camera implementation during Vite refresh needs a new controller.
     [createCamera],
   );
   useLayoutEffect(() => {
-    callbacks.current = { onZoom, onTap, onMotion };
-  }, [onZoom, onTap, onMotion]);
+    callbacks.current = { onZoom, onTap, onMotion, insets };
+  }, [onZoom, onTap, onMotion, insets]);
   useLayoutEffect(() => {
     controls.restoreView(diagram.key, diagram.fields, diagram.initialFocus);
   }, [controls, diagram]);

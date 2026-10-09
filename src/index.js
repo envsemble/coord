@@ -1,5 +1,7 @@
 export { OntoUMLViewer } from "./viewer/OntoUMLViewer";
 export { AtlasPanel } from "./viewer/AtlasPanel";
+export { describeProvenance, formatCaptureDate } from "./viewer/provenance";
+export { ProvenanceBadge, ProvenanceLabel } from "./viewer/ProvenanceBadge";
 export { ViewerErrorBoundary } from "./viewer/ViewerErrorBoundary";
 export { DiagramCanvas } from "./visualization/DiagramCanvas";
 export { UMLDiagram } from "./visualization/UMLDiagram";

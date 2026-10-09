@@ -26,15 +26,16 @@ export function reconcileComparisonFocus(
   target = payload.focus,
 ) {
   if (selection.externalFocus === target) return selection;
+  // The change view contains the proposal and retained removals, so it is
+  // preferred for any target the current mode cannot show.
   const models = {
-    proposed: payload,
+    changes: payload.comparison.changeView || payload,
     baseline: payload.comparison.baseline,
-    changes: payload.comparison.changeView,
   };
   const mode =
     !target || containsTarget(models[selection.mode], target)
       ? selection.mode
-      : ["proposed", "baseline", "changes"].find((key) =>
+      : ["changes", "baseline"].find((key) =>
           containsTarget(models[key], target),
         ) || selection.mode;
   return { mode, focus: null, externalFocus: target };

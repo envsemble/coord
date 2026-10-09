@@ -10,7 +10,14 @@ import {
   type ExchangeProject,
   type AuthoredMapping,
 } from "../lib";
-import { OntoUMLViewer, UMLDiagram, AtlasPanel } from "../src";
+import {
+  OntoUMLViewer,
+  UMLDiagram,
+  AtlasPanel,
+  ProvenanceBadge,
+  describeProvenance,
+  type Provenance,
+} from "../src";
 async function smoke() {
   // @ts-expect-error A document requires a model or OntoUML project.
   createDocument({});
@@ -51,10 +58,22 @@ async function smoke() {
   });
   const built = await buildViewer({ project });
   const prepared = await prepareViewer({ project });
+  const provenance: Provenance = describeProvenance(document);
+  const tone: "accent" | "done" | "success" | "neutral" = provenance.tone;
+  void tone;
+  describeProvenance(prepared.model.document);
+  describeProvenance(undefined);
   return (
     <>
       <OntoUMLViewer {...prepared.payload} />
-      <AtlasPanel payload={prepared.payload} theme="dark" />
+      <AtlasPanel
+        payload={prepared.payload}
+        theme="dark"
+        leading={<select aria-label="Model" />}
+        fullscreen={false}
+        onFullscreenChange={(next: boolean) => void next}
+      />
+      <ProvenanceBadge document={document} />
       <UMLDiagram diagram={built.views[0].diagram} />
     </>
   );
