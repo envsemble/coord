@@ -2,9 +2,9 @@
 
 ## Plan export — 2026-10-10
 
-- Added plan export and import: `atlas plan export <work-id|work-folder>` writes a whole work item, including evidence and diagrams with their history, to one self-contained `.atlas-plan.html` file that opens offline in any browser with the app's look. `atlas plan import <file>` adds it to a planning folder as new work under the next free number, rewriting only its identity (through a recorded model revision for diagrams) and recording its origin. The shared code lives in `@envsemble/atlas-planning` for the desktop app. See [plan export](docs/plan-export.md).
+- Added plan export and import: `atlas plan export <work-id|work-folder>` writes a whole work item, including evidence and diagrams with their history, to one self-contained `.atlas-plan.html` file that opens offline in any browser with the app's look. `atlas plan import <file>` adds it to a planning folder as new work under the next free number, rewriting its identity (through a recorded model revision for diagrams), clearing references to work in the source planning folder and recording its origin; an import that would fail `atlas planning check` is rolled back. The shared code lives in `@envsemble/atlas-planning` for the desktop app. See [plan export](docs/plan-export.md).
 - Plan exports replace single-model HTML as the way to share a plan; `atlas model export` remains for one model.
-- `reviseDocument` accepts a `workId` change; a revision that only reassigns a model to another work item keeps a captured snapshot a snapshot.
+- Added `relocateDocument` to the diagram package: a recorded revision that changes only a model's `workId` and context record paths, keeping a captured snapshot a snapshot. Import uses it; `reviseDocument` is unchanged.
 
 ## One Atlas — 2026-10-09
 

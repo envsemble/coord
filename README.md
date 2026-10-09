@@ -38,7 +38,7 @@ Each work item keeps its models in its own folder (`<work>/.atlas/`), so a plan,
 
 ### Share a plan
 
-`atlas plan export <work-id>` writes the whole work item (plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history) to one `.atlas-plan.html` file. Anyone can open it in a browser to read the plan offline, with the app's look and interactive diagrams; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds a received export to a planning folder as new work under the next free number, after a preview (`--dry-run` previews only). See [plan export](docs/plan-export.md).
+`atlas plan export <work-id>` writes the whole work item (plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history) to one `.atlas-plan.html` file. Anyone can open it in a browser to read the plan offline, with the app's look and interactive diagrams; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds a received export to a planning folder as new work under the next free number, after a preview (`--dry-run` previews only); it rewrites the work's identity, clears references to work elsewhere and leaves the folder passing `atlas planning check`. See [plan export](docs/plan-export.md).
 
 ## Install the atlas command
 
