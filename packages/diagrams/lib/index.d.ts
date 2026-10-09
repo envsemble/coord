@@ -431,6 +431,7 @@ export function reviseDocument(
       | "context"
       | "learning"
       | "reporting"
+      | "workId"
     >
   > & { reason?: string },
   expectedRevision?: string,
@@ -512,6 +513,11 @@ export interface AtlasToolArguments {
 export interface AtlasWorkspace {
   readonly root: string;
   load(handle: string): AtlasDocument;
+  /** Store a document and its revision history; `expectedRevision` must name the stored revision it replaces. */
+  save(
+    document: AtlasDocument,
+    expectedRevision?: string | null,
+  ): AtlasModelSummary;
   execute<T extends keyof AtlasToolArguments>(
     name: T,
     args: AtlasToolArguments[T],

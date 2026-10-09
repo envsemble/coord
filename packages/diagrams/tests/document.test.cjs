@@ -96,6 +96,43 @@ test("snapshots resist edits, proposals keep their baseline, and stale writes fa
     ),
   );
 });
+test("reassigning a work item records a revision and keeps a captured snapshot", () => {
+  const model = graph(),
+    snapshot = createSnapshot({
+      profile: "database",
+      model,
+      capture: {
+        capturedAt: "2026-10-08T12:00:00Z",
+        adapter: { id: "fixture", version: "1" },
+        source: { kind: "database", identity: "test", scope: ["public"] },
+        coverage: { status: "complete", diagnostics: [] },
+      },
+    });
+  const doc = createDocument({
+    profile: "database",
+    state: "snapshot",
+    model,
+    snapshots: [snapshot],
+    baselineId: snapshot.id,
+    workId: "work-0004",
+  });
+  const moved = reviseDocument(doc, {
+    workId: "work-0009",
+    context: { records: [], links: [] },
+    reason: "Imported as work-0009",
+  });
+  assert.equal(moved.state, "snapshot");
+  assert.equal(moved.workId, "work-0009");
+  assert.equal(moved.revision.parentId, doc.revision.id);
+  assert.equal(moved.revision.reason, "Imported as work-0009");
+  assert.equal(validateDocument(moved).valid, true);
+  // Any other change still turns a captured document into a proposal.
+  assert.equal(
+    reviseDocument(doc, { workId: "work-0009", title: "Renamed" }).state,
+    "proposal",
+  );
+  assert.throws(() => reviseDocument(doc, { workId: "" }), /DOCUMENT_WORK/);
+});
 test("structural validation rejects unsupported versions, invalid counts, references, sets and cycles", () => {
   const doc = createDocument({ profile: "code", model: graph() });
   for (const change of [

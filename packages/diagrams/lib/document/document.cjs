@@ -468,16 +468,32 @@ function reviseDocument(
     "context",
     "learning",
     "reporting",
+    "workId",
     "reason",
   ]);
   if (Object.keys(changes).some((key) => !allowed.has(key)))
     throw new Error(
       "Revisions cannot change snapshots, identities, or profile",
     );
+  if (
+    Object.hasOwn(changes, "workId") &&
+    (typeof changes.workId !== "string" ||
+      !changes.workId ||
+      changes.workId.length > 128)
+  )
+    throw new Error("DOCUMENT_WORK: workId must be a nonempty string");
   const revised = clone(document);
   for (const [key, value] of Object.entries(changes))
     if (key !== "reason") revised[key] = clone(value);
-  revised.state = document.baselineId ? "proposal" : document.state;
+  // Reassigning a document to another work item (with the context paths that
+  // move with it) changes no modeled facts, so a captured snapshot stays one.
+  const reassignment =
+    Object.hasOwn(changes, "workId") &&
+    Object.keys(changes).every((key) =>
+      ["workId", "context", "reason"].includes(key),
+    );
+  revised.state =
+    document.baselineId && !reassignment ? "proposal" : document.state;
   revised.revision = {
     ...revised.revision,
     id: "",
