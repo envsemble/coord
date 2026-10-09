@@ -148,7 +148,12 @@ test("real SDK client and JSON CLI share conceptual create/revise/validate/expor
   const { root } = workspace(t);
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [path.resolve(__dirname, "../bin/atlas.cjs"), "mcp", "--root", root],
+    args: [
+      path.resolve(__dirname, "../lib/agent/cli.cjs"),
+      "mcp",
+      "--root",
+      root,
+    ],
     stderr: "pipe",
   });
   const client = new Client({ name: "atlas-capability-test", version: "1" });
@@ -214,7 +219,7 @@ test("real SDK client and JSON CLI share conceptual create/revise/validate/expor
     execFileSync(
       process.execPath,
       [
-        path.resolve(__dirname, "../bin/atlas.cjs"),
+        path.resolve(__dirname, "../lib/agent/cli.cjs"),
         "inspect",
         "--root",
         root,
@@ -228,7 +233,12 @@ test("real SDK client and JSON CLI share conceptual create/revise/validate/expor
   await client.close();
   const transport2 = new StdioClientTransport({
     command: process.execPath,
-    args: [path.resolve(__dirname, "../bin/atlas.cjs"), "mcp", "--root", root],
+    args: [
+      path.resolve(__dirname, "../lib/agent/cli.cjs"),
+      "mcp",
+      "--root",
+      root,
+    ],
   });
   const restarted = new Client({ name: "restart", version: "1" });
   await restarted.connect(transport2);

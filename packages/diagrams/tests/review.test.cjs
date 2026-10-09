@@ -154,11 +154,15 @@ test("Review CLI distinguishes malformed input from valid ontology/scenario find
   };
   fs.writeFileSync(input, JSON.stringify(options));
   const run = () =>
-    spawnSync(process.execPath, ["bin/atlas.cjs", "review", "--input", input], {
-      cwd: path.resolve(__dirname, ".."),
-      encoding: "utf8",
-      windowsHide: true,
-    });
+    spawnSync(
+      process.execPath,
+      ["lib/agent/cli.cjs", "review", "--input", input],
+      {
+        cwd: path.resolve(__dirname, ".."),
+        encoding: "utf8",
+        windowsHide: true,
+      },
+    );
   assert.equal(run().status, 0);
   const changed = atlas.reviseDocument(base, {
     learning: {

@@ -1,20 +1,21 @@
-#!/usr/bin/env node
+// Internal model command behind `atlas model` and `atlas mcp` (packages/cli).
+// Output is JSON; input failures exit 2, blocking validation/review findings exit 1.
 const fs = require("node:fs");
 const {
   AtlasWorkspace,
   toolDefinitions,
   boundedError,
-} = require("../lib/agent/service.cjs");
+} = require("./service.cjs");
 async function main(args) {
   const command = args.shift();
   if (!command || ["help", "--help"].includes(command)) {
     console.log(
-      "Atlas\n  atlas <operation> --root <workspace> --input <request.json|->\n  atlas review --input <request.json|->\n  atlas mcp --root <workspace>\n  atlas tools\n\nRun atlas tools for typed operation contracts. Output is JSON; input failures exit 2, blocking validation/review findings exit 1.",
+      "Atlas models\n  atlas model <operation> --root <workspace> [--input <request.json|->]\n  atlas model review --input <request.json|->\n  atlas model tools\n  atlas model job <init|validate|build> ...\n  atlas mcp --root <workspace>\n\nRun atlas model tools for typed operation contracts. Output is JSON; input failures exit 2, blocking validation/review findings exit 1.",
     );
     return;
   }
   if (command === "--version") {
-    console.log(require("../package.json").version);
+    console.log(require("../../package.json").version);
     return;
   }
   if (command === "tools") {
@@ -39,9 +40,7 @@ async function main(args) {
         "utf8",
       ),
     );
-    const result = await require("../lib/review/review.cjs").writeReview(
-      request,
-    );
+    const result = await require("../review/review.cjs").writeReview(request);
     console.log(JSON.stringify(result));
     process.exitCode = result.exitCode;
     return;
@@ -50,7 +49,7 @@ async function main(args) {
   if (command === "mcp") {
     if (options["--input"])
       throw new Error("CLI_ARGUMENTS: mcp takes no --input");
-    await require("../lib/agent/mcp.cjs").serveMcp(options["--root"]);
+    await require("./mcp.cjs").serveMcp(options["--root"]);
     return;
   }
   const request = options["--input"]
@@ -68,9 +67,12 @@ async function main(args) {
   console.log(JSON.stringify(result));
   if (command === "validate" && !result.valid) process.exitCode = 1;
 }
-if (require.main === module)
-  main(process.argv.slice(2)).catch((error) => {
+/** Run with the command-line contract: bounded JSON errors on stderr and exit code 2. */
+function run(args) {
+  return main([...args]).catch((error) => {
     console.error(JSON.stringify(boundedError(error)));
     process.exitCode = 2;
   });
-module.exports = { main };
+}
+if (require.main === module) run(process.argv.slice(2));
+module.exports = { main, run };

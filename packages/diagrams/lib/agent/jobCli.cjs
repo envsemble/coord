@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+// Internal modeling-job command behind `atlas model job` (packages/cli).
 const fs = require("node:fs");
 const {
   validateModel,
   createModelingJob,
   buildModelingJob,
-} = require("../lib/index.cjs");
+} = require("../index.cjs");
 function argumentsOf(args) {
   const positional = [],
     options = {};
@@ -23,7 +23,7 @@ function argumentsOf(args) {
 async function main(args) {
   if (args[0] === "--help") args = ["help"];
   if (args[0] === "--version") {
-    console.log(require("../package.json").version);
+    console.log(require("../../package.json").version);
     return;
   }
   const { positional, options } = argumentsOf(args);
@@ -79,14 +79,16 @@ async function main(args) {
     );
   } else {
     console.log(
-      "OntoUML Atlas\n  init --project <directory> [--project <directory>] --question <scope> --out <job>\n  validate <model.json|-> [--evidence <evidence.json>] [--json]\n  build <job.json> --out <site>\n\nGive the generated AGENT.md to your coding agent. No model editor or hosted AI is required.",
+      "Atlas modeling jobs\n  atlas model job init --project <directory> [--project <directory>] --question <scope> --out <job>\n  atlas model job validate <model.json|-> [--evidence <evidence.json>] [--json]\n  atlas model job build <job.json> --out <site>\n\nGive the generated AGENT.md to your coding agent. No model editor or hosted AI is required.",
     );
     if (command && !["help", "--help"].includes(command)) process.exitCode = 2;
   }
 }
-if (require.main === module)
-  main(process.argv.slice(2)).catch((error) => {
+function run(args) {
+  return main([...args]).catch((error) => {
     console.error(JSON.stringify({ error: error.message }));
     process.exitCode = 2;
   });
-module.exports = { main };
+}
+if (require.main === module) run(process.argv.slice(2));
+module.exports = { main, run };
