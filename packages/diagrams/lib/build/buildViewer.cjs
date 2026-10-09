@@ -379,7 +379,7 @@ async function buildViewer(input) {
     .replace(
       /<title>.*?<\/title>/,
       () =>
-        `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | OntoUML Atlas</title>`,
+        `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | Atlas</title>`,
     )
     .replace("/*APP_STYLES*/", () =>
       ["src/ui/styles.css", "src/visualization/styles.css"]

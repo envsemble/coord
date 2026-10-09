@@ -26,6 +26,7 @@ const ATLAS_SUBCOMMANDS = new Set(["model", "planning", "usage", "mcp"]);
 // Old skill and product names. Character classes keep this file itself free of them.
 const RETIRED_NAMES = [
   /work[t]rail[\w-]*/gi,
+  /ontouml[- ]atla[s]/gi,
   /(?<![\w-])plannin[g]-(?:bootstrap|grill|implement|record|organize)\b/gi,
   /(?<![\w-])implement-pla[n]\b/gi,
   /(?<![\w-])babysit-p[r]\b/gi,

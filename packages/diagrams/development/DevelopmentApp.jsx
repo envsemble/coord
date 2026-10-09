@@ -6,7 +6,7 @@ import { ViewerErrorBoundary } from "../src/viewer/ViewerErrorBoundary";
 export function DevelopmentApp() {
   const [payload, setPayload] = useState(initialPayload);
   useEffect(() => {
-    document.title = `${payload.model.title} | OntoUML Atlas · Development`;
+    document.title = `${payload.model.title} | Atlas · Development`;
   }, [payload.model.title]);
   useEffect(() => {
     if (!import.meta.hot) return;

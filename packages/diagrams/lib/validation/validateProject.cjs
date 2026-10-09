@@ -419,7 +419,7 @@ function report(issues) {
         layer: "schema",
       },
       {
-        name: "OntoUML Atlas documented rule subset",
+        name: "Atlas documented OntoUML rule subset",
         version: "1",
         layer: "ontology",
       },
