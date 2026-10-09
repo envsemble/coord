@@ -1,0 +1,6 @@
+/* Plan export page: the app's work page without its sidebar. */
+.plan-export { max-width: none; min-height: 100vh; }
+.export-banner { align-items: center; }
+.export-banner > div { flex: 1; min-width: 0; }
+.export-banner code { font-size: 12px; padding: 2px 4px; background: var(--bgColor-neutral-muted); border-radius: 6px; }
+.export-mark { display: inline-flex; color: var(--fgColor-muted); }
