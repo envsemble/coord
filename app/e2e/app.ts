@@ -38,7 +38,8 @@ export function releaseExecutable(): string {
 }
 
 export function temporaryDirectory(prefix: string) {
-  return realpathSync(mkdtempSync(path.join(tmpdir(), prefix)));
+  // The native call expands Windows 8.3 short names (CI temp folders use them), matching what the app records.
+  return realpathSync.native(mkdtempSync(path.join(tmpdir(), prefix)));
 }
 
 /** A fresh copy of the committed fixture planning folder, as its own Git repository. */
