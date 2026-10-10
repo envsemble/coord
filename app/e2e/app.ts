@@ -5,7 +5,7 @@
 // ATLAS_E2E_EXECUTABLE to drive another build, or ATLAS_E2E_UNPACKAGED=1 to run out/ with Electron.
 import { execFileSync, spawnSync, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { cpSync, existsSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
@@ -88,11 +88,25 @@ export async function launch(options: { folder?: string; dataDirectory?: string;
   const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
   const env = environment(dataDirectory);
   const extra = [...(options.folder ? [options.folder] : []), ...(options.args ?? [])];
-  const app = options.executable ? await electron.launch({ executablePath: options.executable, args: extra, env })
+  // Playwright adds --no-sandbox on Linux unless told to keep the sandbox; Atlas refuses to run without it.
+  const common = { args: extra, env, chromiumSandbox: true };
+  const app = options.executable ? await electron.launch({ ...common, executablePath: options.executable })
     : process.env.ATLAS_E2E_UNPACKAGED === '1'
-    ? await electron.launch({ args: [appDirectory, ...extra], env, cwd: appDirectory })
-    : await electron.launch({ executablePath: packagedExecutable(), args: extra, env });
-  const window = await app.firstWindow();
+    ? await electron.launch({ ...common, args: [appDirectory, ...extra], cwd: appDirectory })
+    : await electron.launch({ ...common, executablePath: packagedExecutable() });
+  // When the app never opens a window, say why: its output and its own log.
+  let output = '';
+  app.process().stdout?.on('data', chunk => { output += chunk; });
+  app.process().stderr?.on('data', chunk => { output += chunk; });
+  let window: Page;
+  try {
+    window = await app.firstWindow();
+  } catch (error) {
+    const log = path.join(dataDirectory, 'logs', 'atlas.log');
+    const recorded = existsSync(log) ? readFileSync(log, 'utf8') : '(no log)';
+    await app.close().catch(() => undefined);
+    throw new Error(`${(error as Error).message}\nApp output:\n${output.slice(-4000)}\nApp log:\n${recorded.slice(-4000)}`);
+  }
   await window.waitForLoadState('domcontentloaded');
   return { app, window, dataDirectory, ownsData, process: app.process() };
 }
