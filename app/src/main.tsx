@@ -3,5 +3,6 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import '@primer/primitives/dist/css/functional/themes/dark-dimmed.css';
 import './style.css';
+import './app.css';
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

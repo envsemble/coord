@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "repositories": [
+    {
+      "id": "shop",
+      "name": "Northwind Shop",
+      "path": "../shop"
+    },
+    {
+      "id": "planning",
+      "name": "Northwind planning",
+      "path": "."
+    }
+  ],
+  "work_items": [
+    {
+      "id": "work-0001",
+      "path": "active/0001-saved-payment-methods",
+      "repositories": ["shop"],
+      "current_plan": "active/0001-saved-payment-methods/plan.md"
+    },
+    {
+      "id": "work-0002",
+      "path": "active/0002-order-fulfilment-model",
+      "repositories": ["shop"],
+      "current_plan": "active/0002-order-fulfilment-model/plan.md"
+    },
+    {
+      "id": "work-0003",
+      "path": "active/0003-customer-notifications",
+      "repositories": ["shop"],
+      "current_plan": "active/0003-customer-notifications/plan.md"
+    },
+    {
+      "id": "work-0004",
+      "path": "archive/0004-inventory-reservations",
+      "repositories": ["shop"],
+      "current_plan": "archive/0004-inventory-reservations/plan.md"
+    }
+  ]
+}

@@ -92,9 +92,54 @@ jobs:
       - run: npm ci
       # Node skill tests (skills/tests/*.test.mjs); the skills need only Node and the atlas command.
       - run: npm run test:skills
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, which Chromium's
+      # sandbox needs. Allow them (see the app README) rather than running without the sandbox.
+      - name: Allow the Chromium sandbox
+        if: runner.os == 'Linux'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo apt-get update && sudo apt-get install --yes xvfb
+      # Unsigned NSIS installer on Windows, AppImage on Linux, in app/release.
+      - run: npm run package --workspace @envsemble/atlas-app
+      - name: End-to-end tests against the packaged app
+        env:
+          # Also install and uninstall the Windows installer on the disposable runner.
+          ATLAS_E2E_INSTALLER: "1"
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run --auto-servernum npm run test:e2e --workspace @envsemble/atlas-app
+          else npm run test:e2e --workspace @envsemble/atlas-app; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-desktop-${{ matrix.os }}-${{ github.sha }}
+          path: |
+            app/release/*.exe
+            app/release/*.AppImage
+            app/playwright-report/
+            app/test-results/
+          if-no-files-found: warn
+          retention-days: 7
   verify:
     name: CI
-    needs: [node, skills]
+    needs: [node, skills, desktop]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -102,7 +147,8 @@ jobs:
         env:
           NODE: ${{ needs.node.result }}
           SKILLS: ${{ needs.skills.result }}
-        run: test "$NODE" = success && test "$SKILLS" = success
+          DESKTOP: ${{ needs.desktop.result }}
+        run: test "$NODE" = success && test "$SKILLS" = success && test "$DESKTOP" = success
   betterleaks:
     name: Betterleaks
     runs-on: ubuntu-latest

@@ -5,34 +5,38 @@
 </picture>
 
 [![CI](https://github.com/envsemble/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/atlas/actions/workflows/ci.yml)
-[![Version 0.5.0](https://img.shields.io/badge/version-0.5.0-blue)](CHANGELOG.md)
+[![Version 0.6.0](https://img.shields.io/badge/version-0.6.0-blue)](CHANGELOG.md)
 [![Node 24](https://img.shields.io/badge/Node-24-43853d)](docs/releases.md)
 [![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)
 
-Atlas keeps plans, decisions and models in a place both a coding agent and its human can read. Plans, ledgers, glossaries, ADRs and evidence live in a versioned `planning` folder. Next to each plan, the agent keeps models: dated captures of database or class structure, and the conceptual UML/OntoUML proposals built on them. The human reads all of it in the Atlas app. The agent edits through the `atlas` command, its MCP server and the Atlas skills.
+Atlas keeps plans, decisions and models in a place both a coding agent and its human can read. Plans, ledgers, glossaries, ADRs and evidence live in a versioned `planning` folder. Next to each plan, the agent keeps models: dated captures of database or class structure, and the conceptual UML/OntoUML proposals built on them. The human reads all of it in the Atlas desktop app. The agent edits through the `atlas` command, its MCP server and the Atlas skills.
 
 [Start](#start) · [The atlas command](#install-the-atlas-command) · [Skills](skills/README.md) · [App](app/README.md) · [Agent interface](docs/agent-interface.md) · [Embedding](docs/embedding.md) · [Export/reopen](docs/portable-documents.md) · [Comparison](docs/comparison.md) · [Learning reports](docs/learning-reports.md) · [PR/MR review](docs/review-ci.md)
 
-![The Atlas app showing an agent's proposed database change in its work item's Diagrams tab](app/assets/atlas-dashboard.jpg)
+![The Atlas desktop app showing an agent's proposed change to captured code in its work item's Diagrams view](app/assets/atlas-desktop.jpg)
 
-| Part                                          | What it does                                                                                                                        |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| [App](app/README.md)                          | Reads a planning folder: work items, plans, ledgers, knowledge, Git activity, usage statistics and each plan's diagrams. Read-only. |
-| [`atlas` command](#install-the-atlas-command) | Model tools, the MCP server, planning checks, plan export and import, and consultation logging, for agents and scripts.             |
-| [Skills](skills/README.md)                    | Seven `atlas-*` agent skills for setting up, grilling, implementing, recording and organizing plans, and for modeling.              |
-| [Diagram package](packages/diagrams)          | Captures, validates, lays out and renders models, and exports self-contained offline HTML. Used by the app and the command.         |
-| [Planning reader](packages/planning)          | The planning-folder reader shared by the app and the command, including [plan export and import](docs/plan-export.md).              |
+| Part                                          | What it does                                                                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [App](app/README.md)                          | The desktop app for Windows and Linux: one window per planning folder with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams. |
+| [`atlas` command](#install-the-atlas-command) | Model tools, the MCP server, planning checks, plan export and import, and consultation logging, for agents and scripts.                                |
+| [Skills](skills/README.md)                    | Seven `atlas-*` agent skills for setting up, grilling, implementing, recording and organizing plans, and for modeling.                                 |
+| [Diagram package](packages/diagrams)          | Captures, validates, lays out and renders models, and exports self-contained offline HTML. Used by the app and the command.                            |
+| [Planning reader](packages/planning)          | The planning-folder reader shared by the app and the command, including [plan export and import](docs/plan-export.md).                                 |
 
 ## Start
 
 Use **Node 24**, npm and Git. Java extraction also needs **JDK 21**, and PostgreSQL capture needs a supported PostgreSQL 17 schema.
 
+Install the desktop app from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both. Then use **File › Open Folder…** to open a planning folder; each folder gets its own window.
+
+To run it from a checkout:
+
 ```sh
 npm ci
-npm run dev --workspace @envsemble/atlas-app
+npm run dev -- /path/to/planning
 ```
 
-Open `http://127.0.0.1:4317/`. The app reads the `planning` folder next to this checkout; pass `-- --planning-dir /path/to/planning` to read another, or switch folders from the sidebar. Plans, models and statistics stay local, and no model service or API key is needed. The [app guide](app/README.md) covers its views, diagrams and usage statistics.
+`npm run dev` starts the app with hot reload; the folder is optional. Plans, models and statistics stay local, and no model service or API key is needed. The [app guide](app/README.md) covers its windows, explorer, tabs, diagrams and usage statistics.
 
 Each work item keeps its models in its own folder (`<work>/.atlas/`), so a plan, its ledger and its diagrams move together. Plans show a card under every heading a diagram explains, and each diagram is labelled **Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**.
 
@@ -108,7 +112,7 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 
 ![Agent proposal compared with its captured baseline: Baseline and Changes modes, and a change list grouping added and modified elements with before and after values and linked rationale](assets/comparison-dark.jpg)
 
-`npm run dev` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates. `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module; the HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service. The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation.
+`npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates. `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module; the HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service. The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation.
 
 ```sh
 node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --report

@@ -1,0 +1,1200 @@
+{
+  "id": "work-0004-reservation-proposal",
+  "title": "Inventory · reservation proposal",
+  "profile": "database",
+  "state": "proposal",
+  "model": {
+    "type": "StructuralModel",
+    "nodes": [
+      {
+        "id": "db:sqlite:northwind-inventory:main:product",
+        "name": "product",
+        "kind": "table",
+        "namespace": "main",
+        "attributes": [
+          {
+            "id": "db:sqlite:northwind-inventory:main:product:column:sku",
+            "name": "sku",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 0,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": 1,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:product:column:name",
+            "name": "name",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 1,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:product:column:unit_price_minor",
+            "name": "unit_price_minor",
+            "type": "INTEGER",
+            "declaredType": "INTEGER",
+            "ordinal": 2,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:product:column:currency",
+            "name": "currency",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 3,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": "'EUR'",
+            "primaryKeyOrder": null,
+            "generated": false
+          }
+        ],
+        "keys": [
+          {
+            "name": "PRIMARY KEY",
+            "columns": [
+              "sku"
+            ],
+            "primary": true
+          }
+        ],
+        "indexes": [
+          {
+            "name": "sqlite_autoindex_product_1",
+            "unique": true,
+            "partial": false,
+            "columns": [
+              "sku"
+            ],
+            "collations": [
+              "BINARY"
+            ],
+            "definition": null
+          }
+        ],
+        "definition": "CREATE TABLE product (\n  sku TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  unit_price_minor INTEGER NOT NULL CHECK (unit_price_minor >= 0),\n  currency TEXT NOT NULL DEFAULT 'EUR'\n) WITHOUT ROWID",
+        "withoutRowid": true,
+        "strict": false,
+        "foreignKeys": []
+      },
+      {
+        "id": "db:sqlite:northwind-inventory:main:warehouse",
+        "name": "warehouse",
+        "kind": "table",
+        "namespace": "main",
+        "attributes": [
+          {
+            "id": "db:sqlite:northwind-inventory:main:warehouse:column:id",
+            "name": "id",
+            "type": "INTEGER",
+            "declaredType": "INTEGER",
+            "ordinal": 0,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": 1,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:warehouse:column:code",
+            "name": "code",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 1,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:warehouse:column:name",
+            "name": "name",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 2,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:warehouse:column:country",
+            "name": "country",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 3,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          }
+        ],
+        "keys": [
+          {
+            "name": "PRIMARY KEY",
+            "columns": [
+              "id"
+            ],
+            "primary": true
+          },
+          {
+            "name": "sqlite_autoindex_warehouse_1",
+            "columns": [
+              "code"
+            ],
+            "primary": false,
+            "origin": "u"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "sqlite_autoindex_warehouse_1",
+            "unique": true,
+            "partial": false,
+            "columns": [
+              "code"
+            ],
+            "collations": [
+              "BINARY"
+            ],
+            "definition": null
+          }
+        ],
+        "definition": "CREATE TABLE warehouse (\n  id INTEGER PRIMARY KEY,\n  code TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  country TEXT NOT NULL CHECK (length(country) = 2)\n)",
+        "withoutRowid": false,
+        "strict": false,
+        "foreignKeys": []
+      },
+      {
+        "id": "db:sqlite:northwind-inventory:main:stock_level",
+        "name": "stock_level",
+        "kind": "table",
+        "namespace": "main",
+        "attributes": [
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level:column:warehouse_id",
+            "name": "warehouse_id",
+            "type": "INTEGER",
+            "declaredType": "INTEGER",
+            "ordinal": 0,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": 1,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level:column:sku",
+            "name": "sku",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 1,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": 2,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level:column:on_hand",
+            "name": "on_hand",
+            "type": "INTEGER",
+            "declaredType": "INTEGER",
+            "ordinal": 2,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": "0",
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level:column:updated_at",
+            "name": "updated_at",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 3,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level:column:reserved",
+            "name": "reserved",
+            "type": "INTEGER",
+            "declaredType": "INTEGER",
+            "ordinal": 4,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": "0",
+            "primaryKeyOrder": null,
+            "generated": false
+          }
+        ],
+        "keys": [
+          {
+            "name": "PRIMARY KEY",
+            "columns": [
+              "warehouse_id",
+              "sku"
+            ],
+            "primary": true
+          }
+        ],
+        "indexes": [
+          {
+            "name": "sqlite_autoindex_stock_level_1",
+            "unique": true,
+            "partial": false,
+            "columns": [
+              "warehouse_id",
+              "sku"
+            ],
+            "collations": [
+              "BINARY",
+              "BINARY"
+            ],
+            "definition": null
+          }
+        ],
+        "definition": "CREATE TABLE stock_level (\n  warehouse_id INTEGER NOT NULL REFERENCES warehouse(id),\n  sku TEXT NOT NULL REFERENCES product(sku),\n  on_hand INTEGER NOT NULL DEFAULT 0 CHECK (on_hand >= 0),\n  updated_at TEXT NOT NULL,\n  PRIMARY KEY (warehouse_id, sku)\n)",
+        "withoutRowid": false,
+        "strict": false,
+        "foreignKeys": [
+          {
+            "columns": [
+              "sku"
+            ],
+            "target": "product",
+            "targetColumns": [
+              "sku"
+            ],
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "match": "SIMPLE"
+          },
+          {
+            "columns": [
+              "warehouse_id"
+            ],
+            "target": "warehouse",
+            "targetColumns": [
+              "id"
+            ],
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "match": "SIMPLE"
+          }
+        ]
+      },
+      {
+        "id": "db:sqlite:northwind-inventory:main:stock_reservation",
+        "name": "stock_reservation",
+        "kind": "table",
+        "namespace": "main",
+        "attributes": [
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:id",
+            "name": "id",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 0,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": 1,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:order_id",
+            "name": "order_id",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 1,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:warehouse_id",
+            "name": "warehouse_id",
+            "type": "INTEGER",
+            "declaredType": "INTEGER",
+            "ordinal": 2,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:sku",
+            "name": "sku",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 3,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:quantity",
+            "name": "quantity",
+            "type": "INTEGER",
+            "declaredType": "INTEGER",
+            "ordinal": 4,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:status",
+            "name": "status",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 5,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:expires_at",
+            "name": "expires_at",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 6,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:created_at",
+            "name": "created_at",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 7,
+            "nullable": false,
+            "multiplicity": "1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_reservation:column:released_at",
+            "name": "released_at",
+            "type": "TEXT",
+            "declaredType": "TEXT",
+            "ordinal": 8,
+            "nullable": true,
+            "multiplicity": "0..1",
+            "default": null,
+            "primaryKeyOrder": null,
+            "generated": false
+          }
+        ],
+        "keys": [
+          {
+            "name": "PRIMARY KEY",
+            "columns": [
+              "id"
+            ],
+            "primary": true
+          },
+          {
+            "name": "stock_reservation_order_line",
+            "columns": [
+              "order_id",
+              "warehouse_id",
+              "sku"
+            ],
+            "primary": false,
+            "origin": "c"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "stock_reservation_expiry",
+            "unique": false,
+            "partial": false,
+            "columns": [
+              "status",
+              "expires_at"
+            ],
+            "collations": [
+              "BINARY",
+              "BINARY"
+            ],
+            "definition": "CREATE INDEX stock_reservation_expiry ON stock_reservation (status, expires_at)"
+          }
+        ],
+        "definition": "CREATE TABLE stock_reservation (\n  id TEXT PRIMARY KEY NOT NULL,\n  order_id TEXT NOT NULL,\n  warehouse_id INTEGER NOT NULL,\n  sku TEXT NOT NULL,\n  quantity INTEGER NOT NULL CHECK (quantity > 0),\n  status TEXT NOT NULL CHECK (status IN ('held', 'committed', 'released')),\n  expires_at TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  released_at TEXT,\n  FOREIGN KEY (warehouse_id, sku) REFERENCES stock_level (warehouse_id, sku)\n)",
+        "withoutRowid": false,
+        "strict": false,
+        "foreignKeys": [
+          {
+            "columns": [
+              "warehouse_id",
+              "sku"
+            ],
+            "target": "stock_level",
+            "targetColumns": [
+              "warehouse_id",
+              "sku"
+            ],
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "match": "SIMPLE"
+          }
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "id": "db:sqlite:northwind-inventory:main:stock_level:fk:04d1bc956b27fbf302e1:0",
+        "name": "sku → sku",
+        "stereotype": "foreign key",
+        "sourceId": "db:sqlite:northwind-inventory:main:stock_level",
+        "targetId": "db:sqlite:northwind-inventory:main:product",
+        "sourceMultiplicity": "0..*",
+        "targetMultiplicity": "1",
+        "columns": [
+          "sku"
+        ],
+        "target": "product",
+        "targetColumns": [
+          "sku"
+        ],
+        "onDelete": "NO ACTION",
+        "onUpdate": "NO ACTION",
+        "match": "SIMPLE"
+      },
+      {
+        "id": "db:sqlite:northwind-inventory:main:stock_level:fk:1ace7dd5ebbf590d0a6d:0",
+        "name": "warehouse_id → id",
+        "stereotype": "foreign key",
+        "sourceId": "db:sqlite:northwind-inventory:main:stock_level",
+        "targetId": "db:sqlite:northwind-inventory:main:warehouse",
+        "sourceMultiplicity": "0..*",
+        "targetMultiplicity": "1",
+        "columns": [
+          "warehouse_id"
+        ],
+        "target": "warehouse",
+        "targetColumns": [
+          "id"
+        ],
+        "onDelete": "NO ACTION",
+        "onUpdate": "NO ACTION",
+        "match": "SIMPLE"
+      },
+      {
+        "id": "db:sqlite:northwind-inventory:main:stock_reservation:fk:29c9f81cd56e4c15eaad:0",
+        "name": "warehouse_id, sku → warehouse_id, sku",
+        "stereotype": "foreign key",
+        "sourceId": "db:sqlite:northwind-inventory:main:stock_reservation",
+        "targetId": "db:sqlite:northwind-inventory:main:stock_level",
+        "sourceMultiplicity": "0..*",
+        "targetMultiplicity": "1",
+        "columns": [
+          "warehouse_id",
+          "sku"
+        ],
+        "target": "stock_level",
+        "targetColumns": [
+          "warehouse_id",
+          "sku"
+        ],
+        "onDelete": "NO ACTION",
+        "onUpdate": "NO ACTION",
+        "match": "SIMPLE"
+      }
+    ],
+    "generalizations": [],
+    "generalizationSets": [],
+    "constraints": [
+      [
+        "db:sqlite:northwind-inventory:main:product",
+        "CREATE TABLE product (\n  sku TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  unit_price_minor INTEGER NOT NULL CHECK (unit_price_minor >= 0),\n  currency TEXT NOT NULL DEFAULT 'EUR'\n) WITHOUT ROWID"
+      ],
+      [
+        "db:sqlite:northwind-inventory:main:stock_level",
+        "CREATE TABLE stock_level (\n  warehouse_id INTEGER NOT NULL REFERENCES warehouse(id),\n  sku TEXT NOT NULL REFERENCES product(sku),\n  on_hand INTEGER NOT NULL DEFAULT 0 CHECK (on_hand >= 0),\n  updated_at TEXT NOT NULL,\n  PRIMARY KEY (warehouse_id, sku)\n)"
+      ],
+      [
+        "db:sqlite:northwind-inventory:main:warehouse",
+        "CREATE TABLE warehouse (\n  id INTEGER PRIMARY KEY,\n  code TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  country TEXT NOT NULL CHECK (length(country) = 2)\n)"
+      ]
+    ]
+  },
+  "snapshots": [
+    {
+      "id": "capture-e4e32d63-6cf8-45ee-a8fa-a4ec22b6d822",
+      "profile": "database",
+      "model": {
+        "type": "StructuralModel",
+        "nodes": [
+          {
+            "id": "db:sqlite:northwind-inventory:main:product",
+            "name": "product",
+            "kind": "table",
+            "namespace": "main",
+            "attributes": [
+              {
+                "id": "db:sqlite:northwind-inventory:main:product:column:sku",
+                "name": "sku",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 0,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": 1,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:product:column:name",
+                "name": "name",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 1,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": null,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:product:column:unit_price_minor",
+                "name": "unit_price_minor",
+                "type": "INTEGER",
+                "declaredType": "INTEGER",
+                "ordinal": 2,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": null,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:product:column:currency",
+                "name": "currency",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 3,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": "'EUR'",
+                "primaryKeyOrder": null,
+                "generated": false
+              }
+            ],
+            "keys": [
+              {
+                "name": "PRIMARY KEY",
+                "columns": [
+                  "sku"
+                ],
+                "primary": true
+              }
+            ],
+            "indexes": [
+              {
+                "name": "sqlite_autoindex_product_1",
+                "unique": true,
+                "partial": false,
+                "columns": [
+                  "sku"
+                ],
+                "collations": [
+                  "BINARY"
+                ],
+                "definition": null
+              }
+            ],
+            "definition": "CREATE TABLE product (\n  sku TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  unit_price_minor INTEGER NOT NULL CHECK (unit_price_minor >= 0),\n  currency TEXT NOT NULL DEFAULT 'EUR'\n) WITHOUT ROWID",
+            "withoutRowid": true,
+            "strict": false,
+            "foreignKeys": []
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level",
+            "name": "stock_level",
+            "kind": "table",
+            "namespace": "main",
+            "attributes": [
+              {
+                "id": "db:sqlite:northwind-inventory:main:stock_level:column:warehouse_id",
+                "name": "warehouse_id",
+                "type": "INTEGER",
+                "declaredType": "INTEGER",
+                "ordinal": 0,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": 1,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:stock_level:column:sku",
+                "name": "sku",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 1,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": 2,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:stock_level:column:on_hand",
+                "name": "on_hand",
+                "type": "INTEGER",
+                "declaredType": "INTEGER",
+                "ordinal": 2,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": "0",
+                "primaryKeyOrder": null,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:stock_level:column:updated_at",
+                "name": "updated_at",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 3,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": null,
+                "generated": false
+              }
+            ],
+            "keys": [
+              {
+                "name": "PRIMARY KEY",
+                "columns": [
+                  "warehouse_id",
+                  "sku"
+                ],
+                "primary": true
+              }
+            ],
+            "indexes": [
+              {
+                "name": "sqlite_autoindex_stock_level_1",
+                "unique": true,
+                "partial": false,
+                "columns": [
+                  "warehouse_id",
+                  "sku"
+                ],
+                "collations": [
+                  "BINARY",
+                  "BINARY"
+                ],
+                "definition": null
+              }
+            ],
+            "definition": "CREATE TABLE stock_level (\n  warehouse_id INTEGER NOT NULL REFERENCES warehouse(id),\n  sku TEXT NOT NULL REFERENCES product(sku),\n  on_hand INTEGER NOT NULL DEFAULT 0 CHECK (on_hand >= 0),\n  updated_at TEXT NOT NULL,\n  PRIMARY KEY (warehouse_id, sku)\n)",
+            "withoutRowid": false,
+            "strict": false,
+            "foreignKeys": [
+              {
+                "columns": [
+                  "sku"
+                ],
+                "target": "product",
+                "targetColumns": [
+                  "sku"
+                ],
+                "onDelete": "NO ACTION",
+                "onUpdate": "NO ACTION",
+                "match": "SIMPLE"
+              },
+              {
+                "columns": [
+                  "warehouse_id"
+                ],
+                "target": "warehouse",
+                "targetColumns": [
+                  "id"
+                ],
+                "onDelete": "NO ACTION",
+                "onUpdate": "NO ACTION",
+                "match": "SIMPLE"
+              }
+            ]
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:warehouse",
+            "name": "warehouse",
+            "kind": "table",
+            "namespace": "main",
+            "attributes": [
+              {
+                "id": "db:sqlite:northwind-inventory:main:warehouse:column:id",
+                "name": "id",
+                "type": "INTEGER",
+                "declaredType": "INTEGER",
+                "ordinal": 0,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": 1,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:warehouse:column:code",
+                "name": "code",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 1,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": null,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:warehouse:column:name",
+                "name": "name",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 2,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": null,
+                "generated": false
+              },
+              {
+                "id": "db:sqlite:northwind-inventory:main:warehouse:column:country",
+                "name": "country",
+                "type": "TEXT",
+                "declaredType": "TEXT",
+                "ordinal": 3,
+                "nullable": false,
+                "multiplicity": "1",
+                "default": null,
+                "primaryKeyOrder": null,
+                "generated": false
+              }
+            ],
+            "keys": [
+              {
+                "name": "PRIMARY KEY",
+                "columns": [
+                  "id"
+                ],
+                "primary": true
+              },
+              {
+                "name": "sqlite_autoindex_warehouse_1",
+                "columns": [
+                  "code"
+                ],
+                "primary": false,
+                "origin": "u"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "sqlite_autoindex_warehouse_1",
+                "unique": true,
+                "partial": false,
+                "columns": [
+                  "code"
+                ],
+                "collations": [
+                  "BINARY"
+                ],
+                "definition": null
+              }
+            ],
+            "definition": "CREATE TABLE warehouse (\n  id INTEGER PRIMARY KEY,\n  code TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  country TEXT NOT NULL CHECK (length(country) = 2)\n)",
+            "withoutRowid": false,
+            "strict": false,
+            "foreignKeys": []
+          }
+        ],
+        "relations": [
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level:fk:04d1bc956b27fbf302e1:0",
+            "name": "sku → sku",
+            "stereotype": "foreign key",
+            "sourceId": "db:sqlite:northwind-inventory:main:stock_level",
+            "targetId": "db:sqlite:northwind-inventory:main:product",
+            "sourceMultiplicity": "0..*",
+            "targetMultiplicity": "1",
+            "columns": [
+              "sku"
+            ],
+            "target": "product",
+            "targetColumns": [
+              "sku"
+            ],
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "match": "SIMPLE"
+          },
+          {
+            "id": "db:sqlite:northwind-inventory:main:stock_level:fk:1ace7dd5ebbf590d0a6d:0",
+            "name": "warehouse_id → id",
+            "stereotype": "foreign key",
+            "sourceId": "db:sqlite:northwind-inventory:main:stock_level",
+            "targetId": "db:sqlite:northwind-inventory:main:warehouse",
+            "sourceMultiplicity": "0..*",
+            "targetMultiplicity": "1",
+            "columns": [
+              "warehouse_id"
+            ],
+            "target": "warehouse",
+            "targetColumns": [
+              "id"
+            ],
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "match": "SIMPLE"
+          }
+        ],
+        "generalizations": [],
+        "generalizationSets": [],
+        "constraints": [
+          [
+            "db:sqlite:northwind-inventory:main:product",
+            "CREATE TABLE product (\n  sku TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  unit_price_minor INTEGER NOT NULL CHECK (unit_price_minor >= 0),\n  currency TEXT NOT NULL DEFAULT 'EUR'\n) WITHOUT ROWID"
+          ],
+          [
+            "db:sqlite:northwind-inventory:main:stock_level",
+            "CREATE TABLE stock_level (\n  warehouse_id INTEGER NOT NULL REFERENCES warehouse(id),\n  sku TEXT NOT NULL REFERENCES product(sku),\n  on_hand INTEGER NOT NULL DEFAULT 0 CHECK (on_hand >= 0),\n  updated_at TEXT NOT NULL,\n  PRIMARY KEY (warehouse_id, sku)\n)"
+          ],
+          [
+            "db:sqlite:northwind-inventory:main:warehouse",
+            "CREATE TABLE warehouse (\n  id INTEGER PRIMARY KEY,\n  code TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  country TEXT NOT NULL CHECK (length(country) = 2)\n)"
+          ]
+        ]
+      },
+      "capture": {
+        "capturedAt": "2026-09-09T12:40:00.000Z",
+        "adapter": {
+          "id": "atlas-sqlite",
+          "version": "1.0.0",
+          "configuration": {
+            "schemas": [
+              "main"
+            ],
+            "tables": [
+              "warehouse",
+              "product",
+              "stock_level"
+            ]
+          }
+        },
+        "source": {
+          "kind": "sqlite",
+          "identity": "northwind-inventory",
+          "scope": [
+            "main"
+          ],
+          "engineVersion": "3.53.3",
+          "file": "inventory.sqlite",
+          "foreignKeysEnabled": true
+        },
+        "coverage": {
+          "status": "complete",
+          "diagnostics": []
+        },
+        "consistency": {
+          "kind": "read-transaction",
+          "metadataOnly": true
+        },
+        "schemaFingerprint": "6665499cdbe7b4bbcc9d881be5c7862d94f4d8af34da52d15f425228798edb5c",
+        "limitations": [
+          "Declared metadata only; no application rows or runtime invariants were inspected."
+        ]
+      },
+      "integrity": "f1b441ccf5038e88eda753e93bf6f1f144a8e5757ac57d53102400947c0d4934"
+    }
+  ],
+  "baselineId": "capture-e4e32d63-6cf8-45ee-a8fa-a4ec22b6d822",
+  "workId": "work-0004",
+  "evidence": {
+    "sources": [
+      {
+        "id": "catalog:db:sqlite:northwind-inventory:main:product",
+        "file": "main.product",
+        "title": "product catalog",
+        "claim": "Observed database catalog metadata; SQL definitions are retained in this snapshot."
+      },
+      {
+        "id": "reference:8a86ae8aa87eaa7c7a16",
+        "file": "db/migrations/001_inventory.sql",
+        "title": "Migration 001",
+        "claim": "Reference supplied in source configuration; correspondence with the captured database is not verified."
+      },
+      {
+        "id": "catalog:db:sqlite:northwind-inventory:main:stock_level",
+        "file": "main.stock_level",
+        "title": "stock_level catalog",
+        "claim": "Observed database catalog metadata; SQL definitions are retained in this snapshot."
+      },
+      {
+        "id": "reference:73f530ff11414697f62c",
+        "file": "db/migrations/001_inventory.sql",
+        "title": "Migration 001",
+        "claim": "Reference supplied in source configuration; correspondence with the captured database is not verified."
+      },
+      {
+        "id": "catalog:db:sqlite:northwind-inventory:main:warehouse",
+        "file": "main.warehouse",
+        "title": "warehouse catalog",
+        "claim": "Observed database catalog metadata; SQL definitions are retained in this snapshot."
+      },
+      {
+        "id": "reference:b1dbedb7dfe91a6d2959",
+        "file": "db/migrations/001_inventory.sql",
+        "title": "Migration 001",
+        "claim": "Reference supplied in source configuration; correspondence with the captured database is not verified."
+      }
+    ],
+    "elements": {
+      "db:sqlite:northwind-inventory:main:product": {
+        "status": "observed",
+        "evidence": [
+          "catalog:db:sqlite:northwind-inventory:main:product",
+          "reference:8a86ae8aa87eaa7c7a16"
+        ],
+        "primarySource": "catalog:db:sqlite:northwind-inventory:main:product"
+      },
+      "db:sqlite:northwind-inventory:main:stock_level": {
+        "status": "observed",
+        "evidence": [
+          "catalog:db:sqlite:northwind-inventory:main:stock_level",
+          "reference:73f530ff11414697f62c"
+        ],
+        "primarySource": "catalog:db:sqlite:northwind-inventory:main:stock_level"
+      },
+      "db:sqlite:northwind-inventory:main:warehouse": {
+        "status": "observed",
+        "evidence": [
+          "catalog:db:sqlite:northwind-inventory:main:warehouse",
+          "reference:b1dbedb7dfe91a6d2959"
+        ],
+        "primarySource": "catalog:db:sqlite:northwind-inventory:main:warehouse"
+      },
+      "db:sqlite:northwind-inventory:main:stock_reservation": {
+        "status": "inferred",
+        "rationale": "Proposed table, one row per order line per warehouse."
+      },
+      "db:sqlite:northwind-inventory:main:stock_reservation:column:released_at": {
+        "status": "inferred",
+        "rationale": "Proposed; dropped during implementation in favour of the expired status (see ledger)."
+      }
+    },
+    "unknowns": [
+      "Declared metadata only; no application rows or runtime invariants were inspected."
+    ]
+  },
+  "format": "atlas/document",
+  "formatVersion": 1,
+  "views": [],
+  "snippets": {},
+  "context": {
+    "records": [
+      {
+        "id": "plan-reservation-lifecycle",
+        "kind": "plan",
+        "title": "Reservation lifecycle",
+        "text": "A reservation is **held** when checkout starts, then ends in exactly one of:\n- **committed**: payment authorised and the order saved;\n- **released**: payment declined or checkout failed;\n- **expired**: no outcome within 15 minutes, found by the sweeper.\nEnded reservations never change again. Fifteen minutes covers a 3-D Secure challenge (p99 four minutes) with margin.",
+        "path": "plan.md",
+        "section": "Reservation lifecycle"
+      },
+      {
+        "id": "plan-data-model",
+        "kind": "plan",
+        "title": "Data model",
+        "text": "- A new `stock_reservation` row per order line per warehouse, referencing `stock_level (warehouse_id, sku)`.\n- `stock_level.reserved` holds the reserved quantity. Available stock is `on_hand - reserved`; checkout never writes `on_hand`.\n- Migration 002 only adds; old code keeps working against the new schema.",
+        "path": "plan.md",
+        "section": "Data model"
+      },
+      {
+        "id": "plan-concurrency",
+        "kind": "plan",
+        "title": "Concurrency",
+        "text": "All lines of an order are reserved in one transaction with a conditional update (`reserved = reserved + :qty WHERE on_hand - reserved >= :qty`). If any line updates zero rows, the whole order fails with insufficient stock and nothing is held.",
+        "path": "plan.md",
+        "section": "Concurrency"
+      },
+      {
+        "id": "adr-reserve-at-checkout",
+        "kind": "decision",
+        "title": "Reserve stock at checkout, not when adding to cart",
+        "text": "We reserve stock when the customer places the order, for at most 15 minutes, rather than when an item goes into the cart. Carts live for three days on average, so cart reservations would hold sellable stock for idle carts and need long expiries and their own abandonment handling. Reserving at checkout closes exactly the window in which the overselling happened. The accepted cost: a product page can show \"in stock\" and the customer can still lose the last unit at checkout. The low-stock badge on product pages softens this.",
+        "path": "docs/adr/0001-reserve-at-checkout.md",
+        "section": "Reserve stock at checkout, not when adding to cart"
+      }
+    ],
+    "links": [
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_reservation",
+        "recordId": "plan-reservation-lifecycle"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_reservation:column:status",
+        "recordId": "plan-reservation-lifecycle"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_reservation:column:expires_at",
+        "recordId": "plan-reservation-lifecycle"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_reservation",
+        "recordId": "plan-data-model"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_level",
+        "recordId": "plan-data-model"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_reservation:fk:29c9f81cd56e4c15eaad:0",
+        "recordId": "plan-data-model"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_level:column:reserved",
+        "recordId": "plan-data-model"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_level:column:reserved",
+        "recordId": "plan-concurrency"
+      },
+      {
+        "elementId": "db:sqlite:northwind-inventory:main:stock_reservation",
+        "recordId": "adr-reserve-at-checkout"
+      }
+    ]
+  },
+  "revision": {
+    "id": "19cd383379db06fd6419ba262b5e2ba01b6b7e3ca76fbf062c07f85d1f00aab2",
+    "parentId": "e7689cd8d3ef453cbd376cbb38d064c5a738596d63c0869c3c5b820aaed11044",
+    "createdAt": "2026-09-10T09:35:00.000Z",
+    "reason": "Accepted: unique order line per warehouse, expiry index for the sweeper"
+  },
+  "comparison": {
+    "originDocumentId": "capture-9650f99c-94d5-412e-a873-cb1b3de05a9a",
+    "ancestorRevision": "38806e1ed42b85b2cad9fac7b09cfec1bbf8275f8c00e248e9c0f8dcfa1c7512",
+    "ancestorRevisions": [
+      "38806e1ed42b85b2cad9fac7b09cfec1bbf8275f8c00e248e9c0f8dcfa1c7512"
+    ],
+    "baselineContexts": {
+      "capture-e4e32d63-6cf8-45ee-a8fa-a4ec22b6d822": {
+        "title": "Inventory · captured database",
+        "evidence": {
+          "sources": [
+            {
+              "id": "catalog:db:sqlite:northwind-inventory:main:product",
+              "file": "main.product",
+              "title": "product catalog",
+              "claim": "Observed database catalog metadata; SQL definitions are retained in this snapshot."
+            },
+            {
+              "id": "reference:8a86ae8aa87eaa7c7a16",
+              "file": "db/migrations/001_inventory.sql",
+              "title": "Migration 001",
+              "claim": "Reference supplied in source configuration; correspondence with the captured database is not verified."
+            },
+            {
+              "id": "catalog:db:sqlite:northwind-inventory:main:stock_level",
+              "file": "main.stock_level",
+              "title": "stock_level catalog",
+              "claim": "Observed database catalog metadata; SQL definitions are retained in this snapshot."
+            },
+            {
+              "id": "reference:73f530ff11414697f62c",
+              "file": "db/migrations/001_inventory.sql",
+              "title": "Migration 001",
+              "claim": "Reference supplied in source configuration; correspondence with the captured database is not verified."
+            },
+            {
+              "id": "catalog:db:sqlite:northwind-inventory:main:warehouse",
+              "file": "main.warehouse",
+              "title": "warehouse catalog",
+              "claim": "Observed database catalog metadata; SQL definitions are retained in this snapshot."
+            },
+            {
+              "id": "reference:b1dbedb7dfe91a6d2959",
+              "file": "db/migrations/001_inventory.sql",
+              "title": "Migration 001",
+              "claim": "Reference supplied in source configuration; correspondence with the captured database is not verified."
+            }
+          ],
+          "elements": {
+            "db:sqlite:northwind-inventory:main:product": {
+              "status": "observed",
+              "evidence": [
+                "catalog:db:sqlite:northwind-inventory:main:product",
+                "reference:8a86ae8aa87eaa7c7a16"
+              ],
+              "primarySource": "catalog:db:sqlite:northwind-inventory:main:product"
+            },
+            "db:sqlite:northwind-inventory:main:stock_level": {
+              "status": "observed",
+              "evidence": [
+                "catalog:db:sqlite:northwind-inventory:main:stock_level",
+                "reference:73f530ff11414697f62c"
+              ],
+              "primarySource": "catalog:db:sqlite:northwind-inventory:main:stock_level"
+            },
+            "db:sqlite:northwind-inventory:main:warehouse": {
+              "status": "observed",
+              "evidence": [
+                "catalog:db:sqlite:northwind-inventory:main:warehouse",
+                "reference:b1dbedb7dfe91a6d2959"
+              ],
+              "primarySource": "catalog:db:sqlite:northwind-inventory:main:warehouse"
+            }
+          },
+          "unknowns": [
+            "Declared metadata only; no application rows or runtime invariants were inspected."
+          ]
+        },
+        "snippets": {},
+        "context": {
+          "records": [],
+          "links": []
+        },
+        "views": [],
+        "mappings": [],
+        "sourceRevision": "38806e1ed42b85b2cad9fac7b09cfec1bbf8275f8c00e248e9c0f8dcfa1c7512"
+      }
+    },
+    "conflicts": []
+  }
+}
