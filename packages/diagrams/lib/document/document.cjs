@@ -489,6 +489,72 @@ function reviseDocument(
   assertDocument(revised);
   return revised;
 }
+// Move a document to another work item: change only its work identity and the
+// paths of its context records. No modeled fact changes, so its state (including
+// a captured snapshot) is kept; the move is still a recorded revision.
+function relocateDocument(
+  document,
+  changes = {},
+  expectedRevision = document.revision.id,
+) {
+  const plain = (value) =>
+    value !== null &&
+    typeof value === "object" &&
+    [Object.prototype, null].includes(Object.getPrototypeOf(value));
+  if (!plain(changes))
+    throw new Error("RELOCATE_INPUT: changes must be a plain object");
+  const unknown = Object.keys(changes).filter(
+    (key) => !["workId", "recordPaths", "reason"].includes(key),
+  );
+  if (unknown.length)
+    throw new Error(
+      `RELOCATE_INPUT: relocation changes only workId and recordPaths, not ${unknown.join(", ")}`,
+    );
+  const { workId, recordPaths = {}, reason } = changes;
+  if (!plain(recordPaths))
+    throw new Error("RELOCATE_RECORD: recordPaths must be a plain object");
+  if (reason !== undefined && (typeof reason !== "string" || !reason))
+    throw new Error("RELOCATE_INPUT: reason must be nonempty text");
+  assertDocument(document);
+  if (expectedRevision !== document.revision.id)
+    throw new Error("REVISION_CONFLICT: document has changed");
+  if (
+    workId !== undefined &&
+    (typeof workId !== "string" || !/^work-[0-9]{4,}$/.test(workId))
+  )
+    throw new Error("RELOCATE_WORK: workId must be a work-NNNN identity");
+  const records = new Map(document.context.records.map((r) => [r.id, r]));
+  for (const [id, path] of Object.entries(recordPaths)) {
+    if (!records.has(id))
+      throw new Error(`RELOCATE_RECORD: no context record ${id}`);
+    if (
+      path !== null &&
+      (typeof path !== "string" || !path || path.length > 2048)
+    )
+      throw new Error("RELOCATE_PATH: a record path must be text or null");
+  }
+  if (workId === undefined && !Object.keys(recordPaths).length)
+    throw new Error("RELOCATE_EMPTY: nothing to relocate");
+  const relocated = clone(document);
+  if (workId !== undefined) relocated.workId = workId;
+  relocated.context.records = relocated.context.records.map((record) => {
+    if (!Object.hasOwn(recordPaths, record.id)) return record;
+    const { path: ignored, ...rest } = record;
+    return recordPaths[record.id] === null
+      ? rest
+      : { ...record, path: recordPaths[record.id] };
+  });
+  relocated.revision = {
+    ...relocated.revision,
+    id: "",
+    parentId: document.revision.id,
+    createdAt: new Date().toISOString(),
+    reason: reason || "Relocated model",
+  };
+  relocated.revision.id = fingerprint(relocated);
+  assertDocument(relocated);
+  return relocated;
+}
 function createSnapshot({ profile, model, capture, id }) {
   const snapshot = {
     id: id || `capture-${randomUUID()}`,
@@ -557,6 +623,7 @@ function documentViewerModel(document) {
 module.exports = {
   createDocument,
   reviseDocument,
+  relocateDocument,
   validateDocument,
   assertDocument,
   createSnapshot,

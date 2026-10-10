@@ -6,6 +6,8 @@ The [ontouml-js](https://github.com/OntoUML/ontouml-js) dependency supplies stan
 
 React and React DOM 19.3.0 are bundled into offline HTML under their MIT licenses. Full license text remains embedded in the HTML, with copies in packages/diagrams/licenses/. The reusable React module uses peer dependencies instead of bundling another React runtime.
 
+The plan export viewer (`packages/planning/dist/plan-viewer.html`) bundles React and React DOM, react-markdown and remark-gfm with their unified, micromark, mdast and hast dependencies, github-slugger, the Octicons icons it uses, Primer primitives' Dark dimmed tokens and fflate, each under its MIT or ISC license. The build lists every bundled package with its version and license and embeds the license texts in the viewer script.
+
 GitHub [Primer primitives](https://github.com/primer/primitives) supply the app's design tokens under their MIT license, distributed with the npm dependency.
 
 The `atlas-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's work and keep their [attribution](skills/atlas-grill/references/ATTRIBUTION.md) and [MIT license](skills/atlas-grill/references/LICENSE).

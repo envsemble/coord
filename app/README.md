@@ -98,7 +98,7 @@ Atlas watches the planning folder instead of polling. Changes are collected for 
 
 ## Import and export
 
-**File › Export Plan…** (also on a work folder's context menu) saves a work item as one self-contained HTML file; **File › Import Plan…** previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and adds it as new work, without committing. These run the `packages/planning` export from work-0012 in a worker thread, so large files do not block the window. Builds without that code say "Plan export is not available in this build."
+**File › Export Plan…** (also on a work folder's context menu in the explorer) saves a work item as one self-contained HTML file that opens offline in any browser; with no work item open, it first asks which one. **File › Import Plan…** previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused in an error dialog before anything is written. If an import has to be rolled back and some files could not be removed, an error dialog lists them as reported. Both run the [plan export](../docs/plan-export.md) code from `packages/planning` in a worker thread, so large files do not block the window. The export viewer (`packages/planning/viewer`) shares `src/style.css` with the app; the window's own page rules live in `src/app.css`.
 
 ## Security and privacy
 

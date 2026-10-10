@@ -81,7 +81,10 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     try {
       const preview = await api.chooseImport();
       if (preview) setImporting(preview);
-    } catch (error) { notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger'); }
+    } catch (error) {
+      if ((error as AtlasError).code === 'cancelled') return;
+      notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger');
+    }
   }, [notify]);
 
   const runCommand = useCallback((command: MenuCommand) => {

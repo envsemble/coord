@@ -19,7 +19,7 @@ const pending = new Map<number, { resolve(value: unknown): void; reject(error: u
 
 /** PlanExportError codes from work-0012, as the window's error codes. */
 const codes: Record<string, AtlasError['code']> = {
-  FORMAT: 'invalid-argument', VERSION: 'invalid-argument', PATH: 'invalid-argument', DUPLICATE: 'invalid-argument', INTEGRITY: 'invalid-argument', LIMIT: 'invalid-argument',
+  FORMAT: 'invalid-argument', VERSION: 'invalid-argument', PATH: 'invalid-argument', DUPLICATE: 'invalid-argument', INTEGRITY: 'invalid-argument', LIMIT: 'invalid-argument', ROLLBACK: 'internal',
   SOURCE: 'folder-invalid', WORK: 'not-found', TARGET: 'folder-invalid', CONFLICT: 'unavailable',
 };
 
@@ -33,8 +33,8 @@ function start(): Worker {
     if (response.ok) { waiting.resolve(response.value); return; }
     const { name, code, message } = response.error;
     if (name === 'Unavailable') waiting.reject(new AtlasError('unavailable', unavailableMessage));
-    else if (code && codes[code]) waiting.reject(new AtlasError(codes[code], message));
-    else waiting.reject(new AtlasError('invalid-argument', message));
+    else if (code && codes[code]) waiting.reject(new AtlasError(codes[code], message, code));
+    else waiting.reject(new AtlasError('invalid-argument', message, code));
   });
   const fail = (error: Error) => {
     for (const waiting of pending.values()) waiting.reject(error);

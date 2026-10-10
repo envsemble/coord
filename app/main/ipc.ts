@@ -101,7 +101,13 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         const choice = await dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] });
         if (choice.canceled || !choice.filePaths[0]) return null;
         const file = choice.filePaths[0];
-        const read = await planExport.read(current.root, file);
+        let read;
+        try { read = await planExport.read(current.root, file); } catch (error) {
+          // A file that is not a valid export is refused before anything is written.
+          await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'This file cannot be imported.', detail: (error as Error).message + '\n\nNothing was written.', buttons: ['OK'] });
+          // Already explained in the dialog; the window does not repeat it.
+          throw new AtlasError('cancelled', (error as Error).message);
+        }
         const described = describePreview(read.preview);
         const target = read.target ?? expectedTarget(current.root, described.title, described.location);
         const key = randomUUID();
@@ -117,7 +123,14 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         pendingImports.delete(key);
         if (!pending || pending.window !== window.id || pending.expires < Date.now()) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
         // The explicit user action that writes into the planning folder; nothing is committed.
-        const result = describeImport(await planExport.import(folder(window).root, pending.preview));
+        let imported;
+        try { imported = await planExport.import(folder(window).root, pending.preview); } catch (error) {
+          // A rollback that could not remove everything says which files remain; show it as written.
+          if ((error as AtlasError).reason === 'ROLLBACK') await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'The import was rolled back.', detail: (error as Error).message, buttons: ['OK'] });
+          await folder(window).reload();
+          throw error;
+        }
+        const result = describeImport(imported);
         manager.context.log.info('Plan imported', { workId: result.workId, files: result.files });
         await folder(window).reload();
         return result;

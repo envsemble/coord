@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
@@ -17,6 +18,23 @@ function contentSecurityPolicy(): Plugin {
   };
 }
 
+// The planning package's plan export reads two files next to its own module: its package.json
+// (for the version it records) and dist/plan-viewer.html (the export template). Bundled into
+// out/main, those paths resolve to out/package.json and out/dist/plan-viewer.html.
+function planningFiles(): Plugin {
+  const planning = resolve(import.meta.dirname, '../packages/planning');
+  return {
+    name: 'atlas-planning-files',
+    writeBundle(options) {
+      const out = resolve(options.dir ?? dirname(options.file!), '..');
+      const { version } = JSON.parse(readFileSync(resolve(planning, 'package.json'), 'utf8')) as { version: string };
+      writeFileSync(resolve(out, 'package.json'), JSON.stringify({ type: 'module', version }, null, 2) + '\n');
+      mkdirSync(resolve(out, 'dist'), { recursive: true });
+      writeFileSync(resolve(out, 'dist/plan-viewer.html'), readFileSync(resolve(planning, 'dist/plan-viewer.html')));
+    },
+  };
+}
+
 export default defineConfig({
   main: {
     build: {
@@ -26,6 +44,7 @@ export default defineConfig({
       lib: { entry: resolve(import.meta.dirname, 'main/index.ts') },
       sourcemap: true,
     },
+    plugins: [planningFiles()],
   },
   preload: {
     build: {

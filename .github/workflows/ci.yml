@@ -58,7 +58,9 @@ jobs:
       - run: npm run build --workspace @envsemble/atlas-app
       - run: npm run check && npm run check:package && npm run check:performance
       - run: npm run check:review
-      - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist
+      # The plan export viewer bundles the diagram viewer built above, so it is rebuilt after it.
+      - run: npm run build --workspace @envsemble/atlas-planning
+      - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist packages/planning/dist
       - run: npm run check:release
       - run: npm run review:example -- artifacts/review --git
       - run: npm run release:assemble -- artifacts/release

@@ -1,4 +1,5 @@
-/* GitHub Primer Dark dimmed: Primer tokens, Octicons and system typography. Spacing follows Primer's 4/8/16/24 scale. */
+/* GitHub Primer Dark dimmed: Primer tokens, Octicons and system typography. Spacing follows Primer's 4/8/16/24 scale.
+   Shared with the plan export viewer (packages/planning/viewer); the app window's own page rules are in app.css. */
 :root {
   color-scheme: dark;
   --content-padding: 32px;
@@ -8,9 +9,8 @@
   color: var(--fgColor-default); background: var(--bgColor-default);
 }
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; }
-body { margin: 0; overflow: hidden; }
-body.is-resizing { cursor: col-resize; user-select: none; }
+body { margin: 0; }
+body.has-fullscreen { overflow: hidden; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; }

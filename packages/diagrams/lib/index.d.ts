@@ -435,6 +435,20 @@ export function reviseDocument(
   > & { reason?: string },
   expectedRevision?: string,
 ): AtlasDocument;
+/**
+ * Record a revision that moves a document to another work item: it changes only
+ * `workId` and the `path` of the named context records (null removes a path),
+ * and keeps the document's state, including a captured snapshot.
+ */
+export function relocateDocument(
+  document: AtlasDocument,
+  changes: {
+    workId?: string;
+    recordPaths?: Record<string, string | null>;
+    reason?: string;
+  },
+  expectedRevision?: string,
+): AtlasDocument;
 export function validateDocument(document: unknown): ValidationReport;
 export function createSnapshot(input: {
   profile: ModelProfile;
@@ -512,6 +526,11 @@ export interface AtlasToolArguments {
 export interface AtlasWorkspace {
   readonly root: string;
   load(handle: string): AtlasDocument;
+  /** Store a document and its revision history; `expectedRevision` must name the stored revision it replaces. */
+  save(
+    document: AtlasDocument,
+    expectedRevision?: string | null,
+  ): AtlasModelSummary;
   execute<T extends keyof AtlasToolArguments>(
     name: T,
     args: AtlasToolArguments[T],
