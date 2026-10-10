@@ -21,7 +21,7 @@ const EXPECTED = [
 const EXPLICIT_ONLY = new Set(["atlas-implement", "atlas-babysit-pr"]);
 // Keys valid for both Codex and Claude Code skill frontmatter.
 const FRONTMATTER_KEYS = new Set(["name", "description", "disable-model-invocation"]);
-const ATLAS_SUBCOMMANDS = new Set(["model", "planning", "usage", "mcp"]);
+const ATLAS_SUBCOMMANDS = new Set(["model", "planning", "plan", "usage", "mcp"]);
 
 // Old skill and product names. Character classes keep this file itself free of them.
 const RETIRED_NAMES = [

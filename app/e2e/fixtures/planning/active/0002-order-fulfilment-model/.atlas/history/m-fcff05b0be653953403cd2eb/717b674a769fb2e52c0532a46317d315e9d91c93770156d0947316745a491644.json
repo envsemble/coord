@@ -1,0 +1,2001 @@
+{
+  "id": "work-0002-fulfilment-model",
+  "title": "Fulfilment · conceptual model",
+  "workId": "work-0002",
+  "views": [
+    {
+      "key": "participants",
+      "label": "Participants",
+      "title": "Who and what takes part in fulfilment",
+      "nodeIds": [
+        "order",
+        "shipment",
+        "customer",
+        "seller",
+        "carrier",
+        "warehouse",
+        "parcel",
+        "person",
+        "organisation"
+      ],
+      "focusIds": [
+        "order",
+        "shipment"
+      ]
+    },
+    {
+      "key": "lifecycles",
+      "label": "Lifecycles",
+      "title": "Order and shipment phases",
+      "direction": "DOWN",
+      "nodeIds": [
+        "order",
+        "order-open",
+        "order-partially-shipped",
+        "order-fulfilled",
+        "order-cancelled",
+        "shipment",
+        "shipment-allocated",
+        "shipment-packed",
+        "shipment-in-transit",
+        "shipment-delivered",
+        "shipment-delivery-failed"
+      ]
+    }
+  ],
+  "context": {
+    "records": [
+      {
+        "id": "plan-why-model",
+        "kind": "plan",
+        "title": "Why a conceptual model first",
+        "text": "One-order-one-shipment is encoded in several places: `OrderStatus.Shipped`, the notification topics, and `Shipment.carrier` as a free-text string. Agreeing the concepts before touching the types avoids a second migration. The OntoUML diagram is the working artefact for this discussion; it is a draft, not a specification.",
+        "path": "plan.md",
+        "section": "Why a conceptual model first"
+      },
+      {
+        "id": "plan-participants",
+        "kind": "plan",
+        "title": "Participants",
+        "text": "- **Settled**: An order is between a customer and the seller. The seller is always Northwind today; modelling it as a role keeps marketplace sellers possible without promising them.\n- **Settled**: A shipment belongs to exactly one order and leaves from exactly one warehouse. An order has zero or more shipments.\n- **Proposed**: A carrier is optional until dispatch, because an allocated shipment has none yet. Parcels exist from packing onwards.",
+        "path": "plan.md",
+        "section": "Participants"
+      },
+      {
+        "id": "plan-shipment-lifecycle",
+        "kind": "plan",
+        "title": "Shipment lifecycle",
+        "text": "Allocated → Packed → In transit → Delivered. The phases are exclusive and every shipment is in exactly one of them.\n- **Added 2026-10-07**: Delivery failed, when the carrier has stopped trying (bad address, refused). What happens next is open question 1.",
+        "path": "plan.md",
+        "section": "Shipment lifecycle"
+      },
+      {
+        "id": "plan-order-status",
+        "kind": "plan",
+        "title": "Order status",
+        "text": "Open → Partially shipped → Fulfilled, or Cancelled. Derived from the order's shipments, never set directly.\n- Partially shipped: at least one shipment is in transit or delivered and some lines have no shipment yet.",
+        "path": "plan.md",
+        "section": "Order status"
+      },
+      {
+        "id": "plan-split-shipments",
+        "kind": "plan",
+        "title": "Split shipments",
+        "text": "- **Proposed**: Split only by warehouse, never within one warehouse: at most one shipment per warehouse per order.\n- **Settled**: Shipping is charged once per order, however many shipments it takes.",
+        "path": "plan.md",
+        "section": "Split shipments"
+      },
+      {
+        "id": "plan-open-questions",
+        "kind": "plan",
+        "title": "Open questions",
+        "text": "1. After a failed delivery, is the redelivery the same shipment (back to In transit) or a new one? This decides tracking-number history and whether work-0003 sends a second \"dispatched\" email.\n2. Can the unshipped rest of a partially shipped order be cancelled, and is that order then Fulfilled or Cancelled?\n3. Can a parcel move to a different shipment (re-packed after damage at the dock)? If so, a parcel's shipment isn't fixed.\n4. Is Picking a phase we need here, or only a state inside the warehouse system?",
+        "path": "plan.md",
+        "section": "Open questions"
+      },
+      {
+        "id": "term-order",
+        "kind": "glossary",
+        "title": "Order",
+        "text": "A customer's purchase from the seller, covering one or more order lines.",
+        "path": "CONTEXT.md",
+        "section": "Orders"
+      },
+      {
+        "id": "term-seller",
+        "kind": "glossary",
+        "title": "Seller",
+        "text": "The organisation an order is placed with. Currently always Northwind.",
+        "path": "CONTEXT.md",
+        "section": "Orders"
+      },
+      {
+        "id": "term-partially-shipped",
+        "kind": "glossary",
+        "title": "Partially shipped",
+        "text": "An order with at least one dispatched shipment and lines that have no shipment yet.",
+        "path": "CONTEXT.md",
+        "section": "Orders"
+      },
+      {
+        "id": "term-shipment",
+        "kind": "glossary",
+        "title": "Shipment",
+        "text": "Goods for one order that leave one warehouse together.",
+        "path": "CONTEXT.md",
+        "section": "Shipments"
+      },
+      {
+        "id": "term-parcel",
+        "kind": "glossary",
+        "title": "Parcel",
+        "text": "A physical package within a shipment, carrying its own carrier label.",
+        "path": "CONTEXT.md",
+        "section": "Shipments"
+      },
+      {
+        "id": "term-carrier",
+        "kind": "glossary",
+        "title": "Carrier",
+        "text": "The organisation that transports a shipment once it is dispatched.",
+        "path": "CONTEXT.md",
+        "section": "Shipments"
+      },
+      {
+        "id": "term-warehouse",
+        "kind": "glossary",
+        "title": "Warehouse",
+        "text": "A Northwind stock location that ships to customers.",
+        "path": "CONTEXT.md",
+        "section": "Shipments"
+      },
+      {
+        "id": "term-split-shipment",
+        "kind": "glossary",
+        "title": "Split shipment",
+        "text": "An order fulfilled by more than one shipment.",
+        "path": "CONTEXT.md",
+        "section": "Shipments"
+      },
+      {
+        "id": "term-delivery-failed",
+        "kind": "glossary",
+        "title": "Delivery failed",
+        "text": "A shipment the carrier could not deliver and has stopped attempting.",
+        "path": "CONTEXT.md",
+        "section": "Shipments"
+      }
+    ],
+    "links": [
+      {
+        "elementId": "order",
+        "recordId": "plan-why-model"
+      },
+      {
+        "elementId": "shipment",
+        "recordId": "plan-why-model"
+      },
+      {
+        "elementId": "order-customer",
+        "recordId": "plan-participants"
+      },
+      {
+        "elementId": "order-seller",
+        "recordId": "plan-participants"
+      },
+      {
+        "elementId": "shipment-order",
+        "recordId": "plan-participants"
+      },
+      {
+        "elementId": "shipment-warehouse",
+        "recordId": "plan-participants"
+      },
+      {
+        "elementId": "shipment-carrier",
+        "recordId": "plan-participants"
+      },
+      {
+        "elementId": "shipment-parcel",
+        "recordId": "plan-participants"
+      },
+      {
+        "elementId": "shipment-status",
+        "recordId": "plan-shipment-lifecycle"
+      },
+      {
+        "elementId": "order-status",
+        "recordId": "plan-order-status"
+      },
+      {
+        "elementId": "order-partially-shipped",
+        "recordId": "plan-order-status"
+      },
+      {
+        "elementId": "shipment-order",
+        "recordId": "plan-split-shipments"
+      },
+      {
+        "elementId": "shipment-warehouse",
+        "recordId": "plan-split-shipments"
+      },
+      {
+        "elementId": "shipment-delivery-failed",
+        "recordId": "plan-open-questions"
+      },
+      {
+        "elementId": "shipment-carrier",
+        "recordId": "plan-open-questions"
+      },
+      {
+        "elementId": "shipment-parcel",
+        "recordId": "plan-open-questions"
+      },
+      {
+        "elementId": "order-cancelled",
+        "recordId": "plan-open-questions"
+      },
+      {
+        "elementId": "order",
+        "recordId": "term-order"
+      },
+      {
+        "elementId": "seller",
+        "recordId": "term-seller"
+      },
+      {
+        "elementId": "order-partially-shipped",
+        "recordId": "term-partially-shipped"
+      },
+      {
+        "elementId": "shipment",
+        "recordId": "term-shipment"
+      },
+      {
+        "elementId": "parcel",
+        "recordId": "term-parcel"
+      },
+      {
+        "elementId": "carrier",
+        "recordId": "term-carrier"
+      },
+      {
+        "elementId": "warehouse",
+        "recordId": "term-warehouse"
+      },
+      {
+        "elementId": "shipment-order",
+        "recordId": "term-split-shipment"
+      },
+      {
+        "elementId": "shipment-delivery-failed",
+        "recordId": "term-delivery-failed"
+      }
+    ]
+  },
+  "evidence": {
+    "elements": {
+      "order": {
+        "status": "observed",
+        "rationale": "Exists in shop as Order; modelled as the relation between a customer and the seller rather than a record."
+      },
+      "shipment": {
+        "status": "inferred",
+        "rationale": "A shipment depends on exactly one order and one warehouse; carrier and parcels arrive later in its life.",
+        "questions": [
+          {
+            "question": "Is a redelivery after Delivery Failed the same shipment?",
+            "why": "Decides whether Delivery Failed can transition back to In Transit.",
+            "resolve": "Open question 1 in the plan."
+          }
+        ]
+      },
+      "shipment-carrier": {
+        "status": "unresolved",
+        "rationale": "0..1 because allocated and packed shipments have no carrier yet. In Transit and Delivered always have one; this model can't say that without phase-specific relations."
+      },
+      "seller": {
+        "status": "inferred",
+        "rationale": "Always Northwind today; a role so marketplace sellers stay possible."
+      }
+    }
+  },
+  "format": "atlas/document",
+  "formatVersion": 1,
+  "profile": "ontouml",
+  "state": "authored",
+  "model": {
+    "type": "Project",
+    "id": "fulfilment-project",
+    "created": "2026-10-06T15:10:00.000Z",
+    "modified": null,
+    "name": {
+      "en": "Northwind order fulfilment"
+    },
+    "description": null,
+    "alternativeNames": [],
+    "editorialNotes": [],
+    "creators": [],
+    "contributors": [],
+    "license": null,
+    "namespace": null,
+    "publisher": null,
+    "representationStyle": null,
+    "accessRights": [],
+    "acronyms": [],
+    "bibliographicCitations": [],
+    "contexts": [],
+    "designedForTasks": [],
+    "keywords": [],
+    "landingPages": [],
+    "languages": [],
+    "ontologyTypes": [],
+    "sources": [],
+    "themes": [],
+    "root": "fulfilment-package",
+    "elements": [
+      {
+        "type": "Class",
+        "id": "person",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Person"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "kind",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [
+          "functional-complex"
+        ],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "organisation",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Organisation"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "kind",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [
+          "functional-complex"
+        ],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "customer",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Customer"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "role",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "seller",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Seller"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "role",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "carrier",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Carrier"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "role",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "warehouse",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Warehouse"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "kind",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [
+          "functional-complex"
+        ],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "parcel",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Parcel"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "kind",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [
+          "functional-complex"
+        ],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "order",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Order"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "relator",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [
+          "relator"
+        ],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "shipment",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Shipment"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "relator",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [
+          "relator"
+        ],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "order-open",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Open"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "order-partially-shipped",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Partially Shipped"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "order-fulfilled",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Fulfilled"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "order-cancelled",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Cancelled"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "shipment-allocated",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Allocated"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "shipment-packed",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Packed"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "shipment-in-transit",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "In Transit"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "type": "Class",
+        "id": "shipment-delivered",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Delivered"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "id": "order-customer",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "placed by"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "mediation",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [
+          "order-customer-source",
+          "order-customer-target"
+        ],
+        "type": "BinaryRelation"
+      },
+      {
+        "id": "order-seller",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "placed with"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "mediation",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [
+          "order-seller-source",
+          "order-seller-target"
+        ],
+        "type": "BinaryRelation"
+      },
+      {
+        "id": "shipment-order",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "fulfils"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "mediation",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [
+          "shipment-order-source",
+          "shipment-order-target"
+        ],
+        "type": "BinaryRelation"
+      },
+      {
+        "id": "shipment-warehouse",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "ships from"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "mediation",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [
+          "shipment-warehouse-source",
+          "shipment-warehouse-target"
+        ],
+        "type": "BinaryRelation"
+      },
+      {
+        "id": "shipment-carrier",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "carried by"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "mediation",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [
+          "shipment-carrier-source",
+          "shipment-carrier-target"
+        ],
+        "type": "BinaryRelation"
+      },
+      {
+        "id": "shipment-parcel",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "consists of"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "mediation",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [
+          "shipment-parcel-source",
+          "shipment-parcel-target"
+        ],
+        "type": "BinaryRelation"
+      },
+      {
+        "id": "customer-is-person",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "person",
+        "specific": "customer"
+      },
+      {
+        "id": "seller-is-organisation",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "organisation",
+        "specific": "seller"
+      },
+      {
+        "id": "carrier-is-organisation",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "organisation",
+        "specific": "carrier"
+      },
+      {
+        "id": "order-open-is-order",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "order",
+        "specific": "order-open"
+      },
+      {
+        "id": "order-partially-shipped-is-order",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "order",
+        "specific": "order-partially-shipped"
+      },
+      {
+        "id": "order-fulfilled-is-order",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "order",
+        "specific": "order-fulfilled"
+      },
+      {
+        "id": "order-cancelled-is-order",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "order",
+        "specific": "order-cancelled"
+      },
+      {
+        "id": "shipment-allocated-is-shipment",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "shipment",
+        "specific": "shipment-allocated"
+      },
+      {
+        "id": "shipment-packed-is-shipment",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "shipment",
+        "specific": "shipment-packed"
+      },
+      {
+        "id": "shipment-in-transit-is-shipment",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "shipment",
+        "specific": "shipment-in-transit"
+      },
+      {
+        "id": "shipment-delivered-is-shipment",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "shipment",
+        "specific": "shipment-delivered"
+      },
+      {
+        "id": "order-status",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Order status"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "GeneralizationSet",
+        "isDisjoint": true,
+        "isComplete": true,
+        "categorizer": null,
+        "generalizations": [
+          "order-open-is-order",
+          "order-partially-shipped-is-order",
+          "order-fulfilled-is-order",
+          "order-cancelled-is-order"
+        ]
+      },
+      {
+        "id": "shipment-status",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Shipment status"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "GeneralizationSet",
+        "isDisjoint": true,
+        "isComplete": true,
+        "categorizer": null,
+        "generalizations": [
+          "shipment-allocated-is-shipment",
+          "shipment-packed-is-shipment",
+          "shipment-in-transit-is-shipment",
+          "shipment-delivered-is-shipment",
+          "shipment-delivery-failed-is-shipment"
+        ]
+      },
+      {
+        "id": "fulfilment-package",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Fulfilment"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Package",
+        "contents": [
+          "person",
+          "organisation",
+          "customer",
+          "seller",
+          "carrier",
+          "warehouse",
+          "parcel",
+          "order",
+          "shipment",
+          "order-open",
+          "order-partially-shipped",
+          "order-fulfilled",
+          "order-cancelled",
+          "shipment-allocated",
+          "shipment-packed",
+          "shipment-in-transit",
+          "shipment-delivered",
+          "shipment-delivery-failed",
+          "customer-is-person",
+          "seller-is-organisation",
+          "carrier-is-organisation",
+          "order-open-is-order",
+          "order-partially-shipped-is-order",
+          "order-fulfilled-is-order",
+          "order-cancelled-is-order",
+          "order-status",
+          "shipment-allocated-is-shipment",
+          "shipment-packed-is-shipment",
+          "shipment-in-transit-is-shipment",
+          "shipment-delivered-is-shipment",
+          "shipment-delivery-failed-is-shipment",
+          "shipment-status",
+          "order-customer",
+          "order-seller",
+          "shipment-order",
+          "shipment-warehouse",
+          "shipment-carrier",
+          "shipment-parcel"
+        ]
+      },
+      {
+        "type": "Property",
+        "id": "order-customer-source",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1..*",
+        "propertyType": "order",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": false
+      },
+      {
+        "type": "Property",
+        "id": "order-customer-target",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1",
+        "propertyType": "customer",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": true
+      },
+      {
+        "type": "Property",
+        "id": "order-seller-source",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1..*",
+        "propertyType": "order",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": false
+      },
+      {
+        "type": "Property",
+        "id": "order-seller-target",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1",
+        "propertyType": "seller",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": true
+      },
+      {
+        "type": "Property",
+        "id": "shipment-order-source",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "0..*",
+        "propertyType": "shipment",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": false
+      },
+      {
+        "type": "Property",
+        "id": "shipment-order-target",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1",
+        "propertyType": "order",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": true
+      },
+      {
+        "type": "Property",
+        "id": "shipment-warehouse-source",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "0..*",
+        "propertyType": "shipment",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": false
+      },
+      {
+        "type": "Property",
+        "id": "shipment-warehouse-target",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1",
+        "propertyType": "warehouse",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": true
+      },
+      {
+        "type": "Property",
+        "id": "shipment-carrier-source",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1..*",
+        "propertyType": "shipment",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": false
+      },
+      {
+        "type": "Property",
+        "id": "shipment-carrier-target",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "0..1",
+        "propertyType": "carrier",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": true
+      },
+      {
+        "type": "Property",
+        "id": "shipment-parcel-source",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "1",
+        "propertyType": "shipment",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": false
+      },
+      {
+        "type": "Property",
+        "id": "shipment-parcel-target",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": null,
+        "isDerived": false,
+        "cardinality": "0..*",
+        "propertyType": "parcel",
+        "subsettedProperties": [],
+        "redefinedProperties": [],
+        "aggregationKind": "NONE",
+        "isOrdered": false,
+        "isReadOnly": true
+      },
+      {
+        "type": "Class",
+        "id": "shipment-delivery-failed",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": {
+          "en": "Delivery Failed"
+        },
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "stereotype": "phase",
+        "isDerived": false,
+        "isAbstract": false,
+        "properties": [],
+        "restrictedTo": [],
+        "literals": [],
+        "isPowertype": false,
+        "order": "1"
+      },
+      {
+        "id": "shipment-delivery-failed-is-shipment",
+        "created": "2026-10-06T15:10:00.000Z",
+        "modified": null,
+        "name": null,
+        "description": null,
+        "alternativeNames": [],
+        "editorialNotes": [],
+        "creators": [],
+        "contributors": [],
+        "customProperties": null,
+        "type": "Generalization",
+        "general": "shipment",
+        "specific": "shipment-delivery-failed"
+      }
+    ]
+  },
+  "snippets": {},
+  "snapshots": [],
+  "baselineId": null,
+  "revision": {
+    "id": "2cd06d8fdb78d76789c865a96f0157e3381297aaca786e355d223af306e938d8",
+    "parentId": "86c24f6b05271ad4e32ba97aa92dbc39863c088fd20e53025e930da020ba615b",
+    "createdAt": "2026-10-07T10:25:00.000Z",
+    "reason": "Add Delivery Failed phase; walkthrough and split-shipment examples"
+  },
+  "reporting": {
+    "scope": "Draft conceptual model for work-0002 (order fulfilment). Example individuals are fictional, not production data."
+  },
+  "learning": {
+    "walkthroughs": [
+      {
+        "id": "split-order-tour",
+        "title": "How one order becomes several shipments",
+        "contextIds": [
+          "plan-participants",
+          "plan-split-shipments"
+        ],
+        "steps": [
+          {
+            "text": "An order relates exactly one customer and the seller. It exists before anything ships.",
+            "viewKey": "participants",
+            "elementIds": [
+              "order",
+              "order-customer",
+              "order-seller"
+            ]
+          },
+          {
+            "text": "Each shipment fulfils one order and leaves one warehouse. An order with stock in Berlin and Leeds gets two shipments.",
+            "viewKey": "participants",
+            "elementIds": [
+              "shipment",
+              "shipment-order",
+              "shipment-warehouse"
+            ]
+          },
+          {
+            "text": "Carrier and parcels are optional on the shipment side: an allocated shipment has neither yet.",
+            "viewKey": "participants",
+            "elementIds": [
+              "shipment-carrier",
+              "shipment-parcel"
+            ]
+          },
+          {
+            "text": "Every shipment is in exactly one phase. The order's phase follows from its shipments.",
+            "viewKey": "lifecycles",
+            "elementIds": [
+              "shipment-status",
+              "order-status"
+            ]
+          }
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "split-across-warehouses",
+        "title": "Order 1042 split across Berlin and Leeds",
+        "expected": "valid",
+        "description": "Shipment A is in transit with one parcel; shipment B is still allocated, so it has no carrier or parcels yet.",
+        "contextIds": [
+          "plan-split-shipments"
+        ],
+        "instances": [
+          {
+            "id": "order-1042",
+            "label": "Order 1042",
+            "classIds": [
+              "order",
+              "order-partially-shipped"
+            ]
+          },
+          {
+            "id": "ana",
+            "label": "Ana (customer)",
+            "classIds": [
+              "person",
+              "customer"
+            ]
+          },
+          {
+            "id": "northwind",
+            "label": "Northwind",
+            "classIds": [
+              "organisation",
+              "seller"
+            ]
+          },
+          {
+            "id": "parcelco",
+            "label": "ParcelCo",
+            "classIds": [
+              "organisation",
+              "carrier"
+            ]
+          },
+          {
+            "id": "berlin",
+            "label": "Berlin warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "leeds",
+            "label": "Leeds warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "shipment-a",
+            "label": "Shipment A",
+            "classIds": [
+              "shipment",
+              "shipment-in-transit"
+            ]
+          },
+          {
+            "id": "shipment-b",
+            "label": "Shipment B",
+            "classIds": [
+              "shipment",
+              "shipment-allocated"
+            ]
+          },
+          {
+            "id": "parcel-1",
+            "label": "Parcel 1",
+            "classIds": [
+              "parcel"
+            ]
+          }
+        ],
+        "links": [
+          {
+            "relationId": "order-customer",
+            "sourceId": "order-1042",
+            "targetId": "ana"
+          },
+          {
+            "relationId": "order-seller",
+            "sourceId": "order-1042",
+            "targetId": "northwind"
+          },
+          {
+            "relationId": "shipment-order",
+            "sourceId": "shipment-a",
+            "targetId": "order-1042"
+          },
+          {
+            "relationId": "shipment-order",
+            "sourceId": "shipment-b",
+            "targetId": "order-1042"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-a",
+            "targetId": "berlin"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-b",
+            "targetId": "leeds"
+          },
+          {
+            "relationId": "shipment-carrier",
+            "sourceId": "shipment-a",
+            "targetId": "parcelco"
+          },
+          {
+            "relationId": "shipment-parcel",
+            "sourceId": "shipment-a",
+            "targetId": "parcel-1"
+          }
+        ]
+      },
+      {
+        "id": "two-phases-at-once",
+        "title": "Shipment both in transit and delivered",
+        "expected": "invalid",
+        "contextIds": [
+          "plan-shipment-lifecycle"
+        ],
+        "instances": [
+          {
+            "id": "order-1042",
+            "label": "Order 1042",
+            "classIds": [
+              "order",
+              "order-partially-shipped"
+            ]
+          },
+          {
+            "id": "ana",
+            "label": "Ana (customer)",
+            "classIds": [
+              "person",
+              "customer"
+            ]
+          },
+          {
+            "id": "northwind",
+            "label": "Northwind",
+            "classIds": [
+              "organisation",
+              "seller"
+            ]
+          },
+          {
+            "id": "parcelco",
+            "label": "ParcelCo",
+            "classIds": [
+              "organisation",
+              "carrier"
+            ]
+          },
+          {
+            "id": "berlin",
+            "label": "Berlin warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "leeds",
+            "label": "Leeds warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "shipment-a",
+            "label": "Shipment A",
+            "classIds": [
+              "shipment",
+              "shipment-in-transit",
+              "shipment-delivered"
+            ]
+          },
+          {
+            "id": "shipment-b",
+            "label": "Shipment B",
+            "classIds": [
+              "shipment",
+              "shipment-allocated"
+            ]
+          },
+          {
+            "id": "parcel-1",
+            "label": "Parcel 1",
+            "classIds": [
+              "parcel"
+            ]
+          }
+        ],
+        "links": [
+          {
+            "relationId": "order-customer",
+            "sourceId": "order-1042",
+            "targetId": "ana"
+          },
+          {
+            "relationId": "order-seller",
+            "sourceId": "order-1042",
+            "targetId": "northwind"
+          },
+          {
+            "relationId": "shipment-order",
+            "sourceId": "shipment-a",
+            "targetId": "order-1042"
+          },
+          {
+            "relationId": "shipment-order",
+            "sourceId": "shipment-b",
+            "targetId": "order-1042"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-a",
+            "targetId": "berlin"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-b",
+            "targetId": "leeds"
+          },
+          {
+            "relationId": "shipment-carrier",
+            "sourceId": "shipment-a",
+            "targetId": "parcelco"
+          },
+          {
+            "relationId": "shipment-parcel",
+            "sourceId": "shipment-a",
+            "targetId": "parcel-1"
+          }
+        ]
+      },
+      {
+        "id": "shipment-without-order",
+        "title": "Shipment with no order",
+        "expected": "invalid",
+        "contextIds": [
+          "plan-participants"
+        ],
+        "instances": [
+          {
+            "id": "order-1042",
+            "label": "Order 1042",
+            "classIds": [
+              "order",
+              "order-partially-shipped"
+            ]
+          },
+          {
+            "id": "ana",
+            "label": "Ana (customer)",
+            "classIds": [
+              "person",
+              "customer"
+            ]
+          },
+          {
+            "id": "northwind",
+            "label": "Northwind",
+            "classIds": [
+              "organisation",
+              "seller"
+            ]
+          },
+          {
+            "id": "parcelco",
+            "label": "ParcelCo",
+            "classIds": [
+              "organisation",
+              "carrier"
+            ]
+          },
+          {
+            "id": "berlin",
+            "label": "Berlin warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "leeds",
+            "label": "Leeds warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "shipment-a",
+            "label": "Shipment A",
+            "classIds": [
+              "shipment",
+              "shipment-in-transit"
+            ]
+          },
+          {
+            "id": "shipment-b",
+            "label": "Shipment B",
+            "classIds": [
+              "shipment",
+              "shipment-allocated"
+            ]
+          },
+          {
+            "id": "parcel-1",
+            "label": "Parcel 1",
+            "classIds": [
+              "parcel"
+            ]
+          }
+        ],
+        "links": [
+          {
+            "relationId": "order-customer",
+            "sourceId": "order-1042",
+            "targetId": "ana"
+          },
+          {
+            "relationId": "order-seller",
+            "sourceId": "order-1042",
+            "targetId": "northwind"
+          },
+          {
+            "relationId": "shipment-order",
+            "sourceId": "shipment-a",
+            "targetId": "order-1042"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-a",
+            "targetId": "berlin"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-b",
+            "targetId": "leeds"
+          },
+          {
+            "relationId": "shipment-carrier",
+            "sourceId": "shipment-a",
+            "targetId": "parcelco"
+          },
+          {
+            "relationId": "shipment-parcel",
+            "sourceId": "shipment-a",
+            "targetId": "parcel-1"
+          }
+        ]
+      },
+      {
+        "id": "two-carriers",
+        "title": "One shipment handed to two carriers",
+        "expected": "invalid",
+        "contextIds": [
+          "plan-open-questions"
+        ],
+        "instances": [
+          {
+            "id": "order-1042",
+            "label": "Order 1042",
+            "classIds": [
+              "order",
+              "order-partially-shipped"
+            ]
+          },
+          {
+            "id": "ana",
+            "label": "Ana (customer)",
+            "classIds": [
+              "person",
+              "customer"
+            ]
+          },
+          {
+            "id": "northwind",
+            "label": "Northwind",
+            "classIds": [
+              "organisation",
+              "seller"
+            ]
+          },
+          {
+            "id": "parcelco",
+            "label": "ParcelCo",
+            "classIds": [
+              "organisation",
+              "carrier"
+            ]
+          },
+          {
+            "id": "berlin",
+            "label": "Berlin warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "leeds",
+            "label": "Leeds warehouse",
+            "classIds": [
+              "warehouse"
+            ]
+          },
+          {
+            "id": "shipment-a",
+            "label": "Shipment A",
+            "classIds": [
+              "shipment",
+              "shipment-in-transit"
+            ]
+          },
+          {
+            "id": "shipment-b",
+            "label": "Shipment B",
+            "classIds": [
+              "shipment",
+              "shipment-allocated"
+            ]
+          },
+          {
+            "id": "parcel-1",
+            "label": "Parcel 1",
+            "classIds": [
+              "parcel"
+            ]
+          },
+          {
+            "id": "fastfreight",
+            "label": "FastFreight",
+            "classIds": [
+              "organisation",
+              "carrier"
+            ]
+          }
+        ],
+        "links": [
+          {
+            "relationId": "order-customer",
+            "sourceId": "order-1042",
+            "targetId": "ana"
+          },
+          {
+            "relationId": "order-seller",
+            "sourceId": "order-1042",
+            "targetId": "northwind"
+          },
+          {
+            "relationId": "shipment-order",
+            "sourceId": "shipment-a",
+            "targetId": "order-1042"
+          },
+          {
+            "relationId": "shipment-order",
+            "sourceId": "shipment-b",
+            "targetId": "order-1042"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-a",
+            "targetId": "berlin"
+          },
+          {
+            "relationId": "shipment-warehouse",
+            "sourceId": "shipment-b",
+            "targetId": "leeds"
+          },
+          {
+            "relationId": "shipment-carrier",
+            "sourceId": "shipment-a",
+            "targetId": "parcelco"
+          },
+          {
+            "relationId": "shipment-parcel",
+            "sourceId": "shipment-a",
+            "targetId": "parcel-1"
+          },
+          {
+            "relationId": "shipment-carrier",
+            "sourceId": "shipment-a",
+            "targetId": "fastfreight"
+          }
+        ]
+      }
+    ]
+  }
+}

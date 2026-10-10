@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm, realpath, rename } from 'node:fs/promise
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadPlanning } from '@envsemble/atlas-planning';
-import { defaultDocument, relativeDocumentPath } from './work.ts';
+import { defaultDocument } from './work.ts';
 
 const plan = (implementation: string) => ['---', 'schema_version: 1', 'kind: plan', 'id: work-0001', 'title: Example work', 'repositories: [example]', 'created: null', 'updated: "2026-10-06"', 'design_status: accepted', 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '# Original plan', ''].join('\n');
 
@@ -21,7 +21,7 @@ test('the default record follows implementation, and a nested historical ledger 
     for (const implementation of ['not_started', 'in_progress', 'partial', 'complete']) {
       await writeFile(path.join(root, folder, 'plan.md'), plan(implementation));
       const work = (await loadPlanning(root)).work[0];
-      assert.equal(relativeDocumentPath(work.documents.find(file => file.path.endsWith('/supporting/ledger.md'))!), 'supporting/ledger.md');
+      assert.ok(work.documents.some(file => file.path.endsWith('/supporting/ledger.md')));
       assert.equal(defaultDocument(work)?.path, folder + (implementation === 'not_started' ? '/plan.md' : '/ledger.md'));
     }
     await rename(ledger, path.join(root, folder, 'supporting/older-ledger.md'));

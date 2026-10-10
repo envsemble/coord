@@ -1,31 +1,21 @@
-import { apiFetch } from './api';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AtlasPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
 import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
-import type { Snapshot, Work } from './types';
-import { documentRoute, type Route } from './routes';
+import type { Catalog, CatalogEntry, Snapshot, Target, Work } from './types';
+import { api } from './api';
+import { documentTarget, workTarget } from './targets';
 import { samePath } from './links';
-import { pollWhileVisible } from './visiblePoll';
 import { selectModelHandle } from './modelSelection';
 import { resolveRecordPath } from '@envsemble/atlas-planning/paths';
-import type { Provenance, ProvenanceKind } from '@envsemble/atlas-planning/provenance';
+import type { ProvenanceKind } from '@envsemble/atlas-planning/provenance';
 import { CheckIcon, TriangleDownIcon, WorkflowIcon } from './icons';
-import { Blankslate, Dropdown, ProvenanceLabel, Spinner } from './ui';
+import { Blankslate, ProvenanceLabel, Spinner } from './ui';
+import { Popover } from './components/Popover';
+import { useWorkbench } from './workbenchContext';
 
-interface Explains { path: string | null; reference: string; section: string | null; title: string | null }
-export interface CatalogEntry {
-  handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  provenance: Provenance; explains: Explains[];
-}
-interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
-
-async function get<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await apiFetch(url, { signal });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Atlas could not load this model.');
-  return result;
-}
+type WorkTarget = Extract<Target, { kind: 'work' }>;
+type Explains = CatalogEntry['explains'][number];
 
 const groups: { kind: ProvenanceKind; title: string }[] = [
   { kind: 'generated', title: 'Generated from code or database' },
@@ -38,7 +28,7 @@ function explainsText(item: Explains) {
 }
 function ModelPicker({ models, handle, onSelect }: { models: CatalogEntry[]; handle: string; onSelect(handle: string): void }) {
   const current = models.find(model => model.handle === handle);
-  return <Dropdown label="Choose a diagram" className="model-picker" buttonClassName="btn model-picker-button" button={<>
+  return <Popover label="Choose a diagram" className="model-picker" buttonClassName="btn model-picker-button" button={<>
     <WorkflowIcon size={16} />
     <span className="model-picker-title">{current?.title ?? (handle ? 'Unavailable model' : 'Choose a diagram')}</span>
     {current && <ProvenanceLabel provenance={current.provenance} />}
@@ -61,10 +51,11 @@ function ModelPicker({ models, handle, onSelect }: { models: CatalogEntry[]; han
         </div>;
       })}
     </div>}
-  </Dropdown>;
+  </Popover>;
 }
 
-export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work; snapshot: Snapshot; route: Route; navigate(route: Partial<Route>): void }) {
+export function AtlasWorkPanel({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
+  const { open, retarget, revision } = useWorkbench();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState('');
   const [modelError, setModelError] = useState('');
@@ -73,46 +64,34 @@ export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work
   const [referenceError, setReferenceError] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
   const [defaultHandle, setDefaultHandle] = useState('');
-  const section = useRef<HTMLElement>(null);
   const models = catalog?.models ?? [];
-  const handle = selectModelHandle(models, defaultHandle, route.diagram || '', catalog?.invalidHandles ?? []);
-  const revision = models.find(entry => entry.handle === handle)?.revision;
+  const handle = selectModelHandle(models, defaultHandle, target.diagram || '', catalog?.invalidHandles ?? []);
+  const modelRevision = models.find(entry => entry.handle === handle)?.revision;
 
+  // The catalog is read again whenever the folder changes on disk.
   useEffect(() => {
-    return pollWhileVisible(async signal => {
-      try {
-        const next = await get<Catalog>('/api/atlas/models?' + new URLSearchParams({ work: work.id }), signal);
-        if (!signal.aborted) { setCatalog(next); setDefaultHandle(previous => selectModelHandle(next.models, previous, '', next.invalidHandles)); setCatalogError(''); }
-      } catch (error) { if (!signal.aborted) { setCatalogError((error as Error).message); setCatalog(current => current ?? { models: [], issues: [], invalidHandles: [] }); } }
-      return 2000;
+    let current = true;
+    api.models(work.id).then(next => {
+      if (!current) return;
+      setCatalog(next); setDefaultHandle(previous => selectModelHandle(next.models, previous, '', next.invalidHandles)); setCatalogError('');
+    }).catch(error => {
+      if (!current) return;
+      setCatalogError((error as Error).message); setCatalog(previous => previous ?? { models: [], issues: [], invalidHandles: [] });
     });
-  }, [work.id]);
+    return () => { current = false; };
+  }, [work.id, revision]);
   useEffect(() => {
     if (!handle) { setPayload(null); setLoaded(''); setModelError(''); return; }
     if (loaded !== handle) { setPayload(null); setModelError(''); }
-    let retryDelay = 2000;
-    return pollWhileVisible(async signal => {
-      try {
-        const next = await get<ViewerPayload>('/api/atlas/model?' + new URLSearchParams({ work: work.id, handle }), signal);
-        if (!signal.aborted) { setPayload(next); setLoaded(handle); setReferenceError(''); setModelError(''); }
-        return null;
-      } catch (error) {
-        if (!signal.aborted) setModelError((error as Error).message);
-        const delay = retryDelay; retryDelay = Math.min(30000, retryDelay * 2);
-        return delay;
-      }
-    });
-  }, [handle, revision, work.id]);
+    let current = true;
+    api.model(work.id, handle).then(next => {
+      if (!current) return;
+      setPayload(next as ViewerPayload); setLoaded(handle); setReferenceError(''); setModelError('');
+    }).catch(error => { if (current) setModelError((error as Error).message); });
+    return () => { current = false; };
+    // A model whose file is invalid keeps its last valid view; a folder change retries it.
+  }, [handle, modelRevision, work.id, catalog?.invalidHandles.includes(handle) ? revision : 0]);
 
-  // Fill the viewport below the work header and tabs.
-  useLayoutEffect(() => {
-    const element = section.current;
-    if (!element) return;
-    const measure = () => { if (!element.classList.contains('fullscreen')) element.style.setProperty('--diagram-top', Math.max(0, element.getBoundingClientRect().top + window.scrollY) + 'px'); };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
   useEffect(() => {
     if (!fullscreen) return;
     const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && !event.defaultPrevented) setFullscreen(false); };
@@ -126,19 +105,20 @@ export function AtlasWorkPanel({ work, snapshot, route, navigate }: { work: Work
     const file = resolveRecordPath(record.path, work.path, snapshot.documents.filter(item => item.workId === work.id || item.category === 'knowledge'), same);
     if (!file) { setReferenceError('This passage is not in the open planning folder.'); return; }
     setFullscreen(false);
-    navigate(documentRoute(file, typeof record.section === 'string' ? record.section : null));
-  }, [snapshot, work.id, work.path, navigate]);
+    const owner = snapshot.work.find(item => item.id === file.workId);
+    open(documentTarget(file, owner, typeof record.section === 'string' ? record.section : null), { pin: true });
+  }, [snapshot, work.id, work.path, open]);
 
-  const select = (next: string) => navigate({ view: 'work', work: work.id, tab: 'diagrams', diagram: next });
+  const select = (next: string) => retarget(workTarget(work.id, 'diagrams', { diagram: next }));
   const picker = models.length > 0 || handle ? <ModelPicker models={models} handle={handle} onSelect={select} /> : null;
   const notices = [catalogError, modelError, referenceError, ...(catalog?.issues ?? [])].filter(Boolean);
   const ready = payload && loaded === handle;
   const empty = catalog && !models.length && !handle;
 
-  return <section ref={section} className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
+  return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {ready ? <ViewerErrorBoundary key={handle} resetKey={payload.model.document?.revision.id}>
-        <AtlasPanel payload={payload} theme="dark" focus={route.element ? { kind: 'node', id: route.element } : null} onReference={onReference}
+        <AtlasPanel payload={payload} theme="dark" focus={target.element ? { kind: 'node', id: target.element } : null} onReference={onReference}
           leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen} />
       </ViewerErrorBoundary>
       : <>

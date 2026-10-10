@@ -1,42 +1,32 @@
-import { apiFetch, rootQuery } from './api';
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { DownloadIcon, FileIcon, LinkExternalIcon, WorkflowIcon } from './icons';
-import type { Document, DocumentContent, Snapshot } from './types';
+import { FileDirectoryIcon, FileIcon, LinkExternalIcon, WorkflowIcon } from './icons';
+import type { Document, DocumentContent, ModelReference, Snapshot, Target } from './types';
+import { api, fileUrl } from './api';
 import { resolveLink } from './links';
 import { findHeadingId, headingSlug, rehypeHeadingIds } from './headings';
-import { documentRoute, navigate, routeHref } from './routes';
+import { documentTarget, workTarget } from './targets';
 import { bytes, workNumber } from './format';
-import { pollWhileVisible } from './visiblePoll';
 import { Blankslate, ProvenanceLabel, Spinner } from './ui';
-import type { Provenance } from '@envsemble/atlas-planning/provenance';
+import { useWorkbench } from './workbenchContext';
 
-export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }
-export const fileUrl = (path: string, download = false) => '/api/file?' + new URLSearchParams({ path, ...(download ? { download: '1' } : {}), ...rootQuery() });
-export async function request<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await apiFetch(url, { signal });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? 'The local viewer could not load this record.');
-  return body as T;
-}
-
-/** Diagrams that reference a document, refreshed while visible. */
+/** Diagrams that reference a document, refetched when the folder changes. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
+  const { revision } = useWorkbench();
   const [links, setLinks] = useState<ModelReference[]>([]);
   useEffect(() => {
-    setLinks([]);
-    if (!file || !enabled || (!workId && file.category !== 'knowledge')) return;
-    return pollWhileVisible(async signal => {
-      try { const next = await request<ModelReference[]>('/api/atlas/references?' + new URLSearchParams({ ...(workId ? { work: workId } : {}), path: file.path }), signal); if (!signal.aborted) setLinks(current => JSON.stringify(current) === JSON.stringify(next) ? current : next); }
-      catch { if (!signal.aborted) setLinks([]); }
-      return 2000;
-    });
-  }, [workId, file?.path, file?.modified, enabled]);
+    if (!file || !enabled || (!workId && file.category !== 'knowledge')) { setLinks([]); return; }
+    let current = true;
+    api.references(workId ?? null, file.path)
+      .then(next => { if (current) setLinks(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next); })
+      .catch(() => { if (current) setLinks([]); });
+    return () => { current = false; };
+  }, [workId, file?.path, file?.modified, file?.category, enabled, revision]);
   return links;
 }
 
-interface DiagramCard { key: string; handle: string; workId: string; title: string; provenance: Provenance; elements: { id: string; name: string }[] }
+interface DiagramCard { key: string; handle: string; workId: string; title: string; provenance: ModelReference['provenance']; elements: { id: string; name: string }[] }
 function cards(references: ModelReference[]): DiagramCard[] {
   const byModel = new Map<string, DiagramCard>();
   for (const reference of references) {
@@ -47,21 +37,20 @@ function cards(references: ModelReference[]): DiagramCard[] {
   }
   return [...byModel.values()];
 }
-function openDiagram(card: DiagramCard, element?: string) {
-  navigate({ view: 'work', work: card.workId, tab: 'diagrams', diagram: card.handle, element: element ?? card.elements[0]?.id ?? null });
-}
 function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boolean }) {
+  const { open } = useWorkbench();
+  const show = (card: DiagramCard, element?: string) => open(workTarget(card.workId, 'diagrams', { diagram: card.handle, element: element ?? card.elements[0]?.id ?? null }), { pin: true });
   return <div className="diagram-cards">{items.map(card => <div className="diagram-card" key={card.key}>
     <WorkflowIcon className="diagram-card-icon" size={16} />
     <div className="diagram-card-body">
       <div className="diagram-card-title">
-        <button type="button" className="link-button" onClick={() => openDiagram(card)}>{card.title}</button>
+        <button type="button" className="link-button" onClick={() => show(card)}>{card.title}</button>
         {showWork && <span className="muted">{workNumber(card.workId)}</span>}
         <ProvenanceLabel provenance={card.provenance} />
       </div>
-      {card.elements.length > 0 && <div className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => openDiagram(card, element.id)}>{element.name}</button>)}{card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</div>}
+      {card.elements.length > 0 && <div className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => show(card, element.id)}>{element.name}</button>)}{card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</div>}
     </div>
-    <button type="button" className="btn btn-sm" onClick={() => openDiagram(card)}>Open diagram</button>
+    <button type="button" className="btn btn-sm" onClick={() => show(card)}>Open diagram</button>
   </div>)}</div>;
 }
 
@@ -87,37 +76,38 @@ function headingLines(body: string) {
   return lines;
 }
 
+let viewSession = '';
+function sessionId() {
+  if (!viewSession) viewSession = crypto.randomUUID();
+  return viewSession;
+}
+
 export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle }: {
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: ModelReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
 }) {
+  const { open, notify } = useWorkbench();
   const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [error, setError] = useState('');
-  const [collectionError, setCollectionError] = useState('');
   function scrollToHeading(target: string) {
     const nodes = Array.from(article.current?.querySelectorAll<HTMLElement>('[id]') ?? []);
     const id = findHeadingId(target, nodes.map(node => node.id));
     nodes.find(node => node.id === id)?.scrollIntoView();
   }
   useEffect(() => {
-    const controller = new AbortController();
-    setError(''); setCollectionError('');
-    request<DocumentContent>('/api/document?' + new URLSearchParams({ path: file.path }), controller.signal)
-      .then(next => setContent(current => current && current.path === next.path && current.contentHash === next.contentHash ? current : next))
-      .catch(failure => { if (!controller.signal.aborted) setError(failure.message); });
-    return () => controller.abort();
+    let current = true;
+    setError('');
+    api.document(file.path)
+      .then(next => { if (current) setContent(previous => previous && previous.path === next.path && previous.contentHash === next.contentHash ? previous : next); })
+      .catch(failure => { if (current) setError(failure.message); });
+    return () => { current = false; };
   }, [file.path, file.modified]);
   useEffect(() => { setContent(null); }, [file.path]);
   useEffect(() => {
     if (!content) return;
-    try {
-      let session = sessionStorage.getItem('atlas-session');
-      if (!session) { session = crypto.randomUUID(); sessionStorage.setItem('atlas-session', session); }
-      apiFetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: crypto.randomUUID(), path: content.path, session, contentHash: content.contentHash }) })
-        .then(response => { if (!response.ok && response.status !== 503) setCollectionError('This view was not recorded.'); })
-        .catch(() => undefined);
-    } catch { /* View tracking is optional. */ }
+    // View statistics are optional; a failure never interrupts reading.
+    api.recordView({ id: crypto.randomUUID(), path: content.path, session: sessionId(), contentHash: content.contentHash || null }).catch(() => undefined);
   }, [content]);
   const cardCount = references.length;
   useEffect(() => {
@@ -146,14 +136,15 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
     const line = (node as { position?: { start?: { line?: number } } } | undefined)?.position?.start?.line;
     const attached = diagramCards.sections.get(slug);
     const repeated = level === 1 && hideTitle !== undefined && text(node).trim() === hideTitle.trim();
-    return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && (line === undefined || line === diagramCards.lines.get(slug)) &&<DiagramCards items={attached} showWork={showWork} />}</>;
+    return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && (line === undefined || line === diagramCards.lines.get(slug)) && <DiagramCards items={attached} showWork={showWork} />}</>;
   };
   const headings = useMemo(() => Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])), [diagramCards, showWork, hideTitle]);
+  const reveal = () => { api.reveal(file.path).catch(failure => notify(failure.message, 'warning')); };
+  const revealButton = <button type="button" className="btn btn-sm" onClick={reveal} title="Show this file in your file manager"><FileDirectoryIcon size={16} /> Show in folder</button>;
 
   return <article className={'reader' + (toolbar ? ' reader-boxed' : '')} ref={article}>
-    {toolbar && <div className="reader-toolbar"><span className="reader-name"><FileIcon size={16} /><strong>{file.name}</strong><span className="muted">{bytes(file.size)}</span></span><a className="btn btn-sm btn-icon" href={fileUrl(file.path, true)} aria-label={'Download ' + file.name} title="Download"><DownloadIcon size={16} /></a></div>}
-    {collectionError && <div className="flash flash-warning flash-inline">{collectionError}</div>}
-    {error ? <Blankslate title="Unable to open this file" action={<a className="btn btn-sm" href={fileUrl(file.path, true)}>Download</a>}>{error}</Blankslate>
+    {toolbar && <div className="reader-toolbar"><span className="reader-name"><FileIcon size={16} /><strong>{file.name}</strong><span className="muted">{bytes(file.size)}</span></span>{revealButton}</div>}
+    {error ? <Blankslate title="Unable to open this file" action={revealButton}>{error}</Blankslate>
       : !content ? <div className="reader-loading"><Spinner /> Loading…</div>
       : content.format === 'markdown' ? <div className="prose">
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
@@ -162,11 +153,14 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
           a: ({ href = '', children, id }) => {
             const target = destination(href);
             if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<LinkExternalIcon className="external-icon" size={12} /></a>;
-            const route = target.file ? documentRoute(target.file, target.anchor) : target.work ? { view: 'work', work: target.work.id, anchor: target.anchor } : href.startsWith('#') && target.anchor !== undefined ? documentRoute(file, target.anchor) : null;
-            if (route) return <a id={id} href={routeHref(route)} onClick={event => {
-              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-              event.preventDefault(); navigate(route);
-              if (target.anchor && !target.work && (!target.file || target.file.path === file.path)) scrollToHeading(target.anchor);
+            const owner = target.file ? snapshot.work.find(work => work.id === target.file!.workId) : undefined;
+            const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
+              : target.work ? workTarget(target.work.id, null, { anchor: target.anchor ?? null }) : null;
+            if (href.startsWith('#') && target.anchor !== undefined) return <a id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</a>;
+            if (route) return <a id={id} href="#" onClick={event => {
+              event.preventDefault();
+              if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
+              open(route, { pin: event.ctrlKey || event.metaKey });
             }}>{children}</a>;
             return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
           },
@@ -176,6 +170,6 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
           },
         }}>{content.body}</ReactMarkdown></div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
-      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(file.path)} alt={file.title} /> : <Blankslate icon={<FileIcon size={24} />} title={file.name} action={<a className="btn btn-sm" href={fileUrl(file.path, true)}><DownloadIcon size={16} /> Download</a>}>{bytes(file.size)}</Blankslate>}</div>}
+      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(file.path)} alt={file.title} /> : <Blankslate icon={<FileIcon size={24} />} title={file.name} action={revealButton}>{bytes(file.size)}</Blankslate>}</div>}
   </article>;
 }

@@ -15,3 +15,9 @@ artifacts/
 .env
 .env.*
 !.env.example
+
+# Desktop app build output, packages and end-to-end results
+app/out/
+app/release/
+app/test-results/
+app/playwright-report/

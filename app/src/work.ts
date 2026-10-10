@@ -1,9 +1,5 @@
 import type { Document, Work } from './types';
 
-export function relativeDocumentPath(file: Document): string {
-  return file.workId ? file.key.slice(file.workId.length + 1) : file.path;
-}
-
 export function primaryDocuments(work: Work): { plan?: Document; ledger?: Document } {
   return {
     plan: work.documents.find(file => file.path === work.currentPlan),

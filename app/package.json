@@ -1,44 +1,54 @@
 {
   "name": "@envsemble/atlas-app",
-  "version": "0.1.0",
+  "productName": "Atlas",
+  "version": "0.6.0",
   "private": true,
+  "description": "Atlas desktop app: plans, models and shared understanding for agents and the people they work with",
+  "author": "envsemble",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/envsemble/atlas",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/envsemble/atlas.git",
     "directory": "app"
   },
   "type": "module",
+  "main": "out/main/index.js",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "dev": "tsx server/index.ts --dev",
-    "build": "tsc --noEmit && vite build",
-    "start": "tsx server/index.ts",
-    "test": "tsx --test src/visiblePoll.test.ts src/modelSelection.test.ts src/status.test.ts src/work.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts server/switching.test.ts",
-    "check:types": "tsc --noEmit",
+    "dev": "node scripts/electron.mjs electron-vite dev --watch --",
+    "build": "npm run check:types && electron-vite build",
+    "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.atlasEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
+    "test": "tsx --test \"src/*.test.ts\" && node --test \"main/*.test.ts\" \"shared/*.test.ts\"",
+    "test:e2e": "node scripts/electron.mjs playwright test",
+    "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "check:review": "node scripts/check-review.mjs"
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",
-    "@envsemble/atlas-planning": "*",
-    "@primer/octicons-react": "19.40.0",
-    "@primer/primitives": "^11.10.0",
-    "express": "^5.2.1",
-    "github-slugger": "2.0.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-markdown": "latest",
-    "remark-gfm": "latest",
-    "tsx": "latest"
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
-    "@types/express": "^5",
+    "@electron/fuses": "1.8.0",
+    "@envsemble/atlas-planning": "*",
+    "@playwright/test": "1.64.0",
+    "@primer/octicons-react": "19.40.0",
+    "@primer/primitives": "^11.10.0",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.2",
-    "typescript": "latest",
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "6.0.0-beta.7",
+    "github-slugger": "2.0.0",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
     "vite": "^8.3.3"
   }
 }
