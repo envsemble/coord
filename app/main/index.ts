@@ -5,7 +5,7 @@ import { app, dialog, Menu, protocol, shell } from 'electron';
 import { atlasDataDirectory, RecentPlanningRoots, recentRootsFile } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
-import { registerIpc } from './ipc.ts';
+import { dropImports, registerIpc } from './ipc.ts';
 import { RotatingLog } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { scheme } from './protocol.ts';
@@ -19,7 +19,10 @@ const dataDirectory = atlasDataDirectory();
 app.setPath('userData', dataDirectory);
 app.setPath('sessionData', path.join(dataDirectory, 'chromium'));
 app.setAppUserModelId('dev.envsemble.atlas');
-app.enableSandbox();
+// Atlas never runs without Chromium's sandbox. Some AppImage launchers add --no-sandbox when the
+// system lacks unprivileged user namespaces; Atlas then explains how to allow them and quits.
+const sandboxRefused = app.commandLine.hasSwitch('no-sandbox') || Boolean(process.env.ELECTRON_DISABLE_SANDBOX);
+if (!sandboxRefused) app.enableSandbox();
 protocol.registerSchemesAsPrivileged([{ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true } }]);
 
 const log = new RotatingLog(path.join(dataDirectory, 'logs'));
@@ -29,10 +32,28 @@ const launch = { argv: [...process.argv], cwd: process.cwd() };
 process.on('uncaughtException', error => log.error('Uncaught exception', error));
 process.on('unhandledRejection', error => log.error('Unhandled rejection', error));
 
-if (!app.requestSingleInstanceLock(launch)) {
+if (sandboxRefused) {
+  refuseWithoutSandbox();
+} else if (!app.requestSingleInstanceLock(launch)) {
   app.quit();
 } else {
   start();
+}
+
+function refuseWithoutSandbox() {
+  log.error('Refused to start without the sandbox', { noSandbox: app.commandLine.hasSwitch('no-sandbox'), environment: Boolean(process.env.ELECTRON_DISABLE_SANDBOX) });
+  void app.whenReady().then(async () => {
+    await dialog.showMessageBox({
+      type: 'error', title: 'Atlas', message: 'Atlas does not run without its sandbox.',
+      detail: [
+        'Atlas was started with its security sandbox turned off (--no-sandbox or ELECTRON_DISABLE_SANDBOX). An AppImage launcher does this when the system does not allow unprivileged user namespaces.',
+        '',
+        'Allow them, then start Atlas again: run "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0", or give the AppImage an AppArmor profile. The Atlas README explains both under "Linux sandbox".',
+      ].join('\n'),
+      buttons: ['Close'],
+    });
+    app.exit(1);
+  });
 }
 
 function start() {
@@ -68,6 +89,10 @@ function start() {
     onRecentsChanged: refreshMenu,
   });
 
+  app.on('browser-window-created', (_event, window) => {
+    const id = window.id;
+    window.on('closed', () => { void dropImports(entry => entry.window === id); });
+  });
   app.on('web-contents-created', (_event, contents) => {
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));

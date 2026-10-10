@@ -17,12 +17,14 @@ files:
 asar: false
 npmRebuild: false
 publish: null
+afterPack: scripts/after-pack.cjs
 electronFuses:
   runAsNode: false
   enableCookieEncryption: true
   enableNodeOptionsEnvironmentVariable: false
-  # Kept on so the end-to-end suite can drive the packaged app with Playwright.
-  enableNodeCliInspectArguments: true
+  # Off in the installer and AppImage. `npm run package` also builds an unpacked copy with it on
+  # (release/e2e), which the end-to-end suite drives through Playwright's inspector connection.
+  enableNodeCliInspectArguments: false
   enableEmbeddedAsarIntegrityValidation: false
   onlyLoadAppFromAsar: false
   loadBrowserProcessSpecificV8Snapshot: false
@@ -35,7 +37,10 @@ win:
 nsis:
   oneClick: false
   perMachine: false
+  allowElevation: false
   allowToChangeInstallationDirectory: true
+  # Forces the per-user install mode (build/installer.nsh), so all-users cannot be chosen.
+  include: build/installer.nsh
   deleteAppDataOnUninstall: false
   artifactName: Atlas-Setup-${version}.${ext}
   shortcutName: Atlas
@@ -48,3 +53,7 @@ linux:
   category: Development
   synopsis: Plans, models and shared understanding
   artifactName: Atlas-${version}-${arch}.${ext}
+appImage:
+  # electron-builder's default desktop entry starts AppImages with --no-sandbox; Atlas keeps the
+  # sandbox and refuses to start without it (see the app README, "Linux sandbox").
+  executableArgs: []

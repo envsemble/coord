@@ -8,7 +8,7 @@ Atlas is a desktop app for a planning repository: active and archived work, plan
 
 Atlas is built for Windows and Linux. Builds are unsigned, by decision for a single user; a newer version installs over an older one, and there is no auto-update.
 
-- **Windows:** run `Atlas-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user (you can pick the folder) and adds Atlas to the Start menu. Uninstall it from **Settings › Apps**; your data folder is kept.
+- **Windows:** run `Atlas-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user only, without administrator rights (you can pick the folder), and adds Atlas to the Start menu. Uninstall it from **Settings › Apps**; your data folder is kept.
 - **Linux:** make `Atlas-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
 
 The installer and AppImage come from the `Desktop` CI job's artifacts, or from `npm run package` in a checkout (they land in `app/release/`).
@@ -17,7 +17,7 @@ To open a folder from a terminal or a file manager's "Open with", pass it on the
 
 ### Linux sandbox
 
-Atlas keeps Chromium's sandbox on and never disables it. An AppImage cannot use Chromium's setuid sandbox helper, so it needs unprivileged user namespaces. Ubuntu 23.10 and later restrict those through AppArmor; there Atlas exits at start with a message such as `No usable sandbox!` or `The SUID sandbox helper binary was found, but is not configured correctly`. Either:
+Atlas keeps Chromium's sandbox on and never disables it. An AppImage cannot use Chromium's setuid sandbox helper, so it needs unprivileged user namespaces. Ubuntu 23.10 and later restrict those through AppArmor; there the AppImage launcher would start Atlas with `--no-sandbox`, and Atlas refuses to run that way: it shows "Atlas does not run without its sandbox" and quits (the log records it too). Allow the namespaces instead, either:
 
 - allow them until the next reboot: `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` (add `kernel.apparmor_restrict_unprivileged_userns=0` to a file in `/etc/sysctl.d/` to keep it), or
 - give the AppImage its own AppArmor profile, `/etc/apparmor.d/atlas-desktop`, then run `sudo apparmor_parser -r /etc/apparmor.d/atlas-desktop`:
@@ -31,7 +31,7 @@ Atlas keeps Chromium's sandbox on and never disables it. An AppImage cannot use 
 
   Adjust the path to where you keep the AppImage.
 
-Do not start Atlas with `--no-sandbox`.
+Atlas also refuses `--no-sandbox` and `ELECTRON_DISABLE_SANDBOX` given any other way, and its desktop entry never adds them.
 
 ## Develop
 
@@ -46,7 +46,9 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
     npm run package    # app/release: NSIS installer on Windows, AppImage on Linux
     npm run test:e2e   # Playwright drives the packaged app (run npm run package first)
 
-`npm test --workspace @envsemble/atlas-app` runs the unit tests, and `npm run check:types` type-checks the renderer and the main process. The end-to-end suite copies `e2e/fixtures/planning` (a copy of the demo workspace's planning folder) into a temporary Git repository and uses a temporary data folder (`ATLAS_DATA_DIR`), so it never touches your own data. `ATLAS_E2E_UNPACKAGED=1` runs it against `out/` without packaging, and `ATLAS_E2E_INSTALLER=1` also installs and uninstalls the Windows installer (CI does both on a disposable runner).
+`npm run package` builds twice from the same output: the release (the installer or AppImage, and the unpacked app in `release/win-unpacked` or `release/linux-unpacked`), with the inspector fuse off, and an otherwise identical unpacked copy in `release/e2e` with it on, because Playwright drives Electron through the inspector. The suite drives `release/e2e`, and `e2e/release.spec.ts` starts the release build itself to check that it opens a folder, ignores `--inspect` and refuses `--no-sandbox`. Packaging also drops the diagram package's dependencies that only its command-line features use (the MCP server, PostgreSQL and TypeScript capture; `scripts/after-pack.cjs`).
+
+`npm test --workspace @envsemble/atlas-app` runs the unit tests, and `npm run check:types` type-checks the renderer and the main process. The end-to-end suite copies `e2e/fixtures/planning` (a copy of the demo workspace's planning folder) into a temporary Git repository and uses a temporary data folder (`ATLAS_DATA_DIR`), so it never touches your own data. `ATLAS_E2E_UNPACKAGED=1` runs it against `out/` without packaging, and `ATLAS_E2E_INSTALLER=1` also installs and uninstalls the Windows installer (CI does this on a disposable runner).
 
 ## Code layout
 
@@ -94,6 +96,7 @@ Atlas watches the planning folder instead of polling. Changes are collected for 
 - A **`planning.json` that breaks** while open keeps the last good view, with the error above it; the view recovers as soon as the file is readable again.
 - A **folder that is moved or deleted** shows a clear state with **Locate…** (choose its new place; the window keeps its tabs) and **Close**. If the folder comes back, the window reopens it.
 - A folder that **cannot be read at all** shows why, with the same two choices.
+- If the folder **cannot be watched** (for example, Linux's inotify watch limit is reached), Atlas says so above the editor and checks for changes every 10 seconds instead. Git objects, dependencies and Atlas's own output folders are never watched.
 - A **window that crashes** reloads with its tabs. If it crashes three times within a minute, Atlas asks whether to reload again or close it.
 
 ## Import and export
@@ -109,7 +112,7 @@ The app follows Electron's security checklist (the desktop-only decision is work
 - A strict content security policy: no inline or remote scripts, no `eval`, and no network connections.
 - Each window has its own session whose `atlas:` protocol serves the app and only that window's planning folder, through the same containment as the reader (no paths outside it, no hidden or excluded folders). Every other request is blocked.
 - Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
-- Electron fuses turn off running as Node.js and `NODE_OPTIONS`. Inspector arguments stay available so the end-to-end suite can drive the packaged app. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
+- Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives; only the separate end-to-end build in `release/e2e` keeps them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
 - No data leaves the machine: there is no telemetry, update check or crash upload.
 
 ## Diagnostics
