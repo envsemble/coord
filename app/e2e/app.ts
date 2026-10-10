@@ -115,9 +115,18 @@ export async function launch(options: { folder?: string; dataDirectory?: string;
 export async function close(launched: Launched | undefined) {
   if (!launched) return;
   const child = launched.process;
-  await launched.app.close().catch(() => undefined);
-  if (child.exitCode === null && child.signalCode === null) await new Promise(resolve => child.once('exit', resolve));
+  const exited = () => child.exitCode !== null || child.signalCode !== null;
+  const exit = new Promise(resolve => { if (exited()) resolve(null); else child.once('exit', resolve); });
+  // Quit the app; if it has not exited within 15 seconds, end it and its processes.
+  void launched.app.close().catch(() => undefined);
+  const stopped = await Promise.race([exit.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 15_000))]);
+  if (!stopped) {
+    if (process.platform === 'win32') { try { execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* Already gone. */ } }
+    else child.kill('SIGKILL');
+    await exit;
+  }
   if (launched.ownsData) removeDirectory(launched.dataDirectory);
+  if (!stopped) throw new Error('The app did not quit within 15 seconds of being asked to.');
 }
 
 /** Every window currently open, with the folder name it shows. */

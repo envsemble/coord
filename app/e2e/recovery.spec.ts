@@ -18,7 +18,9 @@ test('a crashed window reloads with its tabs', async () => {
   await window.locator('.tree-row[data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
   await expect(window.locator('.tab')).toHaveCount(3);
   await window.waitForTimeout(600);
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.forcefullyCrashRenderer());
+  // End the renderer process as a crash would. (forcefullyCrashRenderer() on Linux leaves a sandboxed
+  // renderer stuck in its crash handler, so the process never ends.)
+  await app.evaluate(({ BrowserWindow }) => { process.kill(BrowserWindow.getAllWindows()[0].webContents.getOSProcessId(), 'SIGKILL'); });
   // Playwright's page object ends with the crashed renderer, so read the reloaded page from main.
   const tabs = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(
     "[...document.querySelectorAll('.tab')].map(tab => (tab.classList.contains('active') ? '*' : '') + tab.textContent).join('|')").catch(() => ''));

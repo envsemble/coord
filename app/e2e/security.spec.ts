@@ -80,8 +80,15 @@ test('the file protocol serves only this window’s folder, and the window canno
     planning: await fetch('atlas://planning/README.md').then(() => 'loaded', () => 'blocked'),
   }));
   expect(page).toEqual({ remote: 'blocked', planning: 'blocked' });
-  await atlasWindow.evaluate(() => { window.open('https://example.com/', '_blank'); location.href = 'https://example.com/'; });
+  // Web links go to the system browser; record them instead of starting one.
+  await app.evaluate(({ shell }) => {
+    const opened: string[] = [];
+    (globalThis as { openedExternally?: string[] }).openedExternally = opened;
+    shell.openExternal = (async (url: string) => { opened.push(url); }) as typeof shell.openExternal;
+  });
+  await atlasWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); location.href = 'https://example.com/away'; });
   await atlasWindow.waitForTimeout(800);
   const state = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.webContents.getURL()));
   expect(state).toEqual(['atlas://app/index.html']);
+  expect(await app.evaluate(() => (globalThis as { openedExternally?: string[] }).openedExternally)).toEqual(['https://example.com/new', 'https://example.com/away']);
 });
