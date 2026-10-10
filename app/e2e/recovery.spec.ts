@@ -99,5 +99,5 @@ test('a folder that cannot be read at all explains why, and Close closes the win
   const closed = app.waitForEvent('close');
   await window.getByRole('button', { name: 'Close' }).click();
   await closed;
-  launched = undefined;
+  // afterEach still runs close(), which removes the data folder of the exited app.
 });

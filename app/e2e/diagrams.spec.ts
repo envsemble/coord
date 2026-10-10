@@ -1,10 +1,11 @@
+import path from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { close, launch, planningFixture, removeDirectory, type Launched } from './app';
 
 let launched: Launched | undefined;
 let folder: string;
 test.beforeEach(() => { folder = planningFixture(); });
-test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(folder); });
+test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(path.dirname(folder)); });
 
 async function openDiagrams(window: Page, title: string) {
   await expect(window.locator('.work-row').first()).toBeVisible();
@@ -110,12 +111,13 @@ async function paintedNameMargins(window: Page, node: Locator) {
 test('node names stay centred in their boxes below 100% zoom', async () => {
   launched = await launch({ folder });
   const { window, app } = launched;
-  // Wide enough for the canvas toolbar to show its zoom buttons.
+  // A fixed window size, so the measured node is clear of the floating toolbars.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
   await openDiagrams(window, 'Checkout · proposed payment methods');
   const zoom =window.getByRole('button', { name: /^Zoom \d+%/ });
   for (const step of ['fit', 'out'] as const) {
-    if (step === 'out') await window.getByRole('button', { name: 'Zoom out' }).click();
+    // The canvas's own zoom-out key (the toolbar may fold its zoom buttons away in a narrow window).
+    if (step === 'out') await window.keyboard.press('-');
     const percent = Number(/Zoom (\d+)%/.exec((await zoom.getAttribute('aria-label')) ?? '')?.[1]);
     expect(percent).toBeLessThan(100);
     // Let the camera settle before measuring paint.

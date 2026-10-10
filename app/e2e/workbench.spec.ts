@@ -1,10 +1,12 @@
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { close, launch, planningFixture, removeDirectory, temporaryDirectory, type Launched } from './app';
 
 let launched: Launched | undefined;
 let folder: string;
 test.beforeEach(() => { folder = planningFixture(); });
-test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(folder); });
+const dataFolders: string[] = [];
+test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(path.dirname(folder)); for (const data of dataFolders.splice(0)) removeDirectory(data); });
 
 const row = (id: string) => `.tree-row[data-id="${id}"]`;
 
@@ -55,6 +57,7 @@ test('the explorer mirrors the folder: work folders show status and title, a Dia
 
 test('tabs: single click previews, double click pins, Ctrl+W closes; tabs and sidebar persist per folder', async () => {
   const dataDirectory = temporaryDirectory('atlas-e2e-data-');
+  dataFolders.push(dataDirectory);
   launched = await launch({ folder, dataDirectory });
   let { window } = launched;
   await window.locator(row('d:knowledge')).click();
@@ -92,7 +95,6 @@ test('tabs: single click previews, double click pins, Ctrl+W closes; tabs and si
   await expect(window.locator('.tab.active')).toContainText('payments-constraints.md');
   await expect(window.locator('.split-pane-divider')).toHaveAttribute('aria-valuenow', '312');
   await expect(window.locator(row('f:knowledge/shop/payments-constraints.md'))).toHaveClass(/selected/);
-  removeDirectory(dataDirectory);
 });
 
 test('quick open finds work items, diagrams and files by name', async () => {

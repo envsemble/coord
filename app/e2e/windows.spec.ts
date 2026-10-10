@@ -55,6 +55,7 @@ test('Open Folder… opens another folder in a new window; opening it again focu
 
 test('a second launch hands its folder to the running app (single instance) and restores windows next time', async () => {
   const dataDirectory = temporaryDirectory('atlas-e2e-data-');
+  folders.push(dataDirectory);
   const first = fixture();
   launched = await launch({ folder: first, dataDirectory });
   const { app, window } = launched;
@@ -71,7 +72,6 @@ test('a second launch hands its folder to the running app (single instance) and 
 
   launched = await launch({ dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(2);
-  removeDirectory(dataDirectory);
 });
 
 test('Help › Open Logs and About are in the menu, and About shows the version', async () => {
