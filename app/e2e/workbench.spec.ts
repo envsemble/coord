@@ -97,6 +97,56 @@ test('tabs: single click previews, double click pins, Ctrl+W closes; tabs and si
   await expect(window.locator(row('f:knowledge/shop/payments-constraints.md'))).toHaveClass(/selected/);
 });
 
+test('a long document scrolls inside the editor, with a scrollbar, instead of growing the window', async () => {
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  const editor = window.locator('.editor');
+  await expect.poll(() => window.evaluate(() => globalThis.innerHeight)).toBeLessThan(480);
+  const sizes = await editor.evaluate(element => ({
+    window: globalThis.innerHeight,
+    editorBottom: element.getBoundingClientRect().bottom,
+    explorerBottom: document.querySelector('.tree-view')!.getBoundingClientRect().bottom,
+    visible: element.clientHeight,
+    content: element.scrollHeight,
+    scrollbar: (element as HTMLElement).offsetWidth - element.clientWidth,
+  }));
+  // The panes end inside the window, and the plan overflows the editor, which shows a scrollbar.
+  expect(sizes.editorBottom).toBeLessThanOrEqual(sizes.window + 1);
+  expect(sizes.explorerBottom).toBeLessThanOrEqual(sizes.window + 1);
+  expect(sizes.content).toBeGreaterThan(sizes.visible);
+  expect(sizes.scrollbar).toBeGreaterThan(0);
+  await editor.hover();
+  await window.mouse.wheel(0, 600);
+  await expect.poll(() => editor.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  // Wheel scrolling animates: wait until the position settles.
+  const settled = async () => {
+    let previous = -1;
+    await expect.poll(async () => {
+      const top = await editor.evaluate(element => element.scrollTop);
+      const steady = Math.abs(top - previous) < 0.5;
+      previous = top;
+      return steady;
+    }, { intervals: [100] }).toBe(true);
+    return previous;
+  };
+  const position = await settled();
+
+  // Switching tabs keeps each tab's scroll position, though the plan loads again after the switch.
+  await window.locator('.activity-item[aria-label="Work"]').click();
+  await expect(window.locator('.work-row').first()).toBeVisible();
+  await expect.poll(() => editor.evaluate(element => element.scrollTop)).toBe(0);
+  await window.locator('.tab', { hasText: 'Saved payment methods' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await expect.poll(async () => Math.abs(await editor.evaluate(element => element.scrollTop) - position)).toBeLessThan(1);
+
+  // Another section of the same tab starts at the top.
+  await window.locator('.underline-nav a', { hasText: 'Plan' }).click();
+  await expect.poll(() => editor.evaluate(element => element.scrollTop)).toBe(0);
+});
+
 test('quick open finds work items, diagrams and files by name', async () => {
   launched = await launch({ folder });
   const { window } = launched;

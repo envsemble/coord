@@ -137,7 +137,8 @@ select option { background: var(--bgColor-default); color: var(--fgColor-default
 
 /* Workbench: activity bar, explorer sidebar and the tabbed editor */
 .page-state { display: flex; align-items: center; justify-content: center; gap: 12px; height: 100%; padding: 64px 0; color: var(--fgColor-muted); }
-.workbench { display: grid; grid-template-columns: 48px minmax(0, 1fr); height: 100%; }
+/* One row that fills the window and never grows with its content: the panes inside scroll instead. */
+.workbench { display: grid; grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; }
 .activity-bar { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; background: var(--bgColor-inset); border-right: 1px solid var(--borderColor-default); }
 .activity-brand { display: flex; align-items: center; justify-content: center; height: 36px; margin-bottom: 4px; }
 .activity-item { position: relative; display: flex; align-items: center; justify-content: center; width: 48px; height: 44px; padding: 0; color: var(--fgColor-muted); background: transparent; border: 0; }
@@ -155,7 +156,7 @@ select option { background: var(--bgColor-default); color: var(--fgColor-default
 .health-menu.action-menu li { display: flex; gap: 8px; padding: 6px 0; font-size: 13px; }
 .health-menu.action-menu li > svg { margin-top: 3px; color: var(--fgColor-attention); }
 .health-menu.action-menu li.error > svg { color: var(--fgColor-danger); }
-.split-pane { display: grid; height: 100%; min-width: 0; }
+.split-pane { display: grid; grid-template-rows: minmax(0, 1fr); height: 100%; min-width: 0; min-height: 0; }
 .split-pane-start { min-width: 0; overflow: hidden; background: var(--bgColor-inset); border-right: 1px solid var(--borderColor-default); }
 .split-pane-divider { position: relative; z-index: 20; width: 0; cursor: col-resize; }
 .split-pane-divider::after { content: ""; position: absolute; top: 0; bottom: 0; left: -3px; width: 6px; }

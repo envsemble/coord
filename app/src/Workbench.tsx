@@ -1,11 +1,11 @@
 // The window for one planning folder: activity bar, explorer sidebar and tabbed editor area.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertIcon, FileIcon, GraphIcon, IssueOpenedIcon, PulseIcon, RepoIcon } from './icons';
 import { limits, type ImportPreview, type MenuCommand } from '../shared/contract';
 import type { Snapshot, Target, UiState, ViewName, WindowInfo, Work } from './types';
 import { api, AtlasError } from './api';
 import { activateTab, closeTab, openTab, pinTab, retarget as retargetTab } from './tabs';
-import { viewLabels, viewTarget, workTarget } from './targets';
+import { scrollKey, viewLabels, viewTarget, workTarget } from './targets';
 import { workStatus } from './status';
 import { workNumber } from './format';
 import { Blankslate, StatusIcon } from './ui';
@@ -61,15 +61,41 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     });
   }, [node?.id]);
 
-  // Keep each tab's scroll position while switching between tabs.
-  useEffect(() => {
+  // Keep the scroll position of what each tab shows (its view, work section or file) while
+  // switching between tabs; a tab that moves to another section or file starts at the top, and
+  // one opened at a heading leaves the scrolling to the reader. A document loads again after the
+  // switch, so a saved position is reapplied as the content grows, until the user scrolls or three
+  // seconds pass, and nothing is saved meanwhile. A layout effect, so the outgoing tab cannot save
+  // the position its successor's first frame clamps to.
+  const scrolled = active ? scrollKey(active.target) : null;
+  useLayoutEffect(() => {
     const element = editor.current;
-    if (!element || !active) return;
-    element.scrollTop = scrollPositions.current.get(active.id) ?? 0;
-    const remember = () => scrollPositions.current.set(active.id, element.scrollTop);
+    if (!element || !active || !scrolled) return;
+    const anchored = active.target.kind !== 'view' && Boolean(active.target.anchor);
+    const target = anchored ? null : scrollPositions.current.get(scrolled) ?? 0;
+    if (target !== null) element.scrollTop = target;
+    let restoring = Boolean(target);
+    const content = element.firstElementChild;
+    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) element.scrollTop = target!; }) : null;
+    const stop = () => { restoring = false; observer?.disconnect(); };
+    if (observer && content) observer.observe(content);
+    const timer = window.setTimeout(stop, 3000);
+    const remember = () => { if (!restoring) scrollPositions.current.set(scrolled, element.scrollTop); };
+    const interrupt = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
+    for (const name of interrupt) element.addEventListener(name, stop, { capture: true, passive: true });
     element.addEventListener('scroll', remember, { passive: true });
-    return () => element.removeEventListener('scroll', remember);
-  }, [active?.id]);
+    return () => {
+      stop();
+      window.clearTimeout(timer);
+      for (const name of interrupt) element.removeEventListener(name, stop, { capture: true });
+      element.removeEventListener('scroll', remember);
+    };
+  }, [active?.id, scrolled]);
+  // Forget the positions of what no open tab shows.
+  useEffect(() => {
+    const shown = new Set(ui.tabs.items.map(tab => scrollKey(tab.target)));
+    for (const key of [...scrollPositions.current.keys()]) if (!shown.has(key)) scrollPositions.current.delete(key);
+  }, [ui.tabs.items]);
 
   const exportWork = useCallback(async (work: Work) => {
     try {
