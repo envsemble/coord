@@ -8,7 +8,8 @@ import { folderArguments } from './args.ts';
 import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, originOf } from './protocol.ts';
 import { folderKey, parseState, StateStore } from './state.ts';
-import { createCoalescer, relevantChange, watchFolder } from './watcher.ts';
+import { createCoalescer, ignoredPath, relevantChange, watchFolder } from './watcher.ts';
+import { exportFileName } from './planExportName.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'atlas-main-'));
 
@@ -64,6 +65,16 @@ test('desktop state survives damage and keeps folders apart', () => {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('folders that are never watched (they would exhaust inotify watches on Linux)', () => {
+  for (const ignored of ['.git/objects', '.git/objects/ab', 'node_modules', 'active/x/node_modules/y', '__pycache__', 'active/0001/.atlas/prepared', 'active/0001/.atlas/results/x.json', 'active/0001/.atlas/exports', '.atlas-import.lock', '.atlas-import.lock.takeover', '.atlas-import-1b2c', '.\\node_modules', 'knowledge\\node_modules\\x']) assert.ok(ignoredPath(ignored), ignored);
+  for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'active/0001/.atlas/models', 'active/0001/.atlas/history/m-1', 'knowledge/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
+});
+
+test('the export file name matches the command line', () => {
+  assert.equal(exportFileName('active/0002-order-fulfilment-model', 'work-0002'), 'order-fulfilment-model-work-0002.atlas-plan.html');
+  assert.equal(exportFileName('archive/0004-', 'work-0004'), 'plan-work-0004.atlas-plan.html');
+});
+
 test('only changes that can alter the view count, and bursts coalesce', async () => {
   assert.ok(relevantChange('active/0001/plan.md'));
   assert.ok(relevantChange('active/0001/.atlas/models/m-1.json'));
@@ -74,6 +85,7 @@ test('only changes that can alter the view count, and bursts coalesce', async ()
   assert.ok(!relevantChange('.git/refs/heads/main.lock'));
   assert.ok(!relevantChange('node_modules/x/index.js'));
   assert.ok(!relevantChange('.atlas-import.lock'));
+  assert.ok(!relevantChange('.atlas-import-0f3a/plan.md'));
   assert.ok(!relevantChange('active/0001/.atlas/prepared/x.json'));
   const batches: string[][] = [];
   const coalescer = createCoalescer(paths => batches.push(paths), 30, 200);

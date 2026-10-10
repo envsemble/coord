@@ -143,6 +143,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
         end={<div className="editor-group">
           <TabStrip tabs={tabs} active={ui.tabs.active} label="Open tabs" onActivate={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />
           {info.error && <div className="flash flash-warning folder-error" role="alert"><AlertIcon size={16} /><div><p><strong>The planning folder can’t be read right now.</strong> {info.error}</p><p className="muted">Showing the last good view. Atlas reloads when the folder is readable again.</p></div></div>}
+          {info.notice && <div className="flash folder-error" role="status"><AlertIcon size={16} /><div><p>{info.notice}</p></div></div>}
           <div ref={editor} className={'editor' + editorKind}>
             {active ? <TabContent key={active.id} target={active.target} snapshot={snapshot} repository={repository} repositoryMenu={repositoryMenu}
               work={{ location, setLocation, search: workSearch, setSearch: setWorkSearch }} />

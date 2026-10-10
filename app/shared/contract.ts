@@ -35,11 +35,13 @@ export interface WindowInfo {
   status: FolderStatus | null;
   /** Set when the folder became unreadable; a ready window then shows its last good view. */
   error: string | null;
+  notice: string | null;
   revision: number;
   version: string;
   platform: string;
 }
-export interface FolderChange { revision: number; status: FolderStatus; error: string | null }
+/** `notice`: the folder is readable but cannot be watched, so changes show with a delay. */
+export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
 export interface RecentFolder { path: string; name: string; parent: string; workItems: number | null; available: boolean }
 
 export interface Snapshot extends PlanningIndex {

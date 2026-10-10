@@ -47,7 +47,10 @@ export class FolderSession {
   readonly name: string;
   status: FolderStatus = 'loading';
   error: string | null = null;
+  notice: string | null = null;
   revision = 0;
+  private watchFailures: number[] = [];
+  private rescanTimer: ReturnType<typeof setInterval> | null = null;
   private current: Snapshot | null = null;
   private planning: PlanningSession | null = null;
   private watcher: FolderWatcher | null = null;
@@ -117,11 +120,16 @@ export class FolderSession {
     }
     this.revision++;
     this.diagramIndex = null;
-    if (!this.closed) this.options.onChange({ revision: this.revision, status: this.status, error: this.error });
+    this.emit();
+  }
+
+  private emit() {
+    if (!this.closed) this.options.onChange({ revision: this.revision, status: this.status, error: this.error, notice: this.notice });
   }
 
   private watch() {
     this.stopWatching();
+    if (this.rescanTimer) return;
     const delay = this.options.watchDelay ?? { debounce: 200, maxWait: 1500 };
     this.watcher = watchFolder(this.root, {
       ...delay,
@@ -129,9 +137,20 @@ export class FolderSession {
       onError: error => {
         this.options.log.warn('Folder watcher stopped', { root: this.root, error: error.message });
         this.stopWatching();
+        const now = Date.now();
+        this.watchFailures = [...this.watchFailures.filter(time => now - time < 60000), now];
+        // A watcher that fails again soon (for example, the inotify watch limit) gives way to rescanning.
+        if (this.watchFailures.length > 1) this.rescan(error);
         void this.reload().then(() => { if (this.status !== 'missing' && !this.closed) this.watch(); });
       },
     });
+  }
+  private rescan(error: Error) {
+    if (this.rescanTimer || this.closed) return;
+    this.notice = 'Atlas cannot watch this folder for changes (' + error.message + '), so it checks for changes every 10 seconds instead.';
+    this.options.log.error('Watching failed; rescanning every 10 seconds', { root: this.root, error: error.message });
+    this.rescanTimer = setInterval(() => { void this.reload(); }, 10000);
+    this.emit();
   }
   private stopWatching() {
     this.watcher?.close();
@@ -197,6 +216,8 @@ export class FolderSession {
   close() {
     this.closed = true;
     this.stopWatching();
+    if (this.rescanTimer) clearInterval(this.rescanTimer);
+    this.rescanTimer = null;
     if (this.missingTimer) clearInterval(this.missingTimer);
     this.missingTimer = null;
     const planning = this.planning;

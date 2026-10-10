@@ -65,7 +65,7 @@ export class AtlasWindow {
       },
     });
     if (maximized) this.win.maximize();
-    this.win.once('ready-to-show', () => this.win.show());
+    this.win.once('ready-to-show', () => { this.win.show(); context.log.info('Window ready', { folder: this.folder?.root ?? null }); });
     this.win.on('page-title-updated', event => event.preventDefault());
     this.win.on('resize', () => this.scheduleBounds());
     this.win.on('move', () => this.scheduleBounds());
@@ -150,7 +150,7 @@ export class AtlasWindow {
     const folder = this.folder;
     return {
       folder: folder ? { root: folder.root, name: folder.name } : null,
-      status: folder?.status ?? null, error: folder?.error ?? null, revision: folder?.revision ?? 0,
+      status: folder?.status ?? null, error: folder?.error ?? null, notice: folder?.notice ?? null, revision: folder?.revision ?? 0,
       version: this.manager.context.version, platform: process.platform,
     };
   }

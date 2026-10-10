@@ -2,7 +2,7 @@
 // an editor's atomic save through a temporary file and rename) arrive as one change: the
 // callback runs once the folder has been quiet for `debounce` ms, and at least every `maxWait` ms
 // while changes keep arriving.
-import { existsSync, watch, type FSWatcher } from 'node:fs';
+import { existsSync, watch, type FSWatcher, type WatchOptions as FsWatchOptions } from 'node:fs';
 import path from 'node:path';
 
 export interface FolderWatcher { close(): void }
@@ -25,10 +25,19 @@ export function relevantChange(relative: string | null): boolean {
   if (relative === null) return true;
   const normalized = relative.replaceAll('\\', '/');
   if (normalized === '.git' || normalized.startsWith('.git/')) return gitRelevant.test(normalized) && !normalized.endsWith('.lock');
-  // work-0012's import lock and staging folders in the planning root.
-  if (normalized.startsWith('.atlas-import')) return false;
-  const parts = normalized.split('/');
-  return !parts.some(part => part === 'node_modules' || part === '__pycache__') && !/(?:^|\/)\.atlas\/(?:prepared|results|exports)(?:\/|$)/.test(normalized);
+  return !ignoredPath(normalized);
+}
+
+/**
+ * Folders that are never watched at all. On Linux the recursive watcher walks the tree and adds an
+ * inotify watch per folder, so skipping these keeps it from exhausting the watch limit on Git
+ * objects or dependencies. (.git itself stays watched: HEAD and refs move on commits.)
+ */
+export function ignoredPath(relative: string): boolean {
+  const normalized = relative.replaceAll('\\', '/').replace(/^\.\//, '');
+  if (normalized === '.git/objects' || normalized.startsWith('.git/objects/')) return true;
+  if (normalized.startsWith('.atlas-import')) return true;
+  return normalized.split('/').some(part => part === 'node_modules' || part === '__pycache__') || /(?:^|\/)\.atlas\/(?:prepared|results|exports)(?:\/|$)/.test(normalized);
 }
 
 export function createCoalescer(flush: (paths: string[]) => void, debounce = 200, maxWait = 1500) {
@@ -52,12 +61,16 @@ export function createCoalescer(flush: (paths: string[]) => void, debounce = 200
   };
 }
 
+type WatchOptionsWithIgnore = FsWatchOptions & { encoding: 'utf8'; ignore(path: string): boolean };
+
 export function watchFolder(root: string, options: WatchOptions): FolderWatcher {
   const coalescer = createCoalescer(options.onChange, options.debounce, options.maxWait);
   let watcher: FSWatcher | null = null;
   let closed = false;
   try {
-    watcher = watch(root, { recursive: true, persistent: false }, (_event, filename) => {
+    const ignore = (candidate: string) => ignoredPath(path.isAbsolute(candidate) ? path.relative(root, candidate) : candidate);
+    // `ignore` (Node 24) is not yet in @types/node's watch options.
+    watcher = watch(root, { recursive: true, persistent: false, encoding: 'utf8', ignore } as WatchOptionsWithIgnore, (_event: string, filename: string | null) => {
       const relative = filename === null ? null : filename.toString();
       if (!closed && relevantChange(relative)) coalescer.add(relative ?? '');
     });

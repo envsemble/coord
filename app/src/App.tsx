@@ -29,7 +29,7 @@ export default function App() {
   useEffect(() => {
     // Subscribe before asking for the state, so no change can slip in between.
     const off = api.onChanged(change => {
-      setInfo(current => current ? { ...current, status: change.status, error: change.error, revision: change.revision } : current);
+      setInfo(current => current ? { ...current, status: change.status, error: change.error, notice: change.notice, revision: change.revision } : current);
       // The workbench closes while the folder is missing; it reopens with the tabs saved since.
       if (change.status === 'missing') setUi(null);
       if (change.status === 'ready') void refresh(change.revision);
