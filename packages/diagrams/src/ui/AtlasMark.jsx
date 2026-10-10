@@ -4,35 +4,27 @@ export function AtlasMark({ size = 28, label = "Atlas" }) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 64 64"
+      viewBox="27 26.5 189 189"
       role={label ? "img" : undefined}
       aria-label={label || undefined}
       aria-hidden={label ? undefined : true}
     >
-      <path
+      <rect x="27" y="27" width="189" height="188" rx="43" fill="#111820" />
+      <g
         fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
+        stroke="#fff"
+        strokeWidth="12"
+        strokeLinecap="round"
         strokeLinejoin="round"
-        d="M16 47V32h16V17m0 15h16v15"
-      />
-      <path fill="var(--warning, #e3b341)" d="m32 9-8 12h16z" />
-      <rect
-        x="9"
-        y="42"
-        width="14"
-        height="14"
-        rx="4"
-        fill="var(--accent, #539bf5)"
-      />
-      <rect
-        x="41"
-        y="42"
-        width="14"
-        height="14"
-        rx="4"
-        fill="var(--success, #57ab5a)"
-      />
+      >
+        <path d="M76 163 L120 77 L164 163" />
+        <path d="M96 132 H144" />
+      </g>
+      <g fill="#fff">
+        <circle cx="120" cy="77" r="18" />
+        <circle cx="76" cy="163" r="18" />
+        <circle cx="164" cy="163" r="18" />
+      </g>
     </svg>
   );
 }

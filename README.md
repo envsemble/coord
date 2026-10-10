@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/atlas-banner-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="assets/atlas-banner-light.svg">
-  <img alt="Atlas — Models for shared understanding" src="assets/atlas-banner-light.svg" width="1200">
+  <img alt="Atlas — Models for shared understanding" src="assets/atlas-banner-light.svg" width="560">
 </picture>
 
 [![CI](https://github.com/envsemble/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/atlas/actions/workflows/ci.yml)

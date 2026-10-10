@@ -2021,44 +2021,31 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
     {
       width: size,
       height: size,
-      viewBox: "0 0 64 64",
+      viewBox: "27 26.5 189 189",
       role: label ? "img" : void 0,
       "aria-label": label || void 0,
       "aria-hidden": label ? void 0 : true,
       children: [
-        /* @__PURE__ */ jsx14(
-          "path",
+        /* @__PURE__ */ jsx14("rect", { x: "27", y: "27", width: "189", height: "188", rx: "43", fill: "#111820" }),
+        /* @__PURE__ */ jsxs9(
+          "g",
           {
             fill: "none",
-            stroke: "currentColor",
-            strokeWidth: "4",
+            stroke: "#fff",
+            strokeWidth: "12",
+            strokeLinecap: "round",
             strokeLinejoin: "round",
-            d: "M16 47V32h16V17m0 15h16v15"
+            children: [
+              /* @__PURE__ */ jsx14("path", { d: "M76 163 L120 77 L164 163" }),
+              /* @__PURE__ */ jsx14("path", { d: "M96 132 H144" })
+            ]
           }
         ),
-        /* @__PURE__ */ jsx14("path", { fill: "var(--warning, #e3b341)", d: "m32 9-8 12h16z" }),
-        /* @__PURE__ */ jsx14(
-          "rect",
-          {
-            x: "9",
-            y: "42",
-            width: "14",
-            height: "14",
-            rx: "4",
-            fill: "var(--accent, #539bf5)"
-          }
-        ),
-        /* @__PURE__ */ jsx14(
-          "rect",
-          {
-            x: "41",
-            y: "42",
-            width: "14",
-            height: "14",
-            rx: "4",
-            fill: "var(--success, #57ab5a)"
-          }
-        )
+        /* @__PURE__ */ jsxs9("g", { fill: "#fff", children: [
+          /* @__PURE__ */ jsx14("circle", { cx: "120", cy: "77", r: "18" }),
+          /* @__PURE__ */ jsx14("circle", { cx: "76", cy: "163", r: "18" }),
+          /* @__PURE__ */ jsx14("circle", { cx: "164", cy: "163", r: "18" })
+        ] })
       ]
     }
   );
