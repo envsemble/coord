@@ -16,7 +16,7 @@ Limits: 200 tables/views, 4,000 columns, 8 MiB metadata; additional index/constr
 
 ## Agent and CLI
 
-Store a JSON configuration inside the workspace, matching [database-source-schema.json](../schemas/database-source-schema.json). Paths are relative to that file except an optional `wranglerJS`, which is relative to the workspace. Secrets are supplied only via the named environment variable.
+Store a JSON configuration inside the workspace, matching [database-source-schema.json](../packages/diagrams/schemas/database-source-schema.json). Paths are relative to that file except an optional `wranglerJS`, which is relative to the workspace. Secrets are supplied only via the named environment variable.
 
 ```json
 {
@@ -48,6 +48,6 @@ Store a JSON configuration inside the workspace, matching [database-source-schem
 }
 ```
 
-Call `atlas_capture_database` with `{"file":"source.json","workId":"work-0008"}` through MCP, or `atlas capture_database --root ./workspace --input request.json`. The returned handle supports inspect, validate, prepare and export. A human can run the same CLI and inspect the result in the dashboard. Database tables show captured columns, keys and SQL in the inspector. No diagram editing UI is needed.
+Call `atlas_capture_database` with `{"file":"source.json","workId":"work-0008"}` through MCP, or `atlas model capture_database --root ./workspace --input request.json`. The returned handle supports inspect, validate, prepare and export. A human can run the same CLI and inspect the result in the Atlas app. Database tables show captured columns, keys and SQL in the inspector. No diagram editing UI is needed.
 
-For local verification set `ATLAS_TEST_POSTGRES` to a disposable PostgreSQL 17 connection and run `node --test tests/database.test.cjs`. The test creates and removes only uniquely named fixture schemas. SQLite and real local Wrangler D1 fixtures run by default. [Cloudflare documents local execution, JSON results and multiple SQL statements](https://developers.cloudflare.com/d1/wrangler-commands/#d1-execute).
+For local verification set `ATLAS_TEST_POSTGRES` to a disposable PostgreSQL 17 connection and run `node --test packages/diagrams/tests/database.test.cjs`. The test creates and removes only uniquely named fixture schemas. SQLite and real local Wrangler D1 fixtures run by default. [Cloudflare documents local execution, JSON results and multiple SQL statements](https://developers.cloudflare.com/d1/wrangler-commands/#d1-execute).

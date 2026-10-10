@@ -2,8 +2,16 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
 .codex/
 .atlas/prepared/
 .atlas/results/
 .atlas/exports/
 artifacts/
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example

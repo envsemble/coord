@@ -1,0 +1,4 @@
+interface:
+  display_name: "Atlas Model"
+  short_description: "Inspect and iterate on models while planning"
+  default_prompt: "Use $atlas-model to inspect this baseline and visualize the proposed architecture."

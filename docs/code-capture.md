@@ -17,7 +17,7 @@ Bounds: 200 selected files / 8 MiB source text, 500 declarations / 4,000 members
 
 ## Configuration and tools
 
-Use `atlas_capture_code` with `{"file":"code-source.json","workId":"work-0008"}` or `atlas capture_code --root ./workspace --input request.json`. Projects' paths are relative to the configuration file; selected files, tsconfig and classpath are relative to each project. Paths must remain within the configured workspace/project. See [the versioned configuration schema](../schemas/code-source-schema.json).
+Use `atlas_capture_code` with `{"file":"code-source.json","workId":"work-0008"}` or `atlas model capture_code --root ./workspace --input request.json`. Projects' paths are relative to the configuration file; selected files, tsconfig and classpath are relative to each project. Paths must remain within the configured workspace/project. See [the versioned configuration schema](../packages/diagrams/schemas/code-source-schema.json).
 
 ```json
 {
@@ -50,4 +50,4 @@ Use `atlas_capture_code` with `{"file":"code-source.json","workId":"work-0008"}`
 }
 ```
 
-The returned handle supports the same inspect/validate/prepare/export workflow as conceptual and database models. Human users can run this CLI and inspect the frozen result in the dashboard. A packaged consumer receives the Java inspector source and classic TypeScript compiler; a local JDK remains an explicit prerequisite. Compiler API references: [TypeScript](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API), [Java 21 JavacTask](https://docs.oracle.com/en/java/javase/21/docs/api/jdk.compiler/com/sun/source/util/JavacTask.html).
+The returned handle supports the same inspect/validate/prepare/export workflow as conceptual and database models. Human users can run this CLI and inspect the frozen result in the Atlas app. A packaged consumer receives the Java inspector source and classic TypeScript compiler; a local JDK remains an explicit prerequisite. Compiler API references: [TypeScript](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API), [Java 21 JavacTask](https://docs.oracle.com/en/java/javase/21/docs/api/jdk.compiler/com/sun/source/util/JavacTask.html).

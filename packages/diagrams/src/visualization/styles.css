@@ -1,0 +1,221 @@
+:root {
+  --diagram-border: #768390;
+  --diagram-divider: #636e7b;
+  --diagram-edge: #909dab;
+  --diagram-inheritance: #adbac7;
+  --diagram-label: #cdd9e5;
+  --diagram-muted: #909dab;
+  --diagram-attribute: #adbac7;
+  --diagram-selection: #eac55f;
+  --node-kind: #273e54;
+  --node-role: #49382c;
+  --node-relator: #403452;
+  --node-phase: #2a4437;
+  --node-event: #4d3236;
+  --node-mode: #29434b;
+  --type-kind: #6cb6ff;
+  --type-role: #f69d50;
+  --type-relator: #dcbdfb;
+  --type-phase: #8ddb8c;
+  --type-event: #ff938a;
+  --type-mode: #76e3ea;
+}
+:root[data-theme="light"] {
+  --diagram-border: #818b98;
+  --diagram-divider: #d1d9e0;
+  --diagram-edge: #59636e;
+  --diagram-inheritance: #59636e;
+  --diagram-label: #1f2328;
+  --diagram-muted: #59636e;
+  --diagram-attribute: #59636e;
+  --diagram-selection: #9a6700;
+  --node-kind: #ddedff;
+  --node-role: #fff0df;
+  --node-relator: #f0e5ff;
+  --node-phase: #e1f2e4;
+  --node-event: #ffe5e2;
+  --node-mode: #e0f3f5;
+  --type-kind: #0550ae;
+  --type-role: #953800;
+  --type-relator: #8250df;
+  --type-phase: #116329;
+  --type-event: #cf222e;
+  --type-mode: #0a3069;
+}
+#canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+  cursor: grab;
+  background-color: var(--canvas);
+  user-select: none;
+}
+.canvas-grid {
+  position: absolute;
+  inset: -64px;
+  pointer-events: none;
+  background-image: radial-gradient(var(--grid) 0.7px, transparent 0.7px);
+  background-size: 20px 20px;
+  will-change: transform;
+}
+#canvas.dragging {
+  cursor: grabbing;
+}
+#world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+#world svg {
+  display: block;
+  overflow: visible;
+}
+.uml-diagram {
+  position: relative;
+}
+.diagram-base {
+  will-change: opacity;
+}
+.diagram-base,
+.diagram-background {
+  transition: opacity 100ms ease-out;
+}
+.diagram-background {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: opacity;
+}
+.diagram-background.ready {
+  visibility: visible;
+}
+.diagram-hit-layer {
+  opacity: 0;
+}
+.uml-diagram.has-focus > .diagram-base,
+.uml-diagram.has-focus > .diagram-background {
+  opacity: 0.22;
+}
+.diagram-overlay {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  animation: highlight-enter 80ms ease-out;
+}
+@keyframes highlight-enter {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.diagram-overlay,
+.diagram-overlay *,
+.diagram-overlay .edge-label {
+  pointer-events: none;
+}
+.node {
+  cursor: pointer;
+  outline: none;
+}
+.node:hover .node-box,
+.node:focus-visible .node-box {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.diagram-base .node:hover .node-box,
+.diagram-base .node:focus-visible .node-box {
+  stroke: var(--diagram-border);
+  stroke-width: 1.25;
+}
+svg.has-focus .diagram-element {
+  opacity: 0.22;
+}
+svg.has-focus .diagram-element.highlighted {
+  opacity: 1;
+}
+.node.dimmed,
+.edge.dimmed {
+  opacity: 0.22;
+}
+.node.highlighted .node-box {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.node.primary .node-box {
+  stroke: var(--diagram-selection);
+  stroke-width: 3;
+}
+.node.primary.selected .node-box {
+  stroke-width: 3.5;
+}
+.edge {
+  outline: none;
+  cursor: pointer;
+}
+.edge.highlighted .edge-path,
+.edge:focus-visible .edge-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.edge.highlighted .multiplicity rect {
+  stroke: var(--accent);
+  stroke-width: 1.4;
+}
+.diagram-base .edge:focus-visible .edge-path {
+  stroke: var(--diagram-edge);
+  stroke-width: 1.4;
+}
+.diagram-base .generalization:focus-visible .edge-path {
+  stroke: var(--diagram-inheritance);
+}
+.edge.highlighted .edge-label text {
+  fill: var(--accent);
+}
+.edge.primary .edge-path {
+  stroke: var(--diagram-selection);
+  stroke-width: 3;
+}
+.edge.primary.selected .edge-path {
+  stroke-width: 3.5;
+}
+.edge.primary .multiplicity rect {
+  stroke: var(--diagram-selection);
+}
+.edge.primary .edge-label text,
+.edge.primary .edge-label tspan {
+  fill: var(--diagram-selection);
+}
+.edge-label {
+  pointer-events: all;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram-base,
+  .diagram-background {
+    transition: none;
+  }
+  .diagram-overlay {
+    animation: none;
+  }
+}
+[data-change="added"] .node-box,
+[data-change="added"] .edge-path {
+  stroke: #57ab5a;
+  stroke-width: 2;
+}
+[data-change="removed"] .node-box,
+[data-change="removed"] .edge-path {
+  stroke: #e5534b;
+  stroke-dasharray: 5 3;
+}
+[data-change="modified"] .node-box,
+[data-change="modified"] .edge-path {
+  stroke: #c69026;
+  stroke-width: 2;
+}

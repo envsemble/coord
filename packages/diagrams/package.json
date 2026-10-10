@@ -1,0 +1,97 @@
+{
+  "name": "@envsemble/atlas-diagrams",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Internal Atlas diagram package: capture, documents, validation, layout, the React viewer, offline export and review tooling",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/envsemble/atlas.git",
+    "directory": "packages/diagrams"
+  },
+  "homepage": "https://github.com/envsemble/atlas",
+  "bugs": {
+    "url": "https://github.com/envsemble/atlas/issues"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/build.cjs",
+    "preview": "node scripts/preview.cjs",
+    "check": "node scripts/check.cjs",
+    "test": "node scripts/test.cjs",
+    "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" scripts tests examples schemas/*.json agents package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
+    "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" scripts tests examples agents package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
+    "check:types": "tsc --noEmit -p tsconfig.contracts.json",
+    "build:library": "node scripts/build-library.cjs",
+    "prepack": "node scripts/build-library.cjs",
+    "check:package": "node scripts/check-package.cjs",
+    "review:example": "node scripts/review-example.cjs",
+    "check:performance": "node scripts/check-performance.cjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "postcss": "8.5.29",
+    "postcss-selector-parser": "7.1.6",
+    "prettier": "3.8.0",
+    "prettier-plugin-java": "2.11.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.3",
+    "wrangler": "4.148.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@primer/octicons-react": "19.40.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "elkjs": "0.12.0",
+    "esbuild": "0.28.2",
+    "fflate": "0.8.3",
+    "ontouml-js": "1.0.0",
+    "parse5": "8.0.1",
+    "pg": "8.23.1",
+    "shiki": "4.5.0",
+    "typescript-compiler": "npm:typescript@6.0.3"
+  },
+  "license": "UNLICENSED",
+  "main": "./lib/index.cjs",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "require": "./lib/index.cjs",
+      "default": "./lib/index.cjs"
+    },
+    "./react": {
+      "types": "./src/index.d.ts",
+      "default": "./dist/react.mjs"
+    },
+    "./cli": "./lib/agent/cli.cjs",
+    "./job-cli": "./lib/agent/jobCli.cjs",
+    "./viewer.css": "./src/ui/styles.css",
+    "./diagram.css": "./src/visualization/styles.css",
+    "./embedded.css": "./dist/embedded.css",
+    "./schema": "./schemas/ontouml-schema.json",
+    "./evidence-schema": "./schemas/evidence-schema.json",
+    "./document-schema": "./schemas/document-schema.json",
+    "./database-source-schema": "./schemas/database-source-schema.json",
+    "./code-source-schema": "./schemas/code-source-schema.json"
+  },
+  "files": [
+    "lib/",
+    "src/",
+    "schemas/",
+    "licenses/",
+    "agents/",
+    "assets/",
+    "dist/"
+  ],
+  "peerDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
+}

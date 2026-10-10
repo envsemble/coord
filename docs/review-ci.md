@@ -1,6 +1,6 @@
 # Model review in a PR or MR
 
-`atlas review --input request.json` is provider independent. It reads Atlas document JSON from explicit files or Git commits, validates the head, compares stable semantic identities and builds an offline review bundle. It never runs a source project's scripts or alters the model. Git revisions must exist locally; fetch the selected base/head before running.
+`atlas model review --input request.json` is provider independent. It reads Atlas document JSON from explicit files or Git commits, validates the head, compares stable semantic identities and builds an offline review bundle. It never runs a source project's scripts or alters the model. Git revisions must exist locally; fetch the selected base/head before running.
 
 ```json
 {
@@ -34,4 +34,4 @@ Evidence mapping uses the exact `evidence.sources[].repo` identity. Regular Git 
 
 `npm run review:example -- artifacts/review` exercises the committed teaching pair. CI passes `--git` so artifacts label the actual pipeline commit. Set `ATLAS_REVIEW_HEAD` to a fetched commit and `ATLAS_REVIEW_CONFIG` to a request JSON to replace the demonstration with a real project review. Explicit config supplies its own base/head; no provider variable or moving branch silently chooses the architectural baseline.
 
-GitHub Actions retains review and release artifacts even when a verification job fails. Atlas and the Worktrail consumer use the same core contract and artifact upload. These are artifact workflows, with no publishing token, deployment, auto-merge or release creation. [GitHub artifacts](https://docs.github.com/en/actions/tutorials/store-and-share-data) describes retention/access behavior. Model contents and retained excerpts may be private; artifacts inherit the repository's access controls.
+GitHub Actions retains review and release artifacts even when a verification job fails. The diagram package and the app (`npm run check:review`) use the same review contract and artifact upload. These are artifact workflows, with no publishing token, deployment, auto-merge or release creation. [GitHub artifacts](https://docs.github.com/en/actions/tutorials/store-and-share-data) describes retention/access behavior. Model contents and retained excerpts may be private; artifacts inherit the repository's access controls.

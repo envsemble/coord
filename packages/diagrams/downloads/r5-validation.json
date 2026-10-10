@@ -1,0 +1,468 @@
+{
+  "valid": false,
+  "schema": "https://w3id.org/ontouml/schema/v1.0.2",
+  "engines": [
+    {
+      "name": "Ajv + official OntoUML schema",
+      "version": "1.0.2",
+      "layer": "schema"
+    },
+    {
+      "name": "Atlas documented OntoUML rule subset",
+      "version": "1",
+      "layer": "ontology"
+    }
+  ],
+  "issues": [
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-ListingUpdate",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-ServerLookup",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "PHASE_PARTITION",
+      "severity": "error",
+      "elementId": "class-ActiveClientSlot",
+      "message": "This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.",
+      "layer": "ontology",
+      "documentation": "https://ontouml.readthedocs.io/en/latest/classes/sortals/phase/index.html"
+    },
+    {
+      "code": "PHASE_PARTITION",
+      "severity": "error",
+      "elementId": "class-ReadyPlayer",
+      "message": "This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.",
+      "layer": "ontology",
+      "documentation": "https://ontouml.readthedocs.io/en/latest/classes/sortals/phase/index.html"
+    },
+    {
+      "code": "PHASE_PARTITION",
+      "severity": "error",
+      "elementId": "class-DownedPlayer",
+      "message": "This phase is outside a complete, disjoint phase partition. Identify the missing alternatives or reconsider its stereotype.",
+      "layer": "ontology",
+      "documentation": "https://ontouml.readthedocs.io/en/latest/classes/sortals/phase/index.html"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-GameMatch",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-ServerFrame",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-CommandProcessing",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-SnapshotEmission",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-Respawn",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-Downing",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RULE_COVERAGE",
+      "severity": "info",
+      "elementId": "class-GameStateChange",
+      "message": "Ontology rules for «event» are not implemented by this local rule set. Schema and reference checks still apply.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-GameServer-ListingUpdate-host-being-advertised",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-DirectoryService-ListingUpdate-receives-advertisement",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-ClientApplication-ServerLookup-requests-lookup",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-backend-DirectoryService-ServerLookup-serves-lookup",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-GameSession-GameMatch-realized-in",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-GameServer-ServerFrame-runs-frame",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-PlayerEntity-CommandProcessing-command-actor",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-InputCommand-CommandProcessing-processed-request",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-ClientSlot-SnapshotEmission-recipient-slot",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-Snapshot-SnapshotEmission-transmitted-state",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-NetworkChannel-SnapshotEmission-send-channel",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-PlayerEntity-Respawn-restored-actor",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-PlayerEntity-Downing-downed-actor",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    },
+    {
+      "code": "RELATION_COVERAGE",
+      "severity": "info",
+      "elementId": "relation-runtime-GameSession-GameStateChange-changed-context",
+      "message": "Full constraints for «participation» are outside this local rule set.",
+      "layer": "ontology"
+    }
+  ],
+  "counts": {
+    "error": 3,
+    "warning": 0,
+    "info": 23
+  },
+  "limitations": [
+    "This is a documented subset of OntoUML rules, not full semantic or Alloy validation.",
+    "Passing checks cannot establish correct domain identities, empirical claims, or multiplicities.",
+    "N-ary relations, relation-to-relation edges, and diagram annotations are not rendered by this class viewer."
+  ],
+  "modelCounts": {
+    "classes": 41,
+    "relations": 40,
+    "generalizations": 9
+  },
+  "diagrams": [
+    {
+      "view": "runtime",
+      "fields": false,
+      "nodes": 28,
+      "edges": 37,
+      "orthogonalSegments": 140,
+      "width": 1902,
+      "height": 1864,
+      "layout": {
+        "strategy": "NETWORK_SIMPLEX",
+        "compact": true,
+        "crossings": 30,
+        "overlaps": 0,
+        "labelIntersections": 0,
+        "bends": 101,
+        "length": 23901,
+        "area": 3545328,
+        "score": 30811.33,
+        "candidates": [
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": false,
+            "eligible": true,
+            "crossings": 30,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 104,
+            "length": 33793.67,
+            "area": 4350232,
+            "score": 40977.22
+          },
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": true,
+            "eligible": true,
+            "crossings": 30,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 101,
+            "length": 23901,
+            "area": 3545328,
+            "score": 30811.33
+          },
+          {
+            "strategy": "BRANDES_KOEPF",
+            "compact": true,
+            "eligible": true,
+            "crossings": 30,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 114,
+            "length": 26091,
+            "area": 4139025,
+            "score": 33461.76
+          }
+        ],
+        "rejected": []
+      },
+      "generalizationGroups": 2,
+      "multiplicityLabels": 62,
+      "maxMultiplicityDistance": 47
+    },
+    {
+      "view": "runtime",
+      "fields": true,
+      "nodes": 28,
+      "edges": 37,
+      "orthogonalSegments": 140,
+      "width": 1902,
+      "height": 2141,
+      "layout": {
+        "strategy": "NETWORK_SIMPLEX",
+        "compact": true,
+        "crossings": 30,
+        "overlaps": 0,
+        "labelIntersections": 0,
+        "bends": 101,
+        "length": 25336,
+        "area": 4072182,
+        "score": 32378.05,
+        "candidates": [
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": false,
+            "eligible": true,
+            "crossings": 30,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 101,
+            "length": 35498.92,
+            "area": 5073666,
+            "score": 42791.33
+          },
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": true,
+            "eligible": true,
+            "crossings": 30,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 101,
+            "length": 25336,
+            "area": 4072182,
+            "score": 32378.05
+          },
+          {
+            "strategy": "BRANDES_KOEPF",
+            "compact": true,
+            "eligible": true,
+            "crossings": 30,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 98,
+            "length": 27255.17,
+            "area": 4616154,
+            "score": 34361.21
+          }
+        ],
+        "rejected": []
+      },
+      "generalizationGroups": 2,
+      "multiplicityLabels": 62,
+      "maxMultiplicityDistance": 47
+    },
+    {
+      "view": "backend",
+      "fields": false,
+      "nodes": 10,
+      "edges": 12,
+      "orthogonalSegments": 43,
+      "width": 1512,
+      "height": 621,
+      "layout": {
+        "strategy": "NETWORK_SIMPLEX",
+        "compact": true,
+        "crossings": 3,
+        "overlaps": 0,
+        "labelIntersections": 0,
+        "bends": 30,
+        "length": 5955,
+        "area": 938952,
+        "score": 7269.74,
+        "candidates": [
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": false,
+            "eligible": true,
+            "crossings": 3,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 30,
+            "length": 7445.33,
+            "area": 1005786,
+            "score": 8776.78
+          },
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": true,
+            "eligible": true,
+            "crossings": 3,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 30,
+            "length": 5955,
+            "area": 938952,
+            "score": 7269.74
+          },
+          {
+            "strategy": "BRANDES_KOEPF",
+            "compact": true,
+            "eligible": true,
+            "crossings": 3,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 36,
+            "length": 6183.5,
+            "area": 1059156,
+            "score": 7672.29
+          }
+        ],
+        "rejected": []
+      },
+      "generalizationGroups": 1,
+      "multiplicityLabels": 18,
+      "maxMultiplicityDistance": 47
+    },
+    {
+      "view": "backend",
+      "fields": true,
+      "nodes": 10,
+      "edges": 12,
+      "orthogonalSegments": 51,
+      "width": 1512,
+      "height": 716,
+      "layout": {
+        "strategy": "BRANDES_KOEPF",
+        "compact": true,
+        "crossings": 3,
+        "overlaps": 0,
+        "labelIntersections": 0,
+        "bends": 38,
+        "length": 6108.17,
+        "area": 1082592,
+        "score": 7650.81,
+        "candidates": [
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": false,
+            "eligible": true,
+            "crossings": 3,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 32,
+            "length": 7521.33,
+            "area": 1022370,
+            "score": 8904.93
+          },
+          {
+            "strategy": "NETWORK_SIMPLEX",
+            "compact": true,
+            "eligible": false,
+            "crossings": 5,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 32,
+            "length": 5879,
+            "area": 941976,
+            "score": 7482.49
+          },
+          {
+            "strategy": "BRANDES_KOEPF",
+            "compact": true,
+            "eligible": true,
+            "crossings": 3,
+            "overlaps": 0,
+            "labelIntersections": 0,
+            "bends": 38,
+            "length": 6108.17,
+            "area": 1082592,
+            "score": 7650.81
+          }
+        ],
+        "rejected": []
+      },
+      "generalizationGroups": 1,
+      "multiplicityLabels": 18,
+      "maxMultiplicityDistance": 47
+    }
+  ]
+}

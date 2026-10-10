@@ -1,0 +1,44 @@
+{
+  "name": "@envsemble/atlas-app",
+  "version": "0.1.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/envsemble/atlas.git",
+    "directory": "app"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx server/index.ts --dev",
+    "build": "tsc --noEmit && vite build",
+    "start": "tsx server/index.ts",
+    "test": "tsx --test src/visiblePoll.test.ts src/modelSelection.test.ts src/status.test.ts src/work.test.ts server/links.test.ts server/headings.test.ts server/http.test.ts server/switching.test.ts",
+    "check:types": "tsc --noEmit",
+    "check:review": "node scripts/check-review.mjs"
+  },
+  "dependencies": {
+    "@envsemble/atlas-diagrams": "*",
+    "@envsemble/atlas-planning": "*",
+    "@primer/octicons-react": "19.40.0",
+    "@primer/primitives": "^11.10.0",
+    "express": "^5.2.1",
+    "github-slugger": "2.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-markdown": "latest",
+    "remark-gfm": "latest",
+    "tsx": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "^5",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "latest",
+    "vite": "^8.3.3"
+  }
+}

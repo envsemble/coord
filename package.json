@@ -1,8 +1,8 @@
 {
-  "name": "ontouml-atlas",
+  "name": "atlas",
   "version": "0.5.0",
   "private": true,
-  "description": "Agent-ready OntoUML validation, offline visualization and learning",
+  "description": "Plans, models and shared understanding for agents and the people they work with",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/envsemble/atlas.git"
@@ -11,95 +11,35 @@
   "bugs": {
     "url": "https://github.com/envsemble/atlas/issues"
   },
-  "scripts": {
-    "dev": "vite",
-    "build": "node scripts/build.cjs",
-    "preview": "node scripts/preview.cjs",
-    "check": "node scripts/check.cjs",
-    "test": "node scripts/test.cjs",
-    "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples schemas/*.json agents docs README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
-    "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" bin scripts tests examples agents docs README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
-    "check:types": "tsc --noEmit -p tsconfig.contracts.json",
-    "build:library": "node scripts/build-library.cjs",
-    "prepack": "node scripts/build-library.cjs",
-    "check:package": "node scripts/check-package.cjs",
-    "review:example": "node scripts/review-example.cjs",
-    "release:assemble": "node scripts/release.cjs",
-    "check:release": "node scripts/check-release.cjs",
-    "check:performance": "node scripts/check-performance.cjs"
-  },
+  "license": "UNLICENSED",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*",
+    "app"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @envsemble/atlas-diagrams",
+    "dev:app": "npm run dev --workspace @envsemble/atlas-app",
+    "preview": "npm run preview --workspace @envsemble/atlas-diagrams",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "test:skills": "node --test \"skills/tests/*.test.mjs\"",
+    "format": "npm run format --workspace @envsemble/atlas-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
+    "format:check": "npm run format:check --workspace @envsemble/atlas-diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
+    "check:types": "npm run check:types --workspaces --if-present",
+    "check": "npm run check --workspace @envsemble/atlas-diagrams",
+    "check:package": "npm run check:package --workspace @envsemble/atlas-diagrams",
+    "check:performance": "npm run check:performance --workspace @envsemble/atlas-diagrams",
+    "check:review": "npm run check:review --workspace @envsemble/atlas-app",
+    "review:example": "node packages/diagrams/scripts/review-example.cjs",
+    "release:assemble": "node scripts/release.cjs",
+    "check:release": "node scripts/check-release.cjs"
   },
   "devDependencies": {
-    "@types/react": "19.3.0",
-    "@vitejs/plugin-react": "6.1.2",
-    "postcss": "8.5.29",
-    "postcss-selector-parser": "7.1.6",
-    "prettier": "3.8.0",
-    "prettier-plugin-java": "2.11.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "typescript": "7.0.2",
-    "vite": "8.3.3",
-    "wrangler": "4.148.0"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.32.1",
-    "@primer/octicons-react": "19.40.0",
-    "ajv": "8.20.0",
-    "ajv-formats": "3.0.1",
-    "elkjs": "0.12.0",
-    "esbuild": "0.28.2",
     "fflate": "0.8.3",
-    "ontouml-js": "1.0.0",
-    "parse5": "8.0.1",
-    "pg": "8.23.1",
-    "shiki": "4.5.0",
-    "typescript-compiler": "npm:typescript@6.0.3"
-  },
-  "license": "UNLICENSED",
-  "main": "./lib/index.cjs",
-  "types": "./lib/index.d.ts",
-  "bin": {
-    "atlas": "./bin/atlas.cjs",
-    "ontouml-atlas": "./bin/ontouml.cjs"
-  },
-  "exports": {
-    ".": {
-      "types": "./lib/index.d.ts",
-      "require": "./lib/index.cjs",
-      "default": "./lib/index.cjs"
-    },
-    "./react": {
-      "types": "./src/index.d.ts",
-      "default": "./dist/react.mjs"
-    },
-    "./viewer.css": "./src/ui/styles.css",
-    "./diagram.css": "./src/visualization/styles.css",
-    "./embedded.css": "./dist/embedded.css",
-    "./schema": "./schemas/ontouml-schema.json",
-    "./evidence-schema": "./schemas/evidence-schema.json",
-    "./document-schema": "./schemas/document-schema.json",
-    "./database-source-schema": "./schemas/database-source-schema.json",
-    "./code-source-schema": "./schemas/code-source-schema.json"
-  },
-  "files": [
-    "lib/",
-    "bin/",
-    "src/",
-    "schemas/",
-    "licenses/",
-    "agents/",
-    "docs/",
-    "assets/",
-    "README.md",
-    "THIRD_PARTY_NOTICES.md",
-    "dist/"
-  ],
-  "peerDependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "prettier": "3.8.0"
   },
   "overrides": {
     "sharp": "0.35.5"

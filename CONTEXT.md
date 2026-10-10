@@ -1,6 +1,6 @@
-# OntoUML Atlas
+# Atlas models
 
-OntoUML Atlas connects an agent's evidence-backed domain model to a read-only viewer and learning experience.
+Atlas connects an agent's evidence-backed domain models to a read-only viewer and learning experience. This glossary covers the diagram package (`packages/diagrams`); the planning vocabulary lives in the planning contract the [atlas-bootstrap skill](skills/atlas-bootstrap/assets/planning/PLANS.md) installs.
 
 ## Language
 

@@ -1,0 +1,81 @@
+import {
+  Project,
+  buildViewer,
+  prepareViewer,
+  validateProject,
+  createDocument,
+  createWorkspace,
+  reviseDocument,
+  validateDocument,
+  type ExchangeProject,
+  type AuthoredMapping,
+} from "../lib";
+import {
+  OntoUMLViewer,
+  UMLDiagram,
+  AtlasPanel,
+  ProvenanceBadge,
+  describeProvenance,
+  type Provenance,
+} from "../src";
+async function smoke() {
+  // @ts-expect-error A document requires a model or OntoUML project.
+  createDocument({});
+  // @ts-expect-error Metadata alone does not supply a model.
+  createDocument({ title: "Missing model" });
+  // @ts-expect-error A viewer needs an authored project or versioned document.
+  await buildViewer({});
+  // @ts-expect-error Options alone do not identify model input.
+  await prepareViewer({ includeArtifacts: false });
+  const mapping: AuthoredMapping = {
+    id: "mapping",
+    kind: "authored",
+    elementId: "class",
+    snapshotId: "snapshot",
+    targetElementId: "table",
+    reason: "Declared correspondence",
+    sourceRevision: "retained-revision",
+  };
+  const retainedRevision: string | undefined = mapping.sourceRevision;
+  void retainedRevision;
+  const project = JSON.parse(JSON.stringify(new Project())) as ExchangeProject;
+  validateProject(project);
+  const document = createDocument({ project, profile: "ontouml" });
+  validateDocument(reviseDocument(document, { title: "Planning revision" }));
+  await createWorkspace("workspace").execute("atlas_create", {
+    input: { project },
+  });
+  await prepareViewer({ document, includeArtifacts: false });
+  createDocument({
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [{ id: "table", name: "Table", attributes: [] }],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
+    },
+  });
+  const built = await buildViewer({ project });
+  const prepared = await prepareViewer({ project });
+  const provenance: Provenance = describeProvenance(document);
+  const tone: "accent" | "done" | "success" | "neutral" = provenance.tone;
+  void tone;
+  describeProvenance(prepared.model.document);
+  describeProvenance(undefined);
+  return (
+    <>
+      <OntoUMLViewer {...prepared.payload} />
+      <AtlasPanel
+        payload={prepared.payload}
+        theme="dark"
+        leading={<select aria-label="Model" />}
+        fullscreen={false}
+        onFullscreenChange={(next: boolean) => void next}
+      />
+      <ProvenanceBadge document={document} />
+      <UMLDiagram diagram={built.views[0].diagram} />
+    </>
+  );
+}
+void smoke;
