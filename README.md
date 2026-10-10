@@ -112,7 +112,7 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 
 ![Agent proposal compared with its captured baseline: Baseline and Changes modes, and a change list grouping added and modified elements with before and after values and linked rationale](assets/comparison-dark.jpg)
 
-`npm run dev` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates. `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module; the HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service. The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation.
+`npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates. `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module; the HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service. The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation.
 
 ```sh
 node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --report
