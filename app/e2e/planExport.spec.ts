@@ -119,3 +119,34 @@ test('an invalid export is refused in an error dialog and nothing is written', a
   expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toBe(registry);
   expect(git('status', '--porcelain', '--untracked-files=all')).toBe('');
 });
+
+test('import previews in two windows do not replace each other', async () => {
+  const { app, window } = launched!;
+  const exported = path.join(scratch, 'notifications.html');
+  await stubDialogs(app, { save: exported });
+  const bridge = (page: typeof window) => ({
+    exportPlan: (work: string) => page.evaluate(id => (window as unknown as { atlas: { exportPlan(id: string): Promise<{ ok: boolean }> } }).atlas.exportPlan(id), work),
+    choose: () => page.evaluate(() => (window as unknown as { atlas: { chooseImport(): Promise<{ ok: boolean; value: { token: string; newId: string } }> } }).atlas.chooseImport()),
+    confirm: (token: string) => page.evaluate(key => (window as unknown as { atlas: { confirmImport(token: string): Promise<{ ok: boolean; value?: { workId: string }; error?: { message: string } }> } }).atlas.confirmImport(key), token),
+  });
+  expect((await bridge(window).exportPlan('work-0003')).ok).toBe(true);
+  // A second planning folder in its own window.
+  const second = planningFixture();
+  const opened = app.waitForEvent('window');
+  await stubDialogs(app, { open: second });
+  await app.evaluate(({ Menu, BrowserWindow }) => {
+    const item = Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === '&Open Folder…')!;
+    item.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
+  });
+  const other = await opened;
+  await expect(other.locator('.work-row')).toHaveCount(3);
+  await stubDialogs(app, { open: exported });
+  const first = await bridge(window).choose();
+  const next = await bridge(other).choose();
+  expect(first.ok && next.ok).toBe(true);
+  expect(await bridge(window).confirm(first.value.token)).toMatchObject({ ok: true, value: { workId: 'work-0005' } });
+  expect(await bridge(other).confirm(next.value.token)).toMatchObject({ ok: true, value: { workId: 'work-0005' } });
+  expect(existsSync(path.join(second, 'planning.json'))).toBe(true);
+  expect(readFileSync(path.join(second, 'planning.json'), 'utf8')).toContain('work-0005');
+  removeDirectory(path.dirname(second));
+});

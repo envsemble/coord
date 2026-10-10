@@ -9,14 +9,24 @@ import { resolveDocument } from '@envsemble/atlas-planning';
 import { invokeChannels, type InvokeChannel, type Result } from '../shared/contract.ts';
 import { absolutePath, argumentsOf, command, modelHandle, nullable, optional, relativePath, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
-import { describeImport, describePreview, expectedTarget, planExport, unavailableMessage } from './planExport.ts';
+import { describePreview, exportFileName, planExport } from './planExport.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
 
 type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
 interface Channel { args: Validator<unknown>[]; handle: Handler }
 
-const pendingImports = new Map<string, { window: number; preview: string; expires: number }>();
+interface PendingImport { window: number; preview: string; expires: number }
+const pendingImports = new Map<string, PendingImport>();
+
+/** Forget import previews (and release them in the worker), for example when their window closes. */
+export async function dropImports(matches: (entry: PendingImport, key: string) => boolean) {
+  for (const [key, entry] of [...pendingImports]) {
+    if (!matches(entry, key)) continue;
+    pendingImports.delete(key);
+    await planExport.drop(entry.preview).catch(() => undefined);
+  }
+}
 
 /** Reveal a file or folder inside the window's planning folder (never outside it, never hidden parts). */
 async function revealInside(root: string, relative: string) {
@@ -81,7 +91,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
           }
           const choice = await dialog.showSaveDialog(window.win, {
             title: 'Export plan', buttonLabel: 'Export',
-            defaultPath: path.join(app.getPath('documents'), path.posix.basename(item.path) + '.html'),
+            defaultPath: path.join(app.getPath('documents'), exportFileName(item.path, item.id)),
             filters: [{ name: 'Atlas plan export', extensions: ['html'] }],
           });
           if (choice.canceled || !choice.filePath) return null;
@@ -89,7 +99,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
           manager.context.log.info('Plan exported', { work, bytes: prepared.bytes });
           return { path: choice.filePath, bytes: prepared.bytes, warnings: prepared.warnings };
         } finally {
-          await planExport.discard(prepared.token).catch(() => undefined);
+          await planExport.drop(prepared.token).catch(() => undefined);
         }
       },
     },
@@ -97,40 +107,37 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [],
       handle: async window => {
         const current = folder(window);
-        if (!(await planExport.available())) throw new AtlasError('unavailable', unavailableMessage);
         const choice = await dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] });
         if (choice.canceled || !choice.filePaths[0]) return null;
         const file = choice.filePaths[0];
         let read;
         try { read = await planExport.read(current.root, file); } catch (error) {
-          // A file that is not a valid export is refused before anything is written.
+          // A file that is not a valid export, or a folder it cannot go into, is refused before anything is written.
           await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'This file cannot be imported.', detail: (error as Error).message + '\n\nNothing was written.', buttons: ['OK'] });
           // Already explained in the dialog; the window does not repeat it.
           throw new AtlasError('cancelled', (error as Error).message);
         }
-        const described = describePreview(read.preview);
-        const target = read.target ?? expectedTarget(current.root, described.title, described.location);
+        // One preview per window: a newer one replaces (and releases) the window's previous one.
+        await dropImports(entry => entry.window === window.id || entry.expires < Date.now());
         const key = randomUUID();
-        for (const [old, entry] of pendingImports) if (entry.expires < Date.now() || entry.window === window.id) pendingImports.delete(old);
-        pendingImports.set(key, { window: window.id, preview: read.token, expires: Date.now() + 10 * 60000 });
-        return { token: key, file: path.basename(file), ...described, newId: target?.workId ?? null, newFolder: target?.path ?? null, warnings: [] };
+        pendingImports.set(key, { window: window.id, preview: read.token, expires: Date.now() + 30 * 60000 });
+        return describePreview(read, path.basename(file), key);
       },
     },
     'plan:importConfirm': {
       args: [token],
       handle: async (window, key: string) => {
         const pending = pendingImports.get(key);
-        pendingImports.delete(key);
         if (!pending || pending.window !== window.id || pending.expires < Date.now()) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
+        pendingImports.delete(key);
         // The explicit user action that writes into the planning folder; nothing is committed.
-        let imported;
-        try { imported = await planExport.import(folder(window).root, pending.preview); } catch (error) {
+        let result;
+        try { result = await planExport.import(folder(window).root, pending.preview); } catch (error) {
           // A rollback that could not remove everything says which files remain; show it as written.
           if ((error as AtlasError).reason === 'ROLLBACK') await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'The import was rolled back.', detail: (error as Error).message, buttons: ['OK'] });
           await folder(window).reload();
           throw error;
         }
-        const result = describeImport(imported);
         manager.context.log.info('Plan imported', { workId: result.workId, files: result.files });
         await folder(window).reload();
         return result;
@@ -138,12 +145,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     },
     'plan:importCancel': {
       args: [token],
-      handle: async (window, key: string) => {
-        const pending = pendingImports.get(key);
-        if (!pending || pending.window !== window.id) return;
-        pendingImports.delete(key);
-        await planExport.forget(pending.preview);
-      },
+      handle: async (window, key: string) => { await dropImports((entry, entryKey) => entryKey === key && entry.window === window.id); },
     },
   };
 }
