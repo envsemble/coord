@@ -2,7 +2,7 @@
 // an editor's atomic save through a temporary file and rename) arrive as one change: the
 // callback runs once the folder has been quiet for `debounce` ms, and at least every `maxWait` ms
 // while changes keep arriving.
-import { existsSync, watch, type FSWatcher, type WatchOptions as FsWatchOptions } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, watch, type FSWatcher, type WatchOptions as FsWatchOptions } from 'node:fs';
 import path from 'node:path';
 
 export interface FolderWatcher { close(): void }
@@ -63,20 +63,94 @@ export function createCoalescer(flush: (paths: string[]) => void, debounce = 200
 
 type WatchOptionsWithIgnore = FsWatchOptions & { encoding: 'utf8'; ignore(path: string): boolean };
 
-export function watchFolder(root: string, options: WatchOptions): FolderWatcher {
-  const coalescer = createCoalescer(options.onChange, options.debounce, options.maxWait);
-  let watcher: FSWatcher | null = null;
-  let closed = false;
-  try {
-    const ignore = (candidate: string) => ignoredPath(path.isAbsolute(candidate) ? path.relative(root, candidate) : candidate);
-    // `ignore` (Node 24) is not yet in @types/node's watch options.
-    watcher = watch(root, { recursive: true, persistent: false, encoding: 'utf8', ignore } as WatchOptionsWithIgnore, (_event: string, filename: string | null) => {
-      const relative = filename === null ? null : filename.toString();
-      if (!closed && relevantChange(relative)) coalescer.add(relative ?? '');
+/** What the tree watchers need from the file system; tests replace it. */
+export interface WatchSystem {
+  platform: NodeJS.Platform;
+  /** fs.watch: recursive (Windows, macOS) or one folder (Linux). */
+  watch(path: string, options: FsWatchOptions & { ignore?(path: string): boolean }, listener: (event: string, filename: string | null) => void): Pick<FSWatcher, 'close' | 'on'>;
+  /** Subfolders of a folder (names only). */
+  folders(path: string): string[];
+  isFolder(path: string): boolean;
+}
+export const nodeWatchSystem: WatchSystem = {
+  platform: process.platform,
+  watch: (target, options, listener) => watch(target, { ...options, encoding: 'utf8' } as WatchOptionsWithIgnore, (event, filename) => listener(event, filename === null ? null : String(filename))),
+  folders: target => readdirSync(target, { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.isSymbolicLink()).map(entry => entry.name),
+  isFolder: target => { try { return lstatSync(target).isDirectory(); } catch { return false; } },
+};
+
+interface TreeWatcher { close(): void }
+type Changed = (relative: string | null) => void;
+
+/** Windows and macOS: the platform's own recursive watcher. */
+function recursiveTree(root: string, system: WatchSystem, changed: Changed, failed: (error: Error) => void): TreeWatcher {
+  // `ignore` (Node 24) keeps ignored folders' events out.
+  const ignore = (candidate: string) => ignoredPath(path.isAbsolute(candidate) ? path.relative(root, candidate) : candidate);
+  const watcher = system.watch(root, { recursive: true, persistent: false, ignore }, (_event, filename) => changed(filename));
+  watcher.on('error', failed);
+  return { close: () => { try { watcher.close(); } catch { /* Already closed. */ } } };
+}
+
+/**
+ * Linux: one inotify watch per folder, kept in step as folders appear and disappear. Node's own
+ * recursive emulation does the same but ignores errors while it walks the tree (such as reaching
+ * the inotify watch limit) and leaves part of the tree unwatched; here any failure ends watching
+ * and is reported, so the folder is rescanned instead.
+ */
+function perFolderTree(root: string, system: WatchSystem, changed: Changed, failed: (error: Error) => void): TreeWatcher {
+  const watchers = new Map<string, Pick<FSWatcher, 'close' | 'on'>>();
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    for (const watcher of watchers.values()) try { watcher.close(); } catch { /* Already closed. */ }
+    watchers.clear();
+  };
+  const fail = (error: Error) => { if (stopped) return; stop(); failed(error); };
+  const join = (folder: string, name: string) => folder ? folder + '/' + name : name;
+  const remove = (folder: string) => {
+    for (const [key, watcher] of watchers) {
+      if (key !== folder && !key.startsWith(folder + '/')) continue;
+      try { watcher.close(); } catch { /* Already closed. */ }
+      watchers.delete(key);
+    }
+  };
+  const add = (folder: string) => {
+    if (stopped || watchers.has(folder) || (folder && ignoredPath(folder))) return;
+    const absolute = path.join(root, folder);
+    const watcher = system.watch(absolute, { persistent: false }, (event, filename) => {
+      if (stopped) return;
+      const relative = filename === null ? null : join(folder, filename);
+      changed(relative);
+      if (relative === null || event !== 'rename') return;
+      try {
+        if (system.isFolder(path.join(root, relative))) add(relative);
+        else remove(relative);
+      } catch (error) { fail(error as Error); }
     });
-    watcher.on('error', error => { if (!closed) options.onError(error); });
+    watcher.on('error', error => fail(error));
+    watchers.set(folder, watcher);
+    let names: string[] = [];
+    try { names = system.folders(absolute); } catch (error) {
+      // A folder removed while it is being added is not a failure.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') { remove(folder); return; }
+      throw error;
+    }
+    for (const name of names) add(join(folder, name));
+  };
+  try { add(''); } catch (error) { fail(error as Error); }
+  return { close: stop };
+}
+
+export function watchFolder(root: string, options: WatchOptions, system: WatchSystem = nodeWatchSystem): FolderWatcher {
+  const coalescer = createCoalescer(options.onChange, options.debounce, options.maxWait);
+  let closed = false;
+  const changed: Changed = relative => { if (!closed && relevantChange(relative)) coalescer.add(relative ?? ''); };
+  const failed = (error: Error) => { if (!closed) queueMicrotask(() => options.onError(error)); };
+  let tree: TreeWatcher | null = null;
+  try {
+    tree = (system.platform === 'linux' ? perFolderTree : recursiveTree)(root, system, changed, failed);
   } catch (error) {
-    queueMicrotask(() => options.onError(error as Error));
+    failed(error as Error);
   }
   // A recursive watcher does not report its own folder being renamed or deleted (on Windows it
   // keeps following the moved folder), so also watch the parent and check the folder is there.
@@ -96,7 +170,8 @@ export function watchFolder(root: string, options: WatchOptions): FolderWatcher 
       closed = true;
       coalescer.cancel();
       clearInterval(presence);
-      for (const item of [watcher, parent]) try { item?.close(); } catch { /* Already closed. */ }
+      tree?.close();
+      try { parent?.close(); } catch { /* Already closed. */ }
     },
   };
 }
