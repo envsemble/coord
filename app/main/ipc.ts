@@ -113,10 +113,13 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         let read;
         try { read = await planExport.read(current.root, file); } catch (error) {
           // A file that is not a valid export, or a folder it cannot go into, is refused before anything is written.
+          if (window.win.isDestroyed()) throw new AtlasError('cancelled', (error as Error).message);
           await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'This file cannot be imported.', detail: (error as Error).message + '\n\nNothing was written.', buttons: ['OK'] });
           // Already explained in the dialog; the window does not repeat it.
           throw new AtlasError('cancelled', (error as Error).message);
         }
+        // The window closed while the file was read: release the preview at once.
+        if (window.win.isDestroyed()) { await planExport.drop(read.token).catch(() => undefined); return null; }
         // One preview per window: a newer one replaces (and releases) the window's previous one.
         await dropImports(entry => entry.window === window.id || entry.expires < Date.now());
         const key = randomUUID();
@@ -163,6 +166,8 @@ function trustedSender(event: IpcMainInvokeEvent, manager: WindowManager): Atlas
 
 export function registerIpc(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): void }) {
   const table = channels(manager, actions);
+  // Release previews nobody confirmed or cancelled in time.
+  setInterval(() => { void dropImports(entry => entry.expires < Date.now()); }, 60000).unref();
   for (const name of invokeChannels) {
     const channel = table[name];
     ipcMain.handle(name, async (event, ...values: unknown[]): Promise<Result<unknown>> => {
