@@ -37,6 +37,8 @@ module.exports = {
     require("./document/document.cjs").createDocument(...args),
   reviseDocument: (...args) =>
     require("./document/document.cjs").reviseDocument(...args),
+  relocateDocument: (...args) =>
+    require("./document/document.cjs").relocateDocument(...args),
   validateDocument: (...args) =>
     require("./document/document.cjs").validateDocument(...args),
   createSnapshot: (...args) =>

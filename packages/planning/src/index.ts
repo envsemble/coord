@@ -9,3 +9,9 @@ export { RecentPlanningRoots, discoverPlanningRoots, inspectPlanningRoot, samePl
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';
 export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './consultation.ts';
 export type * from './types.ts';
+export {
+  exportPlan, readPlanExport, importPlan, planImportTarget, planningRelative, planExportPathProblem,
+  PlanExportError, planExportFormat, planExportVersion, planExportWarningBytes,
+  type PlanExportManifest, type PlanExportSource, type PlanExportFile, type PlanExportRepository, type PlanExportDiagram,
+  type PlanExportPreview, type PlanExportResult, type PlanImportResult, type PlanImportTarget, type PlanExportErrorCode,
+} from './planExport.ts';
