@@ -3,7 +3,7 @@
 // unpacked copy with the inspector fuse on (release/e2e), which Playwright needs to drive the app.
 // The suite drives release/e2e; release.spec.ts starts the release build itself. Set
 // ATLAS_E2E_EXECUTABLE to drive another build, or ATLAS_E2E_UNPACKAGED=1 to run out/ with Electron.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -25,9 +25,12 @@ function unpackedExecutable(release: string): string {
   if (process.platform === 'linux') return path.join(release, 'linux-unpacked', 'atlas-desktop');
   throw new Error('The end-to-end suite runs on Windows and Linux.');
 }
-function packagedExecutable(): string {
-  if (process.env.ATLAS_E2E_EXECUTABLE) return path.resolve(process.env.ATLAS_E2E_EXECUTABLE);
+/** The unpacked end-to-end build: the release with the inspector fuse on, for Playwright. */
+export function endToEndExecutable(): string {
   return unpackedExecutable(path.join(appDirectory, 'release', 'e2e'));
+}
+function packagedExecutable(): string {
+  return process.env.ATLAS_E2E_EXECUTABLE ? path.resolve(process.env.ATLAS_E2E_EXECUTABLE) : endToEndExecutable();
 }
 /** The unpacked release build: what the installer and AppImage contain (inspector fuse off). */
 export function releaseExecutable(): string {
@@ -52,7 +55,8 @@ export function planningFixture(): string {
 }
 
 export function removeDirectory(directory: string) {
-  try { rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* Best effort on Windows. */ }
+  // Windows releases a closed app's files a moment after its processes end.
+  try { rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* Best effort. */ }
 }
 
 export function environment(dataDirectory: string) {
@@ -76,7 +80,7 @@ function electronBinary(): string {
   return createRequire(import.meta.url)('electron') as unknown as string;
 }
 
-export interface Launched { app: ElectronApplication; window: Page; dataDirectory: string; ownsData: boolean }
+export interface Launched { app: ElectronApplication; window: Page; dataDirectory: string; ownsData: boolean; process: ChildProcess }
 
 export async function launch(options: { folder?: string; dataDirectory?: string; args?: string[]; executable?: string } = {}): Promise<Launched> {
   const ownsData = !options.dataDirectory;
@@ -89,13 +93,15 @@ export async function launch(options: { folder?: string; dataDirectory?: string;
     : await electron.launch({ executablePath: packagedExecutable(), args: extra, env });
   const window = await app.firstWindow();
   await window.waitForLoadState('domcontentloaded');
-  return { app, window, dataDirectory, ownsData };
+  return { app, window, dataDirectory, ownsData, process: app.process() };
 }
 
 /** Close the app and remove the data folder launch() created for it. */
 export async function close(launched: Launched | undefined) {
   if (!launched) return;
+  const child = launched.process;
   await launched.app.close().catch(() => undefined);
+  if (child.exitCode === null && child.signalCode === null) await new Promise(resolve => child.once('exit', resolve));
   if (launched.ownsData) removeDirectory(launched.dataDirectory);
 }
 

@@ -121,3 +121,16 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
+
+test('Atlas refuses to start without its sandbox, and a released build refuses debuggers', async () => {
+  const { startupRefusal } = await import('./refusal.ts');
+  const check = (switches: string[], options: { packaged?: boolean; endToEndBuild?: boolean; environment?: NodeJS.ProcessEnv } = {}) =>
+    startupRefusal({ hasSwitch: name => switches.includes(name), environment: options.environment ?? {}, packaged: options.packaged ?? true, endToEndBuild: options.endToEndBuild ?? false });
+  assert.equal(check([]), null);
+  assert.deepEqual(check(['no-sandbox']), { reason: 'sandbox', switches: ['no-sandbox'] });
+  assert.deepEqual(check([], { environment: { ELECTRON_DISABLE_SANDBOX: '1' } }), { reason: 'sandbox', switches: ['ELECTRON_DISABLE_SANDBOX'] });
+  assert.deepEqual(check(['no-sandbox'], { endToEndBuild: true }), { reason: 'sandbox', switches: ['no-sandbox'] }, 'no build may drop the sandbox');
+  for (const name of ['remote-debugging-port', 'remote-debugging-pipe', 'inspect', 'inspect-brk']) assert.deepEqual(check([name]), { reason: 'debugging', switches: [name] }, name);
+  assert.equal(check(['remote-debugging-port', 'inspect'], { endToEndBuild: true }), null, 'the end-to-end build lets Playwright attach');
+  assert.equal(check(['remote-debugging-port'], { packaged: false }), null, 'development runs are not packaged');
+});

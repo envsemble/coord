@@ -6,14 +6,18 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import path from 'node:path';
+import { FuseV1Options, getCurrentFuseWire } from '@electron/fuses';
 import { expect, test } from '@playwright/test';
-import { environment, packagedInstaller, planningFixture, releaseExecutable, removeDirectory, temporaryDirectory } from './app';
+import { endToEndExecutable, environment, packagedInstaller, planningFixture, releaseExecutable, removeDirectory, temporaryDirectory } from './app';
 
+// A fuse wire stores each fuse as the character '0' (off) or '1' (on).
+const FuseState = { DISABLE: '0'.charCodeAt(0), ENABLE: '1'.charCodeAt(0) };
 const cleanup: string[] = [];
 test.afterEach(() => { for (const directory of cleanup.splice(0)) removeDirectory(directory); });
 
-/** Start an executable, wait until its log contains a line, then stop it (and all its processes). */
-async function runUntilLogged(executable: string, args: string[], expected: string, whileRunning: () => Promise<void> = async () => undefined) {
+/** Start an executable, wait until its log has every expected line, run a check, then stop it (and all its processes). */
+async function runUntilLogged(executable: string, args: readonly string[], expected: string | string[], whileRunning: () => Promise<void> = async () => undefined) {
+  const lines = typeof expected === 'string' ? [expected] : expected;
   const data = temporaryDirectory('atlas-release-data-');
   cleanup.push(data);
   const child = spawn(executable, args, { env: environment(data), detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -21,11 +25,13 @@ async function runUntilLogged(executable: string, args: string[], expected: stri
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
   const log = path.join(data, 'logs', 'atlas.log');
+  const logged = () => existsSync(log) && lines.every(line => readFileSync(log, 'utf8').includes(line));
   try {
     const started = Date.now();
-    while (!(existsSync(log) && readFileSync(log, 'utf8').includes(expected))) {
-      if (Date.now() - started > 60_000) throw new Error(`"${expected}" was not logged. Output:\n${output}`);
-      if (child.exitCode !== null) throw new Error(`Exited with ${child.exitCode} before logging "${expected}". Output:\n${output}`);
+    while (!logged()) {
+      const waiting = lines.map(line => '"' + line + '"').join(', ');
+      if (Date.now() - started > 60_000) throw new Error(`${waiting} not logged. Output: ${output}`);
+      if (child.exitCode !== null) throw new Error(`Exited with ${child.exitCode} before logging ${waiting}. Output: ${output}`);
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     await whileRunning();
@@ -33,7 +39,7 @@ async function runUntilLogged(executable: string, args: string[], expected: stri
   } finally {
     if (process.platform === 'win32') { try { execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* Already gone. */ } }
     else { try { process.kill(-child.pid!, 'SIGKILL'); } catch { /* Already gone. */ } }
-    await new Promise(resolve => setTimeout(resolve, 500));
+    if (child.exitCode === null) await new Promise(resolve => child.once('exit', resolve));
   }
 }
 const portOpen = (port: number) => new Promise<boolean>(resolve => {
@@ -45,22 +51,42 @@ function fixture() {
   cleanup.push(path.dirname(folder));
   return folder;
 }
-
-test('the release build opens a planning folder and ignores --inspect (inspector fuse off)', async () => {
+function release() {
   const executable = releaseExecutable();
   test.skip(!existsSync(executable), 'Build the release first with npm run package.');
-  const port = 9339;
-  let inspectorOpen = true;
-  const result = await runUntilLogged(executable, ['--inspect=127.0.0.1:' + port, fixture()], 'Window ready', async () => { inspectorOpen = await portOpen(port); });
-  expect(result.log).toContain('Planning folder read');
-  expect(result.output).not.toContain('Debugger listening');
-  expect(inspectorOpen).toBe(false);
+  return executable;
+}
+
+test('the release build opens a planning folder', async () => {
+  const result = await runUntilLogged(release(), [fixture()], ['Window ready', 'Planning folder read']);
+  expect(result.log).not.toContain('Refused');
 });
 
+test('the release build has the inspector fuse off; only the end-to-end build has it on', async () => {
+  const wire = await getCurrentFuseWire(release());
+  expect(wire[FuseV1Options.EnableNodeCliInspectArguments]).toBe(FuseState.DISABLE);
+  expect(wire[FuseV1Options.RunAsNode]).toBe(FuseState.DISABLE);
+  expect(wire[FuseV1Options.EnableNodeOptionsEnvironmentVariable]).toBe(FuseState.DISABLE);
+  expect((await getCurrentFuseWire(endToEndExecutable()))[FuseV1Options.EnableNodeCliInspectArguments]).toBe(FuseState.ENABLE);
+});
+
+for (const [name, args, port] of [
+  ['--remote-debugging-port', ['--remote-debugging-port=9340'], 9340],
+  ['--remote-debugging-pipe', ['--remote-debugging-pipe'], null],
+  ['--inspect', ['--inspect=127.0.0.1:9341'], 9341],
+] as const) {
+  test(`the release build refuses ${name}`, async () => {
+    let open = false;
+    const result = await runUntilLogged(release(), [...args, fixture()], 'Refused to start with debugging switches', async () => {
+      if (port) open = await portOpen(port);
+    });
+    expect(open).toBe(false);
+    expect(result.log).not.toContain('Window ready');
+  });
+}
+
 test('the app refuses to start without its sandbox', async () => {
-  const executable = releaseExecutable();
-  test.skip(!existsSync(executable), 'Build the release first with npm run package.');
-  const result = await runUntilLogged(executable, ['--no-sandbox', fixture()], 'Refused to start without the sandbox');
+  const result = await runUntilLogged(release(), ['--no-sandbox', fixture()], 'Refused to start without the sandbox');
   expect(result.log).not.toContain('Window ready');
 });
 
@@ -78,7 +104,7 @@ test('the AppImage keeps the sandbox in its desktop entry and opens a planning f
   expect(entry).toMatch(/^Exec=AppRun %U$/m);
   expect(entry).not.toContain('--no-sandbox');
   // APPIMAGE_EXTRACT_AND_RUN runs it without FUSE (environment() sets it).
-  await runUntilLogged(image!, [fixture()], 'Window ready');
+  await runUntilLogged(image!, [fixture()], ['Window ready', 'Planning folder read']);
 });
 
 test('the Windows installer installs per user, opens a planning folder and uninstalls', async () => {
@@ -91,7 +117,7 @@ test('the Windows installer installs per user, opens a planning folder and unins
   execFileSync(installer!, ['/S', '/currentuser', '/D=' + target], { windowsHide: true });
   try {
     expect(existsSync(path.join(target, 'Atlas.exe'))).toBe(true);
-    await runUntilLogged(path.join(target, 'Atlas.exe'), [fixture()], 'Window ready');
+    await runUntilLogged(path.join(target, 'Atlas.exe'), [fixture()], ['Window ready', 'Planning folder read']);
   } finally {
     execFileSync(path.join(target, 'Uninstall Atlas.exe'), ['/S', '/currentuser'], { windowsHide: true });
   }

@@ -1,5 +1,6 @@
 // The Atlas desktop app's main process: single instance, one window per planning folder,
 // the application menu, and the typed message channel the windows use.
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, protocol, shell } from 'electron';
 import { atlasDataDirectory, RecentPlanningRoots, recentRootsFile } from '@envsemble/atlas-planning';
@@ -8,6 +9,7 @@ import { folderArguments } from './args.ts';
 import { dropImports, registerIpc } from './ipc.ts';
 import { RotatingLog } from './log.ts';
 import { buildMenu } from './menu.ts';
+import { refusalMessage, startupRefusal, type Refusal } from './refusal.ts';
 import { scheme } from './protocol.ts';
 import { StateStore } from './state.ts';
 import { WindowManager, type AtlasWindow } from './windows.ts';
@@ -19,10 +21,15 @@ const dataDirectory = atlasDataDirectory();
 app.setPath('userData', dataDirectory);
 app.setPath('sessionData', path.join(dataDirectory, 'chromium'));
 app.setAppUserModelId('dev.envsemble.atlas');
-// Atlas never runs without Chromium's sandbox. Some AppImage launchers add --no-sandbox when the
-// system lacks unprivileged user namespaces; Atlas then explains how to allow them and quits.
-const sandboxRefused = app.commandLine.hasSwitch('no-sandbox') || Boolean(process.env.ELECTRON_DISABLE_SANDBOX);
-if (!sandboxRefused) app.enableSandbox();
+// Atlas never runs without Chromium's sandbox (some AppImage launchers add --no-sandbox when the
+// system lacks unprivileged user namespaces), and a released build never runs with a debugger.
+const refusal = startupRefusal({
+  hasSwitch: name => app.commandLine.hasSwitch(name),
+  environment: process.env,
+  packaged: app.isPackaged,
+  endToEndBuild: endToEndBuild(),
+});
+if (refusal?.reason !== 'sandbox') app.enableSandbox();
 protocol.registerSchemesAsPrivileged([{ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true } }]);
 
 const log = new RotatingLog(path.join(dataDirectory, 'logs'));
@@ -32,26 +39,30 @@ const launch = { argv: [...process.argv], cwd: process.cwd() };
 process.on('uncaughtException', error => log.error('Uncaught exception', error));
 process.on('unhandledRejection', error => log.error('Unhandled rejection', error));
 
-if (sandboxRefused) {
-  refuseWithoutSandbox();
+if (refusal) {
+  refuse(refusal);
 } else if (!app.requestSingleInstanceLock(launch)) {
   app.quit();
 } else {
   start();
 }
 
-function refuseWithoutSandbox() {
-  log.error('Refused to start without the sandbox', { noSandbox: app.commandLine.hasSwitch('no-sandbox'), environment: Boolean(process.env.ELECTRON_DISABLE_SANDBOX) });
+/** The end-to-end test build is packaged with "atlasEndToEndBuild": true in its package.json. */
+function endToEndBuild() {
+  try { return JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).atlasEndToEndBuild === true; } catch { return false; }
+}
+
+function refuse(found: Refusal) {
+  log.error(found.reason === 'sandbox' ? 'Refused to start without the sandbox' : 'Refused to start with debugging switches', { switches: found.switches });
+  if (found.reason === 'debugging') {
+    // Leave before Chromium opens its debugging port; a developer passing these switches reads stderr.
+    const { message, detail } = refusalMessage(found);
+    process.stderr.write(message + ' ' + detail + '\n');
+    app.exit(1);
+    return;
+  }
   void app.whenReady().then(async () => {
-    await dialog.showMessageBox({
-      type: 'error', title: 'Atlas', message: 'Atlas does not run without its sandbox.',
-      detail: [
-        'Atlas was started with its security sandbox turned off (--no-sandbox or ELECTRON_DISABLE_SANDBOX). An AppImage launcher does this when the system does not allow unprivileged user namespaces.',
-        '',
-        'Allow them, then start Atlas again: run "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0", or give the AppImage an AppArmor profile. The Atlas README explains both under "Linux sandbox".',
-      ].join('\n'),
-      buttons: ['Close'],
-    });
+    await dialog.showMessageBox({ type: 'error', title: 'Atlas', ...refusalMessage(found), buttons: ['Close'] });
     app.exit(1);
   });
 }

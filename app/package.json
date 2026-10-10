@@ -20,7 +20,7 @@
   "scripts": {
     "dev": "node scripts/electron.mjs electron-vite dev --watch --",
     "build": "npm run check:types && electron-vite build",
-    "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true && electron-builder --config electron-builder.yml --publish never",
+    "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.atlasEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
     "test": "tsx --test \"src/*.test.ts\" && node --test \"main/*.test.ts\" \"shared/*.test.ts\"",
     "test:e2e": "node scripts/electron.mjs playwright test",
     "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
@@ -32,6 +32,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@electron/fuses": "1.8.0",
     "@envsemble/atlas-planning": "*",
     "@playwright/test": "1.64.0",
     "@primer/octicons-react": "19.40.0",
