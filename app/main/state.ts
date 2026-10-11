@@ -66,6 +66,12 @@ export class StateStore {
     this.state.windows = roots.slice(0, 20);
     this.schedule();
   }
+  /** Drop the saved layout (and window restore) of every folder the test matches. */
+  forgetFolders(matches: (root: string) => boolean) {
+    for (const [key, record] of Object.entries(this.state.folders)) if (matches(record.root)) delete this.state.folders[key];
+    this.state.windows = this.state.windows.filter(root => !matches(root));
+    this.schedule();
+  }
 
   private schedule() {
     if (this.timer) return;

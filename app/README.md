@@ -114,7 +114,7 @@ The app follows Electron's security checklist (the desktop-only decision is work
 - Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
 - Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.
-- No data leaves the machine unless you turn on remote access, and then only shared folders, read-only, to devices you paired ([remote access](../docs/remote-access.md) describes pairing, tokens and the network). There is no telemetry, update check or crash upload.
+- No data leaves the machine unless you turn on remote access. Then the folders you share go, read-only, to devices you paired, and anyone who can reach the chosen address can learn this computer's name and Atlas version. [Remote access](../docs/remote-access.md) describes pairing, tokens, the network and what each computer keeps. There is no telemetry, update check or crash upload.
 
 ## Remote access
 

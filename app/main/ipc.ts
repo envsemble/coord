@@ -12,7 +12,7 @@ import { accessSettings } from '@envsemble/atlas-host/validate';
 import { invokeChannels, type ImportPreview, type InvokeChannel, type PairingLinkView, type Result } from '../shared/contract.ts';
 import { absolutePath, argumentsOf, command, folderId, ipAddress, modelHandle, nullable, optional, pairingCode, relativePath, string, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
-import type { FolderView } from './folderView.ts';
+import { parseRemoteRoot, type FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
 
@@ -183,8 +183,15 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'remote:forget': {
       args: [hostId],
       handle: async (_window, id: string) => {
-        for (const other of manager.all()) if (other.remote?.hostId === id) other.win.close();
+        // Close its windows first (closing saves their layout), then forget the computer and every layout saved for its folders.
+        const closing = manager.all().filter(other => other.remote?.hostId === id);
+        await Promise.all(closing.map(other => new Promise<void>(resolve => {
+          if (other.win.isDestroyed()) { resolve(); return; }
+          other.win.once('closed', () => resolve());
+          other.win.close();
+        })));
         connections.forget(id);
+        manager.context.state.forgetFolders(root => parseRemoteRoot(root)?.hostId === id);
       },
     },
     'access:state': { args: [], handle: () => owner().request('access.state', {}) },

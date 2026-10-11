@@ -70,4 +70,16 @@ Every request has a declared scope. A paired device holds `planning:read`: it ma
 
 ### Privacy
 
-Remote access sends planning-folder contents only to devices the owner paired, only for folders the owner shared, and only while it is turned on. A device sees what the app shows for the folder: its files, Git activity (commit titles and dates) and work statistics, and its document-use counts from the sharing computer's usage statistics. The host records each paired device's name (the other computer's name), platform, pairing time and last-seen time in `access.json`, and connections, pairings and revocations in the local log. Nothing goes through an Envsemble or third-party service: devices connect to the host directly, through Tailscale when you choose its address. Atlas has no telemetry, and remote access adds none.
+Remote access sends planning-folder contents only to devices the owner paired, only for folders the owner shared, and only while it is turned on. A device sees what the app shows for the folder: its files, Git activity (commit titles and dates, without authors) and work statistics, and its document-use counts from the sharing computer's usage statistics. A device can also save a plan export, a copy its user then keeps.
+
+While remote access is on, anyone who can reach the chosen address and port can ask the host who it is (`GET /api/host`). The answer is this computer's name, a host ID and the Atlas version, but no folders or content. Over Tailscale, only your tailnet can ask; on a local network, anyone on it can.
+
+What each computer keeps:
+
+- **The sharing computer:** `access.json` lists each paired device's name (the other computer's name), platform, pairing time and last-seen time, until the device is revoked. `host.log` records the other computer's IP address and name when it pairs, its device ID when it connects, and revocations.
+- **The connecting computer:** `connections.json` holds the paired computer's name, address and the device's credential, until you forget it there. Forgetting also removes the window layout saved for that computer's folders. `atlas.log` records the computer's name and address when pairing.
+- Logs rotate by size: 1 MB per file, with three older files kept. Revoking or forgetting a computer does not remove lines already in the log.
+
+**Copy link** and **Copy code only** put the pairing code on the clipboard, where clipboard history or sync may keep it; the code still works only once and only for five minutes.
+
+Nothing goes through an Envsemble or third-party service: devices connect to the host directly, through Tailscale when you choose its address. Atlas has no telemetry, and remote access adds none.

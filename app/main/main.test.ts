@@ -60,6 +60,16 @@ test('desktop state survives damage and keeps folders apart', () => {
     assert.deepEqual(reread.windows, ['/p']);
     assert.equal(reread.folder('/p')?.maximized, true);
     assert.deepEqual(reread.ui('/other').tabs.items, []);
+    // Forgetting another computer drops what was saved for its folders, and only that.
+    const remote = 'atlas-remote:host-one/f-' + 'a'.repeat(32);
+    reread.updateFolder(remote, { maximized: true });
+    reread.setWindows(['/p', remote]);
+    reread.forgetFolders(root => root.startsWith('atlas-remote:host-one/'));
+    reread.flush();
+    const forgotten = new StateStore(file);
+    assert.deepEqual(forgotten.windows, ['/p']);
+    assert.equal(forgotten.folder(remote), undefined);
+    assert.equal(forgotten.folder('/p')?.maximized, true);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
