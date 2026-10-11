@@ -356,8 +356,8 @@ export class WindowManager {
     if (existing) {
       // A window whose connection ended (revoked, or replaced by pairing again) opens the folder afresh.
       const folder = existing.folder;
-      if (folder && (!folder.following || ['closed', 'revoked', 'mismatch', 'incompatible'].includes(folder.client.status))) await existing.bindRemote(hostId, folderId);
       existing.focus();
+      if (folder && (!folder.following || ['closed', 'revoked', 'mismatch', 'incompatible'].includes(folder.client.status))) await existing.bindRemote(hostId, folderId);
       return existing;
     }
     let window: AtlasWindow;

@@ -15,6 +15,10 @@ export class LocalHost {
   hostId = '';
   private starting: Promise<void> | null = null;
   private restarts: number[] = [];
+  /** A restart waiting for its delay; connections wait for it rather than starting the host sooner. */
+  private restarting: Promise<void> | null = null;
+  /** The host stopped too often: it stays down until Atlas is started again. */
+  private exhausted = false;
   private stopping = false;
 
   constructor(options: LocalHostOptions) { this.options = options; }
@@ -22,7 +26,9 @@ export class LocalHost {
   get origin() { return 'http://127.0.0.1:' + this.port; }
   /** The owner token, once the host is up; the connection reads it on every attempt. */
   async token() {
-    await (this.starting ?? this.start());
+    if (this.exhausted) throw new Error('The Atlas host keeps stopping, so Atlas stopped restarting it. Quit and start Atlas again; details are in the log (Help › Open Logs).');
+    await (this.starting ?? this.restarting ?? this.start());
+    if (!this.child) throw new Error('The Atlas host is not running.');
     return this.ownerToken;
   }
 
@@ -44,6 +50,8 @@ export class LocalHost {
         } else if (message.type === 'failed') {
           clearTimeout(timer);
           reject(new Error('The Atlas host could not start: ' + message.message));
+          // End it, so it counts as a stop and is restarted within the budget.
+          child.kill();
         }
       });
       child.on('exit', code => {
@@ -56,11 +64,14 @@ export class LocalHost {
         reject(new Error('The Atlas host stopped while starting.'));
         const now = Date.now();
         this.restarts = [...this.restarts.filter(time => now - time < 60000), now];
-        if (this.restarts.length > 3) { log.error('Host keeps stopping; not restarting it'); return; }
-        setTimeout(() => {
-          if (this.stopping) return;
-          void this.start().then(() => this.options.onRestart(), error => log.error('Host restart failed', error));
-        }, 500 * this.restarts.length);
+        if (this.restarts.length > 3) { this.exhausted = true; log.error('Host keeps stopping; not restarting it'); return; }
+        this.restarting = new Promise<void>(settled => {
+          setTimeout(() => {
+            this.restarting = null;
+            if (this.stopping) { settled(); return; }
+            void this.start().then(() => this.options.onRestart(), error => log.error('Host restart failed', error)).finally(settled);
+          }, 500 * this.restarts.length);
+        });
       });
       const start: HostStartMessage = { type: 'start', dataDirectory: this.options.dataDirectory, version: this.options.version, loopbackPort: this.port };
       child.postMessage(start);

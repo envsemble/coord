@@ -2,17 +2,18 @@
 // access.json holds the host's identity, a secret for folder IDs, its settings and its paired
 // devices (each device's token only as a SHA-256 hash). One process on this computer manages
 // remote access for a data folder (the desktop app or `atlas serve`): it holds a local lock socket
-// that the system releases when the process ends, however it ends. Pairing codes live in memory
+// that the system releases when the process ends, however it ends. The socket is named after the
+// data folder's secret, so every spelling of the folder (a link, a short name) finds the same lock
+// and other users, who cannot read the secret, cannot take its name. Pairing codes live in memory
 // only: they expire after five minutes, are used once, and a restart forgets them.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createConnection, createServer, type Server } from 'node:net';
-import { hostname } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
 import { defaultPort, pairingLifetime, type AccessSettings, type PairedDevice, type Scope } from './contract.ts';
 import type { Logger } from './errors.ts';
 import { HostError } from './errors.ts';
-import { pathKey } from './folders.ts';
 import { accessSettings, array, deviceId, integer, object, oneOf, optional, string, nullable, type Validator } from './validate.ts';
 
 export interface DeviceRecord { deviceId: string; name: string; platform: string; tokenHash: string; scopes: Scope[]; pairedAt: string; lastSeenAt: string | null }
@@ -41,12 +42,16 @@ export function normalizeCode(code: string) {
   return code.toUpperCase().replace(/[\s-]/g, '').replaceAll('O', '0').replace(/[IL]/g, '1').replaceAll('U', 'V');
 }
 
-/** Where the remote-access lock of a data folder lives: a named pipe on Windows and an abstract socket on Linux, which the system removes with their process; a socket file elsewhere. */
-export function lockAddress(directory: string, platform: NodeJS.Platform = process.platform) {
-  const id = createHash('sha256').update(pathKey(path.resolve(directory), platform)).digest('hex').slice(0, 32);
-  if (platform === 'win32') return '\\\\.\\pipe\\atlas-host-' + id;
-  if (platform === 'linux') return String.fromCharCode(0) + 'atlas-host-' + id;
-  return path.join(directory, 'host.sock');
+/**
+ * Where the remote-access lock of a data folder lives, named after its secret: a named pipe on
+ * Windows and an abstract socket on Linux, which the system removes with their process; elsewhere a
+ * socket file in the user's own temporary folder (short, as socket paths must be).
+ */
+export function lockAddress(secret: string, platform: NodeJS.Platform = process.platform): { address: string; file: boolean } {
+  const id = createHash('sha256').update('atlas-host-lock:' + secret).digest('hex');
+  if (platform === 'win32') return { address: '\\\\.\\pipe\\atlas-host-' + id.slice(0, 32), file: false };
+  if (platform === 'linux') return { address: String.fromCharCode(0) + 'atlas-host-' + id.slice(0, 32), file: false };
+  return { address: path.join(tmpdir(), 'atlas-host-' + id.slice(0, 16) + '.sock'), file: true };
 }
 
 /** Ask the lock's holder who it is; null when nobody holds it (a socket file left behind). */
@@ -96,8 +101,6 @@ export class AccessStore {
   private readonly failures = new Map<string, number[]>();
   private lastSeenWrites = new Map<string, number>();
   private lockServer: Server | null = null;
-  /** Another process held the lock when this one asked, so its saved state may have changed since. */
-  private waited = false;
   /** Whether this process manages remote access: null when it does, else who does. Nobody until lock(). */
   managedBy: string | null = 'nobody yet (the host has not started)';
 
@@ -147,7 +150,9 @@ export class AccessStore {
   /** Take the lock unless another live process holds it. Returns who manages remote access: null when this process does. */
   async lock(): Promise<string | null> {
     if (this.lockServer) return null;
-    const address = lockAddress(this.directory);
+    // What is on disk now: another process may have created the file (and its secret) at the same moment.
+    this.state = this.read();
+    const { address, file } = lockAddress(this.state.secret);
     for (let attempt = 0; attempt < 2; attempt++) {
       const server = createServer(socket => { socket.end(JSON.stringify({ owner: this.owner, pid: process.pid })); });
       try {
@@ -158,16 +163,14 @@ export class AccessStore {
         server.unref();
         this.lockServer = server;
         this.managedBy = null;
-        // What the previous manager saved while this process waited.
-        if (this.waited) { this.waited = false; this.state = this.read(); }
         return null;
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
         if (code !== 'EADDRINUSE') { this.log.warn('Remote access lock unavailable', error); break; }
         const holder = await lockHolder(address);
-        if (holder) { this.waited = true; this.managedBy = holder.owner + (holder.pid ? ` (process ${holder.pid})` : ''); return this.managedBy; }
+        if (holder) { this.managedBy = holder.owner + (holder.pid ? ` (process ${holder.pid})` : ''); return this.managedBy; }
         // A socket file left behind by a process that ended (only where the lock is a file).
-        if (!path.isAbsolute(address)) break;
+        if (!file) break;
         rmSync(address, { force: true });
       }
     }

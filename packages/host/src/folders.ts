@@ -24,8 +24,8 @@ export async function canonicalFolder(input: string) {
 }
 
 export interface FolderRegistryOptions {
-  /** The host's folder-ID key (AccessStore.folderKey). */
-  key: string;
+  /** The host's folder-ID key (AccessStore.folderKey), read when an ID is needed. */
+  key(): string;
   dataBase?: string;
   log: Logger;
   onChange(state: FolderState): void;
@@ -62,7 +62,7 @@ export class FolderRegistry {
   }
 
   /** The ID of a canonical folder path on this host. */
-  idOf(canonical: string) { return folderIdOf(canonical, this.options.key); }
+  idOf(canonical: string) { return folderIdOf(canonical, this.options.key()); }
   /** The path of a folder opened by path before, if any. */
   pathOf(folderId: string) { return this.known.get(folderId) ?? null; }
   /** Every folder path this host has opened, for keeping them out of what devices see. */

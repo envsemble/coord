@@ -93,6 +93,10 @@ export class HostClient {
   private readonly waiting = new Set<() => void>();
   private readonly folders = new Map<string, Reopen | null>();
   private heartbeat: ReturnType<typeof setInterval> | null = null;
+  /** A connection attempt is under way (it may be waiting for the token or the descriptor). */
+  private attempting = false;
+  /** The current connection answered since the last check. */
+  private alive = true;
   private attempts = 0;
   /** The origin of the current connection, which answered with the expected host ID. */
   private connectedOrigin: string | null = null;
@@ -109,9 +113,20 @@ export class HostClient {
     if (this.closed || this.timer) return;
     this.timer = setTimeout(() => { this.timer = null; void this.connect(); }, delay);
   }
-  /** Retry now, for example when the user asks or the network changes. */
+  /**
+   * Retry now, for example when the computer woke up or the network changed. A connection that
+   * looks connected is checked with a ping: one that died during sleep does not answer, and is
+   * replaced within five seconds.
+   */
   wake() {
-    if (this.closed || this.status === 'connected' || this.status === 'revoked') return;
+    if (this.closed || this.status === 'revoked') return;
+    const socket = this.socket;
+    if (this.status === 'connected' && socket) {
+      this.alive = false;
+      try { socket.ping(); } catch { /* Closing already. */ }
+      setTimeout(() => { if (!this.alive && this.socket === socket) socket.terminate(); }, 5000).unref?.();
+      return;
+    }
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
     this.attempts = 0;
     void this.connect();
@@ -126,13 +141,20 @@ export class HostClient {
 
   private expectedHost() { return typeof this.options.hostId === 'function' ? this.options.hostId() : this.options.hostId; }
 
+  /** One attempt at a time: a wake or retry while one is under way does not start another. */
   private async connect() {
-    if (this.closed || this.socket) return;
+    if (this.closed || this.socket || this.attempting) return;
+    this.attempting = true;
+    try { await this.attempt(); }
+    finally { this.attempting = false; }
+  }
+  private async attempt() {
     this.setStatus('connecting', this.detail);
     // The credential first: a local host that restarted has a new address once its token is ready.
     let token: string;
     try { token = await this.options.token(); }
     catch (error) { this.retry((error as Error).message); return; }
+    if (this.closed) return;
     const origin = this.origin;
     let descriptor: HostDescriptor;
     try { descriptor = await describeHost(origin); }
@@ -145,16 +167,19 @@ export class HostClient {
     const socket = new WebSocket(url, { headers: { Authorization: 'Bearer ' + token }, handshakeTimeout: 10000, maxPayload: 512 * 1024 * 1024, perMessageDeflate: false });
     this.socket = socket;
     let opened = false;
-    let alive = true;
-    socket.on('pong', () => { alive = true; });
+    this.alive = true;
+    socket.on('pong', () => { if (this.socket === socket) this.alive = true; });
+    // Any bytes from the host, such as part of a large answer still arriving, show it is alive.
+    socket.on('upgrade', response => { response.socket.on('data', () => { if (this.socket === socket) this.alive = true; }); });
     socket.on('open', () => {
       opened = true;
       this.attempts = 0;
       this.connectedOrigin = origin;
       // A connection that misses a ping is dead (a sleeping host, a dropped network): end it and reconnect.
       this.heartbeat = setInterval(() => {
-        if (!alive) { socket.terminate(); return; }
-        alive = false;
+        if (socket.bufferedAmount > 0) { this.alive = true; return; }
+        if (!this.alive) { socket.terminate(); return; }
+        this.alive = false;
         try { socket.ping(); } catch { /* Closing already. */ }
       }, this.options.heartbeat ?? 30000);
       this.heartbeat.unref?.();
@@ -265,16 +290,17 @@ export class HostClient {
     this.folders.delete(folderId);
     if (this.status === 'connected') await this.request('folders.unsubscribe', { folderId }).catch(() => undefined);
   }
+  /** After reconnecting, subscribe to every followed folder again, all at once. */
   private async resubscribe() {
-    for (const [folderId, reopen] of this.folders) {
+    await Promise.all([...this.folders].map(async ([folderId, reopen]) => {
       try {
         if (reopen) await reopen();
         this.options.onEvent?.('folder.changed', await this.request('folders.subscribe', { folderId }));
       } catch (error) {
-        if (!this.folders.has(folderId)) continue;
+        if (!this.folders.has(folderId)) return;
         this.options.onEvent?.('folder.changed', { folderId, name: '', status: 'missing', error: (error as Error).message, notice: null, revision: Date.now() });
       }
-    }
+    }));
   }
 
   /**

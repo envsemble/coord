@@ -50,7 +50,7 @@ async function start(t: TestContext, options: { extraShared?: string[]; data?: s
   const origin = 'http://127.0.0.1:' + port;
   return { host, planning, data, port, origin };
 }
-function client(t: TestContext, origin: string | (() => string), token: string | (() => string), hostId: string | null = null) {
+function client(t: TestContext, origin: string | (() => string), token: string | (() => string | Promise<string>), hostId: string | null = null) {
   const events: FolderState[] = [];
   const statuses: ClientStatus[] = [];
   const connection = new HostClient({ origin, token: typeof token === 'function' ? token : () => token, hostId, retry: { first: 0, cap: 100 }, onEvent: (event, data) => { if (event === 'folder.changed') events.push(data as FolderState); }, onStatus: status => statuses.push(status) });
@@ -110,6 +110,9 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   assert.equal(exported.status, 200);
   assert.match(await exported.text(), /<!doctype html>/i);
   assert.equal((await connection.fetch('/api/exports/' + prepared.token)).status, 404, 'an export is handed over once');
+  // The owner (one app, several windows) may prepare several exports at once.
+  const both = await Promise.all([1, 2].map(() => connection.request('plan.exportPrepare', { folderId: opened.folderId, work: 'work-0001' })));
+  for (const each of both) assert.equal((await connection.fetch('/api/exports/' + each.token)).status, 200);
   // A change on disk reaches the subscriber.
   const { writeFileSync } = await import('node:fs');
   writeFileSync(path.join(planning, 'README.md'), '# Changed\n');
@@ -152,7 +155,7 @@ test('a device pairs once with a five-minute code, reads only shared folders, an
   const deviceSnapshot = await device.connection.request('folder.snapshot', { folderId: folder.folderId });
   assert.equal(deviceSnapshot.root, 'planning');
   assert.ok(!JSON.stringify(deviceSnapshot).includes(planning), 'no absolute path of the shared folder');
-  // Exports of non-ASCII work folders download with an exact UTF-8 name.
+  // Exports download with an exact UTF-8 name besides the ASCII one (the unit test below covers non-ASCII names).
   const prepared = await device.connection.request('plan.exportPrepare', { folderId: folder.folderId, work: 'work-0001' });
   const download = await device.connection.fetch('/api/exports/' + prepared.token);
   assert.equal(download.status, 200);
@@ -235,11 +238,16 @@ test('pairing codes expire, can be revoked, and too many wrong codes pause pairi
   second.unlock();
 });
 
-test('the lock is a system object that disappears with its process, named per data folder', () => {
-  assert.match(lockAddress('C:\\Data\\Atlas', 'win32'), /^\\\\\.\\pipe\\atlas-host-[a-f0-9]{32}$/);
-  assert.equal(lockAddress('C:\\Data\\Atlas', 'win32'), lockAddress('c:\\data\\atlas', 'win32'));
-  assert.equal(lockAddress('/home/a/.config/Atlas', 'linux').charCodeAt(0), 0, 'an abstract socket');
-  assert.notEqual(lockAddress('/home/a/.config/Atlas', 'linux'), lockAddress('/home/b/.config/Atlas', 'linux'));
+test('the lock is a system object that disappears with its process, named after the data folder secret', () => {
+  const windows = lockAddress('secret-one', 'win32');
+  assert.match(windows.address, /^\\\\\.\\pipe\\atlas-host-[a-f0-9]{32}$/);
+  assert.equal(windows.file, false);
+  const linux = lockAddress('secret-one', 'linux');
+  assert.equal(linux.address.charCodeAt(0), 0, 'an abstract socket');
+  assert.equal(linux.file, false);
+  assert.notEqual(lockAddress('secret-two', 'linux').address, linux.address, 'another data folder, another lock');
+  assert.equal(lockAddress('secret-one', 'darwin').file, true);
+  assert.ok(lockAddress('secret-one', 'darwin').address.length < 104, 'socket paths are short');
 });
 
 test('stored access survives one bad device record, and device names are trimmed and never blank', async t => {
@@ -297,6 +305,18 @@ test('a restarted host serves the owner its folders again, and a WebSocket from 
   const upgrade = await new Promise<number>((resolve, reject) => request({ host: '127.0.0.1', port: current.port, path: '/api/connect', headers: { Origin: 'https://evil.example', Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Key': Buffer.from('the sample nonce').toString('base64'), 'Sec-WebSocket-Version': '13', Authorization: 'Bearer ' + current.host.ownerToken } })
     .on('response', response => { response.resume(); resolve(response.statusCode!); }).on('upgrade', () => resolve(101)).on('error', reject).end());
   assert.equal(upgrade, 403);
+});
+
+test('waking a client while it connects opens one connection, not two', async t => {
+  const { host, origin } = await start(t);
+  const slow = client(t, origin, async () => { await new Promise(resolve => setTimeout(resolve, 200)); return host.ownerToken; }, host.descriptor.hostId);
+  slow.connection.wake();
+  slow.connection.wake();
+  await until(() => slow.connection.status === 'connected');
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal((host as unknown as { connections: Set<unknown> }).connections.size, 1);
+  slow.connection.close();
+  await until(() => (host as unknown as { connections: Set<unknown> }).connections.size === 0);
 });
 
 test('download names keep their exact characters, with an ASCII fallback', () => {

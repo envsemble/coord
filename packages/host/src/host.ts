@@ -114,6 +114,9 @@ export class Host {
   private readonly extraShared: string[];
   /** Shared folders by ID; devices may open these and nothing else. */
   private sharedRoots = new Map<string, string>();
+  /** The refresh of sharedRoots in progress; refreshes run one at a time, the last after every request. */
+  private refreshing: Promise<void> | null = null;
+  private refreshAgain = false;
   /** Clients preparing an export now; each prepares one at a time. */
   private readonly preparing = new Set<string>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
@@ -126,7 +129,7 @@ export class Host {
     this.access = new AccessStore(path.join(options.dataDirectory, 'host'), options.log, options.owner);
     this.exports = new PlanWorkerClient(options.createPlanWorker);
     this.extraShared = options.extraShared ?? [];
-    this.folders = new FolderRegistry({ key: this.access.folderKey, dataBase: options.dataBase, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
+    this.folders = new FolderRegistry({ key: () => this.access.folderKey, dataBase: options.dataBase, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
   }
 
   get descriptor(): HostDescriptor { return { protocol: protocolVersion, hostId: this.access.hostId, name: this.access.name, version: this.options.version }; }
@@ -173,7 +176,9 @@ export class Host {
     if (this.access.managedBy === null || this.stopped || this.retaking) return;
     this.retaking = true;
     try {
-      if (await this.access.lock() !== null || this.stopped) return;
+      if (await this.access.lock() !== null) return;
+      // Stopped while waiting for the lock: let it go again.
+      if (this.stopped) { this.access.unlock(); return; }
       if (this.lockRetry) { clearInterval(this.lockRetry); this.lockRetry = null; }
       this.options.log.info('Remote access is managed by this process now');
       await this.refreshShared();
@@ -182,9 +187,14 @@ export class Host {
     } finally { this.retaking = false; }
   }
 
-  /** End connections that stopped answering (a sleeping computer, a dropped network), so both sides notice. */
+  /**
+   * End connections that stopped answering (a sleeping computer, a dropped network), so both sides
+   * notice. Anything received counts as an answer, and a connection still sending a large answer is
+   * not judged by a pong queued behind it.
+   */
   private checkConnections() {
     for (const connection of this.connections) {
+      if (connection.ws.bufferedAmount > 0) { connection.alive = true; continue; }
       if (!connection.alive) { connection.ws.terminate(); continue; }
       connection.alive = false;
       try { connection.ws.ping(); } catch { /* Closing already. */ }
@@ -364,11 +374,13 @@ export class Host {
     if (!acceptableHost(request.headers.host)) return refuse(421, 'Misdirected Request');
     const credential = this.credential(bearer(request.headers.authorization), listener, request.socket.remoteAddress);
     if (!credential) return refuse(401, 'Unauthorized');
-    this.websockets.handleUpgrade(request, socket, head, ws => this.connected(ws, credential, listener));
+    this.websockets.handleUpgrade(request, socket, head, ws => this.connected(ws, credential, listener, socket));
   }
 
-  private connected(ws: WebSocket, credential: Credential, listener: Listener) {
+  private connected(ws: WebSocket, credential: Credential, listener: Listener, socket: Duplex) {
     const connection = new Connection(ws, credential, listener);
+    // Any bytes from the client, such as the rest of a large request, show it is alive.
+    socket.on('data', () => { connection.alive = true; });
     this.connections.add(connection);
     listener.sockets.add(ws);
     if (credential.deviceId) this.access.seen(credential.deviceId);
@@ -443,12 +455,23 @@ export class Host {
 
   // ---- Folders and access ----------------------------------------------------------------------
 
-  /** Work out the shared folders again: the saved ones and this process's own, by canonical path. */
-  private async refreshShared() {
-    const roots = await Promise.all([...this.access.settings.sharedFolders, ...this.extraShared].map(canonicalFolder));
-    const shared = new Map<string, string>();
-    for (const root of roots) { const folderId = this.folders.idOf(root); if (!shared.has(folderId)) shared.set(folderId, root); }
-    this.sharedRoots = shared;
+  /**
+   * Work out the shared folders again: the saved ones and this process's own, by canonical path.
+   * Refreshes run one at a time, and one more runs after every request made meanwhile, so a slow
+   * refresh that read older settings can never overwrite a newer result.
+   */
+  private refreshShared(): Promise<void> {
+    if (this.refreshing) { this.refreshAgain = true; return this.refreshing; }
+    this.refreshing = (async () => {
+      do {
+        this.refreshAgain = false;
+        const roots = await Promise.all([...this.access.settings.sharedFolders, ...this.extraShared].map(canonicalFolder));
+        const shared = new Map<string, string>();
+        for (const root of roots) { const folderId = this.folders.idOf(root); if (!shared.has(folderId)) shared.set(folderId, root); }
+        this.sharedRoots = shared;
+      } while (this.refreshAgain);
+    })().finally(() => { this.refreshing = null; });
+    return this.refreshing;
   }
   private shared(): SharedFolder[] {
     return [...this.sharedRoots].map(([folderId, root]) => ({ folderId, name: path.basename(root) || root }));
@@ -535,15 +558,18 @@ export class Host {
         const folder = this.subscribed(connection, folderId);
         const item = folder.snapshot().work.find(entry => entry.id === work);
         if (!item) throw new HostError('not-found', 'This work item is not in the planning folder.');
-        // Exports are large and held in memory: one in preparation and a few waiting per client.
+        // Exports are large and held in memory: a device prepares one at a time and holds a few. The
+        // owner (this computer's app, with a save dialog per window) is not limited.
         const holder = this.holder(connection.credential);
-        if (this.preparing.has(holder)) throw new HostError('unavailable', 'Another plan export is being prepared. Try again when it is done.');
-        const mine = [...this.held].filter(([, held]) => held.owner === holder && held.fileName).sort((a, b) => a[1].expires - b[1].expires);
-        for (const [stale, held] of mine.slice(0, Math.max(0, mine.length - exportsPerHolder + 1))) { this.held.delete(stale); void this.exports.drop(held.workerToken).catch(() => undefined); }
-        this.preparing.add(holder);
+        if (!connection.owner) {
+          if (this.preparing.has(holder)) throw new HostError('unavailable', 'Another plan export is being prepared. Try again when it is done.');
+          const mine = [...this.held].filter(([, held]) => held.owner === holder && held.fileName).sort((a, b) => a[1].expires - b[1].expires);
+          for (const [stale, held] of mine.slice(0, Math.max(0, mine.length - exportsPerHolder + 1))) { this.held.delete(stale); void this.exports.drop(held.workerToken).catch(() => undefined); }
+        }
+        if (!connection.owner) this.preparing.add(holder);
         let prepared;
         try { prepared = await this.exports.prepare(folder.root, work); }
-        finally { this.preparing.delete(holder); }
+        finally { if (!connection.owner) this.preparing.delete(holder); }
         if (!connection.owner && !this.sharedRoots.has(folderId)) {
           void this.exports.drop(prepared.token).catch(() => undefined);
           throw new HostError('forbidden', 'This planning folder is no longer shared.');
