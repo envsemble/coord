@@ -131,7 +131,7 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   // Open Folder… on that computer browses it in Atlas, beside the folder this window shows.
   await viewer.bringToFront();
   await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('menuitem', { name: 'Open Folder…' }).click();
+  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('button', { name: 'Open Folder…' }).click();
   const browser = viewer.getByRole('dialog', { name: `Open a folder on ${name}` });
   await expect(browser.locator('.folder-browser-path')).toHaveText(path.dirname(folder));
   await expect(browser.getByRole('button', { name: /^third/ })).toContainText('Planning folder');
@@ -140,7 +140,7 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect.poll(() => windowTitles(reading!.app).then(titles => titles.sort())).toEqual([`demo — ${name} — Atlas`, `third — ${name} — Atlas`].sort());
   // Browsing starts over at the home folder and the drives (or the root).
   await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('menuitem', { name: 'Open Folder…' }).click();
+  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('button', { name: 'Open Folder…' }).click();
   await browser.getByRole('button', { name: 'Home folder and drives' }).click();
   await expect(browser.getByRole('list', { name: 'Places' })).toContainText('Home');
   await browser.getByRole('button', { name: 'Cancel' }).click();
@@ -158,11 +158,11 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
 
   // Switching to this computer, which has no folders yet, shows its welcome page; switching back from there shows the other computer's folders.
   await viewer.getByRole('button', { name: 'Computer' }).click();
-  await viewer.getByRole('menuitemradio', { name: /This computer/ }).click();
+  await viewer.getByRole('dialog', { name: /^Computer/ }).getByRole('button', { name: /This computer/ }).click();
   await expect(viewer.getByRole('heading', { name: 'Recent' })).toBeVisible();
   await expect(viewer.getByText('No recent folders.')).toBeVisible();
   await viewer.getByRole('button', { name: 'Computer' }).click();
-  await viewer.getByRole('menuitemradio', { name: /127\.0\.0\.1/ }).click();
+  await viewer.getByRole('dialog', { name: /^Computer/ }).getByRole('button', { name: /127\.0\.0\.1/ }).click();
   await expect(viewer.getByRole('heading', { name: `Planning folders on ${name}` })).toBeVisible();
   await expect(viewer.getByRole('list', { name: `Planning folders on ${name}` }).getByRole('listitem')).toHaveCount(3);
 
@@ -179,13 +179,13 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect(reading.window.getByRole('alert')).toContainText('was revoked');
   await expect(remoteFolder).toBeVisible();
 
-  // Forgetting the computer closes its windows and keeps nothing about it.
-  const opened = reading.app.waitForEvent('window');
-  await fileMenu(reading.app, 'New &Window');
-  const welcome = await opened;
-  await welcome.getByRole('button', { name: 'Computer' }).click();
-  await welcome.getByRole('button', { name: `Forget ${name}` }).click();
-  await welcome.getByRole('group', { name: `Forget ${name}` }).getByRole('button', { name: 'Forget', exact: true }).click();
+  // Forgetting the computer from a window on it closes its other windows; this one shows this computer
+  // instead (so Atlas stays open), and nothing about the other computer is kept.
+  const last = reading.window;
+  await last.getByRole('button', { name: 'Computer' }).click();
+  await last.getByRole('button', { name: `Forget ${name}` }).click();
+  await last.getByRole('group', { name: `Forget ${name}` }).getByRole('button', { name: 'Forget', exact: true }).click();
+  await expect(last.getByRole('heading', { name: 'Recent' })).toBeVisible();
   await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);
   const saved = (file: string) => { try { return readFileSync(path.join(readerData, file), 'utf8'); } catch { return ''; } };
   await expect.poll(() => JSON.parse(saved('connections.json') || '[]')).toEqual([]);

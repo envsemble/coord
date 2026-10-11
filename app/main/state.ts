@@ -8,7 +8,8 @@ import { defaultUiState, type UiState } from '../shared/contract.ts';
 import { array, boolean, integer, object, optional, string, uiState, type Validator } from '../shared/validate.ts';
 
 export interface Bounds { x: number; y: number; width: number; height: number }
-export interface FolderRecord { root: string; bounds?: Bounds; maximized?: boolean; ui?: UiState; used: string }
+/** `remotePath`: for a folder on another computer, its path there, to open it again (also after it left that computer's folder list). */
+export interface FolderRecord { root: string; bounds?: Bounds; maximized?: boolean; ui?: UiState; used: string; remotePath?: string }
 export interface DesktopState {
   version: 1; windows: string[]; folders: Record<string, FolderRecord>;
   /** Per computer (`local` or a host ID), the folder last shown there: its path, or its remote key. */
@@ -20,7 +21,7 @@ export const computerKey = (hostId: string | null) => hostId ?? 'local';
 const folderLimit = 40;
 const coordinate = integer(-100000, 100000);
 const bounds: Validator<Bounds> = object<Bounds>({ x: coordinate, y: coordinate, width: integer(200, 100000), height: integer(150, 100000) });
-const record: Validator<FolderRecord> = object<FolderRecord>({ root: string({ min: 1 }), bounds: optional(bounds), maximized: optional(boolean), ui: optional(uiState), used: string({ max: 40 }) });
+const record: Validator<FolderRecord> = object<FolderRecord>({ root: string({ min: 1 }), bounds: optional(bounds), maximized: optional(boolean), ui: optional(uiState), used: string({ max: 40 }), remotePath: optional(string({ min: 1, max: 2048 })) });
 
 /** Key planning folders the way the platform compares paths. */
 export function folderKey(root: string, platform: NodeJS.Platform = process.platform) {

@@ -12,6 +12,7 @@ import { Worker } from 'node:worker_threads';
 import { AccessStore, lockAddress, normalizeCode } from './access.ts';
 import { HostClient, HostRequestError, describeHost, pairWithHost, parsePairing, type ClientStatus } from './client.ts';
 import { browse } from './browse.ts';
+import { FolderList } from './folderList.ts';
 import { closeCodes, type ComputerFolder, type FolderState } from './contract.ts';
 import { Host, acceptableHost, attachment } from './host.ts';
 import { pairRequest, accessSettings } from './validate.ts';
@@ -191,6 +192,17 @@ test('a device pairs once with a five-minute code, gets the whole computer, and 
   await until(() => owner.lists.some(list => list.some(entry => entry.path === planning)), 5000, () => owner.lists);
   // Its views count in this computer's document use.
   await device.connection.request('folder.recordView', { folderId: folder.folderId, event: { id: 'view-00000001', path: 'README.md', session: 'session-0001', contentHash: null } });
+  // It sends its plans for import (below); it cannot make this computer read a file by path, or reach a network share.
+  await assert.rejects(device.connection.request('plan.importRead', { folderId: folder.folderId, file: path.join(planning, 'README.md') }), (error: HostRequestError) => error.code === 'forbidden');
+  for (const share of ['\\\\fileserver\\plans\\planning', '//fileserver/plans/planning']) {
+    await assert.rejects(device.connection.request('folders.open', { path: share }), (error: HostRequestError) => error.code === 'forbidden' && /Network paths/.test(error.message), share);
+    await assert.rejects(device.connection.request('folders.browse', { path: share }), (error: HostRequestError) => error.code === 'forbidden', share);
+  }
+  // Reopening a folder (after a reconnection, or for a restored window) leaves the folder list as it is.
+  await owner.connection.request('folders.remove', { folderId: folder.folderId });
+  await device.connection.request('folders.open', { path: planning, remember: false });
+  assert.deepEqual(await device.connection.request('folders.list', {}), []);
+  await device.connection.request('folders.open', { path: planning });
   // Only the owner changes the remote-access settings; managing access needs Manage access.
   await assert.rejects(device.connection.request('access.update', { settings: { network: { enabled: false, address: null, port } } }), (error: HostRequestError) => error.code === 'forbidden' && /Only the Atlas app on/.test(error.message));
   await assert.rejects(device.connection.request('access.devices', {}), (error: HostRequestError) => error.code === 'forbidden' && /may not manage access/.test(error.message));
@@ -291,6 +303,23 @@ test('the folder list starts from the recent folders and the folders the first r
   // A folder the list names but this process never opened still opens by its ID (after a restart, say).
   const fromList = after.find(entry => entry.path === shared)!;
   assert.equal((await owner.connection.follow(fromList.folderId)).status, 'ready');
+});
+
+test('a folder list the host cannot read right now is left as it is', async t => {
+  const directory = temporary(t, 'atlas-list-');
+  const list = new FolderList(directory, quiet, async () => []);
+  await list.touch(path.join(directory, 'one'));
+  assert.deepEqual((await list.entries()).map(entry => path.basename(entry.path)), ['one']);
+  // Another program holds the file (here: a folder in its place, which cannot be read as a file).
+  const saved = readFileSync(list.file, 'utf8');
+  rmSync(list.file);
+  mkdirSync(list.file);
+  assert.deepEqual(await list.entries(), []);
+  await assert.rejects(list.touch(path.join(directory, 'two')), /cannot be read right now/);
+  await assert.rejects(list.remove(path.join(directory, 'one')), /cannot be read right now/);
+  rmSync(list.file, { recursive: true });
+  writeFileSync(list.file, saved);
+  assert.deepEqual((await list.entries()).map(entry => path.basename(entry.path)), ['one'], 'nothing replaced it meanwhile');
 });
 
 test('the folder browser lists folders only, marks planning folders and follows links to folders', async t => {

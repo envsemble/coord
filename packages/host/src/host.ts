@@ -225,7 +225,9 @@ export class Host {
     const server = createAdaptorServer({ fetch: this.app(listener).fetch, overrideGlobalObjects: false }) as Server;
     listener.server = server;
     server.headersTimeout = 20000;
-    server.requestTimeout = 60000;
+    // A plan sent for import over a slow link can take many minutes, so the network listener sets no
+    // limit on a whole request; the routes that take a body limit how long it may stall instead.
+    server.requestTimeout = local ? 60000 : 0;
     server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => this.upgrade(listener, request, socket, head));
     return new Promise((resolve, reject) => {
       server.once('error', reject);
@@ -318,7 +320,7 @@ export class Host {
       // Devices pair over the remote access address, never through the app's own loopback port.
       if (listener.local) return c.json({ code: 'not-found', message: 'Not found.' }, 404);
       let request;
-      try { request = pairRequest(await c.req.json()); }
+      try { request = pairRequest(await stalls(c.req.json(), bodyStall)); }
       catch { return c.json({ code: 'invalid-argument', message: 'Send a pairing code and this device\'s name.' }, 400); }
       try {
         const { device, token } = this.access.pair(request.code, request.device, c.env.incoming.socket.remoteAddress ?? 'unknown');
@@ -394,18 +396,28 @@ export class Host {
       const body = c.req.raw.body;
       if (!body) return c.json({ code: 'invalid-argument', message: 'Send the plan export file.' }, 400);
       const handle = await open(file, 'wx', 0o600);
+      const reader = body.getReader();
       let size = 0;
       try {
-        for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
-          size += chunk.byteLength;
+        // However slow the link, the file must keep arriving: a minute without data ends the upload.
+        const stalled = 'The plan stopped arriving. Send it again.';
+        for (let next = await stalls(reader.read(), bodyStall, stalled); !next.done; next = await stalls(reader.read(), bodyStall, stalled)) {
+          size += next.value.byteLength;
           if (size > importLimit) return c.json({ code: 'invalid-argument', message: 'This file is too large to be a plan export.' }, 413);
-          await handle.write(chunk);
+          await handle.write(next.value);
         }
-      } finally { await handle.close(); }
+      } finally {
+        await handle.close();
+        void reader.cancel().catch(() => undefined);
+      }
       return c.json(await this.readImport(folder, file, holder.slice('import:'.length)));
     } catch (error) {
       const { value, expected } = toErrorValue(error);
-      if (!expected) this.options.log.error('Import upload failed', error);
+      if (!expected) {
+        // A device that stops sending (its user cancelled, or it went offline) is not a host failure.
+        const ended = /terminated|aborted|ECONNRESET/i.test(String((error as Error).message) + String((error as NodeJS.ErrnoException).code));
+        if (ended) this.options.log.info('Plan upload ended early', { message: (error as Error).message }); else this.options.log.error('Plan upload failed', error);
+      }
       return c.json(value, value.code === 'forbidden' ? 403 : value.code === 'not-found' ? 404 : 400);
     } finally {
       this.preparing.delete(holder);
@@ -515,8 +527,9 @@ export class Host {
   async computerFolders(): Promise<ComputerFolder[]> {
     const entries = await this.folderList.entries();
     return Promise.all(entries.map(async entry => {
-      const info = await inspectPlanningRoot(entry.path).catch(() => null);
-      const available = info !== null || await stat(entry.path).then(found => found.isDirectory(), () => false);
+      // A folder on a network drive that does not answer is shown as missing rather than holding the list up.
+      const info = await stalls(inspectPlanningRoot(entry.path), folderCheck).catch(() => null);
+      const available = info !== null || await stalls(stat(entry.path), folderCheck).then(found => found.isDirectory(), () => false);
       return { folderId: this.folders.idOf(entry.path), path: entry.path, name: path.basename(entry.path) || entry.path, openedAt: entry.openedAt, available, workItems: info?.workItems ?? null };
     }));
   }
@@ -573,16 +586,18 @@ export class Host {
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
       case 'folders.list': return this.computerFolders() as never;
       case 'folders.open': {
-        const requested = (p as { path: string }).path;
+        const { path: requested, remember = true } = p as { path: string; remember?: boolean };
         // The app checks folders itself before opening them (and opens a broken one to explain it);
-        // a device opens planning folders only.
+        // a device opens planning folders on this computer's own disks only.
         if (!connection.owner) {
+          refuseNetworkPath(requested);
           try { await inspectPlanningRoot(requested); }
           catch (error) { throw new HostError((error as { status?: number }).status === 404 ? 'folder-missing' : 'folder-invalid', `${(error as Error).message} (${requested})`); }
         }
         const folder = await this.folders.open(requested);
-        // A planning folder joins the folder list; a missing one (a window restoring it), or one without a planning.json, does not.
-        if (await isPlanningFolder(folder.root)) await this.addToList(folder.root);
+        // A planning folder someone opens joins the folder list (a missing one, or one without a
+        // planning.json, does not); reopening it after a reconnection leaves the list as it is.
+        if (remember && await isPlanningFolder(folder.root)) await this.addToList(folder.root);
         return folder.state() as never;
       }
       case 'folders.remove': {
@@ -591,7 +606,11 @@ export class Host {
         this.broadcastFolders();
         return null as never;
       }
-      case 'folders.browse': return browse((p as { path: string | null }).path) as never;
+      case 'folders.browse': {
+        const { path: folder } = p as { path: string | null };
+        if (!connection.owner && folder !== null) refuseNetworkPath(folder);
+        return browse(folder) as never;
+      }
       case 'folders.subscribe': {
         const { folderId } = p as { folderId: string };
         const folder = await this.accessibleFolder(connection.credential, folderId);
@@ -638,7 +657,7 @@ export class Host {
       case 'plan.importDrop': {
         const { token } = p as { token: string };
         const held = this.held.get(token);
-        if (held && held.owner === this.holder(connection.credential)) { this.held.delete(token); await this.exports.drop(held.workerToken).catch(() => undefined); }
+        if (held && (held.owner === this.holder(connection.credential) || held.owner === connection.id)) { this.held.delete(token); await this.exports.drop(held.workerToken).catch(() => undefined); }
         return null as never;
       }
       case 'plan.importRead': {
@@ -711,3 +730,19 @@ export class Host {
 export const sameFolder = (a: string, b: string) => pathKey(a) === pathKey(b);
 /** Whether a folder has a planning.json (it may still be unreadable; the folder then explains why). */
 const isPlanningFolder = (root: string) => stat(path.join(root, 'planning.json')).then(found => found.isFile(), () => false);
+/** How long a request body may stall, and how long the folder list waits for one folder. */
+const bodyStall = 60000;
+const folderCheck = 3000;
+/** A promise that fails when it takes longer than `limit`. */
+function stalls<T>(pending: Promise<T>, limit: number, message = 'This took too long.'): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new HostError('unavailable', message)), limit); });
+  return Promise.race([pending, late]).finally(() => clearTimeout(timer));
+}
+/**
+ * A device works on this computer's own disks. A network path (\\server\share) would make this
+ * computer sign in to whatever server a device names, with this user's credentials.
+ */
+function refuseNetworkPath(folder: string) {
+  if (/^(?:\\\\|\/\/)/.test(folder)) throw new HostError('forbidden', 'Network paths do not open from another device: ' + folder);
+}

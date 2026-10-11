@@ -131,7 +131,7 @@ const none = object<Record<string, never>>({});
 export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['params']> } = {
   'host.session': none,
   'folders.list': none,
-  'folders.open': object({ path: absoluteFolder }),
+  'folders.open': object({ path: absoluteFolder, remember: optional(boolean) }),
   'folders.remove': object({ folderId }),
   'folders.browse': object({ path: nullable(absoluteFolder) }),
   'folders.subscribe': object({ folderId }),

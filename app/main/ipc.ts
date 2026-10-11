@@ -14,7 +14,7 @@ import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
 import { invokeChannels, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result } from '../shared/contract.ts';
 import { absolutePath, argumentsOf, boolean, command, folderId, ipAddress, modelHandle, nullable, object, pairingCode, relativePath, string, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
-import { parseRemoteRoot, type FolderView } from './folderView.ts';
+import type { FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
 
@@ -55,8 +55,11 @@ async function revealInside(folder: FolderView, relative: string) {
 /** Send a plan export on this computer to another computer's host, for its preview there. */
 async function sendImport(folder: FolderView, file: string) {
   const size = (await stat(file)).size;
-  const body = Readable.toWeb(createReadStream(file)) as ReadableStream<Uint8Array>;
-  const response = await folder.client.fetch(`/api/folders/${folder.folderId}/imports`, 600000, { method: 'POST', body, length: size });
+  const stream = createReadStream(file);
+  let response: Response;
+  // The file stays open only while it is sent (or until sending fails, the other computer being offline).
+  try { response = await folder.client.fetch(`/api/folders/${folder.folderId}/imports`, 3600000, { method: 'POST', body: Readable.toWeb(stream) as ReadableStream<Uint8Array>, length: size }); }
+  finally { stream.destroy(); }
   const value = await response.json().catch(() => null) as (Omit<ImportPreview, 'file' | 'warnings'> & { code?: string; message?: string }) | null;
   if (!response.ok || !value || typeof value.token !== 'string') throw new AtlasError('invalid-argument', value?.message ?? 'The plan could not be sent to ' + (folder.remote?.hostName ?? 'the other computer') + ' (HTTP ' + response.status + ').');
   return value;
@@ -190,21 +193,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         return paired;
       },
     },
-    'remote:forget': {
-      args: [hostId],
-      handle: async (_window, id: string) => {
-        // Close its windows first (closing saves their layout), then forget the computer and every layout saved for its folders.
-        const closing = manager.all().filter(other => other.remote?.hostId === id);
-        await Promise.all(closing.map(other => new Promise<void>(resolve => {
-          if (other.win.isDestroyed()) { resolve(); return; }
-          other.win.once('closed', () => resolve());
-          other.win.close();
-        })));
-        connections.forget(id);
-        manager.context.state.forgetFolders(root => parseRemoteRoot(root)?.hostId === id);
-        manager.forgotComputer(id);
-      },
-    },
+    'remote:forget': { args: [hostId], handle: (window, id: string) => manager.forgetComputer(id, window) },
     // Remote access of a computer: this one's (settings too), or a paired one's when this app may manage access there.
     'access:state': { args: [computer], handle: (_window, id: string | null) => remoteErrors(connections.use(id, client => client.request('access.state', {}))) },
     'access:update': { args: [accessSettings], handle: (_window, settings) => owner().request('access.update', { settings: settings as never }) },

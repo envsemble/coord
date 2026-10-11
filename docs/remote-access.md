@@ -59,8 +59,12 @@ The top of the explorer says where a window works: the **folder menu** (the fold
     - else the one this device last showed there;
     - else its most recent;
     - and with none, that computer's welcome page, to open one.
+
+    On a welcome page, choosing a computer shows its folder list instead.
+
   - **Connect to another computer…** pairs with one more.
-  - **×** forgets a computer here, after a confirmation, and closes its windows. To cut its access on that computer too, revoke the device there.
+  - **×** forgets a computer here, after a confirmation. Windows showing it close, and the window you forgot it from shows this computer instead. To cut its access on that computer too, revoke the device there.
+
 - **The folder menu** lists the computer's planning folders, newest first, and ends with **Open Folder…**:
   - on this computer, **Open Folder…** opens the system's dialog;
   - on another, it opens the **folder browser**. It lists that computer's folders (never files), marks planning folders (those with a `planning.json`) and opens only those. It starts beside the folder the window shows; **Home** goes to the home folder and the drives.

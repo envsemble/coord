@@ -1,7 +1,7 @@
 // Choosing where to work: the computer menu (this computer and the paired ones, like Platform's
 // organization menu), a computer's folder list, and the folder menu built on it. A folder or a
 // computer opens in this window; the button beside it, or Ctrl+Enter, opens it in a new window.
-import { createContext, useCallback, useContext, useEffect, useState, type KeyboardEvent } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CheckIcon, DeviceDesktopIcon, FileDirectoryIcon, LinkExternalIcon, PlusIcon, TriangleDownIcon, UnfoldIcon, XIcon } from './icons';
 import type { Computer, ComputerFolder, ComputerRef } from './types';
 import { api } from './api';
@@ -18,6 +18,23 @@ const statusLabels: Record<Computer['status'], string | null> = { online: null, 
 /** Ctrl (⌘ on macOS) with Enter or a click: open in a new window. */
 const wantsNewWindow = (event: { ctrlKey: boolean; metaKey: boolean }) => event.ctrlKey || event.metaKey;
 const onEnter = (open: (newWindow: boolean) => void) => (event: KeyboardEvent) => { if (event.key === 'Enter' && wantsNewWindow(event)) { event.preventDefault(); open(true); } };
+
+/** A menu panel: focus starts on its first choice, and the arrow keys move between choices (Tab reaches the buttons beside them). */
+function useMenuKeys() {
+  const ref = useRef<HTMLDivElement>(null);
+  const choices = () => [...(ref.current?.querySelectorAll<HTMLButtonElement>('button.menu-item:not(:disabled)') ?? [])];
+  useEffect(() => { choices()[0]?.focus(); }, []);
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
+    const buttons = choices();
+    if (!buttons.length) return;
+    event.preventDefault();
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next].focus();
+  };
+  return { ref, onKeyDown };
+}
 
 /** A computer's folder list, kept current as it changes (on any device). */
 export function useComputerFolders(hostId: string | null, active = true) {
@@ -51,21 +68,21 @@ export function ComputerMenu({ current, onError, className = '' }: { current: Co
     if (computer.hostId === current.hostId && !newWindow) return;
     api.switchComputer(computer.hostId, newWindow).catch(failure => onError((failure as Error).message));
   };
-  return <Popover label="Computer" title={'Working on ' + current.name} className={'computer-menu ' + className} buttonClassName="btn btn-sm computer-pill" onOpenChange={load}
+  return <Popover label={'Computer: ' + current.name} title={'Working on ' + current.name} className={'computer-menu ' + className} buttonClassName="btn btn-sm computer-pill" onOpenChange={load}
     button={<><DeviceDesktopIcon size={16} /><span className="computer-pill-name">{current.name}</span><UnfoldIcon size={16} /></>}>
-    {close => <div className="action-menu computer-list" role="menu">
+    {close => <MenuPanel className="computer-list">
       <div className="menu-title">Computers</div>
       {computers === null ? <div className="menu-loading"><Spinner />Checking computers…</div> : computers.map(computer => {
         const status = statusLabels[computer.status];
         const usable = computer.status === 'online';
         const checked = computer.hostId === current.hostId;
         if (forgetting !== null && forgetting === computer.hostId) return <div key={computer.hostId} className="menu-row menu-confirm" role="group" aria-label={'Forget ' + computer.name}>
-          <span className="menu-text">Forget {computer.name}? Its windows close, and this computer must pair again to reach it.</span>
+          <span className="menu-text">Forget {computer.name}? Windows showing it close, and this computer must pair again to reach it.</span>
           <button type="button" className="btn btn-sm btn-danger" onClick={() => forget(computer, close)}>Forget</button>
           <button type="button" className="btn btn-sm" onClick={() => setForgetting(null)}>Keep</button>
         </div>;
         return <div key={computer.hostId ?? 'local'} className={'menu-row' + (checked ? ' is-current' : '')}>
-          <button type="button" role="menuitemradio" aria-checked={checked} className="menu-item" disabled={!usable} title={computer.detail ?? undefined}
+          <button type="button" aria-current={checked || undefined} className="menu-item" disabled={!usable} title={computer.detail ?? undefined}
             onClick={event => choose(computer, wantsNewWindow(event), close)} onKeyDown={onEnter(newWindow => choose(computer, newWindow, close))}>
             <span className="menu-check">{checked && <CheckIcon size={16} />}</span>
             <span className="menu-text">
@@ -79,11 +96,17 @@ export function ComputerMenu({ current, onError, className = '' }: { current: Co
         </div>;
       })}
       <div className="menu-separator" role="separator" />
-      <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); actions.connect(); }}>
+      <button type="button" className="menu-item" onClick={() => { close(); actions.connect(); }}>
         <span className="menu-check"><PlusIcon size={16} /></span><span className="menu-text">Connect to another computer…</span>
       </button>
-    </div>}
+    </MenuPanel>}
   </Popover>;
+}
+
+/** The inside of a menu popover. */
+function MenuPanel({ className, children }: { className: string; children: ReactNode }) {
+  const { ref, onKeyDown } = useMenuKeys();
+  return <div ref={ref} className={'action-menu ' + className} onKeyDown={onKeyDown}>{children}</div>;
 }
 
 /** One computer's folder list: open a folder here or in a new window, or take it off the list (for every device). */
@@ -124,18 +147,18 @@ export function FolderMenu({ computer, folderName, folderPath, isCurrent, onErro
   const [open, setOpen] = useState(false);
   const { folders, error } = useComputerFolders(computer.hostId, open);
   const actions = useAppActions();
-  return <Popover label="Planning folder" title={'Planning folders on ' + computer.name} className="folder-menu" buttonClassName="explorer-title folder-menu-button" onOpenChange={setOpen}
+  return <Popover label={'Planning folder: ' + folderName} title={'Planning folders on ' + computer.name} className="folder-menu" buttonClassName="explorer-title folder-menu-button" onOpenChange={setOpen}
     button={<><span className="folder-menu-name">{folderName}</span><TriangleDownIcon size={16} /></>}>
-    {close => <div className="action-menu folder-menu-panel" role="menu">
+    {close => <MenuPanel className="folder-menu-panel">
       <div className="menu-title">Planning folders on {computer.name}</div>
       {folders === null ? <div className="menu-loading"><Spinner />Loading…</div>
         : folders.length ? <FolderList computer={computer} folders={folders} current={isCurrent} onError={message => { close(); onError(message); }} onOpened={close} compact />
         : <p className="menu-loading">No planning folders yet.</p>}
       {error && <p className="menu-error">{error}</p>}
       <div className="menu-separator" role="separator" />
-      <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); openFolderOn(computer, actions, onError, folderPath); }}>
+      <button type="button" className="menu-item" onClick={() => { close(); openFolderOn(computer, actions, onError, folderPath); }}>
         <span className="menu-check"><FileDirectoryIcon size={16} /></span><span className="menu-text">Open Folder…</span>
       </button>
-    </div>}
+    </MenuPanel>}
   </Popover>;
 }

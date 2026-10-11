@@ -6,7 +6,7 @@
 // first remote access shared.
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { Logger } from './errors.ts';
+import { HostError, type Logger } from './errors.ts';
 import { pathKey } from './folders.ts';
 import { array, integer, nullable, object, string, type Validator } from './validate.ts';
 
@@ -32,13 +32,13 @@ export class FolderList {
     this.seed = seed;
   }
 
-  /** The list, newest first. */
-  entries(): Promise<FolderListEntry[]> { return this.run(() => this.read()); }
+  /** The list, newest first (empty while the file cannot be read). */
+  entries(): Promise<FolderListEntry[]> { return this.run(async () => (await this.read()).folders); }
 
   /** A folder was opened: it moves to the top of the list. */
   touch(root: string): Promise<FolderListEntry[]> {
     return this.run(async () => {
-      const list = await this.read();
+      const list = await this.changeable();
       const next = [{ path: root, openedAt: new Date().toISOString() }, ...list.filter(item => pathKey(item.path) !== pathKey(root))].slice(0, folderListLimit);
       await this.write(next);
       return next;
@@ -48,7 +48,7 @@ export class FolderList {
   /** Remove a folder from the list (for every device). Returns whether it was listed. */
   remove(root: string): Promise<boolean> {
     return this.run(async () => {
-      const list = await this.read();
+      const list = await this.changeable();
       const next = list.filter(item => pathKey(item.path) !== pathKey(root));
       if (next.length === list.length) return false;
       await this.write(next);
@@ -62,19 +62,29 @@ export class FolderList {
     return result;
   }
 
-  private async read(): Promise<FolderListEntry[]> {
+  /**
+   * The list as the file has it. `readable` is false when the file is there but cannot be read now
+   * (another program holds it, say): then nothing may replace it.
+   */
+  private async read(): Promise<{ folders: FolderListEntry[]; readable: boolean }> {
     let text: string;
     try { text = await readFile(this.file, 'utf8'); }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { this.log.warn('Folder list unreadable', error); return []; }
-      return this.start();
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { this.log.warn('Folder list unreadable', error); return { folders: [], readable: false }; }
+      return { folders: await this.start(), readable: true };
     }
-    try { return listFile(JSON.parse(text)).folders; }
+    try { return { folders: listFile(JSON.parse(text)).folders, readable: true }; }
     catch (error) {
       // A damaged list is only a convenience lost: the next change writes a new one.
       this.log.warn('Folder list damaged; starting a new one', { message: (error as Error).message });
-      return [];
+      return { folders: [], readable: true };
     }
+  }
+  /** The list, to change it; refused while the file cannot be read, so a change cannot erase it. */
+  private async changeable(): Promise<FolderListEntry[]> {
+    const { folders, readable } = await this.read();
+    if (!readable) throw new HostError('unavailable', 'The folder list cannot be read right now, so it was left as it is.');
+    return folders;
   }
   /** The first list: the folders it starts with, in their order, without duplicates. */
   private async start(): Promise<FolderListEntry[]> {

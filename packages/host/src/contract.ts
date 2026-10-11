@@ -93,7 +93,8 @@ export interface SessionInfo { hostId: string; name: string; version: string; sc
 export interface Methods {
   'host.session': { params: Record<string, never>; result: SessionInfo };
   'folders.list': { params: Record<string, never>; result: ComputerFolder[] };
-  'folders.open': { params: { path: string }; result: FolderState };
+  /** `remember: false` reopens a folder without moving it on the folder list (a reconnection, a restored window). */
+  'folders.open': { params: { path: string; remember?: boolean }; result: FolderState };
   'folders.remove': { params: { folderId: string }; result: null };
   'folders.browse': { params: { path: string | null }; result: BrowseResult };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
@@ -136,7 +137,8 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'folder.recordView': 'computer',
   'plan.exportPrepare': 'computer',
   'plan.exportDrop': 'computer',
-  'plan.importRead': 'computer',
+  // A file on this computer, by path: the app's own. Another device sends its file to routes.imports.
+  'plan.importRead': 'owner',
   'plan.importConfirm': 'computer',
   'plan.importDrop': 'computer',
   'access.state': 'access:manage',

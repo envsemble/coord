@@ -150,19 +150,21 @@ export class AtlasWindow {
     void (context.devUrl ? this.win.loadURL(context.devUrl) : this.win.loadURL(rendererOrigin + '/index.html'));
   }
 
-  /** Bind (or rebind) this window to a planning folder on this computer and start reading it. */
-  async bind(root: string) {
+  /**
+   * Bind (or rebind) this window to a planning folder on this computer and start reading it.
+   * `remember`: whether opening it moves it to the top of the folder list (not for a restored window).
+   */
+  async bind(root: string, remember = true) {
     const { context } = this.manager;
     const name = path.basename(root) || root;
     const generation = this.prepare(root, name, null);
     const client = context.connections.local;
     let view: FolderView;
     try {
-      const opened = await client.request('folders.open', { path: root });
-      // A restarted host has not opened this folder yet: open it again by path before subscribing.
-      const state = await client.follow(opened.folderId, () => client.request('folders.open', { path: root }));
+      const opened = await client.request('folders.open', { path: root, remember });
+      // A restarted host has not opened this folder yet: open it again by path before subscribing, without moving it on the list.
+      const state = await client.follow(opened.folderId, () => client.request('folders.open', { path: root, remember: false }));
       view = new FolderView({ client, folderId: opened.folderId, root, name, remote: null }, state);
-      context.state.setLastFolder(computerKey(null), root);
     } catch (error) {
       context.log.error('Folder could not open', error);
       view = new FolderView({ client, folderId: '', root, name, remote: null, following: false }, { folderId: '', name, status: 'invalid', error: (error as Error).message, notice: null, revision: 0 });
@@ -185,16 +187,18 @@ export class AtlasWindow {
     let view: FolderView;
     try {
       client = context.connections.client(hostId);
-      const folderPath = known ?? (await client.request('folders.list', {}, { timeout: 20000 })).find(entry => entry.folderId === folderId)?.path ?? null;
+      // Its path: as given, as saved with the window, or from that computer's folder list.
+      const folderPath = known ?? context.state.folder(root)?.remotePath ?? (await client.request('folders.list', {}, { timeout: 20000 })).find(entry => entry.folderId === folderId)?.path ?? null;
       const connection = client;
-      const reopen = folderPath ? () => connection.request('folders.open', { path: folderPath }) : null;
+      // Opening it here (or again after a reconnection) leaves that computer's folder list as it is: whoever chose the folder already put it there.
+      const reopen = folderPath ? () => connection.request('folders.open', { path: folderPath, remember: false }) : null;
       if (reopen) {
         const opened = await reopen();
         if (opened.folderId !== folderId) throw new AtlasError('unavailable', `${hostName} no longer knows this planning folder by the same identity. Open it again from its folder list.`);
+        context.state.updateFolder(root, { remotePath: folderPath! });
       }
       const state = await client.follow(folderId, reopen);
       view = new FolderView({ client, folderId, root, name: state.name || (folderPath ? baseName(folderPath) : hostName), remote }, state);
-      context.state.setLastFolder(computerKey(hostId), root);
     } catch (error) {
       context.log.warn('Remote folder could not open', { hostId, message: (error as Error).message });
       // Not followed: when the computer is reachable again, the manager binds the window again.
@@ -203,7 +207,10 @@ export class AtlasWindow {
     this.settle(generation, view);
   }
 
-  /** Show the welcome page for a computer (null: this one): the window lets its folder go. */
+  /**
+   * Show the welcome page for a computer (null: this one): the window lets its folder go. A paired
+   * computer's connection stays open while its welcome page shows, so its folder list stays current.
+   */
   showWelcome(hostId: string | null) {
     this.revisionFloor = Math.max(this.revisionFloor, this.folder?.revision ?? 0);
     this.folder?.close();
@@ -211,6 +218,9 @@ export class AtlasWindow {
     this.target = null;
     this.binding++;
     this.welcomeComputer = hostId;
+    if (hostId !== null) {
+      try { this.manager.context.connections.client(hostId); } catch { /* Forgotten meanwhile: the page says so. */ }
+    }
     this.updateTitle();
     this.load();
   }
@@ -232,6 +242,8 @@ export class AtlasWindow {
     if (generation !== this.binding || this.win.isDestroyed()) { view.close(); return; }
     view.revision = Math.max(view.revision, this.revisionFloor + 1);
     this.folder = view;
+    // The folder this device last showed on that computer, for switching back to it.
+    if (view.following) this.manager.context.state.setLastFolder(computerKey(view.remote?.hostId ?? null), view.root);
     this.updateTitle();
     this.send('planning:changed', view.change());
   }
@@ -337,14 +349,14 @@ export class WindowManager {
   }
 
   /** A new window, optionally for a folder (a path, or a remote key), or for a computer's welcome page. */
-  async create(root: string | null, welcome: string | null = null, known: string | null = null) {
+  async create(root: string | null, welcome: string | null = null, known: string | null = null, remember = true) {
     const saved = root ? this.context.state.folder(root) : undefined;
     const window = new AtlasWindow(this, saved?.bounds, saved?.maximized ?? false);
     this.windows.set(window.id, window);
     // Read the folder while the renderer starts; the renderer waits for the first change event.
     const remote = root ? parseRemoteRoot(root) : null;
     if (!root && welcome) window.showWelcome(welcome);
-    const binding = remote ? window.bindRemote(remote.hostId, remote.folderId, known) : root ? window.bind(root) : null;
+    const binding = remote ? window.bindRemote(remote.hostId, remote.folderId, known) : root ? window.bind(root, remember) : null;
     if (root || !welcome) window.load();
     await binding;
     this.rememberOpen();
@@ -353,7 +365,7 @@ export class WindowManager {
 
   /** Point a window at another folder (or computer) and reload it; the computer it left lets go if nothing else shows it. */
   private async retarget(window: AtlasWindow, bind: () => Promise<void>) {
-    const left = window.remote?.hostId ?? null;
+    const left = window.computer;
     const binding = bind();
     window.load();
     await binding;
@@ -362,7 +374,7 @@ export class WindowManager {
   }
   /** The connection to a paired computer closes once no window shows one of its folders. */
   private releaseUnused(hostId: string | null) {
-    if (hostId && !this.all().some(other => other.remote?.hostId === hostId)) this.context.connections.release(hostId);
+    if (hostId && !this.all().some(other => other.computer === hostId)) this.context.connections.release(hostId);
   }
   /** The window to open a folder in: the one asked from when it may be reused, else a new one (null). */
   private reusable(from: AtlasWindow | undefined, reuse: Reuse) {
@@ -392,9 +404,11 @@ export class WindowManager {
     }
     const existing = this.all().find(window => window.root && samePlatformPath(window.root, root));
     if (existing) { existing.focus(); return existing; }
+    // A window restored at start does not move its folder on the folder list.
+    const remember = options.mode !== 'restore';
     const target = this.reusable(options.from, options.reuse ?? 'empty');
-    if (!target) return this.create(root);
-    await this.retarget(target, () => target.bind(root));
+    if (!target) return this.create(root, null, null, remember);
+    await this.retarget(target, () => target.bind(root, remember));
     return target;
   }
 
@@ -449,7 +463,12 @@ export class WindowManager {
    */
   async switchComputer(hostId: string | null, from: AtlasWindow | undefined, newWindow: boolean) {
     // A welcome page shows the chosen computer's folders, to choose one from.
-    if (from && !from.root && !newWindow) { from.showWelcome(hostId); return from; }
+    if (from && !from.root && !newWindow) {
+      const left = from.computer;
+      from.showWelcome(hostId);
+      this.releaseUnused(left);
+      return from;
+    }
     const folders = (await this.foldersOf(hostId)).filter(folder => folder.available);
     const last = this.context.state.lastFolder(computerKey(hostId));
     const rootOf = (folder: ComputerFolder) => hostId === null ? folder.path : remoteRoot(hostId, folder.folderId);
@@ -458,7 +477,7 @@ export class WindowManager {
     if (chosen) return this.openOn(hostId, chosen.path, from, reuse);
     const target = this.reusable(from, reuse);
     if (!target) return this.create(null, hostId);
-    const left = target.remote?.hostId ?? null;
+    const left = target.computer;
     target.showWelcome(hostId);
     this.releaseUnused(left);
     this.rememberOpen();
@@ -551,17 +570,32 @@ export class WindowManager {
       if (folder?.remote?.hostId === hostId) void window.bindRemote(hostId, folder.folderId);
     }
   }
-  /** A forgotten computer: welcome pages that showed it show this computer again. */
-  forgotComputer(hostId: string) {
-    for (const window of this.all()) if (!window.root && window.computer === hostId) window.showWelcome(null);
+  /**
+   * Forget a paired computer: windows showing its folders close, except the one that asked, which
+   * shows this computer's welcome page (so forgetting from the last window does not quit Atlas);
+   * welcome pages that showed it show this computer again. Closing a window saves its layout, so
+   * the layouts are forgotten after the windows close.
+   */
+  async forgetComputer(hostId: string, from: AtlasWindow) {
+    const closing = this.all().filter(other => other !== from && other.root && other.computer === hostId);
+    if (from.computer === hostId) from.showWelcome(null);
+    for (const window of this.all()) if (window !== from && !window.root && window.computer === hostId) window.showWelcome(null);
+    await Promise.all(closing.map(other => new Promise<void>(resolve => {
+      if (other.win.isDestroyed()) { resolve(); return; }
+      other.win.once('closed', () => resolve());
+      other.win.close();
+    })));
+    this.context.connections.forget(hostId);
+    this.context.state.forgetFolders(root => parseRemoteRoot(root)?.hostId === hostId);
+    this.rememberOpen();
   }
 
   closed(window: AtlasWindow) {
-    const remote = window.remote;
+    const left = window.computer;
     window.close();
     this.windows.delete(window.id);
-    // The last window showing a computer's folders closes its connection.
-    this.releaseUnused(remote?.hostId ?? null);
+    // The last window showing a computer's folders (or its welcome page) closes its connection.
+    this.releaseUnused(left);
     if (!this.quitting && this.windows.size) this.rememberOpen();
   }
 
