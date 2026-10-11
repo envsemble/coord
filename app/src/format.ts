@@ -38,3 +38,23 @@ export function relativeDate(value: string | null | undefined, now = Date.now())
 export function bytes(value: number) { return value < 1024 ? value + ' B' : value < 1048576 ? Math.round(value / 1024) + ' KB' : (value / 1048576).toFixed(1) + ' MB'; }
 export function workNumber(id: string) { return id.replace('work-', '#'); }
 export function plural(count: number, word: string, many = word + 's') { return count + ' ' + (count === 1 ? word : many); }
+/** A count compactly, for tokens: 950, 12.9K, 1.2M. */
+export function compactNumber(value: number) {
+  return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+/** Active time: "45 min", "3 h 20 min", "2 d 4 h". */
+export function duration(milliseconds: number) {
+  const minutes = Math.round(milliseconds / 60000);
+  if (minutes < 1) return milliseconds > 0 ? '< 1 min' : '0 min';
+  if (minutes < 60) return minutes + ' min';
+  const hours = Math.floor(minutes / 60), restMinutes = minutes % 60;
+  if (hours < 48) return restMinutes ? `${hours} h ${restMinutes} min` : `${hours} h`;
+  const days = Math.floor(hours / 24), restHours = hours % 24;
+  return restHours ? `${days} d ${restHours} h` : `${days} d`;
+}
+export function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}

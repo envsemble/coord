@@ -8,6 +8,8 @@ export { Telemetry, recordCollectionGap, schema, type ViewEvent } from './teleme
 export { RecentPlanningRoots, inspectPlanningRoot, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';
 export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './ledger.ts';
+export { StatisticsReportError, appendReport, createReport, parseReport, planRevisions, readReports, sessionGap, statisticsFile, summarizeReports, workStatistics, type ReportInput, type StatisticsReport } from './statistics.ts';
+export { recordWorkReport, type RecordedReport } from './workReport.ts';
 export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './consultation.ts';
 export type * from './types.ts';
 export {

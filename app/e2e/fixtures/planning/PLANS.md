@@ -105,3 +105,7 @@ Derive the steps from the accepted plan when implementation starts: one step per
 ### Version 1 (legacy)
 
 Earlier ledgers use `schema_version: 1` with `current` (a nonempty string or null) and `next` (a list of nonempty strings) in place of `steps`. Tools still read them and show the reported focus and next steps, without progress. Rewrite a version-1 header as version 2 when its work resumes, keeping the body. Historical ledgers without a header remain readable and their present focus remains unknown; do not copy old activity into a new current claim.
+
+## Work statistics
+
+`atlas work report` appends what an agent reports at a ledger transition to `<work>/.atlas/statistics.jsonl`, one JSON object per line: `version` (1), `at` (the time of the report), `model` (the model's identifier), `session` (the conversation's identifier or null), `tokens` (tokens used so far in that session, or null) and `step` (the ledger step's title, or null). Only the command writes the file; do not edit it by hand. The values are self-reported and approximate. Report when work starts and at each transition: tools add up the time between a session's reports (a gap of more than two hours is a break), count each session's tokens from its first report on, and take plan revisions from Git. Without a session identifier, the same model's reports less than two hours apart count as one session, so give one whenever several agents work at once. Plan exports leave the file out. `atlas planning check` warns about lines that are not valid reports and never fails on them.

@@ -2,7 +2,7 @@
   "name": "@envsemble/atlas-cli",
   "version": "0.6.0",
   "private": true,
-  "description": "The atlas command: model tools, the MCP server, planning checks and consultation logging",
+  "description": "The atlas command: model tools, the MCP server, planning checks, consultation logging and work statistics",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/envsemble/atlas.git",

@@ -3,7 +3,7 @@ import { AlertIcon, BookIcon, GitCommitIcon, TasklistIcon, WorkflowIcon } from '
 import type { Document, Snapshot, Target, Work, WorkSection } from './types';
 import { defaultDocument, primaryDocuments } from './work';
 import { viewTarget, workTarget } from './targets';
-import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
+import { absoluteDate, compactNumber, duration, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
 import { Blankslate, Counter, Label, StateLabel } from './ui';
 import { Reader, useReferences } from './Reader';
@@ -36,6 +36,7 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
   const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   const commits = snapshot.history.filter(entry => entry.workIds.includes(work.id)).slice(0, 5);
+  const statistics = work.statistics;
   return <aside className="about" aria-label="About this work">
     {issues.length > 0 && <div className={'flash ' + (issues.some(issue => issue.level === 'error') ? 'flash-danger' : 'flash-warning')}><AlertIcon size={16} /><div>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</div></div>}
     {hasStatus && progress && <section className="about-section">
@@ -51,6 +52,15 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
       {dates.length > 0 && <dl className="about-dates">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}</dl>}
       <p className="about-path muted" title={work.path}>{work.path}</p>
     </section>
+    {statistics && (statistics.reports > 0 || statistics.planRevisions !== null) && <section className="about-section">
+      <h2>Statistics{statistics.lastReport && <span className="muted" title={absoluteDate(statistics.lastReport)}> · reported {relativeDate(statistics.lastReport)}</span>}</h2>
+      <dl className="about-statistics">
+        {statistics.primaryModel && <div><dt>Model</dt><dd><code>{statistics.primaryModel}</code>{statistics.models.length > 1 && <span className="muted" title={statistics.models.slice(1).map(model => model.model).join(', ')}> +{statistics.models.length - 1} more</span>}</dd></div>}
+        {statistics.tokens !== null && <div><dt>Tokens</dt><dd title={statistics.tokens.toLocaleString() + ' tokens, self-reported'}>{compactNumber(statistics.tokens)}</dd></div>}
+        {statistics.reports > 0 && <div><dt>Active time</dt><dd title="Time between reports in each session, self-reported">{duration(statistics.activeMs)}</dd></div>}
+        {statistics.planRevisions !== null && <div><dt>Plan revisions</dt><dd title={work.completed ? 'Commits that changed the plan before completion' : 'Commits that changed the plan so far'}>{statistics.planRevisions}</dd></div>}
+      </dl>
+    </section>}
     {commits.length > 0 && <section className="about-section">
       <h2>Recent activity</h2>
       <ul className="about-commits">{commits.map(entry => <li key={entry.id}><GitCommitIcon size={16} /><div><span className="commit-title">{entry.title}</span><span className="muted"><code>{entry.id.slice(0, 7)}</code> · <span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span></div></li>)}</ul>

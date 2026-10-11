@@ -7,6 +7,7 @@ import { parse } from 'yaml';
 import { createHash } from 'node:crypto';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { ledgerStatus } from './ledger.ts';
+import { workStatistics } from './statistics.ts';
 import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Repository, Work } from './types.ts';
 
 const execute = promisify(execFile);
@@ -347,6 +348,8 @@ export async function loadPlanning(inputRoot: string): Promise<PlanningIndex> {
     item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
   }
   const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths, [...repositoryIds]);
+  const statistics = await workStatistics(root, work);
+  for (const item of work) item.statistics = statistics[item.id];
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
   return { root, loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

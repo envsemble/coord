@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { PlanExportError, exportPlan, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, validatePlanning } from '@envsemble/atlas-planning';
+import { PlanExportError, exportPlan, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -21,6 +21,7 @@ Usage:
   atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
   atlas plan import <file> [--planning-dir <dir>] [--dry-run]
   atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
+  atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]
   atlas --version
   atlas help
 
@@ -33,6 +34,10 @@ and registers it in planning.json without committing; --dry-run only previews. B
 planning folder given by --planning-dir, else the current folder, and exit 0 on success,
 1 for an invalid export or a refused folder and 2 on usage errors.
 usage log always exits 0 so a logging problem never fails the task; it reports gaps on stderr.
+work report records an agent's report at a ledger transition: its model, the tokens used so far
+in its session when known, and the step. It appends one line to <work>/.atlas/statistics.jsonl,
+which the app summarizes. Values are self-reported and approximate. It always exits 0, except
+for usage errors (2), so reporting never fails the task.
 Usage statistics live in the Atlas data folder: ATLAS_DATA_DIR, else %APPDATA%\\Atlas on
 Windows or \${XDG_CONFIG_HOME:-~/.config}/Atlas on Linux.`;
 
@@ -47,6 +52,7 @@ const checkUsage = 'Usage: atlas planning check <planning-root>';
 const exportUsage = 'Usage: atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]';
 const importUsage = 'Usage: atlas plan import <file> [--planning-dir <dir>] [--dry-run]';
 const logUsage = 'Usage: atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]';
+const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]';
 
 /** Parse `--name value`, `--name=value` and the variadic `--files a b c`, like the former argparse helpers. */
 function parseOptions(args: string[], spec: { values: string[]; lists?: string[]; flags?: string[] }, line: string) {
@@ -97,6 +103,23 @@ async function usageLog(args: string[], out: Output) {
   else {
     out.stdout(`{"reported_documents": ${result.recorded}, "unrecorded_documents": ${result.failed}}`);
     if (result.failed) out.stderr('Some usage reports were not recorded; continue the task.');
+  }
+  return 0;
+}
+
+async function workReport(args: string[], out: Output) {
+  if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(reportUsage); return 0; }
+  const { positional, values } = parseOptions(args, { values: ['work', 'model', 'tokens', 'session', 'step'] }, reportUsage);
+  if (positional.length > 1) throw new UsageError('unrecognized arguments: ' + positional.slice(1).join(' '), reportUsage);
+  const missing = [positional.length ? '' : 'planning-root', values.work ? '' : '--work', values.model ? '' : '--model'].filter(Boolean);
+  if (missing.length) throw new UsageError('the following arguments are required: ' + missing.join(', '), reportUsage);
+  if (values.tokens !== undefined && !/^[0-9]+$/.test(values.tokens)) throw new UsageError('argument --tokens: expected a whole number of tokens', reportUsage);
+  try {
+    const result = await recordWorkReport(positional[0], values.work, { model: values.model, tokens: values.tokens === undefined ? null : Number(values.tokens), session: values.session ?? null, step: values.step ?? null });
+    for (const warning of result.warnings) out.stderr('WARNING: ' + warning);
+    out.stdout(JSON.stringify({ recorded: true, file: result.file, at: result.report.at }));
+  } catch (error) {
+    out.stderr('Work statistics were not recorded (' + (error instanceof Error ? error.message : String(error)).replace(/\.$/, '') + '); continue the task.');
   }
   return 0;
 }
@@ -201,7 +224,8 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'plan' && subcommand === 'export') return await planExport(rest, printableOutput(out));
     if (command === 'plan' && subcommand === 'import') return await planImport(rest, printableOutput(out));
     if (command === 'usage' && subcommand === 'log') return await usageLog(rest, out);
-    throw new UsageError(command === 'planning' || command === 'plan' || command === 'usage' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
+    if (command === 'work' && subcommand === 'report') return await workReport(rest, printableOutput(out));
+    throw new UsageError(command === 'planning' || command === 'plan' || command === 'usage' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
     if (error instanceof PlanExportError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
     const failure = command === 'plan' ? systemFailure(error) : null;

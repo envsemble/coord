@@ -2,7 +2,7 @@
 
 ![An agent's proposed change to captured code, full-bleed in the Diagrams view of a work item, with the explorer on the left](assets/atlas-desktop.jpg)
 
-Atlas is a desktop app for a planning repository: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, usage statistics and each plan's diagrams. Each planning folder opens in its own window. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
+Atlas is a desktop app for a planning repository: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, work and usage statistics and each plan's diagrams. Each planning folder opens in its own window. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 
 ## Install
 
@@ -133,7 +133,25 @@ Design acceptance, implementation status, archive location, and known dates are 
 
 Contained Markdown links open their original records. External web references open in the system browser; references outside the planning root are marked. Raw HTML is not executed. Text and common images render in the reader; for other attachments, **Show in folder** reveals the file. The text reader has a 4 MiB limit.
 
-## Usage statistics
+## Statistics
+
+The Statistics view has three tabs.
+
+- **Work** lists every work item with:
+  - its implementing model;
+  - the tokens and active time agents reported;
+  - its plan revisions;
+  - its ledger steps done.
+
+  Totals and the median plan revisions of completed work sit above the list.
+- **Models over time** compares completed work by implementing model, the model with the most active time. A chart plots tokens, active time, plan revisions or steps for each completed work item at its completion date, coloured for the three models whose completed work is most recent, with the rest as "Other"; a model keeps its colour while others come and go. A table gives each model's medians. Hover a dot or move through the dots with the arrow keys; click it or press Enter to open the work.
+- **Document use** is described below.
+
+A work item's About sidebar shows the same statistics for that work.
+
+Agents report with `atlas work report <planning-root> --work <work-id> --model <id> [--tokens <n>] [--session <id>] [--step <title>]` at ledger transitions, as `atlas-implement` describes. The report is one line in `<work>/.atlas/statistics.jsonl`, so it is versioned and moves with the work folder; plan exports leave it out. Each report covers the time and tokens since the previous one in its session (or, without a session, since the same model's last report less than two hours earlier); a gap of more than two hours is a break, not work. A session's first report is its starting point, so tokens it spent before this work are not counted. The values are self-reported and approximate. Plan revisions count the commits that changed the main plan after it was added, up to its completion date, following renames, so moving a plan to the archive is not a revision; they need the planning folder's Git history.
+
+### Document use
 
 Two sources remain distinct: documents opened in Atlas and agent-reported consultation. Statistics show most/least recorded use, known task identities, recent consultation, and collection coverage. They do not measure whether the workflow improved an outcome. Zero recorded use does not mean a record was never read or should be removed.
 

@@ -66,11 +66,12 @@ atlas planning check <planning-root>
 atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
 atlas plan import <file> [--planning-dir <dir>] [--dry-run]
 atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
+atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]
 ```
 
-Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas plan export` and `atlas plan import` exit 0 on success, 1 for an invalid export or a refused folder and 2 on usage errors; import never commits. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr.
+Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas plan export` and `atlas plan import` exit 0 on success, 1 for an invalid export or a refused folder and 2 on usage errors; import never commits. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr. `atlas work report` records an agent's model, tokens so far and the step at a ledger transition in `<work>/.atlas/statistics.jsonl`; it also exits 0 except for usage errors, saying on stderr when a report was not recorded.
 
-Usage statistics and recent planning folders live in the per-user **Atlas data folder**: `%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR` when set. Statistics are kept per planning folder under `usage/<hash of its canonical path>/`; nothing is written into planning folders.
+Usage statistics and recent planning folders live in the per-user **Atlas data folder**: `%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR` when set. Usage statistics are kept per planning folder under `usage/<hash of its canonical path>/`, outside the planning folder. Work statistics (`atlas work report`) are the exception: they belong to the work, so they are written into its folder as `<work>/.atlas/statistics.jsonl`.
 
 ## Skills
 

@@ -5,9 +5,10 @@
 // YAML booleans, nulls, numbers, or timestamps. Plain ISO dates remain compatible only in
 // the contract's date fields. Ported from the former check_planning.py with the same rules
 // and messages.
-import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { ledgerStatus } from './ledger.ts';
+import { fileLimit as statisticsFileLimit, parseReport } from './statistics.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const repositoryIdentity = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -417,6 +418,25 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     } catch (error) {
       errors.push(path.relative(root, ledger) + ': ' + (error as Error).message);
     }
+  }
+  // Agent-reported statistics (atlas work report) are telemetry: problems are warnings, never errors.
+  for (const entry of workItems) {
+    if (!isObject(entry) || typeof entry.path !== 'string' || entry.path.includes('\\') || entry.path.split('/').includes('..')) continue;
+    const location = path.join(root, entry.path);
+    if (!isDirectory(location) || !within(root, resolveLenient(location))) continue;
+    const label = entry.path.replace(/\/+$/, '') + '/' + '.atlas/statistics.jsonl';
+    const folder = lstatSync(path.join(location, '.atlas'), { throwIfNoEntry: false });
+    if (!folder) continue;
+    if (folder.isSymbolicLink() || !folder.isDirectory()) { warnings.push(entry.path + '/.atlas: a link or not a folder; statistics are not read'); continue; }
+    const file = path.join(location, '.atlas', 'statistics.jsonl');
+    const info = lstatSync(file, { throwIfNoEntry: false });
+    if (!info) continue;
+    if (!info.isFile()) { warnings.push(label + ': a link or not a regular file; statistics are not read'); continue; }
+    if (info.size > statisticsFileLimit) { warnings.push(label + ': larger than 4 MB; statistics are not read'); continue; }
+    let invalid = 0;
+    try { for (const line of readText(file).split(/\r?\n/)) if (line.trim() && !parseReport(line)) invalid++; }
+    catch (error) { warnings.push(label + ': ' + (error as Error).message); continue; }
+    if (invalid) warnings.push(label + ': ' + invalid + (invalid === 1 ? ' line is' : ' lines are') + ' not a valid statistics report and will be ignored');
   }
   return { errors, warnings };
 }

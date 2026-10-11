@@ -12,6 +12,28 @@ export interface Work {
   ledger?: string | null; progress?: WorkProgress | null;
   /** Number of Atlas models in this work folder's `.atlas/models`. */
   diagrams?: number;
+  /** Agent-reported statistics and plan revisions; absent where they were not read. */
+  statistics?: WorkStatistics;
+}
+/** One model's share of a work item, from the reports it made. */
+export interface ModelUsage { model: string; reports: number; sessions: number; activeMs: number; tokens: number | null }
+/**
+ * What agents reported with `atlas work report` (self-reported and approximate) and how often the
+ * main plan changed. Active time sums the intervals between reports in each session or run.
+ */
+export interface WorkStatistics {
+  reports: number;
+  /** Lines of the statistics file that are not valid reports. */
+  invalid: number;
+  models: ModelUsage[];
+  /** The model with the most active time (then tokens, then reports). */
+  primaryModel: string | null;
+  tokens: number | null;
+  activeMs: number;
+  firstReport: string | null;
+  lastReport: string | null;
+  /** Commits that changed the main plan after it was added, up to completion or now; null without Git history. */
+  planRevisions: number | null;
 }
 export type LedgerStepStatus = 'todo' | 'doing' | 'done';
 export interface LedgerStep { title: string; status: LedgerStepStatus }
