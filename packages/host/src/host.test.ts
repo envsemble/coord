@@ -194,7 +194,7 @@ test('a device pairs once with a five-minute code, gets the whole computer, and 
   await device.connection.request('folder.recordView', { folderId: folder.folderId, event: { id: 'view-00000001', path: 'README.md', session: 'session-0001', contentHash: null } });
   // It sends its plans for import (below); it cannot make this computer read a file by path, or reach a network share.
   await assert.rejects(device.connection.request('plan.importRead', { folderId: folder.folderId, file: path.join(planning, 'README.md') }), (error: HostRequestError) => error.code === 'forbidden');
-  for (const share of ['\\\\fileserver\\plans\\planning', '//fileserver/plans/planning']) {
+  for (const share of ['\\\\fileserver\\plans\\planning', '//fileserver/plans/planning', ...(process.platform === 'win32' ? ['/\\fileserver\\plans', '/\\?\\UNC\\fileserver\\plans'] : [])]) {
     await assert.rejects(device.connection.request('folders.open', { path: share }), (error: HostRequestError) => error.code === 'forbidden' && /Network paths/.test(error.message), share);
     await assert.rejects(device.connection.request('folders.browse', { path: share }), (error: HostRequestError) => error.code === 'forbidden', share);
   }

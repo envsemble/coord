@@ -502,6 +502,11 @@ export class WindowManager {
   }
   /** A connection's status reaches the windows reading through it. */
   connectionChanged(client: HostClient, status: ClientStatus, detail: string | null) {
+    // A paired computer's welcome page that could not load its folder list gets it once the computer answers.
+    const hostId = client === this.context.connections.local ? null : this.context.connections.hostIdOf(client);
+    if (status === 'connected' && hostId !== null && this.all().some(window => !window.root && window.computer === hostId)) {
+      void client.request('folders.list', {}, { timeout: 20000 }).then(folders => this.foldersChanged(hostId, folders), () => undefined);
+    }
     for (const window of this.all()) {
       const folder = window.folder;
       if (!folder || folder.client !== client) continue;
@@ -563,11 +568,12 @@ export class WindowManager {
     if (window) { window.focus(); window.send('menu:command', command); }
   }
 
-  /** Pairing again replaced a computer's connection: its windows open their folders through the new one. */
+  /** Pairing again replaced a computer's connection: its windows open their folders, and its welcome pages their list, through the new one. */
   rebindRemote(hostId: string) {
     for (const window of this.all()) {
       const folder = window.folder;
       if (folder?.remote?.hostId === hostId) void window.bindRemote(hostId, folder.folderId);
+      else if (!window.root && window.computer === hostId) window.showWelcome(hostId);
     }
   }
   /**

@@ -63,7 +63,7 @@ The top of the explorer says where a window works: the **folder menu** (the fold
     On a welcome page, choosing a computer shows its folder list instead.
 
   - **Connect to another computer…** pairs with one more.
-  - **×** forgets a computer here, after a confirmation. Windows showing it close, and the window you forgot it from shows this computer instead. To cut its access on that computer too, revoke the device there.
+  - **×** forgets a computer here, after a confirmation. Windows showing it close; if the window you forgot it from showed it, that window shows this computer instead. To cut its access on that computer too, revoke the device there.
 
 - **The folder menu** lists the computer's planning folders, newest first, and ends with **Open Folder…**:
   - on this computer, **Open Folder…** opens the system's dialog;

@@ -19,11 +19,14 @@ const statusLabels: Record<Computer['status'], string | null> = { online: null, 
 const wantsNewWindow = (event: { ctrlKey: boolean; metaKey: boolean }) => event.ctrlKey || event.metaKey;
 const onEnter = (open: (newWindow: boolean) => void) => (event: KeyboardEvent) => { if (event.key === 'Enter' && wantsNewWindow(event)) { event.preventDefault(); open(true); } };
 
-/** A menu panel: focus starts on its first choice, and the arrow keys move between choices (Tab reaches the buttons beside them). */
-function useMenuKeys() {
+/**
+ * A menu panel: focus moves to its first choice once its list has loaded (`ready`), and the arrow
+ * keys move between choices (Tab reaches the buttons beside them).
+ */
+function useMenuKeys(ready: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   const choices = () => [...(ref.current?.querySelectorAll<HTMLButtonElement>('button.menu-item:not(:disabled)') ?? [])];
-  useEffect(() => { choices()[0]?.focus(); }, []);
+  useEffect(() => { if (ready) choices()[0]?.focus(); }, [ready]);
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
     const buttons = choices();
@@ -48,7 +51,7 @@ export function useComputerFolders(hostId: string | null, active = true) {
     if (!active) return;
     setFolders(null);
     load();
-    return api.onFoldersChanged(change => { if (change.hostId === hostId) setFolders(change.folders); });
+    return api.onFoldersChanged(change => { if (change.hostId === hostId) { setFolders(change.folders); setError(''); } });
   }, [hostId, active, load]);
   return { folders, error, reload: load };
 }
@@ -70,7 +73,7 @@ export function ComputerMenu({ current, onError, className = '' }: { current: Co
   };
   return <Popover label={'Computer: ' + current.name} title={'Working on ' + current.name} className={'computer-menu ' + className} buttonClassName="btn btn-sm computer-pill" onOpenChange={load}
     button={<><DeviceDesktopIcon size={16} /><span className="computer-pill-name">{current.name}</span><UnfoldIcon size={16} /></>}>
-    {close => <MenuPanel className="computer-list">
+    {close => <MenuPanel className="computer-list" ready={computers !== null}>
       <div className="menu-title">Computers</div>
       {computers === null ? <div className="menu-loading"><Spinner />Checking computers…</div> : computers.map(computer => {
         const status = statusLabels[computer.status];
@@ -104,8 +107,8 @@ export function ComputerMenu({ current, onError, className = '' }: { current: Co
 }
 
 /** The inside of a menu popover. */
-function MenuPanel({ className, children }: { className: string; children: ReactNode }) {
-  const { ref, onKeyDown } = useMenuKeys();
+function MenuPanel({ className, ready, children }: { className: string; ready: boolean; children: ReactNode }) {
+  const { ref, onKeyDown } = useMenuKeys(ready);
   return <div ref={ref} className={'action-menu ' + className} onKeyDown={onKeyDown}>{children}</div>;
 }
 
@@ -149,7 +152,7 @@ export function FolderMenu({ computer, folderName, folderPath, isCurrent, onErro
   const actions = useAppActions();
   return <Popover label={'Planning folder: ' + folderName} title={'Planning folders on ' + computer.name} className="folder-menu" buttonClassName="explorer-title folder-menu-button" onOpenChange={setOpen}
     button={<><span className="folder-menu-name">{folderName}</span><TriangleDownIcon size={16} /></>}>
-    {close => <MenuPanel className="folder-menu-panel">
+    {close => <MenuPanel className="folder-menu-panel" ready={folders !== null}>
       <div className="menu-title">Planning folders on {computer.name}</div>
       {folders === null ? <div className="menu-loading"><Spinner />Loading…</div>
         : folders.length ? <FolderList computer={computer} folders={folders} current={isCurrent} onError={message => { close(); onError(message); }} onOpened={close} compact />

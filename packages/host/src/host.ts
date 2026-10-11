@@ -225,9 +225,10 @@ export class Host {
     const server = createAdaptorServer({ fetch: this.app(listener).fetch, overrideGlobalObjects: false }) as Server;
     listener.server = server;
     server.headersTimeout = 20000;
-    // A plan sent for import over a slow link can take many minutes, so the network listener sets no
-    // limit on a whole request; the routes that take a body limit how long it may stall instead.
-    server.requestTimeout = local ? 60000 : 0;
+    // A plan sent for import over a slow link can take many minutes, so the network listener allows
+    // a whole request two hours (the app gives an upload one); the routes that take a body also end
+    // one that stalls.
+    server.requestTimeout = local ? 60000 : 2 * 60 * 60 * 1000;
     server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => this.upgrade(listener, request, socket, head));
     return new Promise((resolve, reject) => {
       server.once('error', reject);
@@ -528,9 +529,11 @@ export class Host {
     const entries = await this.folderList.entries();
     return Promise.all(entries.map(async entry => {
       // A folder on a network drive that does not answer is shown as missing rather than holding the list up.
-      const info = await stalls(inspectPlanningRoot(entry.path), folderCheck).catch(() => null);
-      const available = info !== null || await stalls(stat(entry.path), folderCheck).then(found => found.isDirectory(), () => false);
-      return { folderId: this.folders.idOf(entry.path), path: entry.path, name: path.basename(entry.path) || entry.path, openedAt: entry.openedAt, available, workItems: info?.workItems ?? null };
+      const checked = await stalls((async () => {
+        const info = await inspectPlanningRoot(entry.path).catch(() => null);
+        return { info, available: info !== null || await stat(entry.path).then(found => found.isDirectory(), () => false) };
+      })(), folderCheck).catch(() => ({ info: null, available: false }));
+      return { folderId: this.folders.idOf(entry.path), path: entry.path, name: path.basename(entry.path) || entry.path, openedAt: entry.openedAt, available: checked.available, workItems: checked.info?.workItems ?? null };
     }));
   }
   /** A folder was opened here: it moves to the top of the folder list, which every client sees. */
@@ -744,5 +747,7 @@ function stalls<T>(pending: Promise<T>, limit: number, message = 'This took too 
  * computer sign in to whatever server a device names, with this user's credentials.
  */
 function refuseNetworkPath(folder: string) {
-  if (/^(?:\\\\|\/\/)/.test(folder)) throw new HostError('forbidden', 'Network paths do not open from another device: ' + folder);
+  // As written, and as Windows reads it: it takes /\server\share for \\server\share.
+  const resolved = process.platform === 'win32' ? path.win32.resolve(folder) : folder;
+  if (/^(?:\\\\|\/\/)/.test(folder) || resolved.startsWith('\\\\')) throw new HostError('forbidden', 'Network paths do not open from another device: ' + folder);
 }
