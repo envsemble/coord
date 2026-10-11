@@ -182,6 +182,12 @@ test('a device pairs once with a five-minute code, gets the whole computer, and 
   // Opening it put it on the computer's folder list, which every client sees at once.
   const listed = await device.connection.request('folders.list', {});
   assert.deepEqual(listed.map(entry => [entry.path, entry.available, entry.workItems]), [[planning, true, 4]]);
+  // The app here may open a folder that is not a planning folder (to explain why); it stays off the list, and a device cannot reach it.
+  const plain = path.dirname(planning);
+  const notPlanning = await owner.connection.request('folders.open', { path: plain });
+  assert.equal((await owner.connection.request('folders.list', {})).length, 1);
+  await assert.rejects(device.connection.request('folders.subscribe', { folderId: notPlanning.folderId }), (error: HostRequestError) => error.code === 'forbidden');
+  assert.equal((await device.connection.fetch(`/api/folders/${notPlanning.folderId}/files/planning/README.md`)).status, 403);
   await until(() => owner.lists.some(list => list.some(entry => entry.path === planning)), 5000, () => owner.lists);
   // Its views count in this computer's document use.
   await device.connection.request('folder.recordView', { folderId: folder.folderId, event: { id: 'view-00000001', path: 'README.md', session: 'session-0001', contentHash: null } });

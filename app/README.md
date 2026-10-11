@@ -62,19 +62,30 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 
 ## Windows and folders
 
-Each window shows exactly one planning folder, like VS Code:
+Each window shows exactly one planning folder, like VS Code, on this computer or on a computer this one is paired with ([remote access](../docs/remote-access.md)):
 
-- **File › Open Folder…** (Ctrl+O) picks a folder. It must contain a readable `planning.json` with schema version 1; otherwise Atlas explains why and opens nothing. A window without a folder is reused; otherwise the folder opens in a new window, and a folder that is already open gets focus instead.
-- **File › Open Recent** lists recently opened folders (missing ones are marked); **New Window** (Ctrl+Shift+N) opens an empty window that offers Open Folder and the recent list.
+- **File › Open Folder…** (Ctrl+O) picks a folder. It must contain a readable `planning.json` with schema version 1; otherwise Atlas explains why and opens nothing. A window without a folder is reused; otherwise the folder opens in a new window, and a folder that is already open gets focus instead. In a window on another computer, it opens that computer's folder browser.
+- **The folder menu** (the folder's name at the top of the explorer) lists the computer's planning folders, newest first. Choosing one opens it in this window; its **↗** button, or Ctrl+Enter, opens it in a new window, and **×** removes it from the list.
+- **The computer menu** (the pill beside it) lists this computer and the paired ones. Choosing a computer works on it in this window: Atlas opens its only folder, the one this window last showed there, its most recent folder, or, with none, that computer's welcome page.
+- **File › Open Recent** lists this computer's most recent folders (missing ones are marked). **New Window** (Ctrl+Shift+N) opens an empty window, whose welcome page shows a computer's folder list and Open Folder.
+- **The folder list** belongs to the computer: every planning folder opened there, from any device or the command line, stays on it, newest first, until someone removes it, and every device sees the same list.
 - Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility, expanded folders and open tabs. Closing windows one by one keeps the last one.
 - Two windows may show overlapping folders, such as nested planning roots; each reads only its own folder.
 
-Atlas keeps its own data in the per-user Atlas data folder, shared with the `atlas` command: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR`. There it keeps `desktop-state.json` (windows and per-folder layout), `planning-roots.json` (recent folders), `usage/` (statistics), `host/` (remote access: this computer's identity, settings and paired devices), `connections.json` (the computers this one paired with), `logs/` and `chromium/` (the window engine's own files). Nothing is written into a planning folder except by an explicit import.
+Atlas keeps its own data in the per-user Atlas data folder, shared with the `atlas` command: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR`. There it keeps:
+- `desktop-state.json`: windows, per-folder layout, and the folder last shown on each computer;
+- `usage/`: statistics;
+- `host/`: this computer's identity, remote access settings, paired devices, and its folder list (`folders.json`);
+- `connections.json`: the computers this one paired with;
+- `logs/`;
+- `chromium/`: the window engine's own files.
+
+Earlier versions kept recent folders in `planning-roots.json`; the folder list starts from it once. Nothing is written into a planning folder except by an explicit import.
 
 ## Layout
 
 - **Activity bar** (far left): **Explorer** toggles the sidebar; **Work**, **Activity** and **Statistics** open those views in a tab. A health indicator at the bottom lists record-health notes.
-- **Explorer** (Ctrl+B toggles it, drag its edge or use the arrow keys on the edge to resize): the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its number and plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, Enter (open pinned) and Space (preview) work in the tree, and a context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**.
+- **Explorer** (Ctrl+B toggles it, drag its edge or use the arrow keys on the edge to resize): the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its number and plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, Enter (open pinned) and Space (preview) work in the tree. A context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**, and, anywhere in the explorer, **Collapse All Folders**. Its header holds the folder menu and the computer menu.
 - **Tabs:** a single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab (choosing a section or a diagram), pins it. Ctrl+W closes a tab; middle-click closes it too.
 - **Opening things:** clicking a work folder expands it and opens its overview. Clicking a file opens it in a tab; clicking a diagram opens the Diagrams view focused on it. Links between records open their target in a tab (Ctrl+click pins it).
 - **Quick open** (Ctrl+P) jumps to any work item, diagram or file by name.
@@ -114,11 +125,20 @@ The app follows Electron's security checklist (the desktop-only decision is work
 - Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
 - Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.
-- No data leaves the machine unless you turn on remote access. Then the folders you share go, read-only, to devices you paired, and anyone who can reach the chosen address can learn this computer's name and Atlas version. [Remote access](../docs/remote-access.md) describes pairing, tokens, the network and what each computer keeps. There is no telemetry, update check or crash upload.
+- No data leaves the machine unless you turn on remote access. Then devices you paired can work on this computer's planning folders as the app does here, and anyone who can reach the chosen address can learn this computer's name and Atlas version. [Remote access](../docs/remote-access.md) describes pairing, tokens, the network and what each computer keeps. There is no telemetry, update check or crash upload.
 
 ## Remote access
 
-**File › Remote Access…** shares this computer's planning folders, read-only, with devices you pair: choose the address (Tailscale, a local network or this machine) and port, share folders, create a five-minute one-time pairing link with a QR code, and revoke devices. **File › Connect to Another Atlas…** (also on the welcome page) pairs with another computer from its link and opens a folder it shares in a read-only window. Paired computers and their folders appear on the welcome page under **Other computers**. See [remote access](../docs/remote-access.md).
+**File › Remote Access…** lets your other devices work on this computer.
+- **On this computer:** choose the address (Tailscale, a local network or this machine) and the port. Then create a five-minute one-time pairing link with a QR code. Its pairing step names the device and may grant **Manage access** (pairing and revoking devices). Revoke devices here too.
+- **In a window on another computer:** the dialog manages that computer's pairings, when this device has Manage access there.
+
+**File › Connect to Another Atlas…** (also on the welcome page and in the computer menu) pairs with another computer from its link and lists its planning folders. Then work on it from the computer menu at the top of the explorer:
+- its folders, through its folder list or folder browser;
+- export, and import (the file is sent there);
+- document use, counted there.
+
+Only Reveal in File Explorer stays on that computer. See [remote access](../docs/remote-access.md).
 
 ## Diagnostics
 

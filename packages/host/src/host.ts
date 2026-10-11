@@ -533,12 +533,21 @@ export class Host {
     const entries = await this.folderList.entries().catch(() => []);
     return entries.find(entry => this.folders.idOf(entry.path) === folderId)?.path ?? null;
   }
-  /** Open a folder by its ID: one that is open, one this process opened before, or one on the folder list. */
-  private async accessibleFolder(_credential: Credential, folderId: string): Promise<FolderSession> {
-    if (this.folders.has(folderId)) return this.folders.get(folderId);
-    const root = await this.pathOf(folderId);
-    if (!root) throw new HostError('not-found', `This planning folder is not open on ${this.access.name}. Open it again from its folder list.`);
-    return this.folders.open(root);
+  /**
+   * Open a folder by its ID: one that is open, one this process opened before, or one on the folder
+   * list. A device reaches planning folders only (the app here may open any folder from the command
+   * line, to explain why it is not one), so their files are all a device can read.
+   */
+  private async accessibleFolder(credential: Credential, folderId: string): Promise<FolderSession> {
+    let folder: FolderSession;
+    if (this.folders.has(folderId)) folder = this.folders.get(folderId);
+    else {
+      const root = await this.pathOf(folderId);
+      if (!root) throw new HostError('not-found', `This planning folder is not open on ${this.access.name}. Open it again from its folder list.`);
+      folder = await this.folders.open(root);
+    }
+    if (!credential.scopes.has('owner') && !await isPlanningFolder(folder.root)) throw new HostError('forbidden', 'Only planning folders open on another device.');
+    return folder;
   }
   /** A folder the connection subscribed to. */
   private subscribed(connection: Connection, folderId: string): FolderSession {
@@ -572,8 +581,8 @@ export class Host {
           catch (error) { throw new HostError((error as { status?: number }).status === 404 ? 'folder-missing' : 'folder-invalid', `${(error as Error).message} (${requested})`); }
         }
         const folder = await this.folders.open(requested);
-        // A folder that is there joins the folder list; a missing one (a window restoring it) does not.
-        if (folder.state().status !== 'missing') await this.addToList(folder.root);
+        // A planning folder joins the folder list; a missing one (a window restoring it), or one without a planning.json, does not.
+        if (await isPlanningFolder(folder.root)) await this.addToList(folder.root);
         return folder.state() as never;
       }
       case 'folders.remove': {
@@ -700,3 +709,5 @@ export class Host {
 
 /** Compare two folder paths as this platform does. */
 export const sameFolder = (a: string, b: string) => pathKey(a) === pathKey(b);
+/** Whether a folder has a planning.json (it may still be unreadable; the folder then explains why). */
+const isPlanningFolder = (root: string) => stat(path.join(root, 'planning.json')).then(found => found.isFile(), () => false);

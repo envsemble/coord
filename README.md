@@ -22,7 +22,7 @@ Atlas keeps plans, decisions and models in a place both a coding agent and its h
 | [Skills](skills/README.md)           | Seven `atlas-*` agent skills for setting up, grilling, implementing, recording and organizing plans, and for modeling.                                 |
 | [Diagram package](packages/diagrams) | Captures, validates, lays out and renders models, and exports self-contained offline HTML. Used by the app and the command.                            |
 | [Planning reader](packages/planning) | The planning-folder reader shared by the app, the host and the command, including [plan export and import](docs/plan-export.md).                       |
-| [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, read-only to the computers you pair.                   |
+| [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, to the devices you pair.                               |
 
 ## Get started
 
@@ -62,7 +62,12 @@ Plans, models and statistics stay on your computer unless you turn on remote acc
 ## Share and connect
 
 - **Share a plan.** `atlas plan export <work-id>` (or **File › Export Plan…**) writes the whole work item to one `.atlas-plan.html` file: plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history. Anyone can open it in a browser to read the plan offline; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds it to another planning folder as new work. See [plan export](docs/plan-export.md).
-- **Read plans from another computer.** **File › Remote Access…** lets the computers you pair read the planning folders you share, read-only: turn it on, choose the Tailscale address, share a folder and create a pairing link. On the other computer, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes) and opens the shared folders. `atlas serve` does the same without the app. See [remote access](docs/remote-access.md).
+- **Work on another computer.** **File › Remote Access…** lets your other devices work on this computer's planning folders as if they were local: turn it on, choose the Tailscale address and create a pairing link.
+  - On the other device, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes).
+  - The computer menu at the top of the explorer then switches between computers, and the folder menu opens any planning folder there.
+  - `atlas serve` does the same without the app.
+
+  See [remote access](docs/remote-access.md).
 
 ## Skills
 
