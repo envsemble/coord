@@ -1,6 +1,7 @@
 // Remote access between two copies of Atlas: one shares a planning folder, the other pairs with a
 // one-time link and reads it. Both run on this machine with their own data folders; the sharing one
 // listens on 127.0.0.1, since CI runners have no Tailscale.
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { expect, test, type ElectronApplication } from '@playwright/test';
@@ -31,7 +32,7 @@ async function fileMenu(app: ElectronApplication, label: string) {
   }, label);
 }
 
-test('another Atlas pairs with a one-time link, reads a shared folder read-only, and loses it when revoked', async () => {
+test('another Atlas pairs with a one-time link, reads a shared folder read-only, loses it when revoked and forgets it', async () => {
   test.setTimeout(180_000);
   const folder = planningFixture();
   folders.push(path.dirname(folder));
@@ -103,6 +104,17 @@ test('another Atlas pairs with a one-time link, reads a shared folder read-only,
   await expect(access.getByText('No paired devices.')).toBeVisible();
   await expect(reading.window.getByRole('alert')).toContainText('was revoked');
   await expect(reading.window.locator('.work-row')).toHaveCount(3);
+
+  // Forgetting the computer on the welcome page closes its window and keeps nothing about it.
+  const opened = reading.app.waitForEvent('window');
+  await fileMenu(reading.app, 'New &Window');
+  const welcome = await opened;
+  await welcome.getByRole('button', { name: /^Forget / }).click();
+  await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);
+  await expect(welcome.getByRole('region', { name: 'Other computers' })).toHaveCount(0);
+  const saved = (name: string) => { try { return readFileSync(path.join(readerData, name), 'utf8'); } catch { return ''; } };
+  await expect.poll(() => JSON.parse(saved('connections.json') || '[]')).toEqual([]);
+  await expect.poll(() => saved('desktop-state.json')).not.toContain('atlas-remote:');
 });
 
 test('turning remote access off closes the listener and expires an open pairing link', async () => {
