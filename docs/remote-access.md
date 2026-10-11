@@ -1,0 +1,73 @@
+# Remote access
+
+Remote access lets one computer read the planning folders another computer shares, for example a laptop following the plans on a desktop. Atlas on the sharing computer runs a small server, the **Atlas host**; Atlas on the other computer pairs with it once and then opens its shared folders **read-only**. Nothing changes on the sharing computer, and nothing is shared until its owner turns remote access on, shares a folder and pairs a device.
+
+Remote access is off by default. It works while Atlas (or `atlas serve`) runs on the sharing computer.
+
+## Share this computer's folders
+
+Choose **File › Remote Access…**:
+
+1. **Allow paired devices to connect to this computer** turns the network listener on or off. The change applies at once.
+2. **Reach this computer via** picks the address the host listens on:
+   - **Tailscale** (recommended): the computer's [Tailscale](https://tailscale.com) address. Tailscale encrypts traffic end to end, and only devices on your tailnet can reach it, from anywhere.
+   - **Local network**: an address on your home or office network. Traffic is **not encrypted**, so anyone who can watch that network could read the shared plans and the device's access token. Use it only on a network you trust.
+   - **This machine** (127.0.0.1): only programs on this computer can connect. Useful for trying remote access out.
+3. **Port** is 7346 unless you change it (1024–65535).
+4. **Shared planning folders** lists what paired devices may read. **Share this folder** adds the window's folder; **Add folder…** picks another one. Paired devices see nothing until a folder is shared. Stopping sharing ends access to that folder at once.
+5. **Create pairing link** shows a link with a QR code, such as `http://100.64.1.2:7346/pair#token=<code>`, where the code looks like `7K3M-Q9TX-H2RW-5ZNC`. The link works **once** and expires after **five minutes**. **Copy link** copies the whole link and **Copy code only** copies the code. **Revoke** cancels the link before anyone uses it. The QR code holds the same link, for a phone app later. Treat the link like a password until it is used or expires.
+6. **Paired devices** lists each device by name with when it paired, whether it is connected and when it was last seen. **Revoke…** removes a device: its connection closes immediately and its credential stops working.
+
+On Windows, the first time the host listens on a network address, Windows Defender Firewall may ask whether Atlas may communicate on networks. Allow it for private networks; Tailscale's network is usually treated as one. If the address goes away (Tailscale disconnects, or the network changes), Atlas says so in the dialog and tries again every 30 seconds.
+
+## Connect from another computer
+
+On the other computer, choose **File › Connect to Another Atlas…** (or **Connect to Another Atlas…** on the welcome page) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Atlas then lists the folders the sharing computer shares; choose one to open it.
+
+A folder from another computer opens in its own window, titled with both names (`planning — desk — Atlas`), and the explorer marks it **read-only**. Everything that reads works as it does locally: the work list, plans, ledgers, statistics, diagrams, quick open and **Export Plan…**. What would write or point at the other computer's disk is not offered: **Import Plan…**, **Reveal in File Explorer** and **Show in folder**. Views of a remote folder are not counted in usage statistics on either computer.
+
+The welcome page lists the computers this one is paired with under **Other computers**, with the folders each one shares. **Forget** (×) removes a computer and closes its windows here; to cut its access on the sharing computer too, revoke the device there. Windows showing remote folders reopen on the next start while the computer is still paired.
+
+When the sharing computer is unreachable (asleep, Atlas closed, or the network down), its windows keep showing the last view with a notice and reconnect on their own. When the device is revoked, the window says so; pair again with a new link to keep reading.
+
+## Without the desktop app: atlas serve
+
+`atlas serve` runs the host from the `atlas` command, for a computer that only shares (a desktop left on, or a server):
+
+```sh
+atlas serve --folder /path/to/planning
+```
+
+It listens on the computer's Tailscale address unless `--address` names another address of the computer, on port 7346 unless `--port` gives another one. It shares the folders given with `--folder` (repeatable) for as long as it runs, together with any shared in the app. It prints a pairing link with a QR code in the terminal; in an interactive terminal, **Enter** prints a new link, `devices` lists paired devices, `revoke <device-id>` revokes one and `quit` stops. Ctrl+C also stops it. `--data-dir` uses another Atlas data folder.
+
+One process per Atlas data folder manages remote access. While `atlas serve` runs, the app's **Remote Access** dialog shows remote access as managed by it and changes nothing; `atlas serve` refuses to start while the app manages it. Devices paired with either one stay paired with the computer.
+
+## How it works
+
+The Atlas host (`packages/host`) is a Node server written with [Hono](https://hono.dev). It reads planning folders with the same code as the `atlas` command, watches them for changes and pushes those changes to connected clients. The desktop app runs the host in a separate utility process and is its first client: its main process connects to it as the **owner** over a loopback listener on a random port, with a token that is created at each start and kept only in memory. The app's windows still talk to their main process through the checked message list; they never reach the host directly. A crashed host restarts (at most three times a minute), and the windows reconnect.
+
+A paired device connects to the **network listener** that remote access turns on. Clients use a JSON request and event protocol over one WebSocket (`/api/connect`), and HTTP for files in documents and for plan exports.
+
+| Route                                | Purpose                                                                        | Credential       |
+| ------------------------------------ | ------------------------------------------------------------------------------ | ---------------- |
+| `GET /api/host`                      | The host's protocol version, ID, name and Atlas version.                       | None             |
+| `GET /pair`                          | A short page saying the link belongs in Atlas, for a link opened in a browser. | None             |
+| `POST /api/pair`                     | Exchange a pairing code for a device token.                                    | The pairing code |
+| `GET /api/connect`                   | The WebSocket for requests and change events.                                  | Bearer token     |
+| `GET /api/folders/:folderId/files/*` | A file in a shared folder (images and attachments in documents).               | Bearer token     |
+| `GET /api/exports/:token`            | A prepared plan export, once.                                                  | Bearer token     |
+
+Every request has a declared scope. A paired device holds `planning:read`: it may list the shared folders and read their snapshots, documents, models, diagrams and references, and export their plans. Opening other folders, importing plans, recording views and changing remote access are owner-only, and the owner credential is accepted only from this computer, on the loopback listener.
+
+### Security
+
+- **Pairing codes** are 16 characters of Crockford base32 (80 random bits), shown in groups of four. They live only in the host's memory, work once and expire after five minutes; a restart forgets them. At most 20 links can be open at once, and after 20 wrong codes within five minutes the host refuses pairing until the window passes.
+- **Device tokens** are 32 random bytes. The host stores only their SHA-256 hash in `<Atlas data folder>/host/access.json` and compares hashes in constant time. The connecting computer stores its token in `connections.json` in its data folder, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted. Both files are written with owner-only permissions on Linux; on Windows, the data folder is in your user profile.
+- **Identity:** before sending its token, a client checks that the host still answers with the ID it paired with, so a different computer at the same address never receives the credential.
+- **Browsers are refused:** any request that carries an `Origin` header is rejected, so no web page can call the host, and the `Host` header must be an IP address or `localhost`, which blocks DNS rebinding. Responses carry a restrictive content security policy.
+- **Paths:** a device names folders by an opaque ID, and a snapshot shows the folder's name in place of its path on the sharing computer. File requests resolve inside the folder with the same containment as the app: no paths outside it, no hidden or excluded folders.
+- **Transport:** the host speaks plain HTTP and relies on the network for encryption. Use Tailscale (WireGuard) across networks; on a local network, traffic can be read by anyone able to watch it.
+
+### Privacy
+
+Remote access sends planning-folder contents only to devices the owner paired, only for folders the owner shared, and only while it is turned on. A device sees what the app shows for the folder: its files, Git activity (commit titles and dates) and work statistics, and its document-use counts from the sharing computer's usage statistics. The host records each paired device's name (the other computer's name), platform, pairing time and last-seen time in `access.json`, and connections, pairings and revocations in the local log. Nothing goes through an Envsemble or third-party service: devices connect to the host directly, through Tailscale when you choose its address. Atlas has no telemetry, and remote access adds none.

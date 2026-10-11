@@ -1,6 +1,6 @@
 // One open planning folder: its reader session, the last good snapshot, and the watcher that
-// keeps it current. A window owns exactly one FolderSession and every request from that window
-// is answered from it, so a window can never read another folder.
+// keeps it current. The host keeps one FolderSession per folder that a client has open, and
+// answers every request about that folder from it.
 import { execFile } from 'node:child_process';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,9 +8,8 @@ import { promisify } from 'node:util';
 import { readDocument, recordCollectionGap } from '@envsemble/atlas-planning';
 import { PlanningSession } from '@envsemble/atlas-planning/session';
 import type { Usage } from '@envsemble/atlas-planning/types';
-import type { Catalog, DiagramIndexEntry, FolderChange, FolderStatus, ModelReference, Snapshot, ViewEventInput } from '../shared/contract.ts';
-import { AtlasError } from './errors.ts';
-import type { RotatingLog } from './log.ts';
+import type { Catalog, DiagramIndexEntry, FolderState, FolderStatus, ModelReference, Snapshot, ViewEventInput } from './contract.ts';
+import { HostError, type Logger } from './errors.ts';
 import { watchFolder, type FolderWatcher } from './watcher.ts';
 
 const run = promisify(execFile);
@@ -40,7 +39,7 @@ async function exists(directory: string) {
   try { return (await stat(directory)).isDirectory(); } catch { return false; }
 }
 
-export interface FolderOptions { dataBase?: string; log: RotatingLog; onChange(change: FolderChange): void; watchDelay?: { debounce: number; maxWait: number } }
+export interface FolderOptions { folderId: string; dataBase?: string; log: Logger; onChange(state: FolderState): void; watchDelay?: { debounce: number; maxWait: number } }
 
 export class FolderSession {
   readonly root: string;
@@ -65,6 +64,11 @@ export class FolderSession {
     this.root = root;
     this.name = path.basename(root) || root;
     this.options = options;
+  }
+
+  get folderId() { return this.options.folderId; }
+  state(): FolderState {
+    return { folderId: this.options.folderId, name: this.name, status: this.status, error: this.error, notice: this.notice, revision: this.revision };
   }
 
   async start() {
@@ -124,7 +128,7 @@ export class FolderSession {
   }
 
   private emit() {
-    if (!this.closed) this.options.onChange({ revision: this.revision, status: this.status, error: this.error, notice: this.notice });
+    if (!this.closed) this.options.onChange(this.state());
   }
 
   private watch() {
@@ -170,12 +174,12 @@ export class FolderSession {
 
   snapshot(): Snapshot {
     if (this.current) return this.current;
-    if (this.status === 'missing') throw new AtlasError('folder-missing', this.error ?? 'This planning folder was moved or deleted.');
-    if (this.status === 'loading') throw new AtlasError('unavailable', 'The planning folder is still loading.');
-    throw new AtlasError('folder-invalid', this.error ?? 'This planning folder cannot be read.');
+    if (this.status === 'missing') throw new HostError('folder-missing', this.error ?? 'This planning folder was moved or deleted.');
+    if (this.status === 'loading') throw new HostError('unavailable', 'The planning folder is still loading.');
+    throw new HostError('folder-invalid', this.error ?? 'This planning folder cannot be read.');
   }
   private session() {
-    if (!this.planning) throw new AtlasError('unavailable', 'The planning folder is still loading.');
+    if (!this.planning) throw new HostError('unavailable', 'The planning folder is still loading.');
     return this.planning;
   }
 
@@ -201,7 +205,7 @@ export class FolderSession {
     const planning = this.session();
     const snapshot = this.snapshot();
     const document = snapshot.documents.find(file => file.path === event.path);
-    if (!document) throw new AtlasError('forbidden', 'This document is not in the open planning folder.');
+    if (!document) throw new HostError('forbidden', 'This document is not in the open planning folder.');
     let revision: string | null = null;
     try { if (snapshot.gitAvailable) revision = (await run('git', ['-C', this.root, 'rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim(); } catch { /* Unknown revision remains null. */ }
     const content = await readDocument(this.root, event.path);
@@ -213,7 +217,8 @@ export class FolderSession {
     planning.telemetry.recordView({ ...event, key: document.key, revision, contentHash: content.contentHash || null });
   }
 
-  close() {
+  /** Stop watching; the usage store closes after in-flight requests, or at once when the host stops. */
+  close(immediately = false) {
     this.closed = true;
     this.stopWatching();
     if (this.rescanTimer) clearInterval(this.rescanTimer);
@@ -221,7 +226,7 @@ export class FolderSession {
     if (this.missingTimer) clearInterval(this.missingTimer);
     this.missingTimer = null;
     const planning = this.planning;
-    // Let in-flight requests finish before closing the usage store.
-    setTimeout(() => planning?.close(), 2000).unref?.();
+    if (immediately) planning?.close();
+    else setTimeout(() => planning?.close(), 2000).unref?.();
   }
 }

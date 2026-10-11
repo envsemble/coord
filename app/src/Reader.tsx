@@ -86,7 +86,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: ModelReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
 }) {
-  const { open, notify } = useWorkbench();
+  const { open, notify, remote } = useWorkbench();
   const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [error, setError] = useState('');
@@ -140,7 +140,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   };
   const headings = useMemo(() => Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])), [diagramCards, showWork, hideTitle]);
   const reveal = () => { api.reveal(file.path).catch(failure => notify(failure.message, 'warning')); };
-  const revealButton = <button type="button" className="btn btn-sm" onClick={reveal} title="Show this file in your file manager"><FileDirectoryIcon size={16} /> Show in folder</button>;
+  const revealButton = remote ? null : <button type="button" className="btn btn-sm" onClick={reveal} title="Show this file in your file manager"><FileDirectoryIcon size={16} /> Show in folder</button>;
 
   return <article className={'reader' + (toolbar ? ' reader-boxed' : '')} ref={article}>
     {toolbar && <div className="reader-toolbar"><span className="reader-name"><FileIcon size={16} /><strong>{file.name}</strong><span className="muted">{bytes(file.size)}</span></span>{revealButton}</div>}

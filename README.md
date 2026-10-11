@@ -11,7 +11,7 @@
 
 Atlas keeps plans, decisions and models in a place both a coding agent and its human can read. Plans, ledgers, glossaries, ADRs and evidence live in a versioned `planning` folder. Next to each plan, the agent keeps models: dated captures of database or class structure, and the conceptual UML/OntoUML proposals built on them. The human reads all of it in the Atlas desktop app. The agent edits through the `atlas` command, its MCP server and the Atlas skills.
 
-[Start](#start) · [The atlas command](#install-the-atlas-command) · [Skills](skills/README.md) · [App](app/README.md) · [Agent interface](docs/agent-interface.md) · [Embedding](docs/embedding.md) · [Export/reopen](docs/portable-documents.md) · [Comparison](docs/comparison.md) · [Learning reports](docs/learning-reports.md) · [PR/MR review](docs/review-ci.md)
+[Start](#start) · [The atlas command](#install-the-atlas-command) · [Skills](skills/README.md) · [App](app/README.md) · [Remote access](docs/remote-access.md) · [Agent interface](docs/agent-interface.md) · [Embedding](docs/embedding.md) · [Export/reopen](docs/portable-documents.md) · [Comparison](docs/comparison.md) · [Learning reports](docs/learning-reports.md) · [PR/MR review](docs/review-ci.md)
 
 ![The Atlas desktop app showing an agent's proposed change to captured code in its work item's Diagrams view](app/assets/atlas-desktop.jpg)
 
@@ -22,6 +22,7 @@ Atlas keeps plans, decisions and models in a place both a coding agent and its h
 | [Skills](skills/README.md)                    | Seven `atlas-*` agent skills for setting up, grilling, implementing, recording and organizing plans, and for modeling.                                 |
 | [Diagram package](packages/diagrams)          | Captures, validates, lays out and renders models, and exports self-contained offline HTML. Used by the app and the command.                            |
 | [Planning reader](packages/planning)          | The planning-folder reader shared by the app and the command, including [plan export and import](docs/plan-export.md).                                 |
+| [Host](packages/host)                         | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, read-only to the computers you pair.                   |
 
 ## Start
 
@@ -36,13 +37,17 @@ npm ci
 npm run dev -- /path/to/planning
 ```
 
-`npm run dev` starts the app with hot reload; the folder is optional. Plans, models and statistics stay local, and no model service or API key is needed. The [app guide](app/README.md) covers its windows, explorer, tabs, diagrams and usage statistics.
+`npm run dev` starts the app with hot reload; the folder is optional. Plans, models and statistics stay local unless you turn on remote access, and no model service or API key is needed. The [app guide](app/README.md) covers its windows, explorer, tabs, diagrams and usage statistics.
 
 Each work item keeps its models in its own folder (`<work>/.atlas/`), so a plan, its ledger and its diagrams move together. Plans show a card under every heading a diagram explains, and each diagram is labelled **Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**.
 
 ### Share a plan
 
 `atlas plan export <work-id>` writes the whole work item (plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history) to one `.atlas-plan.html` file. Anyone can open it in a browser to read the plan offline, with the app's look and interactive diagrams; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds a received export to a planning folder as new work under the next free number, after a preview (`--dry-run` previews only); it rewrites the work's identity, clears references to work elsewhere and leaves the folder passing `atlas planning check`. See [plan export](docs/plan-export.md).
+
+### Read plans from another computer
+
+**File › Remote Access…** lets the computers you pair read the planning folders you share, read-only: turn it on, choose the Tailscale address, share a folder and create a pairing link. On the other computer, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes) and opens the shared folders. `atlas serve` does the same without the app. See [remote access](docs/remote-access.md).
 
 ## Install the atlas command
 
@@ -67,9 +72,10 @@ atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [-
 atlas plan import <file> [--planning-dir <dir>] [--dry-run]
 atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
 atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]
+atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]
 ```
 
-Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas plan export` and `atlas plan import` exit 0 on success, 1 for an invalid export or a refused folder and 2 on usage errors; import never commits. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr. `atlas work report` records an agent's model, tokens so far and the step at a ledger transition in `<work>/.atlas/statistics.jsonl`; it also exits 0 except for usage errors, saying on stderr when a report was not recorded.
+Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas plan export` and `atlas plan import` exit 0 on success, 1 for an invalid export or a refused folder and 2 on usage errors; import never commits. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr. `atlas work report` records an agent's model, tokens so far and the step at a ledger transition in `<work>/.atlas/statistics.jsonl`; it also exits 0 except for usage errors, saying on stderr when a report was not recorded. `atlas serve` shares planning folders with paired computers until stopped, printing a one-time pairing link with a QR code ([remote access](docs/remote-access.md)); it exits 1 when it cannot listen and 2 on usage errors.
 
 Usage statistics and recent planning folders live in the per-user **Atlas data folder**: `%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR` when set. Usage statistics are kept per planning folder under `usage/<hash of its canonical path>/`, outside the planning folder. Work statistics (`atlas work report`) are the exception: they belong to the work, so they are written into its folder as `<work>/.atlas/statistics.jsonl`.
 

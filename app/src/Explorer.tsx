@@ -27,7 +27,7 @@ export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): {
 export function Explorer({ snapshot, folderName, expanded, setExpanded, selected, onExportPlan }: {
   snapshot: Snapshot; folderName: string; expanded: string[]; setExpanded(next: string[]): void; selected: string | null; onExportPlan(work: Work): void;
 }) {
-  const { open, revision, notify } = useWorkbench();
+  const { open, revision, notify, remote } = useWorkbench();
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
   const [diagrams, setDiagrams] = useState<Map<string, DiagramState & { revision: number }>>(new Map());
@@ -68,11 +68,11 @@ export function Explorer({ snapshot, folderName, expanded, setExpanded, selected
         { label: 'Open Diagrams', disabled: !row.work!.diagrams, onSelect: () => open(workTarget(row.work!.id, 'diagrams'), { pin: true }) },
         'separator',
         { label: 'Export Plan…', onSelect: () => onExportPlan(row.work!) },
-        'separator',
-        { label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) },
+        // A folder on another computer has no files here to reveal.
+        ...(remote ? [] : ['separator' as const, { label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }]),
       ];
-      case 'folder': return [{ label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }];
-      case 'file': return [{ label: 'Open', onSelect: () => open(fileTarget(row.path!), { pin: true }) }, { label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }];
+      case 'folder': return remote ? [] : [{ label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }];
+      case 'file': return [{ label: 'Open', onSelect: () => open(fileTarget(row.path!), { pin: true }) }, ...(remote ? [] : [{ label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }])];
       case 'diagram': return [{ label: 'Open Diagram', onSelect: () => open(workTarget(row.workId!, 'diagrams', { diagram: row.model!.handle }), { pin: true }) }];
       default: return [];
     }
@@ -80,7 +80,8 @@ export function Explorer({ snapshot, folderName, expanded, setExpanded, selected
 
   return <div className="explorer">
     <div className="explorer-header">
-      <span className="explorer-title" title={snapshot.root}>{folderName}</span>
+      <span className="explorer-title" title={remote ? folderName + ' on ' + remote.hostName : snapshot.root}>{folderName}</span>
+      {remote && <span className="label label-attention explorer-remote" title={'This planning folder is on ' + remote.hostName + ' and opens read-only here.'}>{remote.hostName} · read-only</span>}
       <button type="button" className="btn-octicon" aria-label="Collapse folders" title="Collapse folders" onClick={() => setExpanded([])}><FoldIcon size={16} /></button>
     </div>
     <Tree rows={rows} selected={selected} label="Planning folder" onOpen={activate}

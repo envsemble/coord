@@ -123,7 +123,10 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       case 'openWorkList': open(viewTarget('work'), { pin: true }); break;
       case 'openActivity': open(viewTarget('activity'), { pin: true }); break;
       case 'openStatistics': open(viewTarget('statistics'), { pin: true }); break;
-      case 'importPlan': void startImport(); break;
+      case 'importPlan':
+        if (info.remote) notify(`This planning folder is on ${info.remote.hostName} and opens read-only here; import plans on that computer.`, 'warning');
+        else void startImport();
+        break;
       case 'exportPlan': {
         const current = active?.target.kind === 'work' ? snapshot.work.find(work => work.id === (active.target as { work: string }).work)
           : active?.target.kind === 'file' ? snapshot.work.find(work => work.id === snapshot.documents.find(file => file.path === (active.target as { path: string }).path)?.workId) : undefined;
@@ -132,7 +135,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
         break;
       }
     }
-  }, [active, snapshot, open, setTabs, setSidebar, exportWork, startImport]);
+  }, [active, snapshot, open, setTabs, setSidebar, exportWork, startImport, info.remote, notify]);
 
   // Menu commands from main; ignore one that repeats a shortcut this window just handled.
   useEffect(() => api.onMenu(command => {
@@ -153,7 +156,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     return () => window.removeEventListener('keydown', key);
   }, [runCommand]);
 
-  const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify }), [snapshot, info.revision, open, retarget, notify]);
+  const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify, remote: info.remote }), [snapshot, info.revision, open, retarget, notify, info.remote]);
   const repositoryMenu = snapshot.repositories.length > 1 ? <SelectMenu label="Repository" icon={<RepoIcon size={16} />} value={repository} onChange={setRepository}
     options={[{ value: 'all', label: 'All' }, ...snapshot.repositories.map(item => ({ value: item.id, label: item.id, count: snapshot.work.filter(work => work.repositories.includes(item.id)).length }))]} /> : null;
 
@@ -169,7 +172,12 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
         start={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''} expanded={ui.sidebar.expanded} setExpanded={expanded => setSidebar({ expanded: expanded.slice(-limits.expanded) })} selected={node?.id ?? null} onExportPlan={work => void exportWork(work)} />}
         end={<div className="editor-group">
           <TabStrip tabs={tabs} active={ui.tabs.active} label="Open tabs" onActivate={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />
-          {info.error && <div className="flash flash-warning folder-error" role="alert"><AlertIcon size={16} /><div><p><strong>The planning folder can’t be read right now.</strong> {info.error}</p><p className="muted">Showing the last good view. Atlas reloads when the folder is readable again.</p></div></div>}
+          {info.error && <div className="flash flash-warning folder-error" role="alert"><AlertIcon size={16} /><div>
+            {info.remote
+              // Another computer's folder: its host may be unreachable, or may have revoked this computer's access.
+              ? <><p><strong>Atlas can’t read this planning folder on {info.remote.hostName} right now.</strong> {info.error}</p><p className="muted">Showing the last view.</p></>
+              : <><p><strong>The planning folder can’t be read right now.</strong> {info.error}</p><p className="muted">Showing the last good view. Atlas reloads when the folder is readable again.</p></>}
+          </div></div>}
           {info.notice && <div className="flash folder-error" role="status"><AlertIcon size={16} /><div><p>{info.notice}</p></div></div>}
           <div ref={editor} className={'editor' + editorKind}>
             {active ? <TabContent key={active.id} target={active.target} snapshot={snapshot} repository={repository} repositoryMenu={repositoryMenu}

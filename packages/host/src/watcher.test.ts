@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { nodeWatchSystem, watchFolder, type WatchSystem } from './watcher.ts';
+import { createCoalescer, ignoredPath, nodeWatchSystem, relevantChange, watchFolder, type WatchSystem } from './watcher.ts';
 
 /** An in-memory folder tree with fake per-folder watchers, as Linux's watcher sees it. */
 function linuxSystem(root: string, initial: string[], options: { failOnWatch?: number } = {}) {
@@ -114,3 +114,47 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
     await pause(20);
   }
 }
+
+test('folders that are never watched (they would exhaust inotify watches on Linux)', () => {
+  for (const ignored of ['.git/objects', '.git/objects/ab', 'node_modules', 'active/x/node_modules/y', '__pycache__', 'active/0001/.atlas/prepared', 'active/0001/.atlas/results/x.json', 'active/0001/.atlas/exports', '.atlas-import.lock', '.atlas-import.lock.takeover', '.atlas-import-1b2c', '.\\node_modules', 'knowledge\\node_modules\\x']) assert.ok(ignoredPath(ignored), ignored);
+  for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'active/0001/.atlas/models', 'active/0001/.atlas/history/m-1', 'knowledge/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
+});
+
+test('only changes that can alter the view count, and bursts coalesce', async () => {
+  assert.ok(relevantChange('active/0001/plan.md'));
+  assert.ok(relevantChange('active/0001/.atlas/models/m-1.json'));
+  assert.ok(relevantChange('.git/HEAD'));
+  assert.ok(relevantChange('.git/refs/heads/main'));
+  assert.ok(!relevantChange('.git/objects/ab/cdef'));
+  assert.ok(!relevantChange('.git/index'));
+  assert.ok(!relevantChange('.git/refs/heads/main.lock'));
+  assert.ok(!relevantChange('node_modules/x/index.js'));
+  assert.ok(!relevantChange('.atlas-import.lock'));
+  assert.ok(!relevantChange('.atlas-import-0f3a/plan.md'));
+  assert.ok(!relevantChange('active/0001/.atlas/prepared/x.json'));
+  const batches: string[][] = [];
+  const coalescer = createCoalescer(paths => batches.push(paths), 30, 200);
+  for (let index = 0; index < 20; index++) coalescer.add('file-' + (index % 3));
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.deepEqual(batches, [['file-0', 'file-1', 'file-2']]);
+});
+
+test('the folder watcher sees atomic saves and its own folder disappearing', async () => {
+  const directory = temporary();
+  const root = path.join(directory, 'planning');
+  mkdirSync(path.join(root, 'active'), { recursive: true });
+  let changes = 0;
+  const watcher = watchFolder(root, { debounce: 50, maxWait: 300, presenceInterval: 100, onChange: () => { changes++; }, onError: () => undefined });
+  try {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    writeFileSync(path.join(root, 'active', 'plan.md.tmp'), '# Plan');
+    renameSync(path.join(root, 'active', 'plan.md.tmp'), path.join(root, 'active', 'plan.md'));
+    await waitFor(() => changes > 0);
+    const before = changes;
+    renameSync(root, root + '-moved');
+    await waitFor(() => changes > before);
+  } finally {
+    watcher.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

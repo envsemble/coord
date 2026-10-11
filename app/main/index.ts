@@ -1,12 +1,16 @@
 // The Atlas desktop app's main process: single instance, one window per planning folder,
-// the application menu, and the typed message channel the windows use.
+// the application menu, and the typed message channel the windows use. Planning folders are read
+// by the Atlas host, which this process starts in a utility process (main/localHost.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, protocol, shell } from 'electron';
 import { atlasDataDirectory, RecentPlanningRoots, recentRootsFile } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
+import { Connections } from './connections.ts';
+import { parseRemoteRoot } from './folderView.ts';
 import { dropImports, registerIpc } from './ipc.ts';
+import { LocalHost } from './localHost.ts';
 import { RotatingLog } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { refusalMessage, startupRefusal, type Refusal } from './refusal.ts';
@@ -84,7 +88,7 @@ function start() {
         `Electron ${process.versions.electron} · Chromium ${process.versions.chrome} · Node.js ${process.versions.node}`,
         'Data folder: ' + dataDirectory,
         '',
-        'Atlas works offline. Plans, models, statistics and logs stay on this computer.',
+        'Atlas works offline. Plans, models, statistics and logs stay on this computer, unless you turn on remote access (File › Remote Access…) to let paired devices read shared planning folders.',
       ].join('\n'),
       buttons: ['OK'],
     };
@@ -93,8 +97,22 @@ function start() {
   };
   const refreshMenu = () => { void manager.recents().then(list => buildMenu(manager, list, { openLogs, about: () => about(), devTools })); };
 
+  const localHost = new LocalHost({
+    entry: path.join(import.meta.dirname, 'host.js'), dataDirectory, version: app.getVersion(), log,
+    // A restarted host has a new owner token; the connection reads it again and reconnects.
+    onRestart: () => connections.local.wake(),
+  });
+  const connections: Connections = new Connections({
+    dataDirectory, localHost, log,
+    onEvent: (client, event, data) => {
+      if (event === 'folder.changed') manager.folderChanged(client, data as never);
+      else if (event === 'access.changed' && client === connections.local) manager.accessChanged(data as never);
+    },
+    onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
+  });
+
   manager = new WindowManager({
-    state, log, recents, version: app.getVersion(), icon, devUrl, devTools,
+    state, log, recents, connections, version: app.getVersion(), icon, devUrl, devTools,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
     onRecentsChanged: refreshMenu,
@@ -120,12 +138,26 @@ function start() {
 
   async function openFolders(folders: string[], mode: 'command-line' | 'restore') {
     let opened = 0;
-    for (const folder of folders) if (await manager.open(folder, { mode })) opened++;
+    for (const folder of folders) {
+      const remote = parseRemoteRoot(folder);
+      // A folder on another computer comes back while this computer is still paired with it.
+      if (remote) { if (mode === 'restore' && connections.has(remote.hostId) && await manager.openRemote(remote.hostId, remote.folderId)) opened++; continue; }
+      if (await manager.open(folder, { mode })) opened++;
+    }
     return opened;
   }
 
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', () => manager.setQuitting());
+  // Stop the host before quitting, so it releases its folders and the remote access lock.
+  let hostStopped = false;
+  app.on('before-quit', event => {
+    manager.setQuitting();
+    if (hostStopped) return;
+    event.preventDefault();
+    hostStopped = true;
+    connections.closeAll();
+    void Promise.race([localHost.stop(), new Promise(resolve => setTimeout(resolve, 3000))]).finally(() => app.quit());
+  });
   app.on('will-quit', () => state.flush());
 
   void app.whenReady().then(async () => {
@@ -133,6 +165,12 @@ function start() {
     Menu.setApplicationMenu(null);
     registerIpc(manager, { openLogs, about });
     refreshMenu();
+    try { await localHost.start(); }
+    catch (error) {
+      log.error('Host could not start', error);
+      await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading planning folders.', detail: (error as Error).message + '\n\nDetails are in the log (Help › Open Logs).', buttons: ['OK'] });
+    }
+    connections.local.start();
     const requested = folderArguments(launch.argv, launch.cwd, unpackaged);
     const opened = requested.length ? await openFolders(requested, 'command-line') : await openFolders(state.windows, 'restore');
     if (!opened && !manager.all().length) await manager.create(null);

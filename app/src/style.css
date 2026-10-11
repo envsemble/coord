@@ -250,6 +250,57 @@ kbd { display: inline-block; padding: 1px 6px; font: 11px/16px var(--font-mono);
 .toast-warning { border-left-color: var(--borderColor-attention-emphasis); }
 .toast-danger { border-left-color: var(--borderColor-danger-emphasis); }
 
+/* Remote access: connecting to another computer's Atlas, and sharing this computer's folders */
+.btn-danger { color: var(--button-danger-fgColor-rest, var(--fgColor-danger)); }
+.btn-danger:hover { color: var(--button-danger-fgColor-hover, var(--fgColor-onEmphasis)); background: var(--button-danger-bgColor-hover, var(--bgColor-danger-emphasis)); border-color: var(--button-danger-borderColor-hover, var(--borderColor-danger-emphasis)); }
+.field-label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
+.field-input { width: 100%; font-family: var(--font-mono); font-size: 13px; }
+.field-note { margin: 8px 0 0; font-size: 12px; }
+.connect-dialog, .remote-access-dialog { width: min(620px, calc(100vw - 32px)); }
+.connect-dialog form > p:first-child { margin-top: 0; }
+.connect-dialog .flash, .remote-access-dialog .flash { margin: 12px 0 0; }
+.shared-folder-list { margin: 12px 0 0; padding: 0; list-style: none; border: 1px solid var(--borderColor-default); border-radius: 6px; }
+.shared-folder-list li + li { border-top: 1px solid var(--borderColor-muted); }
+.shared-folder { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 14px; text-align: left; color: var(--fgColor-default); background: transparent; border: 0; }
+.shared-folder:hover:not(:disabled) { background: var(--control-transparent-bgColor-hover); }
+.shared-folder > svg:first-child { color: var(--treeViewItem-leadingVisual-iconColor-rest, var(--fgColor-accent)); }
+.shared-folder span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shared-folder-open { color: var(--fgColor-muted); }
+.access-section { padding: 12px 0; border-top: 1px solid var(--borderColor-muted); }
+.access-section:first-of-type { border-top: 0; }
+.access-section .dialog-subtitle { margin-top: 0; }
+.access-toggle { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.access-fields { display: grid; grid-template-columns: minmax(0, 1fr) 96px; column-gap: 12px; align-items: end; }
+.access-fields .field-label { grid-row: 1; }
+.access-fields .select, .access-fields .input { grid-row: 2; width: 100%; }
+.access-port { font-variant-numeric: tabular-nums; }
+.access-note { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0 0; font-size: 12px; }
+.access-note > svg { flex-shrink: 0; margin-top: 2px; color: var(--fgColor-attention); }
+.access-status { margin: 8px 0 0; font-size: 13px; color: var(--fgColor-muted); }
+.access-status.is-on { color: var(--fgColor-success); }
+.access-status.is-error { color: var(--fgColor-danger); }
+.access-list { margin: 0 0 8px; padding: 0; list-style: none; }
+.access-list li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 0; font-size: 13px; }
+.access-list li + li { border-top: 1px solid var(--borderColor-muted); }
+.access-list li > svg { flex-shrink: 0; color: var(--fgColor-muted); }
+.access-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-family: var(--font-mono); font-size: 12px; }
+.access-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.device-main { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.device-main .muted { font-size: 12px; }
+.pairing { display: flex; align-items: flex-start; gap: 16px; }
+.pairing-qr { flex-shrink: 0; width: 168px; height: 168px; padding: 8px; background: #ffffff; border-radius: 8px; image-rendering: pixelated; }
+.pairing-text { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; }
+.pairing-expiry { margin: 0; font-size: 13px; font-weight: 600; color: var(--fgColor-attention); font-variant-numeric: tabular-nums; }
+.pairing-link { display: block; padding: 6px 8px; font-size: 12px; overflow-wrap: anywhere; background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 6px; }
+.explorer-remote { flex-shrink: 0; height: 18px; max-width: 50%; overflow: hidden; text-overflow: ellipsis; font-size: 11px; line-height: 16px; letter-spacing: 0; text-transform: none; }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.remote-host + .remote-host { margin-top: 8px; }
+.remote-host-head { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+.remote-host-head > svg { color: var(--fgColor-muted); }
+.remote-host-head .recent-path { flex: 1; }
+.remote-host-note { margin: 2px 0 0; padding-left: 32px; font-size: 12px; }
+.remote-folders { margin: 0; padding: 0 0 0 24px; list-style: none; }
+
 /* Welcome and folder problems */
 .welcome, .folder-problem { display: flex; align-items: center; justify-content: center; height: 100%; padding: 32px; overflow: auto; }
 .welcome-panel { width: min(560px, 100%); }

@@ -1,19 +1,30 @@
 // The typed contract between the renderer and the main process. Every message the window
 // can send is on `invokeChannels`; every message main can push is on `eventChannels`.
 // Only types and constants live here, so the preload, main and renderer can all import it.
-import type { DocumentContent, PlanningIndex, Usage } from '@envsemble/atlas-planning/types';
-import type { Provenance } from '@envsemble/atlas-planning/provenance';
+// The planning data itself is the Atlas host's (packages/host/src/contract.ts): main forwards the
+// window's requests to the host that owns its folder, this computer's or another one's.
+import type {
+  AccessSettings, AccessState, Catalog, CatalogEntry, DiagramIndexEntry, ModelExplains, ModelReference, PairedDevice, PairingLink,
+  SharedFolder, Snapshot, ViewEventInput,
+} from '@envsemble/atlas-host/contract';
+import type { DocumentContent } from '@envsemble/atlas-planning/types';
+
+export type {
+  AccessSettings, AccessState, Catalog, CatalogEntry, DiagramIndexEntry, DocumentContent, ModelExplains, ModelReference, PairedDevice, SharedFolder, Snapshot, ViewEventInput,
+};
 
 export const invokeChannels = [
   'window:info', 'window:recents',
   'planning:snapshot', 'planning:document', 'planning:models', 'planning:model', 'planning:references', 'planning:diagrams',
   'usage:view', 'ui:load', 'ui:save',
-  'shell:reveal', 'shell:openExternal', 'app:command',
+  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
+  'remote:list', 'remote:pair', 'remote:folders', 'remote:open', 'remote:forget',
+  'access:state', 'access:update', 'access:chooseFolder', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
-export const eventChannels = ['planning:changed', 'menu:command'] as const;
+export const eventChannels = ['planning:changed', 'menu:command', 'access:changed'] as const;
 export type EventChannel = typeof eventChannels[number];
 
 /** Commands the renderer may ask main to run; each one acts on the calling window only. */
@@ -21,10 +32,10 @@ export const appCommands = ['openFolder', 'openRecent', 'newWindow', 'locate', '
 export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, tabs, dialogs drawn in the window). */
-export const menuCommands = ['toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan'] as const;
+export const menuCommands = ['toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess'] as const;
 export type MenuCommand = typeof menuCommands[number];
 
-export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unavailable' | 'no-folder' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
+export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unauthorized' | 'unavailable' | 'no-folder' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
 export interface AtlasErrorValue { code: ErrorCode; message: string }
 /** Errors cross the process boundary as values, never as thrown Error objects. */
 export type Result<T> = { ok: true; value: T } | { ok: false; error: AtlasErrorValue };
@@ -39,26 +50,17 @@ export interface WindowInfo {
   revision: number;
   version: string;
   platform: string;
+  /** Set when the folder is on another computer; such a window only reads. */
+  remote: { hostId: string; hostName: string } | null;
 }
-/** `notice`: the folder is readable but cannot be watched, so changes show with a delay. */
+/** `notice`: the folder is readable but cannot be watched, or its computer is not reachable right now. */
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
 export interface RecentFolder { path: string; name: string; parent: string; workItems: number | null; available: boolean }
 
-export interface Snapshot extends PlanningIndex {
-  usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
-  /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
-  folders: string[];
-}
-
-export interface ModelExplains { path: string | null; reference: string; section: string | null; title: string | null }
-export interface CatalogEntry {
-  handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  provenance: Provenance; explains: ModelExplains[];
-}
-export interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
-export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }
-export interface DiagramIndexEntry { workId: string; handle: string; title: string; provenance: Provenance }
-export interface ViewEventInput { id: string; path: string; session: string; contentHash: string | null }
+/** Another computer this app paired with. */
+export interface RemoteHost { hostId: string; name: string; origin: string; pairedAt: string; status: 'connecting' | 'connected' | 'offline' | 'revoked' | 'mismatch' | 'incompatible' | 'closed'; detail: string | null }
+/** A pairing link as the window shows it: with its QR code (an SVG image). */
+export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 export type WorkSection = 'plan' | 'ledger' | 'diagrams';
 export type ViewName = 'work' | 'activity' | 'statistics';
@@ -93,8 +95,6 @@ export interface ImportPreview {
 }
 export interface ImportResult { workId: string; path: string; files: number; notes: string[] }
 
-export type { DocumentContent };
-
 /**
  * The bridge the preload script exposes to the renderer as `window.atlas`. Every method maps to
  * one channel and resolves to a Result; errors arrive as structured values, never as exceptions.
@@ -113,11 +113,25 @@ export interface AtlasBridge {
   saveUi(state: UiState): Promise<Result<void>>;
   reveal(path: string): Promise<Result<void>>;
   openExternal(url: string): Promise<Result<void>>;
+  copy(text: string): Promise<Result<void>>;
   command(command: AppCommand, argument?: string): Promise<Result<void>>;
   exportPlan(work: string): Promise<Result<ExportResult | null>>;
   chooseImport(): Promise<Result<ImportPreview | null>>;
   confirmImport(token: string): Promise<Result<ImportResult>>;
   cancelImport(token: string): Promise<Result<void>>;
+  remoteHosts(): Promise<Result<RemoteHost[]>>;
+  pairRemote(link: string, code: string | null): Promise<Result<{ host: RemoteHost; folders: SharedFolder[] }>>;
+  remoteFolders(hostId: string): Promise<Result<SharedFolder[]>>;
+  openRemote(hostId: string, folderId: string): Promise<Result<void>>;
+  forgetRemote(hostId: string): Promise<Result<void>>;
+  accessState(): Promise<Result<AccessState>>;
+  updateAccess(settings: AccessSettings): Promise<Result<AccessState>>;
+  chooseSharedFolder(): Promise<Result<string | null>>;
+  createPairing(address: string | null): Promise<Result<PairingLinkView>>;
+  revokePairing(code: string): Promise<Result<void>>;
+  devices(): Promise<Result<PairedDevice[]>>;
+  revokeDevice(deviceId: string): Promise<Result<void>>;
   onChanged(listener: (change: FolderChange) => void): () => void;
   onMenu(listener: (command: MenuCommand) => void): () => void;
+  onAccessChanged(listener: (state: AccessState) => void): () => void;
 }

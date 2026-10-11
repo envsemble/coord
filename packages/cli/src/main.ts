@@ -22,6 +22,7 @@ Usage:
   atlas plan import <file> [--planning-dir <dir>] [--dry-run]
   atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
   atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]
+  atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]
   atlas --version
   atlas help
 
@@ -38,6 +39,10 @@ work report records an agent's report at a ledger transition: its model, the tok
 in its session when known, and the step. It appends one line to <work>/.atlas/statistics.jsonl,
 which the app summarizes. Values are self-reported and approximate. It always exits 0, except
 for usage errors (2), so reporting never fails the task.
+serve runs the Atlas host without the desktop app, so paired devices can read the given
+planning folders (or the folders shared in the app). It listens on this computer's Tailscale
+address unless --address names another (default port 7346), prints a one-time pairing link with
+a QR code, and runs until stopped (Ctrl+C, or quit when interactive).
 Usage statistics live in the Atlas data folder: ATLAS_DATA_DIR, else %APPDATA%\\Atlas on
 Windows or \${XDG_CONFIG_HOME:-~/.config}/Atlas on Linux.`;
 
@@ -53,6 +58,7 @@ const exportUsage = 'Usage: atlas plan export <work-id|work-folder> [--planning-
 const importUsage = 'Usage: atlas plan import <file> [--planning-dir <dir>] [--dry-run]';
 const logUsage = 'Usage: atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]';
 const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]';
+const serveUsage = 'Usage: atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]';
 
 /** Parse `--name value`, `--name=value` and the variadic `--files a b c`, like the former argparse helpers. */
 function parseOptions(args: string[], spec: { values: string[]; lists?: string[]; flags?: string[] }, line: string) {
@@ -121,6 +127,23 @@ async function workReport(args: string[], out: Output) {
   } catch (error) {
     out.stderr('Work statistics were not recorded (' + (error instanceof Error ? error.message : String(error)).replace(/\.$/, '') + '); continue the task.');
   }
+  return 0;
+}
+
+async function serveCommand(args: string[], out: Output) {
+  if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(serveUsage); return 0; }
+  const { positional, values, lists } = parseOptions(args, { values: ['address', 'port', 'data-dir'], lists: ['folder'] }, serveUsage);
+  if (positional.length) throw new UsageError('unrecognized arguments: ' + positional.join(' '), serveUsage);
+  if (values.port !== undefined && (!/^[0-9]+$/.test(values.port) || Number(values.port) < 1024 || Number(values.port) > 65535)) throw new UsageError('argument --port: expected a port from 1024 to 65535', serveUsage);
+  if (values.address !== undefined && !/^[0-9a-fA-F:.]+$/.test(values.address)) throw new UsageError('argument --address: expected an IP address of this computer', serveUsage);
+  const { serve } = await import('@envsemble/atlas-host/serve');
+  let running;
+  try {
+    running = await serve({ folders: (lists.folder ?? []).map(folder => path.resolve(folder)), address: values.address ?? null, port: values.port === undefined ? null : Number(values.port), dataDir: values['data-dir'] ?? null, version, interactive: Boolean(process.stdin.isTTY) }, out);
+  } catch (error) { out.stderr('atlas: ' + (error as Error).message); return 1; }
+  const stop = () => { void running.stop().then(() => process.exit(0)); };
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
   return 0;
 }
 
@@ -225,6 +248,8 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'plan' && subcommand === 'import') return await planImport(rest, printableOutput(out));
     if (command === 'usage' && subcommand === 'log') return await usageLog(rest, out);
     if (command === 'work' && subcommand === 'report') return await workReport(rest, printableOutput(out));
+    // The QR code is drawn with terminal colour codes; serve prints only local, trusted text.
+    if (command === 'serve') return await serveCommand(args.slice(1), out);
     throw new UsageError(command === 'planning' || command === 'plan' || command === 'usage' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
     if (error instanceof PlanExportError) { out.stderr('atlas: ' + printable(error.message)); return 1; }

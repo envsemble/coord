@@ -1,11 +1,11 @@
 // The `atlas:` scheme, registered on each window's own session:
 //   atlas://app/…       the built renderer (production), served with a strict CSP
-//   atlas://planning/…  a file inside that window's planning folder (images and attachments in documents)
+//   atlas://planning/…  a file inside that window's planning folder (images and attachments in
+//                       documents), fetched from the folder's host, which checks containment
 // Nothing else is reachable: other hosts, paths outside the renderer build, hidden files and
 // paths outside the planning folder all answer 404/403.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { resolveDocument } from '@envsemble/atlas-planning';
 
 export const scheme = 'atlas';
 export const rendererOrigin = 'atlas://app';
@@ -38,7 +38,6 @@ const types: Record<string, string> = {
   '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.map': 'application/json',
 };
 function contentType(file: string) { return types[path.extname(file).toLowerCase()] ?? 'application/octet-stream'; }
-const planningImageTypes = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 
 function respond(status: number, body: string | Buffer, headers: Record<string, string> = {}) {
   return new Response(status === 204 ? null : new Uint8Array(body instanceof Buffer ? body : Buffer.from(body)), { status, headers: { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', ...headers } });
@@ -55,7 +54,7 @@ export function containedFile(directory: string, pathname: string): string | nul
   return inside && !inside.startsWith('..') && !path.isAbsolute(inside) ? resolved : null;
 }
 
-export function createProtocolHandler(options: { rendererDirectory: string | null; planningRoot: () => string | null }) {
+export function createProtocolHandler(options: { rendererDirectory: string | null; planningFile: (relative: string) => Promise<Response> | null }) {
   return async (request: Request): Promise<Response> => {
     let url: URL;
     try { url = new URL(request.url); } catch { return respond(400, 'Bad request'); }
@@ -71,23 +70,22 @@ export function createProtocolHandler(options: { rendererDirectory: string | nul
       } catch { return respond(404, 'Not found'); }
     }
     if (url.host === 'planning') {
-      const root = options.planningRoot();
-      if (!root) return respond(404, 'Not found');
       let relative: string;
       try { relative = decodeURIComponent(url.pathname.replace(/^\/+/, '')); } catch { return respond(400, 'Bad request'); }
+      // A path that steps out of the folder is refused here; the host also resolves every path
+      // inside the folder (no hidden or excluded parts, real files only).
+      if (relative.split('/').some(segment => segment === '..' || segment === '.') || /[\\\0]/.test(relative)) return respond(403, 'Not available');
+      const pending = relative ? options.planningFile(relative) : null;
+      if (!pending) return respond(404, 'Not found');
       try {
-        // Same containment as the reader: inside the folder, no hidden or excluded parts, real files only.
-        const file = await resolveDocument(root, relative);
-        const extension = path.extname(file).toLowerCase();
-        const body = await readFile(file);
-        return respond(200, body, {
-          'Content-Type': planningImageTypes.has(extension) ? contentType(file) : 'application/octet-stream',
+        const answer = await pending;
+        if (!answer.ok) return respond(answer.status === 403 ? 403 : 404, 'Not available');
+        const type = answer.headers.get('content-type') ?? 'application/octet-stream';
+        return respond(200, Buffer.from(await answer.arrayBuffer()), {
+          'Content-Type': /^image\/(?:png|jpeg|gif|webp|svg\+xml)$/.test(type) ? type : 'application/octet-stream',
           'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'",
         });
-      } catch (error) {
-        const status = (error as { status?: number }).status;
-        return respond(status === 403 ? 403 : 404, 'Not available');
-      }
+      } catch { return respond(404, 'Not available'); }
     }
     return respond(404, 'Not found');
   };

@@ -41,8 +41,11 @@ export default defineConfig({
       // The diagram package (CommonJS with native and lazily loaded dependencies) stays in
       // node_modules; everything else, including the planning reader, is bundled.
       externalizeDeps: { include: ['@envsemble/atlas-diagrams'] },
-      lib: { entry: resolve(import.meta.dirname, 'main/index.ts') },
+      // The app's main process and the Atlas host it runs in a utility process (main/hostProcess.ts).
+      lib: { entry: { index: resolve(import.meta.dirname, 'main/index.ts'), host: resolve(import.meta.dirname, 'main/hostProcess.ts') } },
       sourcemap: true,
+      // ws loads these optional native speed-ups only when installed; Atlas does not ship them.
+      rolldownOptions: { external: ['bufferutil', 'utf-8-validate'] },
     },
     plugins: [planningFiles()],
   },

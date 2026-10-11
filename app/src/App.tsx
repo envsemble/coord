@@ -5,6 +5,8 @@ import { api } from './api';
 import { Blankslate, Spinner } from './ui';
 import { FolderProblem, Welcome } from './Welcome';
 import { Workbench } from './Workbench';
+import { ConnectDialog } from './ConnectDialog';
+import { RemoteAccessDialog } from './RemoteAccessDialog';
 
 /**
  * One window shows one planning folder. The folder is read in the main process; this component
@@ -16,6 +18,9 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [ui, setUi] = useState<UiState | null>(null);
   const [failure, setFailure] = useState('');
+  // File › Connect to Another Atlas… and File › Remote Access… work in every window.
+  const [dialog, setDialog] = useState<'connect' | 'access' | null>(null);
+  useEffect(() => api.onMenu(command => { if (command === 'connectRemote') setDialog('connect'); else if (command === 'remoteAccess') setDialog('access'); }), []);
   const latest = useRef(0);
 
   const refresh = useCallback(async (revision: number) => {
@@ -51,9 +56,13 @@ export default function App() {
     document.title = info?.folder ? info.folder.name + ' — Atlas' : 'Atlas';
   }, [info?.folder]);
 
+  const dialogs = <>
+    {dialog === 'connect' && <ConnectDialog onClose={() => setDialog(null)} />}
+    {dialog === 'access' && <RemoteAccessDialog onClose={() => setDialog(null)} currentFolder={info?.folder && !info.remote ? info.folder.root : null} />}
+  </>;
   if (!info) return failure ? <main className="page-state"><Blankslate title="Atlas could not start this window">{failure}</Blankslate></main> : <main className="page-state"><Spinner size={24} /></main>;
-  if (!info.folder) return <Welcome info={info} />;
-  if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) return <FolderProblem info={info} />;
-  if (!snapshot || !ui) return <main className="page-state" aria-busy="true"><Spinner size={24} /><span className="muted">Reading {info.folder.name}…</span></main>;
-  return <Workbench info={info} snapshot={snapshot} initialUi={ui} />;
+  if (!info.folder) return <><Welcome info={info} onConnect={() => setDialog('connect')} />{dialogs}</>;
+  if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) return <><FolderProblem info={info} />{dialogs}</>;
+  if (!snapshot || !ui) return <main className="page-state" aria-busy="true"><Spinner size={24} /><span className="muted">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
+  return <><Workbench info={info} snapshot={snapshot} initialUi={ui} />{dialogs}</>;
 }

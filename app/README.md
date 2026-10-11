@@ -54,7 +54,7 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 
 | Path | What it is |
 | --- | --- |
-| `main/` | The main process: windows, the menu, the folder reader and watcher, the `atlas:` protocol, the message handlers, the log and saved state. It reads planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
+| `main/` | The main process: windows, the menu, the `atlas:` protocol, the message handlers, the log, saved state and the connections to Atlas hosts. It starts this computer's host (`packages/host`, in `main/hostProcess.ts`) in a utility process; the host reads and watches planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
 | `preload/` | The bridge: `window.atlas`, one method per message. |
 | `shared/` | The message contract and the validator every message argument goes through. |
 | `src/` | The React window. `src/components/` holds the building blocks (tree, menus, popover, split pane, tabs, dialog, notices), kept together so a later move to envUI stays mechanical. |
@@ -69,7 +69,7 @@ Each window shows exactly one planning folder, like VS Code:
 - Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility, expanded folders and open tabs. Closing windows one by one keeps the last one.
 - Two windows may show overlapping folders, such as nested planning roots; each reads only its own folder.
 
-Atlas keeps its own data in the per-user Atlas data folder, shared with the `atlas` command: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR`. There it keeps `desktop-state.json` (windows and per-folder layout), `planning-roots.json` (recent folders), `usage/` (statistics), `logs/` and `chromium/` (the window engine's own files). Nothing is written into a planning folder except by an explicit import.
+Atlas keeps its own data in the per-user Atlas data folder, shared with the `atlas` command: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR`. There it keeps `desktop-state.json` (windows and per-folder layout), `planning-roots.json` (recent folders), `usage/` (statistics), `host/` (remote access: this computer's identity, settings and paired devices), `connections.json` (the computers this one paired with), `logs/` and `chromium/` (the window engine's own files). Nothing is written into a planning folder except by an explicit import.
 
 ## Layout
 
@@ -113,7 +113,12 @@ The app follows Electron's security checklist (the desktop-only decision is work
 - Each window has its own session whose `atlas:` protocol serves the app and only that window's planning folder, through the same containment as the reader (no paths outside it, no hidden or excluded folders). Every other request is blocked.
 - Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
-- No data leaves the machine: there is no telemetry, update check or crash upload.
+- Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.
+- No data leaves the machine unless you turn on remote access, and then only shared folders, read-only, to devices you paired ([remote access](../docs/remote-access.md) describes pairing, tokens and the network). There is no telemetry, update check or crash upload.
+
+## Remote access
+
+**File › Remote Access…** shares this computer's planning folders, read-only, with devices you pair: choose the address (Tailscale, a local network or this machine) and port, share folders, create a five-minute one-time pairing link with a QR code, and revoke devices. **File › Connect to Another Atlas…** (also on the welcome page) pairs with another computer from its link and opens a folder it shares in a read-only window. Paired computers and their folders appear on the welcome page under **Other computers**. See [remote access](../docs/remote-access.md).
 
 ## Diagnostics
 
