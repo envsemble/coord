@@ -100,18 +100,20 @@ test('another Atlas pairs with a one-time link, reads a shared folder read-only,
   await expect(access.locator('.device-list li')).toHaveCount(1);
   await expect(access.locator('.device-list li').getByText('Connected')).toBeVisible();
 
-  // Next launch, the reading Atlas reopens the remote folder with its saved credential.
+  // Next launch, the reading Atlas reopens the remote folder with its saved credential (and the
+  // tabs it had open, so check the explorer rather than one view).
   await close(reading);
   reading = await launch({ dataDirectory: readerData });
-  await expect(reading.window.locator('.work-row')).toHaveCount(3);
+  const remoteFolder = reading.window.getByRole('treeitem', { name: 'active', exact: true });
+  await expect(remoteFolder).toBeVisible();
   await expect(reading.window.locator('.explorer-remote')).toContainText('read-only');
 
-  // Revoking the device ends its access at once.
+  // Revoking the device ends its access at once; the window keeps the last view and says why.
   await access.getByRole('button', { name: 'Revoke…' }).click();
   await access.getByRole('button', { name: 'Revoke access' }).click();
   await expect(access.getByText('No paired devices.')).toBeVisible();
   await expect(reading.window.getByRole('alert')).toContainText('was revoked');
-  await expect(reading.window.locator('.work-row')).toHaveCount(3);
+  await expect(remoteFolder).toBeVisible();
 
   // Forgetting the computer on the welcome page closes its window and keeps nothing about it.
   const opened = reading.app.waitForEvent('window');
