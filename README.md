@@ -21,23 +21,24 @@ Atlas keeps plans, decisions and models in a place both a coding agent and its h
 | [`atlas` command](docs/command.md)   | Model tools, the MCP server, planning checks, plan export and import, and work and consultation reports, for agents and scripts.                       |
 | [Skills](skills/README.md)           | Seven `atlas-*` agent skills for setting up, grilling, implementing, recording and organizing plans, and for modeling.                                 |
 | [Diagram package](packages/diagrams) | Captures, validates, lays out and renders models, and exports self-contained offline HTML. Used by the app and the command.                            |
-| [Planning reader](packages/planning) | The planning-folder reader shared by the app and the command, including [plan export and import](docs/plan-export.md).                                 |
+| [Planning reader](packages/planning) | The planning-folder reader shared by the app, the host and the command, including [plan export and import](docs/plan-export.md).                       |
 | [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, read-only to the computers you pair.                   |
 
 ## Get started
 
 Use **Node 24**, npm and Git. Java extraction also needs **JDK 21**, and PostgreSQL capture needs a supported PostgreSQL 17 schema.
 
-1. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both. Or run it from a checkout:
+1. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from a clone of this repository:
 
    ```sh
    npm ci
    npm run dev -- /path/to/planning
    ```
 
-2. **Install the `atlas` command** so your agent can use it:
+2. **Install the `atlas` command** so your agent can use it. From a clone of this repository:
 
    ```sh
+   npm ci
    npm link --workspace @envsemble/atlas-cli
    atlas --version
    ```

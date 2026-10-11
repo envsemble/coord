@@ -34,7 +34,8 @@ plan import prints a preview, then adds the export as new work under the next fr
 and registers it in planning.json without committing; --dry-run only previews. Both use the
 planning folder given by --planning-dir, else the current folder, and exit 0 on success,
 1 for an invalid export or a refused folder and 2 on usage errors.
-usage log always exits 0 so a logging problem never fails the task; it reports gaps on stderr.
+usage log exits 0 even when it cannot record, so a logging problem never fails the task (2 only for
+usage errors); it reports gaps on stderr.
 work report records an agent's report at a ledger transition: its model, the tokens used so far
 in its session when known, and the step. It appends one line to <work>/.atlas/statistics.jsonl,
 which the app summarizes. Values are self-reported and approximate. It always exits 0, except

@@ -13,7 +13,25 @@ const built = await atlas.buildViewer({ document: proposal });
 atlas.writeViewer(built, "./site");
 ```
 
-React 19.3 is a peer dependency of the React panel. Size its container, and wrap it in `ViewerErrorBoundary`. [Viewer behavior](viewer.md) covers smooth local camera movement, amber focus, hideable details, Shiki previews and generic orthogonal layout.
+React 19.3 is a peer dependency of the package. The React panel and its error boundary come from the `react` entry point; size the panel's container and wrap it in the boundary:
+
+```jsx
+import {
+  AtlasPanel,
+  ViewerErrorBoundary,
+} from "@envsemble/atlas-diagrams/react";
+import "@envsemble/atlas-diagrams/embedded.css";
+
+<ViewerErrorBoundary>
+  <AtlasPanel
+    payload={payload}
+    theme="dark"
+    onReference={openPlanningPassage}
+  />
+</ViewerErrorBoundary>;
+```
+
+[Viewer behavior](viewer.md) covers smooth local camera movement, amber focus, hideable details, Shiki previews and generic orthogonal layout.
 
 ## The React panel
 

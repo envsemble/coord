@@ -41,17 +41,17 @@ At the same moments it updates the ledger, and once when it starts, the agent re
 atlas work report <planning-root> --work work-0001 --model <model-id> --tokens 182000 --session <conversation-id> --step "Verify tenant boundaries"
 ```
 
-`--tokens` is the tokens used so far in the agent's session, given only when its harness shows them; `--session` keeps reports of agents working at the same time apart. Each report is one line in `<work>/.atlas/statistics.jsonl`. The command never fails the agent's task: a report that cannot be written says so on stderr.
+`--tokens` is the tokens used so far in the agent's session, given only when its harness shows them. `--session` names the conversation; without it, the same model's reports less than two hours apart count as one session, so agents working at the same time should always give it. Each report is one line in `<work>/.atlas/statistics.jsonl`. The command never fails the agent's task: a report that cannot be written says so on stderr.
 
 From the reports and the planning folder's Git history, Atlas works out, per work item:
 
-| Statistic          | How it is counted                                                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Model**          | The model with the most active time on the work.                                                                                                             |
-| **Tokens**         | Per session, the growth from its first report to its last; a session's first report is its starting point, so tokens spent before this work are not counted. |
-| **Active time**    | The time between consecutive reports of a session. A gap of more than two hours is a break, not work.                                                        |
-| **Plan revisions** | Commits that changed the main plan after it was added, up to its completion date. Renames are followed, so moving the plan to the archive is not a revision. |
-| **Steps**          | Done and total steps from the ledger.                                                                                                                        |
+| Statistic          | How it is counted                                                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Model**          | The model with the most active time on the work.                                                                                                                                                                                           |
+| **Tokens**         | Per session, the growth from one report to the next; a session's first report is its starting point, so tokens spent before this work are not counted. A count lower than the one before means a new conversation, and is counted in full. |
+| **Active time**    | The time between consecutive reports of a session. A gap of more than two hours is a break, not work.                                                                                                                                      |
+| **Plan revisions** | Commits that changed the main plan after it was added, up to its completion date. Renames are followed, so moving the plan to the archive is not a revision.                                                                               |
+| **Steps**          | Done and total steps from the ledger.                                                                                                                                                                                                      |
 
 The **Statistics** view shows them in two tabs. **Work** lists every work item with these figures, with totals and the median plan revisions of completed work. **Models over time** compares completed work by implementing model: a chart plots tokens, active time, plan revisions or steps for each completed work item at its completion date, and a table gives each model's medians, so you can see how a new model compares with the ones before it. A work item's About sidebar shows its own statistics.
 
@@ -66,4 +66,4 @@ Plan exports leave the statistics file out. `atlas planning check` warns about l
 
 ## Document use
 
-The Statistics view's third tab, **Document use**, is a separate record: which planning documents were opened in Atlas, and which ones agents reported consulting with `atlas usage log`. It is kept outside the planning folder, in the per-user Atlas data folder, and stays on the computer. The [app guide](../app/README.md#document-use) describes it.
+The Statistics view's third tab, **Document use**, is a separate record: which planning documents were opened in Atlas, and which ones agents reported consulting with `atlas usage log`. It is kept outside the planning folder, in the per-user Atlas data folder. With [remote access](remote-access.md) on, paired devices can see the counts for the folders you share. The [app guide](../app/README.md#document-use) describes it.

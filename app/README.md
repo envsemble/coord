@@ -154,7 +154,7 @@ The Statistics view has three tabs. [Progress and statistics](../docs/progress-a
 
 A work item's About sidebar shows the same statistics for that work.
 
-Agents report with `atlas work report <planning-root> --work <work-id> --model <id> [--tokens <n>] [--session <id>] [--step <title>]` at ledger transitions, as `atlas-implement` describes. The report is one line in `<work>/.atlas/statistics.jsonl`, so it is versioned and moves with the work folder; plan exports leave it out. Each report covers the time and tokens since the previous one in its session (or, without a session, since the same model's last report less than two hours earlier); a gap of more than two hours is a break, not work. A session's first report is its starting point, so tokens it spent before this work are not counted. The values are self-reported and approximate. Plan revisions count the commits that changed the main plan after it was added, up to its completion date, following renames, so moving a plan to the archive is not a revision; they need the planning folder's Git history.
+Agents report with `atlas work report <planning-root> --work <work-id> --model <id> [--tokens <n>] [--session <id>] [--step <title>]` at ledger transitions, as `atlas-implement` describes. The report is one line in `<work>/.atlas/statistics.jsonl`, so it is versioned and moves with the work folder; plan exports leave it out. The values are self-reported and approximate, and plan revisions need the planning folder's Git history. [Progress and statistics](../docs/progress-and-statistics.md#work-statistics) gives the counting rules: sessions, breaks, token starting points and revisions.
 
 ### Document use
 
