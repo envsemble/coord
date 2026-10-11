@@ -1,19 +1,20 @@
 // File › Connect to Another Atlas…: pair with another computer's Atlas from its pairing link (or
-// its address and code), then open one of the planning folders it shares. Folders on another
-// computer open read-only.
+// its address and code). That computer is then one of the computers this app works on: its folder
+// list opens here, and any of its planning folders can be opened through its folder browser.
 import { useState } from 'react';
-import { FileDirectoryIcon, LinkExternalIcon } from './icons';
-import type { RemoteHost, SharedFolder } from './types';
+import { FileDirectoryIcon } from './icons';
+import type { Computer, ComputerRef } from './types';
 import { api } from './api';
+import { FolderList, useComputerFolders } from './Computers';
 import { Dialog } from './components/Dialog';
 import { Spinner } from './ui';
 
-export function ConnectDialog({ onClose }: { onClose(): void }) {
+export function ConnectDialog({ onClose, onBrowse }: { onClose(): void; onBrowse(computer: ComputerRef & { hostId: string }): void }) {
   const [link, setLink] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [paired, setPaired] = useState<{ host: RemoteHost; folders: SharedFolder[] } | null>(null);
+  const [paired, setPaired] = useState<Computer | null>(null);
   // A pasted link carries its code; an address alone needs the code typed.
   const needsCode = link.trim() !== '' && !/#token=/.test(link);
   const connect = async () => {
@@ -21,11 +22,6 @@ export function ConnectDialog({ onClose }: { onClose(): void }) {
     try { setPaired(await api.pairRemote(link.trim(), needsCode ? code.trim() || null : null)); }
     catch (failure) { setError((failure as Error).message); }
     finally { setBusy(false); }
-  };
-  const open = async (folder: SharedFolder) => {
-    setBusy(true); setError('');
-    try { await api.openRemote(paired!.host.hostId, folder.folderId); onClose(); }
-    catch (failure) { setError((failure as Error).message); setBusy(false); }
   };
   return <Dialog label="Connect to another Atlas" onClose={busy ? () => undefined : onClose} className="connect-dialog">
     <h2 className="dialog-title">Connect to another Atlas</h2>
@@ -43,13 +39,24 @@ export function ConnectDialog({ onClose }: { onClose(): void }) {
         <button type="button" className="btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="submit" className="btn btn-primary" disabled={busy || !link.trim() || (needsCode && !code.trim())}>{busy ? <Spinner /> : 'Connect'}</button>
       </div>
-    </form> : <>
-      <p>This computer is paired with <strong>{paired.host.name}</strong>. Its planning folders open read-only here.</p>
-      {paired.folders.length ? <ul className="shared-folder-list">{paired.folders.map(folder => <li key={folder.folderId}>
-        <button type="button" className="shared-folder" onClick={() => void open(folder)} disabled={busy}><FileDirectoryIcon size={16} /><span>{folder.name}</span><LinkExternalIcon size={16} className="shared-folder-open" /></button>
-      </li>)}</ul> : <p className="muted">{paired.host.name} shares no planning folders yet. On it, choose <strong>File › Remote Access…</strong> and share a folder; it then appears on the welcome page here.</p>}
-      {error && <div className="flash flash-danger" role="alert">{error}</div>}
-      <div className="dialog-actions"><button type="button" className="btn" onClick={onClose} disabled={busy}>Close</button></div>
-    </>}
+    </form> : <Paired computer={paired} onClose={onClose} onBrowse={onBrowse} />}
   </Dialog>;
+}
+
+/** Paired: open one of that computer's planning folders, or browse it for another. */
+function Paired({ computer, onClose, onBrowse }: { computer: Computer; onClose(): void; onBrowse(computer: ComputerRef & { hostId: string }): void }) {
+  const { folders, error: listError } = useComputerFolders(computer.hostId);
+  const [error, setError] = useState('');
+  const target = { hostId: computer.hostId!, name: computer.name };
+  return <>
+    <p>This computer is paired with <strong>{computer.name}</strong>. Choose <strong>{computer.name}</strong> at the top of the explorer to work on it{computer.manageAccess ? '; you can also pair and revoke its devices' : ''}.</p>
+    {folders === null ? <div className="menu-loading"><Spinner />Loading its planning folders…</div>
+      : folders.length ? <FolderList computer={computer} folders={folders} onError={setError} onOpened={onClose} />
+      : <p className="muted">{listError || 'No planning folders were opened on ' + computer.name + ' yet.'}</p>}
+    {error && <div className="flash flash-danger" role="alert">{error}</div>}
+    <div className="dialog-actions">
+      <button type="button" className="btn" onClick={onClose}>Close</button>
+      <button type="button" className="btn btn-primary" onClick={() => onBrowse(target)}><FileDirectoryIcon size={16} />Open Folder on {computer.name}…</button>
+    </div>
+  </>;
 }

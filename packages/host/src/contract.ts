@@ -6,14 +6,19 @@ import type { DocumentContent, PlanImportResult, PlanningIndex, Usage } from '@e
 import type { Provenance } from '@envsemble/atlas-planning/provenance';
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 1;
+export const protocolVersion = 2;
 
 /**
- * - `planning:read`: read shared planning folders (paired devices).
- * - `owner`: everything, including opening any local folder, importing, and managing access. Only
- *   the desktop app on the same computer holds it, through a token that never leaves memory.
+ * Every paired device belongs to the person who owns this computer, so pairing grants the whole
+ * computer; only managing who else may pair is a separate grant.
+ * - `computer`: what the Atlas app can do on this computer: browse its folders, open any planning
+ *   folder, read it, import and export plans, and count document use. Every paired device has it.
+ * - `access:manage`: create pairing links, list and revoke paired devices. A device has it when its
+ *   pairing link granted it.
+ * - `owner`: everything, including the remote-access settings. Only the desktop app on the same
+ *   computer holds it, through a token that never leaves memory.
  */
-export type Scope = 'planning:read' | 'owner';
+export type Scope = 'computer' | 'access:manage' | 'owner';
 
 export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unauthorized' | 'unavailable' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
 export interface HostErrorValue { code: ErrorCode; message: string }
@@ -23,7 +28,22 @@ export interface HostDescriptor { protocol: number; hostId: string; name: string
 
 export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
 export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number }
-export interface SharedFolder { folderId: string; name: string }
+/**
+ * One planning folder in the computer's folder list: every folder opened on this computer, from any
+ * device or the command line, newest first. Every device sees the same list.
+ */
+export interface ComputerFolder {
+  folderId: string; path: string; name: string;
+  /** When anyone last opened it; null for one carried over from before the list existed. */
+  openedAt: string | null;
+  /** False when the folder is gone (moved or deleted); it stays listed, marked missing, until removed. */
+  available: boolean;
+  workItems: number | null;
+}
+/** A folder on the computer, as the folder browser shows it. */
+export interface BrowseEntry { name: string; path: string; planning: boolean }
+/** A folder's subfolders, or, for a null path, where browsing starts (the home folder and the drives). */
+export interface BrowseResult { path: string | null; parent: string | null; planning: boolean; folders: BrowseEntry[]; truncated: boolean }
 
 export interface Snapshot extends PlanningIndex {
   usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
@@ -53,7 +73,7 @@ export interface NetworkSettings { enabled: boolean; address: string | null; por
 export type AddressKind = 'loopback' | 'tailscale' | 'lan';
 export interface HostAddress { address: string; kind: AddressKind; label: string }
 export interface NetworkStatus { listening: boolean; address: string | null; port: number | null; error: string | null }
-export interface AccessSettings { network: NetworkSettings; sharedFolders: string[] }
+export interface AccessSettings { network: NetworkSettings }
 export interface AccessState {
   settings: AccessSettings; status: NetworkStatus; addresses: HostAddress[];
   /** Another process (`atlas serve`) holds remote access on this computer; settings are read-only here. */
@@ -61,7 +81,9 @@ export interface AccessState {
   /** Why remote access cannot be used at all (its settings cannot be read); null when it can. */
   problem: string | null;
 }
-export interface PairingLink { code: string; expiresAt: string; url: string | null; address: string | null; port: number | null }
+/** What a pairing link grants: the whole computer, and Manage access when chosen. `label` names the device. */
+export interface PairingGrant { label: string | null; manageAccess: boolean }
+export interface PairingLink extends PairingGrant { code: string; expiresAt: string; url: string | null; address: string | null; port: number | null }
 export interface PairedDevice { deviceId: string; name: string; platform: string; scopes: Scope[]; pairedAt: string; lastSeenAt: string | null; connected: boolean }
 export interface PairRequest { code: string; device: { name: string; platform: string } }
 export interface PairResponse { hostId: string; name: string; deviceId: string; token: string; scopes: Scope[] }
@@ -70,8 +92,10 @@ export interface SessionInfo { hostId: string; name: string; version: string; sc
 /** Every request: its parameters, its result, and the scope it needs. */
 export interface Methods {
   'host.session': { params: Record<string, never>; result: SessionInfo };
-  'folders.shared': { params: Record<string, never>; result: SharedFolder[] };
+  'folders.list': { params: Record<string, never>; result: ComputerFolder[] };
   'folders.open': { params: { path: string }; result: FolderState };
+  'folders.remove': { params: { folderId: string }; result: null };
+  'folders.browse': { params: { path: string | null }; result: BrowseResult };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
   'folders.unsubscribe': { params: { folderId: string }; result: null };
   'folder.snapshot': { params: { folderId: string }; result: Snapshot };
@@ -88,7 +112,7 @@ export interface Methods {
   'plan.importDrop': { params: { token: string }; result: null };
   'access.state': { params: Record<string, never>; result: AccessState };
   'access.update': { params: { settings: AccessSettings }; result: AccessState };
-  'access.pairingCreate': { params: { address: string | null }; result: PairingLink };
+  'access.pairingCreate': { params: { address: string | null } & PairingGrant; result: PairingLink };
   'access.pairingRevoke': { params: { code: string }; result: null };
   'access.devices': { params: Record<string, never>; result: PairedDevice[] };
   'access.deviceRevoke': { params: { deviceId: string }; result: null };
@@ -96,34 +120,39 @@ export interface Methods {
 export type MethodName = keyof Methods;
 
 export const methodScopes: { readonly [M in MethodName]: Scope } = {
-  'host.session': 'planning:read',
-  'folders.shared': 'planning:read',
-  'folders.open': 'owner',
-  'folders.subscribe': 'planning:read',
-  'folders.unsubscribe': 'planning:read',
-  'folder.snapshot': 'planning:read',
-  'folder.document': 'planning:read',
-  'folder.models': 'planning:read',
-  'folder.model': 'planning:read',
-  'folder.references': 'planning:read',
-  'folder.diagrams': 'planning:read',
-  'folder.recordView': 'owner',
-  'plan.exportPrepare': 'planning:read',
-  'plan.exportDrop': 'planning:read',
-  'plan.importRead': 'owner',
-  'plan.importConfirm': 'owner',
-  'plan.importDrop': 'owner',
-  'access.state': 'owner',
+  'host.session': 'computer',
+  'folders.list': 'computer',
+  'folders.open': 'computer',
+  'folders.remove': 'computer',
+  'folders.browse': 'computer',
+  'folders.subscribe': 'computer',
+  'folders.unsubscribe': 'computer',
+  'folder.snapshot': 'computer',
+  'folder.document': 'computer',
+  'folder.models': 'computer',
+  'folder.model': 'computer',
+  'folder.references': 'computer',
+  'folder.diagrams': 'computer',
+  'folder.recordView': 'computer',
+  'plan.exportPrepare': 'computer',
+  'plan.exportDrop': 'computer',
+  'plan.importRead': 'computer',
+  'plan.importConfirm': 'computer',
+  'plan.importDrop': 'computer',
+  'access.state': 'access:manage',
   'access.update': 'owner',
-  'access.pairingCreate': 'owner',
-  'access.pairingRevoke': 'owner',
-  'access.devices': 'owner',
-  'access.deviceRevoke': 'owner',
+  'access.pairingCreate': 'access:manage',
+  'access.pairingRevoke': 'access:manage',
+  'access.devices': 'access:manage',
+  'access.deviceRevoke': 'access:manage',
 };
 
 /** Events the host pushes to a connection. */
 export interface Events {
   'folder.changed': FolderState;
+  /** The computer's folder list changed (a folder was opened or removed). */
+  'folders.changed': { folders: ComputerFolder[] };
+  /** Remote access changed: sent to connections that may manage access. */
   'access.changed': AccessState;
 }
 export type EventName = keyof Events;
@@ -136,7 +165,7 @@ export interface EventMessage<E extends EventName = EventName> { event: E; data:
 export const closeCodes = { revoked: 4401, protocol: 4400, shuttingDown: 4503 } as const;
 
 /** HTTP routes. */
-export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/folders/:folderId/files/*', exports: '/api/exports/:token' } as const;
+export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/folders/:folderId/files/*', imports: '/api/folders/:folderId/imports', exports: '/api/exports/:token' } as const;
 /** The default port for remote access, when the owner turns it on. */
 export const defaultPort = 7346;
 /** Pairing codes expire this long after they are created. */

@@ -1,6 +1,8 @@
-// `atlas serve`: the host without the desktop app, for a computer that only shares its planning
-// folders (a server, or a desktop left running). It listens on the Tailscale address unless told
-// otherwise, prints a pairing link with a QR code, and in a terminal takes a few commands.
+// `atlas serve`: the host without the desktop app, so other computers can use this one's planning
+// folders (a server, or a desktop left running). Paired devices browse the computer and open any
+// planning folder; `--folder` puts folders on its folder list from the start. It listens on the
+// Tailscale address unless told otherwise, prints a pairing link with a QR code, and in a terminal
+// takes a few commands.
 import { Worker } from 'node:worker_threads';
 import { createInterface } from 'node:readline';
 import QRCode from 'qrcode';
@@ -29,7 +31,7 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   const host = new Host({
     dataDirectory: atlasDataDirectory(options.dataDir ?? undefined), version: options.version, log, owner: '`atlas serve`',
     createPlanWorker: () => new Worker(new URL('./planWorker.ts', import.meta.url)) as unknown as WorkerLike,
-    extraShared: options.folders, networkOverride: { address, port: options.port ?? defaultPort },
+    folders: options.folders, networkOverride: { address, port: options.port ?? defaultPort },
   });
   await host.start();
   if (host.access.managedBy !== null) {
@@ -41,13 +43,14 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   }
   const state = await host.accessState();
   if (!state.status.listening) { await host.stop(); throw new Error(state.status.error ?? 'Remote access could not start.'); }
-  const shared = state.settings.sharedFolders;
-  out.stdout(`Atlas host "${host.descriptor.name}" is serving ${shared.length} planning ${shared.length === 1 ? 'folder' : 'folders'} on http://${address.includes(':') ? '[' + address + ']' : address}:${state.status.port}.`);
-  for (const folder of shared) out.stdout('  ' + folder);
-  if (!shared.length) out.stdout('  No folders are shared. Give --folder <planning-root>, or share folders in the Atlas app.');
-  const link = await printLink(host, out);
+  const listed = await host.computerFolders();
+  out.stdout(`Atlas host "${host.descriptor.name}" is serving this computer on http://${address.includes(':') ? '[' + address + ']' : address}:${state.status.port}.`);
+  out.stdout(listed.length ? `Its folder list has ${listed.length} planning ${listed.length === 1 ? 'folder' : 'folders'}:` : 'Its folder list is empty: paired devices can open any planning folder on this computer.');
+  for (const folder of listed.slice(0, 20)) out.stdout('  ' + folder.path + (folder.available ? '' : ' (missing)'));
+  if (listed.length > 20) out.stdout(`  …and ${listed.length - 20} more.`);
+  const link = await printLink(host, out, false);
   if (options.interactive) {
-    out.stdout('Press Enter for a new pairing link. Commands: devices, revoke <device-id>, quit.');
+    out.stdout(commandHelp);
     const input = createInterface({ input: process.stdin });
     input.on('line', line => { void command(host, line.trim(), out).then(done => { if (done) { input.close(); void stop(); } }); });
   }
@@ -61,31 +64,34 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   return { stop, host, link };
 }
 
-async function printLink(host: Host, out: ServeOutput) {
+const commandHelp = 'Press Enter for a new pairing link. Commands: manage (a pairing link that also grants Manage access), devices, revoke <device-id>, quit.';
+
+/** A pairing link for one device: the whole computer, and Manage access (pair and revoke devices) when asked. */
+async function printLink(host: Host, out: ServeOutput, manageAccess: boolean): Promise<PairingLink> {
   const status = host.networkStatus();
-  const pairing = host.access.createPairing(status.address);
-  const url = `http://${status.address!.includes(':') ? '[' + status.address + ']' : status.address}:${status.port}/pair#token=${pairing.code}`;
+  const link = host.createPairing(status.address, { label: null, manageAccess });
   out.stdout('');
-  out.stdout(await QRCode.toString(url, { type: 'terminal', small: true, errorCorrectionLevel: 'M' }));
-  out.stdout('Pairing link (valid for 5 minutes, once): ' + url);
-  out.stdout('Code only: ' + pairing.code);
-  out.stdout('In Atlas on the other computer, choose File › Connect to Another Atlas… and paste the link.');
-  return { code: pairing.code, expiresAt: new Date(pairing.expiresAt).toISOString(), url, address: status.address, port: status.port };
+  out.stdout(await QRCode.toString(link.url!, { type: 'terminal', small: true, errorCorrectionLevel: 'M' }));
+  out.stdout(`Pairing link (valid for 5 minutes, once${manageAccess ? '; grants Manage access' : ''}): ` + link.url);
+  out.stdout('Code only: ' + link.code);
+  out.stdout('In Atlas on the other computer, choose File › Connect to Another Atlas… and paste the link. The device can then use every planning folder on this computer.');
+  return link;
 }
 
 async function command(host: Host, line: string, out: ServeOutput): Promise<boolean> {
   try {
-    if (line === '') { await printLink(host, out); return false; }
+    if (line === '') { await printLink(host, out, false); return false; }
+    if (line === 'manage') { await printLink(host, out, true); return false; }
     if (line === 'quit' || line === 'q' || line === 'exit') return true;
     if (line === 'devices') {
       const devices = host.devices();
       if (!devices.length) out.stdout('No paired devices.');
-      for (const device of devices) out.stdout(`${device.deviceId}  ${device.name} (${device.platform}), paired ${device.pairedAt.slice(0, 10)}${device.lastSeenAt ? ', last seen ' + device.lastSeenAt.slice(0, 16).replace('T', ' ') : ''}`);
+      for (const device of devices) out.stdout(`${device.deviceId}  ${device.name} (${device.platform}), paired ${device.pairedAt.slice(0, 10)}${device.scopes.includes('access:manage') ? ', manages access' : ''}${device.lastSeenAt ? ', last seen ' + device.lastSeenAt.slice(0, 16).replace('T', ' ') : ''}`);
       return false;
     }
     const revoke = /^revoke\s+(d-[a-f0-9]{32})$/.exec(line);
     if (revoke) { await host.revokeDevice(revoke[1]); out.stdout('Revoked ' + revoke[1] + '.'); return false; }
-    out.stdout('Commands: Enter (new pairing link), devices, revoke <device-id>, quit.');
+    out.stdout(commandHelp);
   } catch (error) { out.stderr((error as Error).message); }
   return false;
 }

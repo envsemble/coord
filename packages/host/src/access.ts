@@ -1,6 +1,7 @@
 // Who may connect to this host, and how it can be reached. Kept in <Atlas data folder>/host/:
 // access.json holds the host's identity, a secret for folder IDs, its settings and its paired
-// devices (each device's token only as a SHA-256 hash). One process on this computer manages
+// devices (each device's token only as a SHA-256 hash). A paired device gets the whole computer;
+// a pairing link may also grant it Manage access (pair and revoke devices). One process on this computer manages
 // remote access for a data folder (the desktop app or `atlas serve`): it holds a local lock socket
 // that the system releases when the process ends, however it ends. The socket is named after the
 // data folder's secret, so every spelling of the folder (a link, a short name) finds the same lock
@@ -11,16 +12,22 @@ import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } 
 import { createConnection, createServer, type Server } from 'node:net';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
-import { defaultPort, pairingLifetime, type AccessSettings, type PairedDevice, type Scope } from './contract.ts';
+import { defaultPort, pairingLifetime, type AccessSettings, type PairedDevice, type PairingGrant, type Scope } from './contract.ts';
 import type { Logger } from './errors.ts';
 import { HostError } from './errors.ts';
-import { accessSettings, array, deviceId, integer, object, oneOf, string, nullable, type Validator } from './validate.ts';
+import { array, deviceId, integer, legacyAccessSettings, object, oneOf, string, nullable, type Validator } from './validate.ts';
 
-export interface DeviceRecord { deviceId: string; name: string; platform: string; tokenHash: string; scopes: Scope[]; pairedAt: string; lastSeenAt: string | null }
-interface AccessFile { version: 1; hostId: string; name: string; secret: string; settings: AccessSettings; devices: DeviceRecord[] }
-export interface PendingPairing { code: string; expiresAt: number; address: string | null }
+/** A paired device's scopes: always `computer`, and `access:manage` when its pairing link granted it. */
+export type DeviceScope = Exclude<Scope, 'owner'>;
+export interface DeviceRecord { deviceId: string; name: string; platform: string; tokenHash: string; scopes: DeviceScope[]; pairedAt: string; lastSeenAt: string | null }
+/**
+ * Version 2: devices get the whole computer. Version 1 (the first remote access) let devices read
+ * only shared folders; it is still read, and its devices and shared folders are carried over.
+ */
+interface AccessFile { version: 2; hostId: string; name: string; secret: string; settings: AccessSettings; devices: DeviceRecord[] }
+export interface PendingPairing extends PairingGrant { code: string; expiresAt: number; address: string | null }
 
-const defaultSettings: AccessSettings = { network: { enabled: false, address: null, port: defaultPort }, sharedFolders: [] };
+const defaultSettings: AccessSettings = { network: { enabled: false, address: null, port: defaultPort } };
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 /** Crockford base32: no I, L, O or U, so a code read aloud or typed is unambiguous. */
 const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -95,17 +102,21 @@ function lockHolder(address: string, secret: string): Promise<{ owner: string; p
   });
 }
 
-const scopes = array(oneOf(['planning:read'] as const), 1) as Validator<Scope[]>;
+/** A device's scopes as stored; `planning:read` (version 1, shared folders only) becomes the whole computer. */
+const scopes: Validator<DeviceScope[]> = (value, at) => {
+  const stored = array(oneOf(['planning:read', 'computer', 'access:manage'] as const), 3)(value, at);
+  return stored.includes('access:manage') ? ['computer', 'access:manage'] : ['computer'];
+};
 const deviceRecord = object<DeviceRecord>({
   deviceId, name: string({ min: 1, max: 80 }), platform: string({ min: 1, max: 40 }), tokenHash: string({ min: 64, max: 64, pattern: /^[a-f0-9]{64}$/ }),
   scopes, pairedAt: string({ min: 1, max: 40 }), lastSeenAt: nullable(string({ max: 40 })),
 });
 /** Everything but the devices, which are checked one by one so one bad record cannot cost the others. */
-const accessHeader = object<Omit<AccessFile, 'devices'> & { devices: unknown[] }>({
-  version: integer(1, 1) as unknown as Validator<1>,
+const accessHeader = object<Omit<AccessFile, 'devices' | 'version' | 'settings'> & { version: 1 | 2; settings: AccessSettings & { sharedFolders?: string[] }; devices: unknown[] }>({
+  version: integer(1, 2) as unknown as Validator<1 | 2>,
   hostId: string({ min: 8, max: 64, pattern: /^[a-zA-Z0-9-]+$/ }), name: string({ min: 1, max: 80 }),
   secret: string({ min: 32, max: 64, pattern: /^[a-zA-Z0-9_-]+$/ }),
-  settings: accessSettings, devices: array((value: unknown) => value, 1000),
+  settings: legacyAccessSettings, devices: array((value: unknown) => value, 1000),
 });
 
 export class AccessStore {
@@ -128,6 +139,8 @@ export class AccessStore {
   get problem(): string | null { return this.restartNeeded ?? this.loadProblem; }
   /** The secret this process read first: it names the lock and keys folder IDs, and never changes while the process runs. */
   private readonly secret: string;
+  /** Folders version 1 shared, when that is what was read: the folder list starts with them. */
+  legacySharedFolders: string[] = [];
 
   constructor(directory: string, log: Logger, owner: string) {
     this.directory = directory;
@@ -137,7 +150,7 @@ export class AccessStore {
     mkdirSync(directory, { recursive: true });
     const loaded = this.load();
     // An unreadable file is left alone: this process works on a placeholder that is never saved.
-    this.state = loaded ?? { version: 1, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
+    this.state = loaded ?? { version: 2, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
     this.secret = this.state.secret;
   }
 
@@ -165,7 +178,10 @@ export class AccessStore {
           catch (error) { this.log.warn('A paired device record is unreadable and is ignored', { index, message: (error as Error).message }); }
         }
         this.loadProblem = null;
-        return { ...header, devices };
+        const { sharedFolders, ...settings } = header.settings;
+        if (header.version === 1) this.legacySharedFolders = sharedFolders ?? [];
+        // Saved as version 2 the next time the managing process writes it.
+        return { ...header, version: 2, settings, devices };
       } catch (error) {
         this.loadProblem = `Remote access settings in ${this.file} are not in a form this version of Atlas can read (${(error as Error).message}). A newer Atlas may have written them. Remote access stays off; to start over, remove the file (paired devices then pair again).`;
         this.log.error('Access settings not readable by this version', { message: (error as Error).message });
@@ -177,7 +193,7 @@ export class AccessStore {
   }
   /** Create access.json with a new identity, unless another process just did. */
   private create() {
-    const created: AccessFile = { version: 1, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
+    const created: AccessFile = { version: 2, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
     const temporary = this.file + '.' + process.pid + '.new';
     writeFileSync(temporary, JSON.stringify(created, null, 2) + '\n', { mode: 0o600 });
     try { linkSync(temporary, this.file); }
@@ -301,6 +317,8 @@ export class AccessStore {
     this.write();
   }
 
+  /** A device by its ID. */
+  device(id: string): DeviceRecord | null { return this.state.devices.find(device => device.deviceId === id) ?? null; }
   devices(connected: Set<string>): PairedDevice[] {
     return this.state.devices.map(device => ({ deviceId: device.deviceId, name: device.name, platform: device.platform, scopes: [...device.scopes], pairedAt: device.pairedAt, lastSeenAt: device.lastSeenAt, connected: connected.has(device.deviceId) }));
   }
@@ -328,11 +346,12 @@ export class AccessStore {
     this.write();
   }
 
-  createPairing(address: string | null): PendingPairing {
+  /** A one-time pairing link for one device: the whole computer, and Manage access if granted. */
+  createPairing(address: string | null, grant: PairingGrant = { label: null, manageAccess: false }): PendingPairing {
     this.manage();
     this.purge();
     if (this.pairings.size >= 20) throw new HostError('unavailable', 'Too many pairing links are open. Revoke one or let them expire.');
-    const pairing = { code: newPairingCode(), expiresAt: Date.now() + pairingLifetime, address };
+    const pairing: PendingPairing = { code: newPairingCode(), expiresAt: Date.now() + pairingLifetime, address, label: grant.label, manageAccess: grant.manageAccess };
     this.pairings.set(normalizeCode(pairing.code), pairing);
     return pairing;
   }
@@ -371,10 +390,14 @@ export class AccessStore {
     }
     this.pairings.delete(key);
     const token = newToken();
-    const record: DeviceRecord = { deviceId: 'd-' + randomBytes(16).toString('hex'), name: device.name, platform: device.platform, tokenHash: hash(token), scopes: ['planning:read'], pairedAt: new Date().toISOString(), lastSeenAt: null };
+    // The label the owner gave the link names the device; otherwise the name the device reports.
+    const record: DeviceRecord = {
+      deviceId: 'd-' + randomBytes(16).toString('hex'), name: pending.label ?? device.name, platform: device.platform, tokenHash: hash(token),
+      scopes: pending.manageAccess ? ['computer', 'access:manage'] : ['computer'], pairedAt: new Date().toISOString(), lastSeenAt: null,
+    };
     this.state.devices.push(record);
     this.write();
-    this.log.info('Device paired', { deviceId: record.deviceId, name: record.name, platform: record.platform });
+    this.log.info('Device paired', { deviceId: record.deviceId, name: record.name, platform: record.platform, manageAccess: pending.manageAccess });
     return { device: record, token };
   }
 }

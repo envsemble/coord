@@ -94,7 +94,7 @@ export const pairingCode = string({ min: 16, max: 24, pattern: /^[0-9A-Za-z]{4}(
 const untrimmedText = (max: number) => string({ min: 1, max, pattern: /^[^\u0000-\u001f\u007f-\u009f]+$/ });
 
 /** A device's name or platform as shown to the owner: trimmed, and not blank. */
-const deviceText = (max: number): Validator<string> => {
+export const deviceText = (max: number): Validator<string> => {
   const check = untrimmedText(max);
   return (value, at = '') => {
     const text = check(value, at).trim();
@@ -108,16 +108,18 @@ export const listenAddress: Validator<string> = (value, at = '') => {
   if (/^(?:0\.0\.0\.0|::|(?:0{1,4}:){7}0{1,4}|::ffff:0\.0\.0\.0)$/i.test(address)) fail(at, 'one address of this computer, not every address');
   return address;
 };
-/** A folder to share: an absolute path on this computer. */
-const sharedFolder: Validator<string> = (value, at = '') => {
+/** A folder on the host's computer: an absolute path (a drive or UNC path on Windows). */
+export const absoluteFolder: Validator<string> = (value, at = '') => {
   const folder = absolutePath(value, at);
   if (!/^(?:\/|[a-zA-Z]:[\\/]|\\\\)/.test(folder)) fail(at, 'an absolute folder path');
   return folder;
 };
 
-export const accessSettings: Validator<AccessSettings> = object<AccessSettings>({
-  network: object<AccessSettings['network']>({ enabled: boolean, address: nullable(listenAddress), port }),
-  sharedFolders: array(sharedFolder, 100),
+const networkSettings = object<AccessSettings['network']>({ enabled: boolean, address: nullable(listenAddress), port });
+export const accessSettings: Validator<AccessSettings> = object<AccessSettings>({ network: networkSettings });
+/** Settings as the first version saved them, with the folders it shared (now carried into the folder list). */
+export const legacyAccessSettings: Validator<AccessSettings & { sharedFolders?: string[] }> = object<AccessSettings & { sharedFolders?: string[] }>({
+  network: networkSettings, sharedFolders: optional(array(absoluteFolder, 100)),
 });
 export const pairRequest: Validator<PairRequest> = object<PairRequest>({
   code: pairingCode,
@@ -128,8 +130,10 @@ const none = object<Record<string, never>>({});
 /** The parameters of every method, checked before its handler runs. */
 export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['params']> } = {
   'host.session': none,
-  'folders.shared': none,
-  'folders.open': object({ path: absolutePath }),
+  'folders.list': none,
+  'folders.open': object({ path: absoluteFolder }),
+  'folders.remove': object({ folderId }),
+  'folders.browse': object({ path: nullable(absoluteFolder) }),
   'folders.subscribe': object({ folderId }),
   'folders.unsubscribe': object({ folderId }),
   'folder.snapshot': object({ folderId }),
@@ -146,7 +150,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'plan.importDrop': object({ token }),
   'access.state': none,
   'access.update': object({ settings: accessSettings }),
-  'access.pairingCreate': object({ address: nullable(listenAddress) }),
+  'access.pairingCreate': object({ address: nullable(listenAddress), label: nullable(deviceText(80)), manageAccess: boolean }),
   'access.pairingRevoke': object({ code: pairingCode }),
   'access.devices': none,
   'access.deviceRevoke': object({ deviceId }),

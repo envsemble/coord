@@ -1,16 +1,18 @@
 // The fixed list of messages a window may send. Each channel declares a validator per argument;
 // calls with the wrong number or shape of arguments, from a subframe, or from a page that is not
 // the Atlas renderer are rejected. Results and errors cross back as structured values. Planning
-// requests go to the host that owns the window's folder; a folder on another computer only reads.
-import { lstat, realpath, writeFile } from 'node:fs/promises';
+// requests go to the host of the computer the window's folder is on, this one or a paired one.
+import { createReadStream } from 'node:fs';
+import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron';
 import { HostRequestError, type HostClient } from '@envsemble/atlas-host';
 import { resolveDocument } from '@envsemble/atlas-planning';
-import { accessSettings } from '@envsemble/atlas-host/validate';
-import { invokeChannels, type ImportPreview, type InvokeChannel, type PairingLinkView, type Result } from '../shared/contract.ts';
-import { absolutePath, argumentsOf, command, folderId, ipAddress, modelHandle, nullable, optional, pairingCode, relativePath, string, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
+import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
+import { invokeChannels, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result } from '../shared/contract.ts';
+import { absolutePath, argumentsOf, boolean, command, folderId, ipAddress, modelHandle, nullable, object, pairingCode, relativePath, string, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import { parseRemoteRoot, type FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
@@ -20,8 +22,11 @@ type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
 interface Channel { args: Validator<unknown>[]; handle: Handler }
 
 const hostId = string({ min: 8, max: 64, pattern: /^[a-zA-Z0-9-]+$/ });
+/** A computer: a paired one by its host ID, or null for this one. */
+const computer = nullable(hostId);
 const deviceId = string({ min: 34, max: 34, pattern: /^d-[a-f0-9]{32}$/ });
 const pairingLink = string({ min: 3, max: 2048 });
+const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
 
 /** Import previews belong to the window that chose the file. */
 const pendingImports = new Map<string, { window: number; folder: FolderView }>();
@@ -47,10 +52,14 @@ async function revealInside(folder: FolderView, relative: string) {
   shell.showItemInFolder(candidate);
 }
 
-/** Local writes (import, recording views) and the host's own settings are this computer's only. */
-function local(folder: FolderView, action: string) {
-  if (folder.remote) throw new AtlasError('forbidden', `${action} is not available for a planning folder on another computer; it opens read-only here.`);
-  return folder;
+/** Send a plan export on this computer to another computer's host, for its preview there. */
+async function sendImport(folder: FolderView, file: string) {
+  const size = (await stat(file)).size;
+  const body = Readable.toWeb(createReadStream(file)) as ReadableStream<Uint8Array>;
+  const response = await folder.client.fetch(`/api/folders/${folder.folderId}/imports`, 600000, { method: 'POST', body, length: size });
+  const value = await response.json().catch(() => null) as (Omit<ImportPreview, 'file' | 'warnings'> & { code?: string; message?: string }) | null;
+  if (!response.ok || !value || typeof value.token !== 'string') throw new AtlasError('invalid-argument', value?.message ?? 'The plan could not be sent to ' + (folder.remote?.hostName ?? 'the other computer') + ' (HTTP ' + response.status + ').');
+  return value;
 }
 
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): void }): Record<InvokeChannel, Channel> {
@@ -63,18 +72,14 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
   const owner = (): HostClient => connections.local;
   return {
     'window:info': { args: [], handle: window => window.info() },
-    'window:recents': { args: [], handle: () => manager.recents() },
     'planning:snapshot': { args: [], handle: window => { const view = folder(window); return view.request('folder.snapshot', { folderId: view.folderId }); } },
     'planning:document': { args: [relativePath], handle: (window, file: string) => { const view = folder(window); return view.request('folder.document', { folderId: view.folderId, path: file }); } },
     'planning:models': { args: [workId], handle: (window, work: string) => { const view = folder(window); return view.request('folder.models', { folderId: view.folderId, work }); } },
     'planning:model': { args: [workId, modelHandle], handle: (window, work: string, handle: string) => { const view = folder(window); return view.request('folder.model', { folderId: view.folderId, work, handle }); } },
     'planning:references': { args: [nullable(workId), relativePath], handle: (window, work: string | null, file: string) => { const view = folder(window); return view.request('folder.references', { folderId: view.folderId, work, path: file }); } },
     'planning:diagrams': { args: [], handle: window => { const view = folder(window); return view.request('folder.diagrams', { folderId: view.folderId }); } },
-    'usage:view': {
-      args: [viewEvent],
-      // Views are this computer's usage statistics; a folder on another computer is not counted here.
-      handle: async (window, event) => { const view = folder(window); if (!view.remote) await view.request('folder.recordView', { folderId: view.folderId, event }); },
-    },
+    // Views count in the document use of the computer the folder is on.
+    'usage:view': { args: [viewEvent], handle: async (window, event) => { const view = folder(window); await view.request('folder.recordView', { folderId: view.folderId, event }); } },
     'ui:load': { args: [], handle: window => manager.context.state.ui(window.requireFolder().root) },
     'ui:save': { args: [uiState], handle: (window, state) => { manager.context.state.updateFolder(window.requireFolder().root, { ui: state }); } },
     'shell:reveal': { args: [relativePath], handle: (window, file: string) => revealInside(folder(window), file) },
@@ -88,11 +93,9 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:command': {
-      args: [command, optional(absolutePath)],
-      handle: async (window, name: string, argument?: string) => {
+      args: [command],
+      handle: async (window, name: string) => {
         switch (name) {
-          case 'openFolder': await manager.chooseFolder(window); return;
-          case 'openRecent': if (!argument) throw new AtlasError('invalid-argument', 'Choose a recent folder.'); await manager.openRecent(argument, window); return;
           case 'newWindow': await manager.create(null); return;
           case 'locate': await manager.locate(window); return;
           case 'closeWindow': window.win.close(); return;
@@ -131,12 +134,13 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'plan:importChoose': {
       args: [],
       handle: async window => {
-        const view = local(folder(window), 'Importing a plan');
+        const view = folder(window);
         const choice = await dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] });
         if (choice.canceled || !choice.filePaths[0]) return null;
         const file = choice.filePaths[0];
         let read;
-        try { read = await view.request('plan.importRead', { folderId: view.folderId, file }); } catch (error) {
+        // A folder on another computer gets the file sent to it; this computer's host reads it in place.
+        try { read = view.remote ? await sendImport(view, file) : await view.request('plan.importRead', { folderId: view.folderId, file }); } catch (error) {
           // A file that is not a valid export, or a folder it cannot go into, is refused before anything is written.
           if (window.win.isDestroyed()) throw new AtlasError('cancelled', (error as Error).message);
           await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'This file cannot be imported.', detail: (error as Error).message + '\n\nNothing was written.', buttons: ['OK'] });
@@ -170,20 +174,22 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [token],
       handle: async (window, key: string) => { await dropImports((entry, entryKey) => entryKey === key && entry.window === window.id); },
     },
-    'remote:list': { args: [], handle: () => connections.list() },
+    'computers:list': { args: [], handle: () => connections.computers() },
+    'computers:switch': { args: [computer, boolean], handle: async (window, id: string | null, newWindow: boolean) => { await manager.switchComputer(id, window, newWindow); } },
+    'folders:list': { args: [computer], handle: (_window, id: string | null) => remoteErrors(manager.foldersOf(id)) },
+    'folders:open': { args: [computer, absolutePath, boolean], handle: async (window, id: string | null, folderPath: string, newWindow: boolean) => { await remoteErrors(manager.openOn(id, folderPath, window, newWindow ? 'never' : 'always')); } },
+    'folders:choose': { args: [boolean], handle: async (window, newWindow: boolean) => { await manager.chooseFolder(window, newWindow ? 'never' : 'always'); } },
+    'folders:browse': { args: [hostId, nullable(absolutePath)], handle: (_window, id: string, folderPath: string | null) => remoteErrors(manager.browse(id, folderPath)) },
+    'folders:remove': { args: [computer, folderId], handle: (_window, id: string | null, folder: string) => remoteErrors(manager.removeFolder(id, folder)) },
     'remote:pair': {
       args: [pairingLink, nullable(pairingCode)],
       handle: async (_window, link: string, code: string | null) => {
-        let paired;
-        try { paired = await connections.pair(link, code ?? undefined); }
-        catch (error) { throw error instanceof HostRequestError ? new AtlasError(error.code === 'unauthorized' ? 'forbidden' : error.code, error.message) : error; }
+        const paired = await remoteErrors(connections.pair(link, code ?? undefined));
         // Windows already showing this computer's folders read through the new pairing.
-        manager.rebindRemote(paired.host.hostId);
+        manager.rebindRemote(paired.hostId!);
         return paired;
       },
     },
-    'remote:folders': { args: [hostId], handle: (_window, id: string) => connections.sharedFolders(id) },
-    'remote:open': { args: [hostId, folderId], handle: async (window, id: string, folder: string) => { await manager.openRemote(id, folder, window); } },
     'remote:forget': {
       args: [hostId],
       handle: async (_window, id: string) => {
@@ -196,32 +202,30 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         })));
         connections.forget(id);
         manager.context.state.forgetFolders(root => parseRemoteRoot(root)?.hostId === id);
+        manager.forgotComputer(id);
       },
     },
-    'access:state': { args: [], handle: () => owner().request('access.state', {}) },
+    // Remote access of a computer: this one's (settings too), or a paired one's when this app may manage access there.
+    'access:state': { args: [computer], handle: (_window, id: string | null) => remoteErrors(connections.use(id, client => client.request('access.state', {}))) },
     'access:update': { args: [accessSettings], handle: (_window, settings) => owner().request('access.update', { settings: settings as never }) },
-    'access:chooseFolder': {
-      args: [],
-      handle: async window => {
-        const choice = await dialog.showOpenDialog(window.win, { title: 'Share a planning folder', buttonLabel: 'Share', properties: ['openDirectory'] });
-        if (choice.canceled || !choice.filePaths[0]) return null;
-        const { inspectPlanningRoot } = await import('@envsemble/atlas-planning');
-        try { return (await inspectPlanningRoot(choice.filePaths[0])).path; }
-        catch (error) { throw new AtlasError('invalid-argument', 'This folder is not a planning folder: ' + (error as Error).message); }
-      },
-    },
     'access:pairingCreate': {
-      args: [nullable(ipAddress)],
-      handle: async (_window, address: string | null): Promise<PairingLinkView> => {
-        const link = await owner().request('access.pairingCreate', { address });
+      args: [computer, nullable(ipAddress), grant],
+      handle: async (_window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
+        const link = await remoteErrors(connections.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
         const qrSvg = link.url ? await QRCode.toString(link.url, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }) : null;
         return { ...link, qrSvg };
       },
     },
-    'access:pairingRevoke': { args: [pairingCode], handle: (_window, code: string) => owner().request('access.pairingRevoke', { code }) },
-    'access:devices': { args: [], handle: () => owner().request('access.devices', {}) },
-    'access:deviceRevoke': { args: [deviceId], handle: (_window, id: string) => owner().request('access.deviceRevoke', { deviceId: id }) },
+    'access:pairingRevoke': { args: [computer, pairingCode], handle: (_window, id: string | null, code: string) => remoteErrors(connections.use(id, client => client.request('access.pairingRevoke', { code }))) },
+    'access:devices': { args: [computer], handle: (_window, id: string | null) => remoteErrors(connections.use(id, client => client.request('access.devices', {}))) },
+    'access:deviceRevoke': { args: [computer, deviceId], handle: (_window, id: string | null, device: string) => remoteErrors(connections.use(id, client => client.request('access.deviceRevoke', { deviceId: device }))) },
   };
+}
+
+/** A paired computer's errors as the window shows them (a refused credential is "forbidden" there). */
+async function remoteErrors<T>(pending: Promise<T>): Promise<T> {
+  try { return await pending; }
+  catch (error) { throw error instanceof HostRequestError ? new AtlasError(error.code === 'unauthorized' ? 'forbidden' : error.code, error.message) : error; }
 }
 
 /** Accept only the Atlas renderer's own top-level frame. */

@@ -40,10 +40,11 @@ work report records an agent's report at a ledger transition: its model, the tok
 in its session when known, and the step. It appends one line to <work>/.atlas/statistics.jsonl,
 which the app summarizes. Values are self-reported and approximate. It always exits 0, except
 for usage errors (2), so reporting never fails the task.
-serve runs the Atlas host without the desktop app, so paired devices can read the given
-planning folders (or the folders shared in the app). It listens on this computer's Tailscale
-address unless --address names another (default port 7346), prints a one-time pairing link with
-a QR code, and runs until stopped (Ctrl+C, or quit when interactive).
+serve runs the Atlas host without the desktop app, so paired devices can browse this computer
+and open any planning folder on it; --folder puts folders on its folder list from the start. It
+listens on this computer's Tailscale address unless --address names another (default port
+7346), prints a one-time pairing link with a QR code, and runs until stopped (Ctrl+C, or quit
+when interactive; manage prints a link that also grants Manage access).
 Usage statistics live in the Atlas data folder: ATLAS_DATA_DIR, else %APPDATA%\\Atlas on
 Windows or \${XDG_CONFIG_HOME:-~/.config}/Atlas on Linux.`;
 

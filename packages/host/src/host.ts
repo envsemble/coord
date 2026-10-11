@@ -1,12 +1,16 @@
-// The Atlas host: owns the planning folders and serves them over HTTP and one WebSocket per client.
-// It always listens on 127.0.0.1 (an ephemeral port) for the desktop app on this computer, which
-// holds the owner token. When the owner turns remote access on, it also listens on one chosen
-// address (this machine, a local network, or Tailscale) for paired devices, which hold read-only
-// device tokens. Every request is authenticated and every method's scope is checked first.
+// The Atlas host: owns this computer's planning folders and serves them over HTTP and one WebSocket
+// per client. It always listens on 127.0.0.1 (an ephemeral port) for the desktop app on this
+// computer, which holds the owner token. When the owner turns remote access on, it also listens on
+// one chosen address (this machine, a local network, or Tailscale) for paired devices. A paired
+// device belongs to the same person and may do what the app can do here: browse the computer, open
+// any planning folder, import and export; only the remote-access settings stay with the owner, and
+// managing pairings with the devices granted it. Every request is authenticated and every method's
+// scope is checked first.
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { open, rm } from 'node:fs/promises';
 import type { IncomingMessage, Server } from 'node:http';
 import { isIPv4, isIPv6 } from 'node:net';
-import { homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { createAdaptorServer, type HttpBindings } from '@hono/node-server';
@@ -14,16 +18,18 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
-import { resolveDocument } from '@envsemble/atlas-planning';
+import { inspectPlanningRoot, RecentPlanningRoots, resolveDocument } from '@envsemble/atlas-planning';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
+import { browse } from './browse.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
-  type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Scope, type SharedFolder,
+  type AccessState, type ComputerFolder, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
+  type NetworkStatus, type PairResponse, type Scope,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
+import { FolderList } from './folderList.ts';
 import { canonicalFolder, FolderRegistry, pathKey } from './folders.ts';
 import { exportFileName } from './planExportName.ts';
 import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
@@ -41,8 +47,8 @@ export interface HostOptions {
   dataBase?: string;
   watchDelay?: { debounce: number; maxWait: number };
   idleClose?: number;
-  /** Folders shared by this process only (`atlas serve --folder`), besides the saved ones. */
-  extraShared?: string[];
+  /** Folders this process adds to the computer's folder list as it starts (`atlas serve --folder`). */
+  folders?: string[];
   /** Remote access settings for this process only (`atlas serve --address/--port`), instead of the saved ones. */
   networkOverride?: { address: string; port: number };
   /** The loopback port to try first (the desktop keeps its host's port across restarts); 0 picks one. */
@@ -56,6 +62,8 @@ interface Listener { server: Server; address: string; port: number; local: boole
 interface Held { owner: string; folderId: string; workerToken: string; fileName?: string; expires: number }
 
 const exportLifetime = 10 * 60 * 1000;
+/** A plan export sent for import: the largest an export can be (see planExportMaxBytes), with room for its encoding. */
+const importLimit = 512 * 1024 * 1024;
 /** Prepared exports one client may hold at once; preparing another drops the oldest. */
 const exportsPerHolder = 2;
 /** Files in documents served over HTTP: images and attachments, never whole archives. */
@@ -73,8 +81,6 @@ export function acceptableHost(value: string | undefined) {
   return host === 'localhost' || isIPv4(host) || isIPv6(host);
 }
 const bearer = (header: string | undefined) => /^Bearer (\S{1,200})$/.exec(header ?? '')?.[1] ?? null;
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const spellings = (value: string) => new Set([value, value.replaceAll('\\', '/'), value.replaceAll('/', '\\')]);
 /** A download name for Content-Disposition: plain ASCII, plus the exact UTF-8 name (RFC 6266). */
 export function attachment(fileName: string) {
   const ascii = fileName.replace(/[^ -~]/g, '_').replace(/["\\]/g, '_');
@@ -117,13 +123,9 @@ export class Host {
   private retry: ReturnType<typeof setTimeout> | null = null;
   /** Network changes run one at a time, so overlapping updates cannot leave a listener behind. */
   private networkQueue: Promise<void> = Promise.resolve();
-  private readonly extraShared: string[];
-  /** Shared folders by ID; devices may open these and nothing else. */
-  private sharedRoots = new Map<string, string>();
-  /** The refresh of sharedRoots in progress; refreshes run one at a time, the last after every request. */
-  private refreshing: Promise<void> | null = null;
-  private refreshAgain = false;
-  /** Clients preparing an export now; each prepares one at a time. */
+  /** The planning folders opened on this computer, which every client sees. */
+  readonly folderList: FolderList;
+  /** Clients preparing an export or reading an import now; each does one at a time. */
   private readonly preparing = new Set<string>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
   private lockRetry: ReturnType<typeof setInterval> | null = null;
@@ -134,7 +136,9 @@ export class Host {
     this.options = options;
     this.access = new AccessStore(path.join(options.dataDirectory, 'host'), options.log, options.owner);
     this.exports = new PlanWorkerClient(options.createPlanWorker);
-    this.extraShared = options.extraShared ?? [];
+    // The list starts from the app's recent folders and the folders the first remote access shared.
+    const recents = new RecentPlanningRoots(path.join(options.dataDirectory, 'planning-roots.json'));
+    this.folderList = new FolderList(this.access.directory, options.log, async () => [...await recents.list(), ...this.access.legacySharedFolders]);
     this.folders = new FolderRegistry({ key: () => this.access.folderKey, dataBase: options.dataBase, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
   }
 
@@ -148,7 +152,7 @@ export class Host {
       this.lockRetry = setInterval(() => { void this.retakeLock(); }, 15000);
       this.lockRetry.unref?.();
     }
-    await this.refreshShared();
+    for (const folder of this.options.folders ?? []) await this.addToList(await canonicalFolder(folder));
     const preferred = this.options.loopbackPort ?? 0;
     this.loopback = await this.listen('127.0.0.1', preferred, true).catch(error => {
       if (!preferred) throw error;
@@ -187,7 +191,6 @@ export class Host {
       if (this.stopped) { this.access.unlock(); return; }
       if (this.lockRetry) { clearInterval(this.lockRetry); this.lockRetry = null; }
       this.options.log.info('Remote access is managed by this process now');
-      await this.refreshShared();
       await this.applyNetwork();
       this.broadcastAccess();
     } finally { this.retaking = false; }
@@ -329,6 +332,7 @@ export class Host {
       }
     });
     app.get(routes.files, c => this.serveFile(c, listener));
+    app.post(routes.imports, c => this.receiveImport(c, listener));
     app.get(routes.exports, c => this.serveExport(c, listener));
     app.notFound(c => c.json({ code: 'not-found', message: 'Not found.' }, 404));
     app.onError((error, c) => { this.options.log.error('Request failed', error); return c.json({ code: 'internal', message: 'The host could not answer.' }, 500); });
@@ -355,8 +359,7 @@ export class Host {
     } catch (error) {
       const status = (error as { status?: number }).status;
       const { value } = toErrorValue(error);
-      const owner = credential.scopes.has('owner');
-      return c.json(owner ? value : { ...value, message: this.redact(value.message) }, status === 403 || value.code === 'forbidden' ? 403 : 404);
+      return c.json(value, status === 403 || value.code === 'forbidden' ? 403 : 404);
     }
   }
 
@@ -367,13 +370,59 @@ export class Host {
     const held = this.held.get(token);
     if (!held || held.owner !== this.holder(credential) || !held.fileName) return c.json({ code: 'not-found', message: 'This export is no longer available. Export the plan again.' }, 404);
     this.held.delete(token);
-    // A folder that stopped being shared since takes its prepared exports with it.
-    if (!credential.scopes.has('owner') && !this.sharedRoots.has(held.folderId)) {
-      void this.exports.drop(held.workerToken).catch(() => undefined);
-      return c.json({ code: 'forbidden', message: 'This planning folder is no longer shared.' }, 403);
-    }
     const html = await this.exports.take(held.workerToken);
     return c.body(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': attachment(held.fileName), 'Content-Security-Policy': 'sandbox' });
+  }
+
+  /**
+   * A plan export sent from another computer, to import into a planning folder here: kept in a
+   * private temporary file while the worker reads it, then removed. Answers with the preview; the
+   * import itself is confirmed over the connection (plan.importConfirm), as for a local file.
+   */
+  private async receiveImport(c: Context<{ Bindings: HttpBindings }>, listener: Listener) {
+    const credential = this.authorize(c, listener);
+    if (!credential) return c.json({ code: 'unauthorized', message: 'Pair with this host first.' }, 401);
+    if (!credential.scopes.has('owner') && !credential.scopes.has('computer')) return c.json({ code: 'forbidden', message: 'This device may not do this.' }, 403);
+    const declared = Number(c.req.header('content-length') ?? NaN);
+    if (declared > importLimit) return c.json({ code: 'invalid-argument', message: 'This file is too large to be a plan export.' }, 413);
+    const holder = 'import:' + this.holder(credential);
+    if (this.preparing.has(holder)) return c.json({ code: 'unavailable', message: 'Another plan is being read. Try again when it is done.' }, 429);
+    this.preparing.add(holder);
+    const file = path.join(tmpdir(), 'atlas-import-' + process.pid + '-' + randomBytes(8).toString('hex') + '.html');
+    try {
+      const folder = await this.accessibleFolder(credential, c.req.param('folderId') ?? '');
+      const body = c.req.raw.body;
+      if (!body) return c.json({ code: 'invalid-argument', message: 'Send the plan export file.' }, 400);
+      const handle = await open(file, 'wx', 0o600);
+      let size = 0;
+      try {
+        for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
+          size += chunk.byteLength;
+          if (size > importLimit) return c.json({ code: 'invalid-argument', message: 'This file is too large to be a plan export.' }, 413);
+          await handle.write(chunk);
+        }
+      } finally { await handle.close(); }
+      return c.json(await this.readImport(folder, file, holder.slice('import:'.length)));
+    } catch (error) {
+      const { value, expected } = toErrorValue(error);
+      if (!expected) this.options.log.error('Import upload failed', error);
+      return c.json(value, value.code === 'forbidden' ? 403 : value.code === 'not-found' ? 404 : 400);
+    } finally {
+      this.preparing.delete(holder);
+      await rm(file, { force: true }).catch(() => undefined);
+    }
+  }
+  /** Read a plan export for import into a folder; the preview is held for its reader until confirmed. */
+  private async readImport(folder: FolderSession, file: string, owner: string): Promise<ImportPreviewValue> {
+    const read = await this.exports.read(folder.root, file);
+    const token = randomBytes(16).toString('hex');
+    this.held.set(token, { owner, folderId: folder.state().folderId, workerToken: read.token, expires: Date.now() + 30 * 60000 });
+    const { manifest, files, totalBytes, diagrams } = read.preview;
+    return {
+      token, title: manifest.source.title, originalId: manifest.source.workId, origin: manifest.source.planningFolder, location: manifest.source.location,
+      exportedAt: manifest.exportedAt, atlasVersion: manifest.atlasVersion, newId: read.target.workId, newFolder: read.target.path,
+      files: files.length, bytes: totalBytes, diagrams: diagrams.map(item => item.title),
+    };
   }
 
   // ---- WebSocket RPC ---------------------------------------------------------------------------
@@ -429,89 +478,71 @@ export class Host {
       id = request.id as number;
       if (typeof request.method !== 'string' || !Object.hasOwn(methodScopes, request.method)) throw new HostError('not-found', 'This host does not know that request.');
       const method = request.method as MethodName;
-      if (!connection.can(methodScopes[method])) throw new HostError('forbidden', methodScopes[method] === 'owner' ? 'Only the Atlas app on the host computer may do this.' : 'This device may not do this.');
+      if (!connection.can(methodScopes[method])) {
+        throw new HostError('forbidden', methodScopes[method] === 'owner' ? `Only the Atlas app on ${this.access.name} may change its remote access settings.`
+          : methodScopes[method] === 'access:manage' ? `This device may not manage access to ${this.access.name}. Pair it again with Manage access to pair and revoke devices from it.`
+          : 'This device may not do this.');
+      }
       const params = methodParams[method](request.params ?? {}, 'params');
       const value = await this.handle(connection, method, params as never);
       connection.send({ id, ok: true, value: value ?? null });
     } catch (error) {
       const { value, expected } = toErrorValue(error instanceof ValidationError ? new HostError('invalid-argument', error.message) : error);
       if (!expected) this.options.log.error('Request failed', error);
-      connection.send({ id, ok: false, error: connection.owner ? value : { ...value, message: this.redact(value.message) } });
+      connection.send({ id, ok: false, error: value });
     }
   }
 
   private event<E extends EventName>(connection: Connection, event: E, data: Events[E]) { connection.send({ event, data }); }
   private folderChanged(state: FolderState) {
-    for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', this.stateFor(connection, state));
+    for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', state);
   }
-  /** A folder's state as a connection may see it: a device gets no paths on this computer. */
-  private stateFor(connection: Connection, state: FolderState): FolderState {
-    if (connection.owner) return state;
-    return { ...state, error: state.error === null ? null : this.redact(state.error), notice: state.notice === null ? null : this.redact(state.notice) };
-  }
-  /** Text for a paired device: this host's folder paths become the folder's name, and the home folder "~". */
-  private redact(text: string) {
-    const flags = process.platform === 'win32' || process.platform === 'darwin' ? 'gi' : 'g';
-    let result = text;
-    const roots = [...new Set([...this.folders.knownRoots(), ...this.sharedRoots.values()])].sort((a, b) => b.length - a.length);
-    for (const root of roots) {
-      const name = path.basename(root) || 'the planning folder';
-      for (const spelling of spellings(root)) result = result.replace(new RegExp(escapeRegExp(spelling), flags), name);
-    }
-    const home = homedir();
-    if (home.length > 3) for (const spelling of spellings(home)) result = result.replace(new RegExp(escapeRegExp(spelling), flags), '~');
-    return result;
-  }
+  /** Remote access changed: tell the connections that may manage it. */
   private broadcastAccess() {
-    const owners = [...this.connections].filter(connection => connection.owner);
-    if (!owners.length) return;
-    void this.accessState().then(state => { for (const connection of owners) this.event(connection, 'access.changed', state); }).catch(() => undefined);
+    const managers = [...this.connections].filter(connection => connection.can('access:manage'));
+    if (!managers.length) return;
+    void this.accessState().then(state => { for (const connection of managers) this.event(connection, 'access.changed', state); }).catch(() => undefined);
+  }
+  /** The folder list changed: every client sees the new one. */
+  private broadcastFolders() {
+    if (!this.connections.size) return;
+    void this.computerFolders().then(folders => { for (const connection of this.connections) this.event(connection, 'folders.changed', { folders }); }).catch(() => undefined);
   }
 
   // ---- Folders and access ----------------------------------------------------------------------
 
-  /**
-   * Work out the shared folders again: the saved ones and this process's own, by canonical path.
-   * Refreshes run one at a time, and one more runs after every request made meanwhile, so a slow
-   * refresh that read older settings can never overwrite a newer result.
-   */
-  private refreshShared(): Promise<void> {
-    if (this.refreshing) { this.refreshAgain = true; return this.refreshing; }
-    this.refreshing = (async () => {
-      try {
-        do {
-          this.refreshAgain = false;
-          const roots = await Promise.all([...this.access.settings.sharedFolders, ...this.extraShared].map(canonicalFolder));
-          const shared = new Map<string, string>();
-          for (const root of roots) { const folderId = this.folders.idOf(root); if (!shared.has(folderId)) shared.set(folderId, root); }
-          this.sharedRoots = shared;
-        } while (this.refreshAgain);
-      } finally { this.refreshing = null; }
-    })();
-    return this.refreshing;
+  /** The computer's folder list, as clients see it: newest first, each with whether it is still there. */
+  async computerFolders(): Promise<ComputerFolder[]> {
+    const entries = await this.folderList.entries();
+    return Promise.all(entries.map(async entry => {
+      const info = await inspectPlanningRoot(entry.path).catch(() => null);
+      const available = info !== null || await stat(entry.path).then(found => found.isDirectory(), () => false);
+      return { folderId: this.folders.idOf(entry.path), path: entry.path, name: path.basename(entry.path) || entry.path, openedAt: entry.openedAt, available, workItems: info?.workItems ?? null };
+    }));
   }
-  private shared(): SharedFolder[] {
-    return [...this.sharedRoots].map(([folderId, root]) => ({ folderId, name: path.basename(root) || root }));
+  /** A folder was opened here: it moves to the top of the folder list, which every client sees. */
+  private async addToList(root: string) {
+    try { await this.folderList.touch(root); }
+    catch (error) { this.options.log.warn('Folder list not saved', error); return; }
+    this.broadcastFolders();
   }
-  /** Open a folder the credential may read: the owner any folder it opened, a device only shared ones. */
-  private async accessibleFolder(credential: Credential, folderId: string): Promise<FolderSession> {
-    if (credential.scopes.has('owner')) {
-      if (this.folders.has(folderId)) return this.folders.get(folderId);
-      const known = this.folders.pathOf(folderId);
-      if (known) return this.folders.open(known);
-    }
-    const root = this.sharedRoots.get(folderId);
-    if (!root) throw new HostError('forbidden', 'This planning folder is not shared with this device.');
+  /** The path of a folder by its ID: one this process opened, or one on the folder list. */
+  private async pathOf(folderId: string): Promise<string | null> {
+    const known = this.folders.pathOf(folderId);
+    if (known) return known;
+    const entries = await this.folderList.entries().catch(() => []);
+    return entries.find(entry => this.folders.idOf(entry.path) === folderId)?.path ?? null;
+  }
+  /** Open a folder by its ID: one that is open, one this process opened before, or one on the folder list. */
+  private async accessibleFolder(_credential: Credential, folderId: string): Promise<FolderSession> {
+    if (this.folders.has(folderId)) return this.folders.get(folderId);
+    const root = await this.pathOf(folderId);
+    if (!root) throw new HostError('not-found', `This planning folder is not open on ${this.access.name}. Open it again from its folder list.`);
     return this.folders.open(root);
   }
-  /** A folder the connection subscribed to; for a device, only while it is still shared. */
+  /** A folder the connection subscribed to. */
   private subscribed(connection: Connection, folderId: string): FolderSession {
     if (!connection.subscriptions.has(folderId)) throw new HostError('forbidden', 'Open this planning folder first.');
-    if (!connection.owner && !this.sharedRoots.has(folderId)) {
-      connection.subscriptions.delete(folderId);
-      this.folders.release(folderId);
-      throw new HostError('forbidden', 'This planning folder is no longer shared.');
-    }
     return this.folders.get(folderId);
   }
 
@@ -523,7 +554,6 @@ export class Host {
     }
     const settings = this.access.settings;
     if (this.options.networkOverride) settings.network = { enabled: true, ...this.options.networkOverride };
-    settings.sharedFolders = [...new Set([...settings.sharedFolders, ...this.extraShared])];
     return { settings, status: this.networkStatus(), addresses: await hostAddresses(), managedBy: this.access.problem ? null : this.access.managedBy, problem: this.access.problem };
   }
 
@@ -532,38 +562,41 @@ export class Host {
     switch (method) {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
-      case 'folders.shared':
-        await this.refreshShared();
-        return this.shared() as never;
+      case 'folders.list': return this.computerFolders() as never;
       case 'folders.open': {
-        const folder = await this.folders.open((p as { path: string }).path);
+        const requested = (p as { path: string }).path;
+        // The app checks folders itself before opening them (and opens a broken one to explain it);
+        // a device opens planning folders only.
+        if (!connection.owner) {
+          try { await inspectPlanningRoot(requested); }
+          catch (error) { throw new HostError((error as { status?: number }).status === 404 ? 'folder-missing' : 'folder-invalid', `${(error as Error).message} (${requested})`); }
+        }
+        const folder = await this.folders.open(requested);
+        // A folder that is there joins the folder list; a missing one (a window restoring it) does not.
+        if (folder.state().status !== 'missing') await this.addToList(folder.root);
         return folder.state() as never;
       }
+      case 'folders.remove': {
+        const root = await this.pathOf((p as { folderId: string }).folderId);
+        if (!root || !await this.folderList.remove(root)) throw new HostError('not-found', 'This folder is not on the folder list.');
+        this.broadcastFolders();
+        return null as never;
+      }
+      case 'folders.browse': return browse((p as { path: string | null }).path) as never;
       case 'folders.subscribe': {
         const { folderId } = p as { folderId: string };
         const folder = await this.accessibleFolder(connection.credential, folderId);
-        // Opening can take a while: the connection may have gone, or the folder stopped being shared, since.
+        // Opening can take a while: the connection may have gone since.
         if (!this.connections.has(connection)) throw new HostError('cancelled', 'The connection closed.');
-        if (!connection.owner && !this.sharedRoots.has(folderId)) throw new HostError('forbidden', 'This planning folder is no longer shared.');
         if (!connection.subscriptions.has(folderId)) { this.folders.acquire(folderId); connection.subscriptions.add(folderId); }
-        return this.stateFor(connection, folder.state()) as never;
+        return folder.state() as never;
       }
       case 'folders.unsubscribe': {
         const { folderId } = p as { folderId: string };
         if (connection.subscriptions.delete(folderId)) this.folders.release(folderId);
         return null as never;
       }
-      case 'folder.snapshot': {
-        const folder = this.subscribed(connection, (p as { folderId: string }).folderId);
-        const snapshot = folder.snapshot();
-        if (connection.owner) return snapshot as never;
-        // A paired device sees the folder's name, not where it lives on this computer.
-        return {
-          ...snapshot, root: folder.name,
-          issues: snapshot.issues.map(issue => ({ ...issue, message: this.redact(issue.message) })),
-          collectionError: snapshot.collectionError === null ? null : this.redact(snapshot.collectionError),
-        } as never;
-      }
+      case 'folder.snapshot': return this.subscribed(connection, (p as { folderId: string }).folderId).snapshot() as never;
       case 'folder.document': { const { folderId, path: file } = p as { folderId: string; path: string }; return this.subscribed(connection, folderId).document(file) as never; }
       case 'folder.models': { const { folderId, work } = p as { folderId: string; work: string }; return this.subscribed(connection, folderId).models(work) as never; }
       case 'folder.model': { const { folderId, work, handle } = p as { folderId: string; work: string; handle: string }; return this.subscribed(connection, folderId).model(work, handle) as never; }
@@ -587,10 +620,6 @@ export class Host {
         let prepared;
         try { prepared = await this.exports.prepare(folder.root, work); }
         finally { if (!connection.owner) this.preparing.delete(holder); }
-        if (!connection.owner && !this.sharedRoots.has(folderId)) {
-          void this.exports.drop(prepared.token).catch(() => undefined);
-          throw new HostError('forbidden', 'This planning folder is no longer shared.');
-        }
         const token = randomBytes(16).toString('hex');
         const fileName = exportFileName(item.path, item.id);
         this.held.set(token, { owner: holder, folderId, workerToken: prepared.token, fileName, expires: Date.now() + exportLifetime });
@@ -604,22 +633,16 @@ export class Host {
         return null as never;
       }
       case 'plan.importRead': {
+        // A file on this computer; another computer sends its file to routes.imports instead.
         const { folderId, file } = p as { folderId: string; file: string };
-        const folder = this.subscribed(connection, folderId);
-        const read = await this.exports.read(folder.root, file);
-        const token = randomBytes(16).toString('hex');
-        this.held.set(token, { owner: connection.id, folderId, workerToken: read.token, expires: Date.now() + 30 * 60000 });
-        const { manifest, files, totalBytes, diagrams } = read.preview;
-        return {
-          token, title: manifest.source.title, originalId: manifest.source.workId, origin: manifest.source.planningFolder, location: manifest.source.location,
-          exportedAt: manifest.exportedAt, atlasVersion: manifest.atlasVersion, newId: read.target.workId, newFolder: read.target.path,
-          files: files.length, bytes: totalBytes, diagrams: diagrams.map(item => item.title),
-        } as never;
+        return this.readImport(this.subscribed(connection, folderId), file, connection.id) as never;
       }
       case 'plan.importConfirm': {
         const { folderId, token } = p as { folderId: string; token: string };
         const held = this.held.get(token);
-        if (!held || held.owner !== connection.id || held.folderId !== folderId || held.expires < Date.now()) throw new HostError('invalid-argument', 'This import preview expired. Choose the file again.');
+        // A preview belongs to the connection that read it, or to the device that sent its file.
+        const mine = held && (held.owner === connection.id || held.owner === this.holder(connection.credential));
+        if (!held || !mine || held.folderId !== folderId || held.expires < Date.now()) throw new HostError('invalid-argument', 'This import preview expired. Choose the file again.');
         this.held.delete(token);
         const folder = this.subscribed(connection, folderId);
         try {
@@ -631,42 +654,30 @@ export class Host {
       case 'access.state': return this.accessState() as never;
       case 'access.update': {
         const { settings } = p as unknown as Methods['access.update']['params'];
-        const sharedFolders = [...new Set(await Promise.all(settings.sharedFolders.map(canonicalFolder)))];
-        this.access.updateSettings({ network: settings.network, sharedFolders });
-        await this.refreshShared();
+        this.access.updateSettings({ network: settings.network });
         await this.applyNetwork();
-        // Devices lose folders that are no longer shared, and the exports they prepared from them.
-        for (const other of this.connections) {
-          if (other.owner) continue;
-          for (const folderId of [...other.subscriptions]) {
-            if (this.sharedRoots.has(folderId)) continue;
-            other.subscriptions.delete(folderId);
-            this.folders.release(folderId);
-            this.event(other, 'folder.changed', { folderId, name: '', status: 'missing', error: 'This planning folder is no longer shared.', notice: null, revision: Date.now() });
-          }
-        }
-        for (const [token, held] of this.held) {
-          if (held.owner === 'owner' || this.sharedRoots.has(held.folderId)) continue;
-          this.held.delete(token);
-          void this.exports.drop(held.workerToken).catch(() => undefined);
-        }
         const state = await this.accessState();
         this.broadcastAccess();
         return state as never;
       }
       case 'access.pairingCreate': {
-        const { address } = p as { address: string | null };
-        const status = this.networkStatus();
-        if (!status.listening) throw new HostError('unavailable', 'Turn on remote access first, so other devices can reach this computer.');
-        const pairing = this.access.createPairing(address ?? status.address);
-        const host = pairing.address ?? status.address!;
-        return { code: pairing.code, expiresAt: new Date(pairing.expiresAt).toISOString(), url: pairingUrl(host, status.port!, pairing.code), address: host, port: status.port } as never;
+        const { address, label, manageAccess } = p as unknown as Methods['access.pairingCreate']['params'];
+        return this.createPairing(address, { label, manageAccess }) as never;
       }
       case 'access.pairingRevoke': this.access.revokePairing((p as { code: string }).code); return null as never;
       case 'access.devices': return this.devices() as never;
       case 'access.deviceRevoke': this.revokeDevice((p as { deviceId: string }).deviceId); return null as never;
     }
     throw new HostError('not-found', 'This host does not know that request.');
+  }
+
+  /** A one-time pairing link for a device: the whole computer, and Manage access if granted. */
+  createPairing(address: string | null, grant: { label: string | null; manageAccess: boolean }): Methods['access.pairingCreate']['result'] {
+    const status = this.networkStatus();
+    if (!status.listening) throw new HostError('unavailable', 'Turn on remote access first, so other devices can reach this computer.');
+    const pairing = this.access.createPairing(address ?? status.address, grant);
+    const host = pairing.address ?? status.address!;
+    return { code: pairing.code, expiresAt: new Date(pairing.expiresAt).toISOString(), url: pairingUrl(host, status.port!, pairing.code), address: host, port: status.port, label: pairing.label, manageAccess: pairing.manageAccess };
   }
 
   /** Paired devices, with whether each is connected now. */
