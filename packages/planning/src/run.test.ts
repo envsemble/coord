@@ -41,6 +41,20 @@ test('a process that exits during a run leaves no output files', async t => {
   assert.deepEqual(readdirSync(outputDirectory), []);
 });
 
+test('the main thread removes output files a worker left when the process exits', async () => {
+  const { readdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const module = pathToFileURL(path.join(import.meta.dirname, 'run.ts')).href;
+  // The worker starts a run in the default temporary folder; the process exits while it runs.
+  const worker = `import { runProgram } from ${JSON.stringify(module)}; void runProgram(process.execPath, ['-e', 'setTimeout(() => {}, 3000)']);`;
+  const script = `import { Worker } from 'node:worker_threads'; import { runProgram } from ${JSON.stringify(module)}; await runProgram(process.execPath, ['-e', '1']); new Worker(${JSON.stringify(worker)}, { eval: true }); setTimeout(() => { process.stdout.write(String(process.pid)); process.exit(0); }, 1000);`;
+  const { stdout: pid } = await runProgram(node, ['--input-type=module', '-e', script], { timeout: 20000 });
+  assert.match(pid, /^\d+$/);
+  assert.deepEqual(readdirSync(tmpdir()).filter(name => name.startsWith(`atlas-run-${pid}-`)), []);
+});
+
 test('a program that runs too long is stopped', async () => {
   const started = Date.now();
   await assert.rejects(runProgram(node, ['-e', 'setTimeout(() => {}, 20000)'], { timeout: 300 }), (error: ProgramError) => error.killed && /timed out/.test(error.message));

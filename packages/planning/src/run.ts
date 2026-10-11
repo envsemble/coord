@@ -4,10 +4,11 @@
 // it open after this program has ended, and execFile would wait for that other program to end too.
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { rmSync } from 'node:fs';
+import { readdirSync, rmSync } from 'node:fs';
 import { open, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { isMainThread } from 'node:worker_threads';
 
 export interface RunOptions {
   /** Milliseconds before the program is stopped (default one minute). */
@@ -34,14 +35,26 @@ export class ProgramError extends Error {
   }
 }
 
-/** Output files of runs in progress, removed if the process exits before the runs finish. */
+/** Output file names carry the process ID, so the main thread can remove what its workers left. */
+const prefix = `atlas-run-${process.pid}-`;
+/** Output files of this thread's runs in progress, removed if the process exits before they finish. */
 const inProgress = new Set<string>();
 let cleanupRegistered = false;
+function registerCleanup() {
+  if (cleanupRegistered) return;
+  cleanupRegistered = true;
+  process.once('exit', () => {
+    for (const file of inProgress) rmSync(file, { force: true });
+    // A worker stopped mid-run cannot clean up after itself: the main thread removes its files too.
+    if (isMainThread) {
+      try { for (const name of readdirSync(tmpdir())) if (name.startsWith(prefix)) rmSync(path.join(tmpdir(), name), { force: true }); } catch { /* Best effort. */ }
+    }
+  });
+}
+// The main thread cleans up at exit even if only its workers ran programs.
+if (isMainThread) registerCleanup();
 function track(files: string[]) {
-  if (!cleanupRegistered) {
-    cleanupRegistered = true;
-    process.once('exit', () => { for (const file of inProgress) rmSync(file, { force: true }); });
-  }
+  registerCleanup();
   for (const file of files) inProgress.add(file);
 }
 
@@ -50,16 +63,15 @@ export async function runProgram(file: string, args: string[], options: RunOptio
   const { timeout = 60000, maxBuffer = 1024 * 1024 } = options;
   // Output files go straight into the temporary folder under random names, readable only by this
   // user, and are removed after each run (or when the process exits during one).
-  const base = path.join(options.outputDirectory ?? tmpdir(), 'atlas-run-' + randomBytes(12).toString('hex'));
+  const base = path.join(options.outputDirectory ?? tmpdir(), prefix + randomBytes(12).toString('hex'));
   const outFile = base + '.out', errFile = base + '.err';
-  track([outFile, errFile]);
   const out = await open(outFile, 'wx', 0o600);
   const err = await open(errFile, 'wx', 0o600).catch(async error => {
     await out.close();
     await rm(outFile, { force: true }).catch(() => undefined);
-    inProgress.delete(outFile); inProgress.delete(errFile);
     throw error;
   });
+  track([outFile, errFile]);
   try {
     let overflow = false;
     const ended = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; killed: boolean }>((resolve, reject) => {

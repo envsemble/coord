@@ -181,14 +181,18 @@ export class HostClient {
       this.connectedOrigin = origin;
       // A connection that misses a ping is dead (a sleeping host, a dropped network): end it and reconnect.
       let written = 0;
+      let missed = 0;
       this.heartbeat = setInterval(() => {
         // Bytes that actually left since the last check, while more wait, mean a slow link, not a dead
         // one. (Node counts queued bytes in bytesWritten, so the queue is taken off.)
         const now = (raw?.bytesWritten ?? 0) - (raw?.writableLength ?? 0);
         const draining = socket.bufferedAmount > 0 && now > written;
         written = now;
-        if (draining) { this.alive = true; return; }
-        if (!this.alive) { socket.terminate(); return; }
+        if (draining) this.alive = true;
+        // One missed answer can be a large answer still in flight: end the connection only after
+        // three checks in a row without a sign of life.
+        if (this.alive) missed = 0;
+        else if (++missed >= 3) { socket.terminate(); return; }
         this.alive = false;
         try { socket.ping(); } catch { /* Closing already. */ }
       }, this.options.heartbeat ?? 30000);

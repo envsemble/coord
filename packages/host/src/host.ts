@@ -88,8 +88,10 @@ class Connection {
   readonly ws: WebSocket;
   readonly credential: Credential;
   readonly listener: Listener;
-  /** Answered the last ping; a connection that misses one is ended. */
+  /** Answered since the last check. */
   alive = true;
+  /** Checks in a row without an answer; a connection that misses three is ended. */
+  missed = 0;
   /** Bytes the connection had sent at the last check, to tell a slow link that drains from a dead one. */
   written = 0;
   /** The connection's socket, whose byte counts show whether a large answer is still moving. */
@@ -203,8 +205,11 @@ export class Host {
       const written = (connection.raw?.bytesWritten ?? 0) - (connection.raw?.writableLength ?? 0);
       const draining = connection.ws.bufferedAmount > 0 && written > connection.written;
       connection.written = written;
-      if (draining) { connection.alive = true; continue; }
-      if (!connection.alive) { connection.ws.terminate(); continue; }
+      if (draining) connection.alive = true;
+      // One missed answer can be a large answer still in flight ahead of the pong: end the
+      // connection only after three checks in a row without a sign of life.
+      if (connection.alive) connection.missed = 0;
+      else if (++connection.missed >= 3) { connection.ws.terminate(); continue; }
       connection.alive = false;
       try { connection.ws.ping(); } catch { /* Closing already. */ }
     }
