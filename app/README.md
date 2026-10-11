@@ -134,13 +134,13 @@ Path comparisons follow the connected folder's case and Unicode-normalization be
 
 Work IDs follow the shared work-0001 format. Explicit selected-plan pointers establish plan ownership; other documents belong to their most-specific registered location in both the viewer and consultation logger. Git activity uses the registry before deletions and after additions, preserving ownership when nested work is archived. Previously unregistered files can use their current registration without overriding established historical owners.
 
-Design acceptance, implementation status, archive location, and known dates are displayed separately. Ledger prose supplies actual progress. Unknown dates stay unknown; invalid dates and chronology generate health errors. Recorded calendar durations are not engineering time. Git activity shows recent checkpoints, associating work through retained registry identities so archiving or renaming its folder preserves earlier activity. Filesystem and Git reads do not update plans or lifecycle state.
+Design acceptance, implementation status, archive location, and known dates are displayed separately. A ledger's steps report its progress; its prose tells what actually happened. Unknown dates stay unknown; invalid dates and chronology generate health errors. Recorded calendar durations are not engineering time. Git activity shows recent checkpoints, associating work through retained registry identities so archiving or renaming its folder preserves earlier activity. Filesystem and Git reads do not update plans or lifecycle state.
 
 Contained Markdown links open their original records. External web references open in the system browser; references outside the planning root are marked. Raw HTML is not executed. Text and common images render in the reader; for other attachments, **Show in folder** reveals the file. The text reader has a 4 MiB limit.
 
 ## Statistics
 
-The Statistics view has three tabs.
+The Statistics view has three tabs. [Progress and statistics](../docs/progress-and-statistics.md) explains what agents report and how Atlas counts it.
 
 - **Work** lists every work item with:
   - its implementing model;
@@ -160,7 +160,7 @@ Agents report with `atlas work report <planning-root> --work <work-id> --model <
 
 Two sources remain distinct: documents opened in Atlas and agent-reported consultation. Statistics show most/least recorded use, known task identities, recent consultation, and collection coverage. They do not measure whether the workflow improved an outcome. Zero recorded use does not mean a record was never read or should be removed.
 
-The planning skills report consultation with `atlas usage log <planning-root> --files …` (see the [consultation guidance](../skills/atlas-bootstrap/references/USAGE.md) and [installing the atlas command](../README.md#install-the-atlas-command)). It needs only Node. No model calls, API keys, or paid API account are needed.
+The planning skills report consultation with `atlas usage log <planning-root> --files …` (see the [consultation guidance](../skills/atlas-bootstrap/references/USAGE.md) and [installing the atlas command](../docs/command.md#install)). It needs only Node. No model calls, API keys, or paid API account are needed.
 
 Usage is local, in the Atlas data folder, outside the planning and product repositories, as `usage/<canonical-folder-hash>/usage.sqlite`. The app and the `atlas` command share this SQLite store; the shared reader lives in `packages/planning`. The folder hash is always added, so one data folder safely serves several planning roots. Moving the entire planning root changes its identity. Stable work IDs preserve per-document use through active/archive moves within the same root.
 

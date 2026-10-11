@@ -1,5 +1,22 @@
 # Native embedding
 
+Inside Atlas, the app and the command use the private `@envsemble/atlas-diagrams` workspace package directly. To use it elsewhere, create a local package with `npm pack` in `packages/diagrams` and install the tarball. Its Node API loads with CommonJS or a default ESM import:
+
+```js
+import atlas from "@envsemble/atlas-diagrams";
+const document = atlas.importDocument(exportedHtml);
+const proposal = atlas.createProposal(document);
+const payload = (
+  await atlas.prepareViewer({ document: proposal, includeArtifacts: false })
+).payload;
+const built = await atlas.buildViewer({ document: proposal });
+atlas.writeViewer(built, "./site");
+```
+
+React 19.3 is a peer dependency of the React panel. Size its container, and wrap it in `ViewerErrorBoundary`. [Viewer behavior](viewer.md) covers smooth local camera movement, amber focus, hideable details, Shiki previews and generic orthogonal layout.
+
+## The React panel
+
 Import `AtlasPanel` from `@envsemble/atlas-diagrams/react` and `@envsemble/atlas-diagrams/embedded.css`. Pass a `prepareViewer({document, includeArtifacts:false}).payload`, a host-controlled `theme` (`dark` or `light`), an optional semantic `focus` target, and `onReference(record)` to navigate retained planning references. `leading` renders host content (such as a model picker) at the start of the floating top-left toolbar. Passing `onFullscreenChange(next)` adds a fullscreen toggle to the top-right toolbar; the host owns the `fullscreen` state and layout. This component consumes the same model/scene as offline exports. It does not require HTML, an iframe, an archive, a model service, or a connection to captured sources.
 
 ```tsx

@@ -16,7 +16,7 @@ Invoke a skill by name with `$atlas-implement` in Codex or `/atlas-implement` in
 
 ## Install
 
-The skills call the `atlas` command (`atlas planning check`, `atlas usage log`, `atlas work report`, `atlas model …`, `atlas mcp`), so install it first as described in [Install the atlas command](../README.md#install-the-atlas-command). Atlas needs only Node.
+The skills call the `atlas` command (`atlas planning check`, `atlas usage log`, `atlas work report`, `atlas model …`, `atlas mcp`), so install it first as described in [Install the atlas command](../docs/command.md#install). Atlas needs only Node.
 
 Copy the seven `atlas-*` folders as siblings into each harness's skills directory: `~/.codex/skills` for Codex and `~/.claude/skills` for Claude Code. This `skills` folder and its `tests` are not skills. Exactly one set should remain installed, so first move earlier copies to a dated backup outside the skills directories: `planning-*`, `worktrail-*`, `implement-plan`, `babysit-pr`, `atlas-modeling` and any previous `atlas-*` copies of these skills. Each `atlas-*` skill replaces the `planning-*` and `worktrail-*` skill of the same role; `atlas-implement` also replaces `implement-plan`, `atlas-babysit-pr` replaces `babysit-pr`, and `atlas-model` replaces `worktrail-atlas` and `atlas-modeling`. Start a new agent session afterwards.
 
