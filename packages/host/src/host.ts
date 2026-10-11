@@ -90,8 +90,10 @@ class Connection {
   readonly listener: Listener;
   /** Answered the last ping; a connection that misses one is ended. */
   alive = true;
-  /** Bytes waiting to be sent at the last check, to tell a slow link that drains from a dead one. */
-  buffered = 0;
+  /** Bytes the connection had sent at the last check, to tell a slow link that drains from a dead one. */
+  written = 0;
+  /** The connection's socket, whose byte counts show whether a large answer is still moving. */
+  raw: { bytesWritten?: number } | null = null;
   constructor(ws: WebSocket, credential: Credential, listener: Listener) { this.ws = ws; this.credential = credential; this.listener = listener; }
   get owner() { return this.credential.scopes.has('owner'); }
   can(scope: Scope) { return this.owner || this.credential.scopes.has(scope); }
@@ -196,9 +198,10 @@ export class Host {
    */
   private checkConnections() {
     for (const connection of this.connections) {
-      const buffered = connection.ws.bufferedAmount;
-      const draining = buffered > 0 && buffered < connection.buffered;
-      connection.buffered = buffered;
+      // Bytes still leaving since the last check, while more wait, mean a slow link, not a dead one.
+      const written = connection.raw?.bytesWritten ?? 0;
+      const draining = connection.ws.bufferedAmount > 0 && written > connection.written;
+      connection.written = written;
       if (draining) { connection.alive = true; continue; }
       if (!connection.alive) { connection.ws.terminate(); continue; }
       connection.alive = false;
@@ -384,6 +387,7 @@ export class Host {
 
   private connected(ws: WebSocket, credential: Credential, listener: Listener, socket: Duplex) {
     const connection = new Connection(ws, credential, listener);
+    connection.raw = socket as unknown as { bytesWritten?: number };
     // Any bytes from the client, such as the rest of a large request, show it is alive.
     socket.on('data', () => { connection.alive = true; });
     this.connections.add(connection);

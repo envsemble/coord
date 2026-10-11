@@ -173,18 +173,19 @@ export class HostClient {
     const answered = () => { if (this.socket === socket) { this.alive = true; this.probing = false; } };
     socket.on('pong', answered);
     // Any bytes from the host, such as part of a large answer still arriving, show it is alive.
-    socket.on('upgrade', response => { response.socket.on('data', answered); });
+    let raw: { bytesWritten?: number } | null = null;
+    socket.on('upgrade', response => { raw = response.socket; response.socket.on('data', answered); });
     socket.on('open', () => {
       opened = true;
       this.attempts = 0;
       this.connectedOrigin = origin;
       // A connection that misses a ping is dead (a sleeping host, a dropped network): end it and reconnect.
-      let buffered = 0;
+      let written = 0;
       this.heartbeat = setInterval(() => {
-        // A large request still draining is progress; one that does not drain is not.
-        const waiting = socket.bufferedAmount;
-        const draining = waiting > 0 && waiting < buffered;
-        buffered = waiting;
+        // Bytes still leaving since the last check, while more wait, mean a slow link, not a dead one.
+        const now = raw?.bytesWritten ?? 0;
+        const draining = socket.bufferedAmount > 0 && now > written;
+        written = now;
         if (draining) { this.alive = true; return; }
         if (!this.alive) { socket.terminate(); return; }
         this.alive = false;

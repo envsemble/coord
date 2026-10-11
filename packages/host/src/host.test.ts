@@ -338,18 +338,39 @@ test('settings this version cannot read are left alone, and remote access stays 
   writeFileSync(file, newer);
   const reader = new AccessStore(directory, quiet, 'a test');
   assert.match(reader.problem ?? '', /not in a form this version of Atlas can read/);
-  assert.match(await reader.lock() ?? '', /^nobody: /);
+  assert.equal(await reader.lock(), 'nobody');
   assert.throws(() => reader.createPairing(null), /not in a form this version/);
   reader.reload();
   assert.equal(readFileSync(file, 'utf8'), newer, 'the file is untouched');
-  // Once the file is readable again, this process asks for a restart (its folder IDs use the secret it started with); a new start works.
+  // Once the file is readable again, this process asks for a restart (its folder IDs use the secret it started with), and keeps asking; a new start works.
   writeFileSync(file, good);
-  assert.match(await reader.lock() ?? '', /Quit and start Atlas again/);
+  assert.equal(await reader.lock(), 'nobody');
+  assert.match(reader.problem ?? '', /Quit and start Atlas again/);
+  reader.reload();
+  assert.equal(await reader.lock(), 'nobody', 'reading the file again does not make it a manager');
+  assert.match(reader.problem ?? '', /Quit and start Atlas again/);
   const restarted = new AccessStore(directory, quiet, 'a test');
   assert.equal(await restarted.lock(), null);
   assert.equal(restarted.problem, null);
   assert.equal(restarted.deviceForToken(paired.token)?.name, 'Desk');
   restarted.unlock();
+});
+
+test('a process taking over remote access starts from what the previous manager saved', async t => {
+  const directory = temporary(t, 'atlas-access-');
+  const serve = new AccessStore(directory, quiet, '`atlas serve`');
+  assert.equal(await serve.lock(), null);
+  const old = serve.pair(serve.createPairing(null).code, { name: 'Old laptop', platform: 'linux' });
+  const app = new AccessStore(directory, quiet, 'the Atlas app');
+  assert.match(await app.lock() ?? '', /atlas serve/);
+  // While the app waits, the manager pairs one device and revokes another.
+  const fresh = serve.pair(serve.createPairing(null).code, { name: 'New laptop', platform: 'win32' });
+  serve.revokeDevice(old.device.deviceId);
+  serve.unlock();
+  assert.equal(await app.lock(), null);
+  assert.equal(app.deviceForToken(old.token), null, 'the revocation holds');
+  assert.equal(app.deviceForToken(fresh.token)?.name, 'New laptop', 'the new pairing holds');
+  app.unlock();
 });
 
 test('a program squatting on the lock\'s name is not taken for Atlas', async t => {

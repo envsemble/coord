@@ -15,6 +15,18 @@ test('a program\'s output and failures come back as execFile would give them', a
   await assert.rejects(runProgram(node, ['-e', 'process.stdout.write("x".repeat(2048))'], { maxBuffer: 1024 }), /more than 1024 bytes/);
 });
 
+test('output beyond the limit stops the program, and no files are left behind', async () => {
+  const { readdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const leftovers = () => readdirSync(tmpdir()).filter(name => name.startsWith('atlas-run-')).length;
+  const before = leftovers();
+  const started = Date.now();
+  await assert.rejects(runProgram(node, ['-e', 'setInterval(() => process.stdout.write("x".repeat(65536)), 1)'], { maxBuffer: 256 * 1024, timeout: 20000 }), /more than/);
+  assert.ok(Date.now() - started < 10000, 'stopped well before its timeout');
+  await runProgram(node, ['-e', '1']);
+  assert.ok(leftovers() <= before, 'output files are removed');
+});
+
 test('a program that runs too long is stopped', async () => {
   const started = Date.now();
   await assert.rejects(runProgram(node, ['-e', 'setTimeout(() => {}, 20000)'], { timeout: 300 }), (error: ProgramError) => error.killed && /timed out/.test(error.message));

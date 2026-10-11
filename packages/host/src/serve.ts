@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { atlasDataDirectory } from '@envsemble/atlas-planning';
 import { hostAddresses } from './addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
+import { impostorHolder } from './access.ts';
 import { Host } from './host.ts';
 import type { WorkerLike } from './planWorkerClient.ts';
 import { listenAddress } from './validate.ts';
@@ -32,8 +33,10 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   });
   await host.start();
   if (host.access.managedBy !== null) {
-    const holder = host.access.managedBy;
+    const { problem, managedBy: holder } = host.access;
     await host.stop();
+    if (problem) throw new Error(problem);
+    if (holder === impostorHolder) throw new Error('Another program holds the name of Atlas\'s remote access lock, so remote access stays off. Restarting the computer frees it.');
     throw new Error(`Remote access on this computer is managed by ${holder}. Use File › Remote Access… there, or quit it first.`);
   }
   const state = await host.accessState();
