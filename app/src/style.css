@@ -340,6 +340,21 @@ kbd { display: inline-block; padding: 1px 6px; font: 11px/16px var(--font-mono);
 .commit-title { display: -webkit-box; overflow: hidden; font-size: 13px; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-clamp: 2; }
 .about-commits .muted { font-size: 12px; }
 .about-commits code { font-size: 12px; }
+/* Ledger progress: the agreed steps, done and in progress, over the steps still to do */
+.step-bar { display: flex; width: 100%; height: 8px; overflow: hidden; background: var(--bgColor-neutral-muted); border-radius: 4px; }
+.step-bar-compact { width: 48px; height: 4px; border-radius: 2px; }
+.step-bar-done { background: var(--bgColor-done-emphasis); }
+.step-bar-doing { background: var(--bgColor-open-emphasis); }
+.ledger-progress-summary { margin: 6px 0 8px; font-size: 13px; color: var(--fgColor-muted); }
+.ledger-steps { margin: 0; padding: 0; list-style: none; }
+.ledger-step { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; font-size: 13px; overflow-wrap: anywhere; }
+.ledger-step > svg { margin-top: 2px; }
+.ledger-step-done > span { color: var(--fgColor-muted); }
+.ledger-step-doing > span { font-weight: 600; }
+.step-icon.step-done { color: var(--fgColor-done); }
+.step-icon.step-doing { color: var(--fgColor-open); }
+.step-icon.step-todo { color: var(--fgColor-muted); }
+.work-row-steps { display: inline-flex; align-items: center; gap: 6px; color: var(--fgColor-muted); font-variant-numeric: tabular-nums; }
 
 /* Reader */
 .reader { min-width: 0; }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { designNote, workStatus } from './status.ts';
 
-const work = (design: string, implementation: string, blocked: string | null = null) => ({ design, implementation, progress: blocked ? { current: null, next: [], blocked, updated: null } : null });
+const work = (design: string, implementation: string, blocked: string | null = null) => ({ design, implementation, progress: blocked ? { version: 1 as const, current: null, next: [], blocked, updated: null, steps: null } : null });
 
 test('each work item has one status derived from implementation, blocking and design', () => {
   assert.equal(workStatus(work('accepted', 'not_started')).label, 'Not started');

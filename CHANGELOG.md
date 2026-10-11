@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Ledger status version 2: the ledger header lists the agreed steps of the work, each `todo`, `doing` or `done`, and replaces `current` and `next`. The app and plan exports show a progress bar, the steps done and left, and each step; the work list shows progress per work item. `atlas planning check` validates the steps. Version-1 headers stay valid and readable. The planning contract (`PLANS.md`), the governance template and the `atlas-implement` and `atlas-record` skills describe the new header.
 - Fixed: long documents did not scroll in the desktop app and showed no scrollbar. The workbench grew with its content instead of filling the window; its panes now scroll.
 - New Atlas logo: the connected A mark and a Jost wordmark. It replaces the app icon, the mark in the app, the diagram viewer and plan exports, and the README banner and logo files. The wordmark is outlined, so it renders without the font. `AtlasMark` (`@envsemble/atlas-diagrams/react`) now always draws the mark on its dark tile instead of following the text colour; its props are unchanged.
 

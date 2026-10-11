@@ -44,7 +44,7 @@ test('root ledger reports current and agreed next work; defaults follow implemen
       const work = (await loadPlanning(setup.root)).work[0];
       assert.equal(relativeDocumentPath(work.documents.find(file => file.name === 'ledger.md' && file.path.includes('/supporting/'))!), 'supporting/ledger.md');
       assert.equal(work.ledger, folder + '/ledger.md');
-      assert.deepEqual(work.progress, { current: metadata.current, next: metadata.next, blocked: null, updated: metadata.updated });
+      assert.deepEqual(work.progress, { version: 1, current: metadata.current, next: metadata.next, blocked: null, updated: metadata.updated, steps: null });
     }
     for (const invalid of [{ ...metadata, work_id: 'work-9999' }, { ...metadata, next: 'Guess a phase' }, { ...metadata, updated: '2026-02-30' }, { ...metadata, current: '' }]) {
       await writeFile(ledgerFile, source(invalid));
@@ -58,6 +58,37 @@ test('root ledger reports current and agreed next work; defaults follow implemen
     await rename(ledgerFile, path.join(setup.root, folder, 'supporting/older-ledger.md'));
     const withoutMain = (await loadPlanning(setup.root)).work[0];
     assert.equal(withoutMain.ledger, null, 'a nested historical ledger must not become the main record');
+  } finally { await setup.cleanup(); }
+});
+
+test('a version-2 ledger lists the agreed steps, so progress and the work left are known', async () => {
+  const setup = await fixture();
+  try {
+    const folder = 'active/0001-example';
+    await mkdir(path.join(setup.root, folder), { recursive: true });
+    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: folder, repositories: ['example'], current_plan: folder + '/plan.md' }] }));
+    await writeFile(path.join(setup.root, folder, 'plan.md'), header('work-0001', 'accepted', 'in_progress'));
+    const ledgerFile = path.join(setup.root, folder, 'ledger.md');
+    const ledger = (steps: string, extra = '') => ['---', 'schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: "2026-10-11"', 'blocked: null', extra, 'steps:', steps, '---', '', '# Original ledger', 'Evidence stays readable.'].filter(line => line !== '').join('\n');
+    const steps = ['  - title: "Fix scrolling"', '    status: done', '  - title: "Ledger step list"', '    status: doing', '  - title: "Statistics: tokens and time"', '    status: todo'].join('\n');
+    await writeFile(ledgerFile, ledger(steps));
+    const work = (await loadPlanning(setup.root)).work[0];
+    assert.deepEqual(work.progress, {
+      version: 2, current: 'Ledger step list', next: ['Statistics: tokens and time'], blocked: null, updated: '2026-10-11',
+      steps: [{ title: 'Fix scrolling', status: 'done' }, { title: 'Ledger step list', status: 'doing' }, { title: 'Statistics: tokens and time', status: 'todo' }],
+    });
+    for (const invalid of [
+      ledger(steps.replace('status: todo', 'status: started')),
+      ledger(steps.replace('Statistics: tokens and time', 'Fix scrolling')),
+      ledger(steps, 'current: "Something"'),
+      ledger(steps.replace('    status: doing\n', '')),
+      ledger('').replace('steps:\n', 'steps: "all of them"\n'),
+    ]) {
+      await writeFile(ledgerFile, invalid);
+      const result = await loadPlanning(setup.root);
+      assert.equal(result.work[0].progress, null, invalid);
+      assert.ok(result.issues.some(issue => issue.message.includes('Ledger status')), invalid);
+    }
   } finally { await setup.cleanup(); }
 });
 

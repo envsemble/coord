@@ -147,6 +147,18 @@ test('a long document scrolls inside the editor, with a scrollbar, instead of gr
   await expect.poll(() => editor.evaluate(element => element.scrollTop)).toBe(0);
 });
 
+test('the work list shows each version-2 ledger\'s progress and keeps version-1 status readable', async () => {
+  launched = await launch({ folder });
+  const { window } = launched;
+  const payments = window.locator('.work-row', { hasText: 'Saved payment methods' });
+  await expect(payments.locator('.work-row-steps')).toHaveText('2/7');
+  await expect(payments.locator('.work-row-steps')).toHaveAttribute('title', '2 of 7 steps done · 5 left');
+  await expect(payments.locator('.work-row-focus')).toHaveText(/^Add authoriseWithToken/);
+  const notifications = window.locator('.work-row', { hasText: 'Customer order notifications' });
+  await expect(notifications.locator('.work-row-steps')).toHaveCount(0);
+  await expect(notifications.locator('.blocked-reason')).toContainText('Mailcourier');
+});
+
 test('quick open finds work items, diagrams and files by name', async () => {
   launched = await launch({ folder });
   const { window } = launched;
@@ -190,7 +202,12 @@ test('the work page keeps the plan, ledger and diagrams sections, the About side
   await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
   await expect(window.locator('.underline-nav a')).toHaveText([/Plan/, /Ledger/, /Diagrams\s*2/]);
   await expect(window.locator('.state-label')).toHaveText('In progress');
-  await expect(window.locator('.about')).toContainText('Adding authoriseWithToken');
+  // A version-2 ledger shows its steps and the work left; version 1 (work 0003) keeps current and next.
+  await expect(window.locator('.about .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
+  await expect(window.locator('.about [role="progressbar"]')).toHaveAttribute('aria-valuenow', '2');
+  await expect(window.locator('.about [role="progressbar"]')).toHaveAttribute('aria-valuetext', '2 of 7 steps done · 5 left');
+  await expect(window.locator('.about .ledger-step-doing')).toContainText('Add authoriseWithToken');
+  await expect(window.locator('.about .ledger-step')).toHaveCount(7);
   await window.locator('.underline-nav a', { hasText: 'Plan' }).click();
   await expect(window.locator('.diagram-card').first()).toBeVisible();
   await expect(window.locator('.diagram-card .label').first()).toBeVisible();

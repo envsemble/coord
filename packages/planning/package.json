@@ -16,6 +16,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./atlas": "./src/atlas.ts",
+    "./ledger": "./src/ledger.ts",
     "./session": "./src/session.ts",
     "./paths": "./src/paths.ts",
     "./provenance": "./src/provenance.ts",

@@ -8,6 +8,7 @@ import { designNote, workStatus } from './status';
 import { Blankslate, Counter, Label, StateLabel } from './ui';
 import { Reader, useReferences } from './Reader';
 import { AtlasWorkPanel } from './AtlasWorkPanel';
+import { LedgerSteps } from './LedgerProgress';
 import { TargetLink, useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
@@ -32,16 +33,18 @@ export function workSection(target: Pick<WorkTarget, 'section'>, work: Work): Wo
 function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
-  const hasStatus = Boolean(progress && (progress.current || progress.next.length || progress.blocked));
+  const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   const commits = snapshot.history.filter(entry => entry.workIds.includes(work.id)).slice(0, 5);
   return <aside className="about" aria-label="About this work">
     {issues.length > 0 && <div className={'flash ' + (issues.some(issue => issue.level === 'error') ? 'flash-danger' : 'flash-warning')}><AlertIcon size={16} /><div>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</div></div>}
     {hasStatus && progress && <section className="about-section">
-      <h2>Status{progress.updated && <span className="muted" title={absoluteDate(progress.updated)}> · {relativeDate(progress.updated)}</span>}</h2>
+      <h2>{progress.steps ? 'Progress' : 'Status'}{progress.updated && <span className="muted" title={absoluteDate(progress.updated)}> · {relativeDate(progress.updated)}</span>}</h2>
       {progress.blocked && <p className="about-blocked"><strong>Blocked:</strong> {progress.blocked}</p>}
-      {progress.current && <p className="about-current">{progress.current}</p>}
-      {progress.next.length > 0 && <><h3>Next</h3><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
+      {progress.steps ? <LedgerSteps steps={progress.steps} /> : <>
+        {progress.current && <p className="about-current">{progress.current}</p>}
+        {progress.next.length > 0 && <><h3>Next</h3><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
+      </>}
     </section>}
     <section className="about-section">
       <h2>About</h2>

@@ -7,7 +7,9 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 import { parseFrontmatter, validatePlanning } from './check.ts';
+import { ledgerStatus } from './ledger.ts';
 
 const valid = { errors: [], warnings: [] };
 type Header = Record<string, unknown>;
@@ -84,6 +86,75 @@ test('ledger status validation keeps history read-only', t => {
     assert.ok(setup.validate().errors.some(error => error.includes('ledger.md')), JSON.stringify(invalid));
     assert.deepEqual(readFileSync(ledger), before);
   }
+});
+
+test('ledger status version 2 steps validate in the restricted grammar and stay read-only', t => {
+  const setup = fixture(t);
+  const ledger = path.join(setup.work, 'ledger.md');
+  const write = (lines: string[]) => { writeFileSync(ledger, ['---', ...lines, '---', '', '# Original ledger', 'Evidence retained.', ''].join('\n')); return readFileSync(ledger); };
+  const head = ['schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: "2026-10-11"', 'blocked: null'];
+  const steps = ['steps:', '  # Agreed with Jacob', '  - title: "Fix scrolling"', '    status: done', '', '  - status: doing', "    title: 'Ledger: step list'", '  - title: Statistics', '    status: todo'];
+  const original = write([...head, ...steps]);
+  assert.deepEqual(setup.validate(), valid);
+  assert.deepEqual(readFileSync(ledger), original);
+  assert.deepEqual((parseFrontmatter(original.toString('utf8'), { entryLists: ['steps'] })!.steps as object[]).map(entry => ({ ...entry })), [{ title: 'Fix scrolling', status: 'done' }, { status: 'doing', title: 'Ledger: step list' }, { title: 'Statistics', status: 'todo' }]);
+  write([...head, 'steps: []']);
+  assert.deepEqual(setup.validate(), valid, 'no steps established yet');
+  for (const invalid of [
+    [...head, ...steps.map(line => line.replace('status: todo', 'status: later'))],
+    [...head, ...steps, '  - title: "Fix scrolling"', '    status: todo'],
+    [...head, 'current: "Old focus"', ...steps],
+    [...head, ...steps, '    note: "unknown field"'],
+    [...head, 'steps: [{title: "Inline", status: done}]'],
+    [...head, ...steps.map(line => line.replace('title: Statistics', 'title: Statistics: tokens'))],
+    [...head, 'steps:', '  - title: "Nested"', '    status:', '      - done'],
+    head.map(line => line.replace('schema_version: 2', 'schema_version: 3')).concat(steps),
+  ]) {
+    const before = write(invalid);
+    assert.ok(setup.validate().errors.some(error => error.includes('ledger.md')), invalid.join(' | '));
+    assert.deepEqual(readFileSync(ledger), before);
+  }
+});
+
+test('every ledger header the checker accepts reads the same through the YAML reader', () => {
+  const head = ['schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: null', 'blocked: null'];
+  const accepted: string[][] = [
+    ['steps:', '  - title: "A"', '    status: done', '  - title: "B"', '    status: todo'],
+    ['steps:', '- title: "A"', '  status: done'],
+    ['steps:', '  -   title: "A"', '      status: doing'],
+    ['steps:', '  - status: todo', '    title: "Quoted # hash and: colon"', '', '  # a comment', '  - title: "---"', '    status: done'],
+    ['steps: []'], ['steps: [ ]'], ['steps: []  # none yet'],
+  ];
+  const rejected: string[][] = [
+    ['steps:'], ['steps: # none'], ['steps:', 'blocked_note: "x"'],
+    ['steps:', '  - title: "A"', '   status: done'],
+    ['steps:', '  - title: "A"', '      status: done'],
+    ['steps:', '- title: "A"', ' status: done'],
+    ['steps:', '  -   title: "A"', '    status: done'],
+    ['steps:', '  - title: "A"', '    status: done', '    - title: "B"', '      status: done'],
+    ['steps:', '  - title: "A"', '    status: done', ' - title: "B"', '   status: done'],
+    ['steps:', '\t- title: "A"', '\t  status: done'],
+    ['steps:', '  -\ttitle: "A"', '    status: done'],
+    ['steps:', '  - title: "A"', '\u00a0   status: done'],
+    ['steps:', '  - title: "A"', '    status:done'],
+    ['steps:', '  - title:"A"', '    status: done'],
+    ['steps: [a, b]'],
+    ['steps:[]'], ['steps: []#c'],
+    ['steps:', '  - title: "A"', '    status: todo\u00a0'],
+    ['steps:', '  - title: a', '      \u00a0# c'],
+    ['steps:', '  - title: a\u2028# c', '    status: todo'],
+    ['steps:', '  - title: "A"', '    status: done', '    # c', '\t'],
+  ];
+  const viaChecker = (lines: string[]) => {
+    const metadata = parseFrontmatter(['---', ...head, ...lines, '---', ''].join('\n'), { entryLists: ['steps'] })!;
+    return ledgerStatus(metadata, 'work-0001').steps;
+  };
+  const viaYaml = (lines: string[]) => ledgerStatus(parseYaml([...head, ...lines].join('\n'), { schema: 'core' }), 'work-0001').steps;
+  for (const lines of accepted) assert.deepEqual(viaChecker(lines), viaYaml(lines), lines.join(' | '));
+  for (const lines of rejected) assert.throws(() => viaChecker(lines), Error, lines.join(' | '));
+  assert.throws(() => parseFrontmatter(['---', 'blocked:null', '---', ''].join('\n')), Error, 'key:value without a space is not a mapping');
+  // A plan is not a ledger: a `steps` field there keeps the ordinary scalar list grammar.
+  assert.deepEqual(parseFrontmatter(['---', 'steps: [a, b]', '---', ''].join('\n'))!.steps, ['a', 'b']);
 });
 
 test('legacy location with a null pointer is a valid contract state', t => {

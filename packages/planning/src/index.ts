@@ -7,6 +7,7 @@ export { atlasDataDirectory, cacheOutsidePlanning, recentRootsFile, statisticsDi
 export { Telemetry, recordCollectionGap, schema, type ViewEvent } from './telemetry.ts';
 export { RecentPlanningRoots, inspectPlanningRoot, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';
+export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './ledger.ts';
 export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './consultation.ts';
 export type * from './types.ts';
 export {

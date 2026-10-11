@@ -1,11 +1,24 @@
 ---
-schema_version: 1
+schema_version: 2
 kind: ledger
 work_id: work-0001
 updated: "2026-10-08"
-current: "Adding authoriseWithToken to the acquirer gateway, including the challenge_required path (shop#58)."
-next: ["Wire placeOrderWithSavedMethod into checkout", "Account page: list, set default, remove", "Revoke tokens in the account-deletion job", "Sandbox run with a forced 3-D Secure challenge"]
 blocked: null
+steps:
+  - title: "Domain model and the PaymentMethodVault port (shop#58)"
+    status: done
+  - title: "Sandbox check of step-up on reuse"
+    status: done
+  - title: "Add authoriseWithToken to the acquirer gateway, with the challenge_required path (shop#58)"
+    status: doing
+  - title: "Wire placeOrderWithSavedMethod into checkout"
+    status: todo
+  - title: "Account page: list, set default, remove"
+    status: todo
+  - title: "Revoke tokens in the account-deletion job"
+    status: todo
+  - title: "Sandbox run with a forced 3-D Secure challenge"
+    status: todo
 ---
 
 # Saved payment methods: ledger
