@@ -1,6 +1,6 @@
 // The planning folders the host has open. Each folder has a stable ID derived from its canonical
 // path, one FolderSession while any client uses it, and closes a while after the last one leaves.
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { FolderState } from './contract.ts';
@@ -11,9 +11,12 @@ import { FolderSession } from './folder.ts';
 export function pathKey(value: string, platform: NodeJS.Platform = process.platform) {
   return platform === 'win32' || platform === 'darwin' ? value.toLowerCase() : value;
 }
-/** A folder's ID: the same for the same canonical path, and revealing nothing about it. */
-export function folderIdOf(canonical: string) {
-  return 'f-' + createHash('sha256').update('atlas-folder\0' + pathKey(canonical)).digest('hex').slice(0, 32);
+/**
+ * A folder's ID: the same for the same canonical path on this host, keyed with the host's secret so
+ * a device cannot confirm a guessed path (such as one with a user name in it) from an ID.
+ */
+export function folderIdOf(canonical: string, key: string) {
+  return 'f-' + createHmac('sha256', key).update('atlas-folder:' + pathKey(canonical)).digest('hex').slice(0, 32);
 }
 /** The canonical path of a folder; a missing folder keeps its absolute spelling. */
 export async function canonicalFolder(input: string) {
@@ -21,6 +24,8 @@ export async function canonicalFolder(input: string) {
 }
 
 export interface FolderRegistryOptions {
+  /** The host's folder-ID key (AccessStore.folderKey). */
+  key: string;
   dataBase?: string;
   log: Logger;
   onChange(state: FolderState): void;
@@ -41,7 +46,7 @@ export class FolderRegistry {
   /** Open (or find) a folder by path and wait for its first read. */
   async open(input: string): Promise<FolderSession> {
     const root = await canonicalFolder(input);
-    const folderId = folderIdOf(root);
+    const folderId = this.idOf(root);
     this.known.set(folderId, root);
     let entry = this.entries.get(folderId);
     if (!entry) {
@@ -56,8 +61,12 @@ export class FolderRegistry {
     return entry.session;
   }
 
+  /** The ID of a canonical folder path on this host. */
+  idOf(canonical: string) { return folderIdOf(canonical, this.options.key); }
   /** The path of a folder opened by path before, if any. */
   pathOf(folderId: string) { return this.known.get(folderId) ?? null; }
+  /** Every folder path this host has opened, for keeping them out of what devices see. */
+  knownRoots() { return [...this.known.values()]; }
 
   /** A folder that is open, for a client that may use it. */
   get(folderId: string): FolderSession {

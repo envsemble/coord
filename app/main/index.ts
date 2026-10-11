@@ -3,7 +3,7 @@
 // by the Atlas host, which this process starts in a utility process (main/localHost.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { app, dialog, Menu, protocol, shell } from 'electron';
+import { app, dialog, Menu, powerMonitor, protocol, shell } from 'electron';
 import { atlasDataDirectory, RecentPlanningRoots, recentRootsFile } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
@@ -138,12 +138,20 @@ function start() {
 
   async function openFolders(folders: string[], mode: 'command-line' | 'restore') {
     let opened = 0;
+    const remote: Promise<unknown>[] = [];
     for (const folder of folders) {
-      const remote = parseRemoteRoot(folder);
-      // A folder on another computer comes back while this computer is still paired with it.
-      if (remote) { if (mode === 'restore' && connections.has(remote.hostId) && await manager.openRemote(remote.hostId, remote.folderId)) opened++; continue; }
+      const location = parseRemoteRoot(folder);
+      // A folder on another computer comes back while this computer is still paired with it. Its
+      // window opens at once and reads alongside the others, since that computer may be slow to answer.
+      if (location) {
+        if (mode !== 'restore' || !connections.has(location.hostId)) continue;
+        opened++;
+        remote.push(manager.openRemote(location.hostId, location.folderId).catch(error => log.warn('Remote window not restored', { message: (error as Error).message })));
+        continue;
+      }
       if (await manager.open(folder, { mode })) opened++;
     }
+    await Promise.all(remote);
     return opened;
   }
 
@@ -171,6 +179,8 @@ function start() {
       await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading planning folders.', detail: (error as Error).message + '\n\nDetails are in the log (Help › Open Logs).', buttons: ['OK'] });
     }
     connections.local.start();
+    // After sleep, connections may be dead without either side knowing: try them all again now.
+    powerMonitor.on('resume', () => connections.wakeAll());
     const requested = folderArguments(launch.argv, launch.cwd, unpackaged);
     const opened = requested.length ? await openFolders(requested, 'command-line') : await openFolders(state.windows, 'restore');
     if (!opened && !manager.all().length) await manager.create(null);

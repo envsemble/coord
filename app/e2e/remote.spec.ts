@@ -84,6 +84,14 @@ test('another Atlas pairs with a one-time link, reads a shared folder read-only,
   await expect(viewer.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect(viewer.getByRole('article').getByRole('heading', { name: 'Saved payment methods: ledger' })).toBeVisible();
 
+  // The app itself refuses what would point at or write to the other computer's disk, whatever the window asks.
+  const refused = await viewer.evaluate(async () => {
+    const atlas = (globalThis as unknown as { atlas: AtlasBridge }).atlas;
+    const [reveal, preview] = await Promise.all([atlas.reveal('README.md'), atlas.chooseImport()]);
+    return [reveal.ok ? 'revealed' : reveal.error.code, preview.ok ? 'chose' : preview.error.code];
+  });
+  expect(refused).toEqual(['forbidden', 'forbidden']);
+
   // The link worked once.
   const again = await viewer.evaluate(async target => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.pairRemote(target, null); return result.ok ? 'paired' : result.error.code; }, link);
   expect(again).not.toBe('paired');

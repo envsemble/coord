@@ -53,6 +53,8 @@ export class AtlasWindow {
   private target: { root: string; name: string; remote: FolderView['remote'] } | null = null;
   /** Counts binds, so a slow bind that a newer one replaced does not take the window back. */
   private binding = 0;
+  /** The highest revision this window has shown: a new binding continues above it, so the window never ignores fresh data. */
+  private revisionFloor = 0;
   private readonly manager: WindowManager;
   private crashes: number[] = [];
   private boundsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -147,11 +149,12 @@ export class AtlasWindow {
     let view: FolderView;
     try {
       const opened = await client.request('folders.open', { path: root });
-      const state = await client.follow(opened.folderId);
+      // A restarted host has not opened this folder yet: open it again by path before subscribing.
+      const state = await client.follow(opened.folderId, () => client.request('folders.open', { path: root }));
       view = new FolderView({ client, folderId: opened.folderId, root, name, remote: null }, state);
     } catch (error) {
       context.log.error('Folder could not open', error);
-      view = new FolderView({ client, folderId: '', root, name, remote: null }, { folderId: '', name, status: 'invalid', error: (error as Error).message, notice: null, revision: 0 });
+      view = new FolderView({ client, folderId: '', root, name, remote: null, following: false }, { folderId: '', name, status: 'invalid', error: (error as Error).message, notice: null, revision: 0 });
     }
     this.settle(generation, view);
   }
@@ -174,7 +177,8 @@ export class AtlasWindow {
       view = new FolderView({ client, folderId, root, name: entry.name, remote }, state);
     } catch (error) {
       context.log.warn('Remote folder could not open', { hostId, message: (error as Error).message });
-      view = new FolderView({ client, folderId, root, name: hostName, remote }, { folderId, name: hostName, status: 'invalid', error: (error as Error).message, notice: null, revision: 0 });
+      // Not followed: when the computer is reachable again, the manager binds the window again.
+      view = new FolderView({ client, folderId, root, name: hostName, remote, following: false }, { folderId, name: hostName, status: 'invalid', error: (error as Error).message, notice: null, revision: 0 });
     }
     this.settle(generation, view);
   }
@@ -182,6 +186,7 @@ export class AtlasWindow {
   /** Point the window at a folder before the host opened it: the renderer shows it loading. */
   private prepare(root: string, name: string, remote: FolderView['remote']) {
     const { context } = this.manager;
+    this.revisionFloor = Math.max(this.revisionFloor, this.folder?.revision ?? 0);
     this.folder?.close();
     this.folder = null;
     this.target = { root, name, remote };
@@ -193,6 +198,7 @@ export class AtlasWindow {
   /** The host opened the folder (or could not): show it, unless the window moved on meanwhile. */
   private settle(generation: number, view: FolderView) {
     if (generation !== this.binding || this.win.isDestroyed()) { view.close(); return; }
+    view.revision = Math.max(view.revision, this.revisionFloor + 1);
     this.folder = view;
     this.updateTitle();
     this.send('planning:changed', view.change());
@@ -212,7 +218,7 @@ export class AtlasWindow {
     return {
       folder: target ? { root: target.root, name: folder?.name ?? target.name } : null,
       // Until the host opened the folder, the window shows it loading.
-      status: folder?.status ?? (target ? 'loading' : null), error: folder?.error ?? null, notice: folder?.notice ?? null, revision: folder?.revision ?? 0,
+      status: folder?.status ?? (target ? 'loading' : null), error: folder?.error ?? null, notice: folder?.notice ?? null, revision: folder?.revision ?? this.revisionFloor,
       version: this.manager.context.version, platform: process.platform, remote: target?.remote ?? null,
     };
   }
@@ -347,7 +353,13 @@ export class WindowManager {
   async openRemote(hostId: string, folderId: string, from?: AtlasWindow) {
     const root = remoteRoot(hostId, folderId);
     const existing = this.all().find(window => window.root === root);
-    if (existing) { existing.focus(); return existing; }
+    if (existing) {
+      // A window whose connection ended (revoked, or replaced by pairing again) opens the folder afresh.
+      const folder = existing.folder;
+      if (folder && (!folder.following || ['closed', 'revoked', 'mismatch', 'incompatible'].includes(folder.client.status))) await existing.bindRemote(hostId, folderId);
+      existing.focus();
+      return existing;
+    }
     let window: AtlasWindow;
     if (from && !from.root) {
       const binding = from.bindRemote(hostId, folderId);
@@ -374,6 +386,8 @@ export class WindowManager {
     for (const window of this.all()) {
       const folder = window.folder;
       if (!folder || folder.client !== client) continue;
+      // A remote folder that could not open (its computer was unreachable) opens once the computer is back.
+      if (status === 'connected' && folder.remote && !folder.following && client !== this.context.connections.local) { void window.bindRemote(folder.remote.hostId, folder.folderId); continue; }
       folder.connection(status, detail);
       window.send('planning:changed', folder.change());
     }
@@ -442,9 +456,20 @@ export class WindowManager {
     if (window) { window.focus(); window.send('menu:command', command); }
   }
 
+  /** Pairing again replaced a computer's connection: its windows open their folders through the new one. */
+  rebindRemote(hostId: string) {
+    for (const window of this.all()) {
+      const folder = window.folder;
+      if (folder?.remote?.hostId === hostId) void window.bindRemote(hostId, folder.folderId);
+    }
+  }
+
   closed(window: AtlasWindow) {
+    const remote = window.remote;
     window.close();
     this.windows.delete(window.id);
+    // The last window showing a computer's folders closes its connection.
+    if (remote && !this.all().some(other => other.remote?.hostId === remote.hostId)) this.context.connections.release(remote.hostId);
     if (!this.quitting && this.windows.size) this.rememberOpen();
   }
 

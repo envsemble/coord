@@ -82,6 +82,18 @@ export class PlanWorkerClient {
       this.worker = null;
       void stopping.terminate();
     }, this.idleMs);
+    (this.idle as { unref?(): void }).unref?.();
+  }
+
+  /** Stop the worker now (the host is stopping): what it held is gone, and waiting requests fail. */
+  stop() {
+    if (this.idle) { clearTimeout(this.idle); this.idle = null; }
+    const stopping = this.worker;
+    this.worker = null;
+    this.held.clear();
+    for (const waiting of this.pending.values()) waiting.reject(new HostError('cancelled', 'The host is stopping.'));
+    this.pending.clear();
+    if (stopping) void stopping.terminate();
   }
 
   /** Prepare an export; its bytes stay in the worker until written or dropped. */

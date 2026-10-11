@@ -12,6 +12,8 @@ export interface FolderLocation {
   root: string;
   name: string;
   remote: { hostId: string; hostName: string } | null;
+  /** False when the folder could not be opened: the client does not follow it, so nothing will update it. */
+  following?: boolean;
 }
 
 /** The key a remote folder is remembered under (window restore, tabs and sidebar). */
@@ -27,6 +29,7 @@ export class FolderView {
   readonly root: string;
   name: string;
   readonly remote: FolderLocation['remote'];
+  readonly following: boolean;
   status: FolderStatus;
   error: string | null;
   private hostNotice: string | null;
@@ -40,6 +43,7 @@ export class FolderView {
     this.root = location.root;
     this.name = location.name || state.name;
     this.remote = location.remote;
+    this.following = location.following ?? true;
     this.status = state.status;
     this.error = state.error;
     this.hostNotice = state.notice;

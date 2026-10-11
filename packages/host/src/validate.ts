@@ -91,11 +91,33 @@ export const ipAddress = string({ min: 2, max: 64, pattern: /^(?:(?:25[0-5]|2[0-
 export const port = integer(1024, 65535);
 /** A pairing code as typed: letters and digits, optionally grouped with dashes or spaces. */
 export const pairingCode = string({ min: 16, max: 24, pattern: /^[0-9A-Za-z]{4}(?:[- ]?[0-9A-Za-z]{4}){3}$/ });
-const deviceText = (max: number) => string({ min: 1, max, pattern: /^[^\u0000-\u001f\u007f-\u009f]+$/ });
+const untrimmedText = (max: number) => string({ min: 1, max, pattern: /^[^\u0000-\u001f\u007f-\u009f]+$/ });
+
+/** A device's name or platform as shown to the owner: trimmed, and not blank. */
+const deviceText = (max: number): Validator<string> => {
+  const check = untrimmedText(max);
+  return (value, at = '') => {
+    const text = check(value, at).trim();
+    if (!text) fail(at, 'a name that is not blank');
+    return text;
+  };
+};
+/** An address to listen on: one of this computer's own, never "every address" (0.0.0.0 or ::). */
+export const listenAddress: Validator<string> = (value, at = '') => {
+  const address = ipAddress(value, at);
+  if (/^(?:0\.0\.0\.0|::|(?:0{1,4}:){7}0{1,4}|::ffff:0\.0\.0\.0)$/i.test(address)) fail(at, 'one address of this computer, not every address');
+  return address;
+};
+/** A folder to share: an absolute path on this computer. */
+const sharedFolder: Validator<string> = (value, at = '') => {
+  const folder = absolutePath(value, at);
+  if (!/^(?:\/|[a-zA-Z]:[\\/]|\\\\)/.test(folder)) fail(at, 'an absolute folder path');
+  return folder;
+};
 
 export const accessSettings: Validator<AccessSettings> = object<AccessSettings>({
-  network: object<AccessSettings['network']>({ enabled: boolean, address: nullable(ipAddress), port }),
-  sharedFolders: array(absolutePath, 100),
+  network: object<AccessSettings['network']>({ enabled: boolean, address: nullable(listenAddress), port }),
+  sharedFolders: array(sharedFolder, 100),
 });
 export const pairRequest: Validator<PairRequest> = object<PairRequest>({
   code: pairingCode,
@@ -124,7 +146,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'plan.importDrop': object({ token }),
   'access.state': none,
   'access.update': object({ settings: accessSettings }),
-  'access.pairingCreate': object({ address: nullable(ipAddress) }),
+  'access.pairingCreate': object({ address: nullable(listenAddress) }),
   'access.pairingRevoke': object({ code: pairingCode }),
   'access.devices': none,
   'access.deviceRevoke': object({ deviceId }),

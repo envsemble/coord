@@ -174,11 +174,15 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'remote:pair': {
       args: [pairingLink, nullable(pairingCode)],
       handle: async (_window, link: string, code: string | null) => {
-        try { return await connections.pair(link, code ?? undefined); }
+        let paired;
+        try { paired = await connections.pair(link, code ?? undefined); }
         catch (error) { throw error instanceof HostRequestError ? new AtlasError(error.code === 'unauthorized' ? 'forbidden' : error.code, error.message) : error; }
+        // Windows already showing this computer's folders read through the new pairing.
+        manager.rebindRemote(paired.host.hostId);
+        return paired;
       },
     },
-    'remote:folders': { args: [hostId], handle: (_window, id: string) => connections.client(id).request('folders.shared', {}, { timeout: 20000 }) },
+    'remote:folders': { args: [hostId], handle: (_window, id: string) => connections.sharedFolders(id) },
     'remote:open': { args: [hostId, folderId], handle: async (window, id: string, folder: string) => { await manager.openRemote(id, folder, window); } },
     'remote:forget': {
       args: [hostId],

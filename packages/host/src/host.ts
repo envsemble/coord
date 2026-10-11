@@ -3,16 +3,17 @@
 // holds the owner token. When the owner turns remote access on, it also listens on one chosen
 // address (this machine, a local network, or Tailscale) for paired devices, which hold read-only
 // device tokens. Every request is authenticated and every method's scope is checked first.
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import { isIPv4, isIPv6 } from 'node:net';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { createAdaptorServer, type HttpBindings } from '@hono/node-server';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
@@ -23,7 +24,7 @@ import {
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
-import { canonicalFolder, folderIdOf, FolderRegistry, pathKey } from './folders.ts';
+import { canonicalFolder, FolderRegistry, pathKey } from './folders.ts';
 import { exportFileName } from './planExportName.ts';
 import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
@@ -46,6 +47,8 @@ export interface HostOptions {
   networkOverride?: { address: string; port: number };
   /** The loopback port to try first (the desktop keeps its host's port across restarts); 0 picks one. */
   loopbackPort?: number;
+  /** How often connections are checked for life (tests shorten it). */
+  heartbeat?: number;
 }
 
 interface Credential { scopes: Set<Scope>; deviceId: string | null; label: string }
@@ -53,6 +56,10 @@ interface Listener { server: Server; address: string; port: number; local: boole
 interface Held { owner: string; folderId: string; workerToken: string; fileName?: string; expires: number }
 
 const exportLifetime = 10 * 60 * 1000;
+/** Prepared exports one client may hold at once; preparing another drops the oldest. */
+const exportsPerHolder = 2;
+/** Files in documents served over HTTP: images and attachments, never whole archives. */
+const fileLimit = 64 * 1024 * 1024;
 const securityHeaders = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' };
 const imageTypes: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
 
@@ -66,6 +73,14 @@ export function acceptableHost(value: string | undefined) {
   return host === 'localhost' || isIPv4(host) || isIPv6(host);
 }
 const bearer = (header: string | undefined) => /^Bearer (\S{1,200})$/.exec(header ?? '')?.[1] ?? null;
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const spellings = (value: string) => new Set([value, value.replaceAll('\\', '/'), value.replaceAll('/', '\\')]);
+/** A download name for Content-Disposition: plain ASCII, plus the exact UTF-8 name (RFC 6266). */
+export function attachment(fileName: string) {
+  const ascii = fileName.replace(/[^ -~]/g, '_').replace(/["\\]/g, '_');
+  const exact = encodeURIComponent(fileName).replace(/['()*]/g, character => '%' + character.charCodeAt(0).toString(16).toUpperCase());
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${exact}`;
+}
 
 class Connection {
   readonly id = randomBytes(8).toString('hex');
@@ -73,6 +88,8 @@ class Connection {
   readonly ws: WebSocket;
   readonly credential: Credential;
   readonly listener: Listener;
+  /** Answered the last ping; a connection that misses one is ended. */
+  alive = true;
   constructor(ws: WebSocket, credential: Credential, listener: Listener) { this.ws = ws; this.credential = credential; this.listener = listener; }
   get owner() { return this.credential.scopes.has('owner'); }
   can(scope: Scope) { return this.owner || this.credential.scopes.has(scope); }
@@ -92,7 +109,16 @@ export class Host {
   private network: Listener | null = null;
   private networkError: string | null = null;
   private retry: ReturnType<typeof setTimeout> | null = null;
+  /** Network changes run one at a time, so overlapping updates cannot leave a listener behind. */
+  private networkQueue: Promise<void> = Promise.resolve();
   private readonly extraShared: string[];
+  /** Shared folders by ID; devices may open these and nothing else. */
+  private sharedRoots = new Map<string, string>();
+  /** Clients preparing an export now; each prepares one at a time. */
+  private readonly preparing = new Set<string>();
+  private readonly timers: ReturnType<typeof setInterval>[] = [];
+  private lockRetry: ReturnType<typeof setInterval> | null = null;
+  private retaking = false;
   private stopped = false;
 
   constructor(options: HostOptions) {
@@ -100,8 +126,7 @@ export class Host {
     this.access = new AccessStore(path.join(options.dataDirectory, 'host'), options.log, options.owner);
     this.exports = new PlanWorkerClient(options.createPlanWorker);
     this.extraShared = options.extraShared ?? [];
-    this.folders = new FolderRegistry({ dataBase: options.dataBase, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
-    setInterval(() => this.expireHeld(), 60000).unref();
+    this.folders = new FolderRegistry({ key: this.access.folderKey, dataBase: options.dataBase, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
   }
 
   get descriptor(): HostDescriptor { return { protocol: protocolVersion, hostId: this.access.hostId, name: this.access.name, version: this.options.version }; }
@@ -109,12 +134,20 @@ export class Host {
 
   /** Start listening on 127.0.0.1 for this computer, and on the remote access address when it is on. */
   async start(): Promise<{ port: number }> {
+    // Manage remote access unless another process does; if one does, take over once it quits.
+    if (await this.access.lock() !== null) {
+      this.lockRetry = setInterval(() => { void this.retakeLock(); }, 15000);
+      this.lockRetry.unref?.();
+    }
+    await this.refreshShared();
     const preferred = this.options.loopbackPort ?? 0;
     this.loopback = await this.listen('127.0.0.1', preferred, true).catch(error => {
       if (!preferred) throw error;
       return this.listen('127.0.0.1', 0, true);
     });
     await this.applyNetwork();
+    this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000));
+    for (const timer of this.timers) timer.unref?.();
     this.options.log.info('Host started', { port: this.loopback.port, hostId: this.access.hostId, managedBy: this.access.managedBy });
     return { port: this.loopback.port };
   }
@@ -122,13 +155,40 @@ export class Host {
   async stop() {
     this.stopped = true;
     if (this.retry) clearTimeout(this.retry);
+    if (this.lockRetry) clearInterval(this.lockRetry);
+    for (const timer of this.timers.splice(0)) clearInterval(timer);
+    await this.networkQueue;
     for (const connection of this.connections) connection.ws.close(closeCodes.shuttingDown, 'The host is stopping');
     await Promise.all([this.loopback, this.network].map(listener => listener && this.closeListener(listener)));
     this.loopback = this.network = null;
     this.folders.closeAll();
-    for (const held of this.held.values()) void this.exports.drop(held.workerToken).catch(() => undefined);
     this.held.clear();
+    this.exports.stop();
+    this.access.clearPairings();
     this.access.unlock();
+  }
+
+  /** Another process managed remote access when this host started: take over if it has quit. */
+  private async retakeLock() {
+    if (this.access.managedBy === null || this.stopped || this.retaking) return;
+    this.retaking = true;
+    try {
+      if (await this.access.lock() !== null || this.stopped) return;
+      if (this.lockRetry) { clearInterval(this.lockRetry); this.lockRetry = null; }
+      this.options.log.info('Remote access is managed by this process now');
+      await this.refreshShared();
+      await this.applyNetwork();
+      this.broadcastAccess();
+    } finally { this.retaking = false; }
+  }
+
+  /** End connections that stopped answering (a sleeping computer, a dropped network), so both sides notice. */
+  private checkConnections() {
+    for (const connection of this.connections) {
+      if (!connection.alive) { connection.ws.terminate(); continue; }
+      connection.alive = false;
+      try { connection.ws.ping(); } catch { /* Closing already. */ }
+    }
   }
 
   // ---- Listeners -------------------------------------------------------------------------------
@@ -156,8 +216,13 @@ export class Host {
     await new Promise<void>(resolve => listener.server.close(() => resolve()));
   }
 
-  /** Listen for paired devices on the chosen address, or stop, as the settings say. */
-  async applyNetwork() {
+  /** Listen for paired devices on the chosen address, or stop, as the settings say. Changes run one at a time. */
+  applyNetwork(): Promise<void> {
+    const run = this.networkQueue.then(() => this.applyNetworkNow());
+    this.networkQueue = run.catch(() => undefined);
+    return run;
+  }
+  private async applyNetworkNow() {
     if (this.retry) { clearTimeout(this.retry); this.retry = null; }
     if (this.stopped) return;
     const settings = this.options.networkOverride ? { enabled: true, ...this.options.networkOverride } : this.access.settings.network;
@@ -169,10 +234,14 @@ export class Host {
       await this.closeListener(closing);
       this.options.log.info('Remote access stopped', { address: closing.address, port: closing.port });
     }
+    // Pairing links lead to the listener; without it they lead nowhere, and they must not work again later.
+    if (!this.network || !wanted) this.access.clearPairings();
     this.networkError = null;
     if (wanted && !this.network) {
       try {
-        this.network = await this.listen(wanted.address, wanted.port, false);
+        const listener = await this.listen(wanted.address, wanted.port, false);
+        if (this.stopped) { await this.closeListener(listener); return; }
+        this.network = listener;
         this.options.log.info('Remote access listening', wanted);
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
@@ -193,9 +262,15 @@ export class Host {
 
   // ---- HTTP ------------------------------------------------------------------------------------
 
+  /** The loopback listener admits only this computer's Atlas app (the owner); the network listener only paired devices. */
   private credential(token: string | null, listener: Listener, peer: string | undefined): Credential | null {
     if (!token) return null;
-    if (listener.local && loopbackPeer(peer) && token.length === this.ownerToken.length && token === this.ownerToken) return { scopes: new Set(['owner']), deviceId: null, label: 'owner' };
+    if (listener.local) {
+      if (!loopbackPeer(peer)) return null;
+      const presented = Buffer.from(token);
+      const expected = Buffer.from(this.ownerToken);
+      return presented.length === expected.length && timingSafeEqual(presented, expected) ? { scopes: new Set(['owner']), deviceId: null, label: 'owner' } : null;
+    }
     const device = this.access.deviceForToken(token);
     return device ? { scopes: new Set(device.scopes), deviceId: device.deviceId, label: device.name } : null;
   }
@@ -213,11 +288,13 @@ export class Host {
     app.get(routes.host, c => c.json(this.descriptor));
     app.get('/pair', c => c.html('<!doctype html><meta charset="utf-8"><title>Atlas</title><p>This is an Atlas pairing link. It works in Atlas, not in a browser: in Atlas on the other computer, choose <b>File › Connect to Another Atlas…</b> and paste this link.</p>'));
     app.post(routes.pair, bodyLimit({ maxSize: 4096, onError: c => c.json({ code: 'invalid-argument', message: 'The request is too large.' }, 413) }), async c => {
+      // Devices pair over the remote access address, never through the app's own loopback port.
+      if (listener.local) return c.json({ code: 'not-found', message: 'Not found.' }, 404);
       let request;
       try { request = pairRequest(await c.req.json()); }
       catch { return c.json({ code: 'invalid-argument', message: 'Send a pairing code and this device\'s name.' }, 400); }
       try {
-        const { device, token } = this.access.pair(request.code, request.device);
+        const { device, token } = this.access.pair(request.code, request.device, c.env.incoming.socket.remoteAddress ?? 'unknown');
         this.options.log.info('Paired over', { address: listener.address, peer: c.env.incoming.socket.remoteAddress });
         this.broadcastAccess();
         const response: PairResponse = { hostId: this.access.hostId, name: this.access.name, deviceId: device.deviceId, token, scopes: device.scopes };
@@ -242,16 +319,20 @@ export class Host {
     const credential = this.authorize(c, listener);
     if (!credential) return c.json({ code: 'unauthorized', message: 'Pair with this host first.' }, 401);
     const folderId = c.req.param('folderId') ?? '';
-    const relative = decodeURIComponent(c.req.path.replace(/^\/api\/folders\/[^/]+\/files\//, ''));
     try {
+      let relative: string;
+      try { relative = decodeURIComponent(c.req.path.replace(/^\/api\/folders\/[^/]+\/files\//, '')); }
+      catch { return c.json({ code: 'invalid-argument', message: 'This file path is not valid.' }, 400); }
       const folder = await this.accessibleFolder(credential, folderId);
       const file = await resolveDocument(folder.root, relative);
+      if ((await stat(file)).size > fileLimit) return c.json({ code: 'unavailable', message: 'This file is too large to show here.' }, 413);
       const type = imageTypes[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
       return c.body(new Uint8Array(await readFile(file)), 200, { 'Content-Type': type, 'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
     } catch (error) {
       const status = (error as { status?: number }).status;
       const { value } = toErrorValue(error);
-      return c.json(value, status === 403 || value.code === 'forbidden' ? 403 : 404);
+      const owner = credential.scopes.has('owner');
+      return c.json(owner ? value : { ...value, message: this.redact(value.message) }, status === 403 || value.code === 'forbidden' ? 403 : 404);
     }
   }
 
@@ -262,8 +343,13 @@ export class Host {
     const held = this.held.get(token);
     if (!held || held.owner !== this.holder(credential) || !held.fileName) return c.json({ code: 'not-found', message: 'This export is no longer available. Export the plan again.' }, 404);
     this.held.delete(token);
+    // A folder that stopped being shared since takes its prepared exports with it.
+    if (!credential.scopes.has('owner') && !this.sharedRoots.has(held.folderId)) {
+      void this.exports.drop(held.workerToken).catch(() => undefined);
+      return c.json({ code: 'forbidden', message: 'This planning folder is no longer shared.' }, 403);
+    }
     const html = await this.exports.take(held.workerToken);
-    return c.body(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': `attachment; filename="${held.fileName}"`, 'Content-Security-Policy': 'sandbox' });
+    return c.body(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': attachment(held.fileName), 'Content-Security-Policy': 'sandbox' });
   }
 
   // ---- WebSocket RPC ---------------------------------------------------------------------------
@@ -288,6 +374,7 @@ export class Host {
     if (credential.deviceId) this.access.seen(credential.deviceId);
     this.options.log.info('Client connected', { client: credential.deviceId ? 'device' : 'owner', deviceId: credential.deviceId, address: listener.address });
     if (credential.deviceId) this.broadcastAccess();
+    ws.on('pong', () => { connection.alive = true; });
     ws.on('message', (data, binary) => {
       if (binary) { ws.close(closeCodes.protocol, 'Send JSON text'); return; }
       void this.message(connection, data.toString());
@@ -322,13 +409,31 @@ export class Host {
     } catch (error) {
       const { value, expected } = toErrorValue(error instanceof ValidationError ? new HostError('invalid-argument', error.message) : error);
       if (!expected) this.options.log.error('Request failed', error);
-      connection.send({ id, ok: false, error: value });
+      connection.send({ id, ok: false, error: connection.owner ? value : { ...value, message: this.redact(value.message) } });
     }
   }
 
   private event<E extends EventName>(connection: Connection, event: E, data: Events[E]) { connection.send({ event, data }); }
   private folderChanged(state: FolderState) {
-    for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', state);
+    for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', this.stateFor(connection, state));
+  }
+  /** A folder's state as a connection may see it: a device gets no paths on this computer. */
+  private stateFor(connection: Connection, state: FolderState): FolderState {
+    if (connection.owner) return state;
+    return { ...state, error: state.error === null ? null : this.redact(state.error), notice: state.notice === null ? null : this.redact(state.notice) };
+  }
+  /** Text for a paired device: this host's folder paths become the folder's name, and the home folder "~". */
+  private redact(text: string) {
+    const flags = process.platform === 'win32' || process.platform === 'darwin' ? 'gi' : 'g';
+    let result = text;
+    const roots = [...new Set([...this.folders.knownRoots(), ...this.sharedRoots.values()])].sort((a, b) => b.length - a.length);
+    for (const root of roots) {
+      const name = path.basename(root) || 'the planning folder';
+      for (const spelling of spellings(root)) result = result.replace(new RegExp(escapeRegExp(spelling), flags), name);
+    }
+    const home = homedir();
+    if (home.length > 3) for (const spelling of spellings(home)) result = result.replace(new RegExp(escapeRegExp(spelling), flags), '~');
+    return result;
   }
   private broadcastAccess() {
     const owners = [...this.connections].filter(connection => connection.owner);
@@ -338,36 +443,44 @@ export class Host {
 
   // ---- Folders and access ----------------------------------------------------------------------
 
-  /** Shared folders as canonical paths: the saved ones and this process's own. */
-  private async sharedPaths() {
-    return Promise.all([...this.access.settings.sharedFolders, ...this.extraShared].map(canonicalFolder));
+  /** Work out the shared folders again: the saved ones and this process's own, by canonical path. */
+  private async refreshShared() {
+    const roots = await Promise.all([...this.access.settings.sharedFolders, ...this.extraShared].map(canonicalFolder));
+    const shared = new Map<string, string>();
+    for (const root of roots) { const folderId = this.folders.idOf(root); if (!shared.has(folderId)) shared.set(folderId, root); }
+    this.sharedRoots = shared;
   }
-  private async shared(): Promise<SharedFolder[]> {
-    const seen = new Set<string>();
-    return (await this.sharedPaths()).flatMap(root => {
-      const folderId = folderIdOf(root);
-      if (seen.has(folderId)) return [];
-      seen.add(folderId);
-      return [{ folderId, name: path.basename(root) || root }];
-    });
+  private shared(): SharedFolder[] {
+    return [...this.sharedRoots].map(([folderId, root]) => ({ folderId, name: path.basename(root) || root }));
   }
-  /** Open a folder the credential may read: the owner any open folder, a device only shared ones. */
+  /** Open a folder the credential may read: the owner any folder it opened, a device only shared ones. */
   private async accessibleFolder(credential: Credential, folderId: string): Promise<FolderSession> {
     if (credential.scopes.has('owner')) {
       if (this.folders.has(folderId)) return this.folders.get(folderId);
       const known = this.folders.pathOf(folderId);
       if (known) return this.folders.open(known);
     }
-    const root = (await this.sharedPaths()).find(candidate => folderIdOf(candidate) === folderId);
+    const root = this.sharedRoots.get(folderId);
     if (!root) throw new HostError('forbidden', 'This planning folder is not shared with this device.');
     return this.folders.open(root);
   }
+  /** A folder the connection subscribed to; for a device, only while it is still shared. */
   private subscribed(connection: Connection, folderId: string): FolderSession {
     if (!connection.subscriptions.has(folderId)) throw new HostError('forbidden', 'Open this planning folder first.');
+    if (!connection.owner && !this.sharedRoots.has(folderId)) {
+      connection.subscriptions.delete(folderId);
+      this.folders.release(folderId);
+      throw new HostError('forbidden', 'This planning folder is no longer shared.');
+    }
     return this.folders.get(folderId);
   }
 
   async accessState(): Promise<AccessState> {
+    // Another process managed remote access: take over if it has quit, else show what it saved.
+    if (this.access.managedBy !== null && !this.stopped) {
+      await this.retakeLock();
+      this.access.reload();
+    }
     const settings = this.access.settings;
     if (this.options.networkOverride) settings.network = { enabled: true, ...this.options.networkOverride };
     settings.sharedFolders = [...new Set([...settings.sharedFolders, ...this.extraShared])];
@@ -380,6 +493,7 @@ export class Host {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
       case 'folders.shared':
+        await this.refreshShared();
         return this.shared() as never;
       case 'folders.open': {
         const folder = await this.folders.open((p as { path: string }).path);
@@ -388,8 +502,11 @@ export class Host {
       case 'folders.subscribe': {
         const { folderId } = p as { folderId: string };
         const folder = await this.accessibleFolder(connection.credential, folderId);
+        // Opening can take a while: the connection may have gone, or the folder stopped being shared, since.
+        if (!this.connections.has(connection)) throw new HostError('cancelled', 'The connection closed.');
+        if (!connection.owner && !this.sharedRoots.has(folderId)) throw new HostError('forbidden', 'This planning folder is no longer shared.');
         if (!connection.subscriptions.has(folderId)) { this.folders.acquire(folderId); connection.subscriptions.add(folderId); }
-        return folder.state() as never;
+        return this.stateFor(connection, folder.state()) as never;
       }
       case 'folders.unsubscribe': {
         const { folderId } = p as { folderId: string };
@@ -399,8 +516,13 @@ export class Host {
       case 'folder.snapshot': {
         const folder = this.subscribed(connection, (p as { folderId: string }).folderId);
         const snapshot = folder.snapshot();
+        if (connection.owner) return snapshot as never;
         // A paired device sees the folder's name, not where it lives on this computer.
-        return (connection.owner ? snapshot : { ...snapshot, root: folder.name }) as never;
+        return {
+          ...snapshot, root: folder.name,
+          issues: snapshot.issues.map(issue => ({ ...issue, message: this.redact(issue.message) })),
+          collectionError: snapshot.collectionError === null ? null : this.redact(snapshot.collectionError),
+        } as never;
       }
       case 'folder.document': { const { folderId, path: file } = p as { folderId: string; path: string }; return this.subscribed(connection, folderId).document(file) as never; }
       case 'folder.models': { const { folderId, work } = p as { folderId: string; work: string }; return this.subscribed(connection, folderId).models(work) as never; }
@@ -413,10 +535,22 @@ export class Host {
         const folder = this.subscribed(connection, folderId);
         const item = folder.snapshot().work.find(entry => entry.id === work);
         if (!item) throw new HostError('not-found', 'This work item is not in the planning folder.');
-        const prepared = await this.exports.prepare(folder.root, work);
+        // Exports are large and held in memory: one in preparation and a few waiting per client.
+        const holder = this.holder(connection.credential);
+        if (this.preparing.has(holder)) throw new HostError('unavailable', 'Another plan export is being prepared. Try again when it is done.');
+        const mine = [...this.held].filter(([, held]) => held.owner === holder && held.fileName).sort((a, b) => a[1].expires - b[1].expires);
+        for (const [stale, held] of mine.slice(0, Math.max(0, mine.length - exportsPerHolder + 1))) { this.held.delete(stale); void this.exports.drop(held.workerToken).catch(() => undefined); }
+        this.preparing.add(holder);
+        let prepared;
+        try { prepared = await this.exports.prepare(folder.root, work); }
+        finally { this.preparing.delete(holder); }
+        if (!connection.owner && !this.sharedRoots.has(folderId)) {
+          void this.exports.drop(prepared.token).catch(() => undefined);
+          throw new HostError('forbidden', 'This planning folder is no longer shared.');
+        }
         const token = randomBytes(16).toString('hex');
         const fileName = exportFileName(item.path, item.id);
-        this.held.set(token, { owner: this.holder(connection.credential), folderId, workerToken: prepared.token, fileName, expires: Date.now() + exportLifetime });
+        this.held.set(token, { owner: holder, folderId, workerToken: prepared.token, fileName, expires: Date.now() + exportLifetime });
         return { token, bytes: prepared.bytes, warnings: prepared.warnings, fileName } as never;
       }
       case 'plan.exportDrop':
@@ -456,17 +590,22 @@ export class Host {
         const { settings } = p as unknown as Methods['access.update']['params'];
         const sharedFolders = [...new Set(await Promise.all(settings.sharedFolders.map(canonicalFolder)))];
         this.access.updateSettings({ network: settings.network, sharedFolders });
+        await this.refreshShared();
         await this.applyNetwork();
-        // Devices lose folders that are no longer shared.
-        const allowed = new Set((await this.shared()).map(folder => folder.folderId));
+        // Devices lose folders that are no longer shared, and the exports they prepared from them.
         for (const other of this.connections) {
           if (other.owner) continue;
           for (const folderId of [...other.subscriptions]) {
-            if (allowed.has(folderId)) continue;
+            if (this.sharedRoots.has(folderId)) continue;
             other.subscriptions.delete(folderId);
             this.folders.release(folderId);
             this.event(other, 'folder.changed', { folderId, name: '', status: 'missing', error: 'This planning folder is no longer shared.', notice: null, revision: Date.now() });
           }
+        }
+        for (const [token, held] of this.held) {
+          if (held.owner === 'owner' || this.sharedRoots.has(held.folderId)) continue;
+          this.held.delete(token);
+          void this.exports.drop(held.workerToken).catch(() => undefined);
         }
         const state = await this.accessState();
         this.broadcastAccess();

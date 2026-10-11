@@ -2,16 +2,17 @@
 // shared folders, revocation, and the checks that keep browsers and other hosts out.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { AccessStore, normalizeCode } from './access.ts';
+import { AccessStore, lockAddress, normalizeCode } from './access.ts';
 import { HostClient, HostRequestError, describeHost, pairWithHost, parsePairing, type ClientStatus } from './client.ts';
 import { closeCodes, type FolderState } from './contract.ts';
-import { Host, acceptableHost } from './host.ts';
+import { Host, acceptableHost, attachment } from './host.ts';
+import { pairRequest, accessSettings } from './validate.ts';
 import type { WorkerLike } from './planWorkerClient.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -30,8 +31,8 @@ function freePort(): Promise<number> {
     server.listen(0, '127.0.0.1', () => { const { port } = server.address() as { port: number }; server.close(() => resolve(port)); });
   });
 }
-async function start(t: TestContext, options: { extraShared?: string[] } = {}) {
-  const data = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-data-')));
+async function start(t: TestContext, options: { extraShared?: string[]; data?: string; loopbackPort?: number } = {}) {
+  const data = options.data ?? realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-data-')));
   const parent = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-planning-')));
   const planning = path.join(parent, 'planning');
   cpSync(fixture, planning, { recursive: true });
@@ -41,18 +42,18 @@ async function start(t: TestContext, options: { extraShared?: string[] } = {}) {
     ...options,
   });
   const { port } = await host.start();
-  // Stop the host (closing its folders' stores) before removing what it had open.
+  // Stop the host (closing its folders' stores) before removing what it had open; a data folder passed in belongs to the caller.
   t.after(async () => {
     await host.stop();
-    for (const directory of [data, parent]) rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    for (const directory of options.data ? [parent] : [data, parent]) rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   });
   const origin = 'http://127.0.0.1:' + port;
   return { host, planning, data, port, origin };
 }
-function client(t: TestContext, origin: string, token: string, hostId: string | null = null) {
+function client(t: TestContext, origin: string | (() => string), token: string | (() => string), hostId: string | null = null) {
   const events: FolderState[] = [];
   const statuses: ClientStatus[] = [];
-  const connection = new HostClient({ origin, token: () => token, hostId, retry: { first: 0, cap: 100 }, onEvent: (event, data) => { if (event === 'folder.changed') events.push(data as FolderState); }, onStatus: status => statuses.push(status) });
+  const connection = new HostClient({ origin, token: typeof token === 'function' ? token : () => token, hostId, retry: { first: 0, cap: 100 }, onEvent: (event, data) => { if (event === 'folder.changed') events.push(data as FolderState); }, onStatus: status => statuses.push(status) });
   connection.start();
   t.after(() => connection.close());
   return { connection, events, statuses };
@@ -141,14 +142,36 @@ test('a device pairs once with a five-minute code, reads only shared folders, an
   await assert.rejects(device.connection.request('folders.open', { path: planning }), (error: HostRequestError) => error.code === 'forbidden' && /Atlas app on the host/.test(error.message));
   await assert.rejects(device.connection.request('access.devices', {}), (error: HostRequestError) => error.code === 'forbidden');
   await assert.rejects(device.connection.request('folder.recordView', { folderId: folder.folderId, event: { id: 'view-00000001', path: 'README.md', session: 'session-0001', contentHash: null } }), (error: HostRequestError) => error.code === 'forbidden');
-  // The device's token works only on the remote address; the owner token only from this computer on the loopback port.
   const devices = await owner.request('access.devices', {});
   assert.deepEqual(devices.map(entry => [entry.name, entry.connected]), [['Laptop', true]]);
+  // The device's token works only on the remote address: the loopback port is the app's own.
+  const onLoopback = client(t, origin, pairing.token, descriptor.hostId);
+  await until(() => onLoopback.connection.status === 'revoked');
+  assert.equal((await fetch(origin + '/api/folders/' + folder.folderId + '/files/README.md', { headers: { Authorization: 'Bearer ' + pairing.token } })).status, 401);
+  // A device sees no paths on the host computer, not even in messages.
+  const deviceSnapshot = await device.connection.request('folder.snapshot', { folderId: folder.folderId });
+  assert.equal(deviceSnapshot.root, 'planning');
+  assert.ok(!JSON.stringify(deviceSnapshot).includes(planning), 'no absolute path of the shared folder');
+  // Exports of non-ASCII work folders download with an exact UTF-8 name.
+  const prepared = await device.connection.request('plan.exportPrepare', { folderId: folder.folderId, work: 'work-0001' });
+  const download = await device.connection.fetch('/api/exports/' + prepared.token);
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get('content-disposition') ?? '', /filename\*=UTF-8''/);
+  await download.arrayBuffer();
+  // Exports belong to whoever prepared them: a device cannot take the owner's.
+  const ownerFolder = await owner.request('folders.open', { path: planning });
+  await owner.follow(ownerFolder.folderId);
+  const ownerExport = await owner.request('plan.exportPrepare', { folderId: ownerFolder.folderId, work: 'work-0001' });
+  assert.equal((await device.connection.fetch('/api/exports/' + ownerExport.token)).status, 404);
+  assert.equal((await owner.fetch('/api/exports/' + ownerExport.token)).status, 200);
 
-  // Unsharing takes the folder away at once.
+  // Unsharing takes the folder away at once, with the exports prepared from it.
+  const waiting = await device.connection.request('plan.exportPrepare', { folderId: folder.folderId, work: 'work-0001' });
   await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port }, sharedFolders: [] } });
   await until(() => device.events.some(event => event.folderId === folder.folderId && event.status === 'missing'));
   await assert.rejects(device.connection.request('folder.snapshot', { folderId: folder.folderId }), (error: HostRequestError) => error.code === 'forbidden');
+  assert.equal((await device.connection.fetch('/api/exports/' + waiting.token)).status, 404);
+  assert.equal((await device.connection.fetch('/api/folders/' + folder.folderId + '/files/README.md')).status, 403, 'files of an unshared folder are refused');
 
   await owner.request('access.deviceRevoke', { deviceId: pairing.deviceId });
   await until(() => device.connection.status === 'revoked');
@@ -157,9 +180,15 @@ test('a device pairs once with a five-minute code, reads only shared folders, an
   await until(() => again.connection.status === 'revoked');
   assert.equal((await fetch(remote + '/api/folders/' + folder.folderId + '/files/README.md', { headers: { Authorization: 'Bearer ' + pairing.token } })).status, 401);
 
-  // Turning remote access off stops the listener.
+  // Turning remote access off stops the listener and forgets open pairing links.
+  const open = await owner.request('access.pairingCreate', { address: null });
   await owner.request('access.update', { settings: { network: { enabled: false, address: '127.0.0.1', port }, sharedFolders: [] } });
   await assert.rejects(describeHost(remote, 1000), /could not reach/);
+  await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port }, sharedFolders: [] } });
+  await assert.rejects(pairWithHost(remote, open.code, { name: 'Late', platform: 'linux' }), /wrong, expired or already used/, 'a link from before is gone');
+  // Pairing happens only on the remote access address, never through the app's loopback port.
+  const fresh = await owner.request('access.pairingCreate', { address: null });
+  await assert.rejects(pairWithHost(origin, fresh.code, { name: 'Local', platform: 'linux' }), /Pairing failed|Not found/);
 });
 
 test('a client sends no credential to another host answering on a known address', async t => {
@@ -173,6 +202,7 @@ test('a client sends no credential to another host answering on a known address'
 test('pairing codes expire, can be revoked, and too many wrong codes pause pairing', async t => {
   const directory = temporary(t, 'atlas-access-');
   const store = new AccessStore(directory, quiet, 'a test');
+  assert.equal(await store.lock(), null);
   t.after(() => store.unlock());
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-11T10:00:00Z') });
   const expiring = store.createPairing('100.64.1.2');
@@ -184,6 +214,8 @@ test('pairing codes expire, can be revoked, and too many wrong codes pause pairi
   for (let attempt = 0; attempt < 18; attempt++) assert.throws(() => store.pair('AAAA-AAAA-AAAA-AAAA', { name: 'Guess', platform: 'linux' }), /wrong/);
   const valid = store.createPairing(null);
   assert.throws(() => store.pair(valid.code, { name: 'Blocked', platform: 'linux' }), /Too many wrong pairing codes/, 'the 21st attempt in five minutes is refused, even with a valid code');
+  // Wrong codes from one address do not block pairing from another.
+  assert.equal(store.pair(valid.code, { name: 'Elsewhere', platform: 'linux' }, '100.64.9.9').device.name, 'Elsewhere');
   t.mock.timers.tick(5 * 60000);
   const paired = store.pair(store.createPairing(null).code, { name: 'Later', platform: 'win32' });
   assert.equal(store.deviceForToken(paired.token)?.deviceId, paired.device.deviceId);
@@ -193,19 +225,85 @@ test('pairing codes expire, can be revoked, and too many wrong codes pause pairi
   // Tokens are stored only as hashes.
   const { readFileSync } = await import('node:fs');
   assert.ok(!readFileSync(path.join(directory, 'access.json'), 'utf8').includes(paired.token));
-  // Another process on this computer cannot take over remote access while this one manages it.
+  // Another process on this computer cannot take over remote access while this one manages it, and takes over once it stops.
   const second = new AccessStore(directory, quiet, 'another test');
-  assert.match(second.managedBy ?? '', /a test \(process \d+\)/);
+  assert.match(await second.lock() ?? '', /a test \(process \d+\)/);
   assert.throws(() => second.createPairing(null), /managed by a test/);
+  store.unlock();
+  assert.equal(await second.lock(), null);
+  second.createPairing(null);
+  second.unlock();
 });
 
-test('an owner connection on the loopback port is refused for a device token used from the network listener', async t => {
+test('the lock is a system object that disappears with its process, named per data folder', () => {
+  assert.match(lockAddress('C:\\Data\\Atlas', 'win32'), /^\\\\\.\\pipe\\atlas-host-[a-f0-9]{32}$/);
+  assert.equal(lockAddress('C:\\Data\\Atlas', 'win32'), lockAddress('c:\\data\\atlas', 'win32'));
+  assert.equal(lockAddress('/home/a/.config/Atlas', 'linux').charCodeAt(0), 0, 'an abstract socket');
+  assert.notEqual(lockAddress('/home/a/.config/Atlas', 'linux'), lockAddress('/home/b/.config/Atlas', 'linux'));
+});
+
+test('stored access survives one bad device record, and device names are trimmed and never blank', async t => {
+  const directory = temporary(t, 'atlas-access-');
+  const store = new AccessStore(directory, quiet, 'a test');
+  await store.lock();
+  const first = store.pair(store.createPairing(null).code, { name: 'Desk', platform: 'win32' });
+  store.unlock();
+  assert.throws(() => pairRequest({ code: 'AAAA-AAAA-AAAA-AAAA', device: { name: '   ', platform: 'linux' } }), /not blank/);
+  assert.equal(pairRequest({ code: 'AAAA-AAAA-AAAA-AAAA', device: { name: '  Laptop ', platform: 'linux' } }).device.name, 'Laptop');
+  assert.throws(() => accessSettings({ network: { enabled: true, address: '0.0.0.0', port: 7346 }, sharedFolders: [] }), /not every address/);
+  assert.throws(() => accessSettings({ network: { enabled: false, address: null, port: 7346 }, sharedFolders: ['relative/planning'] }), /absolute/);
+  const file = path.join(directory, 'access.json');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  const hostId = saved.hostId;
+  saved.devices.push({ ...saved.devices[0], deviceId: 'd-' + 'b'.repeat(32), name: '' }, { ...saved.devices[0], deviceId: 'd-' + 'c'.repeat(32), scopes: ['owner'] });
+  writeFileSync(file, JSON.stringify(saved));
+  const reread = new AccessStore(directory, quiet, 'a test');
+  assert.equal(reread.hostId, hostId, 'the identity stays');
+  assert.equal(reread.deviceForToken(first.token)?.name, 'Desk', 'good devices stay paired');
+  assert.equal(reread.devices(new Set()).length, 1, 'bad records (a blank name, an owner scope) are dropped');
+});
+
+test('the owner token works only on the loopback port, never on the remote access address', async t => {
   const { host, origin } = await start(t);
-  // The owner token is accepted on the loopback listener only; on the remote address it is just an unknown token.
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId).connection;
   const port = await freePort();
   await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port }, sharedFolders: [] } });
   const remote = client(t, 'http://127.0.0.1:' + port, host.ownerToken, host.descriptor.hostId);
   await until(() => remote.connection.status === 'revoked');
+  // Overlapping changes leave exactly the listener the last one asked for.
+  const [first, second] = [await freePort(), await freePort()];
+  await Promise.all([first, second].map(next => owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port: next }, sharedFolders: [] } })));
+  await owner.request('access.update', { settings: { network: { enabled: false, address: '127.0.0.1', port: second }, sharedFolders: [] } });
+  for (const closed of [port, first, second]) await assert.rejects(describeHost('http://127.0.0.1:' + closed, 1000), /could not reach/, 'port ' + closed + ' is closed');
+});
+
+test('a restarted host serves the owner its folders again, and a WebSocket from a browser is refused', async t => {
+  const data = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-data-')));
+  let current = await start(t, { data });
+  const owner = client(t, () => current.origin, () => current.host.ownerToken, current.host.descriptor.hostId);
+  const opened = await owner.connection.request('folders.open', { path: current.planning });
+  const planning = current.planning;
+  await owner.connection.follow(opened.folderId, () => owner.connection.request('folders.open', { path: planning }));
+  // The host stops (a crash) and starts again with the same identity: the folder comes back by path.
+  await current.host.stop();
+  const restarted = await start(t, { data });
+  current = { ...restarted, planning };
+  // Remove the shared data folder only once the running host has let go of it, whatever order cleanup runs in.
+  t.after(async () => { await restarted.host.stop(); rmSync(data, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); });
+  owner.connection.wake();
+  await until(() => owner.events.some(event => event.folderId === opened.folderId && event.status === 'ready'), 15000);
+  assert.equal((await owner.connection.request('folder.snapshot', { folderId: opened.folderId })).work.length, 4);
+  const { request } = await import('node:http');
+  const upgrade = await new Promise<number>((resolve, reject) => request({ host: '127.0.0.1', port: current.port, path: '/api/connect', headers: { Origin: 'https://evil.example', Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Key': Buffer.from('the sample nonce').toString('base64'), 'Sec-WebSocket-Version': '13', Authorization: 'Bearer ' + current.host.ownerToken } })
+    .on('response', response => { response.resume(); resolve(response.statusCode!); }).on('upgrade', () => resolve(101)).on('error', reject).end());
+  assert.equal(upgrade, 403);
+});
+
+test('download names keep their exact characters, with an ASCII fallback', () => {
+  assert.equal(attachment('přehled-work-0001.atlas-plan.html'), `attachment; filename="p_ehled-work-0001.atlas-plan.html"; filename*=UTF-8''p%C5%99ehled-work-0001.atlas-plan.html`);
+  assert.equal(attachment('a "quoted" (one).html'), `attachment; filename="a _quoted_ (one).html"; filename*=UTF-8''a%20%22quoted%22%20%28one%29.html`);
+});
+
+test('the close code for revocation is part of the protocol', () => {
   assert.equal(closeCodes.revoked, 4401);
 });

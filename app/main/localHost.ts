@@ -28,6 +28,8 @@ export class LocalHost {
 
   start(): Promise<void> {
     if (this.starting) return this.starting;
+    // Never start (or restart) a host while the app quits: it would hold the folders and the lock.
+    if (this.stopping) return Promise.reject(new Error('Atlas is quitting.'));
     const { log } = this.options;
     this.starting = new Promise<void>((resolve, reject) => {
       const child = utilityProcess.fork(this.options.entry, [], { serviceName: 'Atlas host', stdio: 'ignore' });
@@ -55,7 +57,10 @@ export class LocalHost {
         const now = Date.now();
         this.restarts = [...this.restarts.filter(time => now - time < 60000), now];
         if (this.restarts.length > 3) { log.error('Host keeps stopping; not restarting it'); return; }
-        setTimeout(() => { void this.start().then(() => this.options.onRestart(), error => log.error('Host restart failed', error)); }, 500 * this.restarts.length);
+        setTimeout(() => {
+          if (this.stopping) return;
+          void this.start().then(() => this.options.onRestart(), error => log.error('Host restart failed', error));
+        }, 500 * this.restarts.length);
       });
       const start: HostStartMessage = { type: 'start', dataDirectory: this.options.dataDirectory, version: this.options.version, loopbackPort: this.port };
       child.postMessage(start);

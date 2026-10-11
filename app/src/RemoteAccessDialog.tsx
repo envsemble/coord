@@ -42,7 +42,8 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
   }, [link]);
 
   const apply = async (change: (settings: AccessSettings) => AccessSettings) => {
-    if (!state) return;
+    // One change at a time (Enter and then leaving the port field would otherwise apply it twice).
+    if (!state || busy) return;
     setBusy(true); setError('');
     try {
       const next = await api.updateAccess(change(structuredClone(state.settings)));
@@ -54,7 +55,8 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
   };
   const settings = state?.settings;
   const managed = Boolean(state?.managedBy);
-  const address = settings?.network.address ?? state?.addresses[0]?.address ?? null;
+  // Tailscale when this computer has it; otherwise only this machine, until the owner picks a network deliberately.
+  const address = settings?.network.address ?? state?.addresses.find(entry => entry.kind === 'tailscale')?.address ?? '127.0.0.1';
   const chosen = state?.addresses.find(entry => entry.address === address);
   const shared = useMemo(() => new Set(settings?.sharedFolders ?? []), [settings]);
   const remaining = link ? Math.max(0, Date.parse(link.expiresAt) - now) : 0;

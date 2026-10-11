@@ -1,8 +1,10 @@
 // A client of an Atlas host: the desktop app's connection to its own host, or to another computer's.
-// Before it sends a credential it checks that the address still answers as the host it paired with.
-// It reconnects on its own with jittered exponential backoff (capped at 30 seconds), subscribes to
-// its folders again, and stops for good when its access is revoked. No dependency on the planning
-// reader, so other clients (a phone) can use it too.
+// Before it sends a credential it checks that the address still answers with the host ID it paired
+// with; that keeps the credential from a different Atlas at the same address (the ID is public, so it
+// is no defence against a deliberate impostor: use Tailscale for that). It pings to notice a dead
+// connection, reconnects on its own with jittered exponential backoff (capped at 30 seconds),
+// subscribes to its folders again, and stops for good when its access is revoked. No dependency on
+// the planning reader, so other clients (a phone) can use it too.
 import { WebSocket } from 'ws';
 import {
   closeCodes, protocolVersion, routes,
@@ -21,12 +23,14 @@ export interface ClientOptions {
   origin: string | (() => string);
   /** The credential, read again for every connection attempt (a restarted local host has a new one). */
   token(): string | Promise<string>;
-  /** The host this client paired with; another host answering on the address gets no credential. */
-  hostId: string | null;
+  /** The host this client paired with; another host answering on the address gets no credential. Read for each attempt. */
+  hostId: string | null | (() => string | null);
   onEvent?<E extends EventName>(event: E, data: Events[E]): void;
   onStatus?(status: ClientStatus, detail: string | null): void;
   /** Delay before the first attempt and the cap for retries (tests shorten them). */
   retry?: { first: number; cap: number };
+  /** How often the connection is checked for life (tests shorten it). */
+  heartbeat?: number;
 }
 
 const descriptorTimeout = 5000;
@@ -72,6 +76,11 @@ export async function pairWithHost(origin: string, code: string, device: { name:
 }
 
 interface Pending { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
+/** Opens a folder again on a host that restarted and no longer knows it (the owner opens by path). */
+export type Reopen = () => Promise<unknown>;
+
+const errorCodes = new Set(['invalid-argument', 'not-found', 'forbidden', 'unauthorized', 'unavailable', 'folder-missing', 'folder-invalid', 'cancelled', 'internal']);
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 export class HostClient {
   status: ClientStatus = 'connecting';
@@ -82,8 +91,11 @@ export class HostClient {
   private sequence = 0;
   private readonly pending = new Map<number, Pending>();
   private readonly waiting = new Set<() => void>();
-  private readonly folders = new Set<string>();
+  private readonly folders = new Map<string, Reopen | null>();
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
   private attempts = 0;
+  /** The origin of the current connection, which answered with the expected host ID. */
+  private connectedOrigin: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
 
@@ -112,22 +124,40 @@ export class HostClient {
     if (status === 'connected') for (const resume of [...this.waiting]) resume();
   }
 
+  private expectedHost() { return typeof this.options.hostId === 'function' ? this.options.hostId() : this.options.hostId; }
+
   private async connect() {
     if (this.closed || this.socket) return;
     this.setStatus('connecting', this.detail);
+    // The credential first: a local host that restarted has a new address once its token is ready.
+    let token: string;
+    try { token = await this.options.token(); }
+    catch (error) { this.retry((error as Error).message); return; }
+    const origin = this.origin;
     let descriptor: HostDescriptor;
-    try { descriptor = await describeHost(this.origin); }
+    try { descriptor = await describeHost(origin); }
     catch (error) { this.retry((error as Error).message, (error as HostRequestError).message.includes('cannot connect to') ? 'incompatible' : 'offline'); return; }
-    if (this.options.hostId && descriptor.hostId !== this.options.hostId) { this.retry(`${this.origin} now answers as a different computer (${descriptor.name}). Atlas did not send it this computer's credentials.`, 'mismatch'); return; }
+    if (this.closed) return;
+    const expected = this.expectedHost();
+    if (expected && descriptor.hostId !== expected) { this.retry(`${origin} now answers as a different computer (${descriptor.name}). Atlas did not send it this computer's credentials.`, 'mismatch'); return; }
     this.descriptor = descriptor;
-    const token = await this.options.token();
-    const url = this.origin.replace(/^http/, 'ws') + routes.connect;
+    const url = origin.replace(/^http/, 'ws') + routes.connect;
     const socket = new WebSocket(url, { headers: { Authorization: 'Bearer ' + token }, handshakeTimeout: 10000, maxPayload: 512 * 1024 * 1024, perMessageDeflate: false });
     this.socket = socket;
     let opened = false;
+    let alive = true;
+    socket.on('pong', () => { alive = true; });
     socket.on('open', () => {
       opened = true;
       this.attempts = 0;
+      this.connectedOrigin = origin;
+      // A connection that misses a ping is dead (a sleeping host, a dropped network): end it and reconnect.
+      this.heartbeat = setInterval(() => {
+        if (!alive) { socket.terminate(); return; }
+        alive = false;
+        try { socket.ping(); } catch { /* Closing already. */ }
+      }, this.options.heartbeat ?? 30000);
+      this.heartbeat.unref?.();
       this.setStatus('connected');
       void this.resubscribe();
     });
@@ -143,6 +173,7 @@ export class HostClient {
     socket.on('close', (code, reason) => {
       if (this.socket !== socket) return;
       this.socket = null;
+      this.stopHeartbeat();
       this.failPending(new HostRequestError('unavailable', 'The connection to ' + descriptor.name + ' was lost.'));
       if (code === closeCodes.revoked) { this.stop('revoked', 'Access to ' + descriptor.name + ' was revoked. Pair again to reconnect.'); return; }
       if (code === closeCodes.protocol) { this.stop('incompatible', reason.toString() || 'The host closed the connection.'); return; }
@@ -157,6 +188,10 @@ export class HostClient {
     const base = Math.min(cap, 500 * 2 ** Math.min(this.attempts++, 10));
     this.start(base / 2 + Math.random() * base / 2);
   }
+  private stopHeartbeat() {
+    if (this.heartbeat) { clearInterval(this.heartbeat); this.heartbeat = null; }
+    this.connectedOrigin = null;
+  }
   private stop(status: ClientStatus, detail: string) {
     this.closed = true;
     this.setStatus(status, detail);
@@ -164,19 +199,29 @@ export class HostClient {
     for (const resume of [...this.waiting]) resume();
   }
 
+  /** A message from the host; anything that is not a well-formed answer or a known event is ignored. */
   private message(text: string) {
-    let message: ResponseMessage | EventMessage;
-    try { message = JSON.parse(text); } catch { return; }
-    if ('event' in message) {
-      this.options.onEvent?.(message.event, message.data as never);
+    let parsed: unknown;
+    try { parsed = JSON.parse(text); } catch { return; }
+    if (!isRecord(parsed)) return;
+    if ('event' in parsed) {
+      const { event, data } = parsed as unknown as EventMessage;
+      if ((event !== 'folder.changed' && event !== 'access.changed') || !isRecord(data)) return;
+      if (event === 'folder.changed' && (typeof data.folderId !== 'string' || typeof data.status !== 'string')) return;
+      try { this.options.onEvent?.(event, data as never); } catch { /* A listener's failure is its own. */ }
       return;
     }
+    const message = parsed as unknown as ResponseMessage;
+    if (!Number.isSafeInteger(message.id) || typeof message.ok !== 'boolean') return;
     const waiting = this.pending.get(message.id);
     if (!waiting) return;
     this.pending.delete(message.id);
     clearTimeout(waiting.timer);
-    if (message.ok) waiting.resolve(message.value);
-    else waiting.reject(new HostRequestError(message.error.code, message.error.message));
+    if (message.ok) { waiting.resolve((message as { value?: unknown }).value ?? null); return; }
+    const reported: unknown = (message as { error?: unknown }).error;
+    const error: Record<string, unknown> = isRecord(reported) ? reported : {};
+    const code = typeof error.code === 'string' && errorCodes.has(error.code) ? error.code as ErrorCode : 'internal';
+    waiting.reject(new HostRequestError(code, typeof error.message === 'string' ? error.message.slice(0, 2000) : 'The host could not answer.'));
   }
   private failPending(error: Error) {
     for (const waiting of this.pending.values()) { clearTimeout(waiting.timer); waiting.reject(error); }
@@ -206,31 +251,48 @@ export class HostClient {
     });
   }
 
-  /** Follow a folder: subscribe now and again after every reconnection. */
-  async follow(folderId: string): Promise<FolderState> {
-    this.folders.add(folderId);
+  /**
+   * Follow a folder: subscribe now and again after every reconnection. `reopen` opens it again first
+   * when the host may have restarted without it (the owner's folders, opened by path).
+   */
+  async follow(folderId: string, reopen: Reopen | null = null): Promise<FolderState> {
+    this.folders.set(folderId, reopen);
     return this.request('folders.subscribe', { folderId });
   }
+  /** Whether this client follows a folder (it subscribes again after reconnecting). */
+  follows(folderId: string) { return this.folders.has(folderId); }
   async unfollow(folderId: string) {
     this.folders.delete(folderId);
     if (this.status === 'connected') await this.request('folders.unsubscribe', { folderId }).catch(() => undefined);
   }
   private async resubscribe() {
-    for (const folderId of this.folders) {
-      try { this.options.onEvent?.('folder.changed', await this.request('folders.subscribe', { folderId })); }
-      catch (error) { this.options.onEvent?.('folder.changed', { folderId, name: '', status: 'missing', error: (error as Error).message, notice: null, revision: Date.now() }); }
+    for (const [folderId, reopen] of this.folders) {
+      try {
+        if (reopen) await reopen();
+        this.options.onEvent?.('folder.changed', await this.request('folders.subscribe', { folderId }));
+      } catch (error) {
+        if (!this.folders.has(folderId)) continue;
+        this.options.onEvent?.('folder.changed', { folderId, name: '', status: 'missing', error: (error as Error).message, notice: null, revision: Date.now() });
+      }
     }
   }
 
-  /** An authenticated HTTP request to the host (files in documents, plan exports). */
+  /**
+   * An authenticated HTTP request to the host (files in documents, plan exports). It waits for a
+   * connection, so the credential goes only to an address that answered with the expected host ID.
+   */
   async fetch(pathname: string, timeout = 60000): Promise<Response> {
-    if (this.closed) throw new HostRequestError(this.status === 'revoked' ? 'unauthorized' : 'unavailable', this.detail ?? 'The connection is closed.');
-    return fetch(this.origin + pathname, { headers: { Authorization: 'Bearer ' + await this.options.token() }, signal: AbortSignal.timeout(timeout), redirect: 'error' });
+    await this.ready(Math.min(timeout, 15000));
+    const token = await this.options.token();
+    const origin = this.connectedOrigin;
+    if (!origin || this.status !== 'connected') throw new HostRequestError('unavailable', this.detail ?? 'Not connected.');
+    return fetch(origin + pathname, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(timeout), redirect: 'error' });
   }
 
   close() {
     if (this.closed && !this.socket) return;
     this.closed = true;
+    this.stopHeartbeat();
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
     this.failPending(new HostRequestError('cancelled', 'The connection was closed.'));
     this.socket?.close(1000);

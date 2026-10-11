@@ -32,7 +32,7 @@ export function interfaceAddresses(): InterfaceAddress[] {
   return Object.entries(networkInterfaces()).flatMap(([name, entries]) => (entries ?? []).map(entry => ({ name, address: entry.address, family: String(entry.family), internal: entry.internal })));
 }
 
-/** Every address remote access can listen on, best first: Tailscale, then local networks, then this machine. */
+/** Every address remote access can listen on, best first: Tailscale, then private networks, then other networks, then this machine. */
 export async function hostAddresses(found: InterfaceAddress[] = interfaceAddresses(), reported?: Set<string>): Promise<HostAddress[]> {
   const result: HostAddress[] = [];
   const shared = found.filter(entry => entry.family === 'IPv4' && !entry.internal && inSharedRange(entry.address));
@@ -44,8 +44,10 @@ export async function hostAddresses(found: InterfaceAddress[] = interfaceAddress
       else result.push({ address: entry.address, kind: 'lan', label: 'VPN or other network (' + entry.name + ')' });
     } else if (isPrivate(entry.address)) result.push({ address: entry.address, kind: 'lan', label: 'Local network (' + entry.name + ')' });
   }
-  const order = { tailscale: 0, lan: 1, loopback: 2 } as const;
-  result.sort((a, b) => order[a.kind] - order[b.kind] || a.address.localeCompare(b.address, undefined, { numeric: true }));
+  // Tailscale first, then private networks; an address in the shared range that is not Tailscale's
+  // (another VPN, or a carrier's network that strangers share) comes last.
+  const rank = (entry: HostAddress) => entry.kind === 'tailscale' ? 0 : isPrivate(entry.address) ? 1 : 2;
+  result.sort((a, b) => rank(a) - rank(b) || a.address.localeCompare(b.address, undefined, { numeric: true }));
   result.push({ address: '127.0.0.1', kind: 'loopback', label: 'This machine' });
   return result.filter((entry, index) => result.findIndex(other => other.address === entry.address) === index);
 }

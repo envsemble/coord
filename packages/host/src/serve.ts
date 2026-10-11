@@ -9,6 +9,7 @@ import { hostAddresses } from './addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
 import { Host } from './host.ts';
 import type { WorkerLike } from './planWorkerClient.ts';
+import { listenAddress } from './validate.ts';
 
 export interface ServeOptions { folders: string[]; address: string | null; port: number | null; dataDir: string | null; version: string; interactive: boolean }
 export interface ServeOutput { stdout(text: string): void; stderr(text: string): void }
@@ -18,6 +19,7 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   const addresses = await hostAddresses();
   const address = options.address ?? addresses.find(entry => entry.kind === 'tailscale')?.address ?? null;
   if (!address) throw new Error('No Tailscale address found on this computer. Connect Tailscale, or give --address with an address of this computer (' + addresses.map(entry => entry.address).join(', ') + ').');
+  try { listenAddress(address, '--address'); } catch (error) { throw new Error((error as Error).message + ' Give one address of this computer: ' + addresses.map(entry => entry.address).join(', ') + '.'); }
   const log = {
     info: (message: string) => { if (process.env.ATLAS_LOG_STDOUT === '1') out.stderr(message); },
     warn: (message: string, detail?: unknown) => out.stderr('Warning: ' + message + (detail && typeof detail === 'object' && 'message' in detail ? ': ' + String((detail as { message: unknown }).message) : '')),
@@ -28,11 +30,12 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
     createPlanWorker: () => new Worker(new URL('./planWorker.ts', import.meta.url)) as unknown as WorkerLike,
     extraShared: options.folders, networkOverride: { address, port: options.port ?? defaultPort },
   });
-  if (host.access.managedBy) {
-    host.access.unlock();
-    throw new Error(`Remote access on this computer is managed by ${host.access.managedBy}. Use File › Remote Access… there, or quit it first.`);
-  }
   await host.start();
+  if (host.access.managedBy !== null) {
+    const holder = host.access.managedBy;
+    await host.stop();
+    throw new Error(`Remote access on this computer is managed by ${holder}. Use File › Remote Access… there, or quit it first.`);
+  }
   const state = await host.accessState();
   if (!state.status.listening) { await host.stop(); throw new Error(state.status.error ?? 'Remote access could not start.'); }
   const shared = state.settings.sharedFolders;
