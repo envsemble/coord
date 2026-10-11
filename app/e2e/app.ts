@@ -102,10 +102,10 @@ export async function launch(options: { folder?: string; dataDirectory?: string;
   try {
     window = await app.firstWindow();
   } catch (error) {
-    const log = path.join(dataDirectory, 'logs', 'atlas.log');
-    const recorded = existsSync(log) ? readFileSync(log, 'utf8') : '(no log)';
+    // The app logs to atlas.log, and the Atlas host it runs to host.log.
+    const recorded = (name: string) => { const log = path.join(dataDirectory, 'logs', name); return existsSync(log) ? readFileSync(log, 'utf8') : '(no log)'; };
     await app.close().catch(() => undefined);
-    throw new Error(`${(error as Error).message}\nApp output:\n${output.slice(-4000)}\nApp log:\n${recorded.slice(-4000)}`);
+    throw new Error(`${(error as Error).message}\nApp output:\n${output.slice(-4000)}\nApp log:\n${recorded('atlas.log').slice(-4000)}\nHost log:\n${recorded('host.log').slice(-2000)}`);
   }
   await window.waitForLoadState('domcontentloaded');
   return { app, window, dataDirectory, ownsData, process: app.process() };

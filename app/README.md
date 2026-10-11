@@ -122,7 +122,7 @@ The app follows Electron's security checklist (the desktop-only decision is work
 
 ## Diagnostics
 
-**Help › Open Logs** opens `logs/` in the data folder: `atlas.log` and up to three older files, 1 MB each, with start-up, folder, watcher and window events and any failures. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions and the data folder.
+**Help › Open Logs** opens `logs/` in the data folder: `atlas.log` (the app: start-up, window and connection events) and `host.log` (the Atlas host: folders, the watcher, remote access, pairings and device connections), each 1 MB with up to three older files, including any failures. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions and the data folder.
 
 ## Records and progress
 
