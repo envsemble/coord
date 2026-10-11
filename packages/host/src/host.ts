@@ -93,7 +93,7 @@ class Connection {
   /** Bytes the connection had sent at the last check, to tell a slow link that drains from a dead one. */
   written = 0;
   /** The connection's socket, whose byte counts show whether a large answer is still moving. */
-  raw: { bytesWritten?: number } | null = null;
+  raw: { bytesWritten?: number; writableLength?: number } | null = null;
   constructor(ws: WebSocket, credential: Credential, listener: Listener) { this.ws = ws; this.credential = credential; this.listener = listener; }
   get owner() { return this.credential.scopes.has('owner'); }
   can(scope: Scope) { return this.owner || this.credential.scopes.has(scope); }
@@ -198,8 +198,9 @@ export class Host {
    */
   private checkConnections() {
     for (const connection of this.connections) {
-      // Bytes still leaving since the last check, while more wait, mean a slow link, not a dead one.
-      const written = connection.raw?.bytesWritten ?? 0;
+      // Bytes that actually left since the last check, while more wait, mean a slow link, not a dead
+      // one. (Node counts queued bytes in bytesWritten, so the queue is taken off.)
+      const written = (connection.raw?.bytesWritten ?? 0) - (connection.raw?.writableLength ?? 0);
       const draining = connection.ws.bufferedAmount > 0 && written > connection.written;
       connection.written = written;
       if (draining) { connection.alive = true; continue; }
@@ -387,7 +388,7 @@ export class Host {
 
   private connected(ws: WebSocket, credential: Credential, listener: Listener, socket: Duplex) {
     const connection = new Connection(ws, credential, listener);
-    connection.raw = socket as unknown as { bytesWritten?: number };
+    connection.raw = socket as unknown as { bytesWritten?: number; writableLength?: number };
     // Any bytes from the client, such as the rest of a large request, show it is alive.
     socket.on('data', () => { connection.alive = true; });
     this.connections.add(connection);
@@ -512,8 +513,8 @@ export class Host {
   async accessState(): Promise<AccessState> {
     // Another process managed remote access: take over if it has quit, else show what it saved.
     if (this.access.managedBy !== null && !this.stopped) {
-      await this.retakeLock();
       this.access.reload();
+      await this.retakeLock();
     }
     const settings = this.access.settings;
     if (this.options.networkOverride) settings.network = { enabled: true, ...this.options.networkOverride };

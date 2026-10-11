@@ -89,7 +89,8 @@ function lockHolder(address: string, secret: string): Promise<{ owner: string; p
     socket.on('error', error => {
       clearTimeout(timer);
       const code = (error as NodeJS.ErrnoException).code;
-      resolve(code === 'ECONNREFUSED' || code === 'ENOENT' ? null : someone);
+      // Nobody there (a stale socket file); refused access (another user's pipe, never this user's Atlas); or busy.
+      resolve(code === 'ECONNREFUSED' || code === 'ENOENT' ? null : code === 'EPERM' || code === 'EACCES' ? impostor : someone);
     });
   });
 }
@@ -152,7 +153,7 @@ export class AccessStore {
       try { text = readFileSync(this.file, 'utf8'); }
       catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') { this.create(); continue; }
-        this.loadProblem = `Remote access settings in ${this.file} cannot be read (${(error as Error).message}). Remote access stays off until they can be read and Atlas starts again.`;
+        this.loadProblem = `Remote access settings in ${this.file} cannot be read (${(error as Error).message}). Remote access stays off until they can be read.`;
         this.log.error('Access settings unreadable', error);
         return null;
       }
@@ -166,7 +167,7 @@ export class AccessStore {
         this.loadProblem = null;
         return { ...header, devices };
       } catch (error) {
-        this.loadProblem = `Remote access settings in ${this.file} are not in a form this version of Atlas can read (${(error as Error).message}). A newer Atlas may have written them. Remote access stays off; to start over, remove the file (paired devices then pair again) and start Atlas again.`;
+        this.loadProblem = `Remote access settings in ${this.file} are not in a form this version of Atlas can read (${(error as Error).message}). A newer Atlas may have written them. Remote access stays off; to start over, remove the file (paired devices then pair again).`;
         this.log.error('Access settings not readable by this version', { message: (error as Error).message });
         return null;
       }

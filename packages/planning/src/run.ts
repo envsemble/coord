@@ -4,6 +4,7 @@
 // it open after this program has ended, and execFile would wait for that other program to end too.
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { rmSync } from 'node:fs';
 import { open, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -14,6 +15,8 @@ export interface RunOptions {
   /** The most output accepted, in bytes (default 1 MiB). */
   maxBuffer?: number;
   cwd?: string;
+  /** Where the output files go (the temporary folder by default). */
+  outputDirectory?: string;
   /** Accepted for execFile compatibility; programs always run without a window. */
   windowsHide?: boolean;
 }
@@ -31,14 +34,32 @@ export class ProgramError extends Error {
   }
 }
 
+/** Output files of runs in progress, removed if the process exits before the runs finish. */
+const inProgress = new Set<string>();
+let cleanupRegistered = false;
+function track(files: string[]) {
+  if (!cleanupRegistered) {
+    cleanupRegistered = true;
+    process.once('exit', () => { for (const file of inProgress) rmSync(file, { force: true }); });
+  }
+  for (const file of files) inProgress.add(file);
+}
+
 /** Run a program, resolving with its output when it exits successfully; rejects like execFile otherwise. */
 export async function runProgram(file: string, args: string[], options: RunOptions = {}): Promise<{ stdout: string; stderr: string }> {
   const { timeout = 60000, maxBuffer = 1024 * 1024 } = options;
-  // Output files go straight into the temporary folder, under random names, and are removed after each run.
-  const base = path.join(tmpdir(), 'atlas-run-' + randomBytes(12).toString('hex'));
+  // Output files go straight into the temporary folder under random names, readable only by this
+  // user, and are removed after each run (or when the process exits during one).
+  const base = path.join(options.outputDirectory ?? tmpdir(), 'atlas-run-' + randomBytes(12).toString('hex'));
   const outFile = base + '.out', errFile = base + '.err';
-  const out = await open(outFile, 'w');
-  const err = await open(errFile, 'w').catch(async error => { await out.close(); throw error; });
+  track([outFile, errFile]);
+  const out = await open(outFile, 'wx', 0o600);
+  const err = await open(errFile, 'wx', 0o600).catch(async error => {
+    await out.close();
+    await rm(outFile, { force: true }).catch(() => undefined);
+    inProgress.delete(outFile); inProgress.delete(errFile);
+    throw error;
+  });
   try {
     let overflow = false;
     const ended = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; killed: boolean }>((resolve, reject) => {
@@ -64,5 +85,6 @@ export async function runProgram(file: string, args: string[], options: RunOptio
   } finally {
     await Promise.all([out.close().catch(() => undefined), err.close().catch(() => undefined)]);
     await Promise.all([outFile, errFile].map(name => rm(name, { force: true, maxRetries: 3 }).catch(() => undefined)));
+    inProgress.delete(outFile); inProgress.delete(errFile);
   }
 }

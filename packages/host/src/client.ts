@@ -173,7 +173,7 @@ export class HostClient {
     const answered = () => { if (this.socket === socket) { this.alive = true; this.probing = false; } };
     socket.on('pong', answered);
     // Any bytes from the host, such as part of a large answer still arriving, show it is alive.
-    let raw: { bytesWritten?: number } | null = null;
+    let raw: { bytesWritten?: number; writableLength?: number } | null = null;
     socket.on('upgrade', response => { raw = response.socket; response.socket.on('data', answered); });
     socket.on('open', () => {
       opened = true;
@@ -182,8 +182,9 @@ export class HostClient {
       // A connection that misses a ping is dead (a sleeping host, a dropped network): end it and reconnect.
       let written = 0;
       this.heartbeat = setInterval(() => {
-        // Bytes still leaving since the last check, while more wait, mean a slow link, not a dead one.
-        const now = raw?.bytesWritten ?? 0;
+        // Bytes that actually left since the last check, while more wait, mean a slow link, not a dead
+        // one. (Node counts queued bytes in bytesWritten, so the queue is taken off.)
+        const now = (raw?.bytesWritten ?? 0) - (raw?.writableLength ?? 0);
         const draining = socket.bufferedAmount > 0 && now > written;
         written = now;
         if (draining) { this.alive = true; return; }

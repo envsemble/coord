@@ -15,16 +15,30 @@ test('a program\'s output and failures come back as execFile would give them', a
   await assert.rejects(runProgram(node, ['-e', 'process.stdout.write("x".repeat(2048))'], { maxBuffer: 1024 }), /more than 1024 bytes/);
 });
 
-test('output beyond the limit stops the program, and no files are left behind', async () => {
-  const { readdirSync } = await import('node:fs');
+test('output beyond the limit stops the program, and no files are left behind', async t => {
+  const { mkdtempSync, readdirSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
-  const leftovers = () => readdirSync(tmpdir()).filter(name => name.startsWith('atlas-run-')).length;
-  const before = leftovers();
+  const path = await import('node:path');
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'atlas-run-test-'));
+  t.after(() => rmSync(outputDirectory, { recursive: true, force: true }));
   const started = Date.now();
-  await assert.rejects(runProgram(node, ['-e', 'setInterval(() => process.stdout.write("x".repeat(65536)), 1)'], { maxBuffer: 256 * 1024, timeout: 20000 }), /more than/);
+  await assert.rejects(runProgram(node, ['-e', 'setInterval(() => process.stdout.write("x".repeat(65536)), 1)'], { maxBuffer: 256 * 1024, timeout: 20000, outputDirectory }), /more than/);
   assert.ok(Date.now() - started < 10000, 'stopped well before its timeout');
-  await runProgram(node, ['-e', '1']);
-  assert.ok(leftovers() <= before, 'output files are removed');
+  await runProgram(node, ['-e', '1'], { outputDirectory });
+  assert.deepEqual(readdirSync(outputDirectory), [], 'output files are removed');
+});
+
+test('a process that exits during a run leaves no output files', async t => {
+  const { mkdtempSync, readdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'atlas-run-test-'));
+  t.after(() => rmSync(outputDirectory, { recursive: true, force: true }));
+  const module = pathToFileURL(path.join(import.meta.dirname, 'run.ts')).href;
+  const script = `import { runProgram } from ${JSON.stringify(module)}; void runProgram(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], { outputDirectory: ${JSON.stringify(outputDirectory)} }); setTimeout(() => process.exit(0), 300);`;
+  await runProgram(node, ['--input-type=module', '-e', script], { timeout: 20000 });
+  assert.deepEqual(readdirSync(outputDirectory), []);
 });
 
 test('a program that runs too long is stopped', async () => {
