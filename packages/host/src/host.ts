@@ -90,6 +90,8 @@ class Connection {
   readonly listener: Listener;
   /** Answered the last ping; a connection that misses one is ended. */
   alive = true;
+  /** Bytes waiting to be sent at the last check, to tell a slow link that drains from a dead one. */
+  buffered = 0;
   constructor(ws: WebSocket, credential: Credential, listener: Listener) { this.ws = ws; this.credential = credential; this.listener = listener; }
   get owner() { return this.credential.scopes.has('owner'); }
   can(scope: Scope) { return this.owner || this.credential.scopes.has(scope); }
@@ -194,7 +196,10 @@ export class Host {
    */
   private checkConnections() {
     for (const connection of this.connections) {
-      if (connection.ws.bufferedAmount > 0) { connection.alive = true; continue; }
+      const buffered = connection.ws.bufferedAmount;
+      const draining = buffered > 0 && buffered < connection.buffered;
+      connection.buffered = buffered;
+      if (draining) { connection.alive = true; continue; }
       if (!connection.alive) { connection.ws.terminate(); continue; }
       connection.alive = false;
       try { connection.ws.ping(); } catch { /* Closing already. */ }
@@ -463,14 +468,16 @@ export class Host {
   private refreshShared(): Promise<void> {
     if (this.refreshing) { this.refreshAgain = true; return this.refreshing; }
     this.refreshing = (async () => {
-      do {
-        this.refreshAgain = false;
-        const roots = await Promise.all([...this.access.settings.sharedFolders, ...this.extraShared].map(canonicalFolder));
-        const shared = new Map<string, string>();
-        for (const root of roots) { const folderId = this.folders.idOf(root); if (!shared.has(folderId)) shared.set(folderId, root); }
-        this.sharedRoots = shared;
-      } while (this.refreshAgain);
-    })().finally(() => { this.refreshing = null; });
+      try {
+        do {
+          this.refreshAgain = false;
+          const roots = await Promise.all([...this.access.settings.sharedFolders, ...this.extraShared].map(canonicalFolder));
+          const shared = new Map<string, string>();
+          for (const root of roots) { const folderId = this.folders.idOf(root); if (!shared.has(folderId)) shared.set(folderId, root); }
+          this.sharedRoots = shared;
+        } while (this.refreshAgain);
+      } finally { this.refreshing = null; }
+    })();
     return this.refreshing;
   }
   private shared(): SharedFolder[] {
@@ -507,7 +514,7 @@ export class Host {
     const settings = this.access.settings;
     if (this.options.networkOverride) settings.network = { enabled: true, ...this.options.networkOverride };
     settings.sharedFolders = [...new Set([...settings.sharedFolders, ...this.extraShared])];
-    return { settings, status: this.networkStatus(), addresses: await hostAddresses(), managedBy: this.access.managedBy };
+    return { settings, status: this.networkStatus(), addresses: await hostAddresses(), managedBy: this.access.problem ? null : this.access.managedBy, problem: this.access.problem };
   }
 
   private async handle<M extends MethodName>(connection: Connection, method: M, params: Methods[M]['params']): Promise<Methods[M]['result']> {

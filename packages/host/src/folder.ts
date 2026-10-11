@@ -1,18 +1,16 @@
 // One open planning folder: its reader session, the last good snapshot, and the watcher that
 // keeps it current. The host keeps one FolderSession per folder that a client has open, and
 // answers every request about that folder from it.
-import { execFile } from 'node:child_process';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { readDocument, recordCollectionGap } from '@envsemble/atlas-planning';
 import { PlanningSession } from '@envsemble/atlas-planning/session';
 import type { Usage } from '@envsemble/atlas-planning/types';
 import type { Catalog, DiagramIndexEntry, FolderState, FolderStatus, ModelReference, Snapshot, ViewEventInput } from './contract.ts';
 import { HostError, type Logger } from './errors.ts';
 import { watchFolder, type FolderWatcher } from './watcher.ts';
+import { runProgram as run } from '@envsemble/atlas-planning';
 
-const run = promisify(execFile);
 const skippedFolders = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 const folderLimit = 20000;
 const unavailableUsage: Usage = { dashboardSince: null, agentSince: null, views: 0, documentsViewed: 0, sessions: 0, reports: 0, documentsConsulted: 0, tasks: 0, unassigned: 0, failures: 0, documents: [] };

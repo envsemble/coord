@@ -1,13 +1,11 @@
 // Work statistics. Agents report their model, tokens and the time of each ledger transition with
 // `atlas work report`, which appends one JSON line to <work>/.atlas/statistics.jsonl. These values
 // are self-reported and approximate. Plan revisions come from the planning folder's Git history.
-import { execFile } from 'node:child_process';
 import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import type { ModelUsage, Work, WorkStatistics } from './types.ts';
+import { runProgram as execute } from './run.ts';
 
-const execute = promisify(execFile);
 
 /** Where a work item's reports live, relative to its folder. Plan exports leave it out. */
 export const statisticsFile = '.atlas/statistics.jsonl';

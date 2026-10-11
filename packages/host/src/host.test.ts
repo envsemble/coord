@@ -17,7 +17,10 @@ import type { WorkerLike } from './planWorkerClient.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.resolve(here, '../../../app/e2e/fixtures/planning');
-const quiet = { info() {}, warn() {}, error() {} };
+const started = Date.now();
+/** Quiet, unless ATLAS_TEST_LOG is set to follow what the host does while a test runs. */
+const print = (level: string) => (message: string, detail?: unknown) => { if (process.env.ATLAS_TEST_LOG) console.log(Date.now() - started, level, message, JSON.stringify(detail ?? '')); };
+const quiet = { info: print('info'), warn: print('warn'), error: print('error') };
 
 function temporary(t: TestContext, prefix: string) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), prefix)));
@@ -58,9 +61,9 @@ function client(t: TestContext, origin: string | (() => string), token: string |
   t.after(() => connection.close());
   return { connection, events, statuses };
 }
-const until = async (check: () => boolean, timeout = 5000) => {
+const until = async (check: () => boolean, timeout = 5000, describe?: () => unknown) => {
   const deadline = Date.now() + timeout;
-  while (!check()) { if (Date.now() > deadline) throw new Error('Timed out'); await new Promise(resolve => setTimeout(resolve, 20)); }
+  while (!check()) { if (Date.now() > deadline) throw new Error('Timed out' + (describe ? ': ' + JSON.stringify(describe()) : '')); await new Promise(resolve => setTimeout(resolve, 20)); }
 };
 
 test('only Atlas clients with a credential get in: no browsers, no host names, no anonymous sockets', async t => {
@@ -113,10 +116,13 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   // The owner (one app, several windows) may prepare several exports at once.
   const both = await Promise.all([1, 2].map(() => connection.request('plan.exportPrepare', { folderId: opened.folderId, work: 'work-0001' })));
   for (const each of both) assert.equal((await connection.fetch('/api/exports/' + each.token)).status, 200);
-  // A change on disk reaches the subscriber.
-  const { writeFileSync } = await import('node:fs');
+  // A change on disk reaches the subscriber, and the folder's view shows it.
   writeFileSync(path.join(planning, 'README.md'), '# Changed\n');
-  await until(() => events.some(event => event.folderId === opened.folderId && event.revision > state.revision));
+  const readme = async () => (await connection.request('folder.snapshot', { folderId: opened.folderId })).documents.find(document => document.path === 'README.md')?.title;
+  let title = await readme();
+  for (const deadline = Date.now() + 10000; title !== 'Changed' && Date.now() < deadline;) { await new Promise(resolve => setTimeout(resolve, 100)); title = await readme(); }
+  assert.equal(title, 'Changed', JSON.stringify({ state, events }));
+  assert.ok(events.some(event => event.folderId === opened.folderId && event.revision > state.revision));
 });
 
 test('a device pairs once with a five-minute code, reads only shared folders, and is cut off when revoked', async t => {
@@ -317,6 +323,45 @@ test('waking a client while it connects opens one connection, not two', async t 
   assert.equal((host as unknown as { connections: Set<unknown> }).connections.size, 1);
   slow.connection.close();
   await until(() => (host as unknown as { connections: Set<unknown> }).connections.size === 0);
+});
+
+test('settings this version cannot read are left alone, and remote access stays off until they can be read', async t => {
+  const directory = temporary(t, 'atlas-access-');
+  const manager = new AccessStore(directory, quiet, 'a test');
+  assert.equal(await manager.lock(), null);
+  const paired = manager.pair(manager.createPairing(null).code, { name: 'Desk', platform: 'win32' });
+  manager.unlock();
+  const file = path.join(directory, 'access.json');
+  const good = readFileSync(file, 'utf8');
+  // A newer Atlas wrote the file: this version neither replaces nor rewrites it.
+  const newer = JSON.stringify({ ...JSON.parse(good), version: 2 });
+  writeFileSync(file, newer);
+  const reader = new AccessStore(directory, quiet, 'a test');
+  assert.match(reader.problem ?? '', /not in a form this version of Atlas can read/);
+  assert.match(await reader.lock() ?? '', /^nobody: /);
+  assert.throws(() => reader.createPairing(null), /not in a form this version/);
+  reader.reload();
+  assert.equal(readFileSync(file, 'utf8'), newer, 'the file is untouched');
+  // Once the file is readable again, this process asks for a restart (its folder IDs use the secret it started with); a new start works.
+  writeFileSync(file, good);
+  assert.match(await reader.lock() ?? '', /Quit and start Atlas again/);
+  const restarted = new AccessStore(directory, quiet, 'a test');
+  assert.equal(await restarted.lock(), null);
+  assert.equal(restarted.problem, null);
+  assert.equal(restarted.deviceForToken(paired.token)?.name, 'Desk');
+  restarted.unlock();
+});
+
+test('a program squatting on the lock\'s name is not taken for Atlas', async t => {
+  const directory = temporary(t, 'atlas-access-');
+  const store = new AccessStore(directory, quiet, 'a test');
+  const { address } = lockAddress(store.folderKey);
+  // It holds the name but cannot prove it read the data folder's secret.
+  const connections = new Set<import('node:net').Socket>();
+  const squatter = createServer(socket => { connections.add(socket); socket.on('error', () => undefined); socket.end(JSON.stringify({ owner: 'the Atlas app', pid: 1, proof: 'guess' })); });
+  await new Promise<void>(resolve => squatter.listen(address, resolve));
+  t.after(() => new Promise(resolve => { for (const socket of connections) socket.destroy(); squatter.close(resolve); }));
+  assert.equal(await store.lock(), 'a program that is not Atlas');
 });
 
 test('download names keep their exact characters, with an ASCII fallback', () => {

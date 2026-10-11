@@ -1,12 +1,10 @@
 // The addresses this computer can be reached on: itself, its local networks, and its Tailscale
 // address. Tailscale shares the 100.64.0.0/10 range with other VPNs, so an address there counts
 // as Tailscale only when its interface is Tailscale's or `tailscale ip` reports it.
-import { execFile } from 'node:child_process';
 import { networkInterfaces } from 'node:os';
-import { promisify } from 'node:util';
 import type { HostAddress } from './contract.ts';
+import { runProgram as execute } from '@envsemble/atlas-planning';
 
-const execute = promisify(execFile);
 
 function octets(address: string) { return address.split('.').map(Number); }
 /** 100.64.0.0/10, the carrier-grade NAT range Tailscale assigns from. */

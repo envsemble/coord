@@ -6,8 +6,8 @@
 // data folder's secret, so every spelling of the folder (a link, a short name) finds the same lock
 // and other users, who cannot read the secret, cannot take its name. Pairing codes live in memory
 // only: they expire after five minutes, are used once, and a restart forgets them.
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createConnection, createServer, type Server } from 'node:net';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
@@ -54,26 +54,38 @@ export function lockAddress(secret: string, platform: NodeJS.Platform = process.
   return { address: path.join(tmpdir(), 'atlas-host-' + id.slice(0, 16) + '.sock'), file: true };
 }
 
-/** Ask the lock's holder who it is; null when nobody holds it (a socket file left behind). */
-function lockHolder(address: string): Promise<{ owner: string; pid: number | null } | null> {
+/** The holder's proof that it knows the data folder's secret: a squatter on the lock's name cannot answer. */
+const lockProof = (secret: string, challenge: string) => createHmac('sha256', secret).update('atlas-host-lock-proof:' + challenge).digest('hex');
+
+/**
+ * Ask the lock's holder who it is, with a challenge only a process that read the data folder's
+ * secret can answer; null when nobody holds it (a socket file left behind).
+ */
+function lockHolder(address: string, secret: string): Promise<{ owner: string; pid: number | null; genuine: boolean } | null> {
   return new Promise(resolve => {
-    const socket = createConnection(address);
+    const challenge = randomBytes(16).toString('hex');
+    const socket = createConnection(address, () => socket.write(challenge + '\n'));
     let text = '';
-    const someone = { owner: 'another Atlas process', pid: null };
-    const timer = setTimeout(() => { socket.destroy(); resolve(someone); }, 2000);
+    const someone = { owner: 'another Atlas process', pid: null, genuine: true };
+    const impostor = { owner: 'a program that is not Atlas', pid: null, genuine: false };
+    const timer = setTimeout(() => { socket.destroy(); resolve(impostor); }, 2000);
     socket.setEncoding('utf8');
     socket.on('data', chunk => { text += chunk; if (text.length > 1024) socket.destroy(); });
     socket.on('end', () => {
       clearTimeout(timer);
+      socket.destroy();
       try {
-        const value = JSON.parse(text) as { owner?: unknown; pid?: unknown };
-        resolve({ owner: typeof value.owner === 'string' ? value.owner.slice(0, 80) : someone.owner, pid: typeof value.pid === 'number' ? value.pid : null });
-      } catch { resolve(someone); }
+        const value = JSON.parse(text) as { owner?: unknown; pid?: unknown; proof?: unknown };
+        const expected = Buffer.from(lockProof(secret, challenge));
+        const proof = Buffer.from(typeof value.proof === 'string' ? value.proof : '');
+        if (proof.length !== expected.length || !timingSafeEqual(proof, expected)) { resolve(impostor); return; }
+        resolve({ owner: typeof value.owner === 'string' ? value.owner.slice(0, 80) : someone.owner, pid: typeof value.pid === 'number' ? value.pid : null, genuine: true });
+      } catch { resolve(impostor); }
     });
     socket.on('error', error => {
       clearTimeout(timer);
       const code = (error as NodeJS.ErrnoException).code;
-      resolve(code === 'ECONNREFUSED' || code === 'ENOENT' ? null : someone);
+      resolve(code === 'ECONNREFUSED' || code === 'ENOENT' ? null : impostor);
     });
   });
 }
@@ -103,6 +115,10 @@ export class AccessStore {
   private lockServer: Server | null = null;
   /** Whether this process manages remote access: null when it does, else who does. Nobody until lock(). */
   managedBy: string | null = 'nobody yet (the host has not started)';
+  /** Why remote access cannot be used at all (access.json cannot be read); null when it can. */
+  problem: string | null = null;
+  /** The secret this process read first: it names the lock and keys folder IDs, and never changes while the process runs. */
+  private readonly secret: string;
 
   constructor(directory: string, log: Logger, owner: string) {
     this.directory = directory;
@@ -110,51 +126,115 @@ export class AccessStore {
     this.log = log;
     this.owner = owner;
     mkdirSync(directory, { recursive: true });
-    this.state = this.read();
+    const loaded = this.load();
+    // An unreadable file is left alone: this process works on a placeholder that is never saved.
+    this.state = loaded ?? { version: 1, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
+    this.secret = this.state.secret;
   }
 
-  private read(): AccessFile {
-    let parsed: AccessFile | null = null;
-    try {
-      const header = accessHeader(JSON.parse(readFileSync(this.file, 'utf8')));
-      const devices: DeviceRecord[] = [];
-      for (const [index, value] of header.devices.entries()) {
-        try { devices.push(deviceRecord(value, 'devices[' + index + ']')); }
-        catch (error) { this.log.warn('A paired device record is unreadable and was dropped', { index, message: (error as Error).message }); }
+  /**
+   * Read access.json without changing it, or null (with `problem` set) when it cannot be read. A
+   * missing file is created atomically, so processes starting together agree on one identity and
+   * secret. A file this version cannot read (damaged, or written by a newer Atlas) is never
+   * replaced: remote access stays off until it can be read again.
+   */
+  private load(): AccessFile | null {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let text: string;
+      try { text = readFileSync(this.file, 'utf8'); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') { this.create(); continue; }
+        this.problem = `Remote access settings in ${this.file} cannot be read (${(error as Error).message}). Remote access stays off until they can be read and Atlas starts again.`;
+        this.log.error('Access settings unreadable', error);
+        return null;
       }
-      parsed = { ...header, secret: header.secret ?? randomBytes(32).toString('base64url'), devices };
-      if (!header.secret || devices.length !== header.devices.length) { this.state = parsed; this.write(); }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        this.log.error('Access settings unreadable; remote access stays off until they are saved again', error);
-        // Keep the damaged file for diagnosis; never silently keep paired devices that cannot be checked.
-        try { renameSync(this.file, this.file + '.damaged-' + Date.now()); } catch { /* Best effort. */ }
+      try {
+        const header = accessHeader(JSON.parse(text));
+        const devices: DeviceRecord[] = [];
+        for (const [index, value] of header.devices.entries()) {
+          try { devices.push(deviceRecord(value, 'devices[' + index + ']')); }
+          catch (error) { this.log.warn('A paired device record is unreadable and is ignored', { index, message: (error as Error).message }); }
+        }
+        let secret = header.secret;
+        if (!secret) {
+          // Written once by builds from before folder IDs were keyed: add a secret.
+          secret = randomBytes(32).toString('base64url');
+          this.replace({ ...header, secret, devices });
+        }
+        this.problem = null;
+        return { ...header, secret, devices };
+      } catch (error) {
+        this.problem = `Remote access settings in ${this.file} are not in a form this version of Atlas can read (${(error as Error).message}). A newer Atlas may have written them. Remote access stays off; to start over, remove the file (paired devices then pair again) and start Atlas again.`;
+        this.log.error('Access settings not readable by this version', { message: (error as Error).message });
+        return null;
       }
     }
-    if (parsed) return parsed;
-    const created: AccessFile = { version: 1, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
-    this.state = created;
-    this.write();
-    return created;
+    this.problem = `Remote access settings in ${this.file} could not be created.`;
+    return null;
   }
-  private write() {
+  /** Create access.json with a new identity, unless another process just did. */
+  private create() {
+    const created: AccessFile = { version: 1, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
+    const temporary = this.file + '.' + process.pid + '.new';
+    writeFileSync(temporary, JSON.stringify(created, null, 2) + '\n', { mode: 0o600 });
+    try { linkSync(temporary, this.file); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EEXIST') return;
+      // A file system without hard links: create exclusively instead.
+      try { writeFileSync(this.file, JSON.stringify(created, null, 2) + '\n', { mode: 0o600, flag: 'wx' }); }
+      catch (fallback) { if ((fallback as NodeJS.ErrnoException).code !== 'EEXIST') throw fallback; }
+    } finally { rmSync(temporary, { force: true }); }
+  }
+  private replace(state: AccessFile) {
     const temporary = this.file + '.' + process.pid + '.tmp';
-    writeFileSync(temporary, JSON.stringify(this.state, null, 2) + '\n', { mode: 0o600 });
+    writeFileSync(temporary, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
     renameSync(temporary, this.file);
   }
-  /** Read access.json again, for a process that does not manage remote access and shows what the manager saved. */
+  /** Save the state. Only the process that manages remote access writes access.json. */
+  private write() {
+    if (this.managedBy !== null) throw new HostError('unavailable', 'Remote access settings are saved only by the process that manages remote access.');
+    this.replace(this.state);
+  }
+  /** Read access.json again, to show what the managing process saved. Changes nothing; keeps this process's secret. */
   reload() {
-    if (this.managedBy !== null) this.state = this.read();
+    if (this.managedBy === null) return;
+    const problem = this.problem;
+    const fresh = this.load();
+    if (fresh) this.state = { ...fresh, secret: this.secret };
+    else this.problem = problem ?? this.problem;
   }
 
   /** Take the lock unless another live process holds it. Returns who manages remote access: null when this process does. */
   async lock(): Promise<string | null> {
     if (this.lockServer) return null;
-    // What is on disk now: another process may have created the file (and its secret) at the same moment.
-    this.state = this.read();
-    const { address, file } = lockAddress(this.state.secret);
+    // Settings that could not be read may be readable now (fixed, or removed to start over).
+    if (this.problem) {
+      const fresh = this.load();
+      if (!fresh || fresh.secret !== this.secret) {
+        // This process already keys folder IDs with the secret it started with: a new one needs a restart.
+        if (fresh) this.problem = `Remote access settings in ${this.file} can be read again. Quit and start Atlas again to use them.`;
+        this.managedBy = 'nobody: ' + this.problem;
+        return this.managedBy;
+      }
+      this.state = fresh;
+    }
+    const secret = this.secret;
+    const { address, file } = lockAddress(secret);
     for (let attempt = 0; attempt < 2; attempt++) {
-      const server = createServer(socket => { socket.end(JSON.stringify({ owner: this.owner, pid: process.pid })); });
+      // The holder answers a challenge with proof that it read this data folder's secret.
+      const server = createServer(socket => {
+        let challenge = '';
+        socket.setEncoding('utf8');
+        socket.setTimeout(2000, () => socket.destroy());
+        socket.on('data', chunk => {
+          challenge += chunk;
+          if (challenge.length > 128) { socket.destroy(); return; }
+          if (!challenge.includes('\n')) return;
+          socket.end(JSON.stringify({ owner: this.owner, pid: process.pid, proof: lockProof(secret, challenge.trim()) }));
+        });
+        socket.on('error', () => undefined);
+      });
       try {
         await new Promise<void>((resolve, reject) => {
           server.once('error', reject);
@@ -167,8 +247,12 @@ export class AccessStore {
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
         if (code !== 'EADDRINUSE') { this.log.warn('Remote access lock unavailable', error); break; }
-        const holder = await lockHolder(address);
-        if (holder) { this.managedBy = holder.owner + (holder.pid ? ` (process ${holder.pid})` : ''); return this.managedBy; }
+        const holder = await lockHolder(address, secret);
+        if (holder) {
+          if (!holder.genuine) this.log.warn('Another program holds the name of Atlas\'s remote access lock; remote access stays off', { address: file ? address : 'a system object' });
+          this.managedBy = holder.owner + (holder.pid ? ` (process ${holder.pid})` : '');
+          return this.managedBy;
+        }
         // A socket file left behind by a process that ended (only where the lock is a file).
         if (!file) break;
         rmSync(address, { force: true });
@@ -187,11 +271,12 @@ export class AccessStore {
 
   get hostId() { return this.state.hostId; }
   get name() { return this.state.name; }
-  /** The key that turns a folder's path into its ID, so IDs cannot be guessed from paths. */
-  get folderKey() { return this.state.secret; }
+  /** The key that turns a folder's path into its ID, so IDs cannot be guessed from paths. Fixed for the process's life. */
+  get folderKey() { return this.secret; }
   get settings(): AccessSettings { return structuredClone(this.state.settings); }
   /** Remote access is configurable here only in the process that manages it. */
   private manage() {
+    if (this.problem) throw new HostError('unavailable', this.problem);
     if (this.managedBy !== null) throw new HostError('unavailable', `Remote access on this computer is managed by ${this.managedBy}. Quit it, then open Remote Access here again.`);
   }
 

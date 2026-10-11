@@ -58,6 +58,8 @@ export interface AccessState {
   settings: AccessSettings; status: NetworkStatus; addresses: HostAddress[];
   /** Another process (`atlas serve`) holds remote access on this computer; settings are read-only here. */
   managedBy: string | null;
+  /** Why remote access cannot be used at all (its settings cannot be read); null when it can. */
+  problem: string | null;
 }
 export interface PairingLink { code: string; expiresAt: string; url: string | null; address: string | null; port: number | null }
 export interface PairedDevice { deviceId: string; name: string; platform: string; scopes: Scope[]; pairedAt: string; lastSeenAt: string | null; connected: boolean }

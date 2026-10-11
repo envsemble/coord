@@ -1,16 +1,14 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { parse } from 'yaml';
 import { createHash } from 'node:crypto';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { ledgerStatus } from './ledger.ts';
 import { workStatistics } from './statistics.ts';
 import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Repository, Work } from './types.ts';
+import { runProgram as execute } from './run.ts';
 
-const execute = promisify(execFile);
 const textExtensions = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.puml', '.mmd', '.mermaid', '.dot', '.html', '.css', '.js', '.ts', '.tsx', '.py', '.ps1', '.sh', '.sql', '.log']);
 const excludedDirectories = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);

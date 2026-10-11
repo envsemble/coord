@@ -54,7 +54,8 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
     finally { setBusy(false); }
   };
   const settings = state?.settings;
-  const managed = Boolean(state?.managedBy);
+  // Settings that cannot be changed here: another process manages them, or they cannot be read.
+  const managed = Boolean(state?.managedBy) || Boolean(state?.problem);
   // Tailscale when this computer has it; otherwise only this machine, until the owner picks a network deliberately.
   const address = settings?.network.address ?? state?.addresses.find(entry => entry.kind === 'tailscale')?.address ?? '127.0.0.1';
   const chosen = state?.addresses.find(entry => entry.address === address);
@@ -88,7 +89,8 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
     <h2 className="dialog-title">Remote access</h2>
     {!state ? (error ? <div className="flash flash-danger" role="alert">{error}</div> : <div className="menu-loading"><Spinner />Loading…</div>) : <>
       <p className="muted">Let devices you pair, such as your other computer, read the planning folders you share. They can open them read-only; they cannot change anything here.</p>
-      {managed && <div className="flash flash-warning"><AlertIcon size={16} /><p>Remote access on this computer is managed by {state.managedBy}. Stop it to change remote access here.</p></div>}
+      {state.problem ? <div className="flash flash-danger" role="alert"><AlertIcon size={16} /><p>{state.problem}</p></div>
+        : state.managedBy && <div className="flash flash-warning"><AlertIcon size={16} /><p>Remote access on this computer is managed by {state.managedBy}. Quit it, and Atlas takes over here within a few seconds.</p></div>}
 
       <section className="access-section" aria-label="Network">
         <label className="access-toggle">

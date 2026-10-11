@@ -18,3 +18,4 @@ export {
   type PlanExportManifest, type PlanExportSource, type PlanExportFile, type PlanExportRepository, type PlanExportDiagram,
   type PlanExportPreview, type PlanExportResult, type PlanImportResult, type PlanImportTarget, type PlanExportErrorCode,
 } from './planExport.ts';
+export { runProgram, ProgramError, type RunOptions } from './run.ts';

@@ -97,6 +97,8 @@ export class HostClient {
   private attempting = false;
   /** The current connection answered since the last check. */
   private alive = true;
+  /** A wake-up check is waiting for an answer (kept apart from the heartbeat's own flag). */
+  private probing = false;
   private attempts = 0;
   /** The origin of the current connection, which answered with the expected host ID. */
   private connectedOrigin: string | null = null;
@@ -122,9 +124,9 @@ export class HostClient {
     if (this.closed || this.status === 'revoked') return;
     const socket = this.socket;
     if (this.status === 'connected' && socket) {
-      this.alive = false;
+      this.probing = true;
       try { socket.ping(); } catch { /* Closing already. */ }
-      setTimeout(() => { if (!this.alive && this.socket === socket) socket.terminate(); }, 5000).unref?.();
+      setTimeout(() => { if (this.probing && this.socket === socket) socket.terminate(); }, 5000).unref?.();
       return;
     }
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
@@ -168,16 +170,22 @@ export class HostClient {
     this.socket = socket;
     let opened = false;
     this.alive = true;
-    socket.on('pong', () => { if (this.socket === socket) this.alive = true; });
+    const answered = () => { if (this.socket === socket) { this.alive = true; this.probing = false; } };
+    socket.on('pong', answered);
     // Any bytes from the host, such as part of a large answer still arriving, show it is alive.
-    socket.on('upgrade', response => { response.socket.on('data', () => { if (this.socket === socket) this.alive = true; }); });
+    socket.on('upgrade', response => { response.socket.on('data', answered); });
     socket.on('open', () => {
       opened = true;
       this.attempts = 0;
       this.connectedOrigin = origin;
       // A connection that misses a ping is dead (a sleeping host, a dropped network): end it and reconnect.
+      let buffered = 0;
       this.heartbeat = setInterval(() => {
-        if (socket.bufferedAmount > 0) { this.alive = true; return; }
+        // A large request still draining is progress; one that does not drain is not.
+        const waiting = socket.bufferedAmount;
+        const draining = waiting > 0 && waiting < buffered;
+        buffered = waiting;
+        if (draining) { this.alive = true; return; }
         if (!this.alive) { socket.terminate(); return; }
         this.alive = false;
         try { socket.ping(); } catch { /* Closing already. */ }
