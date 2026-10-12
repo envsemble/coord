@@ -841,13 +841,8 @@
   display: block;
   overflow: visible;
   font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Noto Sans",
-    Helvetica,
-    Arial,
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica,
+    Arial, sans-serif;
 }
 .atlas-panel .uml-diagram {
   position: relative;
