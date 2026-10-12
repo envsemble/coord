@@ -4,7 +4,26 @@
 
 - Ledger status version 2: the ledger header lists the agreed steps of the work, each `todo`, `doing` or `done`, and replaces `current` and `next`. The app and plan exports show a progress bar, the steps done and left, and each step; the work list shows progress per work item. `atlas planning check` validates the steps. Version-1 headers stay valid and readable. The planning contract (`PLANS.md`), the governance template and the `atlas-implement` and `atlas-record` skills describe the new header.
 - Work statistics: `atlas work report` records an agent's model, the tokens used so far in its session, and the ledger step at each ledger transition, in `<work>/.atlas/statistics.jsonl`. The Statistics view gains a **Work** tab (model, tokens, active time, plan revisions and steps per work item) and a **Models over time** tab (a chart and medians of completed work by implementing model); the About sidebar shows a work item's statistics. Plan revisions come from Git and follow archive moves. `atlas planning check` warns about invalid report lines. Plan exports leave statistics out.
-- Remote access: another computer can read this computer's planning folders, read-only. **File › Remote Access…** turns it on for a chosen address (Tailscale, a local network or this machine) and port, shares folders, creates pairing links (five minutes, one use, with a QR code, **Copy link** and **Copy code only**) and lists and revokes paired devices. **File › Connect to Another Atlas…** pairs from a link and opens a shared folder in a read-only window; paired computers appear on the welcome page and their windows reopen at start. `atlas serve` shares folders without the app. Planning folders are now read by the Atlas host (`packages/host`, TypeScript with Hono), which the app runs in a utility process; devices hold read-only, revocable tokens. See [remote access](docs/remote-access.md).
+- Remote access: work on another computer's planning folders as if they were local.
+  - **File › Remote Access…** turns it on for a chosen address (Tailscale, a local network or this machine) and port. It creates pairing links (five minutes, one use, with a QR code, **Copy link** and **Copy code only**) and lists and revokes paired devices.
+  - **Pairing:** the pairing step names the device and may grant **Manage access**, so it can pair and revoke devices itself.
+  - **What a paired device can do:** the whole computer, as the app there can:
+    - browse its folders;
+    - open any planning folder;
+    - read it with real paths;
+    - import and export plans;
+    - count its views in document use.
+
+    Only Reveal in File Explorer stays local.
+
+  - **The computer and folder menus:** the explorer's header holds a computer menu (this computer and the paired ones) and a folder menu (the computer's folder list). Each opens in this window, or in a new one with the button beside an entry or Ctrl+Enter. Another computer's folders open through an in-app folder browser.
+  - **The folder list:** each computer keeps one, which every device sees live.
+  - **Collapse All Folders** moves to the explorer's right-click menu.
+  - **`atlas serve`** runs the host without the app; devices open folders there themselves.
+  - **The Atlas host:** planning folders are now read by the Atlas host (`packages/host`, TypeScript with Hono), which the app runs in a utility process. Devices hold revocable tokens.
+
+  See [remote access](docs/remote-access.md).
+
 - Documentation: a shorter README that walks through getting started and how work moves through Atlas, a [documentation index](docs/README.md), a [command reference](docs/command.md) with every command, its exit codes and the data folder, and a [progress and statistics](docs/progress-and-statistics.md) guide to the ledger's steps and work statistics. The contributor guide now lists every check and the repository layout, including the host; the library example moved to [embedding](docs/embedding.md).
 - Fixed: long documents did not scroll in the desktop app and showed no scrollbar. The workbench grew with its content instead of filling the window; its panes now scroll.
 - Fixed: on Windows, a planning folder could stop updating for a minute or more after a plan export. A helper the export started at the same moment held Git's output open, so reading the folder waited for it. Atlas now runs Git through temporary files and gives every Git call a time limit.

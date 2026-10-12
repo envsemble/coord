@@ -53,7 +53,16 @@ npm run check:release
 
 ## Pull requests
 
-PR/MR descriptions should identify the behavior change, supported scope, evidence and validation. Use [revision review artifacts](docs/review-ci.md) for architecture changes, retain merge conflicts explicitly and link consequential decisions to their planning context. Human acceptance and merge stay separate from generated findings. Versioned artifacts can be checked with [release assembly](docs/releases.md); no publishing/deployment is implied. Required GitHub checks are `CI` and `Betterleaks`; the scanner is version- and hash-pinned and scans the retained Git history.
+PR/MR descriptions should identify the behavior change, supported scope, evidence and validation. Use [revision review artifacts](docs/review-ci.md) for architecture changes, retain merge conflicts explicitly and link consequential decisions to their planning context. Human acceptance and merge stay separate from generated findings. Versioned artifacts can be checked with [release assembly](docs/releases.md); no publishing/deployment is implied.
+
+CI runs only for `main`, on pushes to it and on pull requests into it. There, `CI` and `Betterleaks` are required checks; the scanner is version- and hash-pinned and scans the retained Git history. Pull requests into `dev` get no CI for now, so before asking for review:
+
+- run the checks above locally, including the end-to-end suite;
+- run the Node and skills suites on Linux too where you can, for example in a container;
+- scan the branch's history with the same Betterleaks version (`betterleaks git . --redact`);
+- say in the PR what ran.
+
+**Run workflow** on the repository's Actions tab still runs CI on any branch.
 
 ## Branding and licensing
 

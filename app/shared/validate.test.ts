@@ -16,7 +16,8 @@ test('identifiers, commands and view events have exact shapes', () => {
   assert.throws(() => workId('../work-0011'));
   assert.equal(modelHandle('m-024410515ef6611f71e02bdc'), 'm-024410515ef6611f71e02bdc');
   assert.throws(() => modelHandle('m-../../planning.json'));
-  assert.equal(command('openFolder'), 'openFolder');
+  assert.equal(command('newWindow'), 'newWindow');
+  assert.throws(() => command('openFolder'), /must be one of/, 'folders open through their own channels');
   assert.throws(() => command('quit'));
   assert.deepEqual(viewEvent({ id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12', extra: 'dropped' }), { id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12' });
   assert.throws(() => viewEvent({ id: 'x', path: 'README.md', session: 'abcdefgh-2', contentHash: null }));

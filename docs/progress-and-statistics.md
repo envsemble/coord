@@ -66,4 +66,4 @@ Plan exports leave the statistics file out. `atlas planning check` warns about l
 
 ## Document use
 
-The Statistics view's third tab, **Document use**, is a separate record: which planning documents were opened in Atlas, and which ones agents reported consulting with `atlas usage log`. It is kept outside the planning folder, in the per-user Atlas data folder. With [remote access](remote-access.md) on, paired devices can see the counts for the folders you share. The [app guide](../app/README.md#document-use) describes it.
+The Statistics view's third tab, **Document use**, is a separate record: which planning documents were opened in Atlas, and which ones agents reported consulting with `atlas usage log`. It is kept outside the planning folder, in the per-user Atlas data folder. With [remote access](remote-access.md) on, paired devices see the counts of the computer whose folder they show, and their views count there. The [app guide](../app/README.md#document-use) describes it.

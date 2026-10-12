@@ -1,19 +1,20 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron';
-import type { RecentFolder } from '../shared/contract.ts';
+import type { ComputerFolder } from '../shared/contract.ts';
 import type { WindowManager } from './windows.ts';
 
-export function buildMenu(manager: WindowManager, recents: RecentFolder[], actions: { openLogs(): void; about(): void; devTools: boolean }) {
+/** How many of this computer's folders File › Open Recent lists; the explorer's folder menu has them all. */
+const recentLimit = 10;
+
+export function buildMenu(manager: WindowManager, folders: ComputerFolder[], actions: { openLogs(): void; about(): void; devTools: boolean }) {
   const window = () => manager.focused();
-  const recentItems: MenuItemConstructorOptions[] = recents.length
-    ? [
-      ...recents.map((item): MenuItemConstructorOptions => ({
-        label: item.path.replaceAll('&', '&&'),
-        sublabel: item.available ? undefined : 'Missing',
-        click: () => { void manager.openRecent(item.path, window()); },
-      })),
-      { type: 'separator' },
-      { label: 'Clear Recently Opened', click: () => { void manager.clearRecents(); } },
-    ]
+  // This computer's folder list, which its other devices see too; a folder leaves it from the explorer's folder menu.
+  const recentItems: MenuItemConstructorOptions[] = folders.length
+    ? folders.slice(0, recentLimit).map((item): MenuItemConstructorOptions => ({
+      label: item.path.replaceAll('&', '&&'),
+      sublabel: item.available ? undefined : 'Missing',
+      enabled: item.available,
+      click: () => { void manager.openRecent(item.path, window()); },
+    }))
     : [{ label: 'No recent folders', enabled: false }];
   const template: MenuItemConstructorOptions[] = [
     {
@@ -21,7 +22,7 @@ export function buildMenu(manager: WindowManager, recents: RecentFolder[], actio
       submenu: [
         { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { void manager.create(null); } },
         { type: 'separator' },
-        { label: '&Open Folder…', accelerator: 'CmdOrCtrl+O', click: () => { void manager.chooseFolder(window()); } },
+        { label: '&Open Folder…', accelerator: 'CmdOrCtrl+O', click: () => manager.openFolderCommand(window()) },
         { label: 'Open &Recent', id: 'open-recent', submenu: recentItems },
         { type: 'separator' },
         { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },

@@ -1,71 +1,43 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { AlertIcon, DeviceDesktopIcon, FileDirectoryIcon, XIcon } from './icons';
-import type { RecentFolder, RemoteHost, SharedFolder, WindowInfo } from './types';
+import type { WindowInfo } from './types';
 import { api } from './api';
-import { Blankslate, Label } from './ui';
+import { ComputerMenu, FolderList, openFolderOn, useAppActions, useComputerFolders } from './Computers';
+import { Blankslate } from './ui';
 
 const shortcut = (platform: string, key: string) => (platform === 'darwin' ? '⌘' : 'Ctrl+') + key;
 
-/** A window without a folder: open one, pick a recent one, or open a folder another computer shares. */
-export function Welcome({ info, onConnect }: { info: WindowInfo; onConnect(): void }) {
-  const [recents, setRecents] = useState<RecentFolder[] | null>(null);
+/** A window without a folder: one computer's folder list (this one, or a paired one chosen at the top), and a way to open another folder there. */
+export function Welcome({ info }: { info: WindowInfo }) {
+  const computer = info.computer;
+  const { folders, error: listError } = useComputerFolders(computer.hostId);
   const [error, setError] = useState('');
-  useEffect(() => { api.recents().then(setRecents).catch(() => setRecents([])); }, []);
-  const run = (promise: Promise<unknown>) => { setError(''); promise.catch(failure => setError((failure as Error).message)); };
+  const actions = useAppActions();
+  const here = computer.hostId === null;
   return <main className="welcome">
     <div className="welcome-panel">
       <div className="welcome-brand"><AtlasMark size={40} label="" /><div><h1>Atlas</h1><p className="muted">Plans, models and shared understanding.</p></div></div>
+      <div className="welcome-computer"><ComputerMenu current={computer} onError={setError} /></div>
       <section>
         <h2>Start</h2>
         <div className="welcome-actions">
-          <button type="button" className="btn btn-primary" onClick={() => run(api.command('openFolder'))}><FileDirectoryIcon size={16} />Open Folder…</button>
-          <button type="button" className="btn" onClick={onConnect}><DeviceDesktopIcon size={16} />Connect to Another Atlas…</button>
+          <button type="button" className="btn btn-primary" onClick={() => openFolderOn(computer, actions, setError)}><FileDirectoryIcon size={16} />Open Folder…</button>
+          <button type="button" className="btn" onClick={actions.connect}><DeviceDesktopIcon size={16} />Connect to Another Atlas…</button>
         </div>
-        <p className="muted welcome-hint">Open a planning folder: one with a <code>planning.json</code> registry. Each folder opens in its own window. <kbd>{shortcut(info.platform, 'O')}</kbd></p>
+        <p className="muted welcome-hint">
+          Open a planning folder{here ? '' : ' on ' + computer.name}: one with a <code>planning.json</code> registry. Each folder opens in its own window.{here && <> <kbd>{shortcut(info.platform, 'O')}</kbd></>}
+        </p>
       </section>
-      <OtherComputers onError={setError} />
-      <section aria-label="Recent folders">
-        <h2>Recent</h2>
-        {recents === null ? null : recents.length ? <ul className="recent-list">{recents.map(item => <li key={item.path}>
-          <button type="button" className="recent-item" disabled={!item.available} title={item.path} onClick={() => run(api.command('openRecent', item.path))}>
-            <strong>{item.name}</strong><span className="muted recent-path">{item.parent}</span>
-            {item.available ? item.workItems !== null && <span className="muted">{item.workItems} work {item.workItems === 1 ? 'item' : 'items'}</span> : <Label tone="attention">Missing</Label>}
-          </button>
-        </li>)}</ul> : <p className="muted">No recent folders.</p>}
+      <section aria-label="Planning folders">
+        <h2>{here ? 'Recent' : 'Planning folders on ' + computer.name}</h2>
+        {folders === null ? null : folders.length ? <FolderList computer={computer} folders={folders} onError={setError} />
+          : <p className="muted">{listError || (here ? 'No recent folders.' : 'No planning folders on ' + computer.name + ' yet. Open one to start.')}</p>}
       </section>
-      {error && <div className="flash flash-warning"><AlertIcon size={16} />{error}</div>}
+      {error && <div className="flash flash-warning" role="alert"><AlertIcon size={16} /><span className="flash-text">{error}</span><button type="button" className="btn-octicon" aria-label="Dismiss" onClick={() => setError('')}><XIcon size={16} /></button></div>}
       <p className="muted welcome-version">Atlas {info.version} · works offline; nothing leaves this computer unless you turn on remote access.</p>
     </div>
   </main>;
-}
-
-/** Computers this one paired with, and the planning folders they share (read-only here). */
-function OtherComputers({ onError }: { onError(message: string): void }) {
-  const [hosts, setHosts] = useState<RemoteHost[] | null>(null);
-  const [folders, setFolders] = useState<Record<string, SharedFolder[] | string>>({});
-  const load = () => api.remoteHosts().then(list => {
-    setHosts(list);
-    for (const host of list) api.remoteFolders(host.hostId).then(items => setFolders(current => ({ ...current, [host.hostId]: items })), failure => setFolders(current => ({ ...current, [host.hostId]: (failure as Error).message })));
-  }).catch(() => setHosts([]));
-  useEffect(() => { void load(); }, []);
-  if (!hosts?.length) return null;
-  const forget = (host: RemoteHost) => { api.forgetRemote(host.hostId).then(() => load(), failure => onError((failure as Error).message)); };
-  return <section aria-label="Other computers">
-    <h2>Other computers</h2>
-    <ul className="recent-list">{hosts.map(host => {
-      const shared = folders[host.hostId];
-      return <li key={host.hostId} className="remote-host">
-        <div className="remote-host-head"><DeviceDesktopIcon size={16} /><strong>{host.name}</strong><span className="muted recent-path">{host.origin.replace(/^https?:\/\//, '')}</span>
-          <button type="button" className="btn-octicon" aria-label={'Forget ' + host.name} title="Forget this computer" onClick={() => forget(host)}><XIcon size={16} /></button></div>
-        {shared === undefined ? <p className="muted remote-host-note">Connecting…</p>
-          : typeof shared === 'string' ? <p className="muted remote-host-note">{shared}</p>
-          : shared.length ? <ul className="remote-folders">{shared.map(folder => <li key={folder.folderId}>
-            <button type="button" className="recent-item" onClick={() => { api.openRemote(host.hostId, folder.folderId).catch(failure => onError((failure as Error).message)); }}><strong>{folder.name}</strong><Label tone="muted">Read-only</Label></button>
-          </li>)}</ul> : <p className="muted remote-host-note">Shares no planning folders.</p>}
-      </li>;
-    })}</ul>
-  </section>;
 }
 
 /** A folder that moved, was deleted, or cannot be read at all. */
@@ -76,7 +48,7 @@ export function FolderProblem({ info }: { info: WindowInfo }) {
         <button type="button" className="btn" onClick={() => void api.command('closeWindow')}>Close</button>
       </div>}>
         {info.error && <span className="folder-problem-error">{info.error}</span>}
-        <span>Atlas reconnects on its own while {info.remote.hostName} is paired and shares the folder.</span>
+        <span>Atlas reconnects on its own while this computer is paired with {info.remote.hostName}.</span>
       </Blankslate>
     </div>
   </main>;

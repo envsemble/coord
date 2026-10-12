@@ -1,10 +1,12 @@
-// File › Remote Access…: let paired devices read this computer's shared planning folders.
-// Off by default. The owner picks how the computer is reached (Tailscale, a local network, or only
-// this machine), shares folders, creates five-minute one-time pairing links shown with a QR code,
-// and revokes paired devices. Every change applies at once.
-import { useEffect, useMemo, useState } from 'react';
-import { AlertIcon, CheckIcon, CopyIcon, FileDirectoryIcon, XIcon } from './icons';
-import type { AccessSettings, AccessState, PairedDevice, PairingLinkView } from './types';
+// File › Remote Access…: let your other devices use this computer's planning folders. Off by
+// default. The owner picks how the computer is reached (Tailscale, a local network, or only this
+// machine), creates five-minute one-time pairing links shown with a QR code, and revokes paired
+// devices. A paired device gets the whole computer; the pairing link may also grant it Manage
+// access, so it can pair and revoke devices itself. In a window on another computer, the dialog
+// manages that computer's pairings, when this app was granted Manage access there.
+import { useEffect, useState } from 'react';
+import { AlertIcon, CheckIcon, CopyIcon } from './icons';
+import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from './types';
 import { api } from './api';
 import { absoluteDate, relativeDate } from './format';
 import { Dialog } from './components/Dialog';
@@ -19,22 +21,28 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   </button>;
 }
 
-export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void; currentFolder: string | null }) {
+export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; computer: ComputerRef }) {
+  const here = computer.hostId === null;
   const [state, setState] = useState<AccessState | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
   const [link, setLink] = useState<PairingLinkView | null>(null);
+  const [label, setLabel] = useState('');
+  const [manageAccess, setManageAccess] = useState(false);
   const [port, setPort] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [refused, setRefused] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  const refreshDevices = () => { api.devices().then(setDevices).catch(() => setDevices([])); };
+  const refreshDevices = () => { api.devices(computer.hostId).then(setDevices).catch(() => setDevices([])); };
   useEffect(() => {
-    api.accessState().then(next => { setState(next); setPort(String(next.settings.network.port)); }).catch(failure => setError((failure as Error).message));
-    refreshDevices();
-    return api.onAccessChanged(next => { setState(next); refreshDevices(); });
-  }, []);
+    api.accessState(computer.hostId).then(next => { setState(next); setPort(String(next.settings.network.port)); refreshDevices(); }).catch(failure => {
+      // Another computer that did not grant this one Manage access.
+      if ((failure as { code?: string }).code === 'forbidden') setRefused((failure as Error).message); else setError((failure as Error).message);
+    });
+    return api.onAccessChanged(change => { if (change.hostId === computer.hostId) { setState(change.state); refreshDevices(); } });
+  }, [computer.hostId]);
   useEffect(() => {
     if (!link) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -58,24 +66,23 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
   const managed = Boolean(state?.managedBy) || Boolean(state?.problem);
   // Tailscale when this computer has it; otherwise only this machine, until the owner picks a network deliberately.
   const address = settings?.network.address ?? state?.addresses.find(entry => entry.kind === 'tailscale')?.address ?? '127.0.0.1';
-  const chosen = state?.addresses.find(entry => entry.address === address);
-  const shared = useMemo(() => new Set(settings?.sharedFolders ?? []), [settings]);
+  const chosen = state?.addresses.find(entry => entry.address === (here ? address : state.status.address));
   const remaining = link ? Math.max(0, Date.parse(link.expiresAt) - now) : 0;
 
   const createLink = async () => {
     setBusy(true); setError('');
-    try { setLink(await api.createPairing(null)); setNow(Date.now()); }
+    try { setLink(await api.createPairing(computer.hostId, null, { label: label.trim() || null, manageAccess })); setNow(Date.now()); }
     catch (failure) { setError((failure as Error).message); }
     finally { setBusy(false); }
   };
   const revokeLink = async () => {
     if (!link) return;
-    await api.revokePairing(link.code).catch(() => undefined);
+    await api.revokePairing(computer.hostId, link.code).catch(() => undefined);
     setLink(null);
   };
   const revokeDevice = async (deviceId: string) => {
     setConfirming(null);
-    try { await api.revokeDevice(deviceId); refreshDevices(); }
+    try { await api.revokeDevice(computer.hostId, deviceId); refreshDevices(); }
     catch (failure) { setError((failure as Error).message); }
   };
   const savePort = () => {
@@ -85,14 +92,20 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
     void apply(next => ({ ...next, network: { ...next.network, port: value } }));
   };
 
-  return <Dialog label="Remote access" onClose={onClose} className="remote-access-dialog">
-    <h2 className="dialog-title">Remote access</h2>
-    {!state ? (error ? <div className="flash flash-danger" role="alert">{error}</div> : <div className="menu-loading"><Spinner />Loading…</div>) : <>
-      <p className="muted">Let devices you pair, such as your other computer, read the planning folders you share. They can open them read-only; they cannot change anything here.</p>
+  const title = here ? 'Remote access' : 'Remote access to ' + computer.name;
+  return <Dialog label={title} onClose={onClose} className="remote-access-dialog">
+    <h2 className="dialog-title">{title}</h2>
+    {refused ? <>
+      <div className="flash flash-warning" role="alert"><AlertIcon size={16} /><p>{refused}</p></div>
+      <div className="dialog-actions"><button type="button" className="btn" onClick={onClose}>Close</button></div>
+    </> : !state ? (error ? <div className="flash flash-danger" role="alert">{error}</div> : <div className="menu-loading"><Spinner />Loading…</div>) : <>
+      <p className="muted">{here
+        ? 'Pair your other devices, such as your laptop, to work on this computer from them: they browse its folders, open any planning folder, and import and export plans, as Atlas does here. Pair only your own devices.'
+        : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}</p>
       {state.problem ? <div className="flash flash-danger" role="alert"><AlertIcon size={16} /><p>{state.problem}</p></div>
         : state.managedBy && <div className="flash flash-warning"><AlertIcon size={16} /><p>Remote access on this computer is managed by {state.managedBy}. Quit it, and Atlas takes over here within a few seconds.</p></div>}
 
-      <section className="access-section" aria-label="Network">
+      {here ? <section className="access-section" aria-label="Network">
         <label className="access-toggle">
           <input type="checkbox" checked={settings!.network.enabled} disabled={busy || managed}
             onChange={event => { const enabled = event.target.checked; void apply(next => ({ ...next, network: { ...next.network, enabled, address: next.network.address ?? address } })); }} />
@@ -113,20 +126,9 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
         <p className={'access-status ' + (state.status.listening ? 'is-on' : state.status.error ? 'is-error' : '')} role="status">
           {state.status.listening ? `Listening on ${state.status.address}:${state.status.port}.` : state.status.error ?? 'Remote access is off.'}
         </p>
-      </section>
-
-      <section className="access-section" aria-label="Shared folders">
-        <h3 className="dialog-subtitle">Shared planning folders</h3>
-        {settings!.sharedFolders.length ? <ul className="access-list">{settings!.sharedFolders.map(folder => <li key={folder}>
-          <FileDirectoryIcon size={16} /><span className="access-path" title={folder}>{folder}</span>
-          <button type="button" className="btn-octicon" aria-label={'Stop sharing ' + folder} title="Stop sharing" disabled={busy || managed}
-            onClick={() => void apply(next => ({ ...next, sharedFolders: next.sharedFolders.filter(item => item !== folder) }))}><XIcon size={16} /></button>
-        </li>)}</ul> : <p className="muted">No folders are shared. Paired devices see nothing until you share one.</p>}
-        <div className="access-actions">
-          {currentFolder && !shared.has(currentFolder) && <button type="button" className="btn btn-sm" disabled={busy || managed} onClick={() => void apply(next => ({ ...next, sharedFolders: [...next.sharedFolders, currentFolder] }))}>Share this folder</button>}
-          <button type="button" className="btn btn-sm" disabled={busy || managed} onClick={() => { void api.chooseSharedFolder().then(folder => { if (folder) void apply(next => ({ ...next, sharedFolders: [...new Set([...next.sharedFolders, folder])] })); }, failure => setError((failure as Error).message)); }}>Add folder…</button>
-        </div>
-      </section>
+      </section> : <p className={'access-status ' + (state.status.listening ? 'is-on' : '')} role="status">
+        {state.status.listening ? `${computer.name} listens on ${state.status.address}:${state.status.port}.` : `Remote access is off on ${computer.name}.`}
+      </p>}
 
       <section className="access-section" aria-label="Pair a device">
         <h3 className="dialog-subtitle">Pair a device</h3>
@@ -134,26 +136,38 @@ export function RemoteAccessDialog({ onClose, currentFolder }: { onClose(): void
           {link.qrSvg && <img className="pairing-qr" src={'data:image/svg+xml;utf8,' + encodeURIComponent(link.qrSvg)} alt="QR code of the pairing link" />}
           <div className="pairing-text">
             <p className="pairing-expiry">Expires in {Math.floor(remaining / 60000)}:{String(Math.floor(remaining / 1000) % 60).padStart(2, '0')} · works once</p>
+            <p className="pairing-grant">{link.label ? <strong>{link.label}: </strong> : null}the whole computer{link.manageAccess ? ', and Manage access' : ''}.</p>
             <code className="pairing-link">{link.url}</code>
             <div className="access-actions">
               {link.url && <CopyButton text={link.url} label="Copy link" />}
               <CopyButton text={link.code} label="Copy code only" />
               <button type="button" className="btn btn-sm btn-danger" onClick={() => void revokeLink()}>Revoke</button>
             </div>
-            <p className="muted field-note">In Atlas on the other computer, choose <strong>File › Connect to Another Atlas…</strong> and paste the link. Treat it like a password.</p>
+            <p className="muted field-note">In Atlas on the other device, choose <strong>File › Connect to Another Atlas…</strong> and paste the link. Treat it like a password.</p>
           </div>
-        </div> : <>
+        </div> : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
           {link && <p className="muted">That pairing link expired.</p>}
-          <button type="button" className="btn btn-primary" disabled={busy || managed || !state.status.listening} onClick={() => void createLink()}>Create pairing link</button>
-          {!state.status.listening && <p className="muted field-note">Turn remote access on first.</p>}
-        </>}
+          <label className="field-label" htmlFor="pairing-label">Device label <span className="muted">(optional)</span></label>
+          <input id="pairing-label" className="input field-input pairing-label" value={label} maxLength={80} onChange={event => setLabel(event.target.value)} placeholder="e.g. Work laptop" spellCheck={false} autoComplete="off" disabled={busy || managed} />
+          <fieldset className="pairing-permissions">
+            <legend className="field-label">Permissions</legend>
+            <p className="pairing-permission is-fixed"><CheckIcon size={16} /><span><strong>Use this computer</strong><span className="muted">Browse its folders, open any planning folder, import and export plans. Every paired device can.</span></span></p>
+            <label className="pairing-permission">
+              <input type="checkbox" checked={manageAccess} disabled={busy || managed} onChange={event => setManageAccess(event.target.checked)} />
+              <span><strong>Manage access</strong><span className="muted">Create pairing links, and list and revoke paired devices.</span></span>
+            </label>
+          </fieldset>
+          {chosen?.kind === 'lan' && <p className="access-note access-warning"><AlertIcon size={16} /><span>This link works over a local network, where the connection is not encrypted. Someone on that network who captures the device’s traffic could use {here ? 'this computer' : computer.name} as that device until you revoke it. Prefer Tailscale.</span></p>}
+          <button type="submit" className="btn btn-primary" disabled={busy || managed || !state.status.listening}>Create pairing link</button>
+          {!state.status.listening && <p className="muted field-note">{here ? 'Turn remote access on first.' : `Remote access is off on ${computer.name}.`}</p>}
+        </form>}
       </section>
 
       <section className="access-section" aria-label="Paired devices">
         <h3 className="dialog-subtitle">Paired devices</h3>
         {devices === null ? <Spinner /> : devices.length ? <ul className="access-list device-list">{devices.map(device => <li key={device.deviceId}>
           <div className="device-main">
-            <strong>{device.name}</strong>
+            <span className="device-name"><strong>{device.name}</strong>{device.scopes.includes('access:manage') && <Label tone="accent">Manage access</Label>}</span>
             <span className="muted">{platforms[device.platform] ?? device.platform} · paired {absoluteDate(device.pairedAt)}{device.lastSeenAt && !device.connected ? ' · last seen ' + relativeDate(device.lastSeenAt) : ''}</span>
           </div>
           {device.connected && <Label tone="success">Connected</Label>}

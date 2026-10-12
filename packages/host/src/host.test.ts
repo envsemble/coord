@@ -1,8 +1,9 @@
-// The host end to end on 127.0.0.1: authentication and scopes, pairing with a one-time code,
-// shared folders, revocation, and the checks that keep browsers and other hosts out.
+// The host end to end on 127.0.0.1: authentication and scopes, pairing with a one-time code, the
+// whole computer for a paired device (its folder list, browsing, import), Manage access,
+// revocation, and the checks that keep browsers and other hosts out.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -10,7 +11,9 @@ import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { AccessStore, lockAddress, normalizeCode } from './access.ts';
 import { HostClient, HostRequestError, describeHost, pairWithHost, parsePairing, type ClientStatus } from './client.ts';
-import { closeCodes, type FolderState } from './contract.ts';
+import { browse } from './browse.ts';
+import { FolderList } from './folderList.ts';
+import { closeCodes, type ComputerFolder, type FolderState } from './contract.ts';
 import { Host, acceptableHost, attachment } from './host.ts';
 import { pairRequest, accessSettings } from './validate.ts';
 import type { WorkerLike } from './planWorkerClient.ts';
@@ -55,11 +58,27 @@ async function start(t: TestContext, options: { extraShared?: string[]; data?: s
 }
 function client(t: TestContext, origin: string | (() => string), token: string | (() => string | Promise<string>), hostId: string | null = null) {
   const events: FolderState[] = [];
+  const lists: ComputerFolder[][] = [];
   const statuses: ClientStatus[] = [];
-  const connection = new HostClient({ origin, token: typeof token === 'function' ? token : () => token, hostId, retry: { first: 0, cap: 100 }, onEvent: (event, data) => { if (event === 'folder.changed') events.push(data as FolderState); }, onStatus: status => statuses.push(status) });
+  const connection = new HostClient({
+    origin, token: typeof token === 'function' ? token : () => token, hostId, retry: { first: 0, cap: 100 }, onStatus: status => statuses.push(status),
+    onEvent: (event, data) => { if (event === 'folder.changed') events.push(data as FolderState); else if (event === 'folders.changed') lists.push((data as { folders: ComputerFolder[] }).folders); },
+  });
   connection.start();
   t.after(() => connection.close());
-  return { connection, events, statuses };
+  return { connection, events, lists, statuses };
+}
+const noGrant = { label: null, manageAccess: false };
+/** Turn remote access on for 127.0.0.1 and pair a device; returns its client and pairing. */
+async function pairDevice(t: TestContext, host: Host, owner: HostClient, grant: { label: string | null; manageAccess: boolean } = noGrant, name = 'Laptop') {
+  if (!host.networkStatus().listening) {
+    const updated = await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port: await freePort() } } });
+    assert.equal(updated.status.listening, true, updated.status.error ?? '');
+  }
+  const link = await owner.request('access.pairingCreate', { address: null, ...grant });
+  const { origin: remote, code } = parsePairing(link.url!);
+  const { descriptor, pairing } = await pairWithHost(remote, code, { name, platform: 'linux' });
+  return { ...client(t, remote, pairing.token, descriptor.hostId), pairing, remote, link };
 }
 const until = async (check: () => boolean, timeout = 5000, describe?: () => unknown) => {
   const deadline = Date.now() + timeout;
@@ -125,42 +144,74 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   assert.ok(events.some(event => event.folderId === opened.folderId && event.revision > state.revision));
 });
 
-test('a device pairs once with a five-minute code, reads only shared folders, and is cut off when revoked', async t => {
+test('a device pairs once with a five-minute code, gets the whole computer, and is cut off when revoked', async t => {
   const { host, origin, planning } = await start(t);
-  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId).connection;
-  await assert.rejects(owner.request('access.pairingCreate', { address: null }), /Turn on remote access first/);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await assert.rejects(owner.connection.request('access.pairingCreate', { address: null, ...noGrant }), /Turn on remote access first/);
   const port = await freePort();
-  const updated = await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port }, sharedFolders: [planning] } });
+  const updated = await owner.connection.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port } } });
   assert.equal(updated.status.listening, true, updated.status.error ?? '');
-  const link = await owner.request('access.pairingCreate', { address: null });
+  const link = await owner.connection.request('access.pairingCreate', { address: null, label: 'Work laptop', manageAccess: false });
   assert.equal(link.url, `http://127.0.0.1:${port}/pair#token=${link.code}`);
+  assert.deepEqual([link.label, link.manageAccess], ['Work laptop', false]);
   assert.ok(Date.parse(link.expiresAt) - Date.now() <= 5 * 60000 && Date.parse(link.expiresAt) - Date.now() > 4 * 60000);
   const { origin: remote, code } = parsePairing(link.url!);
   assert.deepEqual(parsePairing(`127.0.0.1:${port}`, code.toLowerCase()), { origin: remote, code: code.toLowerCase() });
-  const { descriptor, pairing } = await pairWithHost(remote, code.toLowerCase().replaceAll('-', ' '), { name: 'Laptop', platform: 'linux' });
+  const { descriptor, pairing } = await pairWithHost(remote, code.toLowerCase().replaceAll('-', ' '), { name: 'LAPTOP-7Q2', platform: 'linux' });
   assert.equal(descriptor.hostId, host.descriptor.hostId);
-  assert.deepEqual(pairing.scopes, ['planning:read']);
+  assert.deepEqual(pairing.scopes, ['computer']);
   await assert.rejects(pairWithHost(remote, code, { name: 'Again', platform: 'linux' }), /wrong, expired or already used/, 'a code is used once');
+  // The label the owner gave the link names the device.
+  assert.deepEqual((await owner.connection.request('access.devices', {})).map(entry => [entry.name, entry.scopes]), [['Work laptop', ['computer']]]);
 
+  // The device browses the computer and opens any planning folder there, with its real path.
   const device = client(t, remote, pairing.token, descriptor.hostId);
-  const shared = await device.connection.request('folders.shared', {});
-  assert.equal(shared.length, 1);
-  const folder = await device.connection.follow(shared[0].folderId);
-  assert.equal(folder.status, 'ready');
-  assert.equal((await device.connection.request('folder.snapshot', { folderId: folder.folderId })).work.length, 4);
-  await assert.rejects(device.connection.request('folders.open', { path: planning }), (error: HostRequestError) => error.code === 'forbidden' && /Atlas app on the host/.test(error.message));
-  await assert.rejects(device.connection.request('access.devices', {}), (error: HostRequestError) => error.code === 'forbidden');
-  await assert.rejects(device.connection.request('folder.recordView', { folderId: folder.folderId, event: { id: 'view-00000001', path: 'README.md', session: 'session-0001', contentHash: null } }), (error: HostRequestError) => error.code === 'forbidden');
-  const devices = await owner.request('access.devices', {});
-  assert.deepEqual(devices.map(entry => [entry.name, entry.connected]), [['Laptop', true]]);
+  assert.deepEqual(await device.connection.request('folders.list', {}), []);
+  const beginning = await device.connection.request('folders.browse', { path: null });
+  assert.equal(beginning.path, null);
+  assert.equal(beginning.folders[0].name, 'Home');
+  const parent = await device.connection.request('folders.browse', { path: path.dirname(planning) });
+  assert.deepEqual(parent.folders.map(entry => [entry.name, entry.planning]), [['planning', true]]);
+  await assert.rejects(device.connection.request('folders.open', { path: path.dirname(planning) }), (error: HostRequestError) => error.code === 'folder-invalid' && /planning\.json/.test(error.message));
+  await assert.rejects(device.connection.request('folders.open', { path: path.join(planning, 'nowhere') }), (error: HostRequestError) => error.code === 'folder-missing');
+  const opened = await device.connection.request('folders.open', { path: planning });
+  assert.equal(opened.status, 'ready');
+  const folder = await device.connection.follow(opened.folderId, () => device.connection.request('folders.open', { path: planning }));
+  const snapshot = await device.connection.request('folder.snapshot', { folderId: folder.folderId });
+  assert.equal(snapshot.work.length, 4);
+  assert.equal(snapshot.root, planning, 'a device sees real paths');
+  // Opening it put it on the computer's folder list, which every client sees at once.
+  const listed = await device.connection.request('folders.list', {});
+  assert.deepEqual(listed.map(entry => [entry.path, entry.available, entry.workItems]), [[planning, true, 4]]);
+  // The app here may open a folder that is not a planning folder (to explain why); it stays off the list, and a device cannot reach it.
+  const plain = path.dirname(planning);
+  const notPlanning = await owner.connection.request('folders.open', { path: plain });
+  assert.equal((await owner.connection.request('folders.list', {})).length, 1);
+  await assert.rejects(device.connection.request('folders.subscribe', { folderId: notPlanning.folderId }), (error: HostRequestError) => error.code === 'forbidden');
+  assert.equal((await device.connection.fetch(`/api/folders/${notPlanning.folderId}/files/planning/README.md`)).status, 403);
+  await until(() => owner.lists.some(list => list.some(entry => entry.path === planning)), 5000, () => owner.lists);
+  // Its views count in this computer's document use.
+  await device.connection.request('folder.recordView', { folderId: folder.folderId, event: { id: 'view-00000001', path: 'README.md', session: 'session-0001', contentHash: null } });
+  // It sends its plans for import (below); it cannot make this computer read a file by path, or reach a network share.
+  await assert.rejects(device.connection.request('plan.importRead', { folderId: folder.folderId, file: path.join(planning, 'README.md') }), (error: HostRequestError) => error.code === 'forbidden');
+  for (const share of ['\\\\fileserver\\plans\\planning', '//fileserver/plans/planning', ...(process.platform === 'win32' ? ['/\\fileserver\\plans', '/\\?\\UNC\\fileserver\\plans'] : [])]) {
+    await assert.rejects(device.connection.request('folders.open', { path: share }), (error: HostRequestError) => error.code === 'forbidden' && /Network paths/.test(error.message), share);
+    await assert.rejects(device.connection.request('folders.browse', { path: share }), (error: HostRequestError) => error.code === 'forbidden', share);
+  }
+  // Reopening a folder (after a reconnection, or for a restored window) leaves the folder list as it is.
+  await owner.connection.request('folders.remove', { folderId: folder.folderId });
+  await device.connection.request('folders.open', { path: planning, remember: false });
+  assert.deepEqual(await device.connection.request('folders.list', {}), []);
+  await device.connection.request('folders.open', { path: planning });
+  // Only the owner changes the remote-access settings; managing access needs Manage access.
+  await assert.rejects(device.connection.request('access.update', { settings: { network: { enabled: false, address: null, port } } }), (error: HostRequestError) => error.code === 'forbidden' && /Only the Atlas app on/.test(error.message));
+  await assert.rejects(device.connection.request('access.devices', {}), (error: HostRequestError) => error.code === 'forbidden' && /may not manage access/.test(error.message));
+  await assert.rejects(device.connection.request('access.pairingCreate', { address: null, ...noGrant }), (error: HostRequestError) => error.code === 'forbidden');
+  assert.deepEqual((await owner.connection.request('access.devices', {})).map(entry => [entry.name, entry.connected]), [['Work laptop', true]]);
   // The device's token works only on the remote address: the loopback port is the app's own.
   const onLoopback = client(t, origin, pairing.token, descriptor.hostId);
   await until(() => onLoopback.connection.status === 'revoked');
   assert.equal((await fetch(origin + '/api/folders/' + folder.folderId + '/files/README.md', { headers: { Authorization: 'Bearer ' + pairing.token } })).status, 401);
-  // A device sees no paths on the host computer, not even in messages.
-  const deviceSnapshot = await device.connection.request('folder.snapshot', { folderId: folder.folderId });
-  assert.equal(deviceSnapshot.root, 'planning');
-  assert.ok(!JSON.stringify(deviceSnapshot).includes(planning), 'no absolute path of the shared folder');
   // Exports download with an exact UTF-8 name besides the ASCII one (the unit test below covers non-ASCII names).
   const prepared = await device.connection.request('plan.exportPrepare', { folderId: folder.folderId, work: 'work-0001' });
   const download = await device.connection.fetch('/api/exports/' + prepared.token);
@@ -168,21 +219,13 @@ test('a device pairs once with a five-minute code, reads only shared folders, an
   assert.match(download.headers.get('content-disposition') ?? '', /filename\*=UTF-8''/);
   await download.arrayBuffer();
   // Exports belong to whoever prepared them: a device cannot take the owner's.
-  const ownerFolder = await owner.request('folders.open', { path: planning });
-  await owner.follow(ownerFolder.folderId);
-  const ownerExport = await owner.request('plan.exportPrepare', { folderId: ownerFolder.folderId, work: 'work-0001' });
+  const ownerFolder = await owner.connection.request('folders.open', { path: planning });
+  await owner.connection.follow(ownerFolder.folderId);
+  const ownerExport = await owner.connection.request('plan.exportPrepare', { folderId: ownerFolder.folderId, work: 'work-0001' });
   assert.equal((await device.connection.fetch('/api/exports/' + ownerExport.token)).status, 404);
-  assert.equal((await owner.fetch('/api/exports/' + ownerExport.token)).status, 200);
+  assert.equal((await owner.connection.fetch('/api/exports/' + ownerExport.token)).status, 200);
 
-  // Unsharing takes the folder away at once, with the exports prepared from it.
-  const waiting = await device.connection.request('plan.exportPrepare', { folderId: folder.folderId, work: 'work-0001' });
-  await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port }, sharedFolders: [] } });
-  await until(() => device.events.some(event => event.folderId === folder.folderId && event.status === 'missing'));
-  await assert.rejects(device.connection.request('folder.snapshot', { folderId: folder.folderId }), (error: HostRequestError) => error.code === 'forbidden');
-  assert.equal((await device.connection.fetch('/api/exports/' + waiting.token)).status, 404);
-  assert.equal((await device.connection.fetch('/api/folders/' + folder.folderId + '/files/README.md')).status, 403, 'files of an unshared folder are refused');
-
-  await owner.request('access.deviceRevoke', { deviceId: pairing.deviceId });
+  await owner.connection.request('access.deviceRevoke', { deviceId: pairing.deviceId });
   await until(() => device.connection.status === 'revoked');
   assert.match(device.connection.detail!, /revoked/);
   const again = client(t, remote, pairing.token, descriptor.hostId);
@@ -190,14 +233,136 @@ test('a device pairs once with a five-minute code, reads only shared folders, an
   assert.equal((await fetch(remote + '/api/folders/' + folder.folderId + '/files/README.md', { headers: { Authorization: 'Bearer ' + pairing.token } })).status, 401);
 
   // Turning remote access off stops the listener and forgets open pairing links.
-  const open = await owner.request('access.pairingCreate', { address: null });
-  await owner.request('access.update', { settings: { network: { enabled: false, address: '127.0.0.1', port }, sharedFolders: [] } });
+  const open = await owner.connection.request('access.pairingCreate', { address: null, ...noGrant });
+  await owner.connection.request('access.update', { settings: { network: { enabled: false, address: '127.0.0.1', port } } });
   await assert.rejects(describeHost(remote, 1000), /could not reach/);
-  await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port }, sharedFolders: [] } });
+  await owner.connection.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port } } });
   await assert.rejects(pairWithHost(remote, open.code, { name: 'Late', platform: 'linux' }), /wrong, expired or already used/, 'a link from before is gone');
   // Pairing happens only on the remote access address, never through the app's loopback port.
-  const fresh = await owner.request('access.pairingCreate', { address: null });
+  const fresh = await owner.connection.request('access.pairingCreate', { address: null, ...noGrant });
   await assert.rejects(pairWithHost(origin, fresh.code, { name: 'Local', platform: 'linux' }), /Pairing failed|Not found/);
+});
+
+test('a device with Manage access pairs and revokes devices, but does not change the settings', async t => {
+  const { host, origin } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId).connection;
+  const manager = await pairDevice(t, host, owner, { label: null, manageAccess: true }, 'Desk');
+  assert.deepEqual(manager.pairing.scopes, ['computer', 'access:manage']);
+  const state = await manager.connection.request('access.state', {});
+  assert.equal(state.status.listening, true);
+  // It pairs another device from its own pairing link, sees it, and revokes it.
+  const link = await manager.connection.request('access.pairingCreate', { address: null, label: 'Phone', manageAccess: false });
+  const { origin: remote, code } = parsePairing(link.url!);
+  const phone = await pairWithHost(remote, code, { name: 'pixel', platform: 'android' });
+  assert.deepEqual(phone.pairing.scopes, ['computer']);
+  const listed = await manager.connection.request('access.devices', {});
+  assert.deepEqual(listed.map(entry => [entry.name, entry.scopes.includes('access:manage')]), [['Desk', true], ['Phone', false]]);
+  const phoneClient = client(t, remote, phone.pairing.token, phone.descriptor.hostId);
+  await until(() => phoneClient.connection.status === 'connected');
+  await manager.connection.request('access.deviceRevoke', { deviceId: phone.pairing.deviceId });
+  await until(() => phoneClient.connection.status === 'revoked');
+  await assert.rejects(manager.connection.request('access.update', { settings: { network: { enabled: false, address: null, port: 7346 } } }), (error: HostRequestError) => error.code === 'forbidden');
+});
+
+test('the folder list starts from the recent folders and the folders the first remote access shared', async t => {
+  // Removed after the host stops (registered after start's own cleanup), since the host holds files in it.
+  const data = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-data-')));
+  const places = temporary(t, 'atlas-host-places-');
+  const [recent, older, shared] = ['recent', 'older', 'shared'].map(name => { const folder = path.join(places, name, 'planning'); cpSync(fixture, folder, { recursive: true }); return folder; });
+  const gone = path.join(places, 'gone', 'planning');
+  writeFileSync(path.join(data, 'planning-roots.json'), JSON.stringify({ recent: [recent, gone, older] }));
+  // Remote access as the first version saved it: a shared folder and a device that could read only shared folders.
+  const legacy = new AccessStore(path.join(data, 'host'), quiet, 'a test');
+  await legacy.lock();
+  const paired = legacy.pair(legacy.createPairing(null).code, { name: 'Old laptop', platform: 'linux' });
+  legacy.unlock();
+  const file = path.join(data, 'host', 'access.json');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...saved, version: 1, settings: { ...saved.settings, sharedFolders: [shared, recent] }, devices: saved.devices.map((device: { scopes: string[] }) => ({ ...device, scopes: ['planning:read'] })) }));
+  const { host, origin } = await start(t, { data });
+  t.after(() => rmSync(data, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+  const folders = await host.computerFolders();
+  assert.deepEqual(folders.map(entry => [entry.path, entry.available, entry.openedAt]), [[recent, true, null], [gone, false, null], [older, true, null], [shared, true, null]]);
+  // The device paired with version 1 now has the whole computer.
+  assert.deepEqual(host.access.deviceForToken(paired.token)?.scopes, ['computer']);
+  // Opening moves a folder to the top; removing takes it off for everyone; the missing one stays until removed.
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await owner.connection.request('folders.open', { path: older });
+  const after = await owner.connection.request('folders.list', {});
+  assert.deepEqual(after.map(entry => entry.path), [older, recent, gone, shared]);
+  assert.ok(after[0].openedAt);
+  await owner.connection.request('folders.remove', { folderId: after.find(entry => entry.path === gone)!.folderId });
+  await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
+  await assert.rejects(owner.connection.request('folders.remove', { folderId: 'f-' + 'a'.repeat(32) }), (error: HostRequestError) => error.code === 'not-found');
+  // The settings are saved as version 2 by the next change, without the shared folders.
+  await owner.connection.request('access.update', { settings: { network: { enabled: false, address: null, port: 7346 } } });
+  const rewritten = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(rewritten.version, 2);
+  assert.equal(rewritten.settings.sharedFolders, undefined);
+  assert.deepEqual(rewritten.devices[0].scopes, ['computer']);
+  // A folder the list names but this process never opened still opens by its ID (after a restart, say).
+  const fromList = after.find(entry => entry.path === shared)!;
+  assert.equal((await owner.connection.follow(fromList.folderId)).status, 'ready');
+});
+
+test('a folder list the host cannot read right now is left as it is', async t => {
+  const directory = temporary(t, 'atlas-list-');
+  const list = new FolderList(directory, quiet, async () => []);
+  await list.touch(path.join(directory, 'one'));
+  assert.deepEqual((await list.entries()).map(entry => path.basename(entry.path)), ['one']);
+  // Another program holds the file (here: a folder in its place, which cannot be read as a file).
+  const saved = readFileSync(list.file, 'utf8');
+  rmSync(list.file);
+  mkdirSync(list.file);
+  assert.deepEqual(await list.entries(), []);
+  await assert.rejects(list.touch(path.join(directory, 'two')), /cannot be read right now/);
+  await assert.rejects(list.remove(path.join(directory, 'one')), /cannot be read right now/);
+  rmSync(list.file, { recursive: true });
+  writeFileSync(list.file, saved);
+  assert.deepEqual((await list.entries()).map(entry => path.basename(entry.path)), ['one'], 'nothing replaced it meanwhile');
+});
+
+test('the folder browser lists folders only, marks planning folders and follows links to folders', async t => {
+  const root = temporary(t, 'atlas-browse-');
+  cpSync(fixture, path.join(root, 'b-planning'), { recursive: true });
+  for (const name of ['a-folder', 'folder 10', 'folder 9', '.hidden']) mkdirSync(path.join(root, name));
+  writeFileSync(path.join(root, 'notes.md'), 'a file');
+  // A junction (Windows) or a symbolic link (elsewhere) to a folder counts as a folder.
+  symlinkSync(path.join(root, 'b-planning'), path.join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
+  const listed = await browse(root);
+  assert.deepEqual(listed.folders.map(entry => [entry.name, entry.planning]), [['a-folder', false], ['b-planning', true], ['folder 9', false], ['folder 10', false], ['linked', true]]);
+  assert.equal(listed.parent, path.dirname(root));
+  assert.equal(listed.planning, false);
+  assert.equal((await browse(path.join(root, 'b-planning'))).planning, true);
+  await assert.rejects(browse(path.join(root, 'missing')), (error: Error & { code?: string }) => error.code === 'not-found');
+  await assert.rejects(browse(path.join(root, 'notes.md')), (error: Error & { code?: string }) => error.code === 'invalid-argument');
+  const places = await browse(null, process.platform);
+  assert.equal(places.folders[0].name, 'Home');
+  assert.ok(places.folders.length >= 2, 'the drives or the root follow');
+});
+
+test('another computer imports a plan by sending its file', async t => {
+  const { host, origin, planning } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId).connection;
+  const device = await pairDevice(t, host, owner);
+  const opened = await device.connection.request('folders.open', { path: planning });
+  await device.connection.follow(opened.folderId);
+  const prepared = await device.connection.request('plan.exportPrepare', { folderId: opened.folderId, work: 'work-0002' });
+  const html = new Uint8Array(await (await device.connection.fetch('/api/exports/' + prepared.token)).arrayBuffer());
+  const sent = await device.connection.fetch(`/api/folders/${opened.folderId}/imports`, 60000, { method: 'POST', body: html, length: html.byteLength });
+  assert.equal(sent.status, 200, await sent.clone().text());
+  const preview = await sent.json() as { token: string; newId: string; title: string };
+  assert.equal(preview.newId, 'work-0005');
+  // The preview belongs to the device that sent the file.
+  await assert.rejects(owner.request('plan.importConfirm', { folderId: opened.folderId, token: preview.token }), /expired/);
+  const result = await device.connection.request('plan.importConfirm', { folderId: opened.folderId, token: preview.token });
+  assert.equal(result.workId, 'work-0005');
+  assert.equal((await device.connection.request('folder.snapshot', { folderId: opened.folderId })).work.length, 5);
+  // Something that is not a plan export is refused, and nothing is written.
+  const junk = new TextEncoder().encode('<!doctype html><p>not a plan</p>');
+  const refused = await device.connection.fetch(`/api/folders/${opened.folderId}/imports`, 60000, { method: 'POST', body: junk, length: junk.byteLength });
+  assert.equal(refused.status, 400);
+  assert.equal((await fetch(device.remote + `/api/folders/${opened.folderId}/imports`, { method: 'POST', body: junk })).status, 401, 'only paired devices send files');
 });
 
 test('a client sends no credential to another host answering on a known address', async t => {
@@ -264,8 +429,7 @@ test('stored access survives one bad device record, and device names are trimmed
   store.unlock();
   assert.throws(() => pairRequest({ code: 'AAAA-AAAA-AAAA-AAAA', device: { name: '   ', platform: 'linux' } }), /not blank/);
   assert.equal(pairRequest({ code: 'AAAA-AAAA-AAAA-AAAA', device: { name: '  Laptop ', platform: 'linux' } }).device.name, 'Laptop');
-  assert.throws(() => accessSettings({ network: { enabled: true, address: '0.0.0.0', port: 7346 }, sharedFolders: [] }), /not every address/);
-  assert.throws(() => accessSettings({ network: { enabled: false, address: null, port: 7346 }, sharedFolders: ['relative/planning'] }), /absolute/);
+  assert.throws(() => accessSettings({ network: { enabled: true, address: '0.0.0.0', port: 7346 } }), /not every address/);
   const file = path.join(directory, 'access.json');
   const saved = JSON.parse(readFileSync(file, 'utf8'));
   const hostId = saved.hostId;
@@ -281,13 +445,13 @@ test('the owner token works only on the loopback port, never on the remote acces
   const { host, origin } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId).connection;
   const port = await freePort();
-  await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port }, sharedFolders: [] } });
+  await owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port } } });
   const remote = client(t, 'http://127.0.0.1:' + port, host.ownerToken, host.descriptor.hostId);
   await until(() => remote.connection.status === 'revoked');
   // Overlapping changes leave exactly the listener the last one asked for.
   const [first, second] = [await freePort(), await freePort()];
-  await Promise.all([first, second].map(next => owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port: next }, sharedFolders: [] } })));
-  await owner.request('access.update', { settings: { network: { enabled: false, address: '127.0.0.1', port: second }, sharedFolders: [] } });
+  await Promise.all([first, second].map(next => owner.request('access.update', { settings: { network: { enabled: true, address: '127.0.0.1', port: next } } })));
+  await owner.request('access.update', { settings: { network: { enabled: false, address: '127.0.0.1', port: second } } });
   for (const closed of [port, first, second]) await assert.rejects(describeHost('http://127.0.0.1:' + closed, 1000), /could not reach/, 'port ' + closed + ' is closed');
 });
 
@@ -334,7 +498,7 @@ test('settings this version cannot read are left alone, and remote access stays 
   const file = path.join(directory, 'access.json');
   const good = readFileSync(file, 'utf8');
   // A newer Atlas wrote the file: this version neither replaces nor rewrites it.
-  const newer = JSON.stringify({ ...JSON.parse(good), version: 2 });
+  const newer = JSON.stringify({ ...JSON.parse(good), version: 3 });
   writeFileSync(file, newer);
   const reader = new AccessStore(directory, quiet, 'a test');
   assert.match(reader.problem ?? '', /not in a form this version of Atlas can read/);

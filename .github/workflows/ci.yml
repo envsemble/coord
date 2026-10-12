@@ -1,7 +1,11 @@
 name: CI
+# Runs for main only while the account has no Actions minutes to spare: PRs into dev are
+# validated locally (see CONTRIBUTING). Run it by hand on any branch with workflow_dispatch.
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

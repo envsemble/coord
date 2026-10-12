@@ -1,24 +1,30 @@
 // The app's connections to Atlas hosts: its own host (main/localHost.ts), reached as the owner,
-// and the hosts of other computers it paired with, reached with a read-only device token. Saved
-// connections live in <Atlas data folder>/connections.json; tokens are encrypted with the
-// system's credential store (Electron safeStorage) where it has one. A paired computer's connection
-// stays open while a window shows one of its folders; listing its folders uses a short-lived one.
+// and the hosts of other computers it paired with, reached with a device token. A paired computer
+// is the same person's: its device token reaches everything Atlas can do there, and Manage access
+// when its pairing link granted it. Saved connections live in <Atlas data folder>/connections.json;
+// tokens are encrypted with the system's credential store (Electron safeStorage) where it has one.
+// A paired computer's connection stays open while a window shows one of its folders; other
+// requests (its folder list, the folder browser) use that connection or a short-lived one.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import path from 'node:path';
 import { safeStorage } from 'electron';
-import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events, type SharedFolder } from '@envsemble/atlas-host';
-import type { RemoteHost } from '../shared/contract.ts';
-import { object, string } from '../shared/validate.ts';
+import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events } from '@envsemble/atlas-host';
+import type { Computer, ComputerStatus } from '../shared/contract.ts';
+import { array, boolean, object, oneOf, optional, string } from '../shared/validate.ts';
 import type { LocalHost } from './localHost.ts';
 import type { RotatingLog } from './log.ts';
 
-interface SavedConnection { hostId: string; name: string; origin: string; deviceId: string; token: string; pairedAt: string }
+interface SavedConnection { hostId: string; name: string; origin: string; deviceId: string; token: string; pairedAt: string; manageAccess?: boolean }
 const hostIdPattern = /^[a-zA-Z0-9-]{8,64}$/;
-const saved = object<SavedConnection>({
+const saved = object<SavedConnection & { scopes?: string[] }>({
   hostId: string({ min: 8, max: 64, pattern: hostIdPattern }), name: string({ min: 1, max: 80 }), origin: string({ min: 10, max: 300, pattern: /^https?:\/\/[^/]+$/ }),
   deviceId: string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ }), token: string({ min: 8, max: 2000 }), pairedAt: string({ min: 1, max: 40 }),
+  manageAccess: optional(boolean),
+  scopes: optional(array(oneOf(['planning:read', 'computer', 'access:manage'] as const), 3)),
 });
+/** How long the computer menu waits for a paired computer to answer. */
+const probeTimeout = 2500;
 
 export interface ConnectionEvents {
   onEvent<E extends EventName>(client: HostClient, event: E, data: Events[E]): void;
@@ -54,8 +60,10 @@ export class Connections {
     if (!Array.isArray(parsed)) { this.log.warn('Saved connections unreadable; starting without them'); return; }
     // Each saved computer is checked on its own, so one unreadable entry costs only itself.
     for (const [index, value] of parsed.slice(0, 100).entries()) {
-      try { const entry = saved(value); this.remote.set(entry.hostId, { saved: entry, client: null }); }
-      catch (error) { this.log.warn('A saved connection is unreadable and was skipped', { index, message: (error as Error).message }); }
+      try {
+        const { scopes, ...entry } = saved(value);
+        this.remote.set(entry.hostId, { saved: { ...entry, manageAccess: entry.manageAccess ?? scopes?.includes('access:manage') ?? false }, client: null });
+      } catch (error) { this.log.warn('A saved connection is unreadable and was skipped', { index, message: (error as Error).message }); }
     }
   }
   private save() {
@@ -79,15 +87,35 @@ export class Connections {
     throw new HostRequestError('unauthorized', 'The saved credential cannot be read. Pair again.');
   }
 
-  /** The other computers this app paired with. */
-  list(): RemoteHost[] {
-    return [...this.remote.values()].map(({ saved: entry, client }) => ({
-      hostId: entry.hostId, name: entry.name, origin: entry.origin, pairedAt: entry.pairedAt,
-      status: client?.status ?? 'closed', detail: client?.detail ?? null,
-    }));
-  }
+  /** This computer's name, as its host gives it. */
+  get localName() { return this.local.descriptor?.name ?? (hostname().trim() || 'This computer'); }
   has(hostId: string) { return this.remote.has(hostId); }
   name(hostId: string) { return this.remote.get(hostId)?.saved.name ?? hostId; }
+  /** The paired computer a connection belongs to; null for this computer's own. */
+  hostIdOf(client: HostClient): string | null {
+    for (const [hostId, entry] of this.remote) if (entry.client === client) return hostId;
+    return null;
+  }
+
+  /**
+   * This computer and the paired ones, each with whether it answers now: the open connection's
+   * status, or a quick look at its public descriptor.
+   */
+  async computers(): Promise<Computer[]> {
+    const local: Computer = { hostId: null, name: this.localName, status: 'online', detail: null, manageAccess: true, origin: null };
+    const others = await Promise.all([...this.remote.values()].map(async ({ saved: entry, client }): Promise<Computer> => {
+      const base = { hostId: entry.hostId, name: entry.name, manageAccess: entry.manageAccess ?? false, origin: entry.origin };
+      if (client && client.status !== 'closed') return { ...base, status: statusOf(client.status), detail: client.status === 'connected' ? null : client.detail };
+      try {
+        const described = await describeHost(entry.origin, probeTimeout);
+        if (described.hostId !== entry.hostId) return { ...base, status: 'mismatch', detail: `${entry.origin} now answers as a different computer (${described.name}).` };
+        return { ...base, status: 'online', detail: null };
+      } catch (error) {
+        return { ...base, status: /cannot connect to/.test((error as Error).message) ? 'incompatible' : 'offline', detail: (error as Error).message };
+      }
+    }));
+    return [local, ...others];
+  }
 
   private entry(hostId: string) {
     const entry = this.remote.get(hostId);
@@ -112,12 +140,13 @@ export class Connections {
     entry.client = this.create(entry, true);
     return entry.client;
   }
-  /** The folders a paired computer shares: through its open connection, or a short-lived one. */
-  async sharedFolders(hostId: string): Promise<SharedFolder[]> {
+  /** A connection to a computer for one task: this computer's own, a paired computer's open one, or a short-lived one. */
+  async use<T>(hostId: string | null, task: (client: HostClient) => Promise<T>): Promise<T> {
+    if (hostId === null) return task(this.local);
     const entry = this.entry(hostId);
-    if (entry.client && entry.client.status !== 'closed') return entry.client.request('folders.shared', {}, { timeout: 20000 });
+    if (entry.client && entry.client.status !== 'closed') return task(entry.client);
     const client = this.create(entry, false);
-    try { return await client.request('folders.shared', {}, { timeout: 20000 }); }
+    try { return await task(client); }
     finally { client.close(); }
   }
   /** No window shows this computer's folders any more: close its connection. */
@@ -128,7 +157,7 @@ export class Connections {
   }
 
   /** Pair with another computer's Atlas from its pairing link (or address and code), and save it. */
-  async pair(link: string, code?: string): Promise<{ host: RemoteHost; folders: SharedFolder[] }> {
+  async pair(link: string, code?: string): Promise<Computer> {
     const target = parsePairing(link, code);
     // Check whose link it is before spending its one-time code.
     const described = await describeHost(target.origin);
@@ -138,18 +167,18 @@ export class Connections {
     // Everything saved comes from the other computer: keep only what fits.
     let entry: SavedConnection;
     try {
-      entry = saved({
+      const { scopes: _scopes, ...checked } = saved({
         hostId: descriptor.hostId, name: descriptor.name.trim().slice(0, 80) || 'Another computer', origin: target.origin,
-        deviceId: pairing.deviceId, token: this.seal(pairing.token), pairedAt: new Date().toISOString(),
+        deviceId: pairing.deviceId, token: this.seal(pairing.token), pairedAt: new Date().toISOString(), manageAccess: Array.isArray(pairing.scopes) && pairing.scopes.includes('access:manage'),
       });
+      entry = checked;
     } catch (error) { throw new HostRequestError('unavailable', 'The other computer answered with something Atlas cannot use (' + (error as Error).message + ').'); }
     const previous = this.remote.get(descriptor.hostId);
     previous?.client?.close();
     this.remote.set(descriptor.hostId, { saved: entry, client: null });
     this.save();
-    this.log.info('Paired with another computer', { hostId: descriptor.hostId, name: entry.name, origin: target.origin });
-    const folders = await this.sharedFolders(descriptor.hostId);
-    return { host: this.list().find(item => item.hostId === descriptor.hostId)!, folders };
+    this.log.info('Paired with another computer', { hostId: descriptor.hostId, name: entry.name, origin: target.origin, manageAccess: entry.manageAccess });
+    return { hostId: entry.hostId, name: entry.name, status: 'online', detail: null, manageAccess: entry.manageAccess ?? false, origin: entry.origin };
   }
 
   /** Forget a paired computer here. Its host keeps the device listed until it is revoked there. */
@@ -170,5 +199,16 @@ export class Connections {
   closeAll() {
     this.local.close();
     for (const entry of this.remote.values()) entry.client?.close();
+  }
+}
+
+function statusOf(status: ClientStatus): ComputerStatus {
+  switch (status) {
+    case 'connected': return 'online';
+    case 'connecting': return 'connecting';
+    case 'revoked': return 'revoked';
+    case 'mismatch': return 'mismatch';
+    case 'incompatible': return 'incompatible';
+    default: return 'offline';
   }
 }

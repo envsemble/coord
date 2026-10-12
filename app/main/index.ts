@@ -1,10 +1,11 @@
 // The Atlas desktop app's main process: single instance, one window per planning folder,
 // the application menu, and the typed message channel the windows use. Planning folders are read
-// by the Atlas host, which this process starts in a utility process (main/localHost.ts).
+// by the Atlas host of the computer they are on: this computer's, which this process starts in a
+// utility process (main/localHost.ts), or a paired computer's.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, powerMonitor, protocol, shell } from 'electron';
-import { atlasDataDirectory, RecentPlanningRoots, recentRootsFile } from '@envsemble/atlas-planning';
+import { atlasDataDirectory } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
 import { Connections } from './connections.ts';
@@ -74,7 +75,6 @@ function refuse(found: Refusal) {
 function start() {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
   const state = new StateStore(path.join(dataDirectory, 'desktop-state.json'), error => log.warn('Desktop state not saved', error));
-  const recents = new RecentPlanningRoots(recentRootsFile());
   const devTools = !app.isPackaged;
   let manager: WindowManager;
 
@@ -88,14 +88,14 @@ function start() {
         `Electron ${process.versions.electron} · Chromium ${process.versions.chrome} · Node.js ${process.versions.node}`,
         'Data folder: ' + dataDirectory,
         '',
-        'Atlas works offline. Plans, models, statistics and logs stay on this computer, unless you turn on remote access (File › Remote Access…) to let paired devices read shared planning folders.',
+        'Atlas works offline. Plans, models, statistics and logs stay on this computer, unless you turn on remote access (File › Remote Access…) so your paired devices can use its planning folders.',
       ].join('\n'),
       buttons: ['OK'],
     };
     const target = window ?? manager.focused();
     void (target ? dialog.showMessageBox(target.win, options) : dialog.showMessageBox(options));
   };
-  const refreshMenu = () => { void manager.recents().then(list => buildMenu(manager, list, { openLogs, about: () => about(), devTools })); };
+  const refreshMenu = () => { void manager.localFolders().then(list => buildMenu(manager, list, { openLogs, about: () => about(), devTools })); };
 
   const localHost = new LocalHost({
     entry: path.join(import.meta.dirname, 'host.js'), dataDirectory, version: app.getVersion(), log,
@@ -105,17 +105,24 @@ function start() {
   const connections: Connections = new Connections({
     dataDirectory, localHost, log,
     onEvent: (client, event, data) => {
-      if (event === 'folder.changed') manager.folderChanged(client, data as never);
-      else if (event === 'access.changed' && client === connections.local) manager.accessChanged(data as never);
+      if (event === 'folder.changed') { manager.folderChanged(client, data as never); return; }
+      const hostId = client === connections.local ? null : connections.hostIdOf(client);
+      if (client !== connections.local && hostId === null) return;
+      if (event === 'folders.changed') manager.foldersChanged(hostId, (data as { folders: never }).folders);
+      else if (event === 'access.changed') manager.accessChanged(hostId, data as never);
     },
-    onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
+    onStatus: (client, status, detail) => {
+      manager.connectionChanged(client, status, detail);
+      // This computer's folder list (File › Open Recent) is known once its host answers.
+      if (client === connections.local && status === 'connected') refreshMenu();
+    },
   });
 
   manager = new WindowManager({
-    state, log, recents, connections, version: app.getVersion(), icon, devUrl, devTools,
+    state, log, connections, version: app.getVersion(), icon, devUrl, devTools,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
-    onRecentsChanged: refreshMenu,
+    onFoldersChanged: refreshMenu,
   });
 
   app.on('browser-window-created', (_event, window) => {

@@ -123,10 +123,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       case 'openWorkList': open(viewTarget('work'), { pin: true }); break;
       case 'openActivity': open(viewTarget('activity'), { pin: true }); break;
       case 'openStatistics': open(viewTarget('statistics'), { pin: true }); break;
-      case 'importPlan':
-        if (info.remote) notify(`This planning folder is on ${info.remote.hostName} and opens read-only here; import plans on that computer.`, 'warning');
-        else void startImport();
-        break;
+      case 'importPlan': void startImport(); break;
       case 'exportPlan': {
         const current = active?.target.kind === 'work' ? snapshot.work.find(work => work.id === (active.target as { work: string }).work)
           : active?.target.kind === 'file' ? snapshot.work.find(work => work.id === snapshot.documents.find(file => file.path === (active.target as { path: string }).path)?.workId) : undefined;
@@ -135,7 +132,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
         break;
       }
     }
-  }, [active, snapshot, open, setTabs, setSidebar, exportWork, startImport, info.remote, notify]);
+  }, [active, snapshot, open, setTabs, setSidebar, exportWork, startImport]);
 
   // Menu commands from main; ignore one that repeats a shortcut this window just handled.
   useEffect(() => api.onMenu(command => {
@@ -169,7 +166,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       <ActivityBar explorer={ui.sidebar.visible} activeView={activeView} activeCount={snapshot.work.filter(work => work.location === 'active').length} issues={snapshot.issues}
         onExplorer={() => setSidebar({ visible: !ui.sidebar.visible })} onView={view => open(viewTarget(view), { pin: true })} />
       <SplitPane size={ui.sidebar.width} min={limits.sidebarMin} max={limits.sidebarMax} visible={ui.sidebar.visible} label="Resize the explorer" onResize={width => setSidebar({ width })}
-        start={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''} expanded={ui.sidebar.expanded} setExpanded={expanded => setSidebar({ expanded: expanded.slice(-limits.expanded) })} selected={node?.id ?? null} onExportPlan={work => void exportWork(work)} />}
+        start={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''} root={info.folder?.root ?? ''} computer={info.computer} platform={info.platform} expanded={ui.sidebar.expanded} setExpanded={expanded => setSidebar({ expanded: expanded.slice(-limits.expanded) })} selected={node?.id ?? null} onExportPlan={work => void exportWork(work)} />}
         end={<div className="editor-group">
           <TabStrip tabs={tabs} active={ui.tabs.active} label="Open tabs" onActivate={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />
           {info.error && <div className="flash flash-warning folder-error" role="alert"><AlertIcon size={16} /><div>

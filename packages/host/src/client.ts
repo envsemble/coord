@@ -245,8 +245,9 @@ export class HostClient {
     if (!isRecord(parsed)) return;
     if ('event' in parsed) {
       const { event, data } = parsed as unknown as EventMessage;
-      if ((event !== 'folder.changed' && event !== 'access.changed') || !isRecord(data)) return;
-      if (event === 'folder.changed' && (typeof data.folderId !== 'string' || typeof data.status !== 'string')) return;
+      if ((event !== 'folder.changed' && event !== 'folders.changed' && event !== 'access.changed') || !isRecord(data)) return;
+      if (event === 'folder.changed' && (typeof (data as Record<string, unknown>).folderId !== 'string' || typeof (data as Record<string, unknown>).status !== 'string')) return;
+      if (event === 'folders.changed' && !Array.isArray((data as Record<string, unknown>).folders)) return;
       try { this.options.onEvent?.(event, data as never); } catch { /* A listener's failure is its own. */ }
       return;
     }
@@ -318,15 +319,20 @@ export class HostClient {
   }
 
   /**
-   * An authenticated HTTP request to the host (files in documents, plan exports). It waits for a
-   * connection, so the credential goes only to an address that answered with the expected host ID.
+   * An authenticated HTTP request to the host (files in documents, plan exports, a plan sent for
+   * import). It waits for a connection, so the credential goes only to an address that answered
+   * with the expected host ID.
    */
-  async fetch(pathname: string, timeout = 60000): Promise<Response> {
+  async fetch(pathname: string, timeout = 60000, send?: { method: 'POST'; body: ReadableStream<Uint8Array> | Uint8Array; length: number }): Promise<Response> {
     await this.ready(Math.min(timeout, 15000));
     const token = await this.options.token();
     const origin = this.connectedOrigin;
     if (!origin || this.status !== 'connected') throw new HostRequestError('unavailable', this.detail ?? 'Not connected.');
-    return fetch(origin + pathname, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(timeout), redirect: 'error' });
+    const headers: Record<string, string> = { Authorization: 'Bearer ' + token };
+    if (send) { headers['Content-Type'] = 'application/octet-stream'; headers['Content-Length'] = String(send.length); }
+    // A streamed body needs `duplex: 'half'` in Node's fetch.
+    const init = { headers, signal: AbortSignal.timeout(timeout), redirect: 'error', ...(send ? { method: send.method, body: send.body, duplex: 'half' } : {}) } as RequestInit;
+    return fetch(origin + pathname, init);
   }
 
   close() {
