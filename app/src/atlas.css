@@ -116,9 +116,8 @@ body { margin: 0; }
 /* The diagrams section: the header stays, the panel takes the rest of the window. */
 .work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); inline-size: 100%; max-inline-size: none; min-block-size: 0; margin-inline: 0; }
 .work-page.section-diagrams .work-page-head { padding-inline: var(--space-7); }
-.work-page.section-diagrams .work-sections { flex: 1; display: flex; flex-direction: column; min-block-size: 0; padding-inline: 0; }
-.work-page.section-diagrams .work-sections > [role='tablist'] { margin-inline: var(--space-7); }
-.work-page.section-diagrams .work-sections > [role='tabpanel'] { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
+.work-page.section-diagrams .work-sections { flex: 1; min-block-size: 0; }
+.work-page.section-diagrams .work-sections-list { margin-inline: var(--space-7); }
 
 /* Reader */
 .reader { min-inline-size: 0; }

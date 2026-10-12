@@ -48,6 +48,28 @@ function notices(metafile) {
   return "/*!\n" + lines.join("\n").replaceAll("*/", "* /") + "\n*/\n";
 }
 
+// Plan exports leave envUI's code highlighting out: Shiki's grammars would roughly double the file
+// (and contain "<!--", which a script in HTML must not), and code blocks stay readable as plain text.
+const plainCode = {
+  name: "plain-code",
+  setup(build) {
+    build.onResolve({ filter: /CodeHighlighting\.js$/ }, (args) =>
+      /[\\/]content[\\/]internal[\\/]useCodeHighlighting\.(?:js|ts)$/.test(args.importer) ? { path: "plain-code", namespace: "atlas-plain-code" } : undefined);
+    build.onLoad({ filter: /.*/, namespace: "atlas-plain-code" }, () => ({
+      contents: 'export function highlightCode() { return Promise.reject(new Error("Plan exports show code without highlighting.")); }',
+      loader: "js",
+    }));
+  },
+};
+
+// One React: a linked envUI checkout (npm run dev:envui) would otherwise bring its own copy.
+const oneReact = {
+  name: "one-react",
+  setup(build) {
+    build.onResolve({ filter: /^react(?:-dom)?(?:\/.*)?$/ }, (args) => ({ path: require.resolve(args.path, { paths: [root] }) }));
+  },
+};
+
 export async function buildViewer() {
   const result = await build({
     absWorkingDir: root,
@@ -61,6 +83,7 @@ export async function buildViewer() {
     minify: true,
     // envUI's Inter font travels inside the file: the policy allows fonts only as data: URLs.
     loader: { ".woff2": "dataurl" },
+    plugins: [oneReact, plainCode],
     charset: "utf8",
     legalComments: "none",
     outdir: "out",

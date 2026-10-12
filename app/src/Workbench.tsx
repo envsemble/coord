@@ -125,7 +125,14 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
 
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
-      case 'toggleSidebar': setSidebar({ visible: !ui.sidebar.visible }); break;
+      case 'toggleSidebar': {
+        const collapsing = ui.sidebar.visible;
+        setSidebar({ visible: !collapsing });
+        // A collapsed sidebar stays expanded while it holds focus, so collapsing it lets go of focus.
+        const focused = document.activeElement;
+        if (collapsing && focused instanceof HTMLElement && focused.closest('.env-app-sidebar')) focused.blur();
+        break;
+      }
       case 'showExplorer': setSidebar({ visible: true }); window.setTimeout(() => document.querySelector<HTMLElement>('.explorer-tree [role="tree"], .explorer-tree[role="tree"]')?.focus(), 0); break;
       case 'quickOpen': setQuickOpen({ mode: 'all', onPick: (target, pin) => open(target, { pin }) }); break;
       case 'closeTab': setTabs(tabs => tabs.active ? closeTab(tabs, tabs.active) : tabs); break;
@@ -194,7 +201,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       <div className={'workbench-body' + (fills ? ' is-filled' : '')}>
         <DocumentTabs className="workbench-tabs" items={tabs} value={ui.tabs.active} aria-label="Open tabs"
           onValueChange={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />
-        {info.error && <Notice className="folder-error" tone="warning" role="alert" title={info.remote ? `Atlas can’t read this planning folder on ${info.remote.hostName} right now.` : 'The planning folder can’t be read right now.'}>
+        {info.error && <Notice className="folder-error" tone="warning" announce title={info.remote ? `Atlas can’t read this planning folder on ${info.remote.hostName} right now.` : 'The planning folder can’t be read right now.'}>
           {info.error} {info.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
         </Notice>}
         {info.notice && <Notice className="folder-error" tone="info">{info.notice}</Notice>}

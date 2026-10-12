@@ -36,7 +36,7 @@ export function Welcome({ info }: { info: WindowInfo }) {
         {folders === null ? null : folders.length ? <FolderRows computer={computer} folders={folders} onError={setError} />
           : <Text tone="muted">{listError || (here ? 'No recent folders.' : 'No planning folders on ' + computer.name + ' yet. Open one to start.')}</Text>}
       </section>
-      {error && <Notice tone="warning" role="alert" onDismiss={() => setError('')}>{error}</Notice>}
+      {error && <Notice tone="warning" announce onDismiss={() => setError('')}>{error}</Notice>}
       <Text variant="caption" tone="muted" className="welcome-version">Atlas {info.version} · works offline; nothing leaves this computer unless you turn on remote access.</Text>
     </div>
   </main>;

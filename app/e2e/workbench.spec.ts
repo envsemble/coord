@@ -80,7 +80,9 @@ test('tabs: single click previews, double click pins, Ctrl+W closes; tabs and si
   await expect(tabs(window)).toHaveCount(2);
   await expect(activeTab(window)).toContainText('payments-constraints.md');
 
-  // Ctrl+B collapses the sidebar to its icons, hiding the explorer; the sidebar's edge resizes it.
+  // Ctrl+B collapses the sidebar to its icons, hiding the explorer (a pointer over it would expand it
+  // again, as envUI's shell does); the sidebar's edge resizes it.
+  await window.mouse.move(900, 400);
   await window.keyboard.press('Control+B');
   await expect(window.locator('.explorer')).toBeHidden();
   await window.keyboard.press('Control+B');

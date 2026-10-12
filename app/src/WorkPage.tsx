@@ -109,7 +109,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         </div>
       </div>
     </header>
-    <Tabs className="work-sections" aria-label="Work sections" value={section} activation="manual"
+    <Tabs className="work-sections" aria-label="Work sections" value={section} activation="manual" fill={section === 'diagrams'} listClassName="work-sections-list"
       onValueChange={value => { if (value) retarget(workTarget(work.id, value as WorkSection, value === 'diagrams' ? { diagram: target.diagram ?? null } : {})); }}
       items={sections.filter(item => !item.hidden).map(item => ({
         value: item.id,

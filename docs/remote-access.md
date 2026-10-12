@@ -47,11 +47,11 @@ On Windows, the first time the host listens on a network address, Windows Defend
 
 ## Connect from another device
 
-On the other device, choose **File › Connect to Another Atlas…** (also on the welcome page and in the computer menu) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Atlas then lists that computer's planning folders. Choose one to open it, or **Open Folder on …** to browse that computer for another.
+On the other device, choose **File › Connect to Another Atlas…** (also on the welcome page, in the computer menu and in the window's **More** menu) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Atlas then lists that computer's planning folders. Choose one to open it, or **Open Folder on …** to browse that computer for another.
 
 ## Work on another computer
 
-The top of the explorer says where a window works: the **folder menu** (the folder's name) and the **computer menu** (the pill with the computer's name).
+Each window says where it works: the **computer menu** (the pill with the computer's name, at the top left) and the **folder menu** (the folder's name, above the explorer).
 
 - **The computer menu** lists this computer and every computer this one is paired with. Computers that do not answer are marked **Offline**.
   - Choosing a computer works on it in this window. Atlas opens:

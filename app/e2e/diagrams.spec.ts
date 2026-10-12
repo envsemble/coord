@@ -114,6 +114,8 @@ test('node names stay centred in their boxes below 100% zoom', async () => {
   const { window, app } = launched;
   // A fixed window size, so the measured node is clear of the floating toolbars.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+  // The measurement looks for light text on a dark box.
+  await window.emulateMedia({ colorScheme: 'dark' });
   await openDiagrams(window, 'Checkout · proposed payment methods');
   const zoom =window.getByRole('button', { name: /^Zoom \d+%/ });
   for (const step of ['fit', 'out'] as const) {

@@ -42,7 +42,8 @@ function themeStartup(): Plugin {
       });
     },
     async generateBundle() { this.emitFile({ type: 'asset', fileName: 'theme-startup.js', source: await themeScript() }); },
-    transformIndexHtml: () => [{ tag: 'script', attrs: { src: '/theme-startup.js' }, injectTo: 'head-prepend' }],
+    // After the policy (head-prepend would put it first) and before the stylesheets and the app.
+    transformIndexHtml: () => [{ tag: 'script', attrs: { src: '/theme-startup.js' }, injectTo: 'head' }],
   };
 }
 

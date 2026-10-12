@@ -1,5 +1,6 @@
 // Plan export and import: lossless round trips, identity rewrites, registry formatting and
 // rejection of malformed exports before anything is written.
+import { createHash } from 'node:crypto';
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
@@ -289,7 +290,8 @@ test('the exported HTML is self-contained, inert and safe to open', async t => {
   const { html } = await exportPlan(source, 'work-0001', { now });
   const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html)?.[1] ?? '';
   for (const directive of ["default-src 'none'", "connect-src 'none'", "object-src 'none'", "frame-src 'none'", "base-uri 'none'", "form-action 'none'"]) assert.ok(policy.includes(directive), directive);
-  assert.match(policy, /script-src 'sha256-[A-Za-z0-9+/=]+'/);
+  // Two scripts run: envUI's theme startup script in the head, and the viewer.
+  assert.match(policy, /script-src 'sha256-[A-Za-z0-9+/=]+' 'sha256-[A-Za-z0-9+/=]+'/);
   assert.ok(!policy.includes("'unsafe-eval'") && !/script-src[^;]*'unsafe-inline'/.test(policy));
   assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('<style>'), 'the policy precedes all content');
   type Element = { tagName?: string; attrs?: { name: string; value: string }[]; childNodes?: Element[] };
@@ -297,11 +299,13 @@ test('the exported HTML is self-contained, inert and safe to open', async t => {
   const pending: Element[] = [parse(html) as unknown as Element];
   while (pending.length) { const node = pending.shift()!; if (node.tagName) elements.push(node); pending.push(...node.childNodes ?? []); }
   const scripts = elements.filter(node => node.tagName === 'script').map(node => Object.fromEntries((node.attrs ?? []).map(attribute => [attribute.name, attribute.value])));
-  assert.deepEqual(scripts, [{ id: 'atlas-plan-export', type: 'application/json' }, { id: 'atlas-plan-view', type: 'application/json' }, {}], 'only the viewer runs; payloads are inert');
+  assert.deepEqual(scripts, [{}, { id: 'atlas-plan-export', type: 'application/json' }, { id: 'atlas-plan-view', type: 'application/json' }, {}], 'only the theme startup script and the viewer run; payloads are inert');
+  const themeScript = /<head>[\s\S]*?<script>([\s\S]*?)<\/script>/.exec(html)![1];
+  assert.ok(policy.includes(`'sha256-${createHash('sha256').update(themeScript).digest('base64')}'`), 'the theme startup script runs by its hash');
   assert.deepEqual(elements.filter(node => ['iframe', 'object', 'embed', 'base', 'form'].includes(node.tagName!)), []);
   assert.ok(!/<script\b[^>]*\bsrc\s*=/i.test(html) && !/<link\b(?![^>]*rel="icon" href="data:)[^>]*>/i.test(html), 'no external scripts or resources');
   assert.ok(!/url\(\s*['"]?(?:https?:)?\/\//i.test(html) && !/@import/i.test(html), 'no remote styles');
-  assert.equal(html.match(/<\/script>/g)!.length, 3, 'embedded text cannot close a script element');
+  assert.equal(html.match(/<\/script>/g)!.length, 4, 'embedded text cannot close a script element');
   assert.match(html, /<title>Checkout &lt;\/script&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt; \| Atlas plan<\/title>/);
 });
 

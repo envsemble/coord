@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The whole interface is built on [envUI](https://github.com/envsemble/envUI), Envsemble's component library, in its light and dark themes:
+  - **The window** is envUI's application shell: the computer menu, the page name, **Search**, record health, a theme menu and a **More** menu in the top bar; **Work**, **Activity** and **Statistics** and the explorer in one sidebar, which collapses to its icons (Ctrl+B) and resizes from its edge; and the open documents as tabs that stay under the top bar.
+  - **The theme** matches the system, or is light or dark, for every window; Atlas's own menus and dialogs follow it.
+  - **Views and dialogs** use envUI's rows, tables, tabs, segmented controls, menus, notices, dialogs and toasts, Material Symbols icons and the Inter font. Quick open is envUI's command palette; the explorer is its tree, with a compact context menu.
+  - **Lists of folders and computers:** the folder menu's **Manage folders…** and the computer menu's **Manage computers…** open a folder or a computer in a new window, remove a folder from the list, or forget a computer. The menus themselves open in this window.
+  - **The diagram viewer and plan exports** use the same components; the diagram viewer follows the app's theme, and a standalone model file follows the system's.
+  - `npm run dev:envui` runs the app against a local envUI checkout with live reload.
 - Ledger status version 2: the ledger header lists the agreed steps of the work, each `todo`, `doing` or `done`, and replaces `current` and `next`. The app and plan exports show a progress bar, the steps done and left, and each step; the work list shows progress per work item. `atlas planning check` validates the steps. Version-1 headers stay valid and readable. The planning contract (`PLANS.md`), the governance template and the `atlas-implement` and `atlas-record` skills describe the new header.
 - Work statistics: `atlas work report` records an agent's model, the tokens used so far in its session, and the ledger step at each ledger transition, in `<work>/.atlas/statistics.jsonl`. The Statistics view gains a **Work** tab (model, tokens, active time, plan revisions and steps per work item) and a **Models over time** tab (a chart and medians of completed work by implementing model); the About sidebar shows a work item's statistics. Plan revisions come from Git and follow archive moves. `atlas planning check` warns about invalid report lines. Plan exports leave statistics out.
 - Remote access: work on another computer's planning folders as if they were local.

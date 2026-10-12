@@ -31,7 +31,7 @@ export function ConnectDialog({ onClose, onBrowse }: { onClose(): void; onBrowse
       <Input label="Pairing link or address" value={link} onChange={event => setLink(event.target.value)} placeholder="http://100.64.1.2:7346/pair#token=…" autoFocus spellCheck={false} autoComplete="off" disabled={busy}
         hint="Use the Tailscale address to connect from anywhere on your tailnet. On a local network, the connection is not encrypted." />
       {needsCode && <Input label="Pairing code" value={code} onChange={event => setCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" spellCheck={false} autoComplete="off" disabled={busy} />}
-      {error && <Notice tone="error" role="alert">{error}</Notice>}
+      {error && <Notice tone="error" announce>{error}</Notice>}
     </form>
   </Dialog>;
 }
@@ -47,6 +47,6 @@ function Paired({ computer, onClose, onBrowse }: { computer: Computer; onClose()
     {folders === null ? <Spinner label="Loading its planning folders" />
       : folders.length ? <FolderRows computer={computer} folders={folders} onError={setError} onOpened={onClose} />
       : <EmptyState title="No planning folders yet" description={listError || 'No planning folders were opened on ' + computer.name + ' yet.'} />}
-    {error && <Notice tone="error" role="alert">{error}</Notice>}
+    {error && <Notice tone="error" announce>{error}</Notice>}
   </Dialog>;
 }

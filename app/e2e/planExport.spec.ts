@@ -79,7 +79,7 @@ test('Import Plan… previews the file, then adds it as new work under the next 
   await stubDialogs(app, { open: exported });
   const commits = git('rev-list', '--count', 'HEAD');
   await clickMenu(app, '&Import Plan…');
-  const preview = window.getByRole('dialog', { name: 'Import plan' });
+  const preview = window.getByRole('dialog', { name: /^Import “/ });
   await expect(preview).toContainText('Import “Order fulfilment model”');
   await expect(preview).toContainText('#0002 from planning');
   await expect(preview).toContainText(/#0005 in active\/0005-/);
@@ -114,7 +114,7 @@ test('an invalid export is refused in an error dialog and nothing is written', a
   const [message] = await shownMessages(app);
   expect(message.message).toBe('This file cannot be imported.');
   expect(message.detail).toContain('Nothing was written.');
-  await expect(window.getByRole('dialog', { name: 'Import plan' })).toHaveCount(0);
+  await expect(window.getByRole('dialog', { name: /^Import “/ })).toHaveCount(0);
   await expect(window.getByText(/^(Exported|Imported) /)).toHaveCount(0);
   expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toBe(registry);
   expect(git('status', '--porcelain', '--untracked-files=all')).toBe('');

@@ -57,7 +57,7 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 | `main/` | The main process: windows, the menu, the `atlas:` protocol, the message handlers, the log, saved state and the connections to Atlas hosts. It starts this computer's host (`packages/host`, in `main/hostProcess.ts`) in a utility process; the host reads and watches planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
 | `preload/` | The bridge: `window.atlas`, one method per message. |
 | `shared/` | The message contract and the validator every message argument goes through. |
-| `src/` | The React window. `src/components/` holds the building blocks (tree, menus, popover, split pane, tabs, dialog, notices), kept together so a later move to envUI stays mechanical. |
+| `src/` | The React window, built on [envUI](https://github.com/envsemble/envUI) (`@envsemble/envui`): its application shell, tree, document tabs, command palette, menus, dialogs, notices, tables and Material Symbols. `src/atlas.css` lays out Atlas's own regions with envUI tokens only. |
 | `e2e/` | The Playwright suite and its fixture planning folder. |
 
 ## Windows and folders
@@ -65,8 +65,8 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 Each window shows exactly one planning folder, like VS Code, on this computer or on a computer this one is paired with ([remote access](../docs/remote-access.md)):
 
 - **File › Open Folder…** (Ctrl+O) picks a folder. It must contain a readable `planning.json` with schema version 1; otherwise Atlas explains why and opens nothing. A window without a folder is reused; otherwise the folder opens in a new window, and a folder that is already open gets focus instead. In a window on another computer, it opens that computer's folder browser.
-- **The folder menu** (the folder's name at the top of the explorer) lists the computer's planning folders, newest first. Choosing one opens it in this window; its **↗** button, or Ctrl+Enter, opens it in a new window, and **×** removes it from the list.
-- **The computer menu** (the pill beside it) lists this computer and the paired ones. Choosing a computer works on it in this window: Atlas opens its only folder, the one this device last showed there, its most recent folder, or, with none, that computer's welcome page. On a welcome page, choosing a computer shows its folder list.
+- **The folder menu** (the folder's name above the explorer) lists the computer's planning folders, newest first. Choosing one opens it in this window. **Manage folders…** lists them with a button to open each one in a new window (Ctrl+click on a name does the same) and one to remove it from the list.
+- **The computer menu** (the pill at the top left of the window) lists this computer and the paired ones. Choosing a computer works on it in this window: Atlas opens its only folder, the one this device last showed there, its most recent folder, or, with none, that computer's welcome page. On a welcome page, choosing a computer shows its folder list. **Manage computers…** opens a computer in a new window or forgets a paired one.
 - **File › Open Recent** lists this computer's most recent folders (missing ones are marked). **New Window** (Ctrl+Shift+N) opens an empty window, whose welcome page shows a computer's folder list and Open Folder.
 - **The folder list** belongs to the computer: every planning folder opened there, from any device or the command line, stays on it, newest first, until someone removes it, and every device sees the same list.
 - Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility, expanded folders and open tabs. Closing windows one by one keeps the last one.
@@ -84,16 +84,18 @@ Earlier versions kept recent folders in `planning-roots.json`; the folder list s
 
 ## Layout
 
-- **Activity bar** (far left): **Explorer** toggles the sidebar; **Work**, **Activity** and **Statistics** open those views in a tab. A health indicator at the bottom lists record-health notes.
-- **Explorer** (Ctrl+B toggles it, drag its edge or use the arrow keys on the edge to resize): the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its number and plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, Enter (open pinned) and Space (preview) work in the tree. A context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**, and, anywhere in the explorer, **Collapse All Folders**. Its header holds the folder menu and the computer menu.
-- **Tabs:** a single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab (choosing a section or a diagram), pins it. Ctrl+W closes a tab; middle-click closes it too.
-- **Opening things:** clicking a work folder expands it and opens its overview. Clicking a file opens it in a tab; clicking a diagram opens the Diagrams view focused on it. Links between records open their target in a tab (Ctrl+click pins it).
-- **Quick open** (Ctrl+P) jumps to any work item, diagram or file by name.
+The window is envUI's application shell:
+
+- **Top bar:** the computer menu, the page's name, **Search** (quick open), record-health notes when there are any, the theme menu (match the system, light or dark; it applies to every window and to Atlas's own menus and dialogs) and a **More** menu (Open Folder…, Import Plan…, Export Plan…, Remote Access…, Connect a Computer…).
+- **Sidebar:** **Work** (with the number of active work items), **Activity** and **Statistics** open those views in a tab. Below them, the folder menu and the **explorer**: the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, type-ahead, Enter (open and keep) and Space (preview) work in the tree. A context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**, and, anywhere in the explorer, **Collapse All Folders**. Ctrl+B collapses the sidebar to its icons and back; drag its edge, or use the arrow keys on it, to resize it.
+- **Tabs:** a single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab (choosing a section or a diagram), keeps it. Ctrl+W closes a tab; middle-click closes it too. The tabs stay under the top bar while the page scrolls.
+- **Opening things:** clicking a work folder expands it and opens its overview. Clicking a file opens it in a tab; clicking a diagram opens the Diagrams view focused on it. Links between records open their target in a tab (Ctrl+click keeps it).
+- **Quick open** (Ctrl+P, or **Search**) jumps to any work item, diagram or file by name; Enter previews, Ctrl+Enter keeps the tab.
 
 | Shortcut | Action |
 | --- | --- |
 | Ctrl+P | Quick open |
-| Ctrl+B | Toggle the explorer |
+| Ctrl+B | Collapse or expand the sidebar |
 | Ctrl+Shift+E | Show and focus the explorer |
 | Ctrl+W | Close the tab |
 | Ctrl+O | Open a folder |
@@ -188,7 +190,7 @@ Events retain document identity, source, timestamp, known task/session IDs, avai
 
 ## Viewer conventions
 
-The interface uses [GitHub Primer](https://primer.style/) Dark dimmed tokens and Octicons, system typography, and GitHub-like Markdown presentation. It is dark-only. Repository filters sit in each list's toolbar.
+The interface is envUI's, in its light and dark themes, with Inter and Material Symbols, and envUI's Markdown presentation; inline code in documents uses envUI's subtle style, since planning records are dense with identifiers, paths and hashes. Repository filters sit in each list's toolbar.
 
 Each work row shows one status, styled like a GitHub issue: Not started, In progress, Partially done, Complete, Blocked (with the reason), Draft plan, Superseded or Abandoned. The design status appears only when it adds information. Rows also show the step being worked on, a small progress bar with done and total steps for a version-2 ledger, the repositories, a diagram count and a relative date.
 

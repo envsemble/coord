@@ -119,7 +119,7 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
   const headings = useMemo(() => Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])), [cards, hideTitle]);
   return <div className="prose">
     {cards.top.length > 0 && <DiagramCards items={cards.top} onOpen={onDiagram} />}
-    <EnvMarkdown rehypePlugins={headingPlugins} components={{
+    <EnvMarkdown inlineCode="subtle" rehypePlugins={headingPlugins} components={{
       ...headings,
       a: ({ href = '', children, id }: { href?: string; children?: ReactNode; id?: string }) => {
         const target = resolveExportLink(href, path, files);

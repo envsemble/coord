@@ -6,13 +6,13 @@ The [ontouml-js](https://github.com/OntoUML/ontouml-js) dependency supplies stan
 
 React and React DOM 19.3.0 are bundled into offline HTML under their MIT licenses. Full license text remains embedded in the HTML, with copies in packages/diagrams/licenses/. The reusable React module uses peer dependencies instead of bundling another React runtime.
 
-The plan export viewer (`packages/planning/dist/plan-viewer.html`) bundles React and React DOM, react-markdown and remark-gfm with their unified, micromark, mdast and hast dependencies, github-slugger, the Octicons icons it uses, Primer primitives' Dark dimmed tokens and fflate, each under its MIT or ISC license. The build lists every bundled package with its version and license and embeds the license texts in the viewer script.
+The plan export viewer (`packages/planning/dist/plan-viewer.html`) bundles React and React DOM, react-markdown and remark-gfm with their unified, micromark, mdast and hast dependencies, github-slugger, envUI with Base UI and Floating UI, the Material Symbols icons it uses, the Inter font, and fflate, each under its MIT, ISC, Apache 2.0 or SIL Open Font License. The build lists every bundled package with its version and license and embeds the license texts in the viewer script.
 
-GitHub [Primer primitives](https://github.com/primer/primitives) supply the app's design tokens under their MIT license, distributed with the npm dependency.
+The interface is built on envUI (`@envsemble/envui`), Envsemble's own private component library. It brings [Base UI](https://github.com/mui/base-ui) and Floating UI (MIT), Google's [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0) and the [Inter](https://github.com/rsms/inter) font (SIL Open Font License 1.1); their notices ship in envUI's package, and the offline diagram and plan files embed them.
 
 The `atlas-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's work and keep their [attribution](skills/atlas-grill/references/ATTRIBUTION.md) and [MIT license](skills/atlas-grill/references/LICENSE).
 
-GitHub's [Octicons](https://github.com/primer/octicons) React package 19.40.0 supplies the interface icons. The MIT license is preserved in packages/diagrams/licenses/octicons-LICENSE and embedded in offline HTML. The reusable viewer imports the local package dependency; the offline build bundles its used icons. No icon service or CDN is required.
+The interface icons are envUI's Material Symbols. The reusable viewer imports them from envUI; the offline build bundles the icons it uses. No icon or font service or CDN is required.
 
 Vite 8.3.3 and its React plugin 6.1.2 provide the development server and Fast Refresh under their upstream MIT licenses, distributed with the npm dependencies. They are not bundled into offline HTML or required by the library at runtime.
 
@@ -28,6 +28,6 @@ The Atlas host (`packages/host`), which the desktop app runs and `atlas serve` s
 
 Dependencies are pinned in package-lock.json and retain their upstream licenses in their npm distributions. This repository is private and does not currently grant a public source-code license.
 
-Atlas logos, icons and banners in `assets/` derive from the Atlas lockup in the Envsemble brand assets: the connected A mark is original artwork, and the wordmark and the banner tagline are set in Jost (Owen Earl, indestructible type\*, under the SIL Open Font License 1.1) and outlined into paths, so no font software is distributed. Application screenshots show the actual local viewer and planning integration. They follow the repository's current private/UNLICENSED status. No upstream documentation imagery or third-party logo was copied into them. GitHub-style interface tokens and Octicons retain the notices above; Atlas branding does not imply affiliation.
+Atlas logos, icons and banners in `assets/` derive from the Atlas lockup in the Envsemble brand assets: the connected A mark is original artwork, and the wordmark and the banner tagline are set in Jost (Owen Earl, indestructible type\*, under the SIL Open Font License 1.1) and outlined into paths, so no font software is distributed. Application screenshots show the actual local viewer and planning integration. They follow the repository's current private/UNLICENSED status. No upstream documentation imagery or third-party logo was copied into them. Interface components, icons and the font retain the notices above; Atlas branding does not imply affiliation.
 
 TypeScript 6.0.3 is distributed as the `typescript-compiler` npm alias under Apache-2.0, including its upstream license. Atlas uses its classic compiler API for source inspection. TypeScript 7.0.2 remains a development type checker. The Java inspector is Atlas source using standard JDK 21 compiler APIs; the JDK is an external prerequisite. prettier-plugin-java 2.11.0 is a development formatter under its upstream Apache-2.0 license.

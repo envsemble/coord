@@ -92,14 +92,14 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
 
   const title = here ? 'Remote access' : 'Remote access to ' + computer.name;
   if (refused) return <Dialog open onOpenChange={open => { if (!open) onClose(); }} title={title} className="remote-access-dialog" closeLabel="Done">
-    <Notice tone="warning" role="alert">{refused}</Notice>
+    <Notice tone="warning" announce>{refused}</Notice>
   </Dialog>;
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={title} className="remote-access-dialog" closeLabel="Done"
     description={here
       ? 'Pair your other devices, such as your laptop, to work on this computer from them: they browse its folders, open any planning folder, and import and export plans, as Atlas does here. Pair only your own devices.'
       : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}>
-    {!state ? (error ? <Notice tone="error" role="alert">{error}</Notice> : <Spinner label="Loading remote access" />) : <>
-      {state.problem ? <Notice tone="error" role="alert">{state.problem}</Notice>
+    {!state ? (error ? <Notice tone="error" announce>{error}</Notice> : <Spinner label="Loading remote access" />) : <>
+      {state.problem ? <Notice tone="error" announce>{state.problem}</Notice>
         : state.managedBy && <Notice tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Atlas takes over here within a few seconds.</Notice>}
 
       {here ? <section className="access-section" aria-label="Network">
@@ -161,7 +161,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
           action={<ConfirmButton variant="outlined" confirmLabel="Revoke access" disabled={managed} onConfirm={() => void revokeDevice(device.deviceId)}>Revoke…</ConfirmButton>} />)}
         </GroupedRows> : <Text tone="muted">No paired devices.</Text>}
       </section>
-      {error && <Notice tone="error" role="alert">{error}</Notice>}
+      {error && <Notice tone="error" announce>{error}</Notice>}
     </>}
   </Dialog>;
 }

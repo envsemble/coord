@@ -2,6 +2,7 @@
 .plan-export { min-block-size: 100dvh; padding: var(--space-5) var(--space-6) 0; container-type: inline-size; }
 .plan-export .work-page { max-inline-size: 84rem; margin-inline: auto; }
 .export-banner { margin-block-end: var(--space-2); }
+.export-trail { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 /* An export is a scrolling page, not the app's workbench: the diagrams take the window's height below the tabs. */
 .plan-export .diagrams { flex: none; min-block-size: 0; block-size: max(32rem, calc(100dvh - var(--diagram-top, 12rem))); margin-inline: calc(-1 * var(--space-6)); }
 .plan-export .diagrams.fullscreen { block-size: auto; margin: 0; }
@@ -17,3 +18,5 @@
   .files-tab { grid-template-columns: minmax(0, 1fr); }
   .file-tree { position: static; block-size: 16rem; }
 }
+/* The app's filled diagrams section indents its head; an export's page already has its padding. */
+.plan-export .work-page.section-diagrams .work-page-head { padding-inline: 0; }

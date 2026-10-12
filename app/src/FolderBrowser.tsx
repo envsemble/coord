@@ -62,6 +62,6 @@ export function FolderBrowser({ computer, near, onClose }: { computer: ComputerR
         : !error && <Text tone="muted" className="folder-browser-empty">No folders here.</Text>}
       {listing?.truncated && <Text variant="caption" tone="muted">Showing the first {listing.folders.length} folders.</Text>}
     </div>
-    {error && <Notice tone="error" role="alert">{error}</Notice>}
+    {error && <Notice tone="error" announce>{error}</Notice>}
   </Dialog>;
 }

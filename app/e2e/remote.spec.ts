@@ -150,6 +150,7 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await browser.getByRole('button', { name: 'Cancel' }).click();
 
   // With Manage access, this Atlas pairs and revokes devices of that computer, but cannot change how it is reached.
+  await viewer.bringToFront();
   await fileMenu(reading.app, 'Re&mote Access…');
   const remoteAccess = viewer.getByRole('dialog', { name: `Remote access to ${name}` });
   await expect(remoteAccess.getByRole('status')).toHaveText(`${name} listens on 127.0.0.1:${port}.`);
@@ -178,6 +179,8 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
 
   // Revoking the device ends its access at once; the window keeps the last view and says why.
   await access.getByRole('button', { name: 'Revoke…' }).click();
+  // envUI's confirm button ignores a second press that comes as fast as a double click.
+  await sharing.window.waitForTimeout(600);
   await access.getByRole('button', { name: 'Revoke access' }).click();
   await expect(access.getByText('No paired devices.')).toBeVisible();
   await expect(reading.window.getByRole('alert')).toContainText('was revoked');
@@ -189,7 +192,9 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await last.getByRole('button', { name: /^Computer:/ }).click();
   await last.getByRole('menu', { name: /^Computer/ }).getByRole('menuitem', { name: 'Manage computers…' }).click();
   const computers = last.getByRole('dialog', { name: 'Computers' });
-  await computers.getByRole('listitem').filter({ hasText: name }).filter({ hasText: '127.0.0.1' }).getByRole('button', { name: 'Forget' }).click();
+  // Only paired computers can be forgotten; this one was revoked and says so instead of its address.
+  await computers.getByRole('button', { name: 'Forget', exact: true }).click();
+  await last.waitForTimeout(600);
   await computers.getByRole('button', { name: `Forget ${name}` }).click();
   await expect(last.getByRole('heading', { name: 'Recent' })).toBeVisible();
   await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);

@@ -240,12 +240,14 @@ export function PlanViewer({ data }: { data: PlanData }) {
     </div>;
   return <main className="plan-export">
     <div className={'work-page section-' + tab}>
-      <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note"
-        title="Read-only plan export" action={<ThemeToggle />}>
-        {payload.source.workId} from <Code>{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code>atlas plan import &lt;file&gt;</Code>
+      <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note" title="Read-only plan export">
+        {payload.source.workId} from <Code appearance="subtle">{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code appearance="subtle">atlas plan import &lt;file&gt;</Code>
       </Notice>
       <header className="work-page-head">
-        <Breadcrumbs className="breadcrumb" items={[{ label: payload.source.planningFolder }, { label: workNumber(view.work.id) }]} />
+        <div className="export-trail">
+          <Breadcrumbs className="breadcrumb" items={[{ label: payload.source.planningFolder }, { label: workNumber(view.work.id) }]} />
+          <ThemeToggle />
+        </div>
         <div className="work-header">
           <Text as="h1" variant="page-heading">{view.work.title}</Text>
           <div className="work-header-meta">
