@@ -27,14 +27,20 @@ const colorFamilies = {
   quality: "mode",
 };
 
+/** The colour family of a stereotype: the suffix of its --node-* and --type-* properties. */
+export function stereotypeFamily(stereotype) {
+  // Stereotypes such as "type alias" must become valid custom property names.
+  return String(colorFamilies[stereotype] || stereotype || "none").replace(
+    /[^\w-]/g,
+    "-",
+  );
+}
+
 export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
   const header = node.attributes.length || methods.length ? 66 : node.height;
-  // Stereotypes such as "type alias" must become valid custom property names.
-  const color = String(
-    colorFamilies[node.stereotype] || node.stereotype || "none",
-  ).replace(/[^\w-]/g, "-");
+  const color = stereotypeFamily(node.stereotype);
   return (
     <g
       id={`${idPrefix}node-${node.id}`}

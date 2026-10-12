@@ -5,32 +5,17 @@ const postcss = require("postcss");
 const selectors = require("postcss-selector-parser");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const { buildSync } = require("esbuild");
 const {
   createDocument,
   prepareViewer,
   buildViewer,
   importDocument,
 } = require("../lib/index.cjs");
-const { buildEmbeddedCSS } = require("../scripts/build-embedded-css.cjs");
-function components(entryPoint = "src/index.js") {
-  const code = buildSync({
-    entryPoints: [entryPoint],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    packages: "external",
-    jsx: "automatic",
-    write: false,
-  }).outputFiles[0].text;
-  const compiled = { exports: {} };
-  new Function("require", "module", "exports", code)(
-    require,
-    compiled,
-    compiled.exports,
-  );
-  return compiled.exports;
-}
+const {
+  buildEmbeddedCSS,
+  SCOPES,
+} = require("../scripts/build-embedded-css.cjs");
+const { loadComponents: components } = require("./load-components.cjs");
 test("native panel consumes lean payloads and CSS cannot restyle its host", async () => {
   const document = createDocument({
     profile: "code",
@@ -47,21 +32,40 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
   const html = renderToStaticMarkup(
     createElement(AtlasPanel, { payload: prepared.payload, theme: "light" }),
   );
+  // The host's theme drives envUI's theme boundary at the panel root.
+  assert(
+    /^<div [^>]*class="env-theme atlas-panel[ "][^>]*data-env-theme="light"/.test(
+      html,
+    ),
+  );
   assert(html.includes('data-theme="light"'));
   assert(html.includes('aria-label="Account"'));
   assert(!html.includes("Models ZIP"));
   buildEmbeddedCSS(require("node:path").resolve(__dirname, ".."));
   const root = postcss.parse(fs.readFileSync("dist/embedded.css", "utf8"));
+  // Only the viewer's own rules: hosts load envUI's stylesheet themselves.
+  root.walkAtRules((rule) =>
+    assert(!/^(?:import|font-face)$/i.test(rule.name), `@${rule.name}`),
+  );
+  let rules = 0;
   root.walkRules((rule) => {
     if (rule.parent.type === "atrule" && /keyframes$/i.test(rule.parent.name))
       return;
+    rules++;
     selectors((tree) =>
       tree.each((selector) => {
+        // Every rule starts inside an Atlas-owned root (the panel, or Atlas
+        // content portalled by envUI), so it cannot restyle the host page.
         assert.equal(selector.first.type, "class", rule.selector);
-        assert.equal(selector.first.value, "atlas-panel", rule.selector);
+        assert(SCOPES.includes(selector.first.value), rule.selector);
+        // Nor does it restyle envUI's own components.
+        selector.walkClasses((node) =>
+          assert(!node.value.startsWith("env-"), rule.selector),
+        );
       }),
     ).processSync(rule.selector);
   });
+  assert(rules > 50, "The embedded stylesheet holds the viewer's rules");
 });
 test("empty captures prepare and export a readable portable document", async () => {
   const document = createDocument({
@@ -203,6 +207,18 @@ test("standalone structural documents render their profile-specific exports and 
   const html = renderToStaticMarkup(
     createElement(OntoUMLViewer, prepared.payload),
   );
-  assert(html.includes("Structural JSON"));
+  assert(html.includes('aria-label="Export"'));
   assert(!html.includes("Learn OntoUML"));
+  const { exportChoices } = components("src/viewer/ViewerToolbar.jsx");
+  const choices = exportChoices({
+    exports: prepared.payload.exports,
+    viewKey: prepared.payload.views[0].key,
+    fields: false,
+    theme: "light",
+    conceptual: false,
+  });
+  assert.deepEqual(
+    choices.map((choice) => choice.label),
+    ["SVG image", "PlantUML", "Structural JSON", "Models ZIP"],
+  );
 });

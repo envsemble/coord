@@ -324,6 +324,79 @@ async function prepareModel({
     },
   };
 }
+// The standalone viewer's stored theme preference; src/main.jsx uses the same
+// key, so envUI's startup script themes the page before the first paint.
+const THEME_STORAGE_KEY = "atlas-theme";
+const packageDirectory = (name) =>
+  path.dirname(require.resolve(`${name}/package.json`, { paths: [rootPath] }));
+// The offline file has no host: it carries envUI's styles (with the Inter
+// font as a data URL), the viewer styles, one script and envUI's notices.
+async function bundleClient() {
+  const app = await bundleJavaScript({
+    absWorkingDir: rootPath,
+    entryPoints: ["src/main.jsx"],
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"production"' },
+    // A linked envUI checkout would otherwise bring its own React.
+    alias: {
+      react: packageDirectory("react"),
+      "react-dom": packageDirectory("react-dom"),
+    },
+    minify: true,
+    charset: "utf8",
+    legalComments: "inline",
+    logLevel: "silent",
+    write: false,
+  });
+  const styles = await bundleJavaScript({
+    absWorkingDir: rootPath,
+    stdin: {
+      contents: [
+        "@envsemble/envui/styles.css",
+        "./src/ui/styles.css",
+        "./src/visualization/styles.css",
+      ]
+        .map((file) => `@import "${file}";`)
+        .join("\n"),
+      resolveDir: rootPath,
+      sourcefile: "viewer.css",
+      loader: "css",
+    },
+    bundle: true,
+    loader: { ".woff2": "dataurl" },
+    minify: true,
+    charset: "utf8",
+    legalComments: "none",
+    logLevel: "silent",
+    write: false,
+  });
+  const envUI = packageDirectory("@envsemble/envui");
+  const notices = [
+    ["envUI runtime dependencies", "licenses/Runtime-Dependencies-LICENSE.txt"],
+    ["Material Symbols", "licenses/Material-Symbols-LICENSE.txt"],
+    ["Inter font", "licenses/Inter-LICENSE.txt"],
+  ]
+    .map(
+      ([title, file]) =>
+        `${title}\n${fs.readFileSync(path.join(envUI, file), "utf8").replace(/\r\n/g, "\n").trim()}`,
+    )
+    .join("\n\n")
+    .replaceAll("*/", "* /");
+  const { createThemeBootstrapScript } =
+    await import("@envsemble/envui/theme-bootstrap");
+  return {
+    app: app.outputFiles[0].text,
+    styles: styles.outputFiles[0].text,
+    notices,
+    themeBootstrap: createThemeBootstrapScript({
+      storageKey: THEME_STORAGE_KEY,
+    }),
+  };
+}
 async function buildViewer(input) {
   const { documentFromInput } = require("../document/portable.cjs");
   const document = input?.document || documentFromInput(input);
@@ -347,29 +420,8 @@ async function buildViewer(input) {
     !template.includes("/*APP_STYLES*/")
   )
     throw new Error("Missing template marker");
-  const app = await bundleJavaScript({
-    absWorkingDir: rootPath,
-    entryPoints: ["src/main.jsx"],
-    bundle: true,
-    format: "iife",
-    platform: "browser",
-    target: "es2020",
-    jsx: "automatic",
-    define: { "process.env.NODE_ENV": '"production"' },
-    minify: true,
-    charset: "utf8",
-    legalComments: "inline",
-    write: false,
-  });
-  const license = fs.readFileSync(
-    path.join(rootPath, "licenses/react-LICENSE"),
-    "utf8",
-  );
-  const iconLicense = fs.readFileSync(
-    path.join(rootPath, "licenses/octicons-LICENSE"),
-    "utf8",
-  );
-  const script = `/* React and React DOM\n${license}\n\nGitHub Octicons\n${iconLicense}\n*/\n${app.outputFiles[0].text}`;
+  const { app, styles, notices, themeBootstrap } = await bundleClient();
+  const script = `/* React and React DOM\n${fs.readFileSync(path.join(rootPath, "licenses/react-LICENSE"), "utf8")}\n\n${notices}\n*/\n${themeBootstrap}\n${app}`;
   const html = template
     .replace(
       "<!--APP_ICON-->",
@@ -381,11 +433,7 @@ async function buildViewer(input) {
       () =>
         `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | Atlas</title>`,
     )
-    .replace("/*APP_STYLES*/", () =>
-      ["src/ui/styles.css", "src/visualization/styles.css"]
-        .map((file) => fs.readFileSync(path.join(rootPath, file), "utf8"))
-        .join("\n"),
-    )
+    .replace("/*APP_STYLES*/", () => styles.replace(/<\/style/gi, "<\\/style"))
     .replace(
       "/*MODEL_DATA*/",
       () =>

@@ -16,6 +16,11 @@ export type InspectionTarget = {
   id: string;
 } | null;
 export const OntoUMLViewer: ComponentType<ViewerPayload>;
+/**
+ * The embeddable viewer. Its root is an envUI `Theme` driven by `theme`
+ * (default "dark"); hosts load `@envsemble/envui/styles.css` and
+ * `@envsemble/atlas-diagrams/embedded.css`.
+ */
 export const AtlasPanel: ComponentType<{
   payload: ViewerPayload;
   theme?: "dark" | "light";
@@ -45,7 +50,7 @@ export interface Provenance {
   label: string;
   /** Human-readable source, capture date and coverage, e.g. "TypeScript · shop · captured Oct 8, 2026 · complete coverage". */
   detail: string;
-  /** Primer label tone: generated "accent", proposal "done", authored "success", unknown "neutral". */
+  /** envUI Badge tone: generated "accent", proposal "done", authored "success", unknown "neutral". */
   tone: "accent" | "done" | "success" | "neutral";
 }
 /** Accepts an Atlas document or a viewer model's `document` metadata. */
@@ -59,7 +64,7 @@ export const ProvenanceBadge: ComponentType<{
   document: ProvenanceSource | null | undefined;
   className?: string;
 }>;
-/** The provenance label alone (Primer-style pill). */
+/** The provenance label alone, as an envUI Badge. */
 export const ProvenanceLabel: ComponentType<{
   document: ProvenanceSource | null | undefined;
 }>;

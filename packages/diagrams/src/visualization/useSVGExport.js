@@ -26,7 +26,9 @@ const THEME_VARS = [
 ];
 const EMPTY_URLS = { diagramURL: undefined, backgroundURL: undefined };
 
-export function useSVGExport(svgSource, theme) {
+// Theme colours are read from `scope` (an element inside the viewer's envUI
+// Theme), which follows a theme change as soon as React commits it.
+export function useSVGExport(svgSource, theme, scope) {
   const [urls, setURLs] = useState(EMPTY_URLS);
   useEffect(() => {
     // Export the normal static rendering, independent of hover/selection.
@@ -34,7 +36,7 @@ export function useSVGExport(svgSource, theme) {
       svgSource,
       "image/svg+xml",
     ).documentElement;
-    const styles = getComputedStyle(document.documentElement);
+    const styles = getComputedStyle(scope?.current || document.documentElement);
     for (const name of THEME_VARS)
       svg.style.setProperty(name, styles.getPropertyValue(name).trim());
     svg

@@ -196,27 +196,9 @@ test("Abstract captured types require a concrete subtype, not an unrelated concr
   }
 });
 test("Report text safely retains structured diagnostic metadata and navigation resolves sets/members", async () => {
-  const { buildSync } = require("esbuild"),
-    { createElement } = require("react"),
+  const { createElement } = require("react"),
     { renderToStaticMarkup } = require("react-dom/server");
-  const load = (file) => {
-    const output = { exports: {} };
-    const code = buildSync({
-      entryPoints: [file],
-      bundle: true,
-      format: "cjs",
-      platform: "node",
-      packages: "external",
-      jsx: "automatic",
-      write: false,
-    }).outputFiles[0].text;
-    new Function("require", "module", "exports", code)(
-      require,
-      output,
-      output.exports,
-    );
-    return output.exports;
-  };
+  const { loadComponents: load } = require("./load-components.cjs");
   const doc = createEnrollmentDocument(),
     snapshot = atlas.createSnapshot({
       profile: doc.profile,

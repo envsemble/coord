@@ -1,16 +1,18 @@
+import { Button } from "@envsemble/envui";
 import { useBlobURL } from "./useBlobURL";
-export function DownloadLink({
-  data,
-  filename,
-  type,
-  children,
-  id,
-  className = "source",
-}) {
+import { DownloadIcon } from "./Icons";
+
+/** A text button that downloads data held in memory. */
+export function DownloadLink({ data, filename, type, children, ...props }) {
   const href = useBlobURL(data, type);
   return (
-    <a id={id} className={className} href={href} download={filename}>
+    <Button
+      {...props}
+      variant="text"
+      startIcon={<DownloadIcon />}
+      {...(href ? { href, download: filename } : { disabled: true })}
+    >
       {children}
-    </a>
+    </Button>
   );
 }

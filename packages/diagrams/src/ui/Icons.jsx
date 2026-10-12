@@ -1,35 +1,35 @@
-// GitHub's icon set is bundled locally, including in the offline viewer.
-export {
-  ArrowLeftIcon,
-  BookIcon,
-  CodeIcon,
-  DashIcon,
-  DatabaseIcon,
-  DiffAddedIcon,
-  DiffModifiedIcon,
-  DiffRemovedIcon,
-  DownloadIcon,
-  FileCodeIcon,
-  FileMediaIcon,
-  FocusCenterIcon,
-  GitBranchIcon,
-  GitPullRequestIcon,
-  AlertIcon,
-  LinkExternalIcon,
-  MarkGithubIcon,
-  MoonIcon,
-  NoteIcon,
-  PencilAiIcon,
-  PlusIcon,
-  QuestionIcon,
-  RepoIcon,
-  ScreenFullIcon,
-  ScreenNormalIcon,
-  SearchIcon,
-  SidebarCollapseIcon,
-  SidebarExpandIcon,
-  SunIcon,
-  TableIcon,
-  TriangleDownIcon,
-  XIcon,
-} from "@primer/octicons-react";
+// envUI's bundled Material Symbols, named for what they mean in the viewer.
+// Each icon is an individual import, so bundles carry only the icons used.
+export { AccountTree as GeneralizationIcon } from "@envsemble/envui/icons/AccountTree";
+export { Add as ZoomInIcon } from "@envsemble/envui/icons/Add";
+export { AddCircle as AddedIcon } from "@envsemble/envui/icons/AddCircle";
+export { ArrowBack as BackIcon } from "@envsemble/envui/icons/ArrowBack";
+export { Article as ReportIcon } from "@envsemble/envui/icons/Article";
+export { Category as ConceptIcon } from "@envsemble/envui/icons/Category";
+export { ChangeCircle as ModifiedIcon } from "@envsemble/envui/icons/ChangeCircle";
+export { Close as CloseIcon } from "@envsemble/envui/icons/Close";
+export { Code as CodeIcon } from "@envsemble/envui/icons/Code";
+export { Database as DatabaseIcon } from "@envsemble/envui/icons/Database";
+export { DataObject as JSONIcon } from "@envsemble/envui/icons/DataObject";
+export { Description as FileIcon } from "@envsemble/envui/icons/Description";
+export { Difference as ProposalIcon } from "@envsemble/envui/icons/Difference";
+export { DoNotDisturbOn as RemovedIcon } from "@envsemble/envui/icons/DoNotDisturbOn";
+export { Download as DownloadIcon } from "@envsemble/envui/icons/Download";
+export { EditNote as AuthoredIcon } from "@envsemble/envui/icons/EditNote";
+export { ExpandMore as ExpandIcon } from "@envsemble/envui/icons/ExpandMore";
+export { FitScreen as FitIcon } from "@envsemble/envui/icons/FitScreen";
+export { FolderZip as ArchiveIcon } from "@envsemble/envui/icons/FolderZip";
+export { Fullscreen as FullscreenIcon } from "@envsemble/envui/icons/Fullscreen";
+export { FullscreenExit as ExitFullscreenIcon } from "@envsemble/envui/icons/FullscreenExit";
+export { Image as ImageIcon } from "@envsemble/envui/icons/Image";
+export { Info as AboutIcon } from "@envsemble/envui/icons/Info";
+export { OpenInNew as ExternalIcon } from "@envsemble/envui/icons/OpenInNew";
+export { Polyline as RelationIcon } from "@envsemble/envui/icons/Polyline";
+export { Print as PrintIcon } from "@envsemble/envui/icons/Print";
+export { Remove as ZoomOutIcon } from "@envsemble/envui/icons/Remove";
+export { RightPanelClose as HideDetailsIcon } from "@envsemble/envui/icons/RightPanelClose";
+export { RightPanelOpen as ShowDetailsIcon } from "@envsemble/envui/icons/RightPanelOpen";
+export { School as LearnIcon } from "@envsemble/envui/icons/School";
+export { Search as SearchIcon } from "@envsemble/envui/icons/Search";
+export { TableRows as FieldsIcon } from "@envsemble/envui/icons/TableRows";
+export { Warning as ConflictIcon } from "@envsemble/envui/icons/Warning";

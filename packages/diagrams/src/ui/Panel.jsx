@@ -1,6 +1,8 @@
-import { IconButton } from "./Button";
-import { XIcon } from "./Icons";
+import { Surface, Text } from "@envsemble/envui";
+import { ToolButton } from "./Button";
+import { CloseIcon } from "./Icons";
 
+/** A floating pane beside the canvas, such as the inspector. */
 export function Panel({
   open,
   onClose,
@@ -13,25 +15,31 @@ export function Panel({
   ...props
 }) {
   return (
-    <aside
+    <Surface
+      as="aside"
+      tone="pane"
+      padding={0}
       id={id}
       className={`panel${open ? " open" : ""}${className ? ` ${className}` : ""}`}
       aria-label={label}
       {...props}
     >
       <div className={`panel-header${title ? "" : " compact"}`}>
-        {title && <span className="panel-title">{title}</span>}
+        {title && (
+          <Text as="h2" variant="section-heading" className="panel-title">
+            {title}
+          </Text>
+        )}
         {onClose && (
-          <IconButton
+          <ToolButton
             className="panel-close"
             label={closeLabel}
+            icon={<CloseIcon />}
             onClick={onClose}
-          >
-            <XIcon size={16} />
-          </IconButton>
+          />
         )}
       </div>
       <div className="panel-content">{children}</div>
-    </aside>
+    </Surface>
   );
 }

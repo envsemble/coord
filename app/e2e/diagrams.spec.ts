@@ -10,9 +10,10 @@ test.afterEach(async () => { await close(launched); launched = undefined; remove
 async function openDiagrams(window: Page, title: string) {
   await expect(window.locator('.work-row').first()).toBeVisible();
   await window.keyboard.press('Control+P');
-  await window.locator('.quick-open input').fill(title);
-  await expect(window.locator('.quick-open-item').first()).toContainText(title);
-  await window.locator('.quick-open input').press('Enter');
+  const palette = window.getByRole('dialog', { name: 'Quick open' });
+  await palette.getByRole('combobox').fill(title);
+  await expect(palette.getByRole('option').first()).toContainText(title);
+  await palette.getByRole('combobox').press('Enter');
   await expect(window.locator('.model-picker-title')).toHaveText(title);
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
 }
@@ -29,7 +30,7 @@ test('the picker groups diagrams by provenance and switches models', async () =>
   await menu.getByRole('menuitemradio', { name: /Checkout · proposed payment methods/ }).click();
   await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
   // Choosing a diagram is working in the tab, so it is pinned.
-  await expect(window.locator('.tab.active')).not.toHaveClass(/preview/);
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]')).toHaveAttribute('data-preview', 'false');
 });
 
 test('a proposal compares Baseline and Changes, and the inspector shows a selected element', async () => {
@@ -37,12 +38,12 @@ test('a proposal compares Baseline and Changes, and the inspector shows a select
   const { window } = launched;
   await openDiagrams(window, 'Checkout · proposed payment methods');
   const comparison = window.getByRole('group', { name: 'Comparison' });
-  await expect(comparison.locator('button[data-mode="changes"]')).toHaveAttribute('aria-current', 'true');
+  await expect(comparison.getByRole('radio', { name: 'Changes' })).toBeChecked();
   await window.locator('.change-counts').click();
   await expect(window.getByRole('dialog', { name: 'Semantic changes' })).toBeVisible();
   await window.keyboard.press('Escape');
-  await comparison.locator('button[data-mode="baseline"]').click();
-  await expect(comparison.locator('button[data-mode="baseline"]')).toHaveAttribute('aria-current', 'true');
+  await comparison.getByRole('radio', { name: 'Baseline' }).click();
+  await expect(comparison.getByRole('radio', { name: 'Baseline' })).toBeChecked();
   await window.locator('.diagrams .node', { has: window.getByText('PaymentGateway', { exact: true }) }).first().click();
   await expect(window.locator('.inspector.open')).toBeVisible();
   await expect(window.locator('.inspector.open')).toContainText('PaymentGateway');
@@ -67,7 +68,7 @@ test('an element chip in the plan opens the diagram at that element, and its pla
   launched = await launch({ folder });
   const { window } = launched;
   await window.locator('.work-row', { hasText: 'Order fulfilment model' }).getByRole('link', { name: 'Order fulfilment model' }).click();
-  await expect(window.locator('.underline-nav a.selected')).toContainText('Plan');
+  await expect(window.getByRole('tablist', { name: 'Work sections' }).locator('[role="tab"][aria-selected="true"]')).toContainText('Plan');
   const chip = window.locator('.element-chip').first();
   await expect(chip).toBeVisible();
   await chip.click();
@@ -76,7 +77,7 @@ test('an element chip in the plan opens the diagram at that element, and its pla
   await expect(references).toBeVisible();
   await references.locator('summary').first().click();
   await references.getByRole('button', { name: /^Open / }).first().click();
-  await expect(window.locator('.underline-nav a.selected')).toContainText('Plan');
+  await expect(window.getByRole('tablist', { name: 'Work sections' }).locator('[role="tab"][aria-selected="true"]')).toContainText('Plan');
   await expect(window.locator('.prose')).toBeVisible();
 });
 

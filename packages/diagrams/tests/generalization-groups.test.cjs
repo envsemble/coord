@@ -3,7 +3,7 @@ const { test } = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { transformSync, buildSync } = require("esbuild");
+const { transformSync } = require("esbuild");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { createElement } = require("react");
 const { createEnrollmentModel } = require("../examples/enrollment/model.cjs");
@@ -25,24 +25,7 @@ new vm.Script(
   ).code,
 ).runInContext(context);
 const { focusedElements } = context.module.exports;
-function loadComponent(file) {
-  const code = buildSync({
-    entryPoints: [path.join(__dirname, "..", file)],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    packages: "external",
-    jsx: "automatic",
-    write: false,
-  }).outputFiles[0].text;
-  const compiled = { exports: {} };
-  new Function("require", "module", "exports", code)(
-    require,
-    compiled,
-    compiled.exports,
-  );
-  return compiled.exports;
-}
+const { loadComponents: loadComponent } = require("./load-components.cjs");
 const { GeneralizationSetDetails } = loadComponent(
   "src/viewer/DetailsContent.jsx",
 );

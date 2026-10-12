@@ -1,19 +1,49 @@
+import {
+  ActionGroup,
+  Badge,
+  Button,
+  DisclosureNote,
+  Link,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+  Text,
+} from "@envsemble/envui";
 import { printable } from "../model/printable";
 import { SourceEvidence } from "../viewer/SourceEvidence";
 import { ProvenanceBadge } from "../viewer/ProvenanceBadge";
 import { formatCaptureDate } from "../viewer/provenance";
+import { DownloadIcon, ExternalIcon, PrintIcon } from "../ui/Icons";
 const inspectKind = (model, id) =>
   model.classes.some((n) => n.id === id)
     ? "node"
     : model.partitions.some((s) => s.id === id)
       ? "group"
       : "edge";
+const SEVERITY_TONES = { error: "danger", warning: "warning", info: "neutral" };
+
+function ReportSection({ title, children }) {
+  return (
+    <Stack as="section" gap={3} className="report-section">
+      <Text as="h2" variant="page-heading">
+        {title}
+      </Text>
+      {children}
+    </Stack>
+  );
+}
+
 export function ModelReport({
   report,
   model,
   snippets,
   onInspect,
   onReference,
+  onPrint = () => window.print(),
 }) {
   const names = new Map(
     [
@@ -23,265 +53,296 @@ export function ModelReport({
       ...model.partitions,
     ].map((e) => [e.id, e.name || "Inheritance"]),
   );
+  // Element names link to the element in the diagram.
   const show = (id) => (
-    <button
+    <Link
+      href={`#${encodeURIComponent(id)}`}
+      underline={false}
       className="report-reference"
-      onClick={() => onInspect({ kind: inspectKind(model, id), id })}
+      onClick={(event) => {
+        event.preventDefault();
+        onInspect({ kind: inspectKind(model, id), id });
+      }}
     >
       {names.get(id) || id}
-    </button>
+    </Link>
   );
+  const references = (ids) => (
+    <span className="report-references">
+      {ids.map((id) => (
+        <span key={id}>{show(id)}</span>
+      ))}
+    </span>
+  );
+  const openPassage = (record) =>
+    onReference && record.path ? (
+      <div>
+        <Button variant="secondary" onClick={() => onReference(record)}>
+          Open planning passage
+        </Button>
+      </div>
+    ) : null;
   const context = (ids = []) =>
     report.context.records
       .filter((r) => ids.includes(r.id))
       .map((r) => (
-        <blockquote key={r.id}>
-          <strong>{r.title || r.kind}</strong>
-          <p>{r.text}</p>
-          {onReference && r.path && (
-            <button onClick={() => onReference(r)}>
-              Open planning passage
-            </button>
-          )}
+        <blockquote className="report-quote" key={r.id}>
+          <Text as="strong">{r.title || r.kind}</Text>
+          <Text>{r.text}</Text>
+          {openPassage(r)}
         </blockquote>
       ));
   return (
     <article className="model-report" aria-label="Model report">
-      <header>
+      <Stack as="header" gap={3} align="start" className="report-header">
         <ProvenanceBadge document={report} className="inline" />
-        <h1>{report.title}</h1>
-        <p>{report.scope}</p>
-        {report.author && <p>{report.author}</p>}
+        <Text as="h1" variant="display">
+          {report.title}
+        </Text>
+        <Text>{report.scope}</Text>
+        {report.author && <Text tone="muted">{report.author}</Text>}
         {report.revision && (
-          <p className="report-revision">
-            Revision {report.revision.id}
-            <br />
+          <Text variant="supporting" className="report-revision">
+            Revision {report.revision.id} ·{" "}
             {formatCaptureDate(report.revision.createdAt)}
-          </p>
+          </Text>
         )}
-        <button className="report-print" onClick={() => window.print()}>
-          Print / save PDF
-        </button>
-      </header>
-      <section>
-        <h2>Source and scope</h2>
+        <Button
+          variant="outlined"
+          className="report-print"
+          startIcon={<PrintIcon />}
+          onClick={onPrint}
+        >
+          Print or save as PDF
+        </Button>
+      </Stack>
+      <ReportSection title="Source and scope">
         {report.imported && (
-          <p>
+          <Text>
             Imported capture claims are preserved; the source has not been
             reverified.
-          </p>
+          </Text>
         )}
         {report.snapshots.length ? (
           report.snapshots.map((s) => (
-            <details key={s.id} open>
-              <summary>
-                {s.id === report.baselineId ? "Baseline" : "Retained capture"} ·{" "}
-                {s.capture.source.identity}
-              </summary>
-              <p>
+            <DisclosureNote
+              key={s.id}
+              open
+              title={`${s.id === report.baselineId ? "Baseline" : "Retained capture"} · ${s.capture.source.identity}`}
+            >
+              <Text>
                 Captured {formatCaptureDate(s.capture.capturedAt)} ·{" "}
                 {s.capture.adapter.id} {s.capture.adapter.version} ·{" "}
                 {s.capture.coverage.status}
-              </p>
-              <p>{s.capture.source.scope.join(", ")}</p>
-              <pre>{printable(s.capture.source.revision || s.integrity)}</pre>
-              <p>{printable(s.capture.consistency?.kind)}</p>
+              </Text>
+              <Text>{s.capture.source.scope.join(", ")}</Text>
+              <pre className="source-code">
+                {printable(s.capture.source.revision || s.integrity)}
+              </pre>
+              <Text>{printable(s.capture.consistency?.kind)}</Text>
               {s.capture.coverage.diagnostics.map((d, i) => (
-                <p key={i}>{printable(d.message ?? d)}</p>
+                <Text key={i}>{printable(d.message ?? d)}</Text>
               ))}
               {[].concat(s.capture.limitations || []).map((t, i) => (
-                <p key={i}>{printable(t)}</p>
+                <Text key={i}>{printable(t)}</Text>
               ))}
-            </details>
+            </DisclosureNote>
           ))
         ) : (
-          <p>
+          <Text>
             Authored model. Evidence supports interpretations within its stated
             limits.
-          </p>
+          </Text>
         )}
-      </section>
+      </ReportSection>
       {report.walkthroughs.length > 0 && (
-        <section>
-          <h2>Walkthroughs</h2>
+        <ReportSection title="Walkthroughs">
           {report.walkthroughs.map((w) => (
-            <div key={w.id}>
-              <h3>{w.title}</h3>
+            <Stack gap={2} key={w.id}>
+              <Text as="h3" variant="section-heading">
+                {w.title}
+              </Text>
               {context(w.contextIds)}
-              <ol>
+              <ol className="report-steps">
                 {w.steps.map((step, i) => (
                   <li key={i}>
-                    <p>{step.text}</p>
-                    {step.viewKey && (
-                      <button
-                        onClick={() =>
-                          onInspect({ kind: "view", id: step.viewKey })
-                        }
-                      >
-                        Open view
-                      </button>
-                    )}
-                    <div>
-                      {step.elementIds.map((id) => (
-                        <span key={id}>{show(id)} </span>
-                      ))}
-                    </div>
+                    <Text>{step.text}</Text>
+                    <ActionGroup className="report-step-actions">
+                      {step.viewKey && (
+                        <Button
+                          variant="secondary"
+                          onClick={() =>
+                            onInspect({ kind: "view", id: step.viewKey })
+                          }
+                        >
+                          Open view
+                        </Button>
+                      )}
+                      {references(step.elementIds)}
+                    </ActionGroup>
                   </li>
                 ))}
               </ol>
-            </div>
+            </Stack>
           ))}
-        </section>
+        </ReportSection>
       )}
-      <section>
-        <h2>Guided views</h2>
-        {report.diagrams.map((d) => (
-          <figure key={d.key}>
-            <figcaption>{d.title}</figcaption>
-            <img
-              src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`}
-              alt={`${d.title}: UML diagram with members and relation counts`}
-            />
-            <a
-              href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`}
-              download={`${d.key}.svg`}
-            >
-              SVG
-            </a>
-          </figure>
-        ))}
-      </section>
-      <section>
-        <h2>Reading the model</h2>
+      <ReportSection title="Guided views">
+        {report.diagrams.map((d) => {
+          const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`;
+          return (
+            <figure className="report-figure" key={d.key}>
+              <figcaption>
+                <Text as="span" variant="section-heading">
+                  {d.title}
+                </Text>
+                <Button
+                  variant="text"
+                  className="report-download"
+                  href={url}
+                  download={`${d.key}.svg`}
+                  startIcon={<DownloadIcon />}
+                  aria-label={`Download ${d.title} as SVG`}
+                >
+                  SVG
+                </Button>
+              </figcaption>
+              <img
+                src={url}
+                alt={`${d.title}: UML diagram with members and relation counts`}
+              />
+            </figure>
+          );
+        })}
+      </ReportSection>
+      <ReportSection title="Reading the model">
         {report.explanations.map((e, i) => (
-          <p key={i}>
+          <Text key={i}>
             {show(e.elementId)} · {e.text}
             {!e.assessed && " Unestablished participation."}
-          </p>
+          </Text>
         ))}
-      </section>
+      </ReportSection>
       {report.scenarios.length > 0 && (
-        <section>
-          <h2>Instances and counterexamples</h2>
+        <ReportSection title="Instances and counterexamples">
           {report.scenarios.map((s) => (
-            <div className="report-scenario" key={s.id}>
-              <h3>{s.title}</h3>
-              <p>{s.description}</p>
-              <p>
+            <Stack gap={2} className="report-scenario" key={s.id}>
+              <Text as="h3" variant="section-heading">
+                {s.title}
+              </Text>
+              <Text>{s.description}</Text>
+              <Text variant="supporting">
                 Expected {s.expected} · assessed {s.result.outcome}
                 {s.result.expectationMet === null
                   ? " · incomplete coverage"
                   : s.result.expectationMet
                     ? " · expectation met"
                     : " · expectation differs"}
-              </p>
+              </Text>
               {context(s.contextIds)}
-              <table>
-                <thead>
-                  <tr>
-                    <th>Instance</th>
-                    <th>Memberships</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table aria-label={`Instances in ${s.title}`} density="compact">
+                <TableHead>
+                  <TableRow>
+                    <TableHeaderCell>Instance</TableHeaderCell>
+                    <TableHeaderCell>Memberships</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {s.instances.map((i) => (
-                    <tr key={i.id}>
-                      <td>{i.label || i.id}</td>
-                      <td>
-                        {i.classIds.map((id) => (
-                          <span key={id}>{show(id)} </span>
-                        ))}
-                      </td>
-                    </tr>
+                    <TableRow key={i.id}>
+                      <TableCell>{i.label || i.id}</TableCell>
+                      <TableCell>{references(i.classIds)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
               {s.links.map((l, i) => (
-                <p key={i}>
+                <Text key={i}>
                   {l.sourceId} → {show(l.relationId)} → {l.targetId}
-                </p>
+                </Text>
               ))}
               {s.result.issues.map((finding, i) => (
-                <p key={i}>
+                <Text key={i}>
                   {show(finding.elementId)} · {finding.message}
-                </p>
+                </Text>
               ))}
               {s.result.unassessed.map((u, i) => (
-                <p className="muted" key={i}>
+                <Text tone="muted" key={i}>
                   {u.message}
-                </p>
+                </Text>
               ))}
-            </div>
+            </Stack>
           ))}
-        </section>
+        </ReportSection>
       )}
-      <section>
-        <h2>Glossary and selected planning context</h2>
+      <ReportSection title="Glossary and selected planning context">
         {report.context.records.map((r) => (
-          <div key={r.id}>
-            <h3>
+          <Stack gap={1} key={r.id}>
+            <Text as="h3" variant="section-heading">
               {r.title || r.id} · {r.kind}
-            </h3>
-            <p>{r.text}</p>
-            {onReference && r.path && (
-              <button onClick={() => onReference(r)}>
-                Open planning passage
-              </button>
-            )}
-          </div>
+            </Text>
+            <Text>{r.text}</Text>
+            {openPassage(r)}
+          </Stack>
         ))}
-      </section>
-      <section>
-        <h2>Classification and open questions</h2>
+      </ReportSection>
+      <ReportSection title="Classification and open questions">
         {[...model.classes, ...model.relations]
           .filter((e) => e.rationale || e.questions?.length)
           .map((e) => (
-            <div key={e.id}>
-              <h3>{show(e.id)}</h3>
-              <p>{printable(e.rationale)}</p>
+            <Stack gap={1} key={e.id}>
+              <Text as="h3" variant="section-heading">
+                {show(e.id)}
+              </Text>
+              <Text>{printable(e.rationale)}</Text>
               {[].concat(e.questions || []).map((q, i) => (
-                <div key={i}>
-                  <strong>{printable(q?.question ?? q)}</strong>
-                  <p>{printable(q?.why)}</p>
-                  <p>{printable(q?.resolve)}</p>
-                </div>
+                <Stack gap={1} key={i} className="report-question">
+                  <Text as="strong">{printable(q?.question ?? q)}</Text>
+                  <Text>{printable(q?.why)}</Text>
+                  <Text>{printable(q?.resolve)}</Text>
+                </Stack>
               ))}
-            </div>
+            </Stack>
           ))}
-      </section>
-      <section>
-        <h2>Validation and coverage</h2>
-        <p>
-          {model.validation.counts.error} errors ·{" "}
-          {model.validation.counts.warning} warnings ·{" "}
-          {model.validation.counts.info} coverage notes
-        </p>
+      </ReportSection>
+      <ReportSection title="Validation and coverage">
+        <ActionGroup className="report-counts">
+          <Badge tone="danger">{model.validation.counts.error} errors</Badge>
+          <Badge tone="warning">
+            {model.validation.counts.warning} warnings
+          </Badge>
+          <Badge>{model.validation.counts.info} coverage notes</Badge>
+        </ActionGroup>
         {model.validation.issues.map((issue, i) => (
-          <p key={i}>
-            {issue.severity} · {issue.code} · {issue.message}
-          </p>
+          <Text key={i}>
+            <Badge tone={SEVERITY_TONES[issue.severity] || "neutral"}>
+              {issue.severity}
+            </Badge>{" "}
+            {issue.code} · {issue.message}
+          </Text>
         ))}
         {report.limitations.map((l, i) => (
-          <p key={i}>{l}</p>
+          <Text key={i}>{l}</Text>
         ))}
-      </section>
-      <section>
-        <h2>Evidence and references</h2>
+      </ReportSection>
+      <ReportSection title="Evidence and references">
         <SourceEvidence
           evidence={model.sources.map((s) => s.id)}
           sources={model.sources}
           snippets={snippets}
         />
-        <p>
-          <a
+        <div>
+          <Button
+            variant="text"
             href="https://ontouml.readthedocs.io/en/latest/"
             target="_blank"
             rel="noopener noreferrer"
+            endIcon={<ExternalIcon />}
           >
             OntoUML specification
-          </a>
-        </p>
-      </section>
+          </Button>
+        </div>
+      </ReportSection>
     </article>
   );
 }

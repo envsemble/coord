@@ -20,6 +20,7 @@ import {
   AtlasPanel,
   ViewerErrorBoundary,
 } from "@envsemble/atlas-diagrams/react";
+import "@envsemble/envui/styles.css";
 import "@envsemble/atlas-diagrams/embedded.css";
 
 <ViewerErrorBoundary>
@@ -35,7 +36,7 @@ import "@envsemble/atlas-diagrams/embedded.css";
 
 ## The React panel
 
-Import `AtlasPanel` from `@envsemble/atlas-diagrams/react` and `@envsemble/atlas-diagrams/embedded.css`. Pass a `prepareViewer({document, includeArtifacts:false}).payload`, a host-controlled `theme` (`dark` or `light`), an optional semantic `focus` target, and `onReference(record)` to navigate retained planning references. `leading` renders host content (such as a model picker) at the start of the floating top-left toolbar. Passing `onFullscreenChange(next)` adds a fullscreen toggle to the top-right toolbar; the host owns the `fullscreen` state and layout. This component consumes the same model/scene as offline exports. It does not require HTML, an iframe, an archive, a model service, or a connection to captured sources.
+Import `AtlasPanel` from `@envsemble/atlas-diagrams/react`, and load envUI's stylesheet (`@envsemble/envui/styles.css`, once per page) and `@envsemble/atlas-diagrams/embedded.css`. The panel's controls are envUI components, and `@envsemble/envui` is a peer dependency; the panel renders its own envUI theme boundary in the given `theme`, so its menus, tooltips and dialogs match it. Pass a `prepareViewer({document, includeArtifacts:false}).payload`, a host-controlled `theme` (`dark` or `light`), an optional semantic `focus` target, and `onReference(record)` to navigate retained planning references. `leading` renders host content (such as a model picker) at the start of the floating top-left toolbar. Passing `onFullscreenChange(next)` adds a fullscreen toggle to the top-right toolbar; the host owns the `fullscreen` state and layout. This component consumes the same model/scene as offline exports. It does not require HTML, an iframe, an archive, a model service, or a connection to captured sources.
 
 ```tsx
 <AtlasPanel

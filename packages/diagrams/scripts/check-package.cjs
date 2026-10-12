@@ -26,6 +26,28 @@ try {
     packed.files.some((file) => file.path === "dist/react.mjs"),
     "Missing compiled React entry point",
   );
+  // The envUI peer is the copy this workspace builds against (a linked local
+  // checkout while envUI changes alongside, or the installed release), packed
+  // beside the package, so the check needs no private registry access.
+  const envUI = path.dirname(
+    require.resolve("@envsemble/envui/package.json", { paths: [root] }),
+  );
+  const envUIResult = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [npm, "pack", "--json", "--ignore-scripts", "--pack-destination", stage],
+      {
+        cwd: envUI,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        // envUI lists thousands of icon modules.
+        maxBuffer: 256 * 1024 * 1024,
+      },
+    ),
+  );
+  const envUIPacked = Array.isArray(envUIResult)
+    ? envUIResult[0]
+    : Object.values(envUIResult)[0];
   // Without its own package.json, npm would install into the nearest ancestor
   // project (for example a stray ~/node_modules) instead of the clean stage.
   fs.writeFileSync(
@@ -41,6 +63,7 @@ try {
       "--no-audit",
       "--no-fund",
       path.join(stage, packed.filename),
+      path.join(stage, envUIPacked.filename),
     ],
     { cwd: stage, stdio: ["ignore", "pipe", "pipe"] },
   );

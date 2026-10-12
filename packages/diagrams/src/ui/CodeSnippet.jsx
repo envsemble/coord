@@ -1,5 +1,8 @@
 import { Fragment, memo } from "react";
 
+// Pre-highlighted excerpt with its source line numbers. envUI's CodeBlock
+// highlights at run time and has no line numbers, so the viewer keeps this
+// markup (styled with envUI's code tokens) for the tokens prepared at build.
 export const CodeSnippet = memo(function CodeSnippet({ snippet, label }) {
   return (
     <pre className="shiki code-snippet" tabIndex={0} aria-label={label}>

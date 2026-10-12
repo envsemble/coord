@@ -11,8 +11,14 @@ import { DiagramCanvas } from "../visualization/DiagramCanvas";
 import { useSVGExport } from "../visualization/useSVGExport";
 import { sameTarget } from "../visualization/interaction";
 import { indexViewerModel, viewForNode } from "../model/domainModel";
+import {
+  Dialog,
+  EmptyState,
+  useTheme,
+  useThemePreference,
+} from "@envsemble/envui";
 import { Panel } from "../ui/Panel";
-import { useTheme } from "../ui/useTheme";
+import { Island } from "../ui/Island";
 import { ViewerToolbar } from "./ViewerToolbar";
 import {
   ConceptDetails,
@@ -47,19 +53,33 @@ export function OntoUMLViewer(props) {
     );
   if (!props.views.length)
     return (
-      <div className="viewer-error">
+      <main className="viewer-error">
         <ProvenanceBadge
           document={props.provenanceDocument || props.model.document}
           className="inline"
         />
-        <h1>{props.model.title}</h1>
-        <p>No entities in this model.</p>
+        <EmptyState
+          headingLevel={1}
+          title={props.model.title}
+          description="No entities in this model."
+        />
         {props.comparisonControls && (
-          <div className="atlas-island inline">{props.comparisonControls}</div>
+          <Island label="Comparison" className="inline">
+            {props.comparisonControls}
+          </Island>
         )}
-      </div>
+      </main>
     );
   return <ViewerContent {...props} />;
+}
+// The offline file supplies envUI's ThemePreferenceProvider; without one the
+// viewer follows the surrounding Theme and offers no theme toggle.
+function useOptionalThemePreference() {
+  try {
+    return useThemePreference();
+  } catch {
+    return null;
+  }
 }
 function ViewerContent({
   model,
@@ -74,7 +94,9 @@ function ViewerContent({
   const exports = useArtifactArchive(exportData);
   const [viewKey, setViewKey] = useState(views[0].key),
     [fields, setFields] = useState(false);
-  const [theme, toggleTheme] = useTheme("atlas-theme");
+  const preference = useOptionalThemePreference();
+  const ambientTheme = useTheme();
+  const theme = preference?.theme || ambientTheme;
   const [selected, setSelected] = useState(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [learningOpen, setLearningOpen] = useState(false);
@@ -104,6 +126,7 @@ function ViewerContent({
       `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`,
     ),
     theme,
+    viewerRef,
   );
   const inspected = inspectedTarget(preview, selected);
   const element = index.getElement(inspected);
@@ -212,7 +235,7 @@ function ViewerContent({
           setFocusRequest(null);
           setFields(!fields);
         }}
-        onTheme={toggleTheme}
+        themeToggle={!!preference}
         onLearn={() => {
           clearHover();
           setSidebarHidden(false);
@@ -241,7 +264,7 @@ function ViewerContent({
         className="inspector"
         open={sidebarOpen}
         label={learningOpen ? "OntoUML learning library" : "Model details"}
-        title={null}
+        title={learningOpen ? "Learn OntoUML" : null}
         closeLabel="Hide details"
         onClose={() => setSidebarHidden(true)}
         onPointerEnter={keepHover}
@@ -310,15 +333,14 @@ function ViewerContent({
             />
           )}
       </Panel>
-      <Panel
-        id="about-panel"
-        className="about-panel"
-        label="About and controls"
+      <Dialog
         open={aboutOpen}
-        onClose={() => setAboutOpen(false)}
+        onOpenChange={setAboutOpen}
+        title={model.title}
+        description="About this diagram and its controls"
       >
         <About model={model} exports={exports} />
-      </Panel>
+      </Dialog>
     </div>
   );
 }

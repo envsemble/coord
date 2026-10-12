@@ -21,18 +21,9 @@
 .atlas-panel.atlas-empty .viewer {
   display: grid;
   place-content: center;
-  padding: 24px;
-  background: var(--canvas);
+  padding: var(--space-5);
+  background: var(--color-canvas);
 }
 .atlas-panel .atlas-empty-message {
-  max-width: 420px;
-  text-align: center;
-}
-.atlas-panel .atlas-empty-message h3 {
-  margin: 0 0 4px;
-  font-size: 16px;
-}
-.atlas-panel .atlas-empty-message p {
-  margin: 0;
-  color: var(--muted);
+  max-width: 26rem;
 }

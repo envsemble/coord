@@ -1,33 +1,34 @@
+import { Badge, Surface, Text } from "@envsemble/envui";
 import { describeProvenance } from "./provenance";
 import {
+  AuthoredIcon,
   CodeIcon,
   DatabaseIcon,
-  GitPullRequestIcon,
-  PencilAiIcon,
-  FileCodeIcon,
+  FileIcon,
+  ProposalIcon,
 } from "../ui/Icons";
 
 function ProvenanceIcon({ provenance, profile }) {
-  if (provenance.kind === "proposal") return <GitPullRequestIcon size={14} />;
-  if (provenance.kind === "authored") return <PencilAiIcon size={14} />;
-  if (profile === "database") return <DatabaseIcon size={14} />;
-  if (profile === "code") return <CodeIcon size={14} />;
-  return <FileCodeIcon size={14} />;
+  if (provenance.kind === "proposal") return <ProposalIcon />;
+  if (provenance.kind === "authored") return <AuthoredIcon />;
+  if (profile === "database") return <DatabaseIcon />;
+  if (profile === "code") return <CodeIcon />;
+  return <FileIcon />;
 }
 
-/** A Primer-style label naming where a model came from. */
+/** An envUI badge naming where a model came from, in its provenance tone. */
 export function ProvenanceLabel({ document }) {
   const provenance = describeProvenance(document);
   if (provenance.kind === "unknown") return null;
   return (
-    <span
-      className="provenance-label"
-      data-tone={provenance.tone}
-      data-kind={provenance.kind}
+    <Badge
+      tone={provenance.tone}
+      icon={
+        <ProvenanceIcon provenance={provenance} profile={document?.profile} />
+      }
     >
-      <ProvenanceIcon provenance={provenance} profile={document?.profile} />
       {provenance.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -36,7 +37,10 @@ export function ProvenanceBadge({ document, className = "" }) {
   const provenance = describeProvenance(document);
   if (provenance.kind === "unknown") return null;
   return (
-    <div
+    <Surface
+      tone="pane"
+      corners="pill"
+      padding={1}
       className={`atlas-provenance${className ? ` ${className}` : ""}`}
       title={
         provenance.detail
@@ -46,8 +50,10 @@ export function ProvenanceBadge({ document, className = "" }) {
     >
       <ProvenanceLabel document={document} />
       {provenance.detail && (
-        <span className="provenance-detail">{provenance.detail}</span>
+        <Text as="span" variant="supporting" className="provenance-detail">
+          {provenance.detail}
+        </Text>
       )}
-    </div>
+    </Surface>
   );
 }

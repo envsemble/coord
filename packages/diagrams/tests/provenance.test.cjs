@@ -2,27 +2,8 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const { buildSync } = require("esbuild");
 const atlas = require("../lib/index.cjs");
-
-function components() {
-  const code = buildSync({
-    entryPoints: ["src/index.js"],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    packages: "external",
-    jsx: "automatic",
-    write: false,
-  }).outputFiles[0].text;
-  const compiled = { exports: {} };
-  new Function("require", "module", "exports", code)(
-    require,
-    compiled,
-    compiled.exports,
-  );
-  return compiled.exports;
-}
+const { loadComponents: components } = require("./load-components.cjs");
 const react = components();
 const capture = (kind, identity, capturedAt, status = "complete") => ({
   id: `capture-${identity}`,
@@ -157,8 +138,8 @@ test("embedded panel floats its controls and shows readable provenance", async (
   assert(html.includes("Agent-authored"));
   assert(html.includes("Structural model"));
   assert(html.includes('aria-label="Open model report"'));
-  // A single view needs no view tabs.
-  assert(!html.includes('class="tabs"'));
+  // A single view needs no view switcher.
+  assert(!html.includes('aria-label="Diagram view"'));
   assert(!html.includes("fullscreen"));
   assert(!ISO.test(html), "raw ISO timestamps stay out of the UI");
   const fullscreen = renderToStaticMarkup(
@@ -203,18 +184,39 @@ test("proposals compare Baseline and Changes with a readable change list", async
   const html = renderToStaticMarkup(createElement(AtlasPanel, { payload }));
   assert(html.includes(">Baseline<") && html.includes(">Changes<"));
   assert(!html.includes("Proposed"));
-  assert(html.includes('data-mode="changes" aria-current="true"'));
+  // The Comparison group holds the view choice (Changes is chosen) and the counts.
+  assert(html.includes('role="group" aria-label="Comparison"'));
+  assert(
+    /<button[^>]*role="radio" aria-checked="true"[^>]*>(?:<[^>]*>)*Changes</.test(
+      html,
+    ),
+  );
   assert(html.includes("Agent proposal"));
   assert(/Changes to source captured [A-Z][a-z]{2} \d{1,2}, \d{4}/.test(html));
   assert(html.includes('class="count-added">+1<'));
   // Renamed types plus the model's node list.
   assert(html.includes('class="count-modified">~3<'));
-  assert(html.includes('title="Learner, Pupil, Term"'));
-  assert(html.includes(">Added<") && html.includes(">Modified<"));
-  assert(html.includes("Term"));
-  assert(html.includes('class="change-value before"'));
-  assert(html.includes(">Student<") && html.includes(">Pupil<"));
-  assert(html.includes("Learners replace students."));
-  assert(html.includes('aria-label="Inspect Term"'));
+  assert(html.includes('aria-label="Show 4 changes"'));
   assert(!ISO.test(html), "raw ISO timestamps stay out of the UI");
+  // The change list opens in a popover; render its content directly.
+  const { ChangeList } = components("src/viewer/ComparisonViewer.jsx");
+  const comparison = payload.comparison;
+  const list = renderToStaticMarkup(
+    createElement(ChangeList, {
+      comparison,
+      model: comparison.changeView?.model || payload.model,
+      baselineDate: "Oct 8, 2026",
+      targetOf: (change) => ({ kind: "node", id: change.elementId }),
+      onInspect() {},
+    }),
+  );
+  assert(list.includes('title="Learner, Pupil, Term"'));
+  assert(list.includes(">Added<") && list.includes(">Modified<"));
+  assert(list.includes("Term"));
+  assert(list.includes('class="change-value before"'));
+  assert(list.includes(">Student<") && list.includes(">Pupil<"));
+  assert(list.includes("Learners replace students."));
+  assert(list.includes('aria-label="Inspect Term"'));
+  assert(list.includes("compared with source captured Oct 8, 2026"));
+  assert(!ISO.test(list), "raw ISO timestamps stay out of the UI");
 });

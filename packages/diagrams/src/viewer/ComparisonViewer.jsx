@@ -1,32 +1,34 @@
-import { useId, useMemo, useRef, useState } from "react";
-import { SegmentedControl } from "../ui/Island";
-import { usePopupDismiss } from "../ui/usePopupDismiss";
+import { useMemo, useState } from "react";
 import {
-  AlertIcon,
-  DiffAddedIcon,
-  DiffModifiedIcon,
-  DiffRemovedIcon,
-  TriangleDownIcon,
+  Button,
+  Counter,
+  DisclosureNote,
+  GroupedRows,
+  Popover,
+  Row,
+  SegmentedControl,
+  Stack,
+  Text,
+  Tooltip,
+} from "@envsemble/envui";
+import {
+  AddedIcon,
+  ConflictIcon,
+  ExpandIcon,
+  ModifiedIcon,
+  RemovedIcon,
 } from "../ui/Icons";
 import { reconcileComparisonFocus } from "./comparisonSelection";
 import { formatCaptureDate } from "./provenance";
 
 const modes = [
-  {
-    key: "baseline",
-    label: "Baseline",
-    title: "The captured source before the proposal",
-  },
-  {
-    key: "changes",
-    label: "Changes",
-    title: "The proposal with added, removed and modified elements highlighted",
-  },
+  { value: "baseline", label: "Baseline" },
+  { value: "changes", label: "Changes" },
 ];
 const groups = [
-  { kind: "added", label: "Added", Icon: DiffAddedIcon },
-  { kind: "removed", label: "Removed", Icon: DiffRemovedIcon },
-  { kind: "modified", label: "Modified", Icon: DiffModifiedIcon },
+  { kind: "added", label: "Added", Icon: AddedIcon },
+  { kind: "removed", label: "Removed", Icon: RemovedIcon },
+  { kind: "modified", label: "Modified", Icon: ModifiedIcon },
 ];
 const ONTOUML_KINDS = {
   Class: "class",
@@ -121,30 +123,34 @@ function ChangeItem({ change, kind, names, onInspect }) {
       ? change.name
       : readable(change.name, names);
   return (
-    <li className="change-item" data-change={change.kind}>
-      <div className="change-row">
+    <Row
+      className="change-item"
+      data-change={change.kind}
+      title={
         <span className="change-name">
           {ownerName && kind !== "class" && !name.startsWith(ownerName) ? (
             <>
-              <span className="muted">{ownerName}.</span>
+              <span className="change-owner">{ownerName}.</span>
               {name}
             </>
           ) : (
             name
           )}
         </span>
-        <span className="change-kind">{kind}</span>
-        {onInspect && (
-          <button
-            type="button"
-            className="btn-sm"
+      }
+      detail={kind}
+      action={
+        onInspect ? (
+          <Button
+            variant="secondary"
             onClick={onInspect}
             aria-label={`Inspect ${name}`}
           >
             Inspect
-          </button>
-        )}
-      </div>
+          </Button>
+        ) : undefined
+      }
+    >
       {change.properties?.length > 0 && (
         <dl className="change-properties">
           {change.properties.map((p) => (
@@ -167,47 +173,68 @@ function ChangeItem({ change, kind, names, onInspect }) {
           {r.text}
         </p>
       ))}
-    </li>
+    </Row>
   );
 }
 
 function Conflict({ conflict }) {
   return (
-    <li className="change-item conflict">
-      <details>
-        <summary>
-          <span className="change-name">
-            {conflict.path.join(" / ") || "References"}
-          </span>
-        </summary>
-        <p className="change-rationale">{conflict.reason}</p>
+    <Row
+      className="change-item conflict"
+      title={
+        <span className="change-name">
+          {conflict.path.join(" / ") || "References"}
+        </span>
+      }
+      detail={conflict.reason}
+    >
+      <DisclosureNote title="Base, left and right values">
         {["base", "left", "right"].map((side) => (
-          <div key={side} className="conflict-side">
-            <span className="change-kind">{side}</span>
-            <pre>
+          <Stack gap={1} key={side} className="conflict-side">
+            <Text variant="caption">{side}</Text>
+            <pre className="source-code">
               {conflict[side].present
                 ? JSON.stringify(conflict[side].value, null, 2)
                 : "Deleted"}
             </pre>
-          </div>
+          </Stack>
         ))}
-      </details>
-    </li>
+      </DisclosureNote>
+    </Row>
   );
 }
 
-export function ChangeSummary({
+function ChangeGroup({ kind, label, icon, count, children }) {
+  return (
+    <Stack as="section" gap={2} className="change-group" data-kind={kind}>
+      <Text as="h3" variant="section-heading" className="change-group-heading">
+        <span className="change-group-icon" aria-hidden="true">
+          {icon}
+        </span>
+        {label}
+        <Counter value={count} />
+      </Text>
+      <GroupedRows contrast>{children}</GroupedRows>
+    </Stack>
+  );
+}
+
+const changeCountLabel = (total, conflicts) =>
+  `${total} ${total === 1 ? "change" : "changes"}${
+    conflicts
+      ? `, ${conflicts} ${conflicts === 1 ? "conflict" : "conflicts"}`
+      : ""
+  }`;
+
+/** The semantic change list: conflicts, then added, removed and modified elements. */
+export function ChangeList({
   comparison,
   model,
   baselineDate,
   targetOf,
   onInspect,
 }) {
-  const [open, setOpen] = useState(false);
-  const root = useRef(null);
-  const popoverId = useId();
-  usePopupDismiss(() => setOpen(false), root);
-  const { counts, changes } = comparison.changes;
+  const { changes } = comparison.changes;
   const names = useMemo(
     () =>
       nameIndex(
@@ -218,104 +245,107 @@ export function ChangeSummary({
     [comparison, model],
   );
   const conflicts = comparison.conflicts || [];
-  const total = changes.length;
-  const label = `${total} ${total === 1 ? "change" : "changes"}${
-    conflicts.length
-      ? `, ${conflicts.length} ${conflicts.length === 1 ? "conflict" : "conflicts"}`
-      : ""
-  }`;
+  const label = changeCountLabel(changes.length, conflicts.length);
   return (
-    <div className="changes-menu" ref={root}>
-      <button
-        type="button"
+    <Stack gap={4} className="atlas-portal change-summary">
+      <Text variant="supporting">
+        {label.charAt(0).toUpperCase() + label.slice(1)}
+        {baselineDate && ` · compared with source captured ${baselineDate}`}
+      </Text>
+      {conflicts.length > 0 && (
+        <ChangeGroup
+          kind="conflict"
+          label="Conflicts"
+          icon={<ConflictIcon />}
+          count={conflicts.length}
+        >
+          {conflicts.map((c) => (
+            <Conflict key={c.id} conflict={c} />
+          ))}
+        </ChangeGroup>
+      )}
+      {groups.map(({ kind, label, Icon }) => {
+        const items = changes.filter((c) => c.kind === kind);
+        if (!items.length) return null;
+        return (
+          <ChangeGroup
+            key={kind}
+            kind={kind}
+            label={label}
+            icon={<Icon />}
+            count={items.length}
+          >
+            {items.map((c) => {
+              const target = targetOf(c);
+              return (
+                <ChangeItem
+                  key={c.id}
+                  change={c}
+                  kind={elementKind(c, model, model.document?.profile)}
+                  names={names}
+                  onInspect={target ? () => onInspect(target) : null}
+                />
+              );
+            })}
+          </ChangeGroup>
+        );
+      })}
+      {!changes.length && <Text tone="muted">No semantic changes.</Text>}
+    </Stack>
+  );
+}
+
+// Popover triggers need a component that passes its props to the button.
+function CountsButton({ counts, conflicts, ...props }) {
+  return (
+    <Tooltip content="Semantic changes" side="bottom">
+      <Button
+        {...props}
+        variant="secondary"
         className="change-counts"
-        aria-label={`Show ${label}`}
-        aria-expanded={open}
-        aria-controls={popoverId}
-        title="Show semantic changes"
-        onClick={() => setOpen((v) => !v)}
+        endIcon={<ExpandIcon />}
       >
         <span className="count-added">+{counts.added}</span>
         <span className="count-removed">−{counts.removed}</span>
         <span className="count-modified">~{counts.modified}</span>
-        {conflicts.length > 0 && (
+        {conflicts > 0 && (
           <span className="count-conflicts">
-            <AlertIcon size={12} />
-            {conflicts.length}
+            <ConflictIcon />
+            {conflicts}
           </span>
         )}
-        <TriangleDownIcon size={16} />
-      </button>
-      <div
-        id={popoverId}
-        className={`atlas-popover changes-popover${open ? " open" : ""}`}
-        role="dialog"
-        aria-label="Semantic changes"
-        hidden={!open}
-      >
-        <header className="popover-header">
-          <strong>{label.charAt(0).toUpperCase() + label.slice(1)}</strong>
-          {baselineDate && (
-            <span className="muted">
-              Compared with source captured {baselineDate}
-            </span>
-          )}
-        </header>
-        <div className="popover-body">
-          {conflicts.length > 0 && (
-            <section className="change-group" data-kind="conflict">
-              <h3>
-                <AlertIcon size={16} />
-                Conflicts
-                <span className="counter">{conflicts.length}</span>
-              </h3>
-              <ul>
-                {conflicts.map((c) => (
-                  <Conflict key={c.id} conflict={c} />
-                ))}
-              </ul>
-            </section>
-          )}
-          {groups.map(({ kind, label, Icon }) => {
-            const items = changes.filter((c) => c.kind === kind);
-            if (!items.length) return null;
-            return (
-              <section key={kind} className="change-group" data-kind={kind}>
-                <h3>
-                  <Icon size={16} />
-                  {label}
-                  <span className="counter">{items.length}</span>
-                </h3>
-                <ul>
-                  {items.map((c) => {
-                    const target = targetOf(c);
-                    return (
-                      <ChangeItem
-                        key={c.id}
-                        change={c}
-                        kind={elementKind(c, model, model.document?.profile)}
-                        names={names}
-                        onInspect={
-                          target
-                            ? () => {
-                                setOpen(false);
-                                onInspect(target);
-                              }
-                            : null
-                        }
-                      />
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-          })}
-          {!changes.length && (
-            <p className="popover-empty">No semantic changes.</p>
-          )}
-        </div>
-      </div>
-    </div>
+      </Button>
+    </Tooltip>
+  );
+}
+
+export function ChangeSummary(props) {
+  const [open, setOpen] = useState(false);
+  const { counts, changes } = props.comparison.changes;
+  const conflicts = props.comparison.conflicts?.length || 0;
+  return (
+    <Popover
+      title="Semantic changes"
+      width="wide"
+      align="start"
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <CountsButton
+          counts={counts}
+          conflicts={conflicts}
+          aria-label={`Show ${changeCountLabel(changes.length, conflicts)}`}
+        />
+      }
+    >
+      <ChangeList
+        {...props}
+        onInspect={(target) => {
+          setOpen(false);
+          props.onInspect(target);
+        }}
+      />
+    </Popover>
   );
 }
 
@@ -359,12 +389,13 @@ export function ComparisonViewer({
     (s) => s.id === document.baselineId,
   );
   const comparisonControls = (
-    <>
+    <div className="comparison-controls" role="group" aria-label="Comparison">
       <SegmentedControl
-        label="Comparison"
-        items={modes}
+        aria-label="Comparison view"
+        size="compact"
+        options={modes}
         value={mode}
-        onChange={setMode}
+        onValueChange={setMode}
       />
       <ChangeSummary
         comparison={comparison}
@@ -373,7 +404,7 @@ export function ComparisonViewer({
         targetOf={inspectTarget}
         onInspect={inspect}
       />
-    </>
+    </div>
   );
   return render(selected, focus, {
     comparisonControls,
