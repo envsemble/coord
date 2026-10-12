@@ -34,11 +34,11 @@ export function FolderBrowser({ computer, near, onClose }: { computer: ComputerR
   const up = () => setPlace(listing?.parent ?? null);
   return <Dialog open onOpenChange={value => { if (!value && !busy) onClose(); }} pending={busy} size="wide" placement="top" className="folder-browser"
     title={'Open a folder on ' + computer.name}
-    actions={<Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>}>
+    closeLabel="Cancel">
     <div className="folder-browser-bar">
       <Tooltip content="Home folder and drives"><IconButton icon={<HomeIcon />} aria-label="Home folder and drives" onClick={() => setPlace(null)} disabled={busy || !place} /></Tooltip>
       <Tooltip content="Up one folder"><IconButton icon={<ArrowUpIcon />} aria-label="Up" onClick={up} disabled={busy || !place} /></Tooltip>
-      <Code className="folder-browser-path" title={place ?? undefined}><bdi>{place === undefined ? '' : place ?? 'Home folder and drives'}</bdi></Code>
+      <Code appearance="subtle" className="folder-browser-path" title={place ?? undefined}><bdi>{place === undefined ? '' : place ?? 'Home folder and drives'}</bdi></Code>
     </div>
     {listing?.planning && listing.path && <Notice tone="success" className="folder-browser-current" title="This is a planning folder."
       action={<span className="row-actions">

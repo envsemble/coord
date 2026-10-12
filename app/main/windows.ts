@@ -6,7 +6,7 @@
 // in-memory session, so its `atlas:` file protocol can only ever see that window's folder.
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { BrowserWindow, dialog, screen, session as electronSession, shell, type Session } from 'electron';
+import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import { inspectPlanningRoot, samePlatformPath } from '@envsemble/atlas-planning';
 import type { AccessState, BrowseResult, ComputerFolder, EventChannel, FolderChange, MenuCommand, WindowInfo } from '../shared/contract.ts';
 import { AtlasError } from './errors.ts';
@@ -21,6 +21,9 @@ import { computerKey, type Bounds, type StateStore } from './state.ts';
 export type Reuse = 'always' | 'empty' | 'never';
 /** The last part of a path from any computer (another computer's paths may use the other separator). */
 export const baseName = (folder: string) => folder.split(/[\\/]/).filter(Boolean).at(-1) ?? folder;
+
+/** envUI's canvas colour in the window's theme, shown until the page paints. */
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
 
 export interface WindowContext {
   state: StateStore;
@@ -74,7 +77,7 @@ export class AtlasWindow {
     this.harden();
     this.win = new BrowserWindow({
       ...defaultSize, ...visibleBounds(bounds),
-      minWidth: 640, minHeight: 420, show: false, backgroundColor: '#22272e', title: 'Atlas',
+      minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Atlas',
       icon: context.icon, autoHideMenuBar: false,
       webPreferences: {
         preload: context.preload, session: this.session,

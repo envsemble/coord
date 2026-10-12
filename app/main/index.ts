@@ -4,7 +4,7 @@
 // utility process (main/localHost.ts), or a paired computer's.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { app, dialog, Menu, powerMonitor, protocol, shell } from 'electron';
+import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
 import { atlasDataDirectory } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
@@ -75,6 +75,8 @@ function refuse(found: Refusal) {
 function start() {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
   const state = new StateStore(path.join(dataDirectory, 'desktop-state.json'), error => log.warn('Desktop state not saved', error));
+  // The chosen theme reaches every window as prefers-color-scheme, and themes Atlas's own menus and dialogs.
+  nativeTheme.themeSource = state.theme;
   const devTools = !app.isPackaged;
   let manager: WindowManager;
 

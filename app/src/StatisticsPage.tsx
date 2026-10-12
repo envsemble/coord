@@ -19,7 +19,7 @@ const tabs: { id: StatisticsTab; label: string }[] = [{ id: 'work', label: 'Work
 /** Categorical slots for the three models with the most recent completed work, set per theme in atlas.css. */
 const seriesColors = ['var(--atlas-chart-1)', 'var(--atlas-chart-2)', 'var(--atlas-chart-3)'];
 const otherColor = 'var(--atlas-chart-other)';
-const reportHint = <>Agents record their model, the tokens used so far and the time of each ledger transition with <Code>atlas work report</Code>, as the <Code>atlas-implement</Code> skill describes.</>;
+const reportHint = <>Agents record their model, the tokens used so far and the time of each ledger transition with <Code appearance="subtle">atlas work report</Code>, as the <Code appearance="subtle">atlas-implement</Code> skill describes.</>;
 
 const formatMetric = (metric: TrendMetric, value: number | null) => value === null ? '—'
   : metric === 'tokens' ? compactNumber(value) : metric === 'activeMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
@@ -33,7 +33,7 @@ export function Statistics({ snapshot, repository, setRepository }: RepositoryFi
     <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
-        <p>Model, tokens and active time are what agents reported with <Code>atlas work report</Code>: self-reported and approximate. Active time adds up the time between reports in each session.</p>
+        <p>Model, tokens and active time are what agents reported with <Code appearance="subtle">atlas work report</Code>: self-reported and approximate. Active time adds up the time between reports in each session.</p>
         <p>Plan revisions count the commits that changed a plan after it was added, up to its completion, from this folder's Git history. Moving a plan to the archive is not a revision.</p>
         <p>The three models whose completed work is most recent each have a colour; other models share "Other". Durations of work items are calendar time between acceptance and completion, not engineering time.</p>
         <p>Agent reports of documents are self-reported consultation; views are documents opened in Atlas. Unreported access is unknown, and zero use does not mean a record has no value.</p>
@@ -64,7 +64,7 @@ function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
       <StatsCard label="Median plan revisions" value={revisions === null ? '—' : formatMetric('planRevisions', revisions)} note={completed.length + ' completed work items'} />
     </div>
     {!reported.length && <Notice tone="info">No agent reports yet. {reportHint}</Notice>}
-    {invalid > 0 && <Notice tone="warning">{invalid} {invalid === 1 ? 'line' : 'lines'} of statistics files are not valid reports and are ignored. <Code>atlas planning check</Code> names the files.</Notice>}
+    {invalid > 0 && <Notice tone="warning">{invalid} {invalid === 1 ? 'line' : 'lines'} of statistics files are not valid reports and are ignored. <Code appearance="subtle">atlas planning check</Code> names the files.</Notice>}
     {rows.length ? <Table className="work-statistics-table" aria-label="Work statistics" stickyHeader>
       <TableHead><TableRow>
         <TableHeaderCell>Work</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell><TableHeaderCell numeric>Active time</TableHeaderCell><TableHeaderCell numeric>Plan revisions</TableHeaderCell><TableHeaderCell numeric>Steps</TableHeaderCell>
@@ -80,7 +80,7 @@ function WorkStatisticsRow({ row }: { row: WorkRow }) {
   const others = statistics?.models.slice(1) ?? [];
   return <TableRow interactive>
     <TableCell><span className="work-cell"><StatusIcon status={status} /><TargetLink target={workTarget(work.id)}>{work.title}</TargetLink></span><small className="cell-note">{workNumber(work.id)} · {status.label}{statistics?.lastReport ? ' · reported ' + relativeDate(statistics.lastReport) : ''}</small></TableCell>
-    <TableCell>{statistics?.primaryModel ? <span className="model-cell"><Code>{statistics.primaryModel}</Code>{others.length > 0 && <span title={others.map(model => model.model).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
+    <TableCell>{statistics?.primaryModel ? <span className="model-cell"><Code appearance="subtle">{statistics.primaryModel}</Code>{others.length > 0 && <span title={others.map(model => model.model).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
     <TableCell numeric>{statistics?.tokens != null ? compactNumber(statistics.tokens) : '—'}</TableCell>
     <TableCell numeric>{statistics?.reports ? duration(statistics.activeMs) : '—'}</TableCell>
     <TableCell numeric title={statistics?.planRevisions == null ? 'Not in this folder\'s Git history' : work.completed ? 'Before completion' : 'So far'}>{statistics?.planRevisions ?? '—'}</TableCell>
@@ -111,12 +111,12 @@ function ModelsTab({ rows }: { rows: WorkRow[] }) {
         valueKind={metric === 'activeMs' ? 'duration' : 'count'} onOpen={id => open(workTarget(id), { pin: true })} />
       <Text variant="caption" tone="muted" className="chart-note">Each dot is a completed work item: its {definition.unit}, at its completion date, coloured by the model with the most active time.{completed.length > points.length ? ` ${completed.length - points.length} completed ${completed.length - points.length === 1 ? 'item has' : 'items have'} no value and ${completed.length - points.length === 1 ? 'is' : 'are'} not shown.` : ''}</Text>
     </Surface> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title={completed.length ? 'No completed work has this value yet' : 'No completed work yet'} description={metric === 'tokens' || metric === 'activeMs' ? reportHint : 'Trends compare work items once they are complete.'} />}
-    {summaries.length > 0 && <Table aria-label="Implementing models">
+    {summaries.length > 0 && <Table className="model-table" aria-label="Implementing models">
       <TableHead><TableRow>
         <TableHeaderCell>Implementing model</TableHeaderCell><TableHeaderCell numeric>Completed</TableHeaderCell><TableHeaderCell numeric>Median tokens</TableHeaderCell><TableHeaderCell numeric>Median active time</TableHeaderCell><TableHeaderCell numeric>Median plan revisions</TableHeaderCell><TableHeaderCell numeric>Median steps</TableHeaderCell><TableHeaderCell>Completed between</TableHeaderCell>
       </TableRow></TableHead>
       <TableBody>{summaries.map(summary => <TableRow key={summary.model ?? ''}>
-        <TableCell>{summary.model ? <span className="model-cell"><span className="chart-swatch" style={{ background: series.find(entry => entry.key === summary.model)?.color ?? otherColor }} /><Code>{summary.model}</Code></span> : <span className="muted">Not reported</span>}</TableCell>
+        <TableCell>{summary.model ? <span className="model-cell"><span className="chart-swatch" style={{ background: series.find(entry => entry.key === summary.model)?.color ?? otherColor }} /><Code appearance="subtle">{summary.model}</Code></span> : <span className="muted">Not reported</span>}</TableCell>
         <TableCell numeric>{summary.completed}</TableCell>
         <TableCell numeric>{formatMetric('tokens', summary.tokens)}</TableCell>
         <TableCell numeric>{formatMetric('activeMs', summary.activeMs)}</TableCell>

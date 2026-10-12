@@ -1,7 +1,8 @@
 // The window for one planning folder: envUI's application shell with the views and the folder's
 // files in the sidebar, and the open documents as tabs above the page.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppShell, Button, Counter, DocumentTabs, IconButton, Kbd, Menu, MenuItem, MenuSeparator, NavigationItem, Notice, Popover, ThemeToggle, useToast, type DocumentTab } from '@envsemble/envui';
+import { AppShell, Button, Counter, DocumentTabs, IconButton, Kbd, Menu, MenuItem, MenuSeparator, NavigationItem, Notice, Popover, useToast, type DocumentTab } from '@envsemble/envui';
+import { ThemeMenu } from './ThemeMenu';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { ActivityIcon, DevicesIcon, DownloadIcon, FileIcon, FolderIcon, MoreIcon, SearchIcon, StatisticsIcon, UploadIcon, WarningIcon, WorkIcon } from './icons';
 import { limits, type ImportPreview, type MenuCommand } from '../shared/contract';
@@ -162,7 +163,6 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
   const activeWork = active?.target.kind === 'work' ? snapshot.work.find(work => active.target.kind === 'work' && work.id === active.target.work) : undefined;
   const fills = Boolean(activeWork && active?.target.kind === 'work' && workSection(active.target, activeWork) === 'diagrams');
   const title = active ? describeTab(active.target, snapshot).label : info.folder?.name ?? 'Atlas';
-  useEffect(() => { document.title = (active ? title + ' — ' : '') + (info.folder?.name ?? 'Atlas') + ' — Atlas'; }, [title, active, info.folder?.name]);
   const activeCount = snapshot.work.filter(work => work.location === 'active').length;
   const views: ViewName[] = ['work', 'activity', 'statistics'];
   const warn = (message: string) => notify(message, 'warning');
@@ -174,7 +174,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       actions={<>
         <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
         <Health issues={snapshot.issues} />
-        <ThemeToggle />
+        <ThemeMenu />
         <Menu aria-label="More actions" trigger={<IconButton variant="text" icon={<MoreIcon />} aria-label="More actions" />}>
           <MenuItem icon={<FolderIcon />} shortcut={info.computer.hostId === null ? 'Ctrl+O' : undefined} onClick={() => openFolderOn(info.computer, actions, warn, snapshot.root)}>Open Folder…</MenuItem>
           <MenuSeparator />
@@ -182,7 +182,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
           <MenuItem icon={<DownloadIcon />} onClick={chooseExport}>Export Plan…</MenuItem>
           <MenuSeparator />
           <MenuItem icon={<DevicesIcon />} onClick={actions.remoteAccess}>Remote Access…</MenuItem>
-          <MenuItem onClick={actions.connect}>Connect to Another Computer…</MenuItem>
+          <MenuItem onClick={actions.connect}>Connect a Computer…</MenuItem>
         </Menu>
       </>}
       collapsed={!ui.sidebar.visible} onCollapsedChange={collapsed => setSidebar({ visible: !collapsed })}
@@ -194,7 +194,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       <div className={'workbench-body' + (fills ? ' is-filled' : '')}>
         <DocumentTabs className="workbench-tabs" items={tabs} value={ui.tabs.active} aria-label="Open tabs"
           onValueChange={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />
-        {info.error && <Notice className="folder-error" tone="warning" title={info.remote ? `Atlas can’t read this planning folder on ${info.remote.hostName} right now.` : 'The planning folder can’t be read right now.'}>
+        {info.error && <Notice className="folder-error" tone="warning" role="alert" title={info.remote ? `Atlas can’t read this planning folder on ${info.remote.hostName} right now.` : 'The planning folder can’t be read right now.'}>
           {info.error} {info.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
         </Notice>}
         {info.notice && <Notice className="folder-error" tone="info">{info.notice}</Notice>}

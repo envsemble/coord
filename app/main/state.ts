@@ -1,10 +1,10 @@
 // Desktop state kept in the Atlas data folder (never in a planning folder): the windows open
 // at quit, per planning folder its window bounds, sidebar and open tabs, and per computer the
-// folder this app last showed there. This is each app's own view; the folder lists are the
-// computers' (their hosts keep them).
+// folder this app last showed there, and the theme. This is each app's own view; the folder lists
+// are the computers' (their hosts keep them).
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { defaultUiState, type UiState } from '../shared/contract.ts';
+import { defaultUiState, type ThemePreference, type UiState } from '../shared/contract.ts';
 import { array, boolean, integer, object, optional, string, uiState, type Validator } from '../shared/validate.ts';
 
 export interface Bounds { x: number; y: number; width: number; height: number }
@@ -14,6 +14,8 @@ export interface DesktopState {
   version: 1; windows: string[]; folders: Record<string, FolderRecord>;
   /** Per computer (`local` or a host ID), the folder last shown there: its path, or its remote key. */
   lastFolders?: Record<string, string>;
+  /** The app's theme preference; absent means the operating system's. */
+  theme?: ThemePreference;
 }
 /** How a computer is keyed in `lastFolders`. */
 export const computerKey = (hostId: string | null) => hostId ?? 'local';
@@ -47,7 +49,8 @@ export function parseState(value: unknown): DesktopState {
       if (/^(?:local|[a-zA-Z0-9-]{8,64})$/.test(key) && typeof root === 'string' && root.length > 0 && root.length <= 2200) lastFolders[key] = root;
     }
   }
-  return { version: 1, windows, folders, lastFolders };
+  const theme = (value as { theme?: unknown }).theme;
+  return { version: 1, windows, folders, lastFolders, ...(theme === 'light' || theme === 'dark' ? { theme } : {}) };
 }
 
 export class StateStore {
@@ -83,6 +86,12 @@ export class StateStore {
   setLastFolder(computer: string, root: string) {
     if (this.state.lastFolders?.[computer] === root) return;
     this.state.lastFolders = { ...this.state.lastFolders, [computer]: root };
+    this.schedule();
+  }
+  get theme(): ThemePreference { return this.state.theme ?? 'system'; }
+  setTheme(theme: ThemePreference) {
+    if (this.theme === theme) return;
+    if (theme === 'system') delete this.state.theme; else this.state.theme = theme;
     this.schedule();
   }
   setWindows(roots: string[]) {

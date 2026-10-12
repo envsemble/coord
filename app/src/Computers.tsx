@@ -70,7 +70,7 @@ export function ComputerMenu({ current, onError }: { current: ComputerRef; onErr
   const computers = useComputers(open, onError);
   const actions = useAppActions();
   return <Menu aria-label={'Computer: ' + current.name} align="start" open={open} onOpenChange={setOpen}
-    trigger={<Button variant="secondary" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />}><span className="computer-trigger-label">{current.name}</span></Button>}>
+    trigger={<Button variant="secondary" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
     <MenuGroup label="Computers">
       {computers === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Checking computers…</MenuItem>
         : <MenuRadioGroup value={current.hostId ?? 'local'} onValueChange={value => {
@@ -82,7 +82,7 @@ export function ComputerMenu({ current, onError }: { current: ComputerRef; onErr
         </MenuRadioGroup>}
     </MenuGroup>
     <MenuSeparator />
-    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to another computer…</MenuItem>
+    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect a computer…</MenuItem>
     <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage computers…</MenuItem>
   </Menu>;
 }
@@ -94,14 +94,14 @@ export function FolderMenu({ computer, folderName, folderPath, isCurrent, onErro
   const actions = useAppActions();
   const current = folders?.find(isCurrent);
   return <Menu aria-label={'Planning folder: ' + folderName} align="start" open={open} onOpenChange={setOpen}
-    trigger={<Button variant="text" className="folder-trigger" endIcon={<UnfoldMore />}><span className="folder-trigger-label">{folderName}</span></Button>}>
+    trigger={<Button variant="secondary" className="folder-trigger" startIcon={<FolderIcon />} endIcon={<UnfoldMore />} aria-label={'Planning folder: ' + folderName}><span className="folder-trigger-label">{folderName}</span></Button>}>
     <MenuGroup label={'Planning folders on ' + computer.name}>
       {folders === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Loading…</MenuItem>
         : folders.length ? <MenuRadioGroup value={current?.folderId ?? ''} onValueChange={value => {
           const folder = folders.find(item => item.folderId === value);
           if (folder) openFolder(computer, folder, false, onError);
         }}>
-          {folders.map(folder => <MenuRadioItem key={folder.folderId} value={folder.folderId} disabled={!folder.available} description={folder.path}>
+          {folders.map(folder => <MenuRadioItem key={folder.folderId} value={folder.folderId} disabled={!folder.available} description={shortPath(folder.path)}>
             {folder.name}{!folder.available && <> <Badge tone="warning">Missing</Badge></>}
           </MenuRadioItem>)}
         </MenuRadioGroup>
@@ -111,6 +111,14 @@ export function FolderMenu({ computer, folderName, folderPath, isCurrent, onErro
     <MenuItem icon={<FolderIcon />} onClick={() => openFolderOn(computer, actions, onError, folderPath)}>Open Folder…</MenuItem>
     <MenuItem onClick={() => actions.manageFolders(computer)}>Manage folders…</MenuItem>
   </Menu>;
+}
+
+/** A long path as its root, an ellipsis and its last two folders: C:\Dev\…\e2e\fixtures\planning. */
+export function shortPath(path: string, most = 40) {
+  if (path.length <= most) return path;
+  const separator = path.includes('\\') ? '\\' : '/';
+  const parts = path.split(/[\\/]/);
+  return parts.length > 4 ? [...parts.slice(0, 2), '…', ...parts.slice(-3)].join(separator) : path;
 }
 
 function openFolder(computer: ComputerRef, folder: ComputerFolder, newWindow: boolean, onError: (message: string) => void, onOpened?: () => void) {
@@ -156,10 +164,7 @@ export function FoldersDialog({ computer, isCurrent, onClose }: { computer: Comp
   const actions = useAppActions();
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={'Planning folders on ' + computer.name}
     description="Every device that works on this computer sees the same list."
-    actions={<>
-      <Button variant="secondary" startIcon={<FolderIcon />} onClick={() => { onClose(); openFolderOn(computer, actions, setError); }}>Open Folder…</Button>
-      <Button variant="primary" onClick={onClose}>Done</Button>
-    </>}>
+    closeLabel="Done" actions={<Button variant="secondary" startIcon={<FolderIcon />} onClick={() => { onClose(); openFolderOn(computer, actions, setError); }}>Open Folder…</Button>}>
     {folders === null ? <Spinner label="Loading folders" />
       : folders.length ? <FolderRows computer={computer} folders={folders} current={isCurrent} onError={setError} onOpened={onClose} />
       : <EmptyState title="No planning folders yet" description={listError || 'Open a folder to add it.'} icon={<FolderIcon />} />}
@@ -175,10 +180,7 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
   const forget = (computer: Computer) => { api.forgetRemote(computer.hostId!).catch(failure => setError((failure as Error).message)); };
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title="Computers"
     description="This computer and the computers it is paired with. Choose one in the computer menu to work on it in this window."
-    actions={<>
-      <Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect to another computer…</Button>
-      <Button variant="primary" onClick={onClose}>Done</Button>
-    </>}>
+    closeLabel="Done" actions={<Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect a computer…</Button>}>
     {computers === null ? <Spinner label="Checking computers" />
       : <GroupedRows className="computer-rows" aria-label="Computers">{computers.map(computer => {
         const status = statusLabels[computer.status];

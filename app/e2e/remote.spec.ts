@@ -37,7 +37,8 @@ async function fileMenu(app: ElectronApplication, label: string) {
 async function listen(owner: Page) {
   const access = owner.getByRole('dialog', { name: 'Remote access' });
   await expect(access.getByRole('status')).toHaveText('Remote access is off.');
-  await access.getByLabel('Reach this computer via').selectOption('127.0.0.1');
+  await access.getByLabel('Reach this computer via').click();
+  await owner.getByRole('option', { name: /127\.0\.0\.1/ }).click();
   const port = await freePort();
   await access.getByLabel('Port').fill(String(port));
   await access.getByLabel('Port').press('Enter');
@@ -89,7 +90,7 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect.poll(() => windowTitles(reading!.app)).toEqual([`planning — ${name} — Atlas`]);
   // A paired device sees real paths: it is the same person's computer.
   expect(await viewer.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.snapshot(); return result.ok ? result.value.root : result.error.message; })).toBe(folder);
-  await expect(viewer.getByRole('button', { name: 'Computer' })).toContainText(name);
+  await expect(viewer.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   // Only revealing a file in a file explorer stays on that computer.
   expect(await viewer.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.reveal('README.md'); return result.ok ? 'revealed' : result.error.code; })).toBe('forbidden');
   // The link worked once.
@@ -115,23 +116,26 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect(viewer.locator('.work-row')).toHaveCount(4);
 
   // The folder list is the computer's: a folder opened over there appears here at once.
-  await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  const menu = viewer.getByRole('dialog', { name: 'Planning folder' });
-  await expect(menu.getByRole('button', { name: /^planning/ })).toHaveAttribute('aria-current', 'true');
+  const folderMenu = viewer.getByRole('button', { name: /^Planning folder:/ });
+  await folderMenu.click();
+  const menu = viewer.getByRole('menu', { name: /^Planning folder/ });
+  await expect(menu.getByRole('menuitemradio').filter({ hasText: /^planning/ })).toHaveAttribute('aria-checked', 'true');
+  await menu.getByRole('menuitem', { name: 'Manage folders…' }).click();
+  const list = viewer.getByRole('dialog', { name: `Planning folders on ${name}` });
   const demo = path.join(path.dirname(planningFixture()), 'demo');
   folders.push(path.dirname(demo));
   renameSync(path.join(path.dirname(demo), 'planning'), demo);
   await sharing.app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as unknown as typeof dialog.showOpenDialog; }, demo);
   await fileMenu(sharing.app, '&Open Folder…');
-  await expect(menu.getByRole('button', { name: /^demo/ })).toBeVisible();
+  await expect(list.getByRole('button', { name: /^demo/ })).toBeVisible();
   // Its new-window button opens it beside this window.
-  await menu.getByRole('button', { name: 'Open demo in a new window' }).click();
+  await list.getByRole('button', { name: 'Open demo in a new window' }).click();
   await expect.poll(() => windowTitles(reading!.app).then(titles => titles.sort())).toEqual([`demo — ${name} — Atlas`, `planning — ${name} — Atlas`].sort());
 
   // Open Folder… on that computer browses it in Atlas, beside the folder this window shows.
   await viewer.bringToFront();
-  await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('button', { name: 'Open Folder…' }).click();
+  await folderMenu.click();
+  await viewer.getByRole('menu', { name: /^Planning folder/ }).getByRole('menuitem', { name: 'Open Folder…' }).click();
   const browser = viewer.getByRole('dialog', { name: `Open a folder on ${name}` });
   await expect(browser.locator('.folder-browser-path')).toHaveText(path.dirname(folder));
   await expect(browser.getByRole('button', { name: /^third/ })).toContainText('Planning folder');
@@ -139,8 +143,8 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect(browser).toHaveCount(0);
   await expect.poll(() => windowTitles(reading!.app).then(titles => titles.sort())).toEqual([`demo — ${name} — Atlas`, `third — ${name} — Atlas`].sort());
   // Browsing starts over at the home folder and the drives (or the root).
-  await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('button', { name: 'Open Folder…' }).click();
+  await folderMenu.click();
+  await viewer.getByRole('menu', { name: /^Planning folder/ }).getByRole('menuitem', { name: 'Open Folder…' }).click();
   await browser.getByRole('button', { name: 'Home folder and drives' }).click();
   await expect(browser.getByRole('list', { name: 'Places' })).toContainText('Home');
   await browser.getByRole('button', { name: 'Cancel' }).click();
@@ -157,12 +161,12 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await remoteAccess.getByRole('button', { name: 'Done' }).click();
 
   // Switching to this computer, which has no folders yet, shows its welcome page; switching back from there shows the other computer's folders.
-  await viewer.getByRole('button', { name: 'Computer' }).click();
-  await viewer.getByRole('dialog', { name: /^Computer/ }).getByRole('button', { name: /This computer/ }).click();
+  await viewer.getByRole('button', { name: /^Computer:/ }).click();
+  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: 'This computer' }).click();
   await expect(viewer.getByRole('heading', { name: 'Recent' })).toBeVisible();
   await expect(viewer.getByText('No recent folders.')).toBeVisible();
-  await viewer.getByRole('button', { name: 'Computer' }).click();
-  await viewer.getByRole('dialog', { name: /^Computer/ }).getByRole('button', { name: /127\.0\.0\.1/ }).click();
+  await viewer.getByRole('button', { name: /^Computer:/ }).click();
+  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: /127\.0\.0\.1/ }).click();
   await expect(viewer.getByRole('heading', { name: `Planning folders on ${name}` })).toBeVisible();
   await expect(viewer.getByRole('list', { name: `Planning folders on ${name}` }).getByRole('listitem')).toHaveCount(3);
 
@@ -182,9 +186,11 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   // Forgetting the computer from a window on it closes its other windows; this one shows this computer
   // instead (so Atlas stays open), and nothing about the other computer is kept.
   const last = reading.window;
-  await last.getByRole('button', { name: 'Computer' }).click();
-  await last.getByRole('button', { name: `Forget ${name}` }).click();
-  await last.getByRole('group', { name: `Forget ${name}` }).getByRole('button', { name: 'Forget', exact: true }).click();
+  await last.getByRole('button', { name: /^Computer:/ }).click();
+  await last.getByRole('menu', { name: /^Computer/ }).getByRole('menuitem', { name: 'Manage computers…' }).click();
+  const computers = last.getByRole('dialog', { name: 'Computers' });
+  await computers.getByRole('listitem').filter({ hasText: name }).filter({ hasText: '127.0.0.1' }).getByRole('button', { name: 'Forget' }).click();
+  await computers.getByRole('button', { name: `Forget ${name}` }).click();
   await expect(last.getByRole('heading', { name: 'Recent' })).toBeVisible();
   await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);
   const saved = (file: string) => { try { return readFileSync(path.join(readerData, file), 'utf8'); } catch { return ''; } };

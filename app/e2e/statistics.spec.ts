@@ -15,8 +15,8 @@ test('the Work tab lists each work item with its reported model, tokens, active 
   launched = await launch({ folder });
   const { window } = launched;
   await window.getByRole('button', { name: 'Statistics' }).click();
-  await expect(window.locator('.statistics-nav a.selected')).toHaveText('Work');
-  await expect(window.locator('.stats-grid .stat').first().locator('strong')).toHaveText('2');
+  await expect(window.getByRole('tablist', { name: 'Statistics sections' }).locator('[role="tab"][aria-selected="true"]')).toHaveText('Work');
+  await expect(window.locator('.stats-grid .stat').first().locator('.stat-value')).toHaveText('2');
   const payments = window.locator('.work-statistics-table tr', { hasText: 'Saved payment methods' });
   await expect(payments.locator('td').nth(1)).toHaveText('model-alpha-2');
   await expect(payments.locator('td').nth(2)).toHaveText(await compact(window, 210000));
@@ -34,17 +34,17 @@ test('the Models tab plots completed work over time by implementing model, with 
   launched = await launch({ folder });
   const { window } = launched;
   await window.getByRole('button', { name: 'Statistics' }).click();
-  await window.locator('.statistics-nav a', { hasText: 'Models over time' }).click();
+  await window.getByRole('tablist', { name: 'Statistics sections' }).getByRole('tab', { name: 'Models over time' }).click();
   await expect(window.locator('.chart-dot')).toHaveCount(1);
   await expect(window.locator('.chart-legend')).toContainText('model-beta-1');
-  const row = window.locator('.usage-table tbody tr', { hasText: 'model-beta-1' });
+  const row = window.locator('.model-table tbody tr', { hasText: 'model-beta-1' });
   await expect(row.locator('td').nth(1)).toHaveText('1');
   await expect(row.locator('td').nth(2)).toHaveText(await compact(window, 335000));
   await expect(row.locator('td').nth(3)).toHaveText('3 h');
   await window.locator('.chart-dot').hover();
   await expect(window.locator('.chart-tooltip')).toContainText('Inventory reservations');
   await expect(window.locator('.chart-tooltip strong')).toHaveText(await compact(window, 335000));
-  await window.getByRole('button', { name: 'Plan revisions' }).click();
+  await window.getByLabel('Measure').getByText('Plan revisions').click();
   await expect(window.locator('.chart-dot')).toHaveCount(1);
   // Keyboard: focus the chart, move to the dot and open its work item.
   await window.locator('.chart-frame').focus();

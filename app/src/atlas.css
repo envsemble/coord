@@ -26,6 +26,8 @@ body { margin: 0; }
 /* The diagrams section fills the window below the tabs, edge to edge. */
 .workbench-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
 .workbench-body.is-filled .workbench-page { display: flex; flex-direction: column; min-block-size: 0; padding: var(--space-4) 0 0; }
+/* The filled body does not scroll, so its tabs stay where they are instead of sticking. */
+.workbench-body.is-filled .workbench-tabs { position: relative; inset-block-start: auto; }
 .workbench-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-button { min-inline-size: 13rem; justify-content: flex-start; }
 .search-button-label { flex: 1; text-align: start; }
@@ -43,8 +45,8 @@ body { margin: 0; }
 /* The explorer: the folder menu, then the folder's files filling the rest of the sidebar. */
 .explorer { display: flex; flex-direction: column; block-size: 100%; min-block-size: 0; }
 .explorer-header { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-3) var(--space-1); }
-.folder-trigger { flex: 1; min-inline-size: 0; justify-content: space-between; }
-.folder-trigger-label, .computer-trigger-label { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-trigger { flex: 1; min-inline-size: 0; }
+.folder-trigger-label, .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 .folder-trigger-label { font-weight: 600; }
 .computer-trigger { max-inline-size: 100%; }
 .explorer-tree { flex: 1; min-block-size: 0; }
@@ -64,7 +66,8 @@ body { margin: 0; }
 .work-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .work-row-meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
 .blocked-reason { max-inline-size: 36rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.work-row-focus { margin: var(--space-1) 0 0; color: var(--color-text-muted); }
+/* The steps being worked on: at most two lines; the work page lists them all. */
+.work-row-focus { display: -webkit-box; margin: var(--space-1) 0 0; overflow: hidden; color: var(--color-text-muted); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .work-row-side { display: flex; align-items: center; gap: var(--space-4); color: var(--color-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .work-row-steps, .diagram-count { display: inline-flex; align-items: center; gap: var(--space-2); }
 .diagram-count { color: inherit; }
@@ -111,7 +114,7 @@ body { margin: 0; }
   .about { position: static; }
 }
 /* The diagrams section: the header stays, the panel takes the rest of the window. */
-.work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); max-inline-size: none; min-block-size: 0; }
+.work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); inline-size: 100%; max-inline-size: none; min-block-size: 0; margin-inline: 0; }
 .work-page.section-diagrams .work-page-head { padding-inline: var(--space-7); }
 .work-page.section-diagrams .work-sections { flex: 1; display: flex; flex-direction: column; min-block-size: 0; padding-inline: 0; }
 .work-page.section-diagrams .work-sections > [role='tablist'] { margin-inline: var(--space-7); }
@@ -144,6 +147,7 @@ body { margin: 0; }
 .diagrams.fullscreen { position: fixed; inset: 0; z-index: 100; min-block-size: 0; border: 0; background: var(--color-canvas); }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--space-6); background: var(--color-canvas); }
+.diagrams-state > * { max-inline-size: 30rem; }
 .diagrams-island { position: absolute; inset-block-start: var(--space-3); inset-inline-start: var(--space-3); z-index: 5; }
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: 40; display: grid; gap: var(--space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
 .model-picker-button { max-inline-size: min(28rem, 60vw); }

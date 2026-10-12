@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, EmptyState, Kbd, Notice, Surface, Text, ThemeToggle } from '@envsemble/envui';
+import { Button, EmptyState, Kbd, Notice, Surface, Text } from '@envsemble/envui';
+import { ThemeMenu } from './ThemeMenu';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { DevicesIcon, ErrorIcon, FolderIcon } from './icons';
 import type { WindowInfo } from './types';
@@ -14,7 +15,7 @@ export function Welcome({ info }: { info: WindowInfo }) {
   const actions = useAppActions();
   const here = computer.hostId === null;
   return <main className="welcome">
-    <div className="welcome-corner"><ThemeToggle /></div>
+    <div className="welcome-corner"><ThemeMenu /></div>
     <div className="welcome-panel">
       <header className="welcome-brand">
         <AtlasMark size={48} label="" />

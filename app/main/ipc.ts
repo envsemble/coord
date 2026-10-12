@@ -7,12 +7,12 @@ import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
 import { HostRequestError, type HostClient } from '@envsemble/atlas-host';
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
-import { invokeChannels, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result } from '../shared/contract.ts';
-import { absolutePath, argumentsOf, boolean, command, folderId, ipAddress, modelHandle, nullable, object, pairingCode, relativePath, string, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
+import { invokeChannels, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
+import { absolutePath, argumentsOf, boolean, command, folderId, ipAddress, modelHandle, nullable, object, pairingCode, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import type { FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
@@ -95,6 +95,9 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
+    'app:theme': { args: [], handle: () => manager.context.state.theme },
+    // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
+    'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
     'app:command': {
       args: [command],
       handle: async (window, name: string) => {

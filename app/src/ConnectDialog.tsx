@@ -26,10 +26,7 @@ export function ConnectDialog({ onClose, onBrowse }: { onClose(): void; onBrowse
   if (paired) return <Paired computer={paired} onClose={onClose} onBrowse={onBrowse} />;
   return <Dialog open onOpenChange={close} pending={busy} className="connect-dialog" title="Connect to another Atlas"
     description={<>On the other computer, choose <strong>Remote Access…</strong>, turn remote access on and create a pairing link. Paste the link here, or type its address and code. The link works once, for five minutes.</>}
-    actions={<>
-      <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-      <Button variant="primary" type="submit" form="connect-form" pending={busy} disabled={!link.trim() || (needsCode && !code.trim())}>Connect</Button>
-    </>}>
+    closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="connect-form" pending={busy} disabled={!link.trim() || (needsCode && !code.trim())}>Connect</Button>}>
     <form id="connect-form" className="dialog-form" onSubmit={event => { event.preventDefault(); void connect(); }}>
       <Input label="Pairing link or address" value={link} onChange={event => setLink(event.target.value)} placeholder="http://100.64.1.2:7346/pair#token=…" autoFocus spellCheck={false} autoComplete="off" disabled={busy}
         hint="Use the Tailscale address to connect from anywhere on your tailnet. On a local network, the connection is not encrypted." />
@@ -45,10 +42,7 @@ function Paired({ computer, onClose, onBrowse }: { computer: Computer; onClose()
   const [error, setError] = useState('');
   const target = { hostId: computer.hostId!, name: computer.name };
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" className="connect-dialog" title="Connect to another Atlas"
-    actions={<>
-      <Button variant="secondary" onClick={onClose}>Close</Button>
-      <Button variant="primary" startIcon={<FolderIcon />} onClick={() => onBrowse(target)}>Open Folder on {computer.name}…</Button>
-    </>}>
+    actions={<Button variant="primary" startIcon={<FolderIcon />} onClick={() => onBrowse(target)}>Open Folder on {computer.name}…</Button>}>
     <Text>This computer is paired with <strong>{computer.name}</strong>. Choose <strong>{computer.name}</strong> in the computer menu at the top of the window to work on it{computer.manageAccess ? '; you can also pair and revoke its devices' : ''}.</Text>
     {folders === null ? <Spinner label="Loading its planning folders" />
       : folders.length ? <FolderRows computer={computer} folders={folders} onError={setError} onOpened={onClose} />

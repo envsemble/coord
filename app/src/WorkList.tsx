@@ -49,7 +49,7 @@ export function WorkList({ snapshot, repository, setRepository, location, setLoc
   return <Page title="Work" toolbar={<>
     <SegmentedControl aria-label="Work location" value={location} onValueChange={setLocation}
       options={[{ value: 'active', label: 'Active', count: counts.active }, { value: 'archived', label: 'Archived', count: counts.archived }, { value: 'all', label: 'All', count: counts.all }]} />
-    <SearchField className="work-search" label="Search work" value={search} onValueChange={setSearch} />
+    <SearchField className="work-search" label="Search work" placeholder="Search work" value={search} onValueChange={setSearch} />
     <RepositorySelect snapshot={snapshot} repository={repository} setRepository={setRepository} />
   </>}>
     {visible.length ? <GroupedRows className="work-list" aria-label="Work items">{visible.map(item => <WorkRow key={item.id} work={item} />)}</GroupedRows>

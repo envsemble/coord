@@ -18,7 +18,7 @@ export const invokeChannels = [
   'window:info',
   'planning:snapshot', 'planning:document', 'planning:models', 'planning:model', 'planning:references', 'planning:diagrams',
   'usage:view', 'ui:load', 'ui:save',
-  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command',
+  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch',
   'folders:list', 'folders:open', 'folders:choose', 'folders:browse', 'folders:remove',
@@ -29,6 +29,10 @@ export type InvokeChannel = typeof invokeChannels[number];
 
 export const eventChannels = ['planning:changed', 'menu:command', 'access:changed', 'folders:changed'] as const;
 export type EventChannel = typeof eventChannels[number];
+
+/** Light, dark, or the operating system's choice: kept by main for every window and applied as Electron's native theme. */
+export const themePreferences = ['system', 'light', 'dark'] as const;
+export type ThemePreference = typeof themePreferences[number];
 
 /** Commands the renderer may ask main to run; each one acts on the calling window only. */
 export const appCommands = ['newWindow', 'locate', 'closeWindow', 'openLogs', 'about'] as const;
@@ -135,6 +139,9 @@ export interface AtlasBridge {
   openExternal(url: string): Promise<Result<void>>;
   copy(text: string): Promise<Result<void>>;
   command(command: AppCommand): Promise<Result<void>>;
+  /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
+  theme(): Promise<Result<ThemePreference>>;
+  setTheme(preference: ThemePreference): Promise<Result<void>>;
   exportPlan(work: string): Promise<Result<ExportResult | null>>;
   chooseImport(): Promise<Result<ImportPreview | null>>;
   confirmImport(token: string): Promise<Result<ImportResult>>;

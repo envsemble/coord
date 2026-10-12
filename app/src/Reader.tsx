@@ -168,7 +168,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
-        <Markdown rehypePlugins={rehypePlugins} components={components}>{content.body}</Markdown>
+        <Markdown inlineCode="subtle" rehypePlugins={rehypePlugins} components={components}>{content.body}</Markdown>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
       : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}

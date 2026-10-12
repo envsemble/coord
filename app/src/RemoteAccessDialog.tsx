@@ -91,11 +91,10 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
   };
 
   const title = here ? 'Remote access' : 'Remote access to ' + computer.name;
-  const done = <Button variant="primary" onClick={onClose}>Done</Button>;
-  if (refused) return <Dialog open onOpenChange={open => { if (!open) onClose(); }} title={title} className="remote-access-dialog" actions={done}>
+  if (refused) return <Dialog open onOpenChange={open => { if (!open) onClose(); }} title={title} className="remote-access-dialog" closeLabel="Done">
     <Notice tone="warning" role="alert">{refused}</Notice>
   </Dialog>;
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={title} className="remote-access-dialog" actions={done}
+  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={title} className="remote-access-dialog" closeLabel="Done"
     description={here
       ? 'Pair your other devices, such as your laptop, to work on this computer from them: they browse its folders, open any planning folder, and import and export plans, as Atlas does here. Pair only your own devices.'
       : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}>
@@ -129,7 +128,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
           <div className="pairing-text">
             <p className="pairing-expiry">Expires in {Math.floor(remaining / 60000)}:{String(Math.floor(remaining / 1000) % 60).padStart(2, '0')} · works once</p>
             <p className="pairing-grant">{link.label ? <strong>{link.label}: </strong> : null}the whole computer{link.manageAccess ? ', and Manage access' : ''}.</p>
-            <Code className="pairing-link">{link.url}</Code>
+            <Code appearance="subtle" className="pairing-link">{link.url}</Code>
             <div className="row-actions">
               {link.url && <CopyButton text={link.url} label="Copy link" />}
               <CopyButton text={link.code} label="Copy code only" />

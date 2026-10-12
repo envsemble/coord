@@ -71,7 +71,7 @@ export function Explorer({ snapshot, folderName, root, computer, platform, expan
   const reveal = (path: string) => { api.reveal(path).catch(error => notify((error as Error).message, 'warning')); };
   // A folder on another computer has no files here to reveal.
   const revealItem = (path: string) => remote ? null : <MenuItem onClick={() => reveal(path)}>Reveal in File Explorer</MenuItem>;
-  const collapseAll = <MenuItem icon={<CollapseAllIcon />} disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</MenuItem>;
+  const collapseAll = <MenuItem disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</MenuItem>;
   const menu = (item: Row | null) => {
     const row = item?.row;
     const entries = !row ? null

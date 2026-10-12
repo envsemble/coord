@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { AtlasMark, AtlasPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
 import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
 import {
-  Badge, Breadcrumbs, Button, Counter, EmptyState, IconButton, Menu, MenuRadioGroup, MenuRadioItem, Notice, SearchField, Surface, Tabs, Text, ThemeToggle, Tree,
+  Badge, Breadcrumbs, Button, Counter, EmptyState, Menu, MenuRadioGroup, MenuRadioItem, Notice, SearchField, Surface, Tabs, Text, ThemeToggle, Tree,
   useThemePreference, type TreeItem,
 } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
@@ -104,7 +104,7 @@ function Reader({ file, data, anchor, toolbar, hideTitle, navigate }: { file: Ex
   }, [file.path, anchor]);
   const download = <Button variant="secondary" startIcon={<Download />} href={blobURL(file, 'download')} download={baseName(file.path)}>Download</Button>;
   return <article className={'reader' + (toolbar ? ' reader-boxed' : '')} ref={article}>
-    {toolbar && <div className="reader-toolbar"><span className="reader-name"><Description /><strong>{baseName(file.path)}</strong><span className="muted">{bytes(file.size)}</span></span><IconButton variant="text" icon={<Download />} href={blobURL(file, 'download')} download={baseName(file.path)} aria-label={'Download ' + baseName(file.path)} /></div>}
+    {toolbar && <div className="reader-toolbar"><span className="reader-name"><Description /><strong>{baseName(file.path)}</strong><span className="muted">{bytes(file.size)}</span></span><Button variant="text" iconOnly icon={<Download />} href={blobURL(file, 'download')} download={baseName(file.path)} aria-label={'Download ' + baseName(file.path)} /></div>}
     {(format === 'markdown' || format === 'text') && text === null ? <EmptyState icon={<Description />} title={baseName(file.path)} action={download} description={`This file is too large to show here (${bytes(file.size)}). Download it instead.`} />
       : format === 'markdown' ? <Markdown path={file.path} body={markdownBody(text!)} files={data.files} diagrams={data.view.diagrams} hideTitle={hideTitle}
         onFile={(target, targetAnchor) => navigate({ tab: 'files', file: target, anchor: targetAnchor ?? null })}

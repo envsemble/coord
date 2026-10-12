@@ -1,7 +1,7 @@
 // Validators for the messages the window sends to the main process and for persisted window
 // state. The generic validators and the planning shapes are the host's (packages/host/src/validate.ts);
 // this module adds what only the desktop window sends. Unknown object keys are dropped.
-import { appCommands, limits, type TabState, type Target, type UiState } from './contract.ts';
+import { appCommands, limits, themePreferences, type TabState, type Target, type UiState } from './contract.ts';
 import { array, boolean, integer, modelHandle, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas-host/validate';
 
 export {
@@ -10,6 +10,7 @@ export {
 } from '@envsemble/atlas-host/validate';
 
 export const command = oneOf(appCommands);
+export const themePreference = oneOf(themePreferences);
 export const url = string({ min: 1, max: 4096 });
 
 const anchor = optional(nullable(string({ max: 512 })));

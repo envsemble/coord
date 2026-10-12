@@ -21,7 +21,7 @@ export function Activity({ snapshot, repository, setRepository }: RepositoryFilt
       : entries.length ? <GroupedRows className="activity-list" aria-label="Commits">{entries.map(entry => <Row className="activity-row" key={entry.id}
         title={<span className="activity-title"><strong>{entry.title}</strong>{entry.workIds.map(id => <TargetLink key={id} className="activity-work" target={workTarget(id)} title={titles.get(id)}>{workNumber(id)}</TargetLink>)}</span>}
         detail={<span className="changed-files">{entry.files.slice(0, 5).map(file => { const document = find(file); return <button type="button" key={file} className="file-chip" disabled={!document} title={file} onClick={event => document && open(documentTarget(document, owner(document.workId)), { pin: event.ctrlKey || event.metaKey })}><FileIcon />{file.split('/').at(-1)}</button>; })}{entry.files.length > 5 && <span className="muted">+{entry.files.length - 5} more</span>}</span>}
-        action={<span className="activity-meta"><Code>{entry.id.slice(0, 7)}</Code><span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span>} />)}
+        action={<span className="activity-meta"><Code appearance="subtle">{entry.id.slice(0, 7)}</Code><span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span>} />)}
       </GroupedRows> : <EmptyState className="page-empty" icon={<CommitIcon />} title="No recent activity" />}
   </Page>;
 }
