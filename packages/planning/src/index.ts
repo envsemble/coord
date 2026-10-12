@@ -7,6 +7,9 @@ export { atlasDataDirectory, cacheOutsidePlanning, recentRootsFile, statisticsDi
 export { Telemetry, recordCollectionGap, schema, type ViewEvent } from './telemetry.ts';
 export { RecentPlanningRoots, inspectPlanningRoot, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';
+export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './ledger.ts';
+export { StatisticsReportError, appendReport, createReport, parseReport, planRevisions, readReports, sessionGap, statisticsFile, summarizeReports, workStatistics, type ReportInput, type StatisticsReport } from './statistics.ts';
+export { recordWorkReport, type RecordedReport } from './workReport.ts';
 export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './consultation.ts';
 export type * from './types.ts';
 export {
@@ -15,3 +18,4 @@ export {
   type PlanExportManifest, type PlanExportSource, type PlanExportFile, type PlanExportRepository, type PlanExportDiagram,
   type PlanExportPreview, type PlanExportResult, type PlanImportResult, type PlanImportTarget, type PlanExportErrorCode,
 } from './planExport.ts';
+export { runProgram, ProgramError, type RunOptions } from './run.ts';

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FileDirectoryFillIcon, FileDirectoryOpenFillIcon, FileIcon, FoldIcon, WorkflowIcon } from './icons';
-import type { Snapshot, Target, Work } from './types';
+import type { ComputerFolder, ComputerRef, Snapshot, Target, Work } from './types';
+import { ComputerMenu, FolderMenu } from './Computers';
 import { api } from './api';
 import { buildIndex, diagramId, diagramsId, fileId, folderId, revealIds, visibleRows, type DiagramState, type ExplorerRow } from './explorerModel';
 import { fileTarget, workTarget } from './targets';
@@ -24,14 +25,19 @@ export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): {
   return null;
 }
 
-export function Explorer({ snapshot, folderName, expanded, setExpanded, selected, onExportPlan }: {
-  snapshot: Snapshot; folderName: string; expanded: string[]; setExpanded(next: string[]): void; selected: string | null; onExportPlan(work: Work): void;
+export function Explorer({ snapshot, folderName, root, computer, platform, expanded, setExpanded, selected, onExportPlan }: {
+  snapshot: Snapshot; folderName: string; root: string; computer: ComputerRef; platform: string; expanded: string[]; setExpanded(next: string[]): void; selected: string | null; onExportPlan(work: Work): void;
 }) {
-  const { open, revision, notify } = useWorkbench();
+  const { open, revision, notify, remote } = useWorkbench();
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
   const [diagrams, setDiagrams] = useState<Map<string, DiagramState & { revision: number }>>(new Map());
-  const menu = useContextMenu<ExplorerRow>();
+  const menu = useContextMenu<ExplorerRow | null>();
+  // The folder this window shows, in its computer's folder list: by path here, by its key on another computer.
+  const isCurrent = (folder: ComputerFolder) => computer.hostId === null
+    ? (platform === 'win32' || platform === 'darwin' ? folder.path.toLowerCase() === root.toLowerCase() : folder.path === root)
+    : root === `atlas-remote:${computer.hostId}/${folder.folderId}`;
+  const warn = (message: string) => notify(message, 'warning');
 
   // Load the models of each expanded Diagrams entry, and again after the folder changes.
   useEffect(() => {
@@ -61,33 +67,43 @@ export function Explorer({ snapshot, folderName, expanded, setExpanded, selected
     }
   };
   const reveal = (path: string) => { api.reveal(path).catch(error => notify((error as Error).message, 'warning')); };
-  const menuItems = (row: ExplorerRow): MenuEntry[] => {
+  const collapse: MenuEntry = { label: 'Collapse All Folders', icon: <FoldIcon size={16} />, disabled: !expanded.length, onSelect: () => setExpanded([]) };
+  const rowItems = (row: ExplorerRow): MenuEntry[] => {
     switch (row.kind) {
       case 'work': return [
         { label: 'Open Overview', onSelect: () => open(workTarget(row.work!.id), { pin: true }) },
         { label: 'Open Diagrams', disabled: !row.work!.diagrams, onSelect: () => open(workTarget(row.work!.id, 'diagrams'), { pin: true }) },
         'separator',
         { label: 'Export Plan…', onSelect: () => onExportPlan(row.work!) },
-        'separator',
-        { label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) },
+        // A folder on another computer has no files here to reveal.
+        ...(remote ? [] : ['separator' as const, { label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }]),
       ];
-      case 'folder': return [{ label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }];
-      case 'file': return [{ label: 'Open', onSelect: () => open(fileTarget(row.path!), { pin: true }) }, { label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }];
+      case 'folder': return remote ? [] : [{ label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }];
+      case 'file': return [{ label: 'Open', onSelect: () => open(fileTarget(row.path!), { pin: true }) }, ...(remote ? [] : [{ label: 'Reveal in File Explorer', onSelect: () => reveal(row.path!) }])];
       case 'diagram': return [{ label: 'Open Diagram', onSelect: () => open(workTarget(row.workId!, 'diagrams', { diagram: row.model!.handle }), { pin: true }) }];
       default: return [];
     }
   };
+  // Every right-click in the explorer, on a row or on empty space, can collapse its folders.
+  const menuItems = (row: ExplorerRow | null): MenuEntry[] => {
+    const items = row ? rowItems(row) : [];
+    return items.length ? [...items, 'separator', collapse] : [collapse];
+  };
 
-  return <div className="explorer">
+  return <div className="explorer" onContextMenu={event => {
+    if ((event.target as Element).closest('.tree-row, .explorer-header')) return;
+    event.preventDefault();
+    menu.open(null, { x: event.clientX, y: event.clientY });
+  }}>
     <div className="explorer-header">
-      <span className="explorer-title" title={snapshot.root}>{folderName}</span>
-      <button type="button" className="btn-octicon" aria-label="Collapse folders" title="Collapse folders" onClick={() => setExpanded([])}><FoldIcon size={16} /></button>
+      <FolderMenu computer={computer} folderName={folderName} folderPath={snapshot.root} isCurrent={isCurrent} onError={warn} />
+      <ComputerMenu current={computer} onError={warn} className="explorer-computer" />
     </div>
     <Tree rows={rows} selected={selected} label="Planning folder" onOpen={activate}
       onToggle={(row, value) => setOpen(row.id, value)}
-      onContextMenu={(row, position) => { if (menuItems(row).length) menu.open(row, position); }}
+      onContextMenu={(row, position) => menu.open(row, position)}
       renderRow={row => <ExplorerRowContent row={row} />} />
-    {menu.menu && <ContextMenu label={menu.menu.subject.name} position={menu.menu.position} items={menuItems(menu.menu.subject)} onClose={menu.close} />}
+    {menu.menu && <ContextMenu label={menu.menu.subject?.name ?? 'Explorer'} position={menu.menu.position} items={menuItems(menu.menu.subject)} onClose={menu.close} />}
   </div>;
 }
 

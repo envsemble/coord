@@ -4,17 +4,15 @@
 import { DatabaseSync } from 'node:sqlite';
 import { appendFileSync, createReadStream } from 'node:fs';
 import { mkdir, readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { normalizedLocation } from './planning.ts';
 import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
 import { schema } from './telemetry.ts';
+import { runProgram as execute } from './run.ts';
 
-const execute = promisify(execFile);
 const hiddenNames = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 const failureDetail = 'A requested consultation could not be recorded.';
 

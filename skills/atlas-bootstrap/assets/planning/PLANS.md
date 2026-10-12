@@ -77,20 +77,35 @@ Use the user's selected plan or the registry's explicit `current_plan`. If they 
 
 `active/` holds work expected to continue. `archive/` holds completed or deliberately closed work, including abandonment and supersession. Close automatically after verified agreed completion and outcome recording; PR-delivered work defaults to required PRs merged unless agreed criteria differ. Readiness, merge, release, and pending external actions remain explicit ledger milestones. Moving a folder updates its registry path, current-plan pointer, and references, while preserving its ID, body, and supporting files. Scope left unfinished must remain active or be accounted for as transferred, superseded, or deliberately dropped.
 
-## Ledger status version 1
+## Ledger status version 2
 
-The root `ledger.md` records actual progress and implementation provenance; its body stays flexible. A small YAML header makes the agent's reported current focus and agreed upcoming work visible without parsing narrative prose:
+The root `ledger.md` records actual progress and implementation provenance; its body stays flexible. A small YAML header lists the agreed steps of the work, so its progress and the work left are visible without parsing narrative prose:
 
 ```yaml
 ---
-schema_version: 1
+schema_version: 2
 kind: ledger
 work_id: work-0001
-updated: "2026-10-07"
-current: "Implementing the agreed query behavior."
-next: ["Verify tenant boundaries", "Complete review and handoff"]
+updated: "2026-10-11"
 blocked: null
+steps:
+  - title: "Implement the agreed query behavior"
+    status: done
+  - title: "Verify tenant boundaries"
+    status: doing
+  - title: "Complete review and handoff"
+    status: todo
 ---
 ```
 
-`work_id` matches the registered work; `updated` is an ISO date or null when unknown. `current` and `blocked` are nonempty strings or null, and `next` is an array of nonempty strings, empty when no next step is established. Keep these concise and specific to the accepted scope. Update at meaningful transitions, before a substantial execution stretch, when the next sequence changes, when genuinely blocked, and at handoff. Do not record every command, predict unagreed work, or promise continuous live telemetry. Once implementation is complete, report pending review/merge accurately; clear finished upcoming steps. Historical ledgers without this header remain readable and their present focus remains unknown; do not copy old activity into a new current claim.
+`work_id` matches the registered work; `updated` is an ISO date or null when unknown; `blocked` is a nonempty string or null. `steps` lists the agreed steps in order, and is `[]` until steps are established. Each step has exactly two fields: a `title`, a nonempty string unique within the ledger, and a `status` of `todo`, `doing` or `done`. Several steps may be `doing` at once. Write one block entry per step exactly as shown: the `-` of every entry in the same column, `status` aligned under `title`, spaces only, and the title in double quotes. Tools show progress as done steps over all steps; the work left is the steps not yet done, an estimate by count, not by time.
+
+Derive the steps from the accepted plan when implementation starts: one step per meaningful deliverable or milestone, not per command. Update statuses at meaningful transitions: before a substantial execution stretch, when a step starts or finishes, when genuinely blocked, and at handoff. When agreed scope gains a step, add it and record the amendment. Never drop an agreed step silently: mark it done, or record in the body why it was transferred or dropped and remove it then. Once implementation is complete every step is done; report pending review and merge accurately in the body. Do not record every command, predict unagreed work, or promise continuous live telemetry.
+
+### Version 1 (legacy)
+
+Earlier ledgers use `schema_version: 1` with `current` (a nonempty string or null) and `next` (a list of nonempty strings) in place of `steps`. Tools still read them and show the reported focus and next steps, without progress. Rewrite a version-1 header as version 2 when its work resumes, keeping the body. Historical ledgers without a header remain readable and their present focus remains unknown; do not copy old activity into a new current claim.
+
+## Work statistics
+
+`atlas work report` appends what an agent reports at a ledger transition to `<work>/.atlas/statistics.jsonl`, one JSON object per line: `version` (1), `at` (the time of the report), `model` (the model's identifier), `session` (the conversation's identifier or null), `tokens` (tokens used so far in that session, or null) and `step` (the ledger step's title, or null). Only the command writes the file; do not edit it by hand. The values are self-reported and approximate. Report when work starts and at each transition: tools add up the time between a session's reports (a gap of more than two hours is a break), count each session's tokens from its first report on, and take plan revisions from Git. Without a session identifier, the same model's reports less than two hours apart count as one session, so give one whenever several agents work at once. Plan exports leave the file out. `atlas planning check` warns about lines that are not valid reports and never fails on them.

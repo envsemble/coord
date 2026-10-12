@@ -1,21 +1,43 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Snapshot, UiState, WindowInfo } from './types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ComputerRef, Snapshot, UiState, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
 import { Blankslate, Spinner } from './ui';
 import { FolderProblem, Welcome } from './Welcome';
 import { Workbench } from './Workbench';
+import { ConnectDialog } from './ConnectDialog';
+import { RemoteAccessDialog } from './RemoteAccessDialog';
+import { FolderBrowser } from './FolderBrowser';
+import { AppActionsContext, type AppActions } from './Computers';
+
+type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
 
 /**
- * One window shows one planning folder. The folder is read in the main process; this component
- * follows its state (loading, ready, unreadable, missing) and refetches the snapshot when the
- * folder changes on disk.
+ * One window shows one planning folder, on this computer or another one. The folder is read in
+ * the main process; this component follows its state (loading, ready, unreadable, missing) and
+ * refetches the snapshot when the folder changes. Without a folder, the window shows a computer's
+ * folder list.
  */
 export default function App() {
   const [info, setInfo] = useState<WindowInfo | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [ui, setUi] = useState<UiState | null>(null);
   const [failure, setFailure] = useState('');
+  // Pairing, remote access and the folder browser work in every window.
+  const [dialog, setDialog] = useState<OpenDialog>(null);
+  const computer = info?.computer ?? null;
+  const actions = useMemo<AppActions>(() => ({
+    connect: () => setDialog({ kind: 'connect' }),
+    remoteAccess: () => setDialog({ kind: 'access' }),
+    browse: (target, near = null) => { if (target.hostId !== null) setDialog({ kind: 'browse', computer: { hostId: target.hostId, name: target.name }, near }); },
+  }), []);
+  // File › Open Folder… in a window on another computer browses it, beside the folder the window shows.
+  const near = snapshot && info?.folder ? snapshot.root : null;
+  useEffect(() => api.onMenu(command => {
+    if (command === 'connectRemote') actions.connect();
+    else if (command === 'remoteAccess') actions.remoteAccess();
+    else if (command === 'browseFolder' && computer) actions.browse(computer, near);
+  }), [actions, computer, near]);
   const latest = useRef(0);
 
   const refresh = useCallback(async (revision: number) => {
@@ -51,9 +73,17 @@ export default function App() {
     document.title = info?.folder ? info.folder.name + ' — Atlas' : 'Atlas';
   }, [info?.folder]);
 
-  if (!info) return failure ? <main className="page-state"><Blankslate title="Atlas could not start this window">{failure}</Blankslate></main> : <main className="page-state"><Spinner size={24} /></main>;
-  if (!info.folder) return <Welcome info={info} />;
-  if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) return <FolderProblem info={info} />;
-  if (!snapshot || !ui) return <main className="page-state" aria-busy="true"><Spinner size={24} /><span className="muted">Reading {info.folder.name}…</span></main>;
-  return <Workbench info={info} snapshot={snapshot} initialUi={ui} />;
+  const close = () => setDialog(null);
+  const dialogs = <>
+    {dialog?.kind === 'connect' && <ConnectDialog onClose={close} onBrowse={target => setDialog({ kind: 'browse', computer: target, near: null })} />}
+    {dialog?.kind === 'access' && computer && <RemoteAccessDialog onClose={close} computer={computer} />}
+    {dialog?.kind === 'browse' && <FolderBrowser computer={dialog.computer} near={dialog.near} onClose={close} />}
+  </>;
+  let content;
+  if (!info) content = failure ? <main className="page-state"><Blankslate title="Atlas could not start this window">{failure}</Blankslate></main> : <main className="page-state"><Spinner size={24} /></main>;
+  else if (!info.folder) content = <Welcome info={info} />;
+  else if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) content = <FolderProblem info={info} />;
+  else if (!snapshot || !ui) content = <main className="page-state" aria-busy="true"><Spinner size={24} /><span className="muted">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
+  else content = <Workbench info={info} snapshot={snapshot} initialUi={ui} />;
+  return <AppActionsContext.Provider value={actions}>{content}{dialogs}</AppActionsContext.Provider>;
 }

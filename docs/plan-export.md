@@ -45,7 +45,7 @@ Both JSON elements are inert data; every `<` in them is written as the JSON esca
 }
 ```
 
-`files` lists every file of the work folder by work-folder-relative POSIX path, sorted. It includes `.atlas/models` and `.atlas/history`, so diagrams keep their revisions. It leaves out Atlas's transient output (`.atlas/results`, `.atlas/prepared`, `.atlas/exports`, lock and temporary files), other hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, a Markdown file relative to the work folder and outside `.atlas/`, or `null` for a legacy item without one. `repositories` carries the work's repository scope with their registered names (not local checkout paths). Git history is not exported.
+`files` lists every file of the work folder by work-folder-relative POSIX path, sorted. It includes `.atlas/models` and `.atlas/history`, so diagrams keep their revisions. It leaves out Atlas's transient output (`.atlas/results`, `.atlas/prepared`, `.atlas/exports`, lock and temporary files), the agent-reported work statistics (`.atlas/statistics.jsonl`), other hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, a Markdown file relative to the work folder and outside `.atlas/`, or `null` for a legacy item without one. `repositories` carries the work's repository scope with their registered names (not local checkout paths). Git history is not exported.
 
 Text in the manifest (title, planning folder, repository names and remotes, paths) may not contain control characters, so it cannot rewrite a terminal when it is shown.
 

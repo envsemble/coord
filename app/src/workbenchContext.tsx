@@ -10,6 +10,8 @@ export interface WorkbenchApi {
   /** Change what the active tab shows within the same item; this pins the tab. */
   retarget(target: Target): void;
   notify(message: string, tone?: 'info' | 'warning' | 'danger'): void;
+  /** Set when the folder is on another computer: it only reads, and its files are not on this one. */
+  remote: { hostId: string; hostName: string } | null;
 }
 
 export const WorkbenchContext = createContext<WorkbenchApi | null>(null);

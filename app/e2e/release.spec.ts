@@ -24,8 +24,10 @@ async function runUntilLogged(executable: string, args: readonly string[], expec
   let output = '';
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
-  const log = path.join(data, 'logs', 'atlas.log');
-  const logged = () => existsSync(log) && lines.every(line => readFileSync(log, 'utf8').includes(line));
+  // The app logs to atlas.log and the Atlas host it runs (which reads the folders) to host.log.
+  const logs = ['atlas.log', 'host.log'].map(name => path.join(data, 'logs', name));
+  const read = () => logs.filter(file => existsSync(file)).map(file => readFileSync(file, 'utf8')).join('\n');
+  const logged = () => lines.every(line => read().includes(line));
   try {
     const started = Date.now();
     while (!logged()) {
@@ -35,7 +37,7 @@ async function runUntilLogged(executable: string, args: readonly string[], expec
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     await whileRunning();
-    return { output, log: readFileSync(log, 'utf8') };
+    return { output, log: read() };
   } finally {
     if (process.platform === 'win32') { try { execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* Already gone. */ } }
     else { try { process.kill(-child.pid!, 'SIGKILL'); } catch { /* Already gone. */ } }

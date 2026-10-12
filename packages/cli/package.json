@@ -2,7 +2,7 @@
   "name": "@envsemble/atlas-cli",
   "version": "0.6.0",
   "private": true,
-  "description": "The atlas command: model tools, the MCP server, planning checks and consultation logging",
+  "description": "The atlas command: model tools, the MCP server, planning checks, consultation logging, work statistics and the headless host",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/envsemble/atlas.git",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",
+    "@envsemble/atlas-host": "*",
     "@envsemble/atlas-planning": "*"
   },
   "devDependencies": {

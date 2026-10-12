@@ -345,7 +345,9 @@ interface PlanView {
   plan: string | null; ledger: string | null; documents: ViewDocument[]; diagrams: ViewDiagram[];
 }
 
-const transient = /^\.atlas\/(?:results|prepared|exports)(?:\/|$)|^\.atlas\/.*\.(?:lock|tmp)$/;
+// Left out of exports: generated working files, and the agent-reported statistics, which describe
+// how this planning folder's agents worked rather than the plan itself.
+const transient = /^\.atlas\/(?:results|prepared|exports)(?:\/|$)|^\.atlas\/.*\.(?:lock|tmp)$|^\.atlas\/statistics\.jsonl$/;
 async function workFiles(folder: string, warnings: string[]) {
   const result: { name: string; size: number }[] = [];
   async function walk(directory: string, relative: string) {

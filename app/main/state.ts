@@ -1,18 +1,27 @@
 // Desktop state kept in the Atlas data folder (never in a planning folder): the windows open
-// at quit, and per planning folder its window bounds, sidebar and open tabs.
+// at quit, per planning folder its window bounds, sidebar and open tabs, and per computer the
+// folder this app last showed there. This is each app's own view; the folder lists are the
+// computers' (their hosts keep them).
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { defaultUiState, type UiState } from '../shared/contract.ts';
 import { array, boolean, integer, object, optional, string, uiState, type Validator } from '../shared/validate.ts';
 
 export interface Bounds { x: number; y: number; width: number; height: number }
-export interface FolderRecord { root: string; bounds?: Bounds; maximized?: boolean; ui?: UiState; used: string }
-export interface DesktopState { version: 1; windows: string[]; folders: Record<string, FolderRecord> }
+/** `remotePath`: for a folder on another computer, its path there, to open it again (also after it left that computer's folder list). */
+export interface FolderRecord { root: string; bounds?: Bounds; maximized?: boolean; ui?: UiState; used: string; remotePath?: string }
+export interface DesktopState {
+  version: 1; windows: string[]; folders: Record<string, FolderRecord>;
+  /** Per computer (`local` or a host ID), the folder last shown there: its path, or its remote key. */
+  lastFolders?: Record<string, string>;
+}
+/** How a computer is keyed in `lastFolders`. */
+export const computerKey = (hostId: string | null) => hostId ?? 'local';
 
 const folderLimit = 40;
 const coordinate = integer(-100000, 100000);
 const bounds: Validator<Bounds> = object<Bounds>({ x: coordinate, y: coordinate, width: integer(200, 100000), height: integer(150, 100000) });
-const record: Validator<FolderRecord> = object<FolderRecord>({ root: string({ min: 1 }), bounds: optional(bounds), maximized: optional(boolean), ui: optional(uiState), used: string({ max: 40 }) });
+const record: Validator<FolderRecord> = object<FolderRecord>({ root: string({ min: 1 }), bounds: optional(bounds), maximized: optional(boolean), ui: optional(uiState), used: string({ max: 40 }), remotePath: optional(string({ min: 1, max: 2048 })) });
 
 /** Key planning folders the way the platform compares paths. */
 export function folderKey(root: string, platform: NodeJS.Platform = process.platform) {
@@ -31,7 +40,14 @@ export function parseState(value: unknown): DesktopState {
       try { const checked = record(item); folders[folderKey(checked.root)] = checked; } catch { /* Skip one damaged folder entry. */ }
     }
   }
-  return { version: 1, windows, folders };
+  const lastFolders: Record<string, string> = {};
+  const last = (value as { lastFolders?: unknown }).lastFolders;
+  if (last && typeof last === 'object') {
+    for (const [key, root] of Object.entries(last as Record<string, unknown>).slice(0, 100)) {
+      if (/^(?:local|[a-zA-Z0-9-]{8,64})$/.test(key) && typeof root === 'string' && root.length > 0 && root.length <= 2200) lastFolders[key] = root;
+    }
+  }
+  return { version: 1, windows, folders, lastFolders };
 }
 
 export class StateStore {
@@ -62,8 +78,22 @@ export class StateStore {
     }
     this.schedule();
   }
+  /** The folder last shown on a computer (`local` or a host ID), if any. */
+  lastFolder(computer: string): string | null { return this.state.lastFolders?.[computer] ?? null; }
+  setLastFolder(computer: string, root: string) {
+    if (this.state.lastFolders?.[computer] === root) return;
+    this.state.lastFolders = { ...this.state.lastFolders, [computer]: root };
+    this.schedule();
+  }
   setWindows(roots: string[]) {
     this.state.windows = roots.slice(0, 20);
+    this.schedule();
+  }
+  /** Drop the saved layout (and window restore) of every folder the test matches. */
+  forgetFolders(matches: (root: string) => boolean) {
+    for (const [key, record] of Object.entries(this.state.folders)) if (matches(record.root)) delete this.state.folders[key];
+    this.state.windows = this.state.windows.filter(root => !matches(root));
+    if (this.state.lastFolders) this.state.lastFolders = Object.fromEntries(Object.entries(this.state.lastFolders).filter(([, root]) => !matches(root)));
     this.schedule();
   }
 

@@ -6,6 +6,8 @@ import { absoluteDate, relativeDate, workNumber } from './format';
 import { workTarget } from './targets';
 import { Blankslate, Label, StatusIcon } from './ui';
 import { TargetLink } from './workbenchContext';
+import { StepBar } from './LedgerProgress';
+import { stepCounts, stepSummary } from '@envsemble/atlas-planning/ledger';
 
 export function SearchInput({ value, onChange, label }: { value: string; onChange(value: string): void; label: string }) {
   return <div className="search-box"><SearchIcon size={16} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={label} aria-label={label} />{value && <button type="button" aria-label="Clear search" onClick={() => onChange('')}><XIcon size={16} /></button>}</div>;
@@ -15,6 +17,7 @@ function WorkRow({ work }: { work: Work }) {
   const status = workStatus(work);
   const note = designNote(work);
   const updated = work.progress?.updated ?? work.updated;
+  const counts = work.progress?.steps ? stepCounts(work.progress.steps) : null;
   return <li className="work-row">
     <StatusIcon status={status} />
     <div className="work-row-main">
@@ -32,6 +35,7 @@ function WorkRow({ work }: { work: Work }) {
       {work.progress?.current && status.key !== 'complete' && <p className="work-row-focus">{work.progress.current}</p>}
     </div>
     <div className="work-row-side">
+      {counts && counts.total > 0 && !['complete', 'superseded', 'abandoned'].includes(status.key) && <span className="work-row-steps" title={stepSummary(counts)}><StepBar counts={counts} compact /><span>{counts.done}/{counts.total}</span></span>}
       {!!work.diagrams && <TargetLink className="diagram-count" target={workTarget(work.id, 'diagrams')} title={work.diagrams + (work.diagrams === 1 ? ' diagram' : ' diagrams')}><WorkflowIcon size={16} />{work.diagrams}</TargetLink>}
       {updated && <span className="muted" title={'Updated ' + absoluteDate(updated)}>{relativeDate(updated)}</span>}
     </div>

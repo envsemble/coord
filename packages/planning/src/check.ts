@@ -1,12 +1,14 @@
-// Read-only validation for planning registry v1 and flat plan metadata.
+// Read-only validation for planning registry v1, plan metadata and ledger status headers.
 //
-// Accepts the contract's plain/quoted scalars and flow/block lists; this is deliberately
-// not a general YAML parser or migration tool. Quote string values that resemble implicit
+// Accepts the contract's plain/quoted scalars and flow/block lists, plus the ledger's block list
+// of flat step mappings; this is deliberately not a general YAML parser or migration tool. Quote string values that resemble implicit
 // YAML booleans, nulls, numbers, or timestamps. Plain ISO dates remain compatible only in
 // the contract's date fields. Ported from the former check_planning.py with the same rules
 // and messages.
-import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { ledgerStatus } from './ledger.ts';
+import { fileLimit as statisticsFileLimit, parseReport } from './statistics.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const repositoryIdentity = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -21,15 +23,26 @@ const implicitNumber = /^[+-]?(?:0[bBoOxX][0-9a-fA-F_]+|[0-9][0-9_]*(?::[0-9][0-
 const isoDate = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
 export type Scalar = string | number | boolean | null;
-export type MetadataValue = Scalar | Scalar[];
+/** One entry of a list of flat mappings, such as a ledger step. */
+export type MetadataEntry = Record<string, Scalar>;
+export type MetadataValue = Scalar | Scalar[] | MetadataEntry[];
 export type Metadata = Record<string, MetadataValue>;
+/** In a ledger header, `steps` holds a block list of flat mappings. */
+const ledgerEntryLists = ['steps'];
+/** Fields that may start a block list of scalars on the following lines. */
+const scalarListFields = new Set(['repositories', 'supersedes']);
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
   constructor(message: string) { super(message); this.name = 'FrontmatterError'; }
 }
 
-const blank = (value: string) => value.length > 0 && value.trim() === '';
+// YAML's own whitespace is only space and tab, and its line breaks only \n and \r\n: Unicode
+// spaces and separators are content, so trimming and comment detection must not use \s or trim().
+const yamlTrim = (value: string) => value.replace(/^[ \t]+|[ \t]+$/g, '');
+const blank = (value: string) => value.length > 0 && /^[ \t]*$/.test(value);
+/** Characters YAML reads as line breaks or refuses, which a header line must not contain. */
+const unsupportedInHeader = /[\r\v\f\x1c-\x1e\x85\u2028\u2029\uFEFF]/;
 
 /** Split a flow sequence or remove a plain scalar comment outside quotes. */
 function splitFlow(value: string, splitCommas = true): string[] {
@@ -46,21 +59,21 @@ function splitFlow(value: string, splitCommas = true): string[] {
     } else if ((char === '"' || char === "'") && (index === start || blank(value.slice(start, index)))) {
       quote = char;
     } else if (char === ',' && splitCommas) {
-      parts.push(value.slice(start, index).trim());
+      parts.push(yamlTrim(value.slice(start, index)));
       start = index + 1;
-    } else if (char === '#' && (index === 0 || /\s/.test(value[index - 1]))) {
+    } else if (char === '#' && (index === 0 || /[ \t]/.test(value[index - 1]))) {
       value = value.slice(0, index);
       break;
     }
     index++;
   }
   if (quote) throw new FrontmatterError('unterminated quoted scalar');
-  parts.push(value.slice(start).trim());
+  parts.push(yamlTrim(value.slice(start)));
   return parts;
 }
 
 function scalar(raw: string, allowDate = false): Scalar {
-  const value = splitFlow(raw, false)[0].trim();
+  const value = yamlTrim(splitFlow(raw, false)[0]);
   if (value.startsWith('"')) {
     let parsed: unknown;
     try { parsed = JSON.parse(value); } catch (error) { throw new FrontmatterError((error as Error).message); }
@@ -103,11 +116,12 @@ function flowList(value: string): Scalar[] {
       quote = char;
     } else if (char === ',') {
       start = index + 1;
-    } else if (char === '#' && (index === 0 || /\s/.test(value[index - 1]))) {
+    } else if (char === '#' && (index === 0 || /[ \t]/.test(value[index - 1]))) {
       break;
     } else if (char === ']') {
-      if (splitFlow(value.slice(index + 1), false)[0].trim()) throw new FrontmatterError('unexpected content after flow list');
-      const contents = value.slice(1, index).trim();
+      // After the list: nothing, or a comment separated by whitespace (YAML refuses `]#comment`).
+      if (!/^(?:[ \t]*|[ \t]+#.*)$/.test(value.slice(index + 1))) throw new FrontmatterError('unexpected content after flow list');
+      const contents = yamlTrim(value.slice(1, index));
       if (!contents) return [];
       const parts = splitFlow(contents);
       // YAML flow lists permit a trailing comma; it is not a null item.
@@ -119,36 +133,94 @@ function flowList(value: string): Scalar[] {
   throw new FrontmatterError('missing flow list closing delimiter outside quotes/comments');
 }
 
-/** Split on every Unicode line boundary, without a trailing empty line. */
+/** Split on YAML's line breaks (\n and \r\n), without a trailing empty line. */
 function splitLines(text: string) {
-  const lines = text.split(/\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]/);
+  const lines = text.split(/\r?\n/);
   if (lines.at(-1) === '') lines.pop();
   return lines;
 }
 
-/** Parse a flat metadata header, or return null when the document has none. */
-export function parseFrontmatter(text: string): Metadata | null {
-  const lines = splitLines(text.replace(/^\uFEFF+/, ''));
+/**
+ * Parse a metadata header, or return null when the document has none. `entryLists` names the
+ * fields that hold a block list of flat mappings (a ledger's `steps`); elsewhere such a field
+ * is an ordinary scalar or list.
+ */
+export function parseFrontmatter(text: string, options: { entryLists?: readonly string[] } = {}): Metadata | null {
+  const entryLists = new Set(options.entryLists ?? []);
+  const lines = splitLines(text.replace(/^\uFEFF/, ''));
   if (!lines.length || lines[0] !== '---') return null;
   const end = lines.indexOf('---', 1);
   if (end < 0) throw new FrontmatterError('missing frontmatter closing delimiter');
   const fields: Metadata = Object.create(null);
   let blockKey: string | null = null;
+  // In a list of mappings, YAML structure is indentation: every entry's dash must be in the same
+  // column, and every field of an entry in the column of its first field. Only spaces indent.
+  let dashColumn = -1, fieldColumn = -1;
+  let entry: MetadataEntry | null = null;
+  const setEntryField = (key: string, value: string) => {
+    if (Object.hasOwn(entry!, key)) throw new FrontmatterError('duplicate field in ' + blockKey + ' entry: ' + key);
+    if (!value || value.startsWith('#')) throw new FrontmatterError(blockKey + ' entries hold scalar values; ' + key + ' is empty');
+    if (value.startsWith('[')) throw new FrontmatterError(blockKey + ' entries hold scalar values, not lists');
+    entry![key] = scalar(value);
+  };
+  const closeBlock = () => {
+    if (blockKey && entryLists.has(blockKey) && !(fields[blockKey] as MetadataEntry[]).length) {
+      throw new FrontmatterError(blockKey + ' has no entries; write "' + blockKey + ': []" when there are none');
+    }
+  };
   for (const line of lines.slice(1, end)) {
-    if (!line.trim() || line.trimStart().startsWith('#')) continue;
-    const item = /^\s*-\s+(.+)$/.exec(line);
-    if (item && blockKey) { (fields[blockKey] as Scalar[]).push(scalar(item[1])); continue; }
-    const match = /^([a-z_]+):\s*(.*)$/.exec(line);
+    if (unsupportedInHeader.test(line)) throw new FrontmatterError('unsupported character in metadata (a line break or byte order mark YAML does not accept)');
+    if (/^[ \t]*$/.test(line)) {
+      if (line.includes('\t')) throw new FrontmatterError('blank metadata lines may not contain tabs');
+      continue;
+    }
+    if (/^[ \t]*#/.test(line)) continue;
+    if (blockKey && entryLists.has(blockKey) && /^[ \t]/.test(line)) {
+      if (/^ *\t/.test(line) || !/^ +[^ \t]/.test(line)) throw new FrontmatterError(blockKey + ' entries are indented with spaces only');
+      const start = /^( *)(- +)([a-z_]+):(?: (.*))?$/.exec(line);
+      if (start) {
+        if (dashColumn >= 0 && start[1].length !== dashColumn) throw new FrontmatterError('every ' + blockKey + ' entry starts with "-" in the same column');
+        dashColumn = start[1].length;
+        fieldColumn = start[1].length + start[2].length;
+        entry = Object.create(null) as MetadataEntry;
+        (fields[blockKey] as MetadataEntry[]).push(entry);
+        setEntryField(start[3], yamlTrim(start[4] ?? ''));
+        continue;
+      }
+      const field = /^( *)([a-z_]+):(?: (.*))?$/.exec(line);
+      if (field && entry && field[1].length === fieldColumn) { setEntryField(field[2], yamlTrim(field[3] ?? '')); continue; }
+      throw new FrontmatterError('unsupported line in ' + blockKey + ' (each field of an entry is "key: value", aligned under the first): ' + line);
+    }
+    if (blockKey && entryLists.has(blockKey) && line.startsWith('-')) {
+      const start = /^(- +)([a-z_]+):(?: (.*))?$/.exec(line);
+      if (!start) throw new FrontmatterError('unsupported line in ' + blockKey + ': ' + line);
+      if (dashColumn > 0) throw new FrontmatterError('every ' + blockKey + ' entry starts with "-" in the same column');
+      dashColumn = 0;
+      fieldColumn = start[1].length;
+      entry = Object.create(null) as MetadataEntry;
+      (fields[blockKey] as MetadataEntry[]).push(entry);
+      setEntryField(start[2], yamlTrim(start[3] ?? ''));
+      continue;
+    }
+    const item = /^[ \t]*-[ \t]+(.+)$/.exec(line);
+    if (item && blockKey && scalarListFields.has(blockKey)) { (fields[blockKey] as Scalar[]).push(scalar(item[1])); continue; }
+    // `key:value` without a space is not a mapping in YAML.
+    const match = /^([a-z_]+):(?:[ \t]+(.*))?$/.exec(line);
     if (!match) throw new FrontmatterError('unsupported metadata line: ' + line);
-    const [, key, value] = match;
+    const key = match[1], value = yamlTrim(match[2] ?? '');
     if (Object.hasOwn(fields, key)) throw new FrontmatterError('duplicate metadata field: ' + key);
-    blockKey = null;
-    if (!value || value.trimStart().startsWith('#')) {
-      if (key === 'repositories' || key === 'supersedes') { fields[key] = []; blockKey = key; }
+    closeBlock();
+    blockKey = null; entry = null; dashColumn = -1; fieldColumn = -1;
+    if (!value || value.startsWith('#')) {
+      if (scalarListFields.has(key) || entryLists.has(key)) { fields[key] = []; blockKey = key; }
       else fields[key] = null;
-    } else if (value.startsWith('[')) fields[key] = flowList(value);
+    } else if (value.startsWith('[')) {
+      fields[key] = flowList(value);
+      if (entryLists.has(key) && (fields[key] as Scalar[]).length) throw new FrontmatterError(key + ' entries use a block list, one "- title:" entry per line');
+    }
     else fields[key] = scalar(value, dateFields.has(key));
   }
+  closeBlock();
   return fields;
 }
 
@@ -183,10 +255,13 @@ function resolveLenient(target: string) {
     }
   }
 }
-function readText(filename: string) {
-  // Undecodable bytes are reported, never silently replaced.
-  const text = new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(filename));
-  return text.replace(/^\uFEFF/, '');
+/**
+ * Undecodable bytes are reported, never silently replaced. A metadata header keeps its byte order
+ * mark, so the parser removes exactly one, as the app does; other text loses it.
+ */
+function readText(filename: string, keepByteOrderMark = false) {
+  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(readFileSync(filename));
+  return keepByteOrderMark ? text : text.replace(/^\uFEFF/, '');
 }
 function sameSet(first: Set<string>, second: Set<string>) {
   return first.size === second.size && [...first].every(item => second.has(item));
@@ -285,7 +360,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
       warnings.push(String(pointer) + ': retained legacy main plan name; normalize to root plan.md during organization');
     }
     let metadata: Metadata | null;
-    try { metadata = parseFrontmatter(readText(planPath)); }
+    try { metadata = parseFrontmatter(readText(planPath, true)); }
     catch (error) { errors.push(String(pointer) + ': ' + (error as Error).message); return; }
     if (metadata === null) { warnings.push(String(pointer) + ': legacy plan has no frontmatter; metadata not validated'); return; }
     plans.push({ pointer: String(pointer), metadata, workId, workScope });
@@ -317,7 +392,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (metadata.accepted_at !== null && metadata.accepted_at !== undefined && metadata.design_status === 'draft') errors.push(prefix + 'draft cannot claim accepted_at');
     const replaced = metadata.supersedes;
     if (!Array.isArray(replaced) || replaced.some(item => typeof item !== 'string' || !workIds.has(item))) errors.push(prefix + 'supersedes must list registered work IDs');
-    else if (new Set(replaced).size !== replaced.length || replaced.includes(workId as string)) errors.push(prefix + 'supersedes contains duplicate or self IDs');
+    else if (new Set(replaced as Scalar[]).size !== replaced.length || (replaced as Scalar[]).includes(workId as string)) errors.push(prefix + 'supersedes contains duplicate or self IDs');
     const replacement = metadata.superseded_by;
     if (replacement !== null && replacement !== undefined && (typeof replacement !== 'string' || !workIds.has(replacement) || replacement === workId)) {
       errors.push(prefix + 'superseded_by must identify another registered work item or null');
@@ -332,22 +407,36 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (!isFile(ledger)) continue;
     if (contained(path.relative(root, ledger).split(path.sep).join('/'), 'ledger') === null) continue;
     try {
-      const metadata = parseFrontmatter(readText(ledger));
+      const metadata = parseFrontmatter(readText(ledger, true), { entryLists: ledgerEntryLists });
       if (metadata === null) continue; // Retained historical prose does not establish current activity.
-      const textOrNull = (value: unknown) => value === null || (typeof value === 'string' && Boolean(value.trim()));
-      const required = ['schema_version', 'kind', 'work_id', 'updated', 'current', 'next', 'blocked'];
-      let valid = required.every(field => Object.hasOwn(metadata, field)) && isInteger(metadata.schema_version) && metadata.schema_version === 1 && metadata.kind === 'ledger' && metadata.work_id === entry.id;
-      valid = valid && textOrNull(metadata.current) && textOrNull(metadata.blocked) && Array.isArray(metadata.next) && metadata.next.every(step => typeof step === 'string' && Boolean(step.trim()));
       const updated = metadata.updated;
-      if (updated !== null && updated !== undefined) {
-        valid = valid && typeof updated === 'string' && isoDate.test(updated);
-        const invalidDate = valid ? calendarError(updated as string) : null;
-        if (invalidDate) throw new FrontmatterError(invalidDate);
-      }
-      if (!valid) throw new FrontmatterError('invalid ledger status metadata');
+      const invalidDate = typeof updated === 'string' && isoDate.test(updated) ? calendarError(updated) : null;
+      if (invalidDate) throw new FrontmatterError(invalidDate);
+      if (typeof entry.id !== 'string') continue;
+      try { ledgerStatus(metadata, entry.id); }
+      catch (error) { throw new FrontmatterError('invalid ledger status metadata: ' + (error as Error).message); }
     } catch (error) {
       errors.push(path.relative(root, ledger) + ': ' + (error as Error).message);
     }
+  }
+  // Agent-reported statistics (atlas work report) are telemetry: problems are warnings, never errors.
+  for (const entry of workItems) {
+    if (!isObject(entry) || typeof entry.path !== 'string' || entry.path.includes('\\') || entry.path.split('/').includes('..')) continue;
+    const location = path.join(root, entry.path);
+    if (!isDirectory(location) || !within(root, resolveLenient(location))) continue;
+    const label = entry.path.replace(/\/+$/, '') + '/' + '.atlas/statistics.jsonl';
+    const folder = lstatSync(path.join(location, '.atlas'), { throwIfNoEntry: false });
+    if (!folder) continue;
+    if (folder.isSymbolicLink() || !folder.isDirectory()) { warnings.push(entry.path + '/.atlas: a link or not a folder; statistics are not read'); continue; }
+    const file = path.join(location, '.atlas', 'statistics.jsonl');
+    const info = lstatSync(file, { throwIfNoEntry: false });
+    if (!info) continue;
+    if (!info.isFile()) { warnings.push(label + ': a link or not a regular file; statistics are not read'); continue; }
+    if (info.size > statisticsFileLimit) { warnings.push(label + ': larger than 4 MB; statistics are not read'); continue; }
+    let invalid = 0;
+    try { for (const line of readText(file).split(/\r?\n/)) if (line.trim() && !parseReport(line)) invalid++; }
+    catch (error) { warnings.push(label + ': ' + (error as Error).message); continue; }
+    if (invalid) warnings.push(label + ': ' + invalid + (invalid === 1 ? ' line is' : ' lines are') + ' not a valid statistics report and will be ignored');
   }
   return { errors, warnings };
 }

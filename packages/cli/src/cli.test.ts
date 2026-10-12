@@ -48,7 +48,7 @@ test('version and help describe the one atlas command', () => {
   assert.equal(shown.stdout.trim(), version);
   const help = atlas(['help']);
   assert.equal(help.status, 0);
-  for (const usage of ['atlas model <operation> --root <workspace>', 'atlas model review --input', 'atlas model tools', 'atlas mcp --root <workspace>', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files']) assert.ok(help.stdout.includes(usage), usage);
+  for (const usage of ['atlas model <operation> --root <workspace>', 'atlas model review --input', 'atlas model tools', 'atlas mcp --root <workspace>', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files', 'atlas work report <planning-root> --work <work-id> --model <model>']) assert.ok(help.stdout.includes(usage), usage);
   assert.equal(atlas([]).status, 0);
 });
 
@@ -177,6 +177,38 @@ test('atlas usage log writes what the app reads, deduplicates and never fails th
   assert.equal(atlas(['usage', 'log', '--files', 'README.md'], { env }).status, 2, 'the planning root is required');
   assert.equal(atlas(['usage', 'log', root, '--files'], { env }).status, 2);
   assert.equal(atlas(['usage', 'log', root, '--files', 'README.md', '--tsk', 'x'], { env }).status, 2);
+});
+
+test('atlas work report appends one line per report, even from concurrent agents, and never fails the caller', async t => {
+  const directory = temporary(t);
+  const root = planningFolder(directory);
+  const file = path.join(root, 'active/0001-example/.atlas/statistics.jsonl');
+  const reported = atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--tokens', '1200', '--session', 'chat-1', '--step', 'Build it']);
+  assert.equal(reported.status, 0, reported.stderr);
+  assert.match(reported.stdout, /^\{"recorded":true,"file":"active\/0001-example\/\.atlas\/statistics\.jsonl","at":"[^"]+"\}\n$/);
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, 'utf8'))), ['version', 'at', 'model', 'session', 'tokens', 'step']);
+  // Several agents at once: every report is one whole line.
+  const writers = await Promise.all(Array.from({ length: 8 }, (_, index) => atlasAsync(['work', 'report', root, '--work', 'work-0001', '--model', 'model-b', '--tokens', String(index * 1000), '--session', 'parallel-' + index])));
+  assert.ok(writers.every(result => result.status === 0 && result.stdout.includes('"recorded":true')), JSON.stringify(writers));
+  const lines = readFileSync(file, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 9);
+  assert.ok(lines.every(line => JSON.parse(line).version === 1));
+  // Problems are reported on stderr with exit 0, so a report never fails the task.
+  for (const args of [['--work', 'work-0009', '--model', 'model-a'], ['--work', 'work-0001', '--model', 'not a model id'], ['--work', 'work-0001', '--model', 'model-a', '--session', 'has space']]) {
+    const refused = atlas(['work', 'report', root, ...args]);
+    assert.equal(refused.status, 0, args.join(' '));
+    assert.equal(refused.stdout, '');
+    assert.match(refused.stderr, /^Work statistics were not recorded \(.+[^.]\); continue the task\.\n$/);
+  }
+  assert.equal(atlas(['work', 'report', path.join(directory, 'missing'), '--work', 'work-0001', '--model', 'model-a']).status, 0);
+  assert.equal(readFileSync(file, 'utf8').trim().split('\n').length, 9, 'refused reports write nothing');
+  // Usage errors exit 2.
+  assert.equal(atlas(['work', 'report', root, '--model', 'model-a']).status, 2, '--work is required');
+  assert.equal(atlas(['work', 'report', root, '--work', 'work-0001']).status, 2, '--model is required');
+  assert.equal(atlas(['work', 'report', '--work', 'work-0001', '--model', 'model-a']).status, 2, 'the planning root is required');
+  assert.equal(atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--tokens', '12k']).status, 2);
+  assert.equal(atlas(['work', 'tally', root]).status, 2);
+  assert.equal(atlas(['planning', 'check', root]).status, 0, 'the planning check accepts the reports');
 });
 
 test('atlas plan export and import share a work item with a preview, --dry-run and 0/1/2 exit codes', t => {

@@ -15,7 +15,7 @@ async function recentMenu(app: ElectronApplication) {
   return app.evaluate(({ Menu }) => Menu.getApplicationMenu()?.getMenuItemById('open-recent')?.submenu?.items.map(item => item.label) ?? []);
 }
 
-test('without a folder, the welcome window opens one with Open Folder… and remembers it as recent', async () => {
+test('without a folder, the welcome window opens one with Open Folder… and it joins the folder list', async () => {
   launched = await launch();
   const { app, window } = launched;
   await expect(window.getByRole('heading', { name: 'Atlas', level: 1 })).toBeVisible();
@@ -27,7 +27,7 @@ test('without a folder, the welcome window opens one with Open Folder… and rem
   // The empty window is reused for the folder.
   await expect(window.locator('.work-row')).toHaveCount(3);
   await expect.poll(() => windowTitles(app)).toEqual(['planning — Atlas']);
-  await expect.poll(() => recentMenu(app)).toEqual([folder, '', 'Clear Recently Opened']);
+  await expect.poll(() => recentMenu(app)).toEqual([folder]);
 });
 
 test('Open Folder… opens another folder in a new window; opening it again focuses that window', async () => {
@@ -50,7 +50,7 @@ test('Open Folder… opens another folder in a new window; opening it again focu
   });
   await new Promise(resolve => setTimeout(resolve, 1000));
   expect((await windowTitles(app)).length).toBe(2);
-  await expect.poll(() => recentMenu(app)).toEqual([renamed, first, '', 'Clear Recently Opened']);
+  await expect.poll(() => recentMenu(app)).toEqual([renamed, first]);
 });
 
 test('a second launch hands its folder to the running app (single instance) and restores windows next time', async () => {

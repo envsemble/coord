@@ -1,11 +1,11 @@
 // The window for one planning folder: activity bar, explorer sidebar and tabbed editor area.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertIcon, FileIcon, GraphIcon, IssueOpenedIcon, PulseIcon, RepoIcon } from './icons';
 import { limits, type ImportPreview, type MenuCommand } from '../shared/contract';
 import type { Snapshot, Target, UiState, ViewName, WindowInfo, Work } from './types';
 import { api, AtlasError } from './api';
 import { activateTab, closeTab, openTab, pinTab, retarget as retargetTab } from './tabs';
-import { viewLabels, viewTarget, workTarget } from './targets';
+import { scrollKey, viewLabels, viewTarget, workTarget } from './targets';
 import { workStatus } from './status';
 import { workNumber } from './format';
 import { Blankslate, StatusIcon } from './ui';
@@ -15,7 +15,8 @@ import { QuickOpen } from './QuickOpen';
 import { ImportDialog } from './ImportDialog';
 import { WorkList } from './WorkList';
 import { FileView, WorkPage } from './WorkPage';
-import { Activity, Statistics } from './Views';
+import { Activity } from './Views';
+import { Statistics } from './StatisticsPage';
 import { SelectMenu } from './components/Menu';
 import { SplitPane } from './components/SplitPane';
 import { TabStrip, type TabItem } from './components/Tabs';
@@ -61,15 +62,41 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     });
   }, [node?.id]);
 
-  // Keep each tab's scroll position while switching between tabs.
-  useEffect(() => {
+  // Keep the scroll position of what each tab shows (its view, work section or file) while
+  // switching between tabs; a tab that moves to another section or file starts at the top, and
+  // one opened at a heading leaves the scrolling to the reader. A document loads again after the
+  // switch, so a saved position is reapplied as the content grows, until the user scrolls or three
+  // seconds pass, and nothing is saved meanwhile. A layout effect, so the outgoing tab cannot save
+  // the position its successor's first frame clamps to.
+  const scrolled = active ? scrollKey(active.target) : null;
+  useLayoutEffect(() => {
     const element = editor.current;
-    if (!element || !active) return;
-    element.scrollTop = scrollPositions.current.get(active.id) ?? 0;
-    const remember = () => scrollPositions.current.set(active.id, element.scrollTop);
+    if (!element || !active || !scrolled) return;
+    const anchored = active.target.kind !== 'view' && Boolean(active.target.anchor);
+    const target = anchored ? null : scrollPositions.current.get(scrolled) ?? 0;
+    if (target !== null) element.scrollTop = target;
+    let restoring = Boolean(target);
+    const content = element.firstElementChild;
+    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) element.scrollTop = target!; }) : null;
+    const stop = () => { restoring = false; observer?.disconnect(); };
+    if (observer && content) observer.observe(content);
+    const timer = window.setTimeout(stop, 3000);
+    const remember = () => { if (!restoring) scrollPositions.current.set(scrolled, element.scrollTop); };
+    const interrupt = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
+    for (const name of interrupt) element.addEventListener(name, stop, { capture: true, passive: true });
     element.addEventListener('scroll', remember, { passive: true });
-    return () => element.removeEventListener('scroll', remember);
-  }, [active?.id]);
+    return () => {
+      stop();
+      window.clearTimeout(timer);
+      for (const name of interrupt) element.removeEventListener(name, stop, { capture: true });
+      element.removeEventListener('scroll', remember);
+    };
+  }, [active?.id, scrolled]);
+  // Forget the positions of what no open tab shows.
+  useEffect(() => {
+    const shown = new Set(ui.tabs.items.map(tab => scrollKey(tab.target)));
+    for (const key of [...scrollPositions.current.keys()]) if (!shown.has(key)) scrollPositions.current.delete(key);
+  }, [ui.tabs.items]);
 
   const exportWork = useCallback(async (work: Work) => {
     try {
@@ -126,7 +153,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     return () => window.removeEventListener('keydown', key);
   }, [runCommand]);
 
-  const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify }), [snapshot, info.revision, open, retarget, notify]);
+  const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify, remote: info.remote }), [snapshot, info.revision, open, retarget, notify, info.remote]);
   const repositoryMenu = snapshot.repositories.length > 1 ? <SelectMenu label="Repository" icon={<RepoIcon size={16} />} value={repository} onChange={setRepository}
     options={[{ value: 'all', label: 'All' }, ...snapshot.repositories.map(item => ({ value: item.id, label: item.id, count: snapshot.work.filter(work => work.repositories.includes(item.id)).length }))]} /> : null;
 
@@ -139,10 +166,15 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       <ActivityBar explorer={ui.sidebar.visible} activeView={activeView} activeCount={snapshot.work.filter(work => work.location === 'active').length} issues={snapshot.issues}
         onExplorer={() => setSidebar({ visible: !ui.sidebar.visible })} onView={view => open(viewTarget(view), { pin: true })} />
       <SplitPane size={ui.sidebar.width} min={limits.sidebarMin} max={limits.sidebarMax} visible={ui.sidebar.visible} label="Resize the explorer" onResize={width => setSidebar({ width })}
-        start={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''} expanded={ui.sidebar.expanded} setExpanded={expanded => setSidebar({ expanded: expanded.slice(-limits.expanded) })} selected={node?.id ?? null} onExportPlan={work => void exportWork(work)} />}
+        start={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''} root={info.folder?.root ?? ''} computer={info.computer} platform={info.platform} expanded={ui.sidebar.expanded} setExpanded={expanded => setSidebar({ expanded: expanded.slice(-limits.expanded) })} selected={node?.id ?? null} onExportPlan={work => void exportWork(work)} />}
         end={<div className="editor-group">
           <TabStrip tabs={tabs} active={ui.tabs.active} label="Open tabs" onActivate={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />
-          {info.error && <div className="flash flash-warning folder-error" role="alert"><AlertIcon size={16} /><div><p><strong>The planning folder can’t be read right now.</strong> {info.error}</p><p className="muted">Showing the last good view. Atlas reloads when the folder is readable again.</p></div></div>}
+          {info.error && <div className="flash flash-warning folder-error" role="alert"><AlertIcon size={16} /><div>
+            {info.remote
+              // Another computer's folder: its host may be unreachable, or may have revoked this computer's access.
+              ? <><p><strong>Atlas can’t read this planning folder on {info.remote.hostName} right now.</strong> {info.error}</p><p className="muted">Showing the last view.</p></>
+              : <><p><strong>The planning folder can’t be read right now.</strong> {info.error}</p><p className="muted">Showing the last good view. Atlas reloads when the folder is readable again.</p></>}
+          </div></div>}
           {info.notice && <div className="flash folder-error" role="status"><AlertIcon size={16} /><div><p>{info.notice}</p></div></div>}
           <div ref={editor} className={'editor' + editorKind}>
             {active ? <TabContent key={active.id} target={active.target} snapshot={snapshot} repository={repository} repositoryMenu={repositoryMenu}

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { exportFileName } from './planExportName.ts';
 import { EventEmitter } from 'node:events';
 import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 
@@ -11,6 +12,7 @@ class FakeWorker extends EventEmitter implements WorkerLike {
     const value = message.op === 'export' ? { token: 'export-' + ++this.next, bytes: 10, warnings: [] }
       : message.op === 'read' ? { token: 'import-' + ++this.next, preview: {}, target: { workId: 'work-0005', path: 'active/0005-x' } }
       : message.op === 'import' ? { workId: 'work-0005', path: 'active/0005-x', files: 3, notes: [] }
+      : message.op === 'take' ? '<html></html>'
       : null;
     queueMicrotask(() => this.emit('message', { id: message.id, ok: true, value }));
   }
@@ -25,7 +27,7 @@ test('the worker stays up while it holds an export or a preview, and stops when 
   const read = await client.read('/planning', '/exports/plan.html');
   await pause(60);
   assert.equal(workers[0].terminated, false, 'an open save dialog and an open preview keep the worker');
-  await client.write(prepared.token, '/exports/out.html');
+  assert.equal(await client.take(prepared.token), '<html></html>');
   await pause(60);
   assert.equal(workers[0].terminated, false, 'the preview still needs it');
   assert.deepEqual(await client.import('/planning', read.token), { workId: 'work-0005', path: 'active/0005-x', files: 3, notes: [] });
@@ -57,4 +59,9 @@ test('worker errors arrive as structured errors with their export code', async (
   }
   const client = new PlanWorkerClient(() => new Failing(), 10);
   await assert.rejects(client.read('/planning', '/x.html'), (error: { code: string; reason: string; message: string }) => error.code === 'invalid-argument' && error.reason === 'INTEGRITY' && /hash/.test(error.message));
+});
+
+test('the export file name matches the command line', () => {
+  assert.equal(exportFileName('active/0002-order-fulfilment-model', 'work-0002'), 'order-fulfilment-model-work-0002.atlas-plan.html');
+  assert.equal(exportFileName('archive/0004-', 'work-0004'), 'plan-work-0004.atlas-plan.html');
 });

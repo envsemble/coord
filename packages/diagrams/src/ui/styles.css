@@ -208,7 +208,6 @@ button[aria-selected="true"] {
   flex: none;
   width: 28px;
   height: 28px;
-  color: var(--text);
 }
 .brand-mark svg {
   width: 20px;

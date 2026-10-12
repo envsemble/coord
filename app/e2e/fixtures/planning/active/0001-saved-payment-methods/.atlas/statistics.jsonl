@@ -1,0 +1,4 @@
+{"version":1,"at":"2026-09-30T08:00:00.000Z","model":"model-alpha-2","session":"session-0001-a","tokens":0,"step":"Domain model and the PaymentMethodVault port (shop#58)"}
+{"version":1,"at":"2026-09-30T09:30:00.000Z","model":"model-alpha-2","session":"session-0001-a","tokens":120000,"step":"Domain model and the PaymentMethodVault port (shop#58)"}
+{"version":1,"at":"2026-10-08T13:00:00.000Z","model":"model-alpha-2","session":"session-0001-b","tokens":10000,"step":"Sandbox check of step-up on reuse"}
+{"version":1,"at":"2026-10-08T14:00:00.000Z","model":"model-alpha-2","session":"session-0001-b","tokens":100000,"step":"Add authoriseWithToken to the acquirer gateway, with the challenge_required path (shop#58)"}

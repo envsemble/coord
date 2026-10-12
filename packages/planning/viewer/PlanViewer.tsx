@@ -9,7 +9,7 @@ import {
 } from '@primer/octicons-react';
 import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDiagram } from './data.ts';
 import { Markdown, markdownBody, scrollToHeading } from './Markdown.tsx';
-import { Blankslate, Counter, Dropdown, Label, ProvenanceLabel, StateLabel, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
+import { Blankslate, Counter, Dropdown, Label, LedgerSteps, ProvenanceLabel, StateLabel, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
 
 type Tab = 'plan' | 'ledger' | 'diagrams' | 'files';
 interface Route { tab: Tab | null; file: string | null; anchor: string | null; diagram: string | null; element: string | null }
@@ -104,11 +104,13 @@ function About({ data }: { data: PlanData }) {
   const progress = work.progress;
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   return <aside className="about" aria-label="About this work">
-    {progress && (progress.current || progress.next.length > 0 || progress.blocked) && <section className="about-section">
-      <h2>Status{progress.updated && <span className="muted"> · {absoluteDate(progress.updated)}</span>}</h2>
+    {progress && (progress.steps || progress.current || progress.next.length > 0 || progress.blocked) && <section className="about-section">
+      <h2>{progress.steps ? 'Progress' : 'Status'}{progress.updated && <span className="muted"> · {absoluteDate(progress.updated)}</span>}</h2>
       {progress.blocked && <p className="about-blocked"><strong>Blocked:</strong> {progress.blocked}</p>}
-      {progress.current && <p className="about-current">{progress.current}</p>}
-      {progress.next.length > 0 && <><h3>Next</h3><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
+      {progress.steps ? <LedgerSteps steps={progress.steps} /> : <>
+        {progress.current && <p className="about-current">{progress.current}</p>}
+        {progress.next.length > 0 && <><h3>Next</h3><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
+      </>}
     </section>}
     <section className="about-section">
       <h2>About</h2>

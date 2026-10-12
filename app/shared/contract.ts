@@ -1,33 +1,61 @@
 // The typed contract between the renderer and the main process. Every message the window
 // can send is on `invokeChannels`; every message main can push is on `eventChannels`.
 // Only types and constants live here, so the preload, main and renderer can all import it.
-import type { DocumentContent, PlanningIndex, Usage } from '@envsemble/atlas-planning/types';
-import type { Provenance } from '@envsemble/atlas-planning/provenance';
+// The planning data itself is the Atlas host's (packages/host/src/contract.ts): main forwards the
+// window's requests to the host of the computer its folder is on, this one or another one.
+import type {
+  AccessSettings, AccessState, BrowseEntry, BrowseResult, Catalog, CatalogEntry, ComputerFolder, DiagramIndexEntry, ModelExplains, ModelReference, PairedDevice,
+  PairingGrant, PairingLink, Snapshot, ViewEventInput,
+} from '@envsemble/atlas-host/contract';
+import type { DocumentContent } from '@envsemble/atlas-planning/types';
+
+export type {
+  AccessSettings, AccessState, BrowseEntry, BrowseResult, Catalog, CatalogEntry, ComputerFolder, DiagramIndexEntry, DocumentContent, ModelExplains, ModelReference, PairedDevice,
+  PairingGrant, Snapshot, ViewEventInput,
+};
 
 export const invokeChannels = [
-  'window:info', 'window:recents',
+  'window:info',
   'planning:snapshot', 'planning:document', 'planning:models', 'planning:model', 'planning:references', 'planning:diagrams',
   'usage:view', 'ui:load', 'ui:save',
-  'shell:reveal', 'shell:openExternal', 'app:command',
+  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
+  'computers:list', 'computers:switch',
+  'folders:list', 'folders:open', 'folders:choose', 'folders:browse', 'folders:remove',
+  'remote:pair', 'remote:forget',
+  'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
-export const eventChannels = ['planning:changed', 'menu:command'] as const;
+export const eventChannels = ['planning:changed', 'menu:command', 'access:changed', 'folders:changed'] as const;
 export type EventChannel = typeof eventChannels[number];
 
 /** Commands the renderer may ask main to run; each one acts on the calling window only. */
-export const appCommands = ['openFolder', 'openRecent', 'newWindow', 'locate', 'closeWindow', 'openLogs', 'about'] as const;
+export const appCommands = ['newWindow', 'locate', 'closeWindow', 'openLogs', 'about'] as const;
 export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, tabs, dialogs drawn in the window). */
-export const menuCommands = ['toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan'] as const;
+export const menuCommands = ['toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess', 'browseFolder'] as const;
 export type MenuCommand = typeof menuCommands[number];
 
-export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unavailable' | 'no-folder' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
+export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unauthorized' | 'unavailable' | 'no-folder' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
 export interface AtlasErrorValue { code: ErrorCode; message: string }
 /** Errors cross the process boundary as values, never as thrown Error objects. */
 export type Result<T> = { ok: true; value: T } | { ok: false; error: AtlasErrorValue };
+
+/** A computer whose planning folders a window can show: this one (hostId null) or one this app paired with. */
+export interface ComputerRef { hostId: string | null; name: string }
+export type ComputerStatus = 'online' | 'connecting' | 'offline' | 'revoked' | 'mismatch' | 'incompatible';
+/** A computer as the computer menu lists it. */
+export interface Computer extends ComputerRef {
+  status: ComputerStatus;
+  /** Why it is not online, when it is not. */
+  detail: string | null;
+  /** Whether this app may pair and revoke devices there (always on this computer). */
+  manageAccess: boolean;
+  /** Where it was reached, for a paired computer (shown to tell computers apart). */
+  origin: string | null;
+}
 
 export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
 export interface WindowInfo {
@@ -39,26 +67,20 @@ export interface WindowInfo {
   revision: number;
   version: string;
   platform: string;
+  /** The computer the window works on: its folder's, or, without a folder, the one its welcome page shows. */
+  computer: ComputerRef;
+  /** Set when the folder is on another computer. */
+  remote: { hostId: string; hostName: string } | null;
 }
-/** `notice`: the folder is readable but cannot be watched, so changes show with a delay. */
+/** `notice`: the folder is readable but cannot be watched, or its computer is not reachable right now. */
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
-export interface RecentFolder { path: string; name: string; parent: string; workItems: number | null; available: boolean }
+/** A computer's folder list changed. */
+export interface FoldersChange { hostId: string | null; folders: ComputerFolder[] }
+/** Remote access changed on a computer this app manages access for. */
+export interface AccessChange { hostId: string | null; state: AccessState }
 
-export interface Snapshot extends PlanningIndex {
-  usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
-  /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
-  folders: string[];
-}
-
-export interface ModelExplains { path: string | null; reference: string; section: string | null; title: string | null }
-export interface CatalogEntry {
-  handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  provenance: Provenance; explains: ModelExplains[];
-}
-export interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
-export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }
-export interface DiagramIndexEntry { workId: string; handle: string; title: string; provenance: Provenance }
-export interface ViewEventInput { id: string; path: string; session: string; contentHash: string | null }
+/** A pairing link as the window shows it: with its QR code (an SVG image). */
+export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 export type WorkSection = 'plan' | 'ledger' | 'diagrams';
 export type ViewName = 'work' | 'activity' | 'statistics';
@@ -93,15 +115,13 @@ export interface ImportPreview {
 }
 export interface ImportResult { workId: string; path: string; files: number; notes: string[] }
 
-export type { DocumentContent };
-
 /**
  * The bridge the preload script exposes to the renderer as `window.atlas`. Every method maps to
  * one channel and resolves to a Result; errors arrive as structured values, never as exceptions.
+ * A `hostId` of null means this computer.
  */
 export interface AtlasBridge {
   info(): Promise<Result<WindowInfo>>;
-  recents(): Promise<Result<RecentFolder[]>>;
   snapshot(): Promise<Result<Snapshot>>;
   document(path: string): Promise<Result<DocumentContent>>;
   models(work: string): Promise<Result<Catalog>>;
@@ -113,11 +133,34 @@ export interface AtlasBridge {
   saveUi(state: UiState): Promise<Result<void>>;
   reveal(path: string): Promise<Result<void>>;
   openExternal(url: string): Promise<Result<void>>;
-  command(command: AppCommand, argument?: string): Promise<Result<void>>;
+  copy(text: string): Promise<Result<void>>;
+  command(command: AppCommand): Promise<Result<void>>;
   exportPlan(work: string): Promise<Result<ExportResult | null>>;
   chooseImport(): Promise<Result<ImportPreview | null>>;
   confirmImport(token: string): Promise<Result<ImportResult>>;
   cancelImport(token: string): Promise<Result<void>>;
+  /** This computer and the computers this app paired with, each checked for whether it answers. */
+  computers(): Promise<Result<Computer[]>>;
+  /** Work on another computer: its only folder, the one last viewed there, or its welcome page. */
+  switchComputer(hostId: string | null, newWindow: boolean): Promise<Result<void>>;
+  /** A computer's folder list. */
+  folders(hostId: string | null): Promise<Result<ComputerFolder[]>>;
+  openFolder(hostId: string | null, path: string, newWindow: boolean): Promise<Result<void>>;
+  /** Choose a folder on this computer with the system's dialog. */
+  chooseFolder(newWindow: boolean): Promise<Result<void>>;
+  /** The folders of another computer, for the in-app folder browser. */
+  browse(hostId: string, path: string | null): Promise<Result<BrowseResult>>;
+  removeFolder(hostId: string | null, folderId: string): Promise<Result<void>>;
+  pairRemote(link: string, code: string | null): Promise<Result<Computer>>;
+  forgetRemote(hostId: string): Promise<Result<void>>;
+  accessState(hostId: string | null): Promise<Result<AccessState>>;
+  updateAccess(settings: AccessSettings): Promise<Result<AccessState>>;
+  createPairing(hostId: string | null, address: string | null, grant: PairingGrant): Promise<Result<PairingLinkView>>;
+  revokePairing(hostId: string | null, code: string): Promise<Result<void>>;
+  devices(hostId: string | null): Promise<Result<PairedDevice[]>>;
+  revokeDevice(hostId: string | null, deviceId: string): Promise<Result<void>>;
   onChanged(listener: (change: FolderChange) => void): () => void;
   onMenu(listener: (command: MenuCommand) => void): () => void;
+  onAccessChanged(listener: (change: AccessChange) => void): () => void;
+  onFoldersChanged(listener: (change: FoldersChange) => void): () => void;
 }

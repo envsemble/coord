@@ -1,4 +1,5 @@
-// A small rotating log in the Atlas data folder (<data>/logs/atlas.log, then atlas.1.log …).
+// A small rotating log in the Atlas data folder (<data>/logs/atlas.log, then atlas.1.log …; the host
+// writes host.log beside it).
 // It records lifecycle events and failures for diagnosis; nothing leaves the machine.
 import { appendFileSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -12,9 +13,13 @@ export class RotatingLog {
   private readonly keep: number;
   private size = -1;
 
-  constructor(directory: string, { maxBytes = 1024 * 1024, keep = 3 } = {}) {
+  private readonly name: string;
+
+  /** `name` is the file's base name: atlas.log for the app, host.log for its host. */
+  constructor(directory: string, { maxBytes = 1024 * 1024, keep = 3, name = 'atlas' } = {}) {
     this.directory = directory;
-    this.file = path.join(directory, 'atlas.log');
+    this.name = name;
+    this.file = path.join(directory, name + '.log');
     this.maxBytes = maxBytes;
     this.keep = keep;
   }
@@ -37,7 +42,7 @@ export class RotatingLog {
   error(message: string, detail?: unknown) { this.write('error', message, detail); }
 
   private rotate() {
-    const name = (index: number) => path.join(this.directory, index === 0 ? 'atlas.log' : `atlas.${index}.log`);
+    const name = (index: number) => path.join(this.directory, index === 0 ? this.name + '.log' : `${this.name}.${index}.log`);
     rmSync(name(this.keep), { force: true });
     for (let index = this.keep - 1; index >= 0; index--) {
       try { renameSync(name(index), name(index + 1)); } catch { /* Missing generations are fine. */ }

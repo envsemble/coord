@@ -12,8 +12,43 @@ export interface Work {
   ledger?: string | null; progress?: WorkProgress | null;
   /** Number of Atlas models in this work folder's `.atlas/models`. */
   diagrams?: number;
+  /** Agent-reported statistics and plan revisions; absent where they were not read. */
+  statistics?: WorkStatistics;
 }
-export interface WorkProgress { current: string | null; next: string[]; blocked: string | null; updated: string | null }
+/** One model's share of a work item, from the reports it made. */
+export interface ModelUsage { model: string; reports: number; sessions: number; activeMs: number; tokens: number | null }
+/**
+ * What agents reported with `atlas work report` (self-reported and approximate) and how often the
+ * main plan changed. Active time sums the intervals between reports in each session or run.
+ */
+export interface WorkStatistics {
+  reports: number;
+  /** Lines of the statistics file that are not valid reports. */
+  invalid: number;
+  models: ModelUsage[];
+  /** The model with the most active time (then tokens, then reports). */
+  primaryModel: string | null;
+  tokens: number | null;
+  activeMs: number;
+  firstReport: string | null;
+  lastReport: string | null;
+  /** Commits that changed the main plan after it was added, up to completion or now; null without Git history. */
+  planRevisions: number | null;
+}
+export type LedgerStepStatus = 'todo' | 'doing' | 'done';
+export interface LedgerStep { title: string; status: LedgerStepStatus }
+/** The ledger status header. Version 2 lists the agreed steps; version 1 (legacy) has only current and next. */
+export interface WorkProgress {
+  version: 1 | 2;
+  /** Version 2: the steps being worked on, joined; version 1: the reported current focus. */
+  current: string | null;
+  /** Version 2: the steps still to do; version 1: the reported next steps. */
+  next: string[];
+  blocked: string | null; updated: string | null;
+  /** Version 2 only, in the ledger's order; null for a version-1 header. */
+  steps: LedgerStep[] | null;
+}
+export interface StepCounts { total: number; done: number; doing: number; todo: number; remaining: number }
 export interface HistoryEntry { id: string; date: string; title: string; files: string[]; workIds: string[]; repositories: string[] }
 export interface Issue { level: 'warning' | 'error'; message: string; workId?: string }
 export interface DocumentUsage {

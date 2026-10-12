@@ -1,8 +1,8 @@
 // Talks to the plan export worker (planWorker.ts). The worker starts on first use and stops after
 // a quiet period, but never while it holds something a window still needs: a prepared export
 // waiting for its save dialog, or an import preview waiting for confirmation.
-import { AtlasError } from './errors.ts';
-import type { ErrorCode } from '../shared/contract.ts';
+import { HostError } from './errors.ts';
+import type { ErrorCode } from './contract.ts';
 import type { PreparedExport, PlanImportResult, ReadImport, WorkerRequest, WorkerResponse } from './planWorker.ts';
 
 /** The part of a worker_threads Worker this client uses. */
@@ -47,7 +47,7 @@ export class PlanWorkerClient {
       if (!waiting) return;
       this.pending.delete(response.id);
       if (response.ok) waiting.resolve(response.value);
-      else waiting.reject(new AtlasError(response.error.code ? codes[response.error.code] ?? 'invalid-argument' : 'invalid-argument', response.error.message, response.error.code));
+      else waiting.reject(new HostError(response.error.code ? codes[response.error.code] ?? 'invalid-argument' : 'invalid-argument', response.error.message, response.error.code));
     });
     // Only the current worker's end fails the current requests; a stopped worker's late exit does not.
     const ended = (error: Error) => {
@@ -58,7 +58,7 @@ export class PlanWorkerClient {
       this.pending.clear();
     };
     created.on('error', ended);
-    created.on('exit', () => ended(new AtlasError('internal', 'The plan export stopped unexpectedly. Try again.')));
+    created.on('exit', () => ended(new HostError('internal', 'The plan export stopped unexpectedly. Try again.')));
     this.worker = created;
     return created;
   }
@@ -82,6 +82,18 @@ export class PlanWorkerClient {
       this.worker = null;
       void stopping.terminate();
     }, this.idleMs);
+    (this.idle as { unref?(): void }).unref?.();
+  }
+
+  /** Stop the worker now (the host is stopping): what it held is gone, and waiting requests fail. */
+  stop() {
+    if (this.idle) { clearTimeout(this.idle); this.idle = null; }
+    const stopping = this.worker;
+    this.worker = null;
+    this.held.clear();
+    for (const waiting of this.pending.values()) waiting.reject(new HostError('cancelled', 'The host is stopping.'));
+    this.pending.clear();
+    if (stopping) void stopping.terminate();
   }
 
   /** Prepare an export; its bytes stay in the worker until written or dropped. */
@@ -90,9 +102,10 @@ export class PlanWorkerClient {
     this.held.add(prepared.token);
     return prepared;
   }
-  async write(token: string, file: string) {
-    await this.run<null>({ op: 'write', token, file });
-    this.release(token);
+  /** Hand over a prepared export's HTML; the worker no longer holds it. */
+  async take(token: string) {
+    try { return await this.run<string>({ op: 'take', token }); }
+    finally { this.release(token); }
   }
   /** Read and validate an export; its preview stays in the worker until imported or dropped. */
   async read(root: string, file: string) {

@@ -23,3 +23,10 @@ export function documentTarget(file: Document, work: Work | undefined, anchor: s
 }
 
 export const viewLabels: Record<ViewName, string> = { work: 'Work', activity: 'Activity', statistics: 'Statistics' };
+
+/** What a tab's scroll position belongs to: its view, its work item and section, or its file. */
+export function scrollKey(target: Target): string {
+  if (target.kind === 'view') return 'view:' + target.view;
+  if (target.kind === 'work') return 'work:' + target.work + ':' + (target.section ?? '');
+  return 'file:' + target.path;
+}
