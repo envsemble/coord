@@ -185,19 +185,23 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
   const toast = useToast();
   const rows = useRef<HTMLUListElement>(null);
   const refocus = useRef(false);
+  // The computer being forgotten, whose row stays until the list reloads.
+  const [forgetting, setForgetting] = useState<string | null>(null);
   // Forgetting the computer this window shows turns the window to this computer's welcome page, so
   // the list closes; otherwise it shows the computers that are left, and focus, which was on the
   // forgotten row, moves to the first action left in the list.
   const forget = (computer: Computer) => {
+    setForgetting(computer.hostId);
     api.forgetRemote(computer.hostId!).then(() => {
       if (computer.hostId === current.hostId) onClose();
       else { refocus.current = true; reload(); }
-    }, failure => setError((failure as Error).message));
+    }, failure => { setForgetting(null); setError((failure as Error).message); });
   };
   useEffect(() => {
     const list = rows.current;
     if (!refocus.current || !list) return;
     refocus.current = false;
+    setForgetting(null);
     // Unless the reader moved on, focus fell to the page or the dialog itself with the row.
     const focused = list.ownerDocument.activeElement;
     if (!focused?.matches('button:not(:disabled), a[href], input')) list.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
@@ -210,14 +214,15 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
     {computers === null ? <Spinner label="Checking computers" />
       : <GroupedRows ref={rows} className="computer-rows" aria-label="Computers">{computers.map(computer => {
         const status = statusLabels[computer.status];
-        const usable = computer.status === 'online';
+        const pending = forgetting !== null && computer.hostId === forgetting;
+        const usable = computer.status === 'online' && !pending;
         const here = computer.hostId === current.hostId;
         return <Row key={computer.hostId ?? 'local'} className="computer-row"
           title={<span className="row-title"><span className="row-link-title">{computer.name}</span>{status && <Badge tone={computer.status === 'connecting' ? 'neutral' : 'warning'}>{status}</Badge>}{here && <Badge tone="accent">This window</Badge>}</span>}
           detail={computer.detail ?? describe(computer)}
           action={<span className="row-actions">
             <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + computer.name + ' in a new window'} disabled={!usable} onClick={() => { onClose(); switchTo(computer, current, true, report); }} /></Tooltip>
-            {computer.hostId !== null && <ConfirmButton variant="text" confirmLabel={'Forget ' + computer.name} onConfirm={() => forget(computer)}>Forget</ConfirmButton>}
+            {computer.hostId !== null && <ConfirmButton variant="text" disabled={pending} confirmLabel={'Forget ' + computer.name} onConfirm={() => forget(computer)}>Forget</ConfirmButton>}
           </span>} />;
       })}</GroupedRows>}
     <p className="dialog-note">Forgetting a computer closes the windows that show it. This computer must pair again to reach it.</p>
