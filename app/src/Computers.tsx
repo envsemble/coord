@@ -2,7 +2,7 @@
 // ones, like Platform's organization menu), the folder menu above the explorer, and the lists behind
 // them. Choosing in a menu opens in this window; the lists also open a computer or a folder in a new
 // window, and remove folders or forget computers.
-import { createContext, useCallback, useContext, useEffect, useState, type MouseEvent } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   Badge, Button, ConfirmButton, Dialog, EmptyState, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip, useToast,
 } from '@envsemble/envui';
@@ -54,7 +54,8 @@ function useComputers(active: boolean, onError: (message: string) => void) {
   useEffect(() => {
     if (!active) return;
     let current = true;
-    setComputers(null);
+    // Opening shows a spinner; checking again keeps the list until the new one arrives.
+    if (!checks) setComputers(null);
     api.computers().then(next => { if (current) setComputers(next); }, failure => { if (current) { setComputers([]); onError((failure as Error).message); } });
     return () => { current = false; };
   }, [active, checks]);
@@ -84,7 +85,7 @@ export function ComputerMenu({ current, onError }: { current: ComputerRef; onErr
         </MenuRadioGroup>}
     </MenuGroup>
     <MenuSeparator />
-    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to another Atlas…</MenuItem>
+    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
     <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage computers…</MenuItem>
   </Menu>;
 }
@@ -182,18 +183,32 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
   const { computers, reload } = useComputers(true, setError);
   const actions = useAppActions();
   const toast = useToast();
+  const rows = useRef<HTMLUListElement>(null);
+  const refocus = useRef(false);
   // Forgetting the computer this window shows turns the window to this computer's welcome page, so
-  // the list closes; otherwise it shows the computers that are left.
+  // the list closes; otherwise it shows the computers that are left, and focus, which was on the
+  // forgotten row, moves to the first action left in the list.
   const forget = (computer: Computer) => {
-    api.forgetRemote(computer.hostId!).then(() => { if (computer.hostId === current.hostId) onClose(); else reload(); }, failure => setError((failure as Error).message));
+    api.forgetRemote(computer.hostId!).then(() => {
+      if (computer.hostId === current.hostId) onClose();
+      else { refocus.current = true; reload(); }
+    }, failure => setError((failure as Error).message));
   };
+  useEffect(() => {
+    const list = rows.current;
+    if (!refocus.current || !list) return;
+    refocus.current = false;
+    // Unless the reader moved on, focus fell to the page or the dialog itself with the row.
+    const focused = list.ownerDocument.activeElement;
+    if (!focused?.matches('button:not(:disabled), a[href], input')) list.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
+  }, [computers]);
   // After the dialog closed, failures appear as a notice in the window.
   const report = (message: string) => toast.show({ message, variant: 'error' });
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title="Computers"
     description="This computer and the computers it is paired with. Choose one in the computer menu to work on it in this window."
-    closeLabel="Done" actions={<Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect to another Atlas…</Button>}>
+    closeLabel="Done" actions={<Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect to Another Atlas…</Button>}>
     {computers === null ? <Spinner label="Checking computers" />
-      : <GroupedRows className="computer-rows" aria-label="Computers">{computers.map(computer => {
+      : <GroupedRows ref={rows} className="computer-rows" aria-label="Computers">{computers.map(computer => {
         const status = statusLabels[computer.status];
         const usable = computer.status === 'online';
         const here = computer.hostId === current.hostId;

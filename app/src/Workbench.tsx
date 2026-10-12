@@ -85,11 +85,12 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     if (observer && content) observer.observe(content);
     const timer = window.setTimeout(stop, 3000);
     const remember = () => { if (!restoring) scrollPositions.current.set(scrolled, element.scrollTop); };
-    // Only the reader's own scrolling stops it: input in the page, on the window's scrollbar or
-    // with nothing focused, not keys pressed in the sidebar or the tabs.
+    // The reader's own scrolling stops it: the wheel or touch anywhere, and keys or presses in the
+    // page or what holds it (the window's scrollbar, the shell's main region), not keys pressed in
+    // the sidebar or the tabs.
     const interrupt = (event: Event) => {
       const at = event.target;
-      if (!(at instanceof Node) || at === document.documentElement || at === document.body || content?.contains(at)) stop();
+      if (event.type === 'wheel' || event.type === 'touchstart' || !(at instanceof Node) || !content || at.contains(content) || content.contains(at)) stop();
     };
     const inputs = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
     for (const name of inputs) window.addEventListener(name, interrupt, { capture: true, passive: true });
@@ -131,14 +132,8 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
 
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
-      case 'toggleSidebar': {
-        const collapsing = ui.sidebar.visible;
-        setSidebar({ visible: !collapsing });
-        // A collapsed sidebar stays expanded while it holds focus, so collapsing it lets go of focus.
-        const focused = document.activeElement;
-        if (collapsing && focused instanceof HTMLElement && focused.closest('.explorer, nav[aria-label="Atlas"]')) focused.blur();
-        break;
-      }
+      // envUI's shell compacts a collapsing sidebar even while it holds focus.
+      case 'toggleSidebar': setSidebar({ visible: !ui.sidebar.visible }); break;
       case 'showExplorer': setSidebar({ visible: true }); window.setTimeout(() => document.querySelector<HTMLElement>('.explorer-tree [role="tree"], .explorer-tree[role="tree"]')?.focus(), 0); break;
       case 'quickOpen': setQuickOpen({ mode: 'all', onPick: (target, pin) => open(target, { pin }) }); break;
       case 'closeTab': setTabs(tabs => tabs.active ? closeTab(tabs, tabs.active) : tabs); break;

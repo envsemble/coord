@@ -2,6 +2,7 @@
 //
 //   npm run dev:envui                   link ../envUI and start both watchers
 //   npm run envui:unlink                return to the published version in package-lock.json
+//                                       (stop dev:envui first: Windows keeps running files locked)
 //   node scripts/dev-envui.mjs --link   only link (again, after npm replaced the link)
 //
 // ENVUI_PATH overrides the checkout location. Like Platform's `dev:envui`, it leaves package.json and
@@ -13,6 +14,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -45,10 +47,29 @@ const isLink = (path) => {
 };
 
 if (process.argv.includes("--unlink")) {
-  // The links go first, so the clean install never reaches into the envUI checkout through them.
   const linked = consumers.filter(isLink);
-  for (const path of linked) rmSync(path);
-  if (linked.length) run(["ci", "--no-audit", "--no-fund"], atlas);
+  if (linked.length) {
+    // A clean install removes node_modules before it downloads, so the registry is checked first:
+    // without a GitHub Packages token, nothing changes.
+    const { packages } = JSON.parse(
+      readFileSync(resolve(atlas, "package-lock.json"), "utf8"),
+    );
+    const version = packages["node_modules/@envsemble/envui"].version;
+    const check = spawnSync(
+      npm,
+      ["view", `@envsemble/envui@${version}`, "version"],
+      { cwd: atlas, stdio: "pipe", shell: windows },
+    );
+    if (check.status !== 0) {
+      console.error(
+        `GitHub Packages did not answer for @envsemble/envui@${version}; nothing was changed. Set NODE_AUTH_TOKEN (see CONTRIBUTING.md) and try again.`,
+      );
+      process.exit(1);
+    }
+    // The links go first, so the clean install never reaches into the envUI checkout through them.
+    for (const path of linked) rmSync(path);
+    run(["ci", "--no-audit", "--no-fund"], atlas);
+  }
   console.log(
     "Atlas uses the published @envsemble/envui from package-lock.json.",
   );

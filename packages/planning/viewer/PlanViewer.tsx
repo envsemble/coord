@@ -61,19 +61,24 @@ type FileRow = TreeItem & { path: string; folder: boolean };
 function FileTree({ files, selected, onSelect }: { files: ExportFile[]; selected?: string; onSelect(file: string): void }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<string>>(() => new Set());
+  // A search shows every match's folders open, apart from those closed during it; clearing it
+  // returns to the folders the reader had open.
+  const [closedInSearch, setClosedInSearch] = useState<Set<string>>(() => new Set());
+  useEffect(() => { if (!query) setClosedInSearch(new Set()); }, [query]);
   const visible = files.filter(file => file.path.toLowerCase().includes(query.toLowerCase()));
-  // Folders open once on the way to the chosen file, and to every match of a search; after that
-  // they open and close as the reader chooses.
-  const reveal = (paths: string[]) => setOpen(current => {
-    const next = new Set(current);
-    for (const file of paths) for (let at = file.indexOf('/'); at >= 0; at = file.indexOf('/', at + 1)) next.add(file.slice(0, at));
-    return next.size === current.size ? current : next;
-  });
-  useEffect(() => { if (selected) reveal([selected]); }, [selected]);
-  useEffect(() => { if (query) reveal(visible.map(file => file.path)); }, [query]);
+  // Folders open once on the way to the chosen file, before it paints; after that they open and
+  // close as the reader chooses.
+  useLayoutEffect(() => {
+    if (!selected) return;
+    setOpen(current => {
+      const next = new Set(current);
+      for (let at = selected.indexOf('/'); at >= 0; at = selected.indexOf('/', at + 1)) next.add(selected.slice(0, at));
+      return next.size === current.size ? current : next;
+    });
+  }, [selected]);
   const rows = useMemo(() => {
     const result: FileRow[] = [];
-    const isOpen = (folder: string) => open.has(folder);
+    const isOpen = (folder: string) => query ? !closedInSearch.has(folder) : open.has(folder);
     function branch(prefix: string, depth: number) {
       const directories = new Set<string>();
       const leaves: ExportFile[] = [];
@@ -92,8 +97,12 @@ function FileTree({ files, selected, onSelect }: { files: ExportFile[]; selected
     }
     branch('', 0);
     return result;
-  }, [visible, query, open, selected]);
-  const toggle = (folder: string, expanded: boolean) => setOpen(current => { const next = new Set(current); if (expanded) next.add(folder); else next.delete(folder); return next; });
+  }, [visible, query, open, closedInSearch]);
+  const toggle = (folder: string, expanded: boolean) => {
+    const change = (current: Set<string>, add: boolean) => { const next = new Set(current); if (add) next.add(folder); else next.delete(folder); return next; };
+    if (query) setClosedInSearch(current => change(current, !expanded));
+    else setOpen(current => change(current, expanded));
+  };
   return <div className="file-tree">
     <SearchField label="Go to file" value={query} onValueChange={setQuery} />
     {visible.length ? <Tree<FileRow> className="file-tree-view" items={rows} aria-label="Files" selectedId={selected ? 'file:' + selected : null} density="compact"
