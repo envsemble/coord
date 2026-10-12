@@ -6,9 +6,12 @@
 import { cpSync, existsSync, readFileSync, renameSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import type { AtlasBridge } from '../shared/contract.ts';
 import { close, launch, planningFixture, removeDirectory, temporaryDirectory, windowTitles, type Launched } from './app';
+
+// The dialog's access line: the device list's confirm buttons announce through live regions of their own.
+const accessStatus = (dialog: Locator) => dialog.getByRole('status').and(dialog.locator('.access-status'));
 
 let sharing: Launched | undefined;
 let reading: Launched | undefined;
@@ -36,7 +39,7 @@ async function fileMenu(app: ElectronApplication, label: string) {
 /** Turn remote access on for 127.0.0.1 in the open Remote Access dialog; returns the port. */
 async function listen(owner: Page) {
   const access = owner.getByRole('dialog', { name: 'Remote access' });
-  await expect(access.getByRole('status')).toHaveText('Remote access is off.');
+  await expect(accessStatus(access)).toHaveText('Remote access is off.');
   await access.getByLabel('Reach this computer via').click();
   await owner.getByRole('option', { name: /127\.0\.0\.1/ }).click();
   const port = await freePort();
@@ -44,7 +47,7 @@ async function listen(owner: Page) {
   await access.getByLabel('Port').press('Enter');
   await expect(access.getByLabel('Allow paired devices to connect to this computer')).toBeEnabled();
   await access.getByLabel('Allow paired devices to connect to this computer').click();
-  await expect(access.getByRole('status')).toHaveText(`Listening on 127.0.0.1:${port}.`);
+  await expect(accessStatus(access)).toHaveText(`Listening on 127.0.0.1:${port}.`);
   return { access, port };
 }
 
@@ -153,7 +156,7 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await viewer.bringToFront();
   await fileMenu(reading.app, 'Re&mote Access…');
   const remoteAccess = viewer.getByRole('dialog', { name: `Remote access to ${name}` });
-  await expect(remoteAccess.getByRole('status')).toHaveText(`${name} listens on 127.0.0.1:${port}.`);
+  await expect(accessStatus(remoteAccess)).toHaveText(`${name} listens on 127.0.0.1:${port}.`);
   await expect(remoteAccess.getByLabel('Allow paired devices to connect to this computer')).toHaveCount(0);
   await expect(remoteAccess.locator('.device-list li')).toContainText('Manage access');
   await remoteAccess.getByRole('button', { name: 'Create pairing link' }).click();
@@ -215,7 +218,7 @@ test('turning remote access off closes the listener and expires an open pairing 
   await expect(access.locator('.pairing-link')).toBeVisible();
 
   await access.getByLabel('Allow paired devices to connect to this computer').click();
-  await expect(access.getByRole('status')).toHaveText('Remote access is off.');
+  await expect(accessStatus(access)).toHaveText('Remote access is off.');
   await expect(access.locator('.pairing-link')).toHaveCount(0);
   const reachable = await fetch(`http://127.0.0.1:${port}/api/host`).then(() => true, () => false);
   expect(reachable).toBe(false);
