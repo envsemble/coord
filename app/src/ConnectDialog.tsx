@@ -1,4 +1,4 @@
-// Connect to another computer: pair with another computer's Atlas from its pairing link (or its
+// Connect to Another Atlas…: pair with another computer's Atlas from its pairing link (or its
 // address and code). That computer is then one of the computers this app works on: its folder list
 // opens here, and any of its planning folders can be opened through its folder browser.
 import { useState } from 'react';

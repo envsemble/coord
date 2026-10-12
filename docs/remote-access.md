@@ -62,13 +62,14 @@ Each window says where it works: the **computer menu** (the pill with the comput
 
     On a welcome page, choosing a computer shows its folder list instead.
 
-  - **Connect to another computer…** pairs with one more.
-  - **×** forgets a computer here, after a confirmation. Windows showing it close; if the window you forgot it from showed it, that window shows this computer instead. To cut its access on that computer too, revoke the device there.
+  - **Connect to Another Atlas…** pairs with one more.
+  - **Manage computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
 
-- **The folder menu** lists the computer's planning folders, newest first, and ends with **Open Folder…**:
+- **The folder menu** lists the computer's planning folders, newest first, then **Open Folder…** and **Manage folders…**:
   - on this computer, **Open Folder…** opens the system's dialog;
   - on another, it opens the **folder browser**. It lists that computer's folders (never files), marks planning folders (those with a `planning.json`) and opens only those. It starts beside the folder the window shows; **Home** goes to the home folder and the drives.
-- **Choosing a folder or a computer** opens it in this window. The **↗** button beside it, or Ctrl+Enter, opens it in a new window. A folder that is already open somewhere brings that window forward.
+  - **Manage folders…** lists every folder with its path, its number of work items and when it was last opened, and marks the one this window shows. **↗** opens a folder in a new window, and **×** takes it off the list on every device.
+- **Choosing a folder or a computer** opens it in this window. In a folder list, Ctrl+click (⌘+click on macOS) or **↗** opens it in a new window. A folder that is already open somewhere brings that window forward.
 - **The welcome page**, in a window without a folder, has the same computer menu and lists the chosen computer's folders.
 
 A window on another computer shows the computer's name in its title (`planning — desk — Atlas`). Everything works as it does locally:

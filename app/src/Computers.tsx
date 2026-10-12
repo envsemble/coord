@@ -4,7 +4,7 @@
 // window, and remove folders or forget computers.
 import { createContext, useCallback, useContext, useEffect, useState, type MouseEvent } from 'react';
 import {
-  Badge, Button, ConfirmButton, Dialog, EmptyState, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip,
+  Badge, Button, ConfirmButton, Dialog, EmptyState, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip, useToast,
 } from '@envsemble/envui';
 import { UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
 import { AddIcon, CloseIcon, ComputerIcon, DevicesIcon, FolderIcon, NewWindowIcon } from './icons';
@@ -18,7 +18,8 @@ export interface AppActions {
   browse(computer: ComputerRef, near?: string | null): void;
   remoteAccess(): void;
   manageComputers(): void;
-  manageFolders(computer: ComputerRef): void;
+  /** The list marks the folder this window shows, when the window shows one of them. */
+  manageFolders(computer: ComputerRef, isCurrent?: (folder: ComputerFolder) => boolean): void;
 }
 const nothing = () => undefined;
 export const AppActionsContext = createContext<AppActions>({ connect: nothing, browse: nothing, remoteAccess: nothing, manageComputers: nothing, manageFolders: nothing });
@@ -49,14 +50,15 @@ export function useComputerFolders(hostId: string | null, active = true) {
 /** The computers this app works on, checked each time the list opens. */
 function useComputers(active: boolean, onError: (message: string) => void) {
   const [computers, setComputers] = useState<Computer[] | null>(null);
+  const [checks, setChecks] = useState(0);
   useEffect(() => {
     if (!active) return;
     let current = true;
     setComputers(null);
     api.computers().then(next => { if (current) setComputers(next); }, failure => { if (current) { setComputers([]); onError((failure as Error).message); } });
     return () => { current = false; };
-  }, [active]);
-  return computers;
+  }, [active, checks]);
+  return { computers, reload: () => setChecks(value => value + 1) };
 }
 
 function switchTo(computer: Computer, current: ComputerRef, newWindow: boolean, onError: (message: string) => void) {
@@ -67,7 +69,7 @@ function switchTo(computer: Computer, current: ComputerRef, newWindow: boolean, 
 /** The computer this window works on, in the window's top bar. */
 export function ComputerMenu({ current, onError }: { current: ComputerRef; onError(message: string): void }) {
   const [open, setOpen] = useState(false);
-  const computers = useComputers(open, onError);
+  const { computers } = useComputers(open, onError);
   const actions = useAppActions();
   return <Menu aria-label={'Computer: ' + current.name} align="start" open={open} onOpenChange={setOpen}
     trigger={<Button variant="secondary" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
@@ -82,7 +84,7 @@ export function ComputerMenu({ current, onError }: { current: ComputerRef; onErr
         </MenuRadioGroup>}
     </MenuGroup>
     <MenuSeparator />
-    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect a computer…</MenuItem>
+    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to another Atlas…</MenuItem>
     <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage computers…</MenuItem>
   </Menu>;
 }
@@ -109,7 +111,7 @@ export function FolderMenu({ computer, folderName, folderPath, isCurrent, onErro
     </MenuGroup>
     <MenuSeparator />
     <MenuItem icon={<FolderIcon />} onClick={() => openFolderOn(computer, actions, onError, folderPath)}>Open Folder…</MenuItem>
-    <MenuItem onClick={() => actions.manageFolders(computer)}>Manage folders…</MenuItem>
+    <MenuItem onClick={() => actions.manageFolders(computer, isCurrent)}>Manage folders…</MenuItem>
   </Menu>;
 }
 
@@ -162,9 +164,11 @@ export function FoldersDialog({ computer, isCurrent, onClose }: { computer: Comp
   const { folders, error: listError } = useComputerFolders(computer.hostId);
   const [error, setError] = useState('');
   const actions = useAppActions();
+  const toast = useToast();
+  const report = (message: string) => toast.show({ message, variant: 'error' });
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={'Planning folders on ' + computer.name}
     description="Every device that works on this computer sees the same list."
-    closeLabel="Done" actions={<Button variant="secondary" startIcon={<FolderIcon />} onClick={() => { onClose(); openFolderOn(computer, actions, setError); }}>Open Folder…</Button>}>
+    closeLabel="Done" actions={<Button variant="secondary" startIcon={<FolderIcon />} onClick={() => { onClose(); openFolderOn(computer, actions, report); }}>Open Folder…</Button>}>
     {folders === null ? <Spinner label="Loading folders" />
       : folders.length ? <FolderRows computer={computer} folders={folders} current={isCurrent} onError={setError} onOpened={onClose} />
       : <EmptyState title="No planning folders yet" description={listError || 'Open a folder to add it.'} icon={<FolderIcon />} />}
@@ -175,12 +179,19 @@ export function FoldersDialog({ computer, isCurrent, onClose }: { computer: Comp
 /** Computer menu › Manage computers…: open one in a new window, or forget a paired one. */
 export function ComputersDialog({ current, onClose }: { current: ComputerRef; onClose(): void }) {
   const [error, setError] = useState('');
-  const computers = useComputers(true, setError);
+  const { computers, reload } = useComputers(true, setError);
   const actions = useAppActions();
-  const forget = (computer: Computer) => { api.forgetRemote(computer.hostId!).catch(failure => setError((failure as Error).message)); };
+  const toast = useToast();
+  // Forgetting the computer this window shows turns the window to this computer's welcome page, so
+  // the list closes; otherwise it shows the computers that are left.
+  const forget = (computer: Computer) => {
+    api.forgetRemote(computer.hostId!).then(() => { if (computer.hostId === current.hostId) onClose(); else reload(); }, failure => setError((failure as Error).message));
+  };
+  // After the dialog closed, failures appear as a notice in the window.
+  const report = (message: string) => toast.show({ message, variant: 'error' });
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title="Computers"
     description="This computer and the computers it is paired with. Choose one in the computer menu to work on it in this window."
-    closeLabel="Done" actions={<Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect a computer…</Button>}>
+    closeLabel="Done" actions={<Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect to another Atlas…</Button>}>
     {computers === null ? <Spinner label="Checking computers" />
       : <GroupedRows className="computer-rows" aria-label="Computers">{computers.map(computer => {
         const status = statusLabels[computer.status];
@@ -190,7 +201,7 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
           title={<span className="row-title"><span className="row-link-title">{computer.name}</span>{status && <Badge tone={computer.status === 'connecting' ? 'neutral' : 'warning'}>{status}</Badge>}{here && <Badge tone="accent">This window</Badge>}</span>}
           detail={computer.detail ?? describe(computer)}
           action={<span className="row-actions">
-            <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + computer.name + ' in a new window'} disabled={!usable} onClick={() => { onClose(); switchTo(computer, current, true, setError); }} /></Tooltip>
+            <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + computer.name + ' in a new window'} disabled={!usable} onClick={() => { onClose(); switchTo(computer, current, true, report); }} /></Tooltip>
             {computer.hostId !== null && <ConfirmButton variant="text" confirmLabel={'Forget ' + computer.name} onConfirm={() => forget(computer)}>Forget</ConfirmButton>}
           </span>} />;
       })}</GroupedRows>}

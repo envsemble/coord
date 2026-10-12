@@ -134,7 +134,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
               <CopyButton text={link.code} label="Copy code only" />
               <Button variant="destructive" onClick={() => void revokeLink()}>Revoke</Button>
             </div>
-            <Text variant="caption" tone="muted">In Atlas on the other device, choose <strong>Connect to Another Computer…</strong> and paste the link. Treat it like a password.</Text>
+            <Text variant="caption" tone="muted">In Atlas on the other device, choose <strong>Connect to Another Atlas…</strong> and paste the link. Treat it like a password.</Text>
           </div>
         </div> : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
           {link && <Text tone="muted">That pairing link expired.</Text>}

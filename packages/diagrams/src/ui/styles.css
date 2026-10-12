@@ -2,7 +2,8 @@
    them over the canvas and styles Atlas-owned markup, using envUI's tokens.
    Hosts load envUI's stylesheet; the offline file bundles it. */
 :root,
-[data-env-theme] {
+.atlas-page,
+.atlas-panel {
   /* Floating panes over the canvas: a hairline in both themes and a shadow
      that reads on light canvases. */
   --atlas-elevation:
@@ -43,14 +44,6 @@ body {
   pointer-events: auto;
 }
 
-/* Islands hold compact controls: envUI's compact control height (which grows
-   for touch) replaces the standard height inside them. */
-.atlas-island,
-.atlas-provenance {
-  --control-height-small: var(--control-height-compact);
-  --control-height: var(--control-height-compact);
-  --icon-button-size: var(--control-height-compact);
-}
 .atlas-island {
   position: relative;
   display: flex;
@@ -394,16 +387,12 @@ body {
   text-align: right;
   user-select: none;
 }
+/* light-dark() follows the colour scheme envUI's theme sets. GitHub's light
+   and dark themes share their font styles. */
 .shiki .code-line > span {
-  color: var(--shiki-dark);
-  font-style: var(--shiki-dark-font-style);
-  font-weight: var(--shiki-dark-font-weight);
-}
-:root[data-env-theme="light"] .shiki .code-line > span,
-[data-env-theme="light"] .shiki .code-line > span {
-  color: var(--shiki-light);
-  font-style: var(--shiki-light-font-style);
-  font-weight: var(--shiki-light-font-weight);
+  color: light-dark(var(--shiki-light), var(--shiki-dark));
+  font-style: var(--shiki-dark-font-style, var(--shiki-light-font-style));
+  font-weight: var(--shiki-dark-font-weight, var(--shiki-light-font-weight));
 }
 .learning-question {
   padding-inline-start: var(--space-3);
@@ -723,10 +712,12 @@ body {
     height: auto !important;
     overflow: visible !important;
   }
+  /* Paper has nothing to press: Open view, Open planning passage, Print and
+     the SVG downloads. */
   .report-open .report-diagram,
   .report-toolbar,
-  .report-print,
-  .report-download {
+  .model-report button,
+  .model-report a[download] {
     display: none !important;
   }
   .model-report {

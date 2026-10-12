@@ -186,8 +186,8 @@ body { margin: 0; }
 .info-body p { margin: 0; }
 
 /* The scatter chart. Series colours are categorical slots, set per theme. */
-.env-theme { --atlas-chart-1: #2a6ccc; --atlas-chart-2: #c4501d; --atlas-chart-3: #127a57; --atlas-chart-other: #6e7781; }
-.env-theme[data-env-theme='dark'] { --atlas-chart-1: #3987e5; --atlas-chart-2: #d95926; --atlas-chart-3: #199e70; --atlas-chart-other: #8b949e; }
+/* light-dark() follows the colour scheme envUI's theme sets. */
+.env-theme { --atlas-chart-1: light-dark(#2a6ccc, #3987e5); --atlas-chart-2: light-dark(#c4501d, #d95926); --atlas-chart-3: light-dark(#127a57, #199e70); --atlas-chart-other: light-dark(#6e7781, #8b949e); }
 .chart-box { display: grid; gap: var(--space-2); }
 .chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0 0 var(--space-2); padding: 0; list-style: none; font-size: var(--font-size-body-small); }
 .chart-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }

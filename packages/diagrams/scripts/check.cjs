@@ -56,9 +56,20 @@ async function check() {
       /<script(?![^>]*type="application\/json")[^>]*>([\s\S]*?)<\/script>/gi,
     ),
   ];
-  assert.equal(scripts.length, 1, "Expected one inline application script");
-  new vm.Script(scripts[0][1], { filename: "index.html" });
-  const dataLine = scripts[0][1].match(/^\s*(const MODEL=.*)\r?$/m)?.[1];
+  // envUI's theme startup script in the head, then the application.
+  assert.equal(
+    scripts.length,
+    2,
+    "Expected the theme startup and application scripts",
+  );
+  for (const [, code] of scripts)
+    new vm.Script(code, { filename: "index.html" });
+  assert(
+    scripts[0].index < html.indexOf("</head>"),
+    "The theme startup script runs in the head",
+  );
+  const application = scripts[1][1];
+  const dataLine = application.match(/^\s*(const MODEL=.*)\r?$/m)?.[1];
   assert(dataLine, "Missing embedded model and export data");
   const embedded = new vm.Script(
     `${dataLine}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS})`,

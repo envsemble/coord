@@ -1494,6 +1494,20 @@ var THEME_VARS = [
   "--type-mode"
 ];
 var EMPTY_URLS = { diagramURL: void 0, backgroundURL: void 0 };
+function resolvedColours(element) {
+  const declared = getComputedStyle(element);
+  const probe = document.createElement("span");
+  probe.hidden = true;
+  element.appendChild(probe);
+  const colours = /* @__PURE__ */ new Map();
+  for (const name of THEME_VARS) {
+    if (!declared.getPropertyValue(name).trim()) continue;
+    probe.style.color = `var(${name})`;
+    colours.set(name, getComputedStyle(probe).color);
+  }
+  probe.remove();
+  return colours;
+}
 function useSVGExport(svgSource, theme, scope) {
   const [urls, setURLs] = useState3(EMPTY_URLS);
   useEffect2(() => {
@@ -1501,9 +1515,8 @@ function useSVGExport(svgSource, theme, scope) {
       svgSource,
       "image/svg+xml"
     ).documentElement;
-    const styles = getComputedStyle(scope?.current || document.documentElement);
-    for (const name of THEME_VARS)
-      svg.style.setProperty(name, styles.getPropertyValue(name).trim());
+    const colours = resolvedColours(scope?.current || document.documentElement);
+    for (const [name, colour] of colours) svg.style.setProperty(name, colour);
     svg.querySelectorAll(".selected,.dimmed").forEach((n) => n.classList.remove("selected", "dimmed"));
     const backgroundURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
@@ -1516,7 +1529,7 @@ function useSVGExport(svgSource, theme, scope) {
     );
     background.setAttribute("width", svg.viewBox.baseVal.width);
     background.setAttribute("height", svg.viewBox.baseVal.height);
-    background.setAttribute("fill", styles.getPropertyValue("--canvas").trim());
+    background.setAttribute("fill", colours.get("--canvas") ?? "#ffffff");
     svg.insertBefore(background, svg.firstChild);
     const diagramURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
@@ -1654,6 +1667,7 @@ function Island({ label, className = "", children, ...props }) {
       tone: "pane",
       corners: "pill",
       padding: 1,
+      density: "compact",
       role: "group",
       "aria-label": label,
       className: `atlas-island${className ? ` ${className}` : ""}`,
@@ -1870,7 +1884,6 @@ var ConceptSearch = memo3(function ConceptSearch2({
         SearchField,
         {
           ref: inputRef,
-          id: "search",
           label: "Find concept",
           placeholder: "Find a concept (/)",
           autoComplete: "off",
@@ -3499,6 +3512,7 @@ function ProvenanceBadge({ document: document2, className = "" }) {
       tone: "pane",
       corners: "pill",
       padding: 1,
+      density: "compact",
       className: `atlas-provenance${className ? ` ${className}` : ""}`,
       title: provenance.detail ? `${provenance.label} \xB7 ${provenance.detail}` : provenance.label,
       children: [

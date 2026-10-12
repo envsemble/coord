@@ -32,13 +32,10 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
   const html = renderToStaticMarkup(
     createElement(AtlasPanel, { payload: prepared.payload, theme: "light" }),
   );
-  // The host's theme drives envUI's theme boundary at the panel root.
-  assert(
-    /^<div [^>]*class="env-theme atlas-panel[ "][^>]*data-env-theme="light"/.test(
-      html,
-    ),
-  );
-  assert(html.includes('data-theme="light"'));
+  // The host's theme reaches the panel root, the panel's envUI Theme.
+  const panel = html.slice(0, html.indexOf(">"));
+  assert.match(panel, /^<div [^>]*class="(?:[^"]* )?atlas-panel[ "]/);
+  assert.match(panel, / data-theme="light"/);
   assert(html.includes('aria-label="Account"'));
   assert(!html.includes("Models ZIP"));
   buildEmbeddedCSS(require("node:path").resolve(__dirname, ".."));

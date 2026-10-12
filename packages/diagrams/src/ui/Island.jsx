@@ -7,6 +7,7 @@ export function Island({ label, className = "", children, ...props }) {
       tone="pane"
       corners="pill"
       padding={1}
+      density="compact"
       role="group"
       aria-label={label}
       className={`atlas-island${className ? ` ${className}` : ""}`}

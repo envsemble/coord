@@ -85,13 +85,19 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     if (observer && content) observer.observe(content);
     const timer = window.setTimeout(stop, 3000);
     const remember = () => { if (!restoring) scrollPositions.current.set(scrolled, element.scrollTop); };
-    const interrupt = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
-    for (const name of interrupt) window.addEventListener(name, stop, { capture: true, passive: true });
+    // Only the reader's own scrolling stops it: input in the page, on the window's scrollbar or
+    // with nothing focused, not keys pressed in the sidebar or the tabs.
+    const interrupt = (event: Event) => {
+      const at = event.target;
+      if (!(at instanceof Node) || at === document.documentElement || at === document.body || content?.contains(at)) stop();
+    };
+    const inputs = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
+    for (const name of inputs) window.addEventListener(name, interrupt, { capture: true, passive: true });
     window.addEventListener('scroll', remember, { passive: true });
     return () => {
       stop();
       window.clearTimeout(timer);
-      for (const name of interrupt) window.removeEventListener(name, stop, { capture: true });
+      for (const name of inputs) window.removeEventListener(name, interrupt, { capture: true });
       window.removeEventListener('scroll', remember);
     };
   }, [active?.id, scrolled]);
@@ -130,7 +136,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
         setSidebar({ visible: !collapsing });
         // A collapsed sidebar stays expanded while it holds focus, so collapsing it lets go of focus.
         const focused = document.activeElement;
-        if (collapsing && focused instanceof HTMLElement && focused.closest('.env-app-sidebar')) focused.blur();
+        if (collapsing && focused instanceof HTMLElement && focused.closest('.explorer, nav[aria-label="Atlas"]')) focused.blur();
         break;
       }
       case 'showExplorer': setSidebar({ visible: true }); window.setTimeout(() => document.querySelector<HTMLElement>('.explorer-tree [role="tree"], .explorer-tree[role="tree"]')?.focus(), 0); break;
@@ -189,7 +195,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
           <MenuItem icon={<DownloadIcon />} onClick={chooseExport}>Export Plan…</MenuItem>
           <MenuSeparator />
           <MenuItem icon={<DevicesIcon />} onClick={actions.remoteAccess}>Remote Access…</MenuItem>
-          <MenuItem onClick={actions.connect}>Connect a Computer…</MenuItem>
+          <MenuItem onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
         </Menu>
       </>}
       collapsed={!ui.sidebar.visible} onCollapsedChange={collapsed => setSidebar({ visible: !collapsed })}
@@ -258,7 +264,7 @@ const key = (platform: string) => platform === 'darwin' ? '⌘' : 'Ctrl';
 
 /** The topbar's search: quick open for work items, files and diagrams. */
 function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
-  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts="Control+P">
+  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
     <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[key(platform), 'P']} /></span>
   </Button>;
 }

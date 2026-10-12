@@ -44,7 +44,8 @@ export function QuickOpen({ snapshot, mode = 'all', placeholder, onPick, onClose
   const results = useMemo(() => rankItems(entries, query), [entries, query]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
   // Without a query the list reads best grouped; a query ranks across kinds.
-  const items: CommandPaletteItem[] = results.map(entry => ({ id: entry.id, label: entry.label, textValue: entry.label, detail: entry.detail, icon: entry.icon, group: query ? undefined : groups[entry.kind] }));
+  // The name read out includes the path, so many plan.md files stay apart.
+  const items: CommandPaletteItem[] = results.map(entry => ({ id: entry.id, label: entry.label, textValue: entry.label + ', ' + entry.detail, detail: entry.detail, icon: entry.icon, group: query ? undefined : groups[entry.kind] }));
 
   return <CommandPalette open onOpenChange={open => { if (!open) onClose(); }} className="quick-open" aria-label={mode === 'work' ? 'Choose a work item' : 'Quick open'}
     query={query} onQueryChange={setQuery} items={items} placeholder={placeholder ?? 'Go to a work item, file or diagram'} emptyLabel="No matches"

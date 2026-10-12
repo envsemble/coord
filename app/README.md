@@ -114,7 +114,7 @@ Atlas watches the planning folder instead of polling. Changes are collected for 
 
 ## Import and export
 
-**File › Export Plan…** (also on a work folder's context menu in the explorer) saves a work item as one self-contained HTML file that opens offline in any browser; with no work item open, it first asks which one. **File › Import Plan…** previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused in an error dialog before anything is written. If an import has to be rolled back and some files could not be removed, an error dialog lists them as reported. Both run the [plan export](../docs/plan-export.md) code from `packages/planning` in a worker thread, so large files do not block the window. The export viewer (`packages/planning/viewer`) shares `src/style.css` with the app; the window's own page rules live in `src/app.css`.
+**File › Export Plan…** (also on a work folder's context menu in the explorer) saves a work item as one self-contained HTML file that opens offline in any browser; with no work item open, it first asks which one. **File › Import Plan…** previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused in an error dialog before anything is written. If an import has to be rolled back and some files could not be removed, an error dialog lists them as reported. Both run the [plan export](../docs/plan-export.md) code from `packages/planning` in a worker thread, so large files do not block the window. The export viewer (`packages/planning/viewer`) is built from the same envUI components and shares `src/atlas.css`, the layout of Atlas's own regions, with the app.
 
 ## Security and privacy
 
@@ -135,7 +135,7 @@ The app follows Electron's security checklist (the desktop-only decision is work
 - **On this computer:** choose the address (Tailscale, a local network or this machine) and the port. Then create a five-minute one-time pairing link with a QR code. Its pairing step names the device and may grant **Manage access** (pairing and revoking devices). Revoke devices here too.
 - **In a window on another computer:** the dialog manages that computer's pairings, when this device has Manage access there.
 
-**File › Connect to Another Atlas…** (also on the welcome page and in the computer menu) pairs with another computer from its link and lists its planning folders. Then work on it from the computer menu at the top of the explorer:
+**File › Connect to Another Atlas…** (also on the welcome page and in the computer menu) pairs with another computer from its link and lists its planning folders. Then work on it from the computer menu at the top left of the window:
 - its folders, through its folder list or folder browser;
 - export, and import (the file is sent there);
 - document use, counted there.

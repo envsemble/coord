@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ComputerRef, Snapshot, UiState, WindowInfo } from './types';
+import type { ComputerFolder, ComputerRef, Snapshot, UiState, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
 import { EmptyState, Spinner } from '@envsemble/envui';
@@ -11,7 +11,7 @@ import { RemoteAccessDialog } from './RemoteAccessDialog';
 import { FolderBrowser } from './FolderBrowser';
 import { AppActionsContext, ComputersDialog, FoldersDialog, type AppActions } from './Computers';
 
-type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'folders'; computer: ComputerRef }
+type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'folders'; computer: ComputerRef; isCurrent?: (folder: ComputerFolder) => boolean }
   | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
 
 /**
@@ -33,7 +33,7 @@ export default function App() {
     remoteAccess: () => setDialog({ kind: 'access' }),
     browse: (target, near = null) => { if (target.hostId !== null) setDialog({ kind: 'browse', computer: { hostId: target.hostId, name: target.name }, near }); },
     manageComputers: () => setDialog({ kind: 'computers' }),
-    manageFolders: target => setDialog({ kind: 'folders', computer: target }),
+    manageFolders: (target, isCurrent) => setDialog({ kind: 'folders', computer: target, isCurrent }),
   }), []);
   // File › Open Folder… in a window on another computer browses it, beside the folder the window shows.
   const near = snapshot && info?.folder ? snapshot.root : null;
@@ -83,7 +83,7 @@ export default function App() {
     {dialog?.kind === 'access' && computer && <RemoteAccessDialog onClose={close} computer={computer} />}
     {dialog?.kind === 'browse' && <FolderBrowser computer={dialog.computer} near={dialog.near} onClose={close} />}
     {dialog?.kind === 'computers' && computer && <ComputersDialog current={computer} onClose={close} />}
-    {dialog?.kind === 'folders' && <FoldersDialog computer={dialog.computer} onClose={close} />}
+    {dialog?.kind === 'folders' && <FoldersDialog computer={dialog.computer} isCurrent={dialog.isCurrent} onClose={close} />}
   </>;
   let content;
   if (!info) content = failure ? <main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main> : <main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>;

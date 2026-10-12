@@ -32,12 +32,12 @@ export function workStatus(work: PlanView['work']): Status {
   if (work.implementation === 'not_started') return { key: 'not_started', label: 'Not started', tone: 'neutral' };
   return { key: 'unknown', label: 'Status unknown', tone: 'neutral' };
 }
-const statusIcons: Record<string, (props: { className: string }) => ReactNode> = {
+const statusIcons: Record<string, (props: { className: string; 'data-tone': string }) => ReactNode> = {
   complete: CheckCircle, blocked: Block, draft: EditNote, superseded: SkipNext, abandoned: DoNotDisturbOn, unknown: Help, in_progress: Pending, partial: Pending,
 };
 export function StatusBadge({ status }: { status: Status }) {
   const Icon = statusIcons[status.key] ?? RadioButtonUnchecked;
-  return <Badge className="state-label" tone={status.tone} icon={<Icon className="status-icon" />}>{status.label}</Badge>;
+  return <Badge className="state-label" tone={status.tone} icon={<Icon className="status-icon" data-tone={status.tone} />}>{status.label}</Badge>;
 }
 
 function parse(value: string) { return new Date(value.length === 10 ? value + 'T12:00:00' : value); }

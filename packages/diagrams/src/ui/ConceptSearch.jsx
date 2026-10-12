@@ -93,7 +93,6 @@ export const ConceptSearch = memo(function ConceptSearch({
       <div className="search-field" id={fieldId}>
         <SearchField
           ref={inputRef}
-          id="search"
           label="Find concept"
           placeholder="Find a concept (/)"
           autoComplete="off"

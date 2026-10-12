@@ -1,5 +1,5 @@
-// Markdown in envUI's style, as the app's reader shows it. Raw HTML is shown as text, never
-// rendered, and only files inside the export (or explicit web links) become links or images.
+// Markdown in envUI's style, as the app's reader shows it. Raw HTML is ignored, never rendered,
+// and only files inside the export (or explicit web links) become links or images.
 import { createElement, useMemo, type ReactNode } from 'react';
 import { slug } from 'github-slugger';
 import { Button, Card } from '@envsemble/envui';

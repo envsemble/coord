@@ -330,7 +330,8 @@ const THEME_STORAGE_KEY = "atlas-theme";
 const packageDirectory = (name) =>
   path.dirname(require.resolve(`${name}/package.json`, { paths: [rootPath] }));
 // The offline file has no host: it carries envUI's styles (with the Inter
-// font as a data URL), the viewer styles, one script and envUI's notices.
+// font as a data URL), the viewer styles, envUI's theme startup script in the
+// head, the app script and envUI's notices.
 async function bundleClient() {
   const app = await bundleJavaScript({
     absWorkingDir: rootPath,
@@ -417,11 +418,12 @@ async function buildViewer(input) {
   if (
     !template.includes("/*MODEL_DATA*/") ||
     !template.includes("/*APP_SCRIPT*/") ||
-    !template.includes("/*APP_STYLES*/")
+    !template.includes("/*APP_STYLES*/") ||
+    !template.includes("/*THEME_BOOTSTRAP*/")
   )
     throw new Error("Missing template marker");
   const { app, styles, notices, themeBootstrap } = await bundleClient();
-  const script = `/* React and React DOM\n${fs.readFileSync(path.join(rootPath, "licenses/react-LICENSE"), "utf8")}\n\n${notices}\n*/\n${themeBootstrap}\n${app}`;
+  const script = `/* React and React DOM\n${fs.readFileSync(path.join(rootPath, "licenses/react-LICENSE"), "utf8")}\n\n${notices}\n*/\n${app}`;
   const html = template
     .replace(
       "<!--APP_ICON-->",
@@ -434,6 +436,11 @@ async function buildViewer(input) {
         `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | Atlas</title>`,
     )
     .replace("/*APP_STYLES*/", () => styles.replace(/<\/style/gi, "<\\/style"))
+    // In the head, so a stored theme applies before the model data is parsed
+    // and the page first paints.
+    .replace("/*THEME_BOOTSTRAP*/", () =>
+      themeBootstrap.replace(/<\/script/gi, "<\\/script"),
+    )
     .replace(
       "/*MODEL_DATA*/",
       () =>

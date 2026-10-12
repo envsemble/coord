@@ -41,6 +41,7 @@ export function ProvenanceBadge({ document, className = "" }) {
       tone="pane"
       corners="pill"
       padding={1}
+      density="compact"
       className={`atlas-provenance${className ? ` ${className}` : ""}`}
       title={
         provenance.detail

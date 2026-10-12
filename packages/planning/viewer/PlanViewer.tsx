@@ -62,9 +62,18 @@ function FileTree({ files, selected, onSelect }: { files: ExportFile[]; selected
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const visible = files.filter(file => file.path.toLowerCase().includes(query.toLowerCase()));
+  // Folders open once on the way to the chosen file, and to every match of a search; after that
+  // they open and close as the reader chooses.
+  const reveal = (paths: string[]) => setOpen(current => {
+    const next = new Set(current);
+    for (const file of paths) for (let at = file.indexOf('/'); at >= 0; at = file.indexOf('/', at + 1)) next.add(file.slice(0, at));
+    return next.size === current.size ? current : next;
+  });
+  useEffect(() => { if (selected) reveal([selected]); }, [selected]);
+  useEffect(() => { if (query) reveal(visible.map(file => file.path)); }, [query]);
   const rows = useMemo(() => {
     const result: FileRow[] = [];
-    const isOpen = (folder: string) => Boolean(query) || open.has(folder) || Boolean(selected?.startsWith(folder + '/'));
+    const isOpen = (folder: string) => open.has(folder);
     function branch(prefix: string, depth: number) {
       const directories = new Set<string>();
       const leaves: ExportFile[] = [];

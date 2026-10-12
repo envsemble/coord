@@ -45,9 +45,10 @@ const isLink = (path) => {
 };
 
 if (process.argv.includes("--unlink")) {
+  // The links go first, so the clean install never reaches into the envUI checkout through them.
   const linked = consumers.filter(isLink);
   for (const path of linked) rmSync(path);
-  if (linked.length) run(["install", "--no-audit", "--no-fund"], atlas);
+  if (linked.length) run(["ci", "--no-audit", "--no-fund"], atlas);
   console.log(
     "Atlas uses the published @envsemble/envui from package-lock.json.",
   );

@@ -23,7 +23,7 @@
 
     Only Reveal in File Explorer stays local.
 
-  - **The computer and folder menus:** the explorer's header holds a computer menu (this computer and the paired ones) and a folder menu (the computer's folder list). Each opens in this window, or in a new one with the button beside an entry or Ctrl+Enter. Another computer's folders open through an in-app folder browser.
+  - **The computer and folder menus:** the top bar holds a computer menu (this computer and the paired ones) and the explorer a folder menu (the computer's folder list). Each opens in this window; their **Manage** lists also open in a new one. Another computer's folders open through an in-app folder browser.
   - **The folder list:** each computer keeps one, which every device sees live.
   - **Collapse All Folders** moves to the explorer's right-click menu.
   - **`atlas serve`** runs the host without the app; devices open folders there themselves.
