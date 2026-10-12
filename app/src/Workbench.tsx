@@ -258,8 +258,8 @@ const key = (platform: string) => platform === 'darwin' ? '⌘' : 'Ctrl';
 
 /** The topbar's search: quick open for work items, files and diagrams. */
 function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
-  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-keyshortcuts="Control+P">
-    <span className="search-button-label">Search</span><Kbd keys={[key(platform), 'P']} />
+  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts="Control+P">
+    <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[key(platform), 'P']} /></span>
   </Button>;
 }
 
