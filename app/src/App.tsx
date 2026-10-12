@@ -2,15 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComputerRef, Snapshot, UiState, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
-import { Blankslate, Spinner } from './ui';
+import { EmptyState, Spinner } from '@envsemble/envui';
+import { ErrorIcon } from './icons';
 import { FolderProblem, Welcome } from './Welcome';
 import { Workbench } from './Workbench';
 import { ConnectDialog } from './ConnectDialog';
 import { RemoteAccessDialog } from './RemoteAccessDialog';
 import { FolderBrowser } from './FolderBrowser';
-import { AppActionsContext, type AppActions } from './Computers';
+import { AppActionsContext, ComputersDialog, FoldersDialog, type AppActions } from './Computers';
 
-type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
+type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'folders'; computer: ComputerRef }
+  | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
 
 /**
  * One window shows one planning folder, on this computer or another one. The folder is read in
@@ -30,6 +32,8 @@ export default function App() {
     connect: () => setDialog({ kind: 'connect' }),
     remoteAccess: () => setDialog({ kind: 'access' }),
     browse: (target, near = null) => { if (target.hostId !== null) setDialog({ kind: 'browse', computer: { hostId: target.hostId, name: target.name }, near }); },
+    manageComputers: () => setDialog({ kind: 'computers' }),
+    manageFolders: target => setDialog({ kind: 'folders', computer: target }),
   }), []);
   // File › Open Folder… in a window on another computer browses it, beside the folder the window shows.
   const near = snapshot && info?.folder ? snapshot.root : null;
@@ -78,12 +82,14 @@ export default function App() {
     {dialog?.kind === 'connect' && <ConnectDialog onClose={close} onBrowse={target => setDialog({ kind: 'browse', computer: target, near: null })} />}
     {dialog?.kind === 'access' && computer && <RemoteAccessDialog onClose={close} computer={computer} />}
     {dialog?.kind === 'browse' && <FolderBrowser computer={dialog.computer} near={dialog.near} onClose={close} />}
+    {dialog?.kind === 'computers' && computer && <ComputersDialog current={computer} onClose={close} />}
+    {dialog?.kind === 'folders' && <FoldersDialog computer={dialog.computer} onClose={close} />}
   </>;
   let content;
-  if (!info) content = failure ? <main className="page-state"><Blankslate title="Atlas could not start this window">{failure}</Blankslate></main> : <main className="page-state"><Spinner size={24} /></main>;
+  if (!info) content = failure ? <main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main> : <main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>;
   else if (!info.folder) content = <Welcome info={info} />;
   else if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) content = <FolderProblem info={info} />;
-  else if (!snapshot || !ui) content = <main className="page-state" aria-busy="true"><Spinner size={24} /><span className="muted">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
+  else if (!snapshot || !ui) content = <main className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + info.folder.name + (info.remote ? ' on ' + info.remote.hostName : '')} /><span className="page-state-label">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
   else content = <Workbench info={info} snapshot={snapshot} initialUi={ui} />;
   return <AppActionsContext.Provider value={actions}>{content}{dialogs}</AppActionsContext.Provider>;
 }

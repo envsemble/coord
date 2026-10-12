@@ -22,6 +22,8 @@
   "scripts": {
     "dev": "npm run dev --workspace @envsemble/atlas-app",
     "dev:diagrams": "npm run dev --workspace @envsemble/atlas-diagrams",
+    "dev:envui": "node scripts/dev-envui.mjs",
+    "envui:unlink": "node scripts/dev-envui.mjs --unlink",
     "preview": "npm run preview --workspace @envsemble/atlas-diagrams",
     "build": "npm run build --workspaces --if-present",
     "package": "npm run package --workspace @envsemble/atlas-app",

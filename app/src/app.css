@@ -1,4 +1,0 @@
-/* The app window: a fixed-size workbench whose panes scroll, not the page. (Not shared with the plan export viewer.) */
-html, body, #root { height: 100%; }
-body { overflow: hidden; }
-body.is-resizing { cursor: col-resize; user-select: none; }

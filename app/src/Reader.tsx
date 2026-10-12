@@ -1,14 +1,14 @@
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { FileDirectoryIcon, FileIcon, LinkExternalIcon, WorkflowIcon } from './icons';
+import { Button, Card, EmptyState, Spinner } from '@envsemble/envui';
+import { Markdown } from '@envsemble/envui/content';
+import { DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
 import type { Document, DocumentContent, ModelReference, Snapshot, Target } from './types';
 import { api, fileUrl } from './api';
 import { resolveLink } from './links';
 import { findHeadingId, headingSlug, rehypeHeadingIds } from './headings';
 import { documentTarget, workTarget } from './targets';
 import { bytes, workNumber } from './format';
-import { Blankslate, ProvenanceLabel, Spinner } from './ui';
+import { ProvenanceBadge } from './ui';
 import { useWorkbench } from './workbenchContext';
 
 /** Diagrams that reference a document, refetched when the folder changes. */
@@ -37,21 +37,17 @@ function cards(references: ModelReference[]): DiagramCard[] {
   }
   return [...byModel.values()];
 }
+/** Diagrams that explain the passage above them, with the elements they name. */
 function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boolean }) {
   const { open } = useWorkbench();
   const show = (card: DiagramCard, element?: string) => open(workTarget(card.workId, 'diagrams', { diagram: card.handle, element: element ?? card.elements[0]?.id ?? null }), { pin: true });
-  return <div className="diagram-cards">{items.map(card => <div className="diagram-card" key={card.key}>
-    <WorkflowIcon className="diagram-card-icon" size={16} />
-    <div className="diagram-card-body">
-      <div className="diagram-card-title">
-        <button type="button" className="link-button" onClick={() => show(card)}>{card.title}</button>
-        {showWork && <span className="muted">{workNumber(card.workId)}</span>}
-        <ProvenanceLabel provenance={card.provenance} />
-      </div>
-      {card.elements.length > 0 && <div className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => show(card, element.id)}>{element.name}</button>)}{card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</div>}
-    </div>
-    <button type="button" className="btn btn-sm" onClick={() => show(card)}>Open diagram</button>
-  </div>)}</div>;
+  return <div className="diagram-cards">{items.map(card => <Card key={card.key} className="diagram-card" tone="pane" padding={4}
+    heading={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
+    meta={showWork ? workNumber(card.workId) : undefined}
+    actions={<Button variant="secondary" onClick={() => show(card)}>Open diagram</Button>}>
+    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => show(card, element.id)}>{element.name}</button>)}
+      {card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</p>}
+  </Card>)}</div>;
 }
 
 function text(node: unknown): string {
@@ -81,6 +77,7 @@ function sessionId() {
   if (!viewSession) viewSession = crypto.randomUUID();
   return viewSession;
 }
+const rehypePlugins = [rehypeHeadingIds];
 
 export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle }: {
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: ModelReference[]; showWork?: boolean;
@@ -93,6 +90,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   function scrollToHeading(target: string) {
     const nodes = Array.from(article.current?.querySelectorAll<HTMLElement>('[id]') ?? []);
     const id = findHeadingId(target, nodes.map(node => node.id));
+    // The window scrolls under the sticky tabs; scroll-margin on headings keeps them in view.
     nodes.find(node => node.id === id)?.scrollIntoView();
   }
   useEffect(() => {
@@ -131,45 +129,48 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   function destination(href: string) {
     return resolveLink(href, file.path, snapshot.documents, snapshot.work, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths);
   }
-  const heading = (level: number) => function Heading({ node, children, id }: { node?: unknown; children?: ReactNode; id?: string }) {
-    const slug = headingSlug(text(node));
-    const line = (node as { position?: { start?: { line?: number } } } | undefined)?.position?.start?.line;
-    const attached = diagramCards.sections.get(slug);
-    const repeated = level === 1 && hideTitle !== undefined && text(node).trim() === hideTitle.trim();
-    return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && (line === undefined || line === diagramCards.lines.get(slug)) && <DiagramCards items={attached} showWork={showWork} />}</>;
-  };
-  const headings = useMemo(() => Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])), [diagramCards, showWork, hideTitle]);
+  const components = useMemo(() => {
+    const heading = (level: number) => function Heading({ node, children, id }: { node?: unknown; children?: ReactNode; id?: string }) {
+      const slug = headingSlug(text(node));
+      const line = (node as { position?: { start?: { line?: number } } } | undefined)?.position?.start?.line;
+      const attached = diagramCards.sections.get(slug);
+      const repeated = level === 1 && hideTitle !== undefined && text(node).trim() === hideTitle.trim();
+      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && (line === undefined || line === diagramCards.lines.get(slug)) && <DiagramCards items={attached} showWork={showWork} />}</>;
+    };
+    return {
+      ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])),
+      a: ({ href = '', children, id }: { href?: string; children?: ReactNode; id?: string }) => {
+        const target = destination(href);
+        if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></a>;
+        const owner = target.file ? snapshot.work.find(work => work.id === target.file!.workId) : undefined;
+        const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
+          : target.work ? workTarget(target.work.id, null, { anchor: target.anchor ?? null }) : null;
+        if (href.startsWith('#') && target.anchor !== undefined) return <a id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</a>;
+        if (route) return <a id={id} href="#" onClick={event => {
+          event.preventDefault();
+          if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
+          open(route, { pin: event.ctrlKey || event.metaKey });
+        }}>{children}</a>;
+        return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
+      },
+      img: ({ src = '', alt = '' }: { src?: unknown; alt?: string }) => {
+        const target = destination(typeof src === 'string' ? src : '');
+        return target.file ? <img src={fileUrl(target.file.path)} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
+      },
+    };
+  }, [diagramCards, showWork, hideTitle, snapshot, file.path, open]);
   const reveal = () => { api.reveal(file.path).catch(failure => notify(failure.message, 'warning')); };
-  const revealButton = remote ? null : <button type="button" className="btn btn-sm" onClick={reveal} title="Show this file in your file manager"><FileDirectoryIcon size={16} /> Show in folder</button>;
+  const revealButton = remote ? null : <Button variant="text" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>;
 
   return <article className={'reader' + (toolbar ? ' reader-boxed' : '')} ref={article}>
-    {toolbar && <div className="reader-toolbar"><span className="reader-name"><FileIcon size={16} /><strong>{file.name}</strong><span className="muted">{bytes(file.size)}</span></span>{revealButton}</div>}
-    {error ? <Blankslate title="Unable to open this file" action={revealButton}>{error}</Blankslate>
-      : !content ? <div className="reader-loading"><Spinner /> Loading…</div>
+    {toolbar && <div className="reader-toolbar"><span className="reader-name"><FileIcon /><strong>{file.name}</strong><span className="muted">{bytes(file.size)}</span></span>{revealButton}</div>}
+    {error ? <EmptyState icon={<FileIcon />} title="Unable to open this file" description={error} action={revealButton} />
+      : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
-        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHeadingIds]} components={{
-          ...headings,
-          a: ({ href = '', children, id }) => {
-            const target = destination(href);
-            if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<LinkExternalIcon className="external-icon" size={12} /></a>;
-            const owner = target.file ? snapshot.work.find(work => work.id === target.file!.workId) : undefined;
-            const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
-              : target.work ? workTarget(target.work.id, null, { anchor: target.anchor ?? null }) : null;
-            if (href.startsWith('#') && target.anchor !== undefined) return <a id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</a>;
-            if (route) return <a id={id} href="#" onClick={event => {
-              event.preventDefault();
-              if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
-              open(route, { pin: event.ctrlKey || event.metaKey });
-            }}>{children}</a>;
-            return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
-          },
-          img: ({ src = '', alt = '' }) => {
-            const target = destination(typeof src === 'string' ? src : '');
-            return target.file ? <img src={fileUrl(target.file.path)} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
-          },
-        }}>{content.body}</ReactMarkdown></div>
+        <Markdown rehypePlugins={rehypePlugins} components={components}>{content.body}</Markdown>
+      </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
-      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(file.path)} alt={file.title} /> : <Blankslate icon={<FileIcon size={24} />} title={file.name} action={revealButton}>{bytes(file.size)}</Blankslate>}</div>}
+      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}
   </article>;
 }

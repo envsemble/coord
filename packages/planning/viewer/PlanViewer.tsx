@@ -4,12 +4,22 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { AtlasMark, AtlasPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
 import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
 import {
-  AlertIcon, BookIcon, CheckIcon, ChevronRightIcon, DownloadIcon, FileDirectoryFillIcon, FileIcon, InfoIcon, SearchIcon, TasklistIcon,
-  TriangleDownIcon, WorkflowIcon,
-} from '@primer/octicons-react';
+  Badge, Breadcrumbs, Button, Counter, EmptyState, IconButton, Menu, MenuRadioGroup, MenuRadioItem, Notice, SearchField, Surface, Tabs, Text, ThemeToggle, Tree,
+  useThemePreference, type TreeItem,
+} from '@envsemble/envui';
+import { Code } from '@envsemble/envui/content';
+import { AccountTree } from '@envsemble/envui/icons/AccountTree';
+import { Checklist } from '@envsemble/envui/icons/Checklist';
+import { Description } from '@envsemble/envui/icons/Description';
+import { Download } from '@envsemble/envui/icons/Download';
+import { Error as ErrorIcon } from '@envsemble/envui/icons/Error';
+import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
+import { Folder } from '@envsemble/envui/icons/Folder';
+import { FolderOpen } from '@envsemble/envui/icons/FolderOpen';
+import { MenuBook } from '@envsemble/envui/icons/MenuBook';
 import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDiagram } from './data.ts';
 import { Markdown, markdownBody, scrollToHeading } from './Markdown.tsx';
-import { Blankslate, Counter, Dropdown, Label, LedgerSteps, ProvenanceLabel, StateLabel, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
+import { LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
 
 type Tab = 'plan' | 'ledger' | 'diagrams' | 'files';
 interface Route { tab: Tab | null; file: string | null; anchor: string | null; diagram: string | null; element: string | null }
@@ -46,35 +56,42 @@ function fileFormat(name: string) {
 }
 const baseName = (name: string) => name.split('/').pop() ?? name;
 
+type FileRow = TreeItem & { path: string; folder: boolean };
+/** The export's files as a tree; folders open on the way to the chosen file, and all of them while searching. */
 function FileTree({ files, selected, onSelect }: { files: ExportFile[]; selected?: string; onSelect(file: string): void }) {
   const [query, setQuery] = useState('');
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
   const visible = files.filter(file => file.path.toLowerCase().includes(query.toLowerCase()));
-  function branch(prefix: string, depth: number): ReactNode {
-    const directories = new Set<string>();
-    const leaves: ExportFile[] = [];
-    for (const file of visible) {
-      if (!file.path.startsWith(prefix)) continue;
-      const rest = file.path.slice(prefix.length);
-      if (rest.includes('/')) directories.add(rest.split('/')[0]); else leaves.push(file);
+  const rows = useMemo(() => {
+    const result: FileRow[] = [];
+    const isOpen = (folder: string) => Boolean(query) || open.has(folder) || Boolean(selected?.startsWith(folder + '/'));
+    function branch(prefix: string, depth: number) {
+      const directories = new Set<string>();
+      const leaves: ExportFile[] = [];
+      for (const file of visible) {
+        if (!file.path.startsWith(prefix)) continue;
+        const rest = file.path.slice(prefix.length);
+        if (rest.includes('/')) directories.add(rest.split('/')[0]); else leaves.push(file);
+      }
+      for (const name of [...directories].sort()) {
+        const folder = prefix + name;
+        const expanded = isOpen(folder);
+        result.push({ id: 'folder:' + folder, path: folder, folder: true, depth, expandable: true, expanded, label: name, textValue: name, icon: expanded ? <FolderOpen /> : <Folder /> });
+        if (expanded) branch(folder + '/', depth + 1);
+      }
+      for (const file of leaves) result.push({ id: 'file:' + file.path, path: file.path, folder: false, depth, label: baseName(file.path), textValue: baseName(file.path), title: file.path, icon: <Description /> });
     }
-    return <>
-      {[...directories].sort().map(name => <TreeFolder key={prefix + name} name={name} depth={depth} open={Boolean(query) || Boolean(selected?.startsWith(prefix + name + '/'))}>{branch(prefix + name + '/', depth + 1)}</TreeFolder>)}
-      {leaves.map(file => <li key={file.path}><button type="button" className={'tree-item' + (selected === file.path ? ' selected' : '')} style={{ paddingLeft: 8 + depth * 16 }} aria-current={selected === file.path ? 'page' : undefined} title={file.path} onClick={() => onSelect(file.path)}><FileIcon size={16} /><span>{baseName(file.path)}</span></button></li>)}
-    </>;
-  }
+    branch('', 0);
+    return result;
+  }, [visible, query, open, selected]);
+  const toggle = (folder: string, expanded: boolean) => setOpen(current => { const next = new Set(current); if (expanded) next.add(folder); else next.delete(folder); return next; });
   return <div className="file-tree">
-    <div className="search-box search-sm"><SearchIcon size={16} /><input aria-label="Go to file" placeholder="Go to file" value={query} onChange={event => setQuery(event.target.value)} /></div>
-    <ul className="tree" role="tree">{branch('', 0)}</ul>
-    {!visible.length && <p className="muted tree-empty">No matching files.</p>}
+    <SearchField label="Go to file" value={query} onValueChange={setQuery} />
+    {visible.length ? <Tree<FileRow> className="file-tree-view" items={rows} aria-label="Files" selectedId={selected ? 'file:' + selected : null} density="compact"
+      onOpen={item => { if (item.folder) toggle(item.path, !item.expanded); else onSelect(item.path); }}
+      onExpandedChange={(item, expanded) => toggle(item.path, expanded)} />
+      : <Text tone="muted" className="tree-empty">No matching files.</Text>}
   </div>;
-}
-function TreeFolder({ name, depth, open: forced, children }: { name: string; depth: number; open: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(forced);
-  useEffect(() => { if (forced) setOpen(true); }, [forced]);
-  return <li role="treeitem" aria-expanded={open}>
-    <button type="button" className="tree-item tree-folder" style={{ paddingLeft: 8 + depth * 16 }} onClick={() => setOpen(value => !value)}><ChevronRightIcon size={16} className={'tree-chevron' + (open ? ' open' : '')} /><FileDirectoryFillIcon size={16} className="tree-folder-icon" /><span>{name}</span></button>
-    {open && <ul role="group">{children}</ul>}
-  </li>;
 }
 
 function Reader({ file, data, anchor, toolbar, hideTitle, navigate }: { file: ExportFile; data: PlanData; anchor: string | null; toolbar?: boolean; hideTitle?: string; navigate(route: Partial<Route>): void }) {
@@ -85,70 +102,68 @@ function Reader({ file, data, anchor, toolbar, hideTitle, navigate }: { file: Ex
     if (anchor) requestAnimationFrame(() => scrollToHeading(article.current, anchor));
     else window.scrollTo(0, 0);
   }, [file.path, anchor]);
-  const download = <a className="btn btn-sm" href={blobURL(file, 'download')} download={baseName(file.path)}><DownloadIcon size={16} /> Download</a>;
+  const download = <Button variant="secondary" startIcon={<Download />} href={blobURL(file, 'download')} download={baseName(file.path)}>Download</Button>;
   return <article className={'reader' + (toolbar ? ' reader-boxed' : '')} ref={article}>
-    {toolbar && <div className="reader-toolbar"><span className="reader-name"><FileIcon size={16} /><strong>{baseName(file.path)}</strong><span className="muted">{bytes(file.size)}</span></span><a className="btn btn-sm btn-icon" href={blobURL(file, 'download')} download={baseName(file.path)} aria-label={'Download ' + baseName(file.path)} title="Download"><DownloadIcon size={16} /></a></div>}
-    {(format === 'markdown' || format === 'text') && text === null ? <Blankslate icon={<FileIcon size={24} />} title={baseName(file.path)} action={download}>This file is too large to show here ({bytes(file.size)}). Download it instead.</Blankslate>
+    {toolbar && <div className="reader-toolbar"><span className="reader-name"><Description /><strong>{baseName(file.path)}</strong><span className="muted">{bytes(file.size)}</span></span><IconButton variant="text" icon={<Download />} href={blobURL(file, 'download')} download={baseName(file.path)} aria-label={'Download ' + baseName(file.path)} /></div>}
+    {(format === 'markdown' || format === 'text') && text === null ? <EmptyState icon={<Description />} title={baseName(file.path)} action={download} description={`This file is too large to show here (${bytes(file.size)}). Download it instead.`} />
       : format === 'markdown' ? <Markdown path={file.path} body={markdownBody(text!)} files={data.files} diagrams={data.view.diagrams} hideTitle={hideTitle}
         onFile={(target, targetAnchor) => navigate({ tab: 'files', file: target, anchor: targetAnchor ?? null })}
         onAnchor={target => scrollToHeading(article.current, target)}
         onDiagram={(handle, element) => navigate({ tab: 'diagrams', diagram: handle, element: element ?? null })} />
       : format === 'text' ? <pre className="source-text">{text}</pre>
       : format === 'image' ? <div className="attachment"><img src={blobURL(file, 'view')} alt={baseName(file.path)} /></div>
-      : <div className="attachment"><Blankslate icon={<FileIcon size={24} />} title={baseName(file.path)} action={download}>{bytes(file.size)}</Blankslate></div>}
+      : <div className="attachment"><EmptyState icon={<Description />} title={baseName(file.path)} action={download} description={bytes(file.size)} /></div>}
   </article>;
 }
 
+function AboutSection({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
+  return <section className="about-section">
+    <Text as="h2" variant="section-heading" className="about-heading">{title}{note && <span className="about-note"> · {note}</span>}</Text>
+    {children}
+  </section>;
+}
 function About({ data }: { data: PlanData }) {
   const { work } = data.view;
   const progress = work.progress;
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   return <aside className="about" aria-label="About this work">
-    {progress && (progress.steps || progress.current || progress.next.length > 0 || progress.blocked) && <section className="about-section">
-      <h2>{progress.steps ? 'Progress' : 'Status'}{progress.updated && <span className="muted"> · {absoluteDate(progress.updated)}</span>}</h2>
-      {progress.blocked && <p className="about-blocked"><strong>Blocked:</strong> {progress.blocked}</p>}
+    {progress && (progress.steps || progress.current || progress.next.length > 0 || progress.blocked) && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && absoluteDate(progress.updated)}>
+      {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
       {progress.steps ? <LedgerSteps steps={progress.steps} /> : <>
         {progress.current && <p className="about-current">{progress.current}</p>}
-        {progress.next.length > 0 && <><h3>Next</h3><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
+        {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
-    </section>}
-    <section className="about-section">
-      <h2>About</h2>
-      {dates.length > 0 && <dl className="about-dates">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{absoluteDate(value)}</dd></div>)}</dl>}
-      <p className="about-path muted" title={work.path}>{data.payload.source.planningFolder}/{work.path}</p>
-    </section>
-    <section className="about-section">
-      <h2>This export</h2>
-      <dl className="about-dates">
+    </AboutSection>}
+    <AboutSection title="About">
+      {dates.length > 0 && <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{absoluteDate(value)}</dd></div>)}</dl>}
+      <p className="about-path" title={work.path}><bdi>{data.payload.source.planningFolder}/{work.path}</bdi></p>
+    </AboutSection>
+    <AboutSection title="This export">
+      <dl className="facts">
         <div><dt>Exported</dt><dd>{absoluteDate(data.payload.exportedAt)}</dd></div>
         <div><dt>Files</dt><dd>{data.payload.files.length} · {bytes(data.payload.files.reduce((sum, file) => sum + file.size, 0))}</dd></div>
         <div><dt>Atlas</dt><dd>{data.payload.atlasVersion}</dd></div>
       </dl>
-    </section>
+    </AboutSection>
   </aside>;
 }
 
 function ModelPicker({ diagrams, handle, onSelect }: { diagrams: ViewDiagram[]; handle: string; onSelect(handle: string): void }) {
   const current = diagrams.find(diagram => diagram.handle === handle);
-  return <Dropdown label="Choose a diagram" className="model-picker" buttonClassName="btn model-picker-button" button={<>
-    <WorkflowIcon size={16} /><span className="model-picker-title">{current?.title ?? 'Choose a diagram'}</span>{current && <ProvenanceLabel provenance={current.provenance} />}<TriangleDownIcon size={16} />
-  </>}>
-    {close => <div className="action-menu model-menu" role="menu">
-      <div className="menu-title">Diagrams</div>
-      {diagrams.map(diagram => <button key={diagram.handle} type="button" role="menuitemradio" aria-checked={diagram.handle === handle} className="menu-item menu-item-rich" onClick={() => { onSelect(diagram.handle); close(); }}>
-        <span className="menu-check">{diagram.handle === handle && <CheckIcon size={16} />}</span>
-        <span className="menu-text">
-          <span className="menu-item-heading"><strong>{diagram.title}</strong></span>
-          {diagram.provenance.detail && <span className="menu-description">{diagram.provenance.detail}</span>}
-          {diagram.explains.slice(0, 3).map((item, index) => <span key={index} className="menu-description">Explains {item.section ? item.path + ' › ' + item.section : item.path}</span>)}
-        </span>
-      </button>)}
-    </div>}
-  </Dropdown>;
+  return <Menu aria-label="Choose a diagram" align="start" className="model-menu"
+    trigger={<Button variant="secondary" className="model-picker-button" startIcon={<AccountTree />} endIcon={<ExpandMore />}>
+      <span className="model-picker-title">{current?.title ?? 'Choose a diagram'}</span>{current && <ProvenanceBadge provenance={current.provenance} />}
+    </Button>}>
+    <MenuRadioGroup value={handle} onValueChange={onSelect}>
+      {diagrams.map(diagram => <MenuRadioItem key={diagram.handle} value={diagram.handle}
+        description={[diagram.provenance.detail, ...diagram.explains.slice(0, 3).map(item => 'Explains ' + (item.section ? item.path + ' › ' + item.section : item.path))].filter(Boolean).join(' · ') || undefined}>{diagram.title}</MenuRadioItem>)}
+    </MenuRadioGroup>
+  </Menu>;
 }
 
 function Diagrams({ data, route, navigate }: { data: PlanData; route: Route; navigate(route: Partial<Route>): void }) {
   const diagrams = data.view.diagrams;
+  const { theme } = useThemePreference();
   const section = useRef<HTMLElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [notice, setNotice] = useState('');
@@ -183,15 +198,15 @@ function Diagrams({ data, route, navigate }: { data: PlanData; route: Route; nav
   return <section ref={section} className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {current?.payload ? <ViewerErrorBoundary key={handle} resetKey={handle}>
-        <AtlasPanel payload={current.payload as ViewerPayload} theme="dark" focus={route.element ? { kind: 'node', id: route.element } : undefined} onReference={onReference}
+        <AtlasPanel payload={current.payload as ViewerPayload} theme={theme} focus={route.element ? { kind: 'node', id: route.element } : undefined} onReference={onReference}
           leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen} />
       </ViewerErrorBoundary>
       : <>
         {picker && <div className="diagrams-island">{picker}</div>}
-        <div className="diagrams-state">{current ? <Blankslate icon={<AlertIcon size={24} />} title="This diagram cannot be shown">{current.error}</Blankslate>
-          : <Blankslate icon={<WorkflowIcon size={24} />} title="No diagrams">This work item has no diagrams.</Blankslate>}</div>
+        <div className="diagrams-state">{current ? <EmptyState icon={<ErrorIcon />} title="This diagram cannot be shown" description={current.error} />
+          : <EmptyState icon={<AccountTree />} title="No diagrams" description="This work item has no diagrams." />}</div>
       </>}
-      {notice && <div className="diagrams-notices" role="status"><div className="flash flash-warning">{notice}</div></div>}
+      {notice && <div className="diagrams-notices" role="status"><Notice tone="warning">{notice}</Notice></div>}
     </div>
   </section>;
 }
@@ -207,46 +222,49 @@ export function PlanViewer({ data }: { data: PlanData }) {
   const reading = tab === 'plan' ? plan : tab === 'ledger' ? ledger : selected;
   useEffect(() => { document.title = view.work.title + ' | Atlas plan'; }, [view.work.title]);
   const tabs: { id: Tab; label: string; icon: ReactNode; count?: number; hidden?: boolean }[] = [
-    { id: 'plan', label: 'Plan', icon: <TasklistIcon size={16} />, hidden: !plan },
-    { id: 'ledger', label: 'Ledger', icon: <BookIcon size={16} />, hidden: !ledger },
-    { id: 'diagrams', label: 'Diagrams', icon: <WorkflowIcon size={16} />, count: view.diagrams.length },
-    { id: 'files', label: 'Files', icon: <FileIcon size={16} />, count: listed.length },
+    { id: 'plan', label: 'Plan', icon: <Checklist />, hidden: !plan },
+    { id: 'ledger', label: 'Ledger', icon: <MenuBook />, hidden: !ledger },
+    { id: 'diagrams', label: 'Diagrams', icon: <AccountTree />, count: view.diagrams.length },
+    { id: 'files', label: 'Files', icon: <Description />, count: listed.length },
   ];
-  return <main className="content plan-export">
-    <div className={'work-page tab-' + tab}>
-      <div className="flash export-banner" role="note"><InfoIcon size={16} /><div>
-        <p><strong>Read-only plan export</strong> of {payload.source.workId} from <code>{payload.source.planningFolder}</code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}.</p>
-        <p>To continue this work, import the file into a planning folder: <code>atlas plan import &lt;file&gt;</code></p>
-      </div><span className="export-mark"><AtlasMark size={20} label="Atlas" /></span></div>
-      <nav className="breadcrumb" aria-label="Breadcrumb"><ol><li><span>{payload.source.planningFolder}</span></li><li><span aria-current="page">{workNumber(view.work.id)}</span></li></ol></nav>
-      <header className="work-header">
-        <h1>{view.work.title}</h1>
-        <div className="work-header-meta">
-          <StateLabel status={workStatus(view.work)} />
-          {view.work.location === 'archive' && <Label tone="attention">Archived</Label>}
-          {view.work.repositories.map(repository => <Label key={repository.id} tone="muted" title={repository.name}>{repository.id}</Label>)}
+  const body = tab === 'diagrams' ? <Diagrams data={data} route={route} navigate={navigate} />
+    : <div className="work-layout">
+      <div className="work-main">
+        {tab === 'files' ? <div className="files-tab">
+          <FileTree files={listed} selected={selected?.path} onSelect={file => navigate({ tab: 'files', file })} />
+          {selected ? <Surface className="file-surface" padding={0}><Reader key={selected.path} file={selected} data={data} anchor={route.anchor} toolbar navigate={navigate} /></Surface> : <Text tone="muted" className="tree-empty">No files.</Text>}
+        </div>
+        : reading ? <Reader key={reading.path} file={reading} data={data} anchor={route.anchor} hideTitle={view.work.title} navigate={navigate} /> : null}
+      </div>
+      <About data={data} />
+    </div>;
+  return <main className="plan-export">
+    <div className={'work-page section-' + tab}>
+      <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note"
+        title="Read-only plan export" action={<ThemeToggle />}>
+        {payload.source.workId} from <Code>{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code>atlas plan import &lt;file&gt;</Code>
+      </Notice>
+      <header className="work-page-head">
+        <Breadcrumbs className="breadcrumb" items={[{ label: payload.source.planningFolder }, { label: workNumber(view.work.id) }]} />
+        <div className="work-header">
+          <Text as="h1" variant="page-heading">{view.work.title}</Text>
+          <div className="work-header-meta">
+            <StatusBadge status={workStatus(view.work)} />
+            {view.work.location === 'archive' && <Badge tone="warning">Archived</Badge>}
+            {view.work.repositories.map(repository => <Badge key={repository.id} variant="outline" title={repository.name}>{repository.id}</Badge>)}
+          </div>
         </div>
       </header>
-      <nav className="underline-nav" aria-label="Work sections">
-        {tabs.filter(item => !item.hidden).map(item => <a key={item.id} href={routeHash({ tab: item.id })} className={tab === item.id ? 'selected' : ''} aria-current={tab === item.id ? 'page' : undefined}>
-          {item.icon}<span>{item.label}</span>{item.count !== undefined && item.count > 0 && <Counter>{item.count}</Counter>}
-        </a>)}
-      </nav>
-      {tab === 'diagrams' ? <Diagrams data={data} route={route} navigate={navigate} />
-        : <div className="work-layout">
-          <div className="work-main">
-            {tab === 'files' ? <div className="files-tab">
-              <FileTree files={listed} selected={selected?.path} onSelect={file => navigate({ tab: 'files', file })} />
-              {selected ? <Reader key={selected.path} file={selected} data={data} anchor={route.anchor} toolbar navigate={navigate} /> : <div className="box"><p className="muted tree-empty">No files.</p></div>}
-            </div>
-            : reading ? <Reader key={reading.path} file={reading} data={data} anchor={route.anchor} hideTitle={view.work.title} navigate={navigate} /> : null}
-          </div>
-          <About data={data} />
-        </div>}
+      <Tabs className="work-sections" aria-label="Work sections" value={tab} activation="manual" onValueChange={value => { if (value) navigate({ tab: value as Tab }); }}
+        items={tabs.filter(item => !item.hidden).map(item => ({
+          value: item.id,
+          button: <Button variant="secondary" startIcon={item.icon}>{item.label}{item.count ? <> <Counter value={item.count} /></> : null}</Button>,
+          content: item.id === tab ? body : null,
+        }))} />
     </div>
   </main>;
 }
 
 export function ExportError({ message }: { message: string }) {
-  return <main className="content plan-export"><Blankslate icon={<AlertIcon size={24} />} title="This plan export cannot be shown">{message}</Blankslate></main>;
+  return <main className="plan-export"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="This plan export cannot be shown" description={message} /></main>;
 }

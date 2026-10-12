@@ -9,9 +9,10 @@ import { samePath } from './links';
 import { selectModelHandle } from './modelSelection';
 import { resolveRecordPath } from '@envsemble/atlas-planning/paths';
 import type { ProvenanceKind } from '@envsemble/atlas-planning/provenance';
-import { CheckIcon, TriangleDownIcon, WorkflowIcon } from './icons';
-import { Blankslate, ProvenanceLabel, Spinner } from './ui';
-import { Popover } from './components/Popover';
+import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, useThemePreference } from '@envsemble/envui';
+import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
+import { DiagramIcon } from './icons';
+import { ProvenanceBadge } from './ui';
 import { useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
@@ -28,34 +29,27 @@ function explainsText(item: Explains) {
 }
 function ModelPicker({ models, handle, onSelect }: { models: CatalogEntry[]; handle: string; onSelect(handle: string): void }) {
   const current = models.find(model => model.handle === handle);
-  return <Popover label="Choose a diagram" className="model-picker" buttonClassName="btn model-picker-button" button={<>
-    <WorkflowIcon size={16} />
-    <span className="model-picker-title">{current?.title ?? (handle ? 'Unavailable model' : 'Choose a diagram')}</span>
-    {current && <ProvenanceLabel provenance={current.provenance} />}
-    <TriangleDownIcon size={16} />
-  </>}>
-    {close => <div className="action-menu model-menu" role="menu">
+  return <Menu aria-label="Choose a diagram" align="start" className="model-menu"
+    trigger={<Button variant="secondary" className="model-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
+      <span className="model-picker-title">{current?.title ?? (handle ? 'Unavailable model' : 'Choose a diagram')}</span>
+      {current && <ProvenanceBadge provenance={current.provenance} />}
+    </Button>}>
+    <MenuRadioGroup value={handle} onValueChange={onSelect}>
       {groups.map(group => {
         const items = models.filter(model => model.provenance.kind === group.kind);
         if (!items.length) return null;
-        return <div key={group.kind} role="group" aria-label={group.title}>
-          <div className="menu-title">{group.title}</div>
-          {items.map(model => <button key={model.handle} type="button" role="menuitemradio" aria-checked={model.handle === handle} className="menu-item menu-item-rich" onClick={() => { onSelect(model.handle); close(); }}>
-            <span className="menu-check">{model.handle === handle && <CheckIcon size={16} />}</span>
-            <span className="menu-text">
-              <span className="menu-item-heading"><strong>{model.title}</strong></span>
-              {model.provenance.detail && <span className="menu-description">{model.provenance.detail}</span>}
-              {model.explains.filter(item => item.path).slice(0, 3).map((item, index) => <span key={index} className="menu-description">Explains {explainsText(item)}</span>)}
-            </span>
-          </button>)}
-        </div>;
+        return <MenuGroup key={group.kind} label={group.title}>
+          {items.map(model => <MenuRadioItem key={model.handle} value={model.handle}
+            description={[model.provenance.detail, ...model.explains.filter(item => item.path).slice(0, 3).map(item => 'Explains ' + explainsText(item))].filter(Boolean).join(' · ') || undefined}>{model.title}</MenuRadioItem>)}
+        </MenuGroup>;
       })}
-    </div>}
-  </Popover>;
+    </MenuRadioGroup>
+  </Menu>;
 }
 
 export function AtlasWorkPanel({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
   const { open, retarget, revision } = useWorkbench();
+  const { theme } = useThemePreference();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState('');
   const [modelError, setModelError] = useState('');
@@ -118,16 +112,16 @@ export function AtlasWorkPanel({ work, snapshot, target }: { work: Work; snapsho
   return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {ready ? <ViewerErrorBoundary key={handle} resetKey={payload.model.document?.revision.id}>
-        <AtlasPanel payload={payload} theme="dark" focus={target.element ? { kind: 'node', id: target.element } : null} onReference={onReference}
+        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: target.element } : null} onReference={onReference}
           leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen} />
       </ViewerErrorBoundary>
       : <>
         {picker && <div className="diagrams-island">{picker}</div>}
-        {!catalog ? <div className="diagrams-state"><Spinner /> Loading diagrams…</div>
-          : empty ? <div className="diagrams-state"><Blankslate icon={<WorkflowIcon size={24} />} title="No diagrams yet">Ask your agent to model this plan with the atlas-model skill. Diagrams are saved in this work folder.</Blankslate></div>
-          : <div className="diagrams-state">{modelError ? null : <><Spinner /> Loading diagram…</>}</div>}
+        {!catalog ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
+          : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Ask your agent to model this plan with the atlas-model skill. Diagrams are saved in this work folder." /></div>
+          : <div className="diagrams-state">{modelError ? null : <Spinner label="Loading the diagram" />}</div>}
       </>}
-      {notices.length > 0 && <div className="diagrams-notices" role="status">{notices.map((message, index) => <div className="flash flash-warning" key={index}>{message}</div>)}</div>}
+      {notices.length > 0 && <div className="diagrams-notices" role="status">{notices.map((message, index) => <Notice tone="warning" key={index}>{message}</Notice>)}</div>}
     </div>
   </section>;
 }

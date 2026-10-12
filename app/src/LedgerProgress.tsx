@@ -2,7 +2,7 @@
 // The plan export viewer draws the same markup (packages/planning/viewer/ui.tsx).
 import { stepCounts, stepSummary } from '@envsemble/atlas-planning/ledger';
 import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/atlas-planning/types';
-import { CheckCircleFillIcon, CircleIcon, DotFillIcon } from './icons';
+import { CompleteIcon, InProgressIcon, OpenIcon } from './icons';
 
 const statusLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };
 
@@ -19,8 +19,8 @@ export function StepBar({ counts, compact = false }: { counts: StepCounts; compa
 }
 
 export function StepIcon({ status }: { status: LedgerStepStatus }) {
-  const props = { size: 16, className: 'step-icon step-' + status, 'aria-label': statusLabels[status] };
-  return status === 'done' ? <CheckCircleFillIcon {...props} /> : status === 'doing' ? <DotFillIcon {...props} /> : <CircleIcon {...props} />;
+  const props = { className: 'step-icon', 'data-status': status, label: statusLabels[status] };
+  return status === 'done' ? <CompleteIcon filled {...props} /> : status === 'doing' ? <InProgressIcon {...props} /> : <OpenIcon {...props} />;
 }
 
 export function LedgerSteps({ steps }: { steps: LedgerStep[] }) {

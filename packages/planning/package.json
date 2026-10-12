@@ -33,8 +33,9 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@primer/octicons-react": "19.40.0",
-    "@primer/primitives": "^11.10.0",
+    "@envsemble/envui": "0.1.0",
+    "@shikijs/langs": "4.5.0",
+    "@shikijs/themes": "4.5.0",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -44,6 +45,7 @@
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "shiki": "4.5.0",
     "typescript": "7.0.2"
   }
 }

@@ -1,43 +1,33 @@
-// Choosing where to work: the computer menu (this computer and the paired ones, like Platform's
-// organization menu), a computer's folder list, and the folder menu built on it. A folder or a
-// computer opens in this window; the button beside it, or Ctrl+Enter, opens it in a new window.
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { CheckIcon, DeviceDesktopIcon, FileDirectoryIcon, LinkExternalIcon, PlusIcon, TriangleDownIcon, UnfoldIcon, XIcon } from './icons';
+// Choosing where to work: the computer menu at the top of the window (this computer and the paired
+// ones, like Platform's organization menu), the folder menu above the explorer, and the lists behind
+// them. Choosing in a menu opens in this window; the lists also open a computer or a folder in a new
+// window, and remove folders or forget computers.
+import { createContext, useCallback, useContext, useEffect, useState, type MouseEvent } from 'react';
+import {
+  Badge, Button, ConfirmButton, Dialog, EmptyState, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip,
+} from '@envsemble/envui';
+import { UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
+import { AddIcon, CloseIcon, ComputerIcon, DevicesIcon, FolderIcon, NewWindowIcon } from './icons';
 import type { Computer, ComputerFolder, ComputerRef } from './types';
 import { api } from './api';
-import { relativeDate } from './format';
-import { Popover } from './components/Popover';
-import { Label, Spinner } from './ui';
+import { plural, relativeDate } from './format';
 
-/** Window-wide actions the menus start: pairing, the folder browser, remote access. */
-export interface AppActions { connect(): void; browse(computer: ComputerRef, near?: string | null): void; remoteAccess(): void }
-export const AppActionsContext = createContext<AppActions>({ connect: () => undefined, browse: () => undefined, remoteAccess: () => undefined });
+/** Window-wide actions the menus start: pairing, the folder browser, remote access, and the lists. */
+export interface AppActions {
+  connect(): void;
+  browse(computer: ComputerRef, near?: string | null): void;
+  remoteAccess(): void;
+  manageComputers(): void;
+  manageFolders(computer: ComputerRef): void;
+}
+const nothing = () => undefined;
+export const AppActionsContext = createContext<AppActions>({ connect: nothing, browse: nothing, remoteAccess: nothing, manageComputers: nothing, manageFolders: nothing });
 export const useAppActions = () => useContext(AppActionsContext);
 
 const statusLabels: Record<Computer['status'], string | null> = { online: null, connecting: 'Connecting', offline: 'Offline', revoked: 'Not paired', mismatch: 'Not the same computer', incompatible: 'Needs an update' };
-/** Ctrl (⌘ on macOS) with Enter or a click: open in a new window. */
+/** Ctrl (⌘ on macOS) with a click: open in a new window. */
 const wantsNewWindow = (event: { ctrlKey: boolean; metaKey: boolean }) => event.ctrlKey || event.metaKey;
-const onEnter = (open: (newWindow: boolean) => void) => (event: KeyboardEvent) => { if (event.key === 'Enter' && wantsNewWindow(event)) { event.preventDefault(); open(true); } };
-
-/**
- * A menu panel: focus moves to its first choice once its list has loaded (`ready`), and the arrow
- * keys move between choices (Tab reaches the buttons beside them).
- */
-function useMenuKeys(ready: boolean) {
-  const ref = useRef<HTMLDivElement>(null);
-  const choices = () => [...(ref.current?.querySelectorAll<HTMLButtonElement>('button.menu-item:not(:disabled)') ?? [])];
-  useEffect(() => { if (ready) choices()[0]?.focus(); }, [ready]);
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
-    const buttons = choices();
-    if (!buttons.length) return;
-    event.preventDefault();
-    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
-    buttons[next].focus();
-  };
-  return { ref, onKeyDown };
-}
+const describe = (computer: Computer) => computer.hostId === null ? 'This computer' : computer.origin?.replace(/^https?:\/\//, '') ?? '';
 
 /** A computer's folder list, kept current as it changes (on any device). */
 export function useComputerFolders(hostId: string | null, active = true) {
@@ -56,87 +46,75 @@ export function useComputerFolders(hostId: string | null, active = true) {
   return { folders, error, reload: load };
 }
 
-/** The pill at the top of the explorer and the welcome page: the computer this window works on. */
-export function ComputerMenu({ current, onError, className = '' }: { current: ComputerRef; onError(message: string): void; className?: string }) {
+/** The computers this app works on, checked each time the list opens. */
+function useComputers(active: boolean, onError: (message: string) => void) {
   const [computers, setComputers] = useState<Computer[] | null>(null);
-  const [forgetting, setForgetting] = useState<string | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    let current = true;
+    setComputers(null);
+    api.computers().then(next => { if (current) setComputers(next); }, failure => { if (current) { setComputers([]); onError((failure as Error).message); } });
+    return () => { current = false; };
+  }, [active]);
+  return computers;
+}
+
+function switchTo(computer: Computer, current: ComputerRef, newWindow: boolean, onError: (message: string) => void) {
+  if (computer.hostId === current.hostId && !newWindow) return;
+  api.switchComputer(computer.hostId, newWindow).catch(failure => onError((failure as Error).message));
+}
+
+/** The computer this window works on, in the window's top bar. */
+export function ComputerMenu({ current, onError }: { current: ComputerRef; onError(message: string): void }) {
+  const [open, setOpen] = useState(false);
+  const computers = useComputers(open, onError);
   const actions = useAppActions();
-  const load = (open: boolean) => { setForgetting(null); if (open) { setComputers(null); api.computers().then(setComputers, failure => { setComputers([]); onError((failure as Error).message); }); } };
-  const forget = (computer: Computer, close: () => void) => {
-    close();
-    api.forgetRemote(computer.hostId!).catch(failure => onError((failure as Error).message));
-  };
-  const choose = (computer: Computer, newWindow: boolean, close: () => void) => {
-    close();
-    if (computer.hostId === current.hostId && !newWindow) return;
-    api.switchComputer(computer.hostId, newWindow).catch(failure => onError((failure as Error).message));
-  };
-  return <Popover label={'Computer: ' + current.name} title={'Working on ' + current.name} className={'computer-menu ' + className} buttonClassName="btn btn-sm computer-pill" onOpenChange={load}
-    button={<><DeviceDesktopIcon size={16} /><span className="computer-pill-name">{current.name}</span><UnfoldIcon size={16} /></>}>
-    {close => <MenuPanel className="computer-list" ready={computers !== null}>
-      <div className="menu-title">Computers</div>
-      {computers === null ? <div className="menu-loading"><Spinner />Checking computers…</div> : computers.map(computer => {
-        const status = statusLabels[computer.status];
-        const usable = computer.status === 'online';
-        const checked = computer.hostId === current.hostId;
-        if (forgetting !== null && forgetting === computer.hostId) return <div key={computer.hostId} className="menu-row menu-confirm" role="group" aria-label={'Forget ' + computer.name}>
-          <span className="menu-text">Forget {computer.name}? Windows showing it close, and this computer must pair again to reach it.</span>
-          <button type="button" className="btn btn-sm btn-danger" onClick={() => forget(computer, close)}>Forget</button>
-          <button type="button" className="btn btn-sm" onClick={() => setForgetting(null)}>Keep</button>
-        </div>;
-        return <div key={computer.hostId ?? 'local'} className={'menu-row' + (checked ? ' is-current' : '')}>
-          <button type="button" aria-current={checked || undefined} className="menu-item" disabled={!usable} title={computer.detail ?? undefined}
-            onClick={event => choose(computer, wantsNewWindow(event), close)} onKeyDown={onEnter(newWindow => choose(computer, newWindow, close))}>
-            <span className="menu-check">{checked && <CheckIcon size={16} />}</span>
-            <span className="menu-text">
-              <span className="menu-item-heading"><strong>{computer.name}</strong>{status && <Label tone={computer.status === 'connecting' ? 'muted' : 'attention'}>{status}</Label>}</span>
-              <span className="menu-description">{computer.hostId === null ? 'This computer' : computer.origin?.replace(/^https?:\/\//, '')}</span>
-            </span>
-          </button>
-          <button type="button" className="btn-octicon menu-row-action" aria-label={'Open ' + computer.name + ' in a new window'} title="Open in a new window (Ctrl+Enter)" disabled={!usable}
-            onClick={() => choose(computer, true, close)}><LinkExternalIcon size={16} /></button>
-          {computer.hostId !== null && <button type="button" className="btn-octicon menu-row-action" aria-label={'Forget ' + computer.name} title="Forget this computer" onClick={() => setForgetting(computer.hostId)}><XIcon size={16} /></button>}
-        </div>;
-      })}
-      <div className="menu-separator" role="separator" />
-      <button type="button" className="menu-item" onClick={() => { close(); actions.connect(); }}>
-        <span className="menu-check"><PlusIcon size={16} /></span><span className="menu-text">Connect to another computer…</span>
-      </button>
-    </MenuPanel>}
-  </Popover>;
+  return <Menu aria-label={'Computer: ' + current.name} align="start" open={open} onOpenChange={setOpen}
+    trigger={<Button variant="secondary" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />}><span className="computer-trigger-label">{current.name}</span></Button>}>
+    <MenuGroup label="Computers">
+      {computers === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Checking computers…</MenuItem>
+        : <MenuRadioGroup value={current.hostId ?? 'local'} onValueChange={value => {
+          const computer = computers.find(item => (item.hostId ?? 'local') === value);
+          if (computer) switchTo(computer, current, false, onError);
+        }}>
+          {computers.map(computer => <MenuRadioItem key={computer.hostId ?? 'local'} value={computer.hostId ?? 'local'} disabled={computer.status !== 'online'}
+            description={[statusLabels[computer.status], describe(computer)].filter(Boolean).join(' · ')}>{computer.name}</MenuRadioItem>)}
+        </MenuRadioGroup>}
+    </MenuGroup>
+    <MenuSeparator />
+    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to another computer…</MenuItem>
+    <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage computers…</MenuItem>
+  </Menu>;
 }
 
-/** The inside of a menu popover. */
-function MenuPanel({ className, ready, children }: { className: string; ready: boolean; children: ReactNode }) {
-  const { ref, onKeyDown } = useMenuKeys(ready);
-  return <div ref={ref} className={'action-menu ' + className} onKeyDown={onKeyDown}>{children}</div>;
+/** The folder name above the explorer: this computer's planning folders, opened in this window. */
+export function FolderMenu({ computer, folderName, folderPath, isCurrent, onError }: { computer: ComputerRef; folderName: string; folderPath: string; isCurrent(folder: ComputerFolder): boolean; onError(message: string): void }) {
+  const [open, setOpen] = useState(false);
+  const { folders, error } = useComputerFolders(computer.hostId, open);
+  const actions = useAppActions();
+  const current = folders?.find(isCurrent);
+  return <Menu aria-label={'Planning folder: ' + folderName} align="start" open={open} onOpenChange={setOpen}
+    trigger={<Button variant="text" className="folder-trigger" endIcon={<UnfoldMore />}><span className="folder-trigger-label">{folderName}</span></Button>}>
+    <MenuGroup label={'Planning folders on ' + computer.name}>
+      {folders === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Loading…</MenuItem>
+        : folders.length ? <MenuRadioGroup value={current?.folderId ?? ''} onValueChange={value => {
+          const folder = folders.find(item => item.folderId === value);
+          if (folder) openFolder(computer, folder, false, onError);
+        }}>
+          {folders.map(folder => <MenuRadioItem key={folder.folderId} value={folder.folderId} disabled={!folder.available} description={folder.path}>
+            {folder.name}{!folder.available && <> <Badge tone="warning">Missing</Badge></>}
+          </MenuRadioItem>)}
+        </MenuRadioGroup>
+        : <MenuItem disabled>{error || 'No planning folders yet.'}</MenuItem>}
+    </MenuGroup>
+    <MenuSeparator />
+    <MenuItem icon={<FolderIcon />} onClick={() => openFolderOn(computer, actions, onError, folderPath)}>Open Folder…</MenuItem>
+    <MenuItem onClick={() => actions.manageFolders(computer)}>Manage folders…</MenuItem>
+  </Menu>;
 }
 
-/** One computer's folder list: open a folder here or in a new window, or take it off the list (for every device). */
-export function FolderList({ computer, folders, current, onError, onOpened, compact = false }: {
-  computer: ComputerRef; folders: ComputerFolder[]; current?: (folder: ComputerFolder) => boolean; onError(message: string): void; onOpened?(): void; compact?: boolean;
-}) {
-  const open = (folder: ComputerFolder, newWindow: boolean) => {
-    api.openFolder(computer.hostId, folder.path, newWindow).then(() => onOpened?.(), failure => { if ((failure as { code?: string }).code !== 'cancelled') onError((failure as Error).message); });
-  };
-  const remove = (folder: ComputerFolder) => { api.removeFolder(computer.hostId, folder.folderId).catch(failure => onError((failure as Error).message)); };
-  return <ul className={'folder-list' + (compact ? ' is-compact' : '')} aria-label={'Planning folders on ' + computer.name}>{folders.map(folder => {
-    const checked = current?.(folder) ?? false;
-    return <li key={folder.folderId} className={'menu-row' + (checked ? ' is-current' : '')}>
-      <button type="button" className="menu-item folder-list-item" disabled={!folder.available} aria-current={checked || undefined} title={folder.path}
-        onClick={event => open(folder, wantsNewWindow(event))} onKeyDown={onEnter(newWindow => open(folder, newWindow))}>
-        <span className="menu-check">{checked ? <CheckIcon size={16} /> : <FileDirectoryIcon size={16} />}</span>
-        <span className="menu-text">
-          <span className="menu-item-heading"><strong>{folder.name}</strong>{!folder.available && <Label tone="attention">Missing</Label>}
-            {folder.available && folder.workItems !== null && <span className="muted">{folder.workItems} work {folder.workItems === 1 ? 'item' : 'items'}</span>}</span>
-          <span className="menu-description path"><bdi>{folder.path}</bdi></span>
-        </span>
-        {!compact && folder.openedAt && <span className="muted folder-list-date">{relativeDate(folder.openedAt)}</span>}
-      </button>
-      <button type="button" className="btn-octicon menu-row-action" aria-label={'Open ' + folder.name + ' in a new window'} title="Open in a new window (Ctrl+Enter)" disabled={!folder.available} onClick={() => open(folder, true)}><LinkExternalIcon size={16} /></button>
-      <button type="button" className="btn-octicon menu-row-action" aria-label={'Remove ' + folder.name + ' from the list'} title={'Remove from the folder list (on every device)'} onClick={() => remove(folder)}><XIcon size={16} /></button>
-    </li>;
-  })}</ul>;
+function openFolder(computer: ComputerRef, folder: ComputerFolder, newWindow: boolean, onError: (message: string) => void, onOpened?: () => void) {
+  api.openFolder(computer.hostId, folder.path, newWindow).then(() => onOpened?.(), failure => { if ((failure as { code?: string }).code !== 'cancelled') onError((failure as Error).message); });
 }
 
 /** Open a folder that is not on the list yet: the system's dialog here, the in-app browser on another computer. */
@@ -145,23 +123,76 @@ export function openFolderOn(computer: ComputerRef, actions: AppActions, onError
   else actions.browse(computer, near);
 }
 
-/** The folder name at the top of the explorer: a menu of this computer's planning folders. */
-export function FolderMenu({ computer, folderName, folderPath, isCurrent, onError }: { computer: ComputerRef; folderName: string; folderPath: string; isCurrent(folder: ComputerFolder): boolean; onError(message: string): void }) {
-  const [open, setOpen] = useState(false);
-  const { folders, error } = useComputerFolders(computer.hostId, open);
+/**
+ * One computer's folder list: open a folder in this window (Ctrl+click: a new one) or in a new
+ * window, or take it off the list, which removes it for every device.
+ */
+export function FolderRows({ computer, folders, current, onError, onOpened }: {
+  computer: ComputerRef; folders: ComputerFolder[]; current?: (folder: ComputerFolder) => boolean; onError(message: string): void; onOpened?(): void;
+}) {
+  const remove = (folder: ComputerFolder) => { api.removeFolder(computer.hostId, folder.folderId).catch(failure => onError((failure as Error).message)); };
+  return <GroupedRows className="folder-rows" aria-label={'Planning folders on ' + computer.name}>{folders.map(folder => {
+    const here = current?.(folder) ?? false;
+    const facts = [folder.available ? folder.workItems !== null && plural(folder.workItems, 'work item') : null, folder.openedAt && 'opened ' + relativeDate(folder.openedAt)].filter(Boolean).join(' · ');
+    return <Row key={folder.folderId} className="folder-row" data-current={here || undefined}
+      title={<button type="button" className="row-link" disabled={!folder.available} aria-current={here || undefined} title={'Open ' + folder.path}
+        onClick={(event: MouseEvent) => openFolder(computer, folder, wantsNewWindow(event), onError, onOpened)}>
+        <span className="row-link-title">{folder.name}</span>
+        {!folder.available && <Badge tone="warning">Missing</Badge>}
+        {here && <Badge tone="accent">This window</Badge>}
+      </button>}
+      detail={<><bdi className="folder-row-path">{folder.path}</bdi>{facts && <span className="folder-row-facts">{facts}</span>}</>}
+      action={<span className="row-actions">
+        <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + folder.name + ' in a new window'} disabled={!folder.available} onClick={() => openFolder(computer, folder, true, onError, onOpened)} /></Tooltip>
+        <Tooltip content="Remove from the list on every device"><IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder.name + ' from the list'} onClick={() => remove(folder)} /></Tooltip>
+      </span>} />;
+  })}</GroupedRows>;
+}
+
+/** Folder menu › Manage folders…: the whole list for one computer. */
+export function FoldersDialog({ computer, isCurrent, onClose }: { computer: ComputerRef; isCurrent?(folder: ComputerFolder): boolean; onClose(): void }) {
+  const { folders, error: listError } = useComputerFolders(computer.hostId);
+  const [error, setError] = useState('');
   const actions = useAppActions();
-  return <Popover label={'Planning folder: ' + folderName} title={'Planning folders on ' + computer.name} className="folder-menu" buttonClassName="explorer-title folder-menu-button" onOpenChange={setOpen}
-    button={<><span className="folder-menu-name">{folderName}</span><TriangleDownIcon size={16} /></>}>
-    {close => <MenuPanel className="folder-menu-panel" ready={folders !== null}>
-      <div className="menu-title">Planning folders on {computer.name}</div>
-      {folders === null ? <div className="menu-loading"><Spinner />Loading…</div>
-        : folders.length ? <FolderList computer={computer} folders={folders} current={isCurrent} onError={message => { close(); onError(message); }} onOpened={close} compact />
-        : <p className="menu-loading">No planning folders yet.</p>}
-      {error && <p className="menu-error">{error}</p>}
-      <div className="menu-separator" role="separator" />
-      <button type="button" className="menu-item" onClick={() => { close(); openFolderOn(computer, actions, onError, folderPath); }}>
-        <span className="menu-check"><FileDirectoryIcon size={16} /></span><span className="menu-text">Open Folder…</span>
-      </button>
-    </MenuPanel>}
-  </Popover>;
+  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={'Planning folders on ' + computer.name}
+    description="Every device that works on this computer sees the same list."
+    actions={<>
+      <Button variant="secondary" startIcon={<FolderIcon />} onClick={() => { onClose(); openFolderOn(computer, actions, setError); }}>Open Folder…</Button>
+      <Button variant="primary" onClick={onClose}>Done</Button>
+    </>}>
+    {folders === null ? <Spinner label="Loading folders" />
+      : folders.length ? <FolderRows computer={computer} folders={folders} current={isCurrent} onError={setError} onOpened={onClose} />
+      : <EmptyState title="No planning folders yet" description={listError || 'Open a folder to add it.'} icon={<FolderIcon />} />}
+    {error && <p className="dialog-error" role="alert">{error}</p>}
+  </Dialog>;
+}
+
+/** Computer menu › Manage computers…: open one in a new window, or forget a paired one. */
+export function ComputersDialog({ current, onClose }: { current: ComputerRef; onClose(): void }) {
+  const [error, setError] = useState('');
+  const computers = useComputers(true, setError);
+  const actions = useAppActions();
+  const forget = (computer: Computer) => { api.forgetRemote(computer.hostId!).catch(failure => setError((failure as Error).message)); };
+  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title="Computers"
+    description="This computer and the computers it is paired with. Choose one in the computer menu to work on it in this window."
+    actions={<>
+      <Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect to another computer…</Button>
+      <Button variant="primary" onClick={onClose}>Done</Button>
+    </>}>
+    {computers === null ? <Spinner label="Checking computers" />
+      : <GroupedRows className="computer-rows" aria-label="Computers">{computers.map(computer => {
+        const status = statusLabels[computer.status];
+        const usable = computer.status === 'online';
+        const here = computer.hostId === current.hostId;
+        return <Row key={computer.hostId ?? 'local'} className="computer-row"
+          title={<span className="row-title"><span className="row-link-title">{computer.name}</span>{status && <Badge tone={computer.status === 'connecting' ? 'neutral' : 'warning'}>{status}</Badge>}{here && <Badge tone="accent">This window</Badge>}</span>}
+          detail={computer.detail ?? describe(computer)}
+          action={<span className="row-actions">
+            <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + computer.name + ' in a new window'} disabled={!usable} onClick={() => { onClose(); switchTo(computer, current, true, setError); }} /></Tooltip>
+            {computer.hostId !== null && <ConfirmButton variant="text" confirmLabel={'Forget ' + computer.name} onConfirm={() => forget(computer)}>Forget</ConfirmButton>}
+          </span>} />;
+      })}</GroupedRows>}
+    <p className="dialog-note">Forgetting a computer closes the windows that show it. This computer must pair again to reach it.</p>
+    {error && <p className="dialog-error" role="alert">{error}</p>}
+  </Dialog>;
 }

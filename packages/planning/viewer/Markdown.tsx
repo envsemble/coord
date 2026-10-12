@@ -1,12 +1,13 @@
-// Markdown in the app's GitHub-like style. Raw HTML is shown as text, never rendered,
-// and only files inside the export (or explicit web links) become links or images.
+// Markdown in envUI's style, as the app's reader shows it. Raw HTML is shown as text, never
+// rendered, and only files inside the export (or explicit web links) become links or images.
 import { createElement, useMemo, type ReactNode } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { slug } from 'github-slugger';
-import { LinkExternalIcon, WorkflowIcon } from '@primer/octicons-react';
+import { Button, Card } from '@envsemble/envui';
+import { Markdown as EnvMarkdown } from '@envsemble/envui/content';
+import { AccountTree } from '@envsemble/envui/icons/AccountTree';
+import { OpenInNew } from '@envsemble/envui/icons/OpenInNew';
 import { blobURL, imageType, type ExportFile, type ViewDiagram } from './data.ts';
-import { ProvenanceLabel } from './ui.tsx';
+import { ProvenanceBadge } from './ui.tsx';
 
 // Heading identities mirror the app (app/src/headings.ts), so anchors match between them.
 export const headingPrefix = 'planning-heading-';
@@ -26,6 +27,7 @@ function rehypeHeadingIds() {
     });
   };
 }
+const headingPlugins = [rehypeHeadingIds];
 export function scrollToHeading(container: HTMLElement | null, anchor: string) {
   const ids = Array.from(container?.querySelectorAll<HTMLElement>('[id]') ?? []);
   const normalized = slug(anchor);
@@ -74,17 +76,12 @@ function headingLines(body: string) {
   return lines;
 }
 function DiagramCards({ items, onOpen }: { items: DiagramCard[]; onOpen(handle: string, element?: string): void }) {
-  return <div className="diagram-cards">{items.map(card => <div className="diagram-card" key={card.handle}>
-    <WorkflowIcon className="diagram-card-icon" size={16} />
-    <div className="diagram-card-body">
-      <div className="diagram-card-title">
-        <button type="button" className="link-button" onClick={() => onOpen(card.handle)}>{card.title}</button>
-        <ProvenanceLabel provenance={card.diagram.provenance} />
-      </div>
-      {card.elements.length > 0 && <div className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => onOpen(card.handle, element.id)}>{element.name}</button>)}{card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</div>}
-    </div>
-    <button type="button" className="btn btn-sm" onClick={() => onOpen(card.handle)}>Open diagram</button>
-  </div>)}</div>;
+  return <div className="diagram-cards">{items.map(card => <Card key={card.handle} className="diagram-card" tone="pane" padding={4}
+    heading={<span className="diagram-card-title"><AccountTree className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.diagram.provenance} /></span>}
+    actions={<Button variant="secondary" onClick={() => onOpen(card.handle)}>Open diagram</Button>}>
+    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => onOpen(card.handle, element.id)}>{element.name}</button>)}
+      {card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</p>}
+  </Card>)}</div>;
 }
 
 function nodeText(node: unknown): string {
@@ -122,11 +119,11 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
   const headings = useMemo(() => Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])), [cards, hideTitle]);
   return <div className="prose">
     {cards.top.length > 0 && <DiagramCards items={cards.top} onOpen={onDiagram} />}
-    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHeadingIds]} components={{
+    <EnvMarkdown rehypePlugins={headingPlugins} components={{
       ...headings,
-      a: ({ href = '', children, id }) => {
+      a: ({ href = '', children, id }: { href?: string; children?: ReactNode; id?: string }) => {
         const target = resolveExportLink(href, path, files);
-        if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer noopener">{children}<LinkExternalIcon className="external-icon" size={12} /></a>;
+        if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer noopener">{children}<OpenInNew className="external-icon" /></a>;
         if (target.file) return <a id={id} href={'#' + new URLSearchParams({ tab: 'files', file: target.file, ...(target.anchor ? { anchor: target.anchor } : {}) })} onClick={event => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault(); onFile(target.file!, target.anchor);
@@ -134,11 +131,11 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
         if (target.anchor !== undefined) return <a id={id} href={'#'} onClick={event => { event.preventDefault(); onAnchor(target.anchor!); }}>{children}</a>;
         return <span className="outside-reference" title={'Not included in this export: ' + href}>{children}</span>;
       },
-      img: ({ src = '', alt = '' }) => {
+      img: ({ src = '', alt = '' }: { src?: unknown; alt?: string }) => {
         const target = resolveExportLink(typeof src === 'string' ? src : '', path, files);
         const file = target.file ? files.get(target.file) : undefined;
         return file && imageType(file.path) ? <img src={blobURL(file, 'view')} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
       },
-    }}>{body}</ReactMarkdown>
+    }}>{body}</EnvMarkdown>
   </div>;
 }

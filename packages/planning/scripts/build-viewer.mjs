@@ -7,6 +7,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createThemeBootstrapScript } from "@envsemble/envui/theme-bootstrap";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -58,6 +59,8 @@ export async function buildViewer() {
     jsx: "automatic",
     define: { "process.env.NODE_ENV": '"production"' },
     minify: true,
+    // envUI's Inter font travels inside the file: the policy allows fonts only as data: URLs.
+    loader: { ".woff2": "dataurl" },
     charset: "utf8",
     legalComments: "none",
     outdir: "out",
@@ -72,9 +75,13 @@ export async function buildViewer() {
   // `<!--` could switch the HTML parser into a state where `</script>` no longer ends the script.
   if (script.includes("<!--")) throw new Error("The viewer script cannot contain an HTML comment opener.");
   const hash = createHash("sha256").update(script).digest("base64");
+  // envUI's theme startup script runs in the head, before the first paint, so a dark theme does not flash light.
+  const { viewerThemeKey } = await import("../viewer/theme.ts");
+  const themeScript = createThemeBootstrapScript({ storageKey: viewerThemeKey });
+  const themeHash = createHash("sha256").update(themeScript).digest("base64");
   const policy = [
     "default-src 'none'",
-    `script-src 'sha256-${hash}'`,
+    `script-src 'sha256-${themeHash}' 'sha256-${hash}'`,
     "style-src 'unsafe-inline'",
     "img-src data: blob:",
     "font-src data:",
@@ -90,13 +97,13 @@ export async function buildViewer() {
   const diagrams = path.dirname(require.resolve("@envsemble/atlas-diagrams"));
   const icon = fs.readFileSync(path.join(diagrams, "../assets/atlas-icon.svg"), "utf8");
   const html = `<!doctype html>
-<html lang="en" data-color-mode="dark" data-dark-theme="dark_dimmed">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${policy}">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#212830">
+<script>${themeScript}</script>
 <meta name="generator" content="Atlas plan export">
 <title><!--ATLAS_TITLE--> | Atlas plan</title>
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent(icon)}">

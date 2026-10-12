@@ -1,13 +1,12 @@
-// File › Connect to Another Atlas…: pair with another computer's Atlas from its pairing link (or
-// its address and code). That computer is then one of the computers this app works on: its folder
-// list opens here, and any of its planning folders can be opened through its folder browser.
+// Connect to another computer: pair with another computer's Atlas from its pairing link (or its
+// address and code). That computer is then one of the computers this app works on: its folder list
+// opens here, and any of its planning folders can be opened through its folder browser.
 import { useState } from 'react';
-import { FileDirectoryIcon } from './icons';
+import { Button, Dialog, EmptyState, Input, Notice, Spinner, Text } from '@envsemble/envui';
+import { FolderIcon } from './icons';
 import type { Computer, ComputerRef } from './types';
 import { api } from './api';
-import { FolderList, useComputerFolders } from './Computers';
-import { Dialog } from './components/Dialog';
-import { Spinner } from './ui';
+import { FolderRows, useComputerFolders } from './Computers';
 
 export function ConnectDialog({ onClose, onBrowse }: { onClose(): void; onBrowse(computer: ComputerRef & { hostId: string }): void }) {
   const [link, setLink] = useState('');
@@ -23,23 +22,20 @@ export function ConnectDialog({ onClose, onBrowse }: { onClose(): void; onBrowse
     catch (failure) { setError((failure as Error).message); }
     finally { setBusy(false); }
   };
-  return <Dialog label="Connect to another Atlas" onClose={busy ? () => undefined : onClose} className="connect-dialog">
-    <h2 className="dialog-title">Connect to another Atlas</h2>
-    {!paired ? <form onSubmit={event => { event.preventDefault(); void connect(); }}>
-      <p className="muted">On the other computer, choose <strong>File › Remote Access…</strong>, turn remote access on and create a pairing link. Paste the link here, or type its address and code. The link works once, for five minutes.</p>
-      <label className="field-label" htmlFor="connect-link">Pairing link or address</label>
-      <input id="connect-link" className="input field-input" value={link} onChange={event => setLink(event.target.value)} placeholder="http://100.64.1.2:7346/pair#token=…" autoFocus spellCheck={false} autoComplete="off" disabled={busy} />
-      {needsCode && <>
-        <label className="field-label" htmlFor="connect-code">Pairing code</label>
-        <input id="connect-code" className="input field-input" value={code} onChange={event => setCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" spellCheck={false} autoComplete="off" disabled={busy} />
-      </>}
-      <p className="muted field-note">Use the Tailscale address to connect from anywhere on your tailnet. On a local network, the connection is not encrypted.</p>
-      {error && <div className="flash flash-danger" role="alert">{error}</div>}
-      <div className="dialog-actions">
-        <button type="button" className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={busy || !link.trim() || (needsCode && !code.trim())}>{busy ? <Spinner /> : 'Connect'}</button>
-      </div>
-    </form> : <Paired computer={paired} onClose={onClose} onBrowse={onBrowse} />}
+  const close = (open: boolean) => { if (!open && !busy) onClose(); };
+  if (paired) return <Paired computer={paired} onClose={onClose} onBrowse={onBrowse} />;
+  return <Dialog open onOpenChange={close} pending={busy} className="connect-dialog" title="Connect to another Atlas"
+    description={<>On the other computer, choose <strong>Remote Access…</strong>, turn remote access on and create a pairing link. Paste the link here, or type its address and code. The link works once, for five minutes.</>}
+    actions={<>
+      <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+      <Button variant="primary" type="submit" form="connect-form" pending={busy} disabled={!link.trim() || (needsCode && !code.trim())}>Connect</Button>
+    </>}>
+    <form id="connect-form" className="dialog-form" onSubmit={event => { event.preventDefault(); void connect(); }}>
+      <Input label="Pairing link or address" value={link} onChange={event => setLink(event.target.value)} placeholder="http://100.64.1.2:7346/pair#token=…" autoFocus spellCheck={false} autoComplete="off" disabled={busy}
+        hint="Use the Tailscale address to connect from anywhere on your tailnet. On a local network, the connection is not encrypted." />
+      {needsCode && <Input label="Pairing code" value={code} onChange={event => setCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" spellCheck={false} autoComplete="off" disabled={busy} />}
+      {error && <Notice tone="error" role="alert">{error}</Notice>}
+    </form>
   </Dialog>;
 }
 
@@ -48,15 +44,15 @@ function Paired({ computer, onClose, onBrowse }: { computer: Computer; onClose()
   const { folders, error: listError } = useComputerFolders(computer.hostId);
   const [error, setError] = useState('');
   const target = { hostId: computer.hostId!, name: computer.name };
-  return <>
-    <p>This computer is paired with <strong>{computer.name}</strong>. Choose <strong>{computer.name}</strong> at the top of the explorer to work on it{computer.manageAccess ? '; you can also pair and revoke its devices' : ''}.</p>
-    {folders === null ? <div className="menu-loading"><Spinner />Loading its planning folders…</div>
-      : folders.length ? <FolderList computer={computer} folders={folders} onError={setError} onOpened={onClose} />
-      : <p className="muted">{listError || 'No planning folders were opened on ' + computer.name + ' yet.'}</p>}
-    {error && <div className="flash flash-danger" role="alert">{error}</div>}
-    <div className="dialog-actions">
-      <button type="button" className="btn" onClick={onClose}>Close</button>
-      <button type="button" className="btn btn-primary" onClick={() => onBrowse(target)}><FileDirectoryIcon size={16} />Open Folder on {computer.name}…</button>
-    </div>
-  </>;
+  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" className="connect-dialog" title="Connect to another Atlas"
+    actions={<>
+      <Button variant="secondary" onClick={onClose}>Close</Button>
+      <Button variant="primary" startIcon={<FolderIcon />} onClick={() => onBrowse(target)}>Open Folder on {computer.name}…</Button>
+    </>}>
+    <Text>This computer is paired with <strong>{computer.name}</strong>. Choose <strong>{computer.name}</strong> in the computer menu at the top of the window to work on it{computer.manageAccess ? '; you can also pair and revoke its devices' : ''}.</Text>
+    {folders === null ? <Spinner label="Loading its planning folders" />
+      : folders.length ? <FolderRows computer={computer} folders={folders} onError={setError} onOpened={onClose} />
+      : <EmptyState title="No planning folders yet" description={listError || 'No planning folders were opened on ' + computer.name + ' yet.'} />}
+    {error && <Notice tone="error" role="alert">{error}</Notice>}
+  </Dialog>;
 }
