@@ -91,7 +91,7 @@ The [Atlas skills](skills/README.md) work in Codex and Claude Code and name no m
 
 Capture declared database or class structure as a dated baseline, author a conceptual proposal over it, inspect the semantic changes and export a reopenable offline HTML document of the model. Each work item keeps its models in its own folder (`<work>/.atlas/`), so a plan, its ledger and its diagrams move together. Plans show a card under every heading a diagram explains, and each diagram is labelled **Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**. The viewer is read-only; the agent edits through the library, the command or MCP.
 
-![Atlas viewer with colored entities, named generalization sets and a focused inspector](assets/viewer-dark.jpg)
+![The Atlas viewer with an agent-authored conceptual model: kinds, roles and relators in their colours, and the inspector explaining a concept from its plan and glossary](assets/viewer-dark.jpg)
 
 | Adapter                                | Supported input                                                               | Fidelity / limits                                                                                                       |
 | -------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
