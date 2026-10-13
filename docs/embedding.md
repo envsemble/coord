@@ -32,7 +32,7 @@ import "@envsemble/atlas-diagrams/embedded.css";
 </ViewerErrorBoundary>;
 ```
 
-[Viewer behavior](viewer.md) covers smooth local camera movement, amber focus, hideable details, Shiki previews and generic orthogonal layout.
+[Viewer behavior](viewer.md) covers smooth local camera movement, selection highlighting, hideable details, Shiki previews and generic orthogonal layout.
 
 ## The React panel
 
