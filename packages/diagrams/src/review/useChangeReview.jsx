@@ -64,19 +64,24 @@ export function useChangeReview({
   }, [select, onShowPanel, setOverview]);
   const openRow = useCallback(
     (row) => {
-      handoff.current = "details";
+      handoff.current = { to: "details" };
       open(row);
     },
     [open],
   );
+  // Focus returns to the change that was open, still listed in the overview.
   const backToOverview = useCallback(() => {
-    handoff.current = "overview";
+    handoff.current = { to: "overview", key: current?.key };
     back();
-  }, [back]);
+  }, [back, current]);
   if (!rollup) return null;
   return {
     rollup,
     details,
+    /** Leaving a change's details by keyboard returns focus to it in the overview. */
+    returnFocus: () => {
+      if (overview) handoff.current = { to: "overview", key: current?.key };
+    },
     fade,
     position,
     total,

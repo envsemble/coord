@@ -220,10 +220,13 @@ function AtlasPanelContent({
     if (open && selected?.kind === "node")
       camera.current?.revealNode(selected.id);
   }, [open]);
+  const latestChanges = useRef(null);
+  latestChanges.current = changes;
   useEffect(() => {
     const escape = (e) => {
-      if (e.key === "Escape" && e.target.closest?.(".atlas-panel"))
-        select(null);
+      if (e.key !== "Escape" || !e.target.closest?.(".atlas-panel")) return;
+      if (e.target.closest(".inspector")) latestChanges.current?.returnFocus();
+      select(null);
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);

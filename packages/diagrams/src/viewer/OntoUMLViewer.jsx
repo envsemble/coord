@@ -183,9 +183,14 @@ function ViewerContent({
     },
     [hover],
   );
+  const latestChanges = useRef(null);
+  latestChanges.current = changes;
   useEffect(() => {
     const escape = (e) => {
-      if (e.key === "Escape") clear();
+      if (e.key !== "Escape") return;
+      if (e.target.closest?.(".inspector"))
+        latestChanges.current?.returnFocus();
+      clear();
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);

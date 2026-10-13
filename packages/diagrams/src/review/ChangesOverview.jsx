@@ -64,6 +64,7 @@ function ChangeRow({ row, active, onSelect, onHover }) {
         type="button"
         className="change-row"
         data-change={row.status}
+        data-key={row.key}
         aria-current={active ? "true" : undefined}
         onClick={() => onSelect(row)}
         onPointerEnter={() => onHover?.(row.target)}
@@ -95,9 +96,11 @@ function RowList({ rows, label, active, onSelect, onHover }) {
 
 // Relations mostly follow from the types that changed: a long list of them
 // stays folded unless the change being reviewed is one of them.
-function RelationRows({ group, active, onSelect, onHover }) {
+function RelationRows({ group, active, returning, onSelect, onHover }) {
   const rows = group.relations;
-  const [open, setOpen] = useState(() => rows.some((r) => r.key === active));
+  const [open, setOpen] = useState(() =>
+    rows.some((r) => r.key === active || r.key === returning),
+  );
   const list = (
     <RowList
       rows={rows}
@@ -167,13 +170,13 @@ export function ChangesOverview({
   // Back from a change's details, focus returns to that change in the list
   // (after the inspector has scrolled its new content to the top).
   useEffect(() => {
-    if (handoff?.current !== "overview") return;
+    const request = handoff?.current;
+    if (request?.to !== "overview") return;
     handoff.current = null;
-    const rows = list.current?.querySelectorAll("button.change-row");
-    const target =
-      list.current?.querySelector('button.change-row[aria-current="true"]') ||
-      rows?.[0];
-    target?.focus();
+    const rows = [
+      ...(list.current?.querySelectorAll("button.change-row") || []),
+    ];
+    (rows.find((row) => row.dataset.key === request.key) || rows[0])?.focus();
   }, [handoff]);
   const source =
     profile === "code"
@@ -238,6 +241,7 @@ export function ChangesOverview({
               <RelationRows
                 group={group}
                 active={active}
+                returning={handoff?.current?.key}
                 onSelect={onSelect}
                 onHover={onHover}
               />
@@ -257,7 +261,7 @@ export function ChangeNavigation({ position, total, handoff, onBack, onStep }) {
   const back = useRef(null);
   // Opened from the overview, keyboard focus lands on the way back.
   useLayoutEffect(() => {
-    if (handoff?.current !== "details") return;
+    if (handoff?.current?.to !== "details") return;
     handoff.current = null;
     back.current?.focus();
   }, [handoff]);
