@@ -78,10 +78,14 @@ test('the title bar holds the menus, the computer and the actions; the views are
     return controls?.visible ? Math.round(controls.getTitlebarAreaRect().height) : null;
   });
   if (await overlay() !== null) {
+    // Zoomed in, the buttons' area stays about 40 CSS pixels tall (the page reports it rounded up)
+    // instead of shrinking with the zoom, and the bar matches it.
+    const bar = () => window.evaluate(() => Math.round(document.querySelector('.env-app-topbar')!.getBoundingClientRect().height));
     await menubar.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Zoom In' }).click();
-    await expect.poll(overlay).toBe(40);
-    await expect.poll(() => window.evaluate(() => Math.round(document.querySelector('.env-app-topbar')!.getBoundingClientRect().height))).toBe(40);
+    await expect.poll(overlay).toBeGreaterThanOrEqual(40);
+    expect(await overlay()).toBeLessThanOrEqual(41);
+    await expect.poll(async () => Math.abs(await bar() - (await overlay())!)).toBeLessThanOrEqual(1);
     await menubar.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Actual Size' }).click();
     await expect.poll(overlay).toBe(40);
@@ -278,7 +282,14 @@ test('the page a window opens on keeps its scroll position when another page or 
   await window.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await window.keyboard.press('End');
   await expect.poll(async () => (await content()).top).toBeGreaterThan(40);
-  const position = (await content()).top;
+  // End scrolls smoothly: wait until the position settles.
+  let position = -1;
+  await expect.poll(async () => {
+    const top = (await content()).top;
+    const steady = Math.abs(top - position) < 0.5;
+    position = top;
+    return steady;
+  }, { intervals: [150] }).toBe(true);
   await views(window).getByRole('button', { name: 'Activity' }).click();
   await expect(window.locator('.activity-row')).toHaveCount(1);
   await views(window).getByRole('button', { name: /^Work/ }).click();
