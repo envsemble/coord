@@ -37,6 +37,29 @@ function changedMembers(before = [], after = [], statuses) {
   }
   return out;
 }
+// OntoUML keeps every element in one flat list, so each change's owner is the
+// project. For review, a property or literal belongs to the class or relation
+// that lists it: an attribute to its class, an association end to its relation.
+const refId = (value) =>
+  typeof value === "string" ? value : value?.id || null;
+function assignOwners(diff, ...projects) {
+  const owners = new Map();
+  for (const project of projects)
+    for (const element of project.elements || []) {
+      if (!["Class", "BinaryRelation"].includes(element.type)) continue;
+      for (const item of [
+        ...(element.properties || []),
+        ...(element.literals || []),
+      ])
+        if (refId(item)) owners.set(refId(item), element.id);
+    }
+  for (const change of diff.changes)
+    if (owners.has(change.elementId))
+      change.ownerId = owners.get(change.elementId);
+}
+const ends = (e) => [e.sourceId ?? e.specificId, e.targetId ?? e.generalId];
+const sameEnds = (a, b) =>
+  ends(a).every((end, i) => end === ends(b)[i]) && a.id === b.id;
 // Comparisons keep the document's authored views (falling back to the
 // baseline's), so a focused view stays focused. Removed classes join a view
 // when the baseline showed them there or they were connected to its classes.
@@ -129,6 +152,8 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
     assertRenderableProject(document.model);
   }
   const diff = compareDocuments(baseline, document);
+  if (document.profile === "ontouml")
+    assignOwners(diff, baseline.model, document.model);
   for (const model of [before, after])
     model.document.comparison = {
       ...(model.document.comparison || {}),
@@ -359,7 +384,9 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
     ["generalizations", before.generalizations, after.generalizations],
   ])
     for (const e of old)
-      if (!newer.some((n) => keyOf(n) === keyOf(e))) {
+      // A relation that kept its ends only changed what it says (a count,
+      // a name): the proposal's route shows it, marked as changed.
+      if (!newer.some((n) => keyOf(n) === keyOf(e) || sameEnds(n, e))) {
         let id = e.id;
         if (currentIds.has(e.id)) {
           id = `previous:${keyOf(e)}`;
