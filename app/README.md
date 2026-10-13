@@ -129,8 +129,15 @@ The app follows Electron's security checklist (the desktop-only decision is work
 - Each window has its own session whose `atlas:` protocol serves the app and only that window's planning folder, through the same containment as the reader (no paths outside it, no hidden or excluded folders). Every other request is blocked.
 - Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
 - Commands a page could misuse wait for the person. The main process sees their clicks, key presses and taps in the window, which a page cannot fake:
+  - Each press allows one such command.
   - **Edit › Paste** reads the clipboard, so it runs only within two seconds of one (Ctrl+V always works).
-  - Exiting, closing the last window, and opening a window or the logs run at once after one. Otherwise Atlas first asks in a system dialog the page cannot answer, so a screen reader's click, which makes no input event, still works.
+  - These also run at once after one:
+    - exiting, and closing the last window;
+    - opening a window or the logs;
+    - turning remote access on, creating a pairing link and pairing with another computer;
+    - opening a web address in the browser.
+
+    Otherwise Atlas first asks in a system dialog the page cannot answer, so a screen reader's click, which makes no input event, still works.
   - Dialogs a page opens (choosing a file or folder, About, Locate…) come one at a time.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
 - Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.

@@ -64,7 +64,7 @@ function useComputers(active: boolean, onError: (message: string) => void) {
 
 function switchTo(computer: Computer, current: ComputerRef, newWindow: boolean, onError: (message: string) => void) {
   if (computer.hostId === current.hostId && !newWindow) return;
-  api.switchComputer(computer.hostId, newWindow).catch(failure => onError((failure as Error).message));
+  api.switchComputer(computer.hostId, newWindow).catch(failure => { if ((failure as { code?: string }).code !== 'cancelled') onError((failure as Error).message); });
 }
 
 /** The computer this window works on, in the window's title bar. */

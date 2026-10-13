@@ -11,7 +11,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, type HostClient } from '@envsemble/atlas-host';
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
-import { invokeChannels, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
+import { invokeChannels, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
 import { absolutePath, argumentsOf, boolean, command, folderId, ipAddress, modelHandle, nullable, object, pairingCode, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import type { FolderView } from './folderView.ts';
@@ -67,11 +67,15 @@ async function sendImport(folder: FolderView, file: string) {
 
 /** A page cannot fake a person's input: Paste, which reads the clipboard, waits for one. */
 function requireActivation(window: AtlasWindow) {
-  if (!window.activatedRecently()) throw new AtlasError('forbidden', 'Paste needs a click or a key press in the window. Ctrl+V pastes too.');
+  if (!window.takeActivation()) throw new AtlasError('forbidden', 'Paste needs a click or a key press in the window. Ctrl+V pastes too.');
 }
 /** A command a page could misuse runs after a person's press, or once they confirm it. */
-async function confirmed(window: AtlasWindow, message: string, action: string) {
-  if (!(await window.confirm(message, action))) throw new AtlasError('cancelled', 'Cancelled.');
+async function confirmed(window: AtlasWindow, message: string, action: string, detail?: string) {
+  if (!(await window.confirm(message, action, detail))) throw new AtlasError('cancelled', 'Cancelled.');
+}
+/** The computer a pairing link points at, for the question before pairing. */
+function linkHost(link: string) {
+  try { return new URL(link).host; } catch { return 'another computer'; }
 }
 
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): Promise<unknown> }): Record<InvokeChannel, Channel> {
@@ -97,9 +101,10 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'shell:reveal': { args: [relativePath], handle: (window, file: string) => revealInside(folder(window), file) },
     'shell:openExternal': {
       args: [url],
-      handle: async (_window, value: string) => {
+      handle: async (window, value: string) => {
         const external = externalUrl(value);
         if (!external) throw new AtlasError('forbidden', 'Only web and mail links open outside Atlas.');
+        await confirmed(window, 'Open this address in your browser?', 'Open', external);
         await shell.openExternal(external);
       },
     },
@@ -116,9 +121,9 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
           // A page cannot open windows without end, quit (also by closing the last window) or pile up
           // dialogs: these follow a person's press or their answer to Atlas's question.
           case 'newWindow': await confirmed(window, 'Open a new Atlas window?', 'Open'); await manager.create(null); return;
-          case 'locate': await window.oneDialog(() => manager.locate(window)); return;
+          case 'locate': await manager.locate(window); return;
           case 'closeFolder': void dropImports(entry => entry.window === window.id); manager.closeFolder(window); return;
-          case 'closeWindow': if (manager.all().length <= 1) await confirmed(window, 'Close the last window and exit Atlas?', 'Close'); window.win.close(); return;
+          case 'closeWindow': if (manager.all().filter(other => !other.closing && !other.win.isDestroyed()).length <= 1) await confirmed(window, 'Close the last window and exit Atlas?', 'Close'); window.win.close(); return;
           case 'quit': await confirmed(window, 'Exit Atlas?', 'Exit'); app.quit(); return;
           case 'openLogs': await confirmed(window, 'Open the folder with Atlas’s logs?', 'Open'); actions.openLogs(); return;
           case 'about': await window.oneDialog(() => actions.about(window)); return;
@@ -140,19 +145,19 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     },
     'plan:export': {
       args: [workId],
-      handle: (window, work: string) => window.oneDialog(async () => {
+      handle: async (window, work: string) => {
         const view = folder(window);
         const prepared = await view.request('plan.exportPrepare', { folderId: view.folderId, work });
         try {
           if (prepared.warnings.length) {
-            const { response } = await dialog.showMessageBox(window.win, { type: 'warning', title: 'Export plan', message: 'Export this plan anyway?', detail: prepared.warnings.join('\n'), buttons: ['Export', 'Cancel'], defaultId: 0, cancelId: 1 });
+            const { response } = await window.oneDialog(() => dialog.showMessageBox(window.win, { type: 'warning', title: 'Export plan', message: 'Export this plan anyway?', detail: prepared.warnings.join('\n'), buttons: ['Export', 'Cancel'], defaultId: 0, cancelId: 1 }));
             if (response !== 0) return null;
           }
-          const choice = await dialog.showSaveDialog(window.win, {
+          const choice = await window.oneDialog(() => dialog.showSaveDialog(window.win, {
             title: 'Export plan', buttonLabel: 'Export',
             defaultPath: path.join(app.getPath('documents'), prepared.fileName),
             filters: [{ name: 'Atlas plan export', extensions: ['html'] }],
-          });
+          }));
           if (choice.canceled || !choice.filePath) return null;
           const download = await view.client.fetch('/api/exports/' + prepared.token, 300000);
           if (!download.ok) throw new AtlasError('unavailable', 'The export could not be downloaded from ' + (view.remote?.hostName ?? 'the host') + '. Export the plan again.');
@@ -163,7 +168,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         } finally {
           await view.request('plan.exportDrop', { token: prepared.token }).catch(() => undefined);
         }
-      }),
+      },
     },
     'plan:importChoose': {
       args: [],
@@ -224,12 +229,13 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         await remoteErrors(manager.openOn(id, folderPath, window, newWindow ? 'never' : 'always'));
       },
     },
-    'folders:choose': { args: [boolean], handle: async (window, newWindow: boolean) => { await window.oneDialog(() => manager.chooseFolder(window, newWindow ? 'never' : 'always')); } },
+    'folders:choose': { args: [boolean], handle: async (window, newWindow: boolean) => { await manager.chooseFolder(window, newWindow ? 'never' : 'always'); } },
     'folders:browse': { args: [hostId, nullable(absolutePath)], handle: (_window, id: string, folderPath: string | null) => remoteErrors(manager.browse(id, folderPath)) },
     'folders:remove': { args: [computer, folderId], handle: (_window, id: string | null, folder: string) => remoteErrors(manager.removeFolder(id, folder)) },
     'remote:pair': {
       args: [pairingLink, nullable(pairingCode)],
-      handle: async (_window, link: string, code: string | null) => {
+      handle: async (window, link: string, code: string | null) => {
+        await confirmed(window, `Pair with the Atlas at ${linkHost(link)}?`, 'Pair', 'This app can then work on that computer\'s planning folders.');
         const paired = await remoteErrors(connections.pair(link, code ?? undefined));
         // Windows already showing this computer's folders read through the new pairing.
         manager.rebindRemote(paired.hostId!);
@@ -239,10 +245,18 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'remote:forget': { args: [hostId], handle: (window, id: string) => manager.forgetComputer(id, window) },
     // Remote access of a computer: this one's (settings too), or a paired one's when this app may manage access there.
     'access:state': { args: [computer], handle: (_window, id: string | null) => remoteErrors(connections.use(id, client => client.request('access.state', {}))) },
-    'access:update': { args: [accessSettings], handle: (_window, settings) => owner().request('access.update', { settings: settings as never }) },
+    'access:update': {
+      args: [accessSettings],
+      handle: async (window, settings: AccessSettings) => {
+        // Turning remote access on, or moving it to another address, lets devices reach this computer.
+        if (settings.network.enabled) await confirmed(window, `Let paired devices reach this computer${settings.network.address ? ' at ' + settings.network.address : ''}?`, 'Allow');
+        return owner().request('access.update', { settings: settings as never });
+      },
+    },
     'access:pairingCreate': {
       args: [computer, nullable(ipAddress), grant],
-      handle: async (_window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
+      handle: async (window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
+        await confirmed(window, 'Create a pairing link?', 'Create', granted.manageAccess ? 'A device that uses it can work on the planning folders and manage who else has access.' : 'A device that uses it can work on the planning folders.');
         const link = await remoteErrors(connections.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
         const qrSvg = link.url ? await QRCode.toString(link.url, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }) : null;
         return { ...link, qrSvg };

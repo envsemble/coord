@@ -61,6 +61,11 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
       closeWindow: await bridge.command('closeWindow'),
       newWindow: await bridge.command('newWindow'),
       openLogs: await bridge.command('openLogs'),
+      // So do remote access and pairing, which could hand the computer to someone else.
+      access: await bridge.updateAccess({ network: { enabled: true, address: '127.0.0.1', port: 7346 } }),
+      pairing: await bridge.createPairing(null, null, { label: null, manageAccess: true }),
+      pair: await bridge.pairRemote('http://127.0.0.1:9/#token=abc', null),
+      web: await bridge.openExternal('https://example.com/'),
       external: await bridge.openExternal('file:///C:/Windows/System32/calc.exe'),
       ok: await bridge.document('README.md').then(value => (value as { ok: boolean }).ok),
     };
@@ -68,8 +73,11 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
   for (const key of ['traversal', 'absolute', 'wrongType', 'badHandle', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.paste).toMatchObject({ ok: false, error: { code: 'forbidden' } });
-  for (const key of ['quit', 'closeWindow', 'newWindow', 'openLogs'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
-  expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual(['Exit Atlas?', 'Close the last window and exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?']);
+  for (const key of ['quit', 'closeWindow', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
+  expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([
+    'Exit Atlas?', 'Close the last window and exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?',
+    'Let paired devices reach this computer at 127.0.0.1?', 'Create a pairing link?', 'Pair with the Atlas at 127.0.0.1:9?', 'Open this address in your browser?',
+  ]);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   expect(results.external).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.ok).toBe(true);
@@ -97,15 +105,21 @@ test('the file protocol serves only this window’s folder, and the window canno
     planning: await fetch('atlas://planning/README.md').then(() => 'loaded', () => 'blocked'),
   }));
   expect(page).toEqual({ remote: 'blocked', planning: 'blocked' });
-  // Web links go to the system browser; record them instead of starting one.
-  await app.evaluate(({ shell }) => {
+  // Web links go to the system browser; record them instead of starting one. A page that sends the
+  // window there on its own (no click) is asked about first; the person allows one and declines one.
+  await app.evaluate(({ dialog, shell }) => {
     const opened: string[] = [];
-    (globalThis as { openedExternally?: string[] }).openedExternally = opened;
+    const asked: string[] = [];
+    Object.assign(globalThis, { openedExternally: opened, askedExternally: asked });
     shell.openExternal = (async (url: string) => { opened.push(url); }) as typeof shell.openExternal;
+    dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { asked.push(options.detail ?? ''); return { response: asked.length === 1 ? 0 : 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
-  await atlasWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); location.href = 'https://example.com/away'; });
-  await atlasWindow.waitForTimeout(800);
+  await atlasWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); });
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(1);
+  await atlasWindow.evaluate(() => { location.href = 'https://example.com/away'; });
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(2);
   const state = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.webContents.getURL()));
   expect(state).toEqual(['atlas://app/index.html']);
-  expect(await app.evaluate(() => (globalThis as { openedExternally?: string[] }).openedExternally)).toEqual(['https://example.com/new', 'https://example.com/away']);
+  expect(await app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally)).toEqual(['https://example.com/new', 'https://example.com/away']);
+  expect(await app.evaluate(() => (globalThis as { openedExternally?: string[] }).openedExternally)).toEqual(['https://example.com/new']);
 });

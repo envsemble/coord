@@ -96,7 +96,8 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect(viewer.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   // Only revealing a file in a file explorer stays on that computer.
   expect(await viewer.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.reveal('README.md'); return result.ok ? 'revealed' : result.error.code; })).toBe('forbidden');
-  // The link worked once.
+  // The link worked once. Pairing through the bridge, without a click, asks first; the person agrees.
+  await reading.app.evaluate(({ dialog }) => { dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as unknown as typeof dialog.showMessageBox; });
   expect(await viewer.evaluate(async target => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.pairRemote(target, null); return result.ok ? 'paired' : result.error.code; }, link)).not.toBe('paired');
   await expect(access.locator('.device-list li')).toHaveCount(1);
   await expect(access.locator('.device-list li')).toContainText('Reading laptop');

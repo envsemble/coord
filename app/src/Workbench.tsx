@@ -241,13 +241,18 @@ function ScrollMemory({ shown, scrollKey: key, anchored, content: contentRef, po
     const target = anchored ? null : positions.current.get(key) ?? 0;
     if (target !== null) element.scrollTop = target;
     let restoring = Boolean(target);
+    let placed = element.scrollTop;
+    // The browser's scroll anchoring would move the page as it grows; the restore places it instead.
+    if (restoring) element.style.overflowAnchor = 'none';
     const content = contentRef.current;
-    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) element.scrollTop = target!; }) : null;
-    const stop = () => { restoring = false; observer?.disconnect(); };
+    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) { element.scrollTop = target!; placed = element.scrollTop; } }) : null;
+    const stop = () => { if (restoring) element.style.overflowAnchor = ''; restoring = false; observer?.disconnect(); };
     if (observer && content) observer.observe(content);
     const timer = window.setTimeout(stop, 3000);
     const remember = () => {
-      if (restoring && target !== null && Math.abs(element.scrollTop - Math.min(target, element.scrollHeight - element.clientHeight)) > 1) stop();
+      // The reader scrolled (also with keys pressed outside the page): the page left where the restore
+      // put it, also as far as the content allows now.
+      if (restoring && Math.abs(element.scrollTop - placed) > 1 && Math.abs(element.scrollTop - Math.min(placed, element.scrollHeight - element.clientHeight)) > 1) stop();
       if (!restoring) positions.current.set(key, element.scrollTop);
     };
     // The document's scrolling reaches the window; an element's, the element.

@@ -11,9 +11,17 @@
   - **Lists of folders and computers:** **File › Open Recent › Manage Folders…** (on macOS **File › Manage Folders…**) and the computer menu's **Manage Computers…** open a folder or a computer in a new window, remove a folder from the list, or forget a computer. The menus themselves open in this window.
   - **Scrolling:** the area below the title bar scrolls, not the window, so the window buttons never cover a scrollbar and nothing shifts when a page starts or stops scrolling. Zooming keeps the window buttons as tall as the title bar.
   - **A folder that is missing or unreadable** also offers **Close Folder**, back to the start page.
-  - **Commands a page could misuse** wait for the person: Paste, which reads the clipboard, follows a click, key press or tap in the window. Exiting, closing the last window and opening windows or the logs follow one too, or else Atlas asks first in a system dialog. A page's dialogs come one at a time.
+  - **Commands a page could misuse** wait for the person: Paste, which reads the clipboard, follows a click, key press or tap in the window. These follow one too, or else Atlas asks first in a system dialog:
+    - exiting, and closing the last window;
+    - opening windows or the logs;
+    - turning remote access on, creating pairing links and pairing;
+    - opening web addresses.
+
+    A page's dialogs come one at a time.
+
   - **The diagram viewer and plan exports** use the same components; the diagram viewer follows the app's theme, and a standalone model file follows the system's.
   - `npm run dev:envui` runs the app against a local envUI checkout with live reload.
+
 - Reviewing a proposal: a proposal opens in one change view, and the model picker is the only chooser (the Baseline/Changes control is gone).
   - **On the canvas** new, changed and removed classes, members and relations are marked green, amber and red, relations also with a +, ~ or −, and unchanged elements fade until **Fade unchanged elements** is turned off. Unknown counts (`?`) and names that only repeat a relation's kind, such as `declared type use`, are no longer drawn.
   - **The Changes list** beside the diagram has a row per changed element with its members summarized, relations by their ends, changes to the model itself under **Model**, and unresolved merge conflicts first. Values read by name, before → after, and a member or class that moves is listed where it left and where it went. Choosing a row opens its element, whose details step to the previous or next change; a change no view draws is listed and counted but not opened.

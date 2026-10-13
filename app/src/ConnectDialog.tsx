@@ -19,7 +19,7 @@ export function ConnectDialog({ onClose, onBrowse }: { onClose(): void; onBrowse
   const connect = async () => {
     setBusy(true); setError('');
     try { setPaired(await api.pairRemote(link.trim(), needsCode ? code.trim() || null : null)); }
-    catch (failure) { setError((failure as Error).message); }
+    catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); }
     finally { setBusy(false); }
   };
   const close = (open: boolean) => { if (!open && !busy) onClose(); };

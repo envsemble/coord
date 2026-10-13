@@ -91,6 +91,8 @@ export class AtlasWindow {
   private lastActivation = 0;
   /** A question or dialog a page's command opened in this window: one at a time. */
   private asking = false;
+  /** Set as the window starts closing, before it leaves the window list. */
+  closing = false;
 
   constructor(manager: WindowManager, bounds: Partial<Bounds> | undefined, maximized: boolean) {
     this.manager = manager;
@@ -117,7 +119,7 @@ export class AtlasWindow {
     this.win.webContents.on('render-process-gone', (_event, details) => this.recover(details.reason));
     this.win.webContents.on('input-event', (_event, input) => { if (activations.has(input.type)) this.lastActivation = performance.now(); });
     this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.root }));
-    this.win.on('close', () => { this.saveBounds(); });
+    this.win.on('close', () => { this.closing = true; this.saveBounds(); });
     this.win.on('closed', () => manager.closed(this));
   }
 
@@ -160,13 +162,13 @@ export class AtlasWindow {
       if (own(url)) return;
       event.preventDefault();
       const external = externalUrl(url);
-      if (external) void shell.openExternal(external);
+      if (external) void this.openExternal(external).catch(() => undefined);
     });
     contents.on('will-redirect', (event, url) => { if (!own(url)) event.preventDefault(); });
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(({ url }) => {
       const external = externalUrl(url);
-      if (external) void shell.openExternal(external);
+      if (external) void this.openExternal(external).catch(() => undefined);
       return { action: 'deny' };
     });
   }
@@ -272,24 +274,35 @@ export class AtlasWindow {
   }
 
   /**
-   * Whether the person pressed, typed or tapped in the window just now. Paste, which reads the
-   * clipboard, needs it.
+   * Whether the person pressed, typed or tapped in the window just now, using that press up: each
+   * press allows one command. Paste, which reads the clipboard, needs one.
    */
-  activatedRecently(within = 2000) { return this.lastActivation > 0 && performance.now() - this.lastActivation <= within; }
+  takeActivation(within = 2000) {
+    const fresh = this.lastActivation > 0 && performance.now() - this.lastActivation <= within;
+    if (fresh) this.lastActivation = 0;
+    return fresh;
+  }
 
   /**
-   * Commands a page could misuse (quitting, opening windows) run at once right after a person's
-   * press. Without one (a compromised page, but also a screen reader's click, which makes no input
-   * event), Atlas asks in a system dialog the page cannot answer. One question at a time.
+   * Commands a page could misuse (quitting, opening windows, remote access, leaving for the browser)
+   * run at once right after a person's press. Without one (a compromised page, but also a screen
+   * reader's click, which makes no input event), Atlas asks in a system dialog the page cannot
+   * answer. One question or dialog at a time.
    */
-  async confirm(message: string, action: string): Promise<boolean> {
-    if (this.activatedRecently()) return true;
-    if (this.asking || this.win.isDestroyed()) return false;
+  async confirm(message: string, action: string, detail?: string): Promise<boolean> {
+    if (this.takeActivation()) return true;
+    if (this.win.isDestroyed()) return false;
+    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
     this.asking = true;
     try {
-      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Atlas', message, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
-      return response === 0;
+      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Atlas', message, detail, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
+      return response === 0 && !this.win.isDestroyed();
     } finally { this.asking = false; }
+  }
+
+  /** Opens a web or mail address in the system's browser, after a person's press or their answer. */
+  async openExternal(address: string) {
+    if (await this.confirm('Open this address in your browser?', 'Open', address)) await shell.openExternal(address);
   }
 
   /** Dialogs a page opens (choosing a file or folder, About) come one at a time, so a page cannot pile them up. */
@@ -605,7 +618,7 @@ export class WindowManager {
   /** Point a window whose folder moved at its new location. */
   async locate(window: AtlasWindow) {
     if (window.remote) throw new AtlasError('forbidden', 'A folder on another computer cannot be located here.');
-    const choice = await dialog.showOpenDialog(window.win, { title: 'Locate the planning folder', properties: ['openDirectory'] });
+    const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Locate the planning folder', properties: ['openDirectory'] }));
     if (choice.canceled || !choice.filePaths[0]) return;
     let root: string;
     try { root = (await inspectPlanningRoot(choice.filePaths[0])).path; } catch (error) {
@@ -625,7 +638,7 @@ export class WindowManager {
   /** Choose a folder on this computer with the system's dialog, and open it (as `reuse` allows). */
   async chooseFolder(from: AtlasWindow | undefined, reuse: Reuse = 'empty') {
     const options = { title: 'Open a planning folder', properties: ['openDirectory' as const] };
-    const choice = from ? await dialog.showOpenDialog(from.win, options) : await dialog.showOpenDialog(options);
+    const choice = from ? await from.oneDialog(() => dialog.showOpenDialog(from.win, options)) : await dialog.showOpenDialog(options);
     if (choice.canceled || !choice.filePaths[0]) return null;
     return this.open(choice.filePaths[0], { from, mode: 'picker', reuse });
   }

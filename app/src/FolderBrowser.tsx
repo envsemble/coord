@@ -29,7 +29,7 @@ export function FolderBrowser({ computer, near, onClose }: { computer: ComputerR
   const open = async (folder: string, newWindow: boolean) => {
     setBusy(true); setError('');
     try { await api.openFolder(computer.hostId, folder, newWindow); onClose(); }
-    catch (failure) { setError((failure as Error).message); setBusy(false); }
+    catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); setBusy(false); }
   };
   const up = () => setPlace(listing?.parent ?? null);
   return <Dialog open onOpenChange={value => { if (!value && !busy) onClose(); }} pending={busy} size="wide" placement="top" className="folder-browser"

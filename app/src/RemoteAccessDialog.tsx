@@ -57,7 +57,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
       setState(next);
       setPort(String(next.settings.network.port));
       if (!next.status.listening) setLink(null);
-    } catch (failure) { setError((failure as Error).message); }
+    } catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); }
     finally { setBusy(false); }
   };
   const settings = state?.settings;
@@ -71,7 +71,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
   const createLink = async () => {
     setBusy(true); setError('');
     try { setLink(await api.createPairing(computer.hostId, null, { label: label.trim() || null, manageAccess })); setNow(Date.now()); }
-    catch (failure) { setError((failure as Error).message); }
+    catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); }
     finally { setBusy(false); }
   };
   const revokeLink = async () => {
@@ -81,7 +81,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
   };
   const revokeDevice = async (deviceId: string) => {
     try { await api.revokeDevice(computer.hostId, deviceId); refreshDevices(); }
-    catch (failure) { setError((failure as Error).message); }
+    catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); }
   };
   const savePort = () => {
     const value = Number(port);
