@@ -400,9 +400,8 @@ test('the sections switcher keeps one spot in every section, floats over the scr
   expect(at.y).toBeGreaterThan(tabs.y + tabs.height);
   expect(at.y + 32).toBeLessThan(title.y);
   expect(at.x - content.x).toBeLessThan(20);
-  // Scrolled, the page passes under it.
-  await window.locator('main').first().evaluate(main => main.scrollTo(0, 900));
-  await expect.poll(async () => window.locator('main').first().evaluate(main => main.scrollTop)).toBeGreaterThan(400);
+  // Scrolled, the page passes under it (once the plan has loaded, the page is long enough to scroll).
+  await expect.poll(async () => window.locator('main').first().evaluate(main => { main.scrollTo(0, 900); return main.scrollTop; })).toBeGreaterThan(400);
   expect(near(await place(), at)).toBe(true);
   await expect(switcher).toBeInViewport();
   await sections(window).filter({ hasText: 'Ledger' }).click();
