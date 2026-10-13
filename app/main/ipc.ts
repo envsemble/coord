@@ -65,12 +65,16 @@ async function sendImport(folder: FolderView, file: string) {
   return value;
 }
 
-/** A page cannot fake a person's input; commands it could misuse wait for one. */
+/** A page cannot fake a person's input: Paste, which reads the clipboard, waits for one. */
 function requireActivation(window: AtlasWindow) {
-  if (!window.activatedRecently()) throw new AtlasError('forbidden', 'This needs a click or a key press in the window.');
+  if (!window.activatedRecently()) throw new AtlasError('forbidden', 'Paste needs a click or a key press in the window. Ctrl+V pastes too.');
+}
+/** A command a page could misuse runs after a person's press, or once they confirm it. */
+async function confirmed(window: AtlasWindow, message: string, action: string) {
+  if (!(await window.confirm(message, action))) throw new AtlasError('cancelled', 'Cancelled.');
 }
 
-export function channels(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): void }): Record<InvokeChannel, Channel> {
+export function channels(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): Promise<unknown> }): Record<InvokeChannel, Channel> {
   const folder = (window: AtlasWindow): FolderView => {
     const view = window.requireFolder();
     if (!view.folderId) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This planning folder cannot be read.');
@@ -109,15 +113,15 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         const contents = window.win.webContents;
         const devTools = manager.context.devTools;
         switch (name) {
-          // Windows, dialogs and quitting need a person's press: a page cannot open windows without
-          // end, or quit by closing the last one.
-          case 'newWindow': requireActivation(window); await manager.create(null); return;
-          case 'locate': requireActivation(window); await manager.locate(window); return;
+          // A page cannot open windows without end, quit (also by closing the last window) or pile up
+          // dialogs: these follow a person's press or their answer to Atlas's question.
+          case 'newWindow': await confirmed(window, 'Open a new Atlas window?', 'Open'); await manager.create(null); return;
+          case 'locate': await window.oneDialog(() => manager.locate(window)); return;
           case 'closeFolder': void dropImports(entry => entry.window === window.id); manager.closeFolder(window); return;
-          case 'closeWindow': requireActivation(window); window.win.close(); return;
-          case 'quit': requireActivation(window); app.quit(); return;
-          case 'openLogs': requireActivation(window); actions.openLogs(); return;
-          case 'about': requireActivation(window); actions.about(window); return;
+          case 'closeWindow': if (manager.all().length <= 1) await confirmed(window, 'Close the last window and exit Atlas?', 'Close'); window.win.close(); return;
+          case 'quit': await confirmed(window, 'Exit Atlas?', 'Exit'); app.quit(); return;
+          case 'openLogs': await confirmed(window, 'Open the folder with Atlas’s logs?', 'Open'); actions.openLogs(); return;
+          case 'about': await window.oneDialog(() => actions.about(window)); return;
           // Edit acts on the window's focused element, as the native Edit menu does.
           case 'undo': contents.undo(); return;
           case 'redo': contents.redo(); return;
@@ -136,7 +140,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     },
     'plan:export': {
       args: [workId],
-      handle: async (window, work: string) => {
+      handle: (window, work: string) => window.oneDialog(async () => {
         const view = folder(window);
         const prepared = await view.request('plan.exportPrepare', { folderId: view.folderId, work });
         try {
@@ -159,13 +163,13 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         } finally {
           await view.request('plan.exportDrop', { token: prepared.token }).catch(() => undefined);
         }
-      },
+      }),
     },
     'plan:importChoose': {
       args: [],
       handle: async window => {
         const view = folder(window);
-        const choice = await dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] });
+        const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] }));
         if (choice.canceled || !choice.filePaths[0]) return null;
         const file = choice.filePaths[0];
         let read;
@@ -205,10 +209,22 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       handle: async (window, key: string) => { await dropImports((entry, entryKey) => entryKey === key && entry.window === window.id); },
     },
     'computers:list': { args: [], handle: () => connections.computers() },
-    'computers:switch': { args: [computer, boolean], handle: async (window, id: string | null, newWindow: boolean) => { await manager.switchComputer(id, window, newWindow); } },
+    'computers:switch': {
+      args: [computer, boolean],
+      handle: async (window, id: string | null, newWindow: boolean) => {
+        if (newWindow) await confirmed(window, 'Open that computer in a new window?', 'Open');
+        await manager.switchComputer(id, window, newWindow);
+      },
+    },
     'folders:list': { args: [computer], handle: (_window, id: string | null) => remoteErrors(manager.foldersOf(id)) },
-    'folders:open': { args: [computer, absolutePath, boolean], handle: async (window, id: string | null, folderPath: string, newWindow: boolean) => { await remoteErrors(manager.openOn(id, folderPath, window, newWindow ? 'never' : 'always')); } },
-    'folders:choose': { args: [boolean], handle: async (window, newWindow: boolean) => { await manager.chooseFolder(window, newWindow ? 'never' : 'always'); } },
+    'folders:open': {
+      args: [computer, absolutePath, boolean],
+      handle: async (window, id: string | null, folderPath: string, newWindow: boolean) => {
+        if (newWindow) await confirmed(window, 'Open that folder in a new window?', 'Open');
+        await remoteErrors(manager.openOn(id, folderPath, window, newWindow ? 'never' : 'always'));
+      },
+    },
+    'folders:choose': { args: [boolean], handle: async (window, newWindow: boolean) => { await window.oneDialog(() => manager.chooseFolder(window, newWindow ? 'never' : 'always')); } },
     'folders:browse': { args: [hostId, nullable(absolutePath)], handle: (_window, id: string, folderPath: string | null) => remoteErrors(manager.browse(id, folderPath)) },
     'folders:remove': { args: [computer, folderId], handle: (_window, id: string | null, folder: string) => remoteErrors(manager.removeFolder(id, folder)) },
     'remote:pair': {
@@ -255,7 +271,7 @@ function trustedSender(event: IpcMainInvokeEvent, manager: WindowManager): Atlas
   return expected !== null && originOf(frame.url) === expected ? window : null;
 }
 
-export function registerIpc(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): void }) {
+export function registerIpc(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): Promise<unknown> }) {
   const table = channels(manager, actions);
   for (const name of invokeChannels) {
     const channel = table[name];

@@ -246,7 +246,10 @@ function ScrollMemory({ shown, scrollKey: key, anchored, content: contentRef, po
     const stop = () => { restoring = false; observer?.disconnect(); };
     if (observer && content) observer.observe(content);
     const timer = window.setTimeout(stop, 3000);
-    const remember = () => { if (!restoring) positions.current.set(key, element.scrollTop); };
+    const remember = () => {
+      if (restoring && target !== null && Math.abs(element.scrollTop - Math.min(target, element.scrollHeight - element.clientHeight)) > 1) stop();
+      if (!restoring) positions.current.set(key, element.scrollTop);
+    };
     // The document's scrolling reaches the window; an element's, the element.
     const scroller: EventTarget = element === document.scrollingElement ? window : element;
     // The reader's own scrolling stops it: the wheel or touch anywhere, and keys or presses in the

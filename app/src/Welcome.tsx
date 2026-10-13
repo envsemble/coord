@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Button, EmptyState, Kbd, Notice, Surface, Text } from '@envsemble/envui';
+import { Button, EmptyState, Kbd, Notice, Surface, Text, useToast } from '@envsemble/envui';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { DevicesIcon, ErrorIcon, FolderIcon } from './icons';
 import type { WindowInfo } from './types';
-import { api } from './api';
+import { api, AtlasError } from './api';
+import type { AppCommand } from '../shared/contract';
 import { FolderRows, openFolderOn, useAppActions, useComputerFolders } from './Computers';
 
 /** A window without a folder: one computer's folder list (this one, or a paired one chosen in the title bar), and a way to open another folder there. */
@@ -41,10 +42,14 @@ export function Welcome({ info }: { info: WindowInfo }) {
 
 /** A folder that moved, was deleted, or cannot be read at all. */
 export function FolderProblem({ info }: { info: WindowInfo }) {
+  const toast = useToast();
+  const run = (command: AppCommand) => () => {
+    api.command(command).catch(error => { if ((error as AtlasError).code !== 'cancelled') toast.show({ message: (error as Error).message, variant: 'error' }); });
+  };
   // Back to the start page of the folder's computer, or close the window.
   const close = <>
-    <Button variant="secondary" onClick={() => void api.command('closeFolder')}>Close Folder</Button>
-    <Button variant="secondary" onClick={() => void api.command('closeWindow')}>Close</Button>
+    <Button variant="secondary" onClick={run('closeFolder')}>Close Folder</Button>
+    <Button variant="secondary" onClick={run('closeWindow')}>Close</Button>
   </>;
   if (info.remote) return <main className="folder-problem">
     <Surface className="folder-problem-panel" padding={6}>
@@ -56,7 +61,7 @@ export function FolderProblem({ info }: { info: WindowInfo }) {
   return <main className="folder-problem">
     <Surface className="folder-problem-panel" padding={6}>
       <EmptyState icon={<ErrorIcon />} headingLevel={1} title={missing ? 'This planning folder was moved or deleted' : 'This planning folder can’t be read'}
-        action={<div className="row-actions"><Button variant="primary" onClick={() => void api.command('locate')}>Locate…</Button>{close}</div>}
+        action={<div className="row-actions"><Button variant="primary" onClick={run('locate')}>Locate…</Button>{close}</div>}
         description={<>
           <span className="folder-problem-path"><bdi>{info.folder?.root}</bdi></span>
           {!missing && info.error && <span className="folder-problem-error">{info.error}</span>}

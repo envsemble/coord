@@ -89,6 +89,8 @@ export class AtlasWindow {
   private boundsTimer: ReturnType<typeof setTimeout> | null = null;
   /** When the person last pressed, typed or tapped in this window. */
   private lastActivation = 0;
+  /** A question or dialog a page's command opened in this window: one at a time. */
+  private asking = false;
 
   constructor(manager: WindowManager, bounds: Partial<Bounds> | undefined, maximized: boolean) {
     this.manager = manager;
@@ -270,10 +272,32 @@ export class AtlasWindow {
   }
 
   /**
-   * Whether the person pressed, typed or tapped in the window just now. Commands a compromised page
-   * could misuse (reading the clipboard through Paste, quitting) need it.
+   * Whether the person pressed, typed or tapped in the window just now. Paste, which reads the
+   * clipboard, needs it.
    */
   activatedRecently(within = 2000) { return this.lastActivation > 0 && performance.now() - this.lastActivation <= within; }
+
+  /**
+   * Commands a page could misuse (quitting, opening windows) run at once right after a person's
+   * press. Without one (a compromised page, but also a screen reader's click, which makes no input
+   * event), Atlas asks in a system dialog the page cannot answer. One question at a time.
+   */
+  async confirm(message: string, action: string): Promise<boolean> {
+    if (this.activatedRecently()) return true;
+    if (this.asking || this.win.isDestroyed()) return false;
+    this.asking = true;
+    try {
+      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Atlas', message, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
+      return response === 0;
+    } finally { this.asking = false; }
+  }
+
+  /** Dialogs a page opens (choosing a file or folder, About) come one at a time, so a page cannot pile them up. */
+  async oneDialog<T>(open: () => Promise<T>): Promise<T> {
+    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    this.asking = true;
+    try { return await open(); } finally { this.asking = false; }
+  }
 
   /** Point the window at a folder before the host opened it: the renderer shows it loading. */
   private prepare(root: string, name: string, remote: FolderView['remote']) {

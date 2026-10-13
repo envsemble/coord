@@ -38,7 +38,13 @@ test('the window is isolated and sandboxed, with a strict content security polic
 });
 
 test('messages are checked: wrong arguments and paths outside the folder are refused with structured errors', async () => {
-  const { window: atlasWindow } = launched!;
+  const { window: atlasWindow, app } = launched!;
+  // Commands a page could misuse ask first without a person's press; the person declines here.
+  await app.evaluate(({ dialog }) => {
+    const asked: string[] = [];
+    (globalThis as unknown as { asked: string[] }).asked = asked;
+    dialog.showMessageBox = (async (_window: unknown, options: { message: string }) => { asked.push(options.message); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
+  });
   const results = await atlasWindow.evaluate(async () => {
     const bridge = (window as unknown as { atlas: unknown }).atlas as Record<string, (...args: unknown[]) => Promise<unknown>>;
     return {
@@ -48,17 +54,23 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
       wrongType: await bridge.models(42),
       badHandle: await bridge.model('work-0001', '../../planning.json'),
       command: await bridge.command('openFolder'),
-      // Quitting and pasting (which reads the clipboard) need a person's click or key press first.
-      quit: await bridge.command('quit'),
+      // Pasting (which reads the clipboard) needs a person's click or key press; quitting, closing
+      // the last window and opening windows or the logs ask first.
       paste: await bridge.command('paste'),
+      quit: await bridge.command('quit'),
+      closeWindow: await bridge.command('closeWindow'),
+      newWindow: await bridge.command('newWindow'),
+      openLogs: await bridge.command('openLogs'),
       external: await bridge.openExternal('file:///C:/Windows/System32/calc.exe'),
       ok: await bridge.document('README.md').then(value => (value as { ok: boolean }).ok),
     };
   });
   for (const key of ['traversal', 'absolute', 'wrongType', 'badHandle', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
-  expect(results.quit).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.paste).toMatchObject({ ok: false, error: { code: 'forbidden' } });
+  for (const key of ['quit', 'closeWindow', 'newWindow', 'openLogs'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
+  expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual(['Exit Atlas?', 'Close the last window and exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?']);
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   expect(results.external).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.ok).toBe(true);
 });

@@ -6,7 +6,7 @@ import { Menubar, MenubarMenu, MenuItem, MenuSeparator, TitleBar, type MenubarMe
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import type { AppCommand } from '../shared/contract';
 import type { ComputerFolder, ViewName, WindowInfo } from './types';
-import { api } from './api';
+import { api, AtlasError } from './api';
 import { viewLabels } from './targets';
 import { ComputerMenu, openFolderOn, RecentFolders, useAppActions } from './Computers';
 import { ThemeMenu, ThemeSubmenu } from './ThemeMenu';
@@ -42,7 +42,7 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
   const noteFocus = (open: boolean, { previousFocus }: MenubarMenuOpenChangeDetails) => {
     if (open) focused.current = previousFocus instanceof HTMLElement ? previousFocus : null;
   };
-  const run = (command: AppCommand) => () => { api.command(command).catch(error => onError((error as Error).message)); };
+  const run = (command: AppCommand) => () => { api.command(command).catch(error => { if ((error as AtlasError).code !== 'cancelled') onError((error as Error).message); }); };
   const edit = (command: AppCommand) => () => {
     const target = focused.current;
     // The menu returns focus to its trigger as it closes; the command waits for that, then refocuses.

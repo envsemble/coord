@@ -95,9 +95,9 @@ function start() {
       buttons: ['OK'],
     };
     const target = window ?? manager.focused();
-    void (target ? dialog.showMessageBox(target.win, options) : dialog.showMessageBox(options));
+    return target ? dialog.showMessageBox(target.win, options) : dialog.showMessageBox(options);
   };
-  const refreshMenu = () => { void manager.localFolders().then(list => buildMenu(manager, list, { openLogs, about: () => about(), devTools })); };
+  const refreshMenu = () => { void manager.localFolders().then(list => buildMenu(manager, list, { openLogs, about: () => void about(), devTools })); };
 
   const localHost = new LocalHost({
     entry: path.join(import.meta.dirname, 'host.js'), dataDirectory, version: app.getVersion(), log,
