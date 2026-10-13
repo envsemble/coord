@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { AtlasMark, AtlasPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
 import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
 import {
-  Badge, Breadcrumbs, Button, Counter, EmptyState, Menu, MenuRadioGroup, MenuRadioItem, Notice, SearchField, Surface, Tabs, Text, ThemeToggle, Tree,
+  Badge, Breadcrumbs, Button, Counter, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, SearchField, Surface, Tabs, Text, ThemeToggle, Tree,
   useThemePreference, type TreeItem,
 } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
@@ -20,6 +20,7 @@ import { MenuBook } from '@envsemble/envui/icons/MenuBook';
 import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDiagram } from './data.ts';
 import { Markdown, markdownBody, scrollToHeading } from './Markdown.tsx';
 import { LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
+import { modelSummary, type ProvenanceKind } from '../src/provenance.ts';
 
 type Tab = 'plan' | 'ledger' | 'diagrams' | 'files';
 interface Route { tab: Tab | null; file: string | null; anchor: string | null; diagram: string | null; element: string | null }
@@ -166,15 +167,32 @@ function About({ data }: { data: PlanData }) {
   </aside>;
 }
 
+const pickerGroups: { kind: ProvenanceKind; title: string }[] = [
+  { kind: 'generated', title: 'From code and databases' },
+  { kind: 'proposal', title: 'Proposals' },
+  { kind: 'authored', title: 'Authored' },
+  { kind: 'unknown', title: 'Other' },
+];
+/** One short line under a diagram's title, as the app's picker has it. */
+function diagramSummary(diagram: ViewDiagram) {
+  const document = (diagram.payload as { model?: { document?: { profile?: string; state?: string; imported?: boolean } } } | null)?.model?.document;
+  return modelSummary({ profile: document?.profile ?? '', state: document?.state ?? '', imported: document?.imported ?? diagram.provenance.detail.endsWith('Imported'), provenance: diagram.provenance });
+}
+/** The app's model picker: a compact menu of the work item's diagrams, by origin. */
 function ModelPicker({ diagrams, handle, onSelect }: { diagrams: ViewDiagram[]; handle: string; onSelect(handle: string): void }) {
   const current = diagrams.find(diagram => diagram.handle === handle);
-  return <Menu aria-label="Choose a diagram" align="start" className="model-menu"
+  return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu"
     trigger={<Button variant="secondary" className="model-picker-button" startIcon={<AccountTree />} endIcon={<ExpandMore />}>
       <span className="model-picker-title">{current?.title ?? 'Choose a diagram'}</span>{current && <ProvenanceBadge provenance={current.provenance} />}
     </Button>}>
     <MenuRadioGroup value={handle} onValueChange={onSelect}>
-      {diagrams.map(diagram => <MenuRadioItem key={diagram.handle} value={diagram.handle}
-        description={[diagram.provenance.detail, ...diagram.explains.slice(0, 3).map(item => 'Explains ' + (item.section ? item.path + ' › ' + item.section : item.path))].filter(Boolean).join(' · ') || undefined}>{diagram.title}</MenuRadioItem>)}
+      {pickerGroups.map(group => {
+        const items = diagrams.filter(diagram => diagram.provenance.kind === group.kind);
+        if (!items.length) return null;
+        return <MenuGroup key={group.kind} label={group.title}>
+          {items.map(diagram => <MenuRadioItem key={diagram.handle} value={diagram.handle} description={diagramSummary(diagram) || undefined}>{diagram.title}</MenuRadioItem>)}
+        </MenuGroup>;
+      })}
     </MenuRadioGroup>
   </Menu>;
 }
