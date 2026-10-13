@@ -520,7 +520,7 @@ function partChange(before, after) {
     `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`
   ];
 }
-var partKey = (item) => isPart(item) ? isForeignKey(item) ? `columns:${JSON.stringify(item.columns)}` : `name:${item.name}` : JSON.stringify(item);
+var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target])}` : `name:${item.name}` : JSON.stringify(item);
 function itemChanges(note) {
   const before = note.before?.present ? note.before.value : [];
   const after = note.after?.present ? note.after.value : [];
@@ -1071,10 +1071,11 @@ function summarize(entry, names) {
       note
     };
   }
+  const own = members.filter((m) => !m.moved);
   return {
-    text: members.slice(0, MAX_TOKENS - 1).map((m) => m.label).join(", "),
+    text: own.slice(0, MAX_TOKENS - 1).map((m) => m.label).join(", "),
     tokens: [],
-    more: Math.max(0, members.length - (MAX_TOKENS - 1)),
+    more: Math.max(0, own.length - (MAX_TOKENS - 1)),
     note
   };
 }
@@ -4582,19 +4583,19 @@ function TableSchema({
     ...(element.keys || []).filter((key) => !key.primary),
     ...[...keyChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
   ];
-  const sameColumns = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const shownByRelation = (key) => outgoing.some(
+    ({ relation }) => relation.changeStatus !== "removed" && JSON.stringify(relation.columns) === JSON.stringify(key.columns) && (relation.target === key.target || tables.get(relation.targetId) === key.target)
+  );
   const foreignNote = record?.properties?.find((p) => p.key === "foreignKeys");
   const foreignChanges = new Map(
     (foreignNote ? itemChanges(foreignNote) || [] : []).map((c) => [
-      JSON.stringify((c.after ?? c.before).columns),
+      partKey(c.after ?? c.before),
       c
     ])
   );
   const external = [
     ...(element.foreignKeys || []).filter(
-      (key) => Array.isArray(key.columns) && !outgoing.some(
-        ({ relation }) => sameColumns(relation.columns, key.columns)
-      )
+      (key) => Array.isArray(key.columns) && typeof key.target === "string" && !shownByRelation(key)
     ),
     ...[...foreignChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
   ];
@@ -4662,8 +4663,8 @@ function TableSchema({
                     /* @__PURE__ */ jsx21("span", { className: "member-type", children: change?.status === "modified" ? /* @__PURE__ */ jsx21(
                       ChangedValue,
                       {
-                        before: describePart(change.before),
-                        after: describePart(change.after)
+                        before: partChange(change.before, change.after)[0],
+                        after: partChange(change.before, change.after)[1]
                       }
                     ) : `(${key.columns.join(", ")})` })
                   ] })
@@ -4720,7 +4721,7 @@ function TableSchema({
             relation.id
           )),
           external.map((key) => {
-            const change = foreignChanges.get(JSON.stringify(key.columns));
+            const change = foreignChanges.get(partKey(key));
             return /* @__PURE__ */ jsxs14(
               "li",
               {
@@ -4736,8 +4737,8 @@ function TableSchema({
                   /* @__PURE__ */ jsx21("code", { className: "signature", children: change?.status === "modified" ? /* @__PURE__ */ jsx21(
                     ChangedValue,
                     {
-                      before: describePart(change.before),
-                      after: describePart(change.after)
+                      before: partChange(change.before, change.after)[0],
+                      after: partChange(change.before, change.after)[1]
                     }
                   ) : /* @__PURE__ */ jsxs14(Fragment7, { children: [
                     /* @__PURE__ */ jsx21("span", { className: "member-name", children: key.columns.join(", ") }),
@@ -4752,7 +4753,7 @@ function TableSchema({
                   ] }) })
                 ]
               },
-              JSON.stringify(key.columns)
+              partKey(key)
             );
           })
         ]
