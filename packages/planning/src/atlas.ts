@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import atlas, { type AtlasDocument, type ViewerPayload } from '@envsemble/atlas-diagrams';
-const { createWorkspace, prepareViewer } = atlas;
+const { createWorkspace, prepareViewer, prepareFamily, familyKey } = atlas;
 import { PlanningError } from './planning.ts';
 import type { Document, PlanningIndex as LoadedIndex } from './types.ts';
 import { describeProvenance, type Provenance } from './provenance.ts';
@@ -13,6 +13,25 @@ export interface ModelExplains { path: string | null; reference: string; section
 export interface AtlasEntry {
   handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
   provenance: Provenance; explains: ModelExplains[];
+  /** Models laid out together share it: a capture and the proposals over its snapshot. Null for a model alone. */
+  family: string | null;
+}
+/** A model's payload, with the payloads of the models laid out with it, so a client can switch among them without asking again. */
+export type PreparedModel = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[] };
+type Loaded = [handle: string, document: AtlasDocument];
+
+/**
+ * Families among a work folder's documents: a capture and every proposal over its snapshot, when
+ * there is at least one proposal and more than one member. Each family's members by handle.
+ */
+export function modelFamilies(documents: Loaded[]): Map<string, Loaded[]> {
+  const groups = new Map<string, Loaded[]>();
+  for (const loaded of documents) {
+    const key = familyKey(loaded[1]);
+    if (key) groups.set(key, [...groups.get(key) ?? [], loaded]);
+  }
+  for (const [key, members] of groups) if (members.length < 2 || !members.some(([, document]) => document.state === 'proposal')) groups.delete(key);
+  return groups;
 }
 export interface ModelReference {
   handle: string; workId: string; title: string; elementId: string | null; elementName: string | null;
@@ -85,6 +104,7 @@ export function elementNames(model: unknown): Map<string, string> {
  */
 export class AtlasCatalog {
   private cache = new Map<string, Promise<ViewerPayload>>();
+  private families = new Map<string, Promise<Map<string, ViewerPayload>>>();
   private owners = new Map<string, string | undefined>();
   readonly planningRoot: string;
   constructor(planningRoot: string) { this.planningRoot = planningRoot; }
@@ -143,12 +163,12 @@ export class AtlasCatalog {
     }
     return result;
   }
-  private entry(handle: string, document: AtlasDocument, work: IndexedWork, snapshot: PlanningIndex): AtlasEntry {
+  private entry(handle: string, document: AtlasDocument, work: IndexedWork, snapshot: PlanningIndex, family: string | null): AtlasEntry {
     const capture = document.snapshots.find(item => item.id === document.baselineId)?.capture;
     return {
       handle, title: document.title, revision: document.revision.id, profile: document.profile, state: document.state,
       capturedAt: capture?.capturedAt ?? null, coverage: capture?.coverage.status ?? null, imported: !!document.imported,
-      provenance: describeProvenance(document), explains: this.explains(document, work, snapshot),
+      provenance: describeProvenance(document), explains: this.explains(document, work, snapshot), family,
     };
   }
 
@@ -157,6 +177,7 @@ export class AtlasCatalog {
     const models: AtlasEntry[] = [], issues: string[] = [], invalidHandles: string[] = [];
     const location = this.location(work);
     if (!location) return { models, issues, invalidHandles };
+    const loaded: Loaded[] = [];
     let workspace: ReturnType<typeof createWorkspace> | null = null;
     for (const handle of this.handles(location.directory)) {
       try {
@@ -164,7 +185,7 @@ export class AtlasCatalog {
         const document = workspace.load(handle);
         this.owners.set(location.directory + '\0' + handle, document.workId);
         if (!this.belongs(document, work)) { issues.push(`Model “${document.title}” in this work folder is assigned to ${document.workId}.`); continue; }
-        models.push(this.entry(handle, document, work, snapshot));
+        loaded.push([handle, document]);
       } catch {
         // The claimed work ID is used only to display a generic error, never to serve invalid content.
         const owner = this.claimedOwner(location, handle);
@@ -174,10 +195,15 @@ export class AtlasCatalog {
         }
       }
     }
+    const families = modelFamilies(loaded);
+    for (const [handle, document] of loaded) {
+      const family = familyKey(document);
+      models.push(this.entry(handle, document, work, snapshot, family && families.has(family) ? family : null));
+    }
     return { models, issues, invalidHandles };
   }
 
-  private find(snapshot: PlanningIndex, workId: string, handle: string): { document: AtlasDocument; location: Location } {
+  private find(snapshot: PlanningIndex, workId: string, handle: string): { document: AtlasDocument; location: Location; work: IndexedWork } {
     const work = this.work(snapshot, workId);
     if (!handlePattern.test(handle)) throw new PlanningError('Choose an Atlas model.', 400);
     const location = this.location(work);
@@ -186,13 +212,46 @@ export class AtlasCatalog {
     try { document = createWorkspace(location.root).load(handle); }
     catch { throw new PlanningError('This model has an invalid update or is unavailable.', 409); }
     if (!this.belongs(document, work)) throw new PlanningError('This model belongs to another work item.', 403);
-    return { document, location };
+    return { document, location, work };
   }
   load(snapshot: PlanningIndex, workId: string, handle: string): AtlasDocument {
     return this.find(snapshot, workId, handle).document;
   }
-  async prepared(snapshot: PlanningIndex, workId: string, handle: string) {
-    const { document, location } = this.find(snapshot, workId, handle);
+  /** The valid models of the work item laid out with this one, itself included, by handle; null for a model alone. */
+  private family(location: Location, work: IndexedWork, handle: string, document: AtlasDocument): Loaded[] | null {
+    const key = familyKey(document);
+    if (!key) return null;
+    const workspace = createWorkspace(location.root);
+    const loaded: Loaded[] = [];
+    for (const other of this.handles(location.directory)) {
+      if (other === handle) { loaded.push([handle, document]); continue; }
+      try {
+        const candidate = workspace.load(other);
+        if (this.belongs(candidate, work) && familyKey(candidate) === key) loaded.push([other, candidate]);
+      } catch { /* An invalid update is not served, so it lays out with no one. */ }
+    }
+    return modelFamilies(loaded).get(key) ?? null;
+  }
+  /**
+   * A model's viewer payload. A capture or proposal in a family comes with its siblings' payloads,
+   * all from one layout, so a client switches among them without another request.
+   */
+  async prepared(snapshot: PlanningIndex, workId: string, handle: string): Promise<PreparedModel> {
+    const { document, location, work } = this.find(snapshot, workId, handle);
+    const family = this.family(location, work, handle, document);
+    if (family) {
+      const key = location.directory + '\0' + family.map(([member, loaded]) => member + ':' + loaded.revision.id).join(',');
+      let pending = this.families.get(key);
+      if (!pending) {
+        pending = prepareFamily({ documents: family.map(([, loaded]) => loaded), includeArtifacts: false })
+          .then(result => new Map(family.map(([member], index) => [member, result.members[index].payload])));
+        this.families.set(key, pending);
+        if (this.families.size > 4) this.families.delete(this.families.keys().next().value!);
+        pending.catch(() => this.families.delete(key));
+      }
+      const payloads = await pending;
+      return { ...payloads.get(handle)!, siblings: family.filter(([member]) => member !== handle).map(([member]) => ({ handle: member, payload: payloads.get(member)! })) };
+    }
     const key = location.directory + '\0' + handle + ':' + document.revision.id;
     let pending = this.cache.get(key);
     if (!pending) {

@@ -12,6 +12,11 @@ test('the picker describes each model in one short line', () => {
   assert.equal(summary('proposal', 'Changes to source captured Sep 14, 2026'), 'Changes to the code captured Sep 14, 2026');
   assert.equal(summary('proposal', 'Changes to source captured Sep 9, 2026', 'database'), 'Changes to the database captured Sep 9, 2026');
   assert.equal(summary('proposal', '', 'ontouml'), 'Changes to the model');
+  // Alternatives over one capture read apart by how much each changes.
+  const counted = (changes: number) => modelSummary({ profile: 'code', state: 'proposal', imported: false, provenance: { kind: 'proposal', detail: 'Changes to source captured Sep 14, 2026' } }, changes);
+  assert.equal(counted(15), '15 changes to the code captured Sep 14, 2026');
+  assert.equal(counted(1), '1 change to the code captured Sep 14, 2026');
+  assert.equal(counted(0), 'No changes to the code captured Sep 14, 2026');
   assert.equal(summary('authored', 'Conceptual model', 'ontouml'), 'Conceptual model');
   assert.equal(summary('authored', 'Structural model · Imported', 'code', true), 'Structural model · imported');
   assert.equal(summary('unknown', '', 'code'), '');

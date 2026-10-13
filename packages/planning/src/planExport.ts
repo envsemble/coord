@@ -400,25 +400,39 @@ async function diagramsFor(folder: string, work: Work, documents: Work['document
   const handles = readdirSync(models).filter(name => /^m-[a-f0-9]{24}\.json$/.test(name)).sort().map(name => name.slice(0, -5));
   if (!handles.length) return [];
   const { default: atlas } = await import('@envsemble/atlas-diagrams');
-  const { elementNames } = await import('./atlas.ts');
+  const { elementNames, modelFamilies } = await import('./atlas.ts');
   const workspace = atlas.createWorkspace(folder);
+  const loaded = new Map<string, AtlasDocument>();
+  for (const handle of handles) {
+    try { loaded.set(handle, workspace.load(handle)); } catch { /* Reported below. */ }
+  }
+  // A capture and its proposals are laid out together, so the viewer switches among them in place;
+  // a family that cannot be drawn together is drawn model by model.
+  const payloads = new Map<string, unknown>();
+  for (const members of modelFamilies([...loaded]).values()) {
+    try {
+      const family = await atlas.prepareFamily({ documents: members.map(([, document]) => document), includeArtifacts: false });
+      members.forEach(([handle], index) => payloads.set(handle, family.members[index].payload));
+    } catch { /* Each member is prepared alone. */ }
+  }
   const result: ViewDiagram[] = [];
   for (const handle of handles) {
     const file = '.atlas/models/' + handle + '.json';
-    let document: AtlasDocument;
-    try { document = workspace.load(handle); }
-    catch {
+    const document = loaded.get(handle);
+    if (!document) {
       warnings.push(`The model ${file} has an invalid or unrecorded update; it is exported as-is but not shown.`);
       let title = handle;
       try { const claimed = JSON.parse(readFileSync(path.join(models, handle + '.json'), 'utf8')); if (typeof claimed?.title === 'string') title = claimed.title; } catch { /* Shown by handle. */ }
       result.push({ handle, file, title, provenance: describeProvenance(null), payload: null, error: 'This model has an invalid or unrecorded update and cannot be shown.', explains: [], references: [] });
       continue;
     }
-    let payload: unknown = null, error: string | null = null;
-    try { payload = (await atlas.prepareViewer({ document, includeArtifacts: false })).payload; }
-    catch (failure) {
-      error = 'This model cannot be drawn: ' + (failure instanceof Error ? failure.message.split('\n')[0] : 'unknown error');
-      warnings.push(`The model ${file} is exported but cannot be drawn in the viewer.`);
+    let payload: unknown = payloads.get(handle) ?? null, error: string | null = null;
+    if (!payload) {
+      try { payload = (await atlas.prepareViewer({ document, includeArtifacts: false })).payload; }
+      catch (failure) {
+        error = 'This model cannot be drawn: ' + (failure instanceof Error ? failure.message.split('\n')[0] : 'unknown error');
+        warnings.push(`The model ${file} is exported but cannot be drawn in the viewer.`);
+      }
     }
     // Chips name elements as the app's do: relations by their ends when their own name says nothing more.
     const names = elementNames(document.model);

@@ -266,3 +266,58 @@ test('element chips name relations by their ends when their own name says nothin
   assert.equal(conceptual.get('default'), 'Customer → Order');
   assert.equal(conceptual.get('is-person'), 'Customer inherits Person');
 });
+
+test('a capture and its proposals are served together, laid out once, and stand alone otherwise', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-family-'));
+  try {
+    const folder = path.join(root, 'active/0001-orders');
+    mkdirSync(folder, { recursive: true });
+    const snapshot = { work: [{ id: 'work-1', path: 'active/0001-orders' }], documents: [{ path: 'active/0001-orders/plan.md', workId: 'work-1', category: 'plan' }] } as unknown as Snapshot;
+    const workspace = createWorkspace(folder);
+    const model = { type: 'StructuralModel' as const, nodes: [{ id: 'order', name: 'Order', attributes: [] }, { id: 'line', name: 'Line', attributes: [] }], relations: [], generalizations: [], generalizationSets: [] };
+    const captured = atlas.createSnapshot({ profile: 'code', model, capture: { capturedAt: '2026-09-14T08:00:00.000Z', adapter: { id: 'test', version: '1' }, source: { kind: 'typescript', identity: 'shop', scope: ['src'] }, coverage: { status: 'complete', diagnostics: [] }, limitations: [] } });
+    const capture = await workspace.execute('atlas_create', { input: { id: 'orders-capture', title: 'Orders', profile: 'code', state: 'snapshot', workId: 'work-1', model, snapshots: [captured], baselineId: captured.id } } as never) as { handle: string };
+    // Two alternatives over the capture.
+    const alternative = async (title: string, node: { id: string; name: string }) => {
+      const branched = await workspace.execute('atlas_proposal', { handle: capture.handle, title }) as { handle: string; revision: string };
+      return await workspace.execute('atlas_revise', { handle: branched.handle, expectedRevision: branched.revision, changes: { model: { ...model, nodes: [...model.nodes, { ...node, attributes: [] }] } } } as never) as { handle: string; revision: string };
+    };
+    const first = await alternative('Option A', { id: 'refund', name: 'Refund' });
+    const second = await alternative('Option B', { id: 'credit', name: 'Credit' });
+    const lone = await workspace.execute('atlas_create', { input: { id: 'sketch', title: 'Sketch', profile: 'code', workId: 'work-1', model } } as never) as { handle: string };
+    const catalog = new AtlasCatalog(root);
+    const families = new Map(catalog.list(snapshot, 'work-1').models.map(entry => [entry.handle, entry.family]));
+    assert.equal(families.get(capture.handle), captured.id);
+    assert.equal(families.get(first.handle), captured.id);
+    assert.equal(families.get(second.handle), captured.id);
+    assert.equal(families.get(lone.handle), null);
+
+    // Asking for one member brings every member's payload, from one layout.
+    const answer = await catalog.prepared(snapshot, 'work-1', first.handle);
+    assert.equal(answer.family, captured.id);
+    assert.deepEqual(answer.siblings!.map(item => item.handle).sort(), [capture.handle, second.handle].sort());
+    const position = (payload: typeof answer, id: string) => {
+      const scene = (payload.comparison?.changeView ?? payload).views[0].diagram;
+      const node = scene.nodes.find(item => item.id === id)!;
+      return [node.x, node.y];
+    };
+    for (const sibling of answer.siblings!) {
+      assert.equal(sibling.payload.family, captured.id);
+      assert.deepEqual(position(sibling.payload, 'order'), position(answer, 'order'));
+    }
+    // Another member comes from the same preparation.
+    const again = await catalog.prepared(snapshot, 'work-1', capture.handle);
+    assert.equal(again.siblings!.find(item => item.handle === first.handle)!.payload.model, answer.model);
+    assert.equal((await catalog.prepared(snapshot, 'work-1', lone.handle)).siblings, undefined);
+
+    // A revised alternative lays the family out again.
+    const document = workspace.load(second.handle);
+    await workspace.execute('atlas_revise', { handle: second.handle, expectedRevision: second.revision, changes: { title: 'Option B, revised' } } as never);
+    const revised = await catalog.prepared(snapshot, 'work-1', first.handle);
+    assert.notEqual(revised.model, answer.model);
+    assert.equal(revised.siblings!.find(item => item.handle === second.handle)!.payload.model.title, 'Option B, revised');
+    assert.equal(document.title, 'Option B');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

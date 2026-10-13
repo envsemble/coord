@@ -60,9 +60,10 @@ const subjects: Record<string, string> = { code: 'the code', database: 'the data
 /**
  * One short line under a model's title in the picker: where a generated model came from and when
  * ("TypeScript · captured Sep 14, 2026"), what a proposal changes ("Changes to the code captured
- * Sep 14, 2026"), or what an authored model is ("Conceptual model").
+ * Sep 14, 2026", or with its count of changes, once known, "15 changes to the code captured Sep 14,
+ * 2026"), or what an authored model is ("Conceptual model").
  */
-export function modelSummary(model: ModelSummarySource): string {
+export function modelSummary(model: ModelSummarySource, changes?: number | null): string {
   const parts = model.provenance.detail.split(' · ').filter(part => part && part !== 'Imported');
   let line: string;
   if (model.provenance.kind === 'generated') {
@@ -72,7 +73,8 @@ export function modelSummary(model: ModelSummarySource): string {
   } else if (model.provenance.kind === 'proposal') {
     const date = /captured (.+)$/.exec(model.provenance.detail.replace(/ · Imported$/, ''))?.[1];
     const subject = subjects[model.profile] ?? 'the model';
-    line = date ? `Changes to ${subject} captured ${date}` : `Changes to ${subject}`;
+    const what = changes == null ? 'Changes' : changes === 0 ? 'No changes' : changes === 1 ? '1 change' : changes + ' changes';
+    line = date ? `${what} to ${subject} captured ${date}` : `${what} to ${subject}`;
   } else line = parts.join(' · ');
   const text = model.imported ? (line ? line + ' · imported' : 'Imported') : line;
   return text.charAt(0).toUpperCase() + text.slice(1);
