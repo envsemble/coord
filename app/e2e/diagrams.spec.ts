@@ -18,45 +18,78 @@ async function openDiagrams(window: Page, title: string) {
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
 }
 
-test('the picker groups diagrams by provenance and switches models', async () => {
+test('the picker lists diagrams by origin, one short line each, and switches models', async () => {
   launched = await launch({ folder });
   const { window } = launched;
   await openDiagrams(window, 'Checkout · captured TypeScript');
   await expect(window.locator('.diagrams .atlas-panel').first()).toContainText('Generated from code');
   await window.locator('.model-picker-button').click();
-  const menu = window.locator('.model-menu');
-  await expect(menu.getByRole('group', { name: 'Generated from code or database' })).toContainText('Checkout · captured TypeScript');
-  await expect(menu.getByRole('group', { name: 'Agent proposals' })).toContainText('Checkout · proposed payment methods');
+  const menu = window.getByRole('menu', { name: 'Choose a diagram' });
+  const captured = menu.getByRole('group', { name: 'From code and databases' });
+  await expect(captured).toContainText('Checkout · captured TypeScript');
+  await expect(captured).toContainText('TypeScript · captured Sep 14, 2026');
+  const proposals = menu.getByRole('group', { name: 'Proposals' });
+  await expect(proposals).toContainText('Changes to the code captured Sep 14, 2026');
+  // What a model explains is no longer listed in the menu.
+  await expect(menu).not.toContainText('Explains');
   await menu.getByRole('menuitemradio', { name: /Checkout · proposed payment methods/ }).click();
   await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
   // Choosing a diagram is working in the tab, so it is pinned.
   await expect(window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]')).toHaveAttribute('data-preview', 'false');
 });
 
-test('a proposal compares Baseline and Changes, and the inspector shows a selected element', async () => {
+test('a proposal opens on its changes: the overview leads to each change, and details explain it', async () => {
   launched = await launch({ folder });
-  const { window } = launched;
+  const { window, app } = launched;
+  // A typical window leaves room for the overview beside the diagram.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
   await openDiagrams(window, 'Checkout · proposed payment methods');
-  const comparison = window.getByRole('group', { name: 'Comparison' });
-  await expect(comparison.getByRole('radio', { name: 'Changes' })).toBeChecked();
-  await window.locator('.change-counts').click();
-  await expect(window.getByRole('dialog', { name: 'Semantic changes' })).toBeVisible();
-  await window.keyboard.press('Escape');
-  await comparison.getByRole('radio', { name: 'Baseline' }).click();
-  await expect(comparison.getByRole('radio', { name: 'Baseline' })).toBeChecked();
-  await window.locator('.diagrams .node', { has: window.getByText('PaymentGateway', { exact: true }) }).first().click();
-  await expect(window.locator('.inspector.open')).toBeVisible();
-  await expect(window.locator('.inspector.open')).toContainText('PaymentGateway');
+  // One way to choose what is shown: no Baseline/Changes control.
+  await expect(window.getByRole('radio', { name: 'Baseline' })).toHaveCount(0);
+  const changes = window.getByRole('button', { name: /^Changes, \d+$/ });
+  await expect(changes).toHaveAttribute('aria-pressed', 'true');
+  const overview = window.getByRole('complementary', { name: 'Changes in this proposal' });
+  await expect(overview).toContainText('Compared with the code captured Sep 14, 2026.');
+  // Changes are marked on the canvas, and what stays the same fades.
+  await expect(window.locator('.diagrams .node[data-change="added"][data-name="SavedPaymentMethod"]')).toBeVisible();
+  await expect(window.locator('.diagrams .viewer.fade-unchanged')).toHaveCount(1);
+  const row = overview.locator('button.change-row', { has: window.locator('.change-row-name', { hasText: /^CheckoutService$/ }) });
+  await expect(row).toContainText('vault');
+  await row.click();
+  const details = window.getByRole('complementary', { name: 'Model details' });
+  await expect(details.getByRole('heading', { level: 1 })).toHaveText('CheckoutService');
+  await expect(details.getByRole('region', { name: 'What changes' })).toContainText('placeOrderWithSavedMethod');
+  await expect(details.getByRole('region', { name: 'Where in code' })).toContainText('src/checkout/CheckoutService.ts');
+  await expect(details.getByRole('region', { name: 'Why' })).toContainText('Checkout flow');
+  for (const noise of ['observed', 'Capture ·', 'Mappings']) await expect(details).not.toContainText(noise);
+  // Keyboard focus lands on the way back; the next change follows.
+  await expect(details.getByRole('button', { name: 'All changes' })).toBeFocused();
+  const position = details.locator('.change-position');
+  const before = await position.textContent();
+  await details.getByRole('button', { name: 'Next change' }).click();
+  await expect(position).not.toHaveText(before ?? '');
+  await details.getByRole('button', { name: 'All changes' }).click();
+  await expect(overview).toBeVisible();
+  // The Changes button hides the overview and shows it again.
+  await changes.click();
+  await expect(overview).toBeHidden();
+  await changes.click();
+  await expect(overview).toBeVisible();
 });
 
-test('an authored model opens its report and a full view', async () => {
+test('an authored model opens its guide and a full view', async () => {
   launched = await launch({ folder });
   const { window } = launched;
   await openDiagrams(window, 'Fulfilment · conceptual model');
-  await window.getByRole('button', { name: 'Open model report' }).click();
-  await expect(window.getByRole('article', { name: 'Model report' })).toBeVisible();
-  await window.keyboard.press('Escape');
-  await expect(window.getByRole('article', { name: 'Model report' })).toHaveCount(0);
+  // The model report is gone; its walkthrough and examples guide the model.
+  await expect(window.getByRole('button', { name: 'Open model report' })).toHaveCount(0);
+  const understand = window.getByRole('button', { name: 'Understand the model' });
+  await understand.click();
+  const guide = window.getByRole('complementary', { name: 'Model guide' });
+  await expect(guide).toContainText('How one order becomes several shipments');
+  await expect(guide).toContainText('Order 1042 split across Berlin and Leeds');
+  await understand.click();
+  await expect(guide).toBeHidden();
   // Full view hides the work header; Escape returns.
   await window.getByRole('button', { name: /full ?screen|full view/i }).first().click();
   await expect(window.locator('.diagrams.fullscreen')).toBeVisible();
@@ -73,10 +106,10 @@ test('an element chip in the plan opens the diagram at that element, and its pla
   await expect(chip).toBeVisible();
   await chip.click();
   await expect(window.locator('.inspector.open')).toBeVisible();
-  const references = window.getByRole('region', { name: 'Planning references' });
-  await expect(references).toBeVisible();
-  await references.locator('summary').first().click();
-  await references.getByRole('button', { name: /^Open / }).first().click();
+  // Why the element exists: its planning passages, each a link back to the plan.
+  const why = window.locator('.inspector.open').getByRole('region', { name: 'Why' });
+  await expect(why).toBeVisible();
+  await why.getByRole('button', { name: /^Open Plan › / }).first().click();
   await expect(window.getByRole('tablist', { name: 'Work sections' }).locator('[role="tab"][aria-selected="true"]')).toContainText('Plan');
   await expect(window.locator('.prose')).toBeVisible();
 });
@@ -99,8 +132,9 @@ async function paintedNameMargins(window: Page, node: Locator) {
     const { data, width, height } = context.getImageData(0, 0, image.width, image.height);
     let left = width, right = -1;
     // The name line sits in the lower half of a header-only node; the change marker is at the top left.
+    // The box's change border and the ring around it lie within the outer 12 pixels.
     for (let y = Math.round(height * 0.5); y < Math.round(height * 0.9); y++) {
-      for (let x = 4; x < width - 4; x++) {
+      for (let x = 12; x < width - 12; x++) {
         const offset = (y * width + x) * 4;
         if (0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2] > 170) { left = Math.min(left, x); right = Math.max(right, x); }
       }
