@@ -16,6 +16,7 @@ import {
   meaningfulProperties,
   partChange,
   partKey,
+  referencedColumns,
   rowFor,
 } from "../review/changes";
 
@@ -807,7 +808,8 @@ export function TableSchema({
                           {key.columns.join(", ")}
                         </span>{" "}
                         <span className="member-type">
-                          → {key.target}({(key.targetColumns || []).join(", ")})
+                          → {key.target}
+                          {referencedColumns(key.targetColumns)}
                         </span>
                       </>
                     )}

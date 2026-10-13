@@ -90,8 +90,13 @@ const isPart = (item) =>
   !Array.isArray(item) &&
   typeof item.$element !== "string" &&
   (isForeignKey(item) || (typeof item.name === "string" && !!item.name));
+/** The columns a foreign key refers to, in parentheses, where they are known. */
+export const referencedColumns = (columns) => {
+  const known = knownColumns(columns);
+  return known.length ? `(${known.join(", ")})` : "";
+};
 const foreignKeyText = (key) =>
-  `${key.columns.join(", ")} → ${key.target}(${(key.targetColumns || []).join(", ")})`;
+  `${key.columns.join(", ")} → ${key.target}${referencedColumns(key.targetColumns)}`;
 /** What a part of a table is called in a summary: its name, or what a foreign key joins. */
 function partName(item) {
   return isForeignKey(item) ? foreignKeyText(item) : item.name;
@@ -151,11 +156,13 @@ export function partChange(before, after) {
   ];
 }
 // A part keeps its identity by its name; a foreign key by its columns and
-// the table and columns it refers to.
+// the table and columns it refers to, where those are known.
+const knownColumns = (columns) =>
+  Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
 export const partKey = (item) =>
   isPart(item)
     ? isForeignKey(item)
-      ? `key:${JSON.stringify([item.columns, item.target, item.targetColumns ?? []])}`
+      ? `key:${JSON.stringify([item.columns, item.target, knownColumns(item.targetColumns)])}`
       : `name:${item.name}`
     : JSON.stringify(item);
 /**

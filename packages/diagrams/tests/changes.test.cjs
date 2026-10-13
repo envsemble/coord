@@ -1575,6 +1575,27 @@ test("a table's foreign keys are told once: by the relation that shows them, or 
     tokensOf(columns.rollup.rows.find((r) => r.name === "orders")),
     ["removed foreign key user_id → accounts(legacy_id)"],
   );
+  // A key whose referenced columns are unknown is the same key with or
+  // without them.
+  const { partKey } = loadComponents("src/review/changes.js");
+  assert.equal(
+    partKey({ ...key, target: "accounts", targetColumns: [null] }),
+    partKey({ ...key, target: "accounts", targetColumns: undefined }),
+  );
+  // It reads without them.
+  const unknown = await tableProposal(
+    {
+      ...ordersTable(),
+      foreignKeys: [{ ...key, target: "accounts", targetColumns: [null] }],
+    },
+    (orders) => {
+      orders.foreignKeys = [];
+    },
+  );
+  assert.deepEqual(
+    tokensOf(unknown.rollup.rows.find((r) => r.name === "orders")),
+    ["removed foreign key user_id → accounts"],
+  );
   // PostgreSQL lists a foreign key as a constraint; its relation tells it.
   const constraint = {
     name: "orders_user_id_fkey",

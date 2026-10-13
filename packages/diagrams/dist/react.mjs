@@ -492,7 +492,11 @@ function nameIndex(...models) {
 var textOf = (value) => typeof value === "string" ? value : value && typeof value === "object" && !Array.isArray(value) ? Object.values(value).find((v) => typeof v === "string") ?? null : null;
 var isForeignKey = (item) => Array.isArray(item?.columns) && typeof item.target === "string";
 var isPart = (item) => !!item && typeof item === "object" && !Array.isArray(item) && typeof item.$element !== "string" && (isForeignKey(item) || typeof item.name === "string" && !!item.name);
-var foreignKeyText = (key) => `${key.columns.join(", ")} \u2192 ${key.target}(${(key.targetColumns || []).join(", ")})`;
+var referencedColumns = (columns) => {
+  const known = knownColumns(columns);
+  return known.length ? `(${known.join(", ")})` : "";
+};
+var foreignKeyText = (key) => `${key.columns.join(", ")} \u2192 ${key.target}${referencedColumns(key.targetColumns)}`;
 function partName(item) {
   return isForeignKey(item) ? foreignKeyText(item) : item.name;
 }
@@ -520,7 +524,8 @@ function partChange(before, after) {
     `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`
   ];
 }
-var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target, item.targetColumns ?? []])}` : `name:${item.name}` : JSON.stringify(item);
+var knownColumns = (columns) => Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
+var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target, knownColumns(item.targetColumns)])}` : `name:${item.name}` : JSON.stringify(item);
 function itemChanges(note) {
   const before = note.before?.present ? note.before.value : [];
   const after = note.after?.present ? note.after.value : [];
@@ -4746,9 +4751,7 @@ function TableSchema({
                     /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
                       "\u2192 ",
                       key.target,
-                      "(",
-                      (key.targetColumns || []).join(", "),
-                      ")"
+                      referencedColumns(key.targetColumns)
                     ] })
                   ] }) })
                 ]
