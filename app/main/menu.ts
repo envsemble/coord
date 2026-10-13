@@ -63,7 +63,7 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
         { label: '&Activity', click: () => manager.sendMenu('openActivity') },
         { label: 'S&tatistics', click: () => manager.sendMenu('openStatistics') },
         { type: 'separator' },
-        // Zoom keeps the title bar's window buttons as tall as the bar.
+        // Zoom keeps the title bar's window buttons as tall as the bar above its line.
         { label: '&Actual Size', accelerator: 'CmdOrCtrl+0', click: () => window()?.zoom('reset') },
         { label: 'Zoom &In', accelerator: 'CmdOrCtrl+Plus', click: () => window()?.zoom('in') },
         { label: 'Zoom &Out', accelerator: 'CmdOrCtrl+-', click: () => window()?.zoom('out') },
