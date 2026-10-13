@@ -1,4 +1,6 @@
 const assert = require("node:assert/strict");
+const knownMultiplicity = (value) =>
+  typeof value === "string" && value.trim() !== "" && value.trim() !== "?";
 const coordinates = (path) =>
   (path.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
 
@@ -179,15 +181,17 @@ function validateDiagram(diagram, model) {
       assert.equal(edge.targetMultiplicity, semantic.targetMultiplicity);
     }
     const ends = edge.labels.filter((label) => label.kind !== "name");
-    assert.equal(
-      ends.length,
-      2,
-      `Association must have two counts: ${edge.id}`,
-    );
-    for (const [kind, node, value, point] of [
+    // Unknown counts ("?", as captures record them) are not drawn.
+    const counted = [
       ["source", source, edge.sourceMultiplicity, sourcePoint],
       ["target", target, edge.targetMultiplicity, targetPoint],
-    ]) {
+    ].filter(([, , value]) => knownMultiplicity(value));
+    assert.equal(
+      ends.length,
+      counted.length,
+      `Association must label each known count: ${edge.id}`,
+    );
+    for (const [kind, node, value, point] of counted) {
       const labels = ends.filter((label) => label.kind === kind);
       assert.equal(
         labels.length,

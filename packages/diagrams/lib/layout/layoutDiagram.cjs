@@ -6,6 +6,28 @@ const {
   groupLabel,
 } = require("./generalizationGroups.cjs");
 const round = (n) => Number(n.toFixed(2));
+// Captures record unknown counts as "?": an end without a count gets no label.
+const knownMultiplicity = (value) =>
+  typeof value === "string" && value.trim() !== "" && value.trim() !== "?";
+// Every captured type-use dependency has this name; repeated on each edge it
+// says nothing the dashed arrow does not.
+const GENERIC_NAMES = new Set(["declared type use"]);
+// Stereotypes the line style (a dependency's dashed open arrow) or the profile
+// (every relation between tables is a foreign key) already shows.
+const IMPLIED_STEREOTYPES = new Set(["dependency", "foreign key"]);
+/** The relation's name label, or null when it would carry no information. */
+function relationLabel(relation) {
+  const name =
+    typeof relation.name === "string" &&
+    !GENERIC_NAMES.has(relation.name.trim().toLowerCase())
+      ? relation.name
+      : "";
+  const stereotype = IMPLIED_STEREOTYPES.has(relation.stereotype)
+    ? ""
+    : relation.stereotype;
+  if (!name.trim() && !stereotype) return null;
+  return (stereotype ? "«" + stereotype + "»\n" : "") + name;
+}
 function label(id, text, placement = "CENTER") {
   const lines = text.split("\n");
   const end = placement !== "CENTER";
@@ -363,31 +385,35 @@ async function layoutDiagram(
       }),
       ...groups.map((g) => ({ id: g.junctionId, width: 0, height: 0 })),
     ],
-    edges: routedEdges.map((e) => ({
-      id: e.id,
-      sources: [e.reversed ? e.targetId : e.sourceId],
-      targets: [e.reversed ? e.sourceId : e.targetId],
-      labels: e.generalization
-        ? e.groupLabel
-          ? [label(e.id + "-name", e.groupLabel)]
-          : []
-        : [
-            label(
-              e.id + "-name",
-              (e.stereotype ? "«" + e.stereotype + "»\n" : "") + e.name,
-            ),
-            label(
-              e.id + "-tail",
-              e.sourceMultiplicity,
-              e.reversed ? "HEAD" : "TAIL",
-            ),
-            label(
-              e.id + "-head",
-              e.targetMultiplicity,
-              e.reversed ? "TAIL" : "HEAD",
-            ),
-          ],
-    })),
+    edges: routedEdges.map((e) => {
+      const name = e.generalization ? e.groupLabel : relationLabel(e);
+      return {
+        id: e.id,
+        sources: [e.reversed ? e.targetId : e.sourceId],
+        targets: [e.reversed ? e.sourceId : e.targetId],
+        labels: [
+          ...(name ? [label(e.id + "-name", name)] : []),
+          ...(!e.generalization && knownMultiplicity(e.sourceMultiplicity)
+            ? [
+                label(
+                  e.id + "-tail",
+                  e.sourceMultiplicity,
+                  e.reversed ? "HEAD" : "TAIL",
+                ),
+              ]
+            : []),
+          ...(!e.generalization && knownMultiplicity(e.targetMultiplicity)
+            ? [
+                label(
+                  e.id + "-head",
+                  e.targetMultiplicity,
+                  e.reversed ? "TAIL" : "HEAD",
+                ),
+              ]
+            : []),
+        ],
+      };
+    }),
   };
   // Try a bounded portfolio of generic placement strategies. Each candidate
   // must satisfy the same geometry and label checks before it can be chosen.
@@ -561,4 +587,4 @@ async function layoutDiagram(
   };
   return { diagram, check };
 }
-module.exports = { layoutDiagram };
+module.exports = { layoutDiagram, relationLabel, knownMultiplicity };
