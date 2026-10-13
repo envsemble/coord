@@ -29,11 +29,11 @@ const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#f
 export const titleBarHeight = 40;
 /**
  * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
- * colour, and as tall as the bar at the page's zoom. The page reads their area from the window
- * controls overlay's environment variables.
+ * colour, and as tall as the bar when zoomed in (zoomed out, the bar keeps its height and so do they).
+ * The page reads their area from the window controls overlay's environment variables.
  */
 export const titleBarOverlay = (zoom = 1) => {
-  const height = Math.round(titleBarHeight * zoom);
+  const height = Math.round(titleBarHeight * Math.max(1, zoom));
   return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
 };
 /** Input only a person at the computer produces (presses, keys, taps; not pointer movement), which a page cannot fake. */
@@ -113,7 +113,7 @@ export class AtlasWindow {
     this.win.on('move', () => this.scheduleBounds());
     this.guardNavigation();
     this.win.webContents.on('render-process-gone', (_event, details) => this.recover(details.reason));
-    this.win.webContents.on('input-event', (_event, input) => { if (activations.has(input.type)) this.lastActivation = Date.now(); });
+    this.win.webContents.on('input-event', (_event, input) => { if (activations.has(input.type)) this.lastActivation = performance.now(); });
     this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.root }));
     this.win.on('close', () => { this.saveBounds(); });
     this.win.on('closed', () => manager.closed(this));
@@ -261,7 +261,7 @@ export class AtlasWindow {
     if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
   }
 
-  /** View › Zoom: half a zoom level a step, as Chromium's own, between 25% and 500%; the title bar keeps up. */
+  /** View › Zoom: half a zoom level a step, as Chromium's own, from 25% to 471%; the title bar keeps up. */
   zoom(change: 'in' | 'out' | 'reset') {
     if (this.win.isDestroyed()) return;
     const contents = this.win.webContents;
@@ -273,7 +273,7 @@ export class AtlasWindow {
    * Whether the person pressed, typed or tapped in the window just now. Commands a compromised page
    * could misuse (reading the clipboard through Paste, quitting) need it.
    */
-  activatedRecently(within = 2000) { return Date.now() - this.lastActivation <= within; }
+  activatedRecently(within = 2000) { return this.lastActivation > 0 && performance.now() - this.lastActivation <= within; }
 
   /** Point the window at a folder before the host opened it: the renderer shows it loading. */
   private prepare(root: string, name: string, remote: FolderView['remote']) {

@@ -104,7 +104,7 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
         const key = reference.section ? slug(reference.section) : '';
         const group = key && lines.has(key) ? bySection.get(key) ?? bySection.set(key, new Map()).get(key)! : top;
         const card = group.get(diagram.handle) ?? group.set(diagram.handle, { handle: diagram.handle, title: diagram.title, diagram, elements: [] }).get(diagram.handle)!;
-        if (reference.elementId && !card.elements.some(element => element.id === reference.elementId)) card.elements.push({ id: reference.elementId, name: reference.elementName ?? reference.elementId });
+        if (reference.elementId && reference.elementName && !card.elements.some(element => element.id === reference.elementId)) card.elements.push({ id: reference.elementId, name: reference.elementName });
       }
     }
     return { lines, sections: new Map([...bySection].map(([key, group]) => [key, [...group.values()]])), top: [...top.values()] };

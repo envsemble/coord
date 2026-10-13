@@ -109,13 +109,15 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         const contents = window.win.webContents;
         const devTools = manager.context.devTools;
         switch (name) {
-          case 'newWindow': await manager.create(null); return;
-          case 'locate': await manager.locate(window); return;
-          case 'closeFolder': await dropImports(entry => entry.window === window.id); manager.closeFolder(window); return;
-          case 'closeWindow': window.win.close(); return;
+          // Windows, dialogs and quitting need a person's press: a page cannot open windows without
+          // end, or quit by closing the last one.
+          case 'newWindow': requireActivation(window); await manager.create(null); return;
+          case 'locate': requireActivation(window); await manager.locate(window); return;
+          case 'closeFolder': void dropImports(entry => entry.window === window.id); manager.closeFolder(window); return;
+          case 'closeWindow': requireActivation(window); window.win.close(); return;
           case 'quit': requireActivation(window); app.quit(); return;
-          case 'openLogs': actions.openLogs(); return;
-          case 'about': actions.about(window); return;
+          case 'openLogs': requireActivation(window); actions.openLogs(); return;
+          case 'about': requireActivation(window); actions.about(window); return;
           // Edit acts on the window's focused element, as the native Edit menu does.
           case 'undo': contents.undo(); return;
           case 'redo': contents.redo(); return;

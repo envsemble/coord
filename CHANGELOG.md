@@ -8,7 +8,10 @@
   - **A work item** has one bar under the tabs with its place and its sections (Plan, Ledger, Diagrams), in the same spot for every section; it stays while the page scrolls and names the item once its heading scrolls away. The diagrams take the rest of the window, and their full view keeps the title bar.
   - **The theme** matches the system, or is light or dark, for every window; Atlas's own menus and dialogs follow it.
   - **Views and dialogs** use envUI's rows, tables, tabs, segmented controls, menus, notices, dialogs and toasts, Material Symbols icons and the Inter font. Quick open is envUI's command palette; the explorer is its tree, with a compact context menu.
-  - **Lists of folders and computers:** **File › Open Recent › Manage Folders…** and the computer menu's **Manage Computers…** open a folder or a computer in a new window, remove a folder from the list, or forget a computer. The menus themselves open in this window.
+  - **Lists of folders and computers:** **File › Open Recent › Manage Folders…** (on macOS **File › Manage Folders…**) and the computer menu's **Manage Computers…** open a folder or a computer in a new window, remove a folder from the list, or forget a computer. The menus themselves open in this window.
+  - **Scrolling:** the area below the title bar scrolls, not the window, so the window buttons never cover a scrollbar and nothing shifts when a page starts or stops scrolling. Zooming keeps the window buttons as tall as the title bar.
+  - **A folder that is missing or unreadable** also offers **Close Folder**, back to the start page.
+  - **Commands a page could misuse** (Paste, which reads the clipboard; New Window, Close Window and Exit; Open Logs, About and Locate…) run only right after a person's click, key press or tap in the window.
   - **The diagram viewer and plan exports** use the same components; the diagram viewer follows the app's theme, and a standalone model file follows the system's.
   - `npm run dev:envui` runs the app against a local envUI checkout with live reload.
 - Reviewing a proposal: a proposal opens in one change view, and the model picker is the only chooser (the Baseline/Changes control is gone).

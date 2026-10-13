@@ -64,6 +64,28 @@ test('the title bar holds the menus, the computer and the actions; the views are
   await window.getByRole('menuitem', { name: 'Copy' }).click();
   await expect.poll(() => launched!.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('fulfil');
   await search.first().fill('');
+  // Paste reads the clipboard, which it may right after a person's click.
+  await launched!.app.evaluate(({ clipboard }) => clipboard.writeText('reservation'));
+  await search.first().click();
+  await menubar.getByRole('menuitem', { name: 'Edit' }).click();
+  await window.getByRole('menuitem', { name: 'Paste' }).click();
+  await expect(search.first()).toHaveValue('reservation');
+  await search.first().fill('');
+
+  // Zooming in keeps the window buttons as tall as the title bar (where the system draws them).
+  const overlay = () => window.evaluate(() => {
+    const controls = (navigator as Navigator & { windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay;
+    return controls?.visible ? Math.round(controls.getTitlebarAreaRect().height) : null;
+  });
+  if (await overlay() !== null) {
+    await menubar.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Zoom In' }).click();
+    await expect.poll(overlay).toBe(40);
+    await expect.poll(() => window.evaluate(() => Math.round(document.querySelector('.env-app-topbar')!.getBoundingClientRect().height))).toBe(40);
+    await menubar.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actual Size' }).click();
+    await expect.poll(overlay).toBe(40);
+  }
 
   // Opening a document gives it a tab; a view shows over the tabs without one, and the tab comes back.
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
@@ -88,6 +110,9 @@ test('File › Close Folder returns the window to the start page', async () => {
   const { window, app } = launched;
   await expect(window.locator('.work-row')).toHaveCount(3);
   const menubar = window.getByRole('menubar', { name: 'Application menu' });
+  // A tab opened just before closing the folder is saved with it, though its save was still pending.
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
+  await expect(tabs(window)).toHaveCount(1);
   await menubar.getByRole('menuitem', { name: 'File' }).click();
   await window.getByRole('menuitem', { name: 'Close Folder' }).click();
   await expect(window.getByRole('heading', { name: 'Atlas', level: 1 })).toBeVisible();
@@ -96,6 +121,11 @@ test('File › Close Folder returns the window to the start page', async () => {
   // The start page has the title bar too, where Close Folder has nothing to close.
   await menubar.getByRole('menuitem', { name: 'File' }).click();
   await expect(window.getByRole('menuitem', { name: 'Close Folder' })).toHaveAttribute('aria-disabled', 'true');
+  await window.keyboard.press('Escape');
+  // Opening the folder again brings its tab back.
+  await window.locator('.folder-rows').getByRole('button', { name: /^planning/ }).click();
+  await expect(tabs(window)).toHaveCount(1);
+  await expect(activeTab(window)).toContainText('Saved payment methods');
 });
 
 test('the explorer mirrors the folder: work folders show status and title, a Diagrams entry lists models', async () => {

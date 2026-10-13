@@ -65,7 +65,7 @@ Each window says where it works: the **computer menu** (the computer's name in t
   - **Connect to Another Atlas…** pairs with one more.
   - **Manage Computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
 
-- **File › Open Recent** lists the computer's planning folders, newest first, then **Manage Folders…**; **File › Open Folder…** opens another one:
+- **File › Open Recent** lists the computer's planning folders, newest first, then **Manage Folders…** (on macOS, **File › Manage Folders…**); **File › Open Folder…** opens another one:
   - on this computer, **Open Folder…** opens the system's dialog;
   - on another, it opens the **folder browser**. It lists that computer's folders (never files), marks planning folders (those with a `planning.json`) and opens only those. It starts beside the folder the window shows; **Home** goes to the home folder and the drives.
   - **Manage Folders…** lists every folder with its path, its number of work items and when it was last opened, and marks the one this window shows. **↗** opens a folder in a new window, and **×** takes it off the list on every device.
