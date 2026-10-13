@@ -1,22 +1,20 @@
 // The read-only plan viewer embedded in every plan export. It reads the inert payload,
 // renders Markdown as text-safe React elements and draws diagrams with the shared viewer.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AtlasMark, AtlasPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { AtlasMark, AtlasPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
 import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
 import {
-  Badge, Breadcrumbs, Button, Counter, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, SearchField, Surface, Tabs, Text, ThemeToggle, Tree,
+  Badge, Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, SearchField, SegmentedControl, Surface, Text, ThemeToggle, Tree,
   useThemePreference, type TreeItem,
 } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import { AccountTree } from '@envsemble/envui/icons/AccountTree';
-import { Checklist } from '@envsemble/envui/icons/Checklist';
 import { Description } from '@envsemble/envui/icons/Description';
 import { Download } from '@envsemble/envui/icons/Download';
 import { Error as ErrorIcon } from '@envsemble/envui/icons/Error';
 import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { Folder } from '@envsemble/envui/icons/Folder';
 import { FolderOpen } from '@envsemble/envui/icons/FolderOpen';
-import { MenuBook } from '@envsemble/envui/icons/MenuBook';
 import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDiagram } from './data.ts';
 import { Markdown, markdownBody, scrollToHeading } from './Markdown.tsx';
 import { LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
@@ -173,12 +171,14 @@ const pickerGroups: { kind: ProvenanceKind; title: string }[] = [
   { kind: 'authored', title: 'Authored' },
   { kind: 'unknown', title: 'Other' },
 ];
-/** One short line under a diagram's title, as the app's picker has it. */
+/** One short line under a diagram's title, as the app's picker has it: a proposal with its count of changes. */
 function diagramSummary(diagram: ViewDiagram) {
   const document = (diagram.payload as { model?: { document?: { profile?: string; state?: string; imported?: boolean } } } | null)?.model?.document;
-  return modelSummary({ profile: document?.profile ?? '', state: document?.state ?? '', imported: document?.imported ?? diagram.provenance.detail.endsWith('Imported'), provenance: diagram.provenance });
+  return modelSummary({ profile: document?.profile ?? '', state: document?.state ?? '', imported: document?.imported ?? diagram.provenance.detail.endsWith('Imported'), provenance: diagram.provenance },
+    changeCount(diagram.payload as ViewerPayload | null));
 }
-/** The app's model picker: a compact menu of the work item's diagrams, by origin. */
+const byTitle = (a: ViewDiagram, b: ViewDiagram) => a.title.localeCompare(b.title, undefined, { numeric: true });
+/** The app's model picker: a compact menu of the work item's diagrams, by origin and title. */
 function ModelPicker({ diagrams, handle, onSelect }: { diagrams: ViewDiagram[]; handle: string; onSelect(handle: string): void }) {
   const current = diagrams.find(diagram => diagram.handle === handle);
   return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu"
@@ -187,7 +187,7 @@ function ModelPicker({ diagrams, handle, onSelect }: { diagrams: ViewDiagram[]; 
     </Button>}>
     <MenuRadioGroup value={handle} onValueChange={onSelect}>
       {pickerGroups.map(group => {
-        const items = diagrams.filter(diagram => diagram.provenance.kind === group.kind);
+        const items = diagrams.filter(diagram => diagram.provenance.kind === group.kind).sort(byTitle);
         if (!items.length) return null;
         return <MenuGroup key={group.kind} label={group.title}>
           {items.map(diagram => <MenuRadioItem key={diagram.handle} value={diagram.handle} description={diagramSummary(diagram) || undefined}>{diagram.title}</MenuRadioItem>)}
@@ -197,9 +197,27 @@ function ModelPicker({ diagrams, handle, onSelect }: { diagrams: ViewDiagram[]; 
   </Menu>;
 }
 
-function Diagrams({ data, route, navigate }: { data: PlanData; route: Route; navigate(route: Partial<Route>): void }) {
+// The reader's width for a diagram's details, kept in the browser's storage when it may.
+const widthKey = 'atlas-inspector-width';
+function useStoredWidth(): [number | null, (width: number) => void] {
+  const [width, setWidth] = useState<number | null>(() => {
+    try { const stored = Number(localStorage.getItem(widthKey)); return stored > 0 ? stored : null; } catch { return null; }
+  });
+  const change = useCallback((next: number) => {
+    setWidth(next);
+    try { localStorage.setItem(widthKey, String(next)); } catch { /* Storage is unavailable here. */ }
+  }, []);
+  return [width, change];
+}
+
+/**
+ * A work item's diagrams. A capture and its proposals were laid out together, so choosing another of
+ * them switches in the same panel, with nothing moving. `sections` comes first, as on the other tabs.
+ */
+function Diagrams({ data, route, navigate, sections }: { data: PlanData; route: Route; navigate(route: Partial<Route>): void; sections: ReactNode }) {
   const diagrams = data.view.diagrams;
   const { theme } = useThemePreference();
+  const [inspectorWidth, setInspectorWidth] = useStoredWidth();
   const section = useRef<HTMLElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [notice, setNotice] = useState('');
@@ -231,20 +249,51 @@ function Diagrams({ data, route, navigate }: { data: PlanData; route: Route; nav
     navigate({ tab: 'files', file: target, anchor: typeof record.section === 'string' ? record.section : null });
   }, [data.files, navigate]);
   const picker = diagrams.length ? <ModelPicker diagrams={diagrams} handle={handle} onSelect={next => navigate({ tab: 'diagrams', diagram: next })} /> : null;
+  const payload = current?.payload as ViewerPayload | null | undefined;
   return <section ref={section} className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
-      {current?.payload ? <ViewerErrorBoundary key={handle} resetKey={handle}>
-        <AtlasPanel payload={current.payload as ViewerPayload} theme={theme} focus={route.element ? { kind: 'node', id: route.element } : undefined} onReference={onReference}
-          leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen} />
+      {payload ? <ViewerErrorBoundary key={payload.family ?? handle} resetKey={handle}>
+        <AtlasPanel payload={payload} theme={theme} focus={route.element ? { kind: 'node', id: route.element } : undefined} onReference={onReference}
+          leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
+          inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>
       : <>
-        {picker && <div className="diagrams-island">{picker}</div>}
+        <div className="diagrams-islands">
+          {sections}
+          {picker && <Surface tone="pane" corners="pill" padding={1} density="compact" className="diagrams-island">{picker}</Surface>}
+        </div>
         <div className="diagrams-state">{current ? <EmptyState icon={<ErrorIcon />} title="This diagram cannot be shown" description={current.error} />
           : <EmptyState icon={<AccountTree />} title="No diagrams" description="This work item has no diagrams." />}</div>
       </>}
       {notice && <div className="diagrams-notices" role="status"><Notice tone="warning">{notice}</Notice></div>}
     </div>
   </section>;
+}
+
+/**
+ * The work item's tabs (Plan, Ledger, Diagrams, Files) and the theme, as the app's section switcher:
+ * one island at the top left, at the same spot on every tab, sticking while a page scrolls and first
+ * in the diagrams' overlay. Keyboard focus follows it between the page and the overlay: the radios
+ * take it once envUI's radio group has registered them, a frame later.
+ */
+function Sections({ tabs, value, onChange, focusMemory }: { tabs: { id: Tab; label: string; count?: number }[]; value: Tab; onChange(tab: Tab): void; focusMemory: RefObject<boolean> }) {
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = root.current;
+    let pending = focusMemory.current;
+    focusMemory.current = false;
+    const frame = pending ? requestAnimationFrame(() => { pending = false; element?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus(); }) : 0;
+    return () => {
+      cancelAnimationFrame(frame);
+      focusMemory.current = pending || Boolean(element?.contains(document.activeElement));
+    };
+  }, [focusMemory]);
+  return <Surface ref={root} tone="pane" corners="pill" padding={1} density="compact" className="section-switcher">
+    <SegmentedControl aria-label="Work sections" size="compact" value={value} onValueChange={next => onChange(next as Tab)}
+      options={tabs.map(tab => ({ value: tab.id, label: tab.label, count: tab.count || undefined }))} />
+    <span className="section-switcher-divider" aria-hidden="true" />
+    <ThemeToggle />
+  </Surface>;
 }
 
 export function PlanViewer({ data }: { data: PlanData }) {
@@ -257,20 +306,23 @@ export function PlanViewer({ data }: { data: PlanData }) {
   const selected = tab === 'files' ? (route.file ? data.files.get(route.file) : undefined) ?? listed.find(file => file !== plan && file !== ledger) ?? listed[0] : undefined;
   const reading = tab === 'plan' ? plan : tab === 'ledger' ? ledger : selected;
   useEffect(() => { document.title = view.work.title + ' | Atlas plan'; }, [view.work.title]);
-  const tabs: { id: Tab; label: string; icon: ReactNode; count?: number; hidden?: boolean }[] = [
-    { id: 'plan', label: 'Plan', icon: <Checklist />, hidden: !plan },
-    { id: 'ledger', label: 'Ledger', icon: <MenuBook />, hidden: !ledger },
-    { id: 'diagrams', label: 'Diagrams', icon: <AccountTree />, count: view.diagrams.length },
-    { id: 'files', label: 'Files', icon: <Description />, count: listed.length },
+  const tabs: { id: Tab; label: string; count?: number; hidden?: boolean }[] = [
+    { id: 'plan', label: 'Plan', hidden: !plan },
+    { id: 'ledger', label: 'Ledger', hidden: !ledger },
+    { id: 'diagrams', label: 'Diagrams', count: view.diagrams.length },
+    { id: 'files', label: 'Files', count: listed.length },
   ];
-  const [heading, setHeading] = useState<HTMLElement | null>(null);
-  const headingVisible = useHeadingVisible(heading);
-  const body = tab === 'diagrams' ? <Diagrams data={data} route={route} navigate={navigate} />
-    : <div className="work-layout">
+  const switcherFocus = useRef(false);
+  const sections = <Sections tabs={tabs.filter(item => !item.hidden)} value={tab} onChange={next => navigate({ tab: next })} focusMemory={switcherFocus} />;
+  const body = tab === 'diagrams' ? <Diagrams data={data} route={route} navigate={navigate} sections={sections} />
+    : <>
+    <div className="section-switcher-bar">{sections}</div>
+    <div className="work-layout">
       <div className="work-main">
-        <header className="work-header" ref={setHeading}>
+        <header className="work-header">
           <Text as="h1" variant="page-heading">{view.work.title}</Text>
           <div className="work-header-meta">
+            <span className="work-number">{workNumber(view.work.id)}</span>
             <StatusBadge status={workStatus(view.work)} />
             {view.work.location === 'archive' && <Badge tone="warning">Archived</Badge>}
             {view.work.repositories.map(repository => <Badge key={repository.id} variant="outline" title={repository.name}>{repository.id}</Badge>)}
@@ -283,45 +335,16 @@ export function PlanViewer({ data }: { data: PlanData }) {
         : reading ? <Reader key={reading.path} file={reading} data={data} anchor={route.anchor} hideTitle={view.work.title} navigate={navigate} /> : null}
       </div>
       <About data={data} />
-    </div>;
-  // The app's work page without its window: the export's notice, then the same bar with the work
-  // item's place and sections (and the theme), then the section.
+    </div>
+    </>;
+  // The app's work page without its window: the export's notice, then the same switcher with the work
+  // item's tabs (and the theme), then the tab.
   return <main className="plan-export">
     <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note" title="Read-only plan export">
       {payload.source.workId} from <Code appearance="subtle">{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code appearance="subtle">atlas plan import &lt;file&gt;</Code>
     </Notice>
-    <div className={'work-page section-' + tab}>
-      <Tabs className="work-sections" aria-label="Work sections" value={tab} activation="manual" onValueChange={value => { if (value) navigate({ tab: value as Tab }); }} listClassName="work-sections-list"
-        renderList={list => <div className="work-bar">
-          <div className="work-bar-place">
-            <Breadcrumbs className="breadcrumb" items={[{ label: payload.source.planningFolder }, { label: workNumber(view.work.id) }]} />
-            <span className="work-bar-title" hidden={headingVisible}>{view.work.title}</span>
-          </div>
-          {list}
-          <ThemeToggle />
-        </div>}
-        items={tabs.filter(item => !item.hidden).map(item => ({
-          value: item.id,
-          button: <Button variant="secondary" startIcon={item.icon}>{item.label}{item.count ? <> <Counter value={item.count} /></> : null}</Button>,
-          content: item.id === tab ? body : null,
-        }))} />
-    </div>
+    <div className={'work-page section-' + tab}>{body}</div>
   </main>;
-}
-
-/** Whether a section's heading shows below the sticky work bar; false while there is none. */
-function useHeadingVisible(node: HTMLElement | null) {
-  const [visible, setVisible] = useState(true);
-  useEffect(() => {
-    if (!node) { setVisible(false); return; }
-    setVisible(true);
-    const bar = node.closest('.work-page')?.querySelector('.work-bar');
-    const covered = Math.ceil(bar?.getBoundingClientRect().height ?? 0);
-    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: `-${covered}px 0px 0px 0px` });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [node]);
-  return visible;
 }
 
 export function ExportError({ message }: { message: string }) {
