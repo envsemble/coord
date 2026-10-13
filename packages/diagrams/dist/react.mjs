@@ -279,14 +279,14 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const methods = node.methods || [];
   const header = node.attributes.length || methods.length ? 66 : node.height;
   const color = stereotypeFamily(node.stereotype);
-  const change2 = isChanged(node.changeStatus) ? node.changeStatus : null;
-  const tag = change2 && CHANGE_TAGS[change2];
+  const change = isChanged(node.changeStatus) ? node.changeStatus : null;
+  const tag = change && CHANGE_TAGS[change];
   const tagWidth = tag ? tag.length * 6.4 + 12 : 0;
   return /* @__PURE__ */ jsxs(
     "g",
     {
       id: `${idPrefix}node-${node.id}`,
-      className: `${elementClass("node", node.id, focus, selected)}${change2 ? " changed" : ""}`,
+      className: `${elementClass("node", node.id, focus, selected)}${change ? " changed" : ""}`,
       "data-name": node.name,
       "data-node-id": node.id,
       "data-element-kind": "node",
@@ -297,7 +297,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       transform: `translate(${node.x} ${node.y})`,
       ...interactionProps(target, handlers),
       children: [
-        change2 && /* @__PURE__ */ jsx(
+        change && /* @__PURE__ */ jsx(
           "rect",
           {
             className: "node-ring",
@@ -320,9 +320,9 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             height: node.height,
             rx: "3",
             fill: `var(--node-${color},${typeBackgrounds[color] || "var(--surface,#f6f8fa)"})`,
-            stroke: change2 ? CHANGE_COLORS[change2] : "var(--diagram-border,#818b98)",
-            strokeWidth: change2 ? "2.25" : "1.25",
-            strokeDasharray: change2 === "removed" ? "6 4" : void 0,
+            stroke: change ? CHANGE_COLORS[change] : "var(--diagram-border,#818b98)",
+            strokeWidth: change ? "2.25" : "1.25",
+            strokeDasharray: change === "removed" ? "6 4" : void 0,
             vectorEffect: "non-scaling-stroke"
           }
         ),
@@ -333,7 +333,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
               width: tagWidth,
               height: "17",
               rx: "8.5",
-              fill: CHANGE_COLORS[change2],
+              fill: CHANGE_COLORS[change],
               fillOpacity: "0.16"
             }
           ),
@@ -343,7 +343,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
               x: tagWidth / 2,
               y: "12.5",
               textAnchor: "middle",
-              fill: CHANGE_COLORS[change2],
+              fill: CHANGE_COLORS[change],
               fontSize: "10.5",
               fontWeight: "600",
               children: tag
@@ -375,7 +375,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             fontSize: "15",
             fontWeight: "600",
             fontStyle: node.isAbstract ? "italic" : void 0,
-            textDecoration: change2 === "removed" ? "line-through" : void 0,
+            textDecoration: change === "removed" ? "line-through" : void 0,
             children: node.name
           }
         ),
@@ -451,6 +451,7 @@ var GLYPHS = { added: "+", modified: "~", removed: "\u2212" };
 var changeGlyph = (status) => GLYPHS[status] || "";
 var MAX_TOKENS = 4;
 var MAX_VALUE = 160;
+var MAX_INLINE = 40;
 var GENERIC_RELATION_NAMES = /* @__PURE__ */ new Set(["declared type use", "association"]);
 function informativeName(edge) {
   const name = typeof edge?.name === "string" ? edge.name.trim() : "";
@@ -488,6 +489,7 @@ function nameIndex(...models) {
   }
   return names;
 }
+var textOf = (value) => typeof value === "string" ? value : value && typeof value === "object" && !Array.isArray(value) ? Object.values(value).find((v) => typeof v === "string") ?? null : null;
 function readable(value, names = /* @__PURE__ */ new Map()) {
   if (typeof value === "string") return names.get(value) ?? value;
   if (value === void 0 || value === null) return "none";
@@ -496,6 +498,7 @@ function readable(value, names = /* @__PURE__ */ new Map()) {
   if (Array.isArray(value))
     return value.length ? value.map((item) => readable(item, names)).join(", ") : "none";
   if (typeof value === "object") {
+    if (typeof value.name === "string" && value.name) return value.name;
     const text2 = Object.values(value).find((v) => typeof v === "string");
     if (text2 !== void 0 && Object.keys(value).length <= 3) return text2;
   }
@@ -507,13 +510,56 @@ function readable(value, names = /* @__PURE__ */ new Map()) {
 }
 var shorten = (text, limit = MAX_VALUE) => text.length > limit ? `${text.slice(0, limit - 1)}\u2026` : text;
 var CONTAINER_KEYS = /* @__PURE__ */ new Set(["contents", "properties", "literals"]);
+var MEMBER_LISTS = /* @__PURE__ */ new Set([
+  "attributes",
+  "methods",
+  "properties",
+  "literals",
+  "contents"
+]);
+var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["foreignKeys"]);
 var isElementList = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every(
   (v) => v && typeof v === "object" && typeof v.$element === "string"
 );
 var isIdentityList = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every((v) => typeof v === "string");
-var meaningfulProperties = (change2) => (change2?.properties || []).filter(
-  (p) => !(isElementList(p.before) && isElementList(p.after)) && !(CONTAINER_KEYS.has(p.key) && isIdentityList(p.before) && isIdentityList(p.after))
+var meaningfulProperties = (change) => (change?.properties || []).filter(
+  (p) => !TOLD_ELSEWHERE.has(p.key) && !(isElementList(p.before) && isElementList(p.after)) && !(CONTAINER_KEYS.has(p.key) && isIdentityList(p.before) && isIdentityList(p.after))
 );
+var listItems = (cell) => cell?.present && Array.isArray(cell.value) ? cell.value.map((v) => typeof v === "string" ? v : v?.$element).filter((v) => typeof v === "string") : [];
+function listDelta(p) {
+  const before = listItems(p.before), after = listItems(p.after);
+  return {
+    joined: after.filter((id) => !before.includes(id)),
+    left: before.filter((id) => !after.includes(id))
+  };
+}
+function listChanges(change) {
+  const cell = (data2, key) => data2 && key in data2 ? { present: true, value: data2[key] } : void 0;
+  if (change.kind === "modified")
+    return (change.properties || []).filter((p) => MEMBER_LISTS.has(p.key)).map((p) => ({ key: p.key, ...listDelta(p) }));
+  const data = change.kind === "added" ? change.after : change.before;
+  return [...MEMBER_LISTS].map((key) => ({ key, items: listItems(cell(data, key)) })).filter(({ items }) => items.length).map(({ key, items }) => ({
+    key,
+    joined: change.kind === "added" ? items : [],
+    left: change.kind === "removed" ? items : []
+  }));
+}
+function movesOf(changes) {
+  const createdOrDeleted = new Set(
+    changes.filter((c) => c.kind !== "modified").map((c) => c.elementId)
+  );
+  const moves = /* @__PURE__ */ new Map();
+  for (const change of changes)
+    for (const { joined, left } of listChanges(change)) {
+      for (const id of joined)
+        if (!createdOrDeleted.has(id))
+          moves.set(id, { ...moves.get(id), to: change.elementId });
+      for (const id of left)
+        if (!createdOrDeleted.has(id))
+          moves.set(id, { ...moves.get(id), from: change.elementId });
+    }
+  return moves;
+}
 var memberLabel = (member, method) => method ? `${member.name}()` : member.name;
 function memberSignature(member, method, profile) {
   if (method) return member.type || `${member.name}()`;
@@ -557,12 +603,13 @@ function elementFile(element, model) {
   const identity = decodeIdentity(element?.id);
   if (!identity || identity.source !== "code") return null;
   if (identity.file) return identity.file;
-  return identity.language === "java" ? javaFile(identity.name, model) : null;
+  return identity.language === "java" ? javaFile(identity, model) : null;
 }
-function javaFile(qualified, model) {
-  const captured = (model?.classes || []).filter(
-    (c) => c.location?.file && decodeIdentity(c.id)?.language === "java"
-  );
+function javaFile({ name: qualified, repository }, model) {
+  const captured = (model?.classes || []).filter((c) => {
+    const identity = decodeIdentity(c.id);
+    return c.location?.file && identity?.language === "java" && identity.repository === repository;
+  });
   const nameOf = (c) => decodeIdentity(c.id).name;
   for (let end = qualified.lastIndexOf("."); end > 0; ) {
     const outer = captured.find((c) => nameOf(c) === qualified.slice(0, end));
@@ -615,38 +662,57 @@ function drawn(views) {
   return { nodes, edges };
 }
 var ONTOUML_MEMBERS = /* @__PURE__ */ new Set(["Property", "Literal"]);
-function memberFromChange(change2, names) {
-  const data = change2.after || change2.before || {};
-  const conceptual = ONTOUML_MEMBERS.has(data.type);
-  const type = conceptual ? data.propertyType ? readable(data.propertyType, names) : void 0 : typeof data.type === "string" ? data.type : void 0;
-  const method = !conceptual && typeof type === "string" && (/^[^:]*\(/.test(type) || /:method%3A/.test(change2.elementId || ""));
+function typeOf(data, names) {
+  if (data.type === "Literal") return void 0;
+  if (data.type === "Property")
+    return data.propertyType ? readable(data.propertyType, names) : "?";
+  return typeof data.type === "string" ? data.type : void 0;
+}
+function memberFromChange(change, names) {
+  const data = change.after || change.before || {};
+  const type = typeOf(data, names);
+  const method = !ONTOUML_MEMBERS.has(data.type) && typeof type === "string" && (/^[^:]*\(/.test(type) || /:method%3A/.test(change.elementId || ""));
   return {
-    name: typeof data.name === "string" ? data.name : readable(change2.name, names),
+    name: textOf(data.name) ?? readable(change.name, names),
     type,
     method
   };
 }
-var modelLevelType = (change2, ontouml) => {
-  if (!change2.elementId) return "model";
-  const type = (change2.after || change2.before || {}).type;
+var modelLevelType = (change, ontouml) => {
+  if (!change.elementId) return "model";
+  const type = (change.after || change.before || {}).type;
   return ontouml && (type === "Project" || type === "Package") ? type.toLowerCase() : null;
 };
-function listTokens(note, names) {
+function listTokens(note, names, prefix = "") {
   const before = note.before?.present ? note.before.value : [];
   const after = note.after?.present ? note.after.value : [];
   if (!Array.isArray(before) || !Array.isArray(after)) return null;
   const key = (item) => JSON.stringify(item);
   const had = new Set(before.map(key)), has = new Set(after.map(key));
+  const added = after.filter((item) => !had.has(key(item))).map((item) => readable(item, names));
+  const removed = before.filter((item) => !has.has(key(item))).map((item) => readable(item, names));
+  const changed = added.filter((text) => removed.includes(text));
   return [
-    ...after.filter((item) => !had.has(key(item))).map((item) => ({ status: "added", text: readable(item, names) })),
-    ...before.filter((item) => !has.has(key(item))).map((item) => ({ status: "removed", text: readable(item, names) }))
-  ];
+    ...changed.map((text) => ({ status: "modified", text })),
+    ...added.filter((text) => !changed.includes(text)).map((text) => ({ status: "added", text })),
+    ...removed.filter((text) => !changed.includes(text)).map((text) => ({ status: "removed", text }))
+  ].map((token) => ({
+    ...token,
+    text: shorten(prefix ? `${prefix} ${token.text}` : token.text, 60)
+  }));
 }
 function rollupChanges(comparison, model, views) {
   if (!comparison?.changes || !model) return null;
   const { classes, members, edges } = index(model);
   const names = nameIndex(model, comparison.baseline?.model);
   const canvas = drawn(views);
+  const profile = model.document?.profile;
+  const ontouml = profile === "ontouml";
+  const changes = comparison.changes.changes || [];
+  const recorded = new Map(
+    changes.filter((c) => c.elementId).map((c) => [c.elementId, c])
+  );
+  const moves = movesOf(changes);
   const rows = /* @__PURE__ */ new Map();
   const row = (key, make) => {
     if (!rows.has(key)) rows.set(key, { key, changes: [], ...make() });
@@ -682,92 +748,166 @@ function rollupChanges(comparison, model, views) {
       notes: []
     }));
   };
-  const note = (change2, p, key = p.key) => ({
+  const modelRow = () => row("model", () => ({
+    status: "model",
+    kind: "model",
+    target: null,
+    id: model.id,
+    name: "Model",
+    tag: "",
+    members: [],
+    notes: []
+  }));
+  const note = (p, key = p.key) => ({
     key,
     property: p.key,
     before: p.before,
     after: p.after
   });
-  const ontouml = model.document?.profile === "ontouml";
-  for (const change2 of comparison.changes.changes || []) {
-    const id = change2.elementId;
-    const properties = meaningfulProperties(change2);
-    const level = modelLevelType(change2, ontouml);
+  const text = (value) => ({ present: true, value });
+  const scoped = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every((item) => Array.isArray(item) && classes.has(item[0]));
+  const fromModel = (p) => !(profile === "database" && p.key === "constraints" && scoped(p.before) && scoped(p.after));
+  const memberIn = (classId, id) => {
+    const c = classes.get(classId);
+    const attribute = (c?.attributes || []).find((m) => m.id === id);
+    if (attribute) return { member: attribute, method: false };
+    const method = (c?.methods || []).find((m) => m.id === id);
+    return method ? { member: method, method: true } : null;
+  };
+  const currentOwner = (id) => model.classes.find(
+    (c) => [...c.attributes || [], ...c.methods || []].some(
+      (m) => m.id === id && m.changeStatus !== "removed"
+    )
+  )?.id;
+  const placeName = (id) => names.get(id) ?? textOf(recorded.get(id)?.after?.name) ?? textOf(recorded.get(id)?.before?.name) ?? id;
+  const movedMember = (classId, id, status, other) => {
+    const found = memberIn(classId, id);
+    const member = found ? {
+      name: found.member.name,
+      type: found.member.type,
+      method: found.method
+    } : recorded.has(id) ? memberFromChange(recorded.get(id), names) : { name: names.get(id) ?? id, method: false };
+    return {
+      id,
+      status,
+      label: memberLabel(member, member.method),
+      member,
+      ...other ? { moved: { [status === "added" ? "from" : "to"]: placeName(other) } } : {}
+    };
+  };
+  for (const change of changes) {
+    const id = change.elementId;
+    const properties = meaningfulProperties(change);
+    const level = modelLevelType(change, ontouml);
     if (level) {
-      if (!properties.length) continue;
-      const entry2 = row("model", () => ({
-        status: "model",
-        kind: "model",
-        target: null,
-        id: model.id,
-        name: "Model",
-        tag: "",
-        members: [],
-        notes: []
-      }));
-      entry2.changes.push(change2);
-      for (const p of properties)
-        entry2.notes.push(
-          note(change2, p, level === "package" ? `package ${p.key}` : p.key)
-        );
+      const notes = properties.filter(fromModel).map((p) => note(p, level === "package" ? `package ${p.key}` : p.key));
+      if (level === "package" && change.kind !== "modified")
+        notes.push({
+          key: `${placeName(id)} package`,
+          property: "presence",
+          status: change.kind
+        });
+      if (level === "package") {
+        for (const { key, joined } of listChanges(change))
+          if (key === "contents") {
+            for (const item of joined)
+              if (moves.has(item))
+                notes.push({
+                  key: placeName(item),
+                  property: "moved",
+                  before: text(
+                    moves.get(item).from ? placeName(moves.get(item).from) : "none"
+                  ),
+                  after: text(placeName(id))
+                });
+          }
+      }
+      if (!notes.length) continue;
+      const entry2 = modelRow();
+      entry2.changes.push(change);
+      entry2.notes.push(...notes);
       continue;
     }
     if (classes.has(id)) {
-      const entry2 = nodeRow(classes.get(id), change2.kind);
-      entry2.status = change2.kind;
-      entry2.changes.push(change2);
-      for (const p of properties) entry2.notes.push(note(change2, p));
+      const entry2 = nodeRow(classes.get(id), change.kind);
+      entry2.status = change.kind;
+      entry2.changes.push(change);
+      for (const p of properties) entry2.notes.push(note(p));
+      for (const { joined, left } of listChanges(change)) {
+        for (const item of joined)
+          if (moves.has(item))
+            entry2.members.push(
+              movedMember(id, item, "added", moves.get(item).from)
+            );
+        for (const item of left)
+          if (moves.has(item))
+            entry2.members.push(
+              movedMember(
+                id,
+                item,
+                "removed",
+                moves.get(item).to ?? currentOwner(item)
+              )
+            );
+      }
       continue;
     }
     if (edges.has(id)) {
-      const entry2 = edgeRow(edges.get(id), change2.kind);
-      entry2.status = change2.kind;
-      entry2.changes.push(change2);
-      for (const p of properties) entry2.notes.push(note(change2, p));
+      const entry2 = edgeRow(edges.get(id), change.kind);
+      entry2.status = change.kind;
+      entry2.changes.push(change);
+      for (const p of properties) entry2.notes.push(note(p));
+      continue;
+    }
+    if (moves.has(id)) {
+      const to = moves.get(id).to ?? currentOwner(id);
+      if (to && classes.has(to))
+        nodeRow(classes.get(to), "modified").changes.push(change);
       continue;
     }
     const known = members.get(id);
-    const owner = known ? known.owner.id : change2.ownerId;
+    const owner = known ? known.owner.id : change.ownerId;
     if (owner && classes.has(owner)) {
       const entry2 = nodeRow(classes.get(owner), "modified");
-      entry2.changes.push(change2);
+      entry2.changes.push(change);
       const member = known ? {
         name: known.member.name,
         type: known.member.type,
         method: known.method
-      } : memberFromChange(change2, names);
+      } : memberFromChange(change, names);
       entry2.members.push({
         id,
-        status: change2.kind,
+        status: change.kind,
         label: memberLabel(member, member.method),
         member
       });
       continue;
     }
     if (owner && edges.has(owner)) {
-      const entry2 = edgeRow(edges.get(owner), "modified");
-      entry2.changes.push(change2);
-      const data = change2.after || change2.before || {};
-      const role = data.name ? readable(data.name) : "";
-      const end = role || `${readable(data.propertyType, names)} end`;
-      for (const p of properties)
-        entry2.notes.push(note(change2, p, `${end} ${p.key}`));
+      const edge = edges.get(owner);
+      const entry2 = edgeRow(edge, "modified");
+      entry2.changes.push(change);
+      const data = change.after || change.before || {};
+      const [source, target] = edgeEnds(edge);
+      const at = readable(data.propertyType, names);
+      const end = textOf(data.name) || (source === target && change.end ? `${at} ${change.end} end` : `${at} end`);
+      for (const p of properties) entry2.notes.push(note(p, `${end} ${p.key}`));
       continue;
     }
-    if (!properties.length && change2.kind === "modified") continue;
-    const type = (change2.after || change2.before || {}).type;
+    if (!properties.length && change.kind === "modified") continue;
+    const type = (change.after || change.before || {}).type;
     const entry = row(`other:${id}`, () => ({
-      status: change2.kind,
+      status: change.kind,
       kind: "other",
       target: null,
       id,
-      name: names.get(id) || readable(change2.name, names),
+      name: names.get(id) || readable(change.name, names),
       tag: type === "GeneralizationSet" ? "generalization set" : typeof type === "string" ? type.toLowerCase() : "element",
       members: [],
       notes: []
     }));
-    entry.changes.push(change2);
-    for (const p of properties) entry.notes.push(note(change2, p));
+    entry.changes.push(change);
+    for (const p of properties) entry.notes.push(note(p));
   }
   const all = [...rows.values()];
   for (const entry of all) {
@@ -814,52 +954,65 @@ function rollupChanges(comparison, model, views) {
   });
   const listed = groups.filter((g) => g.elements.length || g.relations.length);
   const ordered = listed.flatMap((g) => [...g.elements, ...g.relations]);
-  const navigable = ordered.filter((r) => r.target);
   const conflicts = comparison.conflicts || [];
   return {
     groups: listed,
     rows: ordered,
-    navigable,
+    // What Previous and Next step through: the changes the canvas can show.
+    navigable: ordered.filter((r) => r.target),
     conflicts,
     total: ordered.length,
-    // What the Changes button counts: changes it can open, and conflicts.
-    count: navigable.length + conflicts.length,
+    // What the Changes button counts: every listed change, and conflicts.
+    count: ordered.length + conflicts.length,
     names
   };
 }
-var change = (n, names) => `${shorten(cellText(n.before, names, n.property), 40)} \u2192 ${shorten(cellText(n.after, names, n.property), 40)}`;
+var SINGULAR = {
+  keys: "key",
+  indexes: "index",
+  constraints: "constraint",
+  triggers: "trigger",
+  modifiers: "modifier"
+};
+function noteTokens(n, names, lists = true) {
+  if (lists && n.property !== "moved") {
+    const tokens = listTokens(n, names, SINGULAR[n.property] ?? n.property);
+    if (tokens) return tokens;
+  }
+  const before = cellText(n.before, names, n.property), after = cellText(n.after, names, n.property);
+  if (before.length > MAX_INLINE || after.length > MAX_INLINE || /\n/.test(before + after))
+    return [{ status: "modified", text: `${n.key} changed` }];
+  return [{ status: "modified", text: `${n.key}: ${before} \u2192 ${after}` }];
+}
 function summarize(entry, names) {
+  const note = entry.target || !["node", "edge"].includes(entry.kind) ? null : "Not drawn in any view";
   if (entry.kind === "edge") {
-    const notes = entry.notes.map((n) => `${n.key}: ${change(n, names)}`);
+    const notes = entry.notes.flatMap(
+      (n) => noteTokens(n, names, false).map((t) => t.text)
+    );
     const via = entry.via.length ? `via ${entry.via.slice(0, MAX_TOKENS - 1).join(", ")}` : "";
     return {
       text: [entry.label || via, ...notes].filter(Boolean).join(" \xB7 "),
       tokens: [],
       more: Math.max(0, entry.via.length - (MAX_TOKENS - 1)),
-      note: entry.target ? null : "Not drawn in any view"
+      note
     };
   }
   if (entry.kind === "model") {
     const tokens = entry.notes.flatMap(
-      (n) => listTokens(n, names) || [
-        { status: "modified", text: `${n.key}: ${change(n, names)}` }
-      ]
+      (n) => n.property === "presence" ? [{ status: n.status, text: n.key }] : n.property === "constraints" && listTokens(n, names) || noteTokens(n, names)
     );
     return {
       text: "",
       tokens: tokens.slice(0, MAX_TOKENS),
       more: Math.max(0, tokens.length - MAX_TOKENS),
-      note: null
+      note
     };
   }
   const members = entry.members;
-  const note = entry.target || entry.kind !== "node" ? null : "Not drawn in any view";
   if (entry.status === "modified") {
     const tokens = members.map((m) => ({ status: m.status, text: m.label }));
-    const notes = entry.notes.map((n) => ({
-      status: "modified",
-      text: `${n.key}: ${change(n, names)}`
-    }));
+    const notes = entry.notes.flatMap((n) => noteTokens(n, names));
     const all = [...notes, ...tokens];
     return {
       text: "",
@@ -875,7 +1028,7 @@ function summarize(entry, names) {
     note
   };
 }
-var TEXT_KEYS = /* @__PURE__ */ new Set(["name", "description", "documentation"]);
+var TEXT_KEYS = /* @__PURE__ */ new Set(["name", "description", "documentation", "moved"]);
 var cellText = (cell, names, key) => cell?.present ? readable(cell.value, TEXT_KEYS.has(key) ? void 0 : names) : "none";
 function rowFor(rollup, target, model) {
   if (!rollup || !target) return null;
@@ -892,6 +1045,9 @@ function describeClassChange(rollup, element, profile) {
   if (!entry) return null;
   const names = rollup.names;
   const byId = new Map(entry.changes.map((c) => [c.elementId, c]));
+  const moved = new Map(
+    entry.members.filter((m) => m.moved).map((m) => [m.id, m.moved])
+  );
   const members = [
     ...(element.attributes || []).map((m) => ({ member: m, method: false })),
     ...(element.methods || []).map((m) => ({ member: m, method: true }))
@@ -899,22 +1055,37 @@ function describeClassChange(rollup, element, profile) {
   const seen = /* @__PURE__ */ new Set();
   const changed = [];
   for (const { member, method } of members) {
-    const change2 = byId.get(member.id);
-    if (!change2 && !(member.changeStatus && member.changeStatus !== "unchanged"))
+    const change = byId.get(member.id);
+    if (!change && !(member.changeStatus && member.changeStatus !== "unchanged"))
       continue;
     seen.add(member.id);
-    changed.push(memberChange(member, method, change2, profile, names));
+    changed.push(
+      memberChange(
+        member,
+        method,
+        change,
+        profile,
+        names,
+        moved.get(member.id)
+      )
+    );
   }
   for (const m of entry.members) {
     if (seen.has(m.id) || entry.status !== "modified") continue;
-    const change2 = byId.get(m.id);
+    seen.add(m.id);
     changed.push(
       memberChange(
-        { id: m.id, name: m.member.name, type: m.member.type },
+        {
+          id: m.id,
+          name: m.member.name,
+          type: m.member.type,
+          changeStatus: m.status
+        },
         m.member.method,
-        change2,
+        byId.get(m.id),
         profile,
-        names
+        names,
+        m.moved
       )
     );
   }
@@ -931,30 +1102,36 @@ function describeClassChange(rollup, element, profile) {
     entry
   };
 }
-function memberChange(member, method, change2, profile, names) {
-  const status = change2?.kind || member.changeStatus;
-  const properties = meaningfulProperties(change2).map((p) => ({
+function previousMember(before, member, names) {
+  const conceptual = ONTOUML_MEMBERS.has(before.type);
+  return {
+    ...member,
+    name: textOf(before.name) ?? member.name,
+    type: conceptual ? typeOf(before, names) ?? member.type : typeof before.type === "string" ? before.type : member.type
+  };
+}
+function memberChange(member, method, change, profile, names, moved) {
+  const status = member.changeStatus && member.changeStatus !== "unchanged" ? member.changeStatus : change?.kind;
+  const properties = meaningfulProperties(change).map((p) => ({
     key: p.key,
     before: cellText(p.before, names, p.key),
     after: cellText(p.after, names, p.key)
   }));
-  const before = change2?.before;
+  const before = change?.before;
   return {
     id: member.id,
     status,
     method,
     name: member.name,
     signature: memberSignature(member, method, profile),
-    previous: status === "modified" && before ? memberSignature(
-      {
-        ...member,
-        name: typeof before.name === "string" ? before.name : member.name,
-        type: typeof before.type === "string" ? before.type : member.type
-      },
+    // A member that moved in may also have changed on the way.
+    previous: (status === "modified" || moved?.from) && before ? memberSignature(
+      previousMember(before, member, names),
       method,
       profile
     ) : null,
     properties,
+    moved: moved || null,
     location: member.location || before?.location || null
   };
 }
@@ -989,24 +1166,36 @@ function relationName(edge) {
   return `${own || edge.stereotype || "Association"}: ${end(edge.sourceName, edge.sourceMultiplicity)}, ${end(edge.targetName, edge.targetMultiplicity)}`;
 }
 var MARK_GAP = 9;
-var MARK_SEGMENT = 40;
+var MARK_END = 18;
+var MARK_PLACES = [0.5, 0.35, 0.65, 0.2, 0.8];
 function changeMarkPoint(paths, labels = []) {
   const segments = [];
   for (const d of paths) {
     const n = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
     for (let i = 2; i + 1 < n.length; i += 2)
       segments.push({
-        x: (n[i - 2] + n[i]) / 2,
-        y: (n[i - 1] + n[i + 1]) / 2,
+        from: [n[i - 2], n[i - 1]],
+        to: [n[i], n[i + 1]],
         length: Math.abs(n[i] - n[i - 2]) + Math.abs(n[i + 1] - n[i - 1])
       });
   }
   const free = ({ x, y }) => !labels.some(
     (l) => x > l.x - MARK_GAP && x < l.x + l.width + MARK_GAP && y > l.y - MARK_GAP && y < l.y + l.height + MARK_GAP
   );
-  return segments.sort((a, b) => b.length - a.length).find((s) => s.length >= MARK_SEGMENT && free(s)) || null;
+  for (const { from, to, length } of segments.sort(
+    (a, b) => b.length - a.length
+  ))
+    for (const place of MARK_PLACES) {
+      if (Math.min(place, 1 - place) * length < MARK_END) continue;
+      const point = {
+        x: from[0] + (to[0] - from[0]) * place,
+        y: from[1] + (to[1] - from[1]) * place
+      };
+      if (free(point)) return point;
+    }
+  return null;
 }
-function ChangeMarkGlyph({ change: change2, at }) {
+function ChangeMarkGlyph({ change, at }) {
   return /* @__PURE__ */ jsxs2(
     "g",
     {
@@ -1014,7 +1203,7 @@ function ChangeMarkGlyph({ change: change2, at }) {
       transform: `translate(${at.x} ${at.y})`,
       "aria-hidden": "true",
       children: [
-        /* @__PURE__ */ jsx2("circle", { r: "7.5", fill: CHANGE_COLORS[change2] }),
+        /* @__PURE__ */ jsx2("circle", { r: "7.5", fill: CHANGE_COLORS[change] }),
         /* @__PURE__ */ jsx2(
           "text",
           {
@@ -1023,7 +1212,7 @@ function ChangeMarkGlyph({ change: change2, at }) {
             fill: "var(--canvas,#ffffff)",
             fontSize: "13",
             fontWeight: "700",
-            children: changeGlyph(change2)
+            children: changeGlyph(change)
           }
         )
       ]
@@ -1043,16 +1232,16 @@ function UMLRelation({
   const highlighted = focus?.[kind === "group" ? "groups" : "edges"]?.has(
     edge.id
   );
-  const change2 = isChanged(edge.changeStatus) ? edge.changeStatus : null;
-  const markerState = change2 ? `-${change2}` : sameTarget(target, focus?.primary) ? "-primary" : highlighted ? "-active" : "";
+  const change = isChanged(edge.changeStatus) ? edge.changeStatus : null;
+  const markerState = change ? `-${change}` : sameTarget(target, focus?.primary) ? "-primary" : highlighted ? "-active" : "";
   const aggregationMarker = (kind2) => ["SHARED", "COMPOSITE"].includes(kind2) ? `url(#${markerId}-${kind2}${markerState})` : void 0;
-  const name = accessibleName || `${relationName(edge)}${change2 ? `, ${change2 === "added" ? "new" : change2 === "removed" ? "removed" : "changed"}` : ""}`;
+  const name = accessibleName || `${relationName(edge)}${change ? `, ${change === "added" ? "new" : change === "removed" ? "removed" : "changed"}` : ""}`;
   const routes = edge.branchPaths || edge.paths;
-  const mark = change2 ? changeMarkPoint(routes, edge.labels) : null;
+  const mark = change ? changeMarkPoint(routes, edge.labels) : null;
   return /* @__PURE__ */ jsxs2(
     "g",
     {
-      className: `${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}${change2 ? " changed" : ""}`,
+      className: `${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}${change ? " changed" : ""}`,
       "data-edge": edge.id,
       "data-element-kind": kind,
       "data-element-id": edge.id,
@@ -1065,7 +1254,7 @@ function UMLRelation({
       children: [
         /* @__PURE__ */ jsx2("title", { children: name }),
         routes.map((d, i) => /* @__PURE__ */ jsxs2("g", { children: [
-          change2 && /* @__PURE__ */ jsx2(
+          change && /* @__PURE__ */ jsx2(
             "path",
             {
               className: "edge-halo",
@@ -1083,9 +1272,9 @@ function UMLRelation({
               className: "edge-path",
               d,
               fill: "none",
-              stroke: change2 ? CHANGE_COLORS[change2] : edge.type === "generalization" ? "var(--diagram-inheritance,#59636e)" : "var(--diagram-edge,#59636e)",
-              strokeWidth: change2 ? "2" : "1.4",
-              strokeDasharray: change2 === "removed" ? "2 4" : edge.realization || edge.stereotype === "dependency" ? "6 4" : void 0,
+              stroke: change ? CHANGE_COLORS[change] : edge.type === "generalization" ? "var(--diagram-inheritance,#59636e)" : "var(--diagram-edge,#59636e)",
+              strokeWidth: change ? "2" : "1.4",
+              strokeDasharray: change === "removed" ? "2 4" : edge.realization || edge.stereotype === "dependency" ? "6 4" : void 0,
               markerStart: edge.type === "association" ? aggregationMarker(edge.sourceAggregation) : void 0,
               markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${markerState})` : edge.stereotype === "dependency" ? `url(#${markerId}-DEPENDENCY${markerState})` : aggregationMarker(edge.targetAggregation)
             }
@@ -1103,7 +1292,7 @@ function UMLRelation({
             }
           )
         ] }, i)),
-        mark && /* @__PURE__ */ jsx2(ChangeMarkGlyph, { change: change2, at: mark })
+        mark && /* @__PURE__ */ jsx2(ChangeMarkGlyph, { change, at: mark })
       ]
     }
   );
@@ -1327,7 +1516,7 @@ function createHighlightController(svg, diagram) {
 // src/visualization/UMLDiagram.jsx
 import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 var markerStates = ["", "-active", "-primary"];
-var changeStates = Object.keys(CHANGE_COLORS).map((change2) => `-${change2}`);
+var changeStates = Object.keys(CHANGE_COLORS).map((change) => `-${change}`);
 var markerColor = (state, normal) => state === "-primary" ? "var(--diagram-selection,#9a6700)" : state === "-active" ? "var(--accent,#0969da)" : CHANGE_COLORS[state.slice(1)] || normal;
 var UMLDiagram = memo(function UMLDiagram2({
   diagram,
@@ -3848,12 +4037,12 @@ function DetailHeader({
   owner,
   tag,
   status,
-  change: change2,
+  change,
   description,
   stereotype,
   icon: Icon = Category
 }) {
-  const evidence = change2 !== "added" && STATUSES[status];
+  const evidence = change !== "added" && STATUSES[status];
   return /* @__PURE__ */ jsxs13("header", { className: "detail-header", children: [
     /* @__PURE__ */ jsxs13("div", { className: "detail-title", children: [
       /* @__PURE__ */ jsx20("span", { className: "detail-icon", "aria-hidden": "true", children: /* @__PURE__ */ jsx20(Icon, {}) }),
@@ -3865,7 +4054,7 @@ function DetailHeader({
         title
       ] })
     ] }),
-    (tag || change2 || evidence) && /* @__PURE__ */ jsxs13("div", { className: "detail-tags", children: [
+    (tag || change || evidence) && /* @__PURE__ */ jsxs13("div", { className: "detail-tags", children: [
       tag && /* @__PURE__ */ jsx20(
         Badge2,
         {
@@ -3874,7 +4063,7 @@ function DetailHeader({
           children: tag
         }
       ),
-      /* @__PURE__ */ jsx20(ChangeBadge, { status: change2 }),
+      /* @__PURE__ */ jsx20(ChangeBadge, { status: change }),
       evidence && /* @__PURE__ */ jsx20(Badge2, { tone: evidence.tone, title: evidence.title, children: evidence.label })
     ] }),
     description && /* @__PURE__ */ jsx20(Text5, { tone: "muted", className: "detail-description", children: description })
@@ -4010,7 +4199,9 @@ function contents(element, profile) {
     methods ? countOf(methods, "method") : ""
   ].filter(Boolean).join(" and ");
 }
-var typeChange = (member) => member.properties.find((p) => p.key === "type") && !member.properties.some((p) => p.key === "name") ? member.properties.find((p) => p.key === "type") : null;
+var TYPE_KEYS = ["type", "propertyType"];
+var SIGNATURE_KEYS = [...TYPE_KEYS, "name"];
+var typeChange = (member) => member.properties.some((p) => p.key === "name") ? null : member.properties.find((p) => TYPE_KEYS.includes(p.key)) || null;
 function ChangedValue({ before, after }) {
   return /* @__PURE__ */ jsxs14(Fragment7, { children: [
     /* @__PURE__ */ jsx21("del", { className: "change-before", children: before }),
@@ -4026,11 +4217,11 @@ function ChangedProperty({ name, before, after }) {
     /* @__PURE__ */ jsx21(ChangedValue, { before, after })
   ] });
 }
-function WhatChanges({ change: change2, element, model, profile }) {
-  if (!change2) return null;
+function WhatChanges({ change, element, model, profile }) {
+  if (!change) return null;
   const kind = KIND_WORDS[element.stereotype] || element.stereotype || (profile === "database" ? "table" : "class");
   const held = contents(element, profile);
-  if (change2.status === "added") {
+  if (change.status === "added") {
     const file = profile === "code" ? elementFile(element, model) : null;
     const declared = profile === "code" && !file ? decodeIdentity(element.id)?.name : null;
     return /* @__PURE__ */ jsxs14(Section, { title: "What changes", children: [
@@ -4050,7 +4241,7 @@ function WhatChanges({ change: change2, element, model, profile }) {
       ] })
     ] });
   }
-  if (change2.status === "removed")
+  if (change.status === "removed")
     return /* @__PURE__ */ jsx21(Section, { title: "What changes", children: /* @__PURE__ */ jsxs14(Text6, { children: [
       "The ",
       kind,
@@ -4058,13 +4249,21 @@ function WhatChanges({ change: change2, element, model, profile }) {
       held ? `, with its ${held}` : "",
       "."
     ] }) });
-  if (!change2.properties.length && !change2.members.length) return null;
+  if (!change.properties.length && !change.members.length) return null;
   return /* @__PURE__ */ jsx21(Section, { title: "What changes", children: /* @__PURE__ */ jsxs14("ul", { className: "change-list", children: [
-    change2.properties.map((p) => /* @__PURE__ */ jsxs14("li", { className: "change-line", "data-change": "modified", children: [
-      /* @__PURE__ */ jsx21(ChangeMark, { status: "modified" }),
-      /* @__PURE__ */ jsx21("span", { className: "change-line-text", children: /* @__PURE__ */ jsx21(ChangedProperty, { name: p.key, before: p.before, after: p.after }) })
-    ] }, p.key)),
-    change2.members.map((m) => /* @__PURE__ */ jsxs14("li", { className: "change-line", "data-change": m.status, children: [
+    change.properties.map((p, i) => /* @__PURE__ */ jsxs14(
+      "li",
+      {
+        className: "change-line",
+        "data-change": "modified",
+        children: [
+          /* @__PURE__ */ jsx21(ChangeMark, { status: "modified" }),
+          /* @__PURE__ */ jsx21("span", { className: "change-line-text", children: /* @__PURE__ */ jsx21(ChangedProperty, { name: p.key, before: p.before, after: p.after }) })
+        ]
+      },
+      `${p.key}-${i}`
+    )),
+    change.members.map((m) => /* @__PURE__ */ jsxs14("li", { className: "change-line", "data-change": m.status, children: [
       /* @__PURE__ */ jsx21(ChangeMark, { status: m.status }),
       /* @__PURE__ */ jsxs14("span", { className: "change-line-text", children: [
         /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
@@ -4085,12 +4284,13 @@ function WhatChanges({ change: change2, element, model, profile }) {
               }
             )
           ] })
-        ) : m.status === "modified" && m.previous && m.previous !== m.signature ? /* @__PURE__ */ jsx21("code", { className: "signature", children: /* @__PURE__ */ jsx21(ChangedValue, { before: m.previous, after: m.signature }) }) : /* @__PURE__ */ jsx21("code", { className: "signature", children: m.signature }),
-        m.properties.filter((p) => !["type", "name"].includes(p.key)).map((p) => /* @__PURE__ */ jsxs14("span", { className: "change-detail", children: [
+        ) : (m.status === "modified" || m.moved) && m.previous && m.previous !== m.signature ? /* @__PURE__ */ jsx21("code", { className: "signature", children: /* @__PURE__ */ jsx21(ChangedValue, { before: m.previous, after: m.signature }) }) : /* @__PURE__ */ jsx21("code", { className: "signature", children: m.signature }),
+        m.properties.filter((p) => !SIGNATURE_KEYS.includes(p.key)).map((p) => /* @__PURE__ */ jsxs14("span", { className: "change-detail", children: [
           p.key,
           ": ",
           /* @__PURE__ */ jsx21(ChangedValue, { before: p.before, after: p.after })
-        ] }, p.key))
+        ] }, p.key)),
+        m.moved && /* @__PURE__ */ jsx21("span", { className: "change-detail", children: m.moved.from ? `Moved from ${m.moved.from}` : `Moved to ${m.moved.to}` })
       ] }),
       m.location && /* @__PURE__ */ jsx21(
         "span",
@@ -4109,15 +4309,15 @@ function sourceOf(element, sources) {
   );
   return ids.map((id) => sources.find((s) => s.id === id)).find(Boolean);
 }
-function CodeWhere({ element, model, snippets, change: change2 }) {
-  if (change2 === "added") return null;
+function CodeWhere({ element, model, snippets, change }) {
+  if (change === "added") return null;
   const file = elementFile(element, model);
   const location2 = element.location;
   const source = sourceOf(element, model.sources || []);
   const snippet = source && snippets?.[source.id];
   if (!file && !snippet) return null;
   const url = snippet?.url || source?.url;
-  return /* @__PURE__ */ jsxs14(Section, { title: change2 === "removed" ? "Where it was" : "Where in code", children: [
+  return /* @__PURE__ */ jsxs14(Section, { title: change === "removed" ? "Where it was" : "Where in code", children: [
     /* @__PURE__ */ jsxs14("div", { className: "code-where", children: [
       /* @__PURE__ */ jsx21("code", { className: "code-path", title: file || void 0, children: file || source.file }),
       location2 && /* @__PURE__ */ jsx21("span", { className: "code-lines", children: location2.startLine === location2.endLine ? `line ${location2.startLine}` : `lines ${location2.startLine}\u2013${location2.endLine}` })
@@ -4150,14 +4350,14 @@ function useReveal(focused) {
   }, [focused]);
   return ref;
 }
-function FocusableRow({ focused, change: change2, children }) {
+function FocusableRow({ focused, change, children }) {
   const ref = useReveal(focused);
   return /* @__PURE__ */ jsx21(
     "li",
     {
       ref,
       className: `member${focused ? " focused" : ""}`,
-      "data-change": change2,
+      "data-change": change,
       "aria-current": focused ? "true" : void 0,
       children
     }
@@ -4232,26 +4432,45 @@ function Members({ element, profile, review, focus = null }) {
     )) }) })
   ] });
 }
-function foreignKeys(element, model, review) {
+function foreignKeys(element, model, rollup) {
   const outgoing = (model.relations || []).filter(
     (r) => r.sourceId === element.id && Array.isArray(r.columns)
   );
   const current = new Set(
     outgoing.filter((r) => r.changeStatus !== "removed").map((r) => r.id)
   );
-  const previous = new Map(
-    outgoing.filter((r) => r.changeStatus === "removed" && current.has(r.originalId)).map((r) => [r.originalId, r])
-  );
-  return outgoing.filter((r) => !(r.changeStatus === "removed" && current.has(r.originalId))).map((relation) => ({
-    relation,
-    previous: review ? previous.get(relation.id) || null : null,
-    status: review && relation.changeStatus !== "unchanged" ? relation.changeStatus : void 0
-  }));
+  return outgoing.filter((r) => !(r.changeStatus === "removed" && current.has(r.originalId))).map((relation) => {
+    const status = rollup && relation.changeStatus && relation.changeStatus !== "unchanged" ? relation.changeStatus : void 0;
+    const record = status === "modified" ? rowFor(
+      rollup,
+      { kind: "edge", id: relation.id },
+      model
+    )?.changes.find((c) => c.elementId === relation.id) : null;
+    const before = record?.before;
+    const previous = Array.isArray(before?.columns) ? {
+      columns: before.columns,
+      targetId: before.targetId,
+      target: before.target,
+      targetColumns: before.targetColumns
+    } : null;
+    const details = meaningfulProperties(record).filter(
+      (p) => !["columns", "targetId", "target", "targetColumns", "name"].includes(
+        p.key
+      )
+    );
+    return { relation, previous, status, details, names: rollup?.names };
+  });
 }
-function TableSchema({ element, model, review, focus = null }) {
+function TableSchema({
+  element,
+  model,
+  review,
+  rollup = null,
+  focus = null
+}) {
   const columns = element.attributes || [];
   const marks = review && element.changeStatus === "modified";
-  const outgoing = foreignKeys(element, model, review);
+  const outgoing = foreignKeys(element, model, rollup);
   const tables = new Map(model.classes.map((c) => [c.id, c.name]));
   const keyText = (relation) => `${relation.columns.join(", ")} \u2192 ${tables.get(relation.targetId) || relation.target}(${(relation.targetColumns || []).join(", ")})`;
   const unique = (element.keys || []).filter((key) => !key.primary);
@@ -4308,7 +4527,7 @@ function TableSchema({ element, model, review, focus = null }) {
               ")"
             ] })
           ] }) }, key.name)),
-          outgoing.map(({ relation, previous, status }) => /* @__PURE__ */ jsxs14(
+          outgoing.map(({ relation, previous, status, details, names }) => /* @__PURE__ */ jsxs14(
             "li",
             {
               className: "member",
@@ -4320,23 +4539,37 @@ function TableSchema({ element, model, review, focus = null }) {
                   ":",
                   " "
                 ] }),
-                /* @__PURE__ */ jsx21("code", { className: "signature", children: previous ? /* @__PURE__ */ jsx21(
-                  ChangedValue,
-                  {
-                    before: keyText(previous),
-                    after: keyText(relation)
-                  }
-                ) : /* @__PURE__ */ jsxs14(Fragment7, { children: [
-                  /* @__PURE__ */ jsx21("span", { className: "member-name", children: relation.columns.join(", ") }),
-                  " ",
-                  /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
-                    "\u2192 ",
-                    tables.get(relation.targetId) || relation.target,
-                    "(",
-                    (relation.targetColumns || []).join(", "),
-                    ")"
-                  ] })
-                ] }) })
+                /* @__PURE__ */ jsxs14("span", { className: "change-line-text", children: [
+                  /* @__PURE__ */ jsx21("code", { className: "signature", children: previous && keyText(previous) !== keyText(relation) ? /* @__PURE__ */ jsx21(
+                    ChangedValue,
+                    {
+                      before: keyText(previous),
+                      after: keyText(relation)
+                    }
+                  ) : /* @__PURE__ */ jsxs14(Fragment7, { children: [
+                    /* @__PURE__ */ jsx21("span", { className: "member-name", children: relation.columns.join(", ") }),
+                    " ",
+                    /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
+                      "\u2192 ",
+                      tables.get(relation.targetId) || relation.target,
+                      "(",
+                      (relation.targetColumns || []).join(", "),
+                      ")"
+                    ] })
+                  ] }) }),
+                  details.map((p) => /* @__PURE__ */ jsxs14("span", { className: "change-detail", children: [
+                    p.key,
+                    ":",
+                    " ",
+                    /* @__PURE__ */ jsx21(
+                      ChangedValue,
+                      {
+                        before: cellText(p.before, names, p.key),
+                        after: cellText(p.after, names, p.key)
+                      }
+                    )
+                  ] }, p.key))
+                ] })
               ]
             },
             relation.id
@@ -4362,8 +4595,8 @@ var ConceptDetails = memo5(function ConceptDetails2({
 }) {
   const profile = profileOf(model);
   const conceptual = profile === "ontouml";
-  const change2 = changeOf(review, concept);
-  const described = change2 ? describeClassChange(review.rollup, concept, profile) : null;
+  const change = changeOf(review, concept);
+  const described = change ? describeClassChange(review.rollup, concept, profile) : null;
   const records = linkedRecords(model, [
     concept.id,
     ...(concept.attributes || []).map((a) => a.id),
@@ -4377,7 +4610,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         tag: `\xAB${concept.stereotype || "unspecified"}\xBB`,
         stereotype: concept.stereotype,
         status: concept.status,
-        change: change2,
+        change,
         description: concept.description
       }
     ),
@@ -4397,7 +4630,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         element: concept,
         model,
         snippets,
-        change: change2
+        change
       }
     ),
     /* @__PURE__ */ jsx22(
@@ -4415,6 +4648,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         element: concept,
         model,
         review: !!review,
+        rollup: review?.rollup,
         focus: member
       }
     ) : /* @__PURE__ */ jsx22(
@@ -4513,8 +4747,8 @@ var RelationDetails = memo5(function RelationDetails2({
   const profile = profileOf(model);
   const conceptual = profile === "ontouml";
   const generalization = relation.type === "generalization";
-  const change2 = changeOf(review, relation);
-  const entry = change2 ? rowFor(review.rollup, { kind: "edge", id: relation.id }, model) : null;
+  const change = changeOf(review, relation);
+  const entry = change ? rowFor(review.rollup, { kind: "edge", id: relation.id }, model) : null;
   const semanticId = relation.originalId || relation.id;
   return /* @__PURE__ */ jsxs15(Fragment8, { children: [
     /* @__PURE__ */ jsx22(
@@ -4524,7 +4758,7 @@ var RelationDetails = memo5(function RelationDetails2({
         icon: generalization ? AccountTree : Polyline,
         tag: relationTag(relation),
         stereotype: relation.stereotype,
-        change: change2,
+        change,
         description: relation.description
       }
     ),
@@ -4545,25 +4779,33 @@ var RelationDetails = memo5(function RelationDetails2({
         onChoose
       }
     ),
-    entry && entry.notes.length > 0 && /* @__PURE__ */ jsx22(Section, { title: "What changes", children: /* @__PURE__ */ jsx22("ul", { className: "change-list", children: entry.notes.map((note) => /* @__PURE__ */ jsxs15("li", { className: "change-line", "data-change": "modified", children: [
-      /* @__PURE__ */ jsx22(ChangeMark, { status: "modified" }),
-      /* @__PURE__ */ jsx22("span", { className: "change-line-text", children: /* @__PURE__ */ jsx22(
-        ChangedProperty,
-        {
-          name: note.key,
-          before: cellText(
-            note.before,
-            review.rollup.names,
-            note.property
-          ),
-          after: cellText(
-            note.after,
-            review.rollup.names,
-            note.property
-          )
-        }
-      ) })
-    ] }, note.key)) }) }),
+    entry && entry.notes.length > 0 && /* @__PURE__ */ jsx22(Section, { title: "What changes", children: /* @__PURE__ */ jsx22("ul", { className: "change-list", children: entry.notes.map((note, i) => /* @__PURE__ */ jsxs15(
+      "li",
+      {
+        className: "change-line",
+        "data-change": "modified",
+        children: [
+          /* @__PURE__ */ jsx22(ChangeMark, { status: "modified" }),
+          /* @__PURE__ */ jsx22("span", { className: "change-line-text", children: /* @__PURE__ */ jsx22(
+            ChangedProperty,
+            {
+              name: note.key,
+              before: cellText(
+                note.before,
+                review.rollup.names,
+                note.property
+              ),
+              after: cellText(
+                note.after,
+                review.rollup.names,
+                note.property
+              )
+            }
+          ) })
+        ]
+      },
+      `${note.key}-${i}`
+    )) }) }),
     profile === "code" && !generalization && /* @__PURE__ */ jsx22(DeclaredBy, { relation, profile }),
     profile === "database" && /* @__PURE__ */ jsx22(ForeignKey, { relation }),
     /* @__PURE__ */ jsx22(
@@ -5597,7 +5839,7 @@ function useChangeReview({
       {
         position,
         total,
-        name: current?.name,
+        name: current?.label && current.label !== current.name ? `${current.name}, ${current.label}` : current?.name,
         handoff,
         onBack: backToOverview,
         onStep: step

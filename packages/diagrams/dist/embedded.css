@@ -526,7 +526,7 @@
 .member[data-change] > .signature {
   color: var(--change-color);
 }
-.atlas-panel .member[data-change="removed"] > .signature,.atlas-panel
+.atlas-panel .member[data-change="removed"] .signature,.atlas-panel
 .change-line[data-change="removed"] .signature {
   text-decoration: line-through;
 }
