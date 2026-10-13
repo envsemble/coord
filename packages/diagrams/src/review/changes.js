@@ -161,10 +161,11 @@ const knownColumns = (columns) =>
   Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
 // A part as it is compared: a foreign key's unknown referenced columns are
 // the same whether recorded as nulls or left out.
-const comparable = (item) =>
-  isForeignKey(item)
-    ? { ...item, targetColumns: knownColumns(item.targetColumns) }
-    : item;
+const comparable = (item) => {
+  if (!isForeignKey(item)) return item;
+  const { targetColumns, ...rest } = item;
+  return { ...rest, targetColumns: knownColumns(targetColumns) };
+};
 export const partKey = (item) =>
   isPart(item)
     ? isForeignKey(item)

@@ -525,7 +525,11 @@ function partChange(before, after) {
   ];
 }
 var knownColumns = (columns) => Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
-var comparable = (item) => isForeignKey(item) ? { ...item, targetColumns: knownColumns(item.targetColumns) } : item;
+var comparable = (item) => {
+  if (!isForeignKey(item)) return item;
+  const { targetColumns, ...rest } = item;
+  return { ...rest, targetColumns: knownColumns(targetColumns) };
+};
 var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target, knownColumns(item.targetColumns)])}` : `name:${item.name}` : JSON.stringify(item);
 function itemChanges(note) {
   const before = note.before?.present ? note.before.value : [];

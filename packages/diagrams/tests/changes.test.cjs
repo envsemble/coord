@@ -1599,13 +1599,11 @@ test("a table's foreign keys are told once: by the relation that shows them, or 
   // Nor does recording them as nulls or leaving them out change it.
   const { itemChanges } = loadComponents("src/review/changes.js");
   const unknownKey = { ...key, target: "accounts", targetColumns: [null] };
+  const { targetColumns: _unknown, ...withoutColumns } = unknownKey;
   assert.deepEqual(
     itemChanges({
       before: { present: true, value: [unknownKey] },
-      after: {
-        present: true,
-        value: [{ ...unknownKey, targetColumns: undefined }],
-      },
+      after: { present: true, value: [withoutColumns] },
     }),
     [],
   );
