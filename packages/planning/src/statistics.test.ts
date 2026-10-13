@@ -359,6 +359,38 @@ test('inside a harness, atlas work report reads the session, model, agent time a
   assert.equal(readFileSync(path.join(root, folder, '.atlas/statistics.jsonl'), 'utf8').trim().split('\n').length, 4, 'refused reports write nothing');
 });
 
+test('a Codex helper reporting under its own thread reports into its root session, so no work counts twice', async t => {
+  const { root, register } = repository(t);
+  const folder = 'active/0001-example';
+  mkdirSync(path.join(root, folder), { recursive: true });
+  register(folder);
+  writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
+  const codex = mkdtempSync(path.join(tmpdir(), 'atlas-codex-'));
+  t.after(() => rmSync(codex, { recursive: true, force: true }));
+  const day = path.join(codex, 'sessions', '2026', '10', '11');
+  mkdirSync(day, { recursive: true });
+  const main = '01a118ad-b889-71a3-a075-de1eee5ff2e2', helper = '01a118ae-0000-7000-8000-000000000001';
+  const time = (minutes: number) => Date.parse(at(minutes));
+  const meta = (id: string, extra: object = {}) => ({ timestamp: at(0), type: 'session_meta', payload: { id, session_id: main, ...extra } });
+  const started = (minutes: number, turn: string) => ({ timestamp: at(minutes), type: 'event_msg', payload: { type: 'task_started', turn_id: turn, started_at: Math.floor(time(minutes) / 1000) } });
+  const context = (minutes: number, turn: string, model: string) => ({ timestamp: at(minutes), type: 'turn_context', payload: { turn_id: turn, model } });
+  const tokens = (minutes: number, input: number, output: number) => ({ timestamp: at(minutes), type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input, cached_input_tokens: 0, output_tokens: output }, last_token_usage: { input_tokens: input, cached_input_tokens: 0, output_tokens: output } } } });
+  const complete = (minutes: number, turn: string) => ({ timestamp: at(minutes), type: 'event_msg', payload: { type: 'task_complete', turn_id: turn } });
+  const write = (id: string, lines: object[]) => writeFileSync(path.join(day, `rollout-2026-10-11T11-00-00-${id}.jsonl`), lines.map(line => JSON.stringify(line)).join('\n') + '\n');
+  // The parent works 0–10 and spawns a helper, which works 10–70 while the parent waits.
+  write(main, [meta(main), started(0, 'm1'), context(0, 'm1', 'gpt-6.1-sol'), tokens(5, 500, 50), complete(10, 'm1')]);
+  write(helper, [meta(helper, { parent_thread_id: main }), started(10, 'h1'), context(10, 'h1', 'gpt-5-codex-mini'), tokens(60, 1000, 100), complete(70, 'h1')]);
+  const as = (thread: string) => ({ environment: { CODEX_THREAD_ID: thread, CODEX_HOME: codex }, home: codex });
+  await recordWorkReport(root, 'work-0001', { step: 'Start', at: new Date(at(1)) }, as(main));
+  const begun = await recordWorkReport(root, 'work-0001', { step: 'Helper starts', at: new Date(at(11)) }, as(helper));
+  assert.equal(begun.report.session, main, 'the helper reports into its root session');
+  await recordWorkReport(root, 'work-0001', { step: 'Helper done', at: new Date(at(70)) }, as(helper));
+  await recordWorkReport(root, 'work-0001', { step: 'Done', at: new Date(at(80)) }, as(main));
+  const statistics = (await loadPlanning(root)).work[0].statistics!;
+  assert.deepEqual([statistics.agentMs / 60000, statistics.tokens], [69, 1650], 'the parent 1–10 and the helper 10–70, once; their tokens once');
+  assert.deepEqual(statistics.models.map(model => [model.model, model.agentMs / 60000, model.tokens]), [['gpt-5-codex-mini', 60, 1100], ['gpt-6.1-sol', 9, 550]]);
+});
+
 test('reports never follow a symbolic link out of the work folder', { skip: process.platform === 'win32' ? 'Symbolic links need extra rights on Windows.' : false }, async t => {
   const { root, register } = repository(t);
   const folder = 'active/0001-example';

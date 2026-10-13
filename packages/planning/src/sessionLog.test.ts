@@ -3,7 +3,7 @@
 // logs are small synthetic ones written here; the developer's own ~/.claude and ~/.codex are never read.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { harnessSessions, measureSession, sessionLogs, type SessionLogs } from './sessionLog.ts';
@@ -114,6 +114,20 @@ test('one response written as several lines counts once, by its last line; synth
   const result = await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment, home }), -1, 10);
   assert.deepEqual(result.models.map(model => [model.model, model.input, model.cacheRead, model.cacheWrite, model.output]), [['claude-opus-5-5', 10, 100, 10, 80]]);
   assert.equal(minutes(result.agentMs), 4, 'the synthetic message is still the turn at work');
+});
+
+test('a response whose lines straddle a report counts once: it belongs to the moment of its first line', async t => {
+  const { claudeSession, environment, home, config } = folders(t);
+  const second = (seconds: number) => seconds / 60;
+  const big = usage(10, 2000, 500000, 1000);
+  claudeSession([claude.prompt(0), claude.response(second(1), 'msg_main', 'claude-opus-5-5', usage(1, 1))], [[claude.prompt(second(2), { isSidechain: true }), claude.response(second(99), 'msg_helper', 'claude-opus-5-5', big, null)]]);
+  const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
+  const tokens = (result: { models: { input: number; cacheRead: number; cacheWrite: number; output: number }[] }) => result.models.reduce((sum, model) => sum + model.input + model.cacheRead + model.cacheWrite + model.output, 0);
+  // The report at 100 s sees only the response's first line, which already carries its usage.
+  assert.equal(tokens(await measure(logs, 0, second(100), true)), 2 + 503010);
+  // Its second line, written at 101 s, does not make the next report count it again.
+  appendFileSync(path.join(config, 'projects', 'C--work-example', session, 'subagents', 'agent-a0.jsonl'), JSON.stringify(claude.response(second(101), 'msg_helper', 'claude-opus-5-5', big)) + '\n');
+  assert.equal(tokens(await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment, home }), second(100), second(200), true)), 0);
 });
 
 test('waiting for the person inside a turn is not agent time: a question, a plan to approve, a permission prompt', async t => {
@@ -292,6 +306,25 @@ test('Codex: an open turn ends at its last event, or now when the report comes f
   const logs = await sessionLogs([{ harness: 'codex', session: thread }], { environment, home });
   assert.equal(minutes((await measure(logs, -1, 30)).agentMs), 20);
   assert.equal(minutes((await measure(logs, -1, 30, true)).agentMs), 30, 'live: the turn is still under way');
+});
+
+test('Codex: a subagent\'s thread is measured as the root session it belongs to', async t => {
+  const { rollout, environment, home } = folders(t);
+  const helper = '01a118ae-0000-7000-8000-000000000001', grandchild = '01a118ae-0000-7000-8000-000000000002';
+  rollout(thread, [codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), codex.complete(10, 't1')]);
+  rollout(helper, [codex.meta(helper, { session_id: thread, parent_thread_id: thread }), codex.started(10, 'h1'), codex.context(10, 'h1', 'gpt-5-codex-mini'), codex.complete(70, 'h1')]);
+  rollout(grandchild, [codex.meta(grandchild, { session_id: thread, parent_thread_id: helper }), codex.started(20, 'g1'), codex.context(20, 'g1', 'gpt-5-codex-mini'), codex.complete(30, 'g1')]);
+  for (const asked of [helper, grandchild]) {
+    const logs = await sessionLogs([{ harness: 'codex', session: asked }], { environment, home });
+    assert.deepEqual([logs?.session, logs?.requested], [thread, asked], 'the root, asked for by its subagent');
+    assert.equal(minutes((await measure(logs, -1, 80)).agentMs), 70, 'the root with all its subagents');
+  }
+  const root = await sessionLogs([{ harness: 'codex', session: thread }], { environment, home });
+  assert.deepEqual([root?.session, root?.requested], [thread, thread]);
+  // A thread whose root is not on this computer stays its own session.
+  const orphan = '01a118ae-0000-7000-8000-000000000003';
+  rollout(orphan, [codex.meta(orphan, { session_id: '01a00000-0000-7000-8000-00000000000f' }), codex.started(0, 'o1'), codex.complete(5, 'o1')]);
+  assert.deepEqual((await sessionLogs([{ harness: 'codex', session: orphan }], { environment, home }))?.session, orphan);
 });
 
 test('Codex: later parts of a thread continue it, and subagent threads that name it are included', async t => {

@@ -38,9 +38,12 @@ export interface LogOptions {
 }
 interface LogFile { file: string; modified: number; main: boolean }
 export interface SessionLogs {
+  /** The session measured: for a Codex subagent's thread, the root session it belongs to. */
   harness: Harness; session: string; files: LogFile[];
   /** Codex: other threads' rollouts since this thread started, among them its subagents'. */
   others: string[];
+  /** The session that was asked for. */
+  requested: string;
 }
 
 /** Session identifiers as harnesses write them (UUIDs): never a path, a dot or a drive. */
@@ -87,32 +90,49 @@ async function claudeLogs(session: string, config: string): Promise<SessionLogs 
     }
   }
   const files = present(await Promise.all(found));
-  return files.some(file => file.main) ? { harness: 'claude-code', session, files, others: [] } : null;
+  return files.some(file => file.main) ? { harness: 'claude-code', session, files, others: [], requested: session } : null;
 }
 
 /** rollout-<local time>-<thread>[_<part>].jsonl; a thread's later parts continue it. */
-const rolloutName = /^rollout-(\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2}-([A-Za-z0-9-]+?)(?:_[A-Za-z0-9-]+)?\.jsonl$/;
+const rolloutName = /^rollout-((\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2})-([A-Za-z0-9-]+?)(?:_[A-Za-z0-9-]+)?\.jsonl$/;
 
-/** Codex: every rollout of the thread, in the dated folders and the archive. */
-async function codexLogs(thread: string, home: string): Promise<SessionLogs | null> {
+/**
+ * Codex: every rollout of the thread, in the dated folders and the archive. A subagent's thread
+ * names the root session it belongs to in its first line; it is measured, and reports, as part of
+ * that session, so a helper's report and its parent's never count the same work twice.
+ */
+async function codexLogs(thread: string, home: string, resolve = true): Promise<SessionLogs | null> {
   const sessions = path.join(home, 'sessions');
   const numbered = async (folder: string, digits: number) => (await entries(folder)).filter(entry => entry.isDirectory() && entry.name.length === digits && /^\d+$/.test(entry.name)).map(entry => entry.name);
   const folders = [path.join(home, 'archived_sessions')];
   for (const year of await numbered(sessions, 4)) for (const month of await numbered(path.join(sessions, year), 2)) for (const day of await numbered(path.join(sessions, year, month), 2)) folders.push(path.join(sessions, year, month, day));
   const main: Promise<LogFile | null>[] = [];
   const others: { file: string; day: string }[] = [];
-  let first = '9999';
+  let first = '9999', earliest: { file: string; time: string } | null = null;
   for (const folder of folders) {
     for (const entry of await entries(folder)) {
       const match = entry.isFile() ? rolloutName.exec(entry.name) : null;
       if (!match) continue;
-      if (match[2] === thread) { main.push(logFile(path.join(folder, entry.name), true)); if (match[1] < first) first = match[1]; }
-      else others.push({ file: path.join(folder, entry.name), day: match[1] });
+      const file = path.join(folder, entry.name);
+      if (match[3] !== thread) { others.push({ file, day: match[2] }); continue; }
+      main.push(logFile(file, true));
+      if (match[2] < first) first = match[2];
+      if (!earliest || match[1] < earliest.time) earliest = { file, time: match[1] };
     }
   }
   const files = present(await Promise.all(main));
+  if (!files.length) return null;
+  if (resolve && earliest) {
+    let meta: SessionMeta | null = null;
+    try { meta = JSON.parse(await firstLine(earliest.file) ?? 'null') as SessionMeta | null; } catch { /* Not a rollout Atlas can read. */ }
+    const root = meta?.type === 'session_meta' ? meta.payload?.session_id : null;
+    if (typeof root === 'string' && root !== thread && sessionName.test(root)) {
+      const logs = await codexLogs(root, home, false);
+      if (logs) return { ...logs, requested: thread };
+    }
+  }
   // A subagent starts after its parent: older rollouts are someone else's.
-  return files.length ? { harness: 'codex', session: thread, files, others: others.filter(other => other.day >= first).map(other => other.file) } : null;
+  return { harness: 'codex', session: thread, files, others: others.filter(other => other.day >= first).map(other => other.file), requested: thread };
 }
 
 /** The logs of the candidate sessions that have them; when several do, the most recently written. */
@@ -253,7 +273,8 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
  */
 async function claudeTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
-  // One response is written as several lines (one per content block): its last line counts.
+  // One response is written as several lines (one per content block): it belongs to the moment of
+  // its first line, so a report between its lines counts it once, and its latest line has its usage.
   const responses = new Map<string, Spend>();
   for (const log of files) {
     const events: ClaudeEvent[] = [];
@@ -269,8 +290,8 @@ async function claudeTimeline(files: LogFile[], at: number, live: boolean): Prom
       events.push(event);
       const usage = line.message?.usage, model = modelOf(line.message?.model);
       if (line.type !== 'assistant' || !model || !usage || typeof usage !== 'object') continue;
-      const id = line.message?.id;
-      responses.set(typeof id === 'string' ? id : log.file + '#' + number, { at: event.at, model, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
+      const id = line.message?.id, key = typeof id === 'string' ? id : log.file + '#' + number;
+      responses.set(key, { at: Math.min(responses.get(key)?.at ?? event.at, event.at), model, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
     }
     timeline.events += events.length;
     events.sort((a, b) => a.at - b.at);

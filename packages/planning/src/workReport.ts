@@ -32,7 +32,7 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
   createReport({ ...input, model: input.model ?? 'unknown', step, at });
   const root = await realpath(inputRoot).catch(() => { throw new StatisticsReportError('The planning folder does not exist: ' + inputRoot); });
   let registry: unknown;
-  try { registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^﻿/, '')); }
+  try { registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, '')); }
   catch { throw new StatisticsReportError('The planning folder needs a readable planning.json registry.'); }
   const items = (registry as { work_items?: unknown })?.work_items;
   if (!Array.isArray(items)) throw new StatisticsReportError('The planning registry has no work_items list.');
@@ -57,7 +57,7 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
       // The session's previous report here starts the interval; its first report is the starting point.
       const previous = (await readReports(root, { path: location })).reports.filter(report => report.session === session && report.at <= at.toISOString()).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
       since = previous?.at ?? null;
-      measure = await measureSession(logs, { since: since === null ? null : Date.parse(since), at: at.getTime(), live: own.some(entry => entry.session === session) });
+      measure = await measureSession(logs, { since: since === null ? null : Date.parse(since), at: at.getTime(), live: own.some(entry => entry.session === logs.requested) });
     } catch (error) {
       failure = (error instanceof Error ? error.message : String(error)).replace(/\.$/, '');
       warnings.push('Agent time and tokens were not measured: ' + failure + '.');
