@@ -213,7 +213,8 @@ test("proposals open in their change view with a readable list of changes", asyn
   assert(list.includes(">Term<"));
   // Renamed types appear once each, under their new names.
   assert(list.includes(">Pupil<") && list.includes(">Learner<"));
-  assert(list.includes("name: Pupil"));
+  // A rename reads as the old name and the new one.
+  assert(list.includes("name: Student → Pupil"));
   assert(
     !list.includes("Learners replace students."),
     "no rationale in the list",

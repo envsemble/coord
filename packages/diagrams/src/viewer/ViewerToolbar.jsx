@@ -161,13 +161,13 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
         <IslandDivider />
         {guided &&
           (conceptual && findings > 0 ? (
-            <Tooltip content="Learn OntoUML" side="bottom">
+            <Tooltip content="Understand the model" side="bottom">
               <Button
                 id="learn-toggle"
                 variant={learningOpen && sidebarOpen ? "primary" : "secondary"}
                 className="learn-toggle"
                 aria-pressed={learningOpen && sidebarOpen}
-                aria-label={`Learn OntoUML; ${findings} ${findings === 1 ? "finding" : "findings"}`}
+                aria-label={`Understand the model; ${findings} ${findings === 1 ? "finding" : "findings"}`}
                 startIcon={<LearnIcon />}
                 onClick={onLearn}
               >
@@ -180,12 +180,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
           ) : (
             <ToolButton
               id="learn-toggle"
-              label={
-                conceptual
-                  ? "Learn OntoUML; no findings"
-                  : "Understand the model"
-              }
-              tooltip={conceptual ? "Learn OntoUML" : "Understand the model"}
+              label="Understand the model"
               pressed={learningOpen && sidebarOpen}
               icon={<LearnIcon />}
               onClick={onLearn}

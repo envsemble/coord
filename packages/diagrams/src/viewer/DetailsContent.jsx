@@ -13,6 +13,7 @@ import { ElementLearning } from "../learning/LearningContent";
 import { DetailHeader } from "../ui/DetailHeader";
 import { GeneralizationIcon, RelationIcon } from "../ui/Icons";
 import { ChangeMark } from "../review/ChangeMark";
+import { knownMultiplicity } from "../model/multiplicity";
 import {
   cellText,
   dependencyMembers,
@@ -21,6 +22,7 @@ import {
   rowFor,
 } from "../review/changes";
 import {
+  ChangedProperty,
   CodeWhere,
   Members,
   Section,
@@ -36,8 +38,6 @@ const changeOf = (review, element) =>
   review && element.changeStatus && element.changeStatus !== "unchanged"
     ? element.changeStatus
     : null;
-const knownCount = (value) =>
-  typeof value === "string" && value.trim() !== "" && value !== "?";
 
 /**
  * A class, interface, table or concept: what a proposal changes about it, where
@@ -143,7 +143,7 @@ function RelationEnds({ heading, ends, onChoose }) {
             <Button variant="text" onClick={() => onChoose(node.id)}>
               {node.name}
             </Button>
-            {knownCount(count) && (
+            {knownMultiplicity(count) && (
               <Badge variant="outline" className="count-badge">
                 {count}
               </Badge>
@@ -281,16 +281,19 @@ export const RelationDetails = memo(function RelationDetails({
               <li key={note.key} className="change-line" data-change="modified">
                 <ChangeMark status="modified" />
                 <span className="change-line-text">
-                  <span className="change-key">{note.key}</span>{" "}
-                  <del className="change-before">
-                    {cellText(note.before, review.rollup.names)}
-                  </del>
-                  <span className="change-arrow" aria-label="changed to">
-                    →
-                  </span>
-                  <ins className="change-after">
-                    {cellText(note.after, review.rollup.names)}
-                  </ins>
+                  <ChangedProperty
+                    name={note.key}
+                    before={cellText(
+                      note.before,
+                      review.rollup.names,
+                      note.property,
+                    )}
+                    after={cellText(
+                      note.after,
+                      review.rollup.names,
+                      note.property,
+                    )}
+                  />
                 </span>
               </li>
             ))}

@@ -412,6 +412,11 @@ test("the canvas marks changes in its own geometry, so exports and the backdrop 
     "removed relations are dotted",
   );
   assert.match(svg, /marker-end="url\(#[^"]+-DEPENDENCY-added\)"/);
+  // Beyond colour, a changed relation carries its +, ~ or − on the line.
+  assert.match(
+    svg,
+    /<g class="edge-change-mark"[^>]*><circle r="7.5" fill="var\(--change-added,#1a7f37\)"><\/circle><text[^>]*>\+<\/text>/,
+  );
   assert.match(svg, /<marker[^>]+-DEPENDENCY-removed"/);
   // Member rows: a removed member is struck through, an added one marked +.
   assert.match(svg, /text-decoration="line-through"[^>]*>legacy : Legacy</);
@@ -477,5 +482,317 @@ test("unknown counts and generic dependency names add no labels to the canvas", 
   assert.equal(
     validateDiagram(lean.views[0].diagram, lean.model).multiplicityLabels,
     1,
+  );
+});
+
+test("the layout and the viewer agree on known counts and uninformative names", () => {
+  const layout = require("../lib/layout/multiplicity.cjs");
+  const viewer = loadComponents("src/model/multiplicity.js");
+  for (const value of ["1", "0..*", " 1 ", "?", " ? ", "", "  ", null, 1])
+    assert.equal(
+      viewer.knownMultiplicity(value),
+      layout.knownMultiplicity(value),
+      String(value),
+    );
+  const { informativeName } = loadComponents("src/review/changes.js");
+  for (const name of ["declared type use", "Association", "holds", "", " "])
+    assert.equal(
+      !!informativeName({ name }),
+      relationLabel({ name, stereotype: "" }) !== null,
+      name,
+    );
+  // OntoUML's default name gives way to the stereotype alone.
+  assert.equal(
+    relationLabel({ name: "Association", stereotype: "mediation" }),
+    "«mediation»",
+  );
+});
+
+test("model-level changes are listed under Model; the root's element lists are not", async () => {
+  const proposal = atlas.createProposal(captured());
+  const model = clone(proposal.model);
+  model.constraints = [[CHECKOUT, "A payment needs a saved method"]];
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const rollup = rollupChanges(payload.comparison, view.model, view.views);
+  assert.deepEqual(
+    rollup.groups.map((g) => [g.label, g.elements.map((r) => r.name)]),
+    [["Model", ["Model"]]],
+  );
+  const [row] = rollup.rows;
+  assert.equal(row.target, null);
+  // A constraint reads as what the list gains, its identities as names.
+  assert.deepEqual(
+    row.summary.tokens.map((t) => `${t.status}:${t.text}`),
+    ["added:Checkout, A payment needs a saved method"],
+  );
+  // Nothing on the canvas changed: nothing to step to or count.
+  assert.equal(rollup.count, 0);
+  const { ChangesOverview } = loadComponents("src/review/ChangesOverview.jsx");
+  const html = renderToStaticMarkup(
+    createElement(ChangesOverview, { rollup, profile: "code", onSelect() {} }),
+  );
+  assert(html.includes("Compared with the code"));
+  assert(html.includes(">Model<"));
+  assert(!html.includes('<button type="button" class="change-row"'));
+});
+
+test("OntoUML proposals group each change under its class or relation, by name", async () => {
+  const {
+    createEnrollmentDocument,
+  } = require("../examples/enrollment/learning.cjs");
+  const proposal = atlas.createProposal(createEnrollmentDocument());
+  const model = clone(proposal.model);
+  const byId = new Map(model.elements.map((e) => [e.id, e]));
+  byId.get("person").name = { en: "Learner" };
+  const mediates = byId.get("mediates-person");
+  byId.get(mediates.properties[1]).cardinality = "0..1";
+  const institution = byId.get("institution");
+  model.elements.push({
+    ...clone(byId.get(mediates.properties[0])),
+    id: "institution-code",
+    name: { en: "code" },
+    propertyType: "person",
+    cardinality: "1",
+  });
+  institution.properties = [...institution.properties, "institution-code"];
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  // A relation that kept its ends is drawn once, marked changed.
+  assert.deepEqual(
+    view.model.relations
+      .filter((r) => (r.originalId || r.id) === "mediates-person")
+      .map((r) => r.changeStatus),
+    ["modified"],
+  );
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const rollup = rollupChanges(payload.comparison, view.model, view.views);
+  assert.deepEqual(
+    rollup.groups.map((g) => [
+      g.label,
+      [...g.elements, ...g.relations].map(
+        (r) =>
+          `${r.name}: ${r.summary.tokens.map((t) => `${t.status} ${t.text}`).join(" | ") || r.summary.text}`,
+      ),
+    ]),
+    [
+      [
+        "Changed",
+        [
+          "Institution: added code",
+          "Learner: modified name: Person → Learner",
+          "Enrollment → Learner: mediates · Learner end cardinality: 1 → 0..1",
+        ],
+      ],
+    ],
+  );
+  assert(rollup.rows.every((r) => r.target));
+  assert.equal(rollup.count, 3);
+});
+
+test("a change no view draws is listed, but not stepped to or counted", async () => {
+  const node = (id, name) => ({ id, name, attributes: [] });
+  const base = atlas.createDocument({
+    id: "split",
+    title: "Split",
+    profile: "code",
+    model: {
+      type: "StructuralModel",
+      nodes: [node("a", "A"), node("b", "B")],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
+      constraints: [],
+    },
+    views: [
+      { key: "left", label: "Left", nodeIds: ["a"] },
+      { key: "right", label: "Right", nodeIds: ["b"] },
+    ],
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  // A new class outside both views would add an all-elements view.
+  model.nodes[0].name = "Alpha";
+  model.relations.push({
+    id: "ab",
+    name: "holds",
+    sourceId: "a",
+    targetId: "b",
+    sourceMultiplicity: "1",
+    targetMultiplicity: "0..*",
+  });
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const rollup = rollupChanges(payload.comparison, view.model, view.views);
+  const relation = rollup.rows.find((r) => r.name === "Alpha → B");
+  assert.equal(relation.target, null);
+  assert.equal(relation.summary.note, "Not drawn in any view");
+  assert.deepEqual(
+    rollup.navigable.map((r) => r.name),
+    ["Alpha"],
+  );
+  assert.equal(rollup.count, 1);
+  const { ChangesOverview } = loadComponents("src/review/ChangesOverview.jsx");
+  const html = renderToStaticMarkup(
+    createElement(ChangesOverview, { rollup, profile: "code", onSelect() {} }),
+  );
+  assert(html.includes("Not drawn in any view"));
+  assert.match(html, /<li class="change-row static"[^>]*>.*?Alpha → B/);
+});
+
+test("a new Java class is proposed where its package's classes live", () => {
+  const { decodeIdentity, elementFile } = loadComponents(
+    "src/review/changes.js",
+  );
+  const java = (name) => `code:java:shop:${encodeURIComponent(name)}`;
+  assert.deepEqual(decodeIdentity(java("com.shop.Cart")), {
+    source: "code",
+    language: "java",
+    repository: "shop",
+    file: null,
+    name: "com.shop.Cart",
+  });
+  const model = {
+    classes: [
+      {
+        id: java("com.shop.Checkout"),
+        name: "com.shop.Checkout",
+        location: { file: "src/main/java/com/shop/Checkout.java" },
+      },
+    ],
+  };
+  const file = (name, within = model) =>
+    elementFile({ id: java(name) }, within);
+  assert.equal(file("com.shop.Cart"), "src/main/java/com/shop/Cart.java");
+  assert.equal(
+    file("com.shop.Checkout.Line"),
+    "src/main/java/com/shop/Checkout.java",
+  );
+  assert.equal(
+    file("com.billing.Invoice"),
+    "src/main/java/com/billing/Invoice.java",
+  );
+  assert.equal(file("com.shop.Cart", { classes: [] }), null);
+  const { WhatChanges } = loadComponents("src/viewer/DetailSections.jsx");
+  const render = (within) =>
+    renderToStaticMarkup(
+      createElement(WhatChanges, {
+        change: { status: "added", properties: [], members: [] },
+        element: { id: java("com.shop.Cart"), name: "Cart", attributes: [] },
+        model: within,
+        profile: "code",
+      }),
+    );
+  assert(
+    render(model).includes(
+      "Proposed in <code>src/main/java/com/shop/Cart.java</code> (a new file)",
+    ),
+  );
+  // Without a captured class to place it by, its identity still names it.
+  assert(
+    render({ classes: [] }).includes("Proposed as <code>com.shop.Cart</code>"),
+  );
+});
+
+test("a table's keys list each foreign key once, with its change", async () => {
+  const table = (id, columns) => ({
+    id,
+    name: id,
+    attributes: columns.map((c) => ({
+      id: `${id}.${c}`,
+      name: c,
+      type: "integer",
+    })),
+  });
+  const fk = (name, column, target) => ({
+    id: `orders:fk:${name}`,
+    name,
+    stereotype: "foreign key",
+    sourceId: "orders",
+    targetId: target,
+    sourceMultiplicity: "0..*",
+    targetMultiplicity: "1",
+    columns: [column],
+    targetColumns: ["id"],
+  });
+  const base = atlas.createDocument({
+    id: "shop",
+    title: "Shop",
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [
+        table("orders", ["id", "created_by", "updated_by", "legacy_id"]),
+        table("users", ["id"]),
+        table("accounts", ["id"]),
+      ],
+      relations: [
+        fk("created_by_fkey", "created_by", "users"),
+        fk("updated_by_fkey", "updated_by", "users"),
+        fk("legacy_fkey", "legacy_id", "users"),
+      ],
+      generalizations: [],
+      generalizationSets: [],
+    },
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  model.relations = [
+    fk("created_by_fkey", "created_by", "users"),
+    fk("updated_by_fkey", "updated_by", "accounts"),
+  ];
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const review = {
+    rollup: rollupChanges(payload.comparison, view.model, view.views),
+  };
+  const html = renderToStaticMarkup(
+    createElement(ConceptDetails, {
+      concept: view.model.classes.find((c) => c.id === "orders"),
+      model: view.model,
+      snippets: {},
+      review,
+      onReference() {},
+    }),
+  );
+  const keys = html.slice(html.indexOf(">Keys<"));
+  const rows = keys.slice(0, keys.indexOf("</ul>")).split("<li").slice(1);
+  assert.equal(rows.length, 3);
+  assert(rows[0].includes("created_by") && !rows[0].includes("data-change"));
+  assert(rows[1].includes('data-change="modified"'));
+  assert(
+    rows[1].includes('<del class="change-before">updated_by → users(id)</del>'),
+  );
+  assert(
+    rows[1].includes(
+      '<ins class="change-after">updated_by → accounts(id)</ins>',
+    ),
+  );
+  assert(
+    rows[2].includes('data-change="removed"') && rows[2].includes("legacy_id"),
+  );
+  // The relation's own change names the tables, not their identities.
+  const relation = review.rollup.rows.find(
+    (r) => r.label === "updated_by_fkey",
+  );
+  assert.equal(
+    relation.summary.text,
+    "updated_by_fkey · targetId: users → accounts",
   );
 });

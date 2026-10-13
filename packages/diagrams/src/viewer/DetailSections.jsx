@@ -7,6 +7,7 @@ import { ExternalIcon, LessIcon, MoreIcon } from "../ui/Icons";
 import { ChangeMark } from "../review/ChangeMark";
 import {
   CHANGE_LABELS,
+  decodeIdentity,
   elementFile,
   fileExists,
   memberSignature,
@@ -190,15 +191,27 @@ const typeChange = (member) =>
     ? member.properties.find((p) => p.key === "type")
     : null;
 
-function ChangedValue({ before, after }) {
+/** A value before and after a change: the arrow reads as "changed to". */
+export function ChangedValue({ before, after }) {
   return (
     <>
       <del className="change-before">{before}</del>
-      <span className="change-arrow" aria-label="changed to">
+      <span className="change-arrow" aria-hidden="true">
         →
       </span>
+      <span className="visually-hidden"> changed to </span>
       <ins className="change-after">{after}</ins>
     </>
+  );
+}
+
+/** A changed property on one line: its name, then before → after. */
+export function ChangedProperty({ name, before, after }) {
+  return (
+    <span>
+      <span className="change-key">{name}</span>{" "}
+      <ChangedValue before={before} after={after} />
+    </span>
   );
 }
 
@@ -214,18 +227,28 @@ export function WhatChanges({ change, element, model, profile }) {
     (profile === "database" ? "table" : "class");
   const held = contents(element, profile);
   if (change.status === "added") {
-    const file = profile === "code" ? elementFile(element) : null;
+    const file = profile === "code" ? elementFile(element, model) : null;
+    // Without a file to point at, the identity still names the declaration.
+    const declared =
+      profile === "code" && !file ? decodeIdentity(element.id)?.name : null;
     return (
       <Section title="What changes">
         <Text>
           New {kind}
           {held ? ` with ${held}` : ""}.
         </Text>
-        {file && (
+        {file ? (
           <Text className="proposed-location">
             Proposed in <code>{file}</code>
             {fileExists(model, file) ? "" : " (a new file)"}
           </Text>
+        ) : (
+          declared &&
+          declared !== element.name && (
+            <Text className="proposed-location">
+              Proposed as <code>{declared}</code>
+            </Text>
+          )
         )}
       </Section>
     );
@@ -246,8 +269,7 @@ export function WhatChanges({ change, element, model, profile }) {
           <li key={p.key} className="change-line" data-change="modified">
             <ChangeMark status="modified" />
             <span className="change-line-text">
-              <span className="change-key">{p.key}</span>{" "}
-              <ChangedValue before={p.before} after={p.after} />
+              <ChangedProperty name={p.key} before={p.before} after={p.after} />
             </span>
           </li>
         ))}
@@ -310,7 +332,7 @@ function sourceOf(element, sources) {
 /** Where a captured declaration is: its file and lines, and its source excerpt. */
 export function CodeWhere({ element, model, snippets, change }) {
   if (change === "added") return null;
-  const file = elementFile(element);
+  const file = elementFile(element, model);
   const location = element.location;
   const source = sourceOf(element, model.sources || []);
   const snippet = source && snippets?.[source.id];
@@ -473,14 +495,41 @@ export function Members({ element, profile, review, focus = null }) {
   );
 }
 
+// A foreign key the proposal points elsewhere keeps its identity, and the
+// change view keeps its previous route beside the new one: list it once, as
+// before → after. A removed key stays listed, marked removed.
+function foreignKeys(element, model, review) {
+  const outgoing = (model.relations || []).filter(
+    (r) => r.sourceId === element.id && Array.isArray(r.columns),
+  );
+  const current = new Set(
+    outgoing.filter((r) => r.changeStatus !== "removed").map((r) => r.id),
+  );
+  const previous = new Map(
+    outgoing
+      .filter((r) => r.changeStatus === "removed" && current.has(r.originalId))
+      .map((r) => [r.originalId, r]),
+  );
+  return outgoing
+    .filter((r) => !(r.changeStatus === "removed" && current.has(r.originalId)))
+    .map((relation) => ({
+      relation,
+      previous: review ? previous.get(relation.id) || null : null,
+      status:
+        review && relation.changeStatus !== "unchanged"
+          ? relation.changeStatus
+          : undefined,
+    }));
+}
+
 /** A table's columns and keys, its foreign keys, and its definition. */
 export function TableSchema({ element, model, review, focus = null }) {
   const columns = element.attributes || [];
   const marks = review && element.changeStatus === "modified";
-  const outgoing = (model.relations || []).filter(
-    (r) => r.sourceId === element.id && Array.isArray(r.columns),
-  );
+  const outgoing = foreignKeys(element, model, review);
   const tables = new Map(model.classes.map((c) => [c.id, c.name]));
+  const keyText = (relation) =>
+    `${relation.columns.join(", ")} → ${tables.get(relation.targetId) || relation.target}(${(relation.targetColumns || []).join(", ")})`;
   const unique = (element.keys || []).filter((key) => !key.primary);
   const sql = [
     element.definition,
@@ -531,7 +580,9 @@ export function TableSchema({ element, model, review, focus = null }) {
       )}
       {(outgoing.length > 0 || unique.length > 0) && (
         <Section title="Keys">
-          <ul className="member-list">
+          <ul
+            className={`member-list${outgoing.some((key) => key.status) ? " marked" : ""}`}
+          >
             {unique.map((key) => (
               <li key={key.name} className="member">
                 <code className="signature">
@@ -542,16 +593,37 @@ export function TableSchema({ element, model, review, focus = null }) {
                 </code>
               </li>
             ))}
-            {outgoing.map((relation) => (
-              <li key={relation.id} className="member">
-                <code className="signature">
-                  <span className="member-name">
-                    {relation.columns.join(", ")}
-                  </span>{" "}
-                  <span className="member-type">
-                    → {tables.get(relation.targetId) || relation.target}(
-                    {(relation.targetColumns || []).join(", ")})
+            {outgoing.map(({ relation, previous, status }) => (
+              <li
+                key={relation.id}
+                className="member"
+                data-change={
+                  status && status !== "unchanged" ? status : undefined
+                }
+              >
+                {status && <ChangeMark status={status} />}
+                {status && CHANGE_LABELS[status] && (
+                  <span className="visually-hidden">
+                    {CHANGE_LABELS[status]}:{" "}
                   </span>
+                )}
+                <code className="signature">
+                  {previous ? (
+                    <ChangedValue
+                      before={keyText(previous)}
+                      after={keyText(relation)}
+                    />
+                  ) : (
+                    <>
+                      <span className="member-name">
+                        {relation.columns.join(", ")}
+                      </span>{" "}
+                      <span className="member-type">
+                        → {tables.get(relation.targetId) || relation.target}(
+                        {(relation.targetColumns || []).join(", ")})
+                      </span>
+                    </>
+                  )}
                 </code>
               </li>
             ))}

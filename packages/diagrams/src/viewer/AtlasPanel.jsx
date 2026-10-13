@@ -154,6 +154,7 @@ function AtlasPanelContent({
   const changes = useChangeReview({
     review,
     model,
+    views,
     selected,
     overview,
     setOverview,

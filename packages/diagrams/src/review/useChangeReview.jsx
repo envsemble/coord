@@ -15,12 +15,14 @@ export const overviewByDefault = (review) =>
 /**
  * Reviewing a proposal: the rolled-up changes, fading unchanged elements, and
  * stepping through changes. `review` is `{ comparison, baselineDate }`, or
- * null outside a proposal; `overview` says whether the inspector lists the
- * changes when no element is inspected.
+ * null outside a proposal; `model` and `views` are the change view's;
+ * `overview` says whether the inspector lists the changes when no element is
+ * inspected.
  */
 export function useChangeReview({
   review,
   model,
+  views,
   selected,
   overview,
   setOverview,
@@ -30,8 +32,8 @@ export function useChangeReview({
   onShowPanel,
 }) {
   const rollup = useMemo(
-    () => (review ? rollupChanges(review.comparison, model) : null),
-    [review, model],
+    () => (review ? rollupChanges(review.comparison, model, views) : null),
+    [review, model, views],
   );
   // Details read the rollup; one object per rollup keeps them memoized.
   const details = useMemo(() => (rollup ? { rollup } : null), [rollup]);
@@ -53,7 +55,9 @@ export function useChangeReview({
       if (!rollup) return;
       const next =
         position < 0 ? (delta > 0 ? 0 : total - 1) : position + delta;
-      open(rollup.navigable[Math.max(0, Math.min(total - 1, next))]);
+      // At either end there is nothing further; the button stays focused.
+      if (next < 0 || next >= total) return;
+      open(rollup.navigable[next]);
     },
     [rollup, position, total, open],
   );
@@ -96,7 +100,7 @@ export function useChangeReview({
             variant={showing ? "primary" : "secondary"}
             className="changes-toggle"
             aria-pressed={showing}
-            aria-label={`Changes, ${rollup.total}`}
+            aria-label={`Changes, ${rollup.count}`}
             startIcon={<ProposalIcon />}
             onClick={() => {
               if (showing) setOverview(false);
@@ -105,7 +109,7 @@ export function useChangeReview({
           >
             <span className="collapsible-label">Changes</span>
             <Counter
-              value={rollup.total}
+              value={rollup.count}
               tone={showing ? "accent" : "neutral"}
             />
           </Button>
@@ -123,6 +127,7 @@ export function useChangeReview({
       <ChangeNavigation
         position={position}
         total={total}
+        name={current?.name}
         handoff={handoff}
         onBack={backToOverview}
         onStep={step}

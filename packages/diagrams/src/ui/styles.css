@@ -432,6 +432,12 @@ button.change-row[aria-current="true"] {
 .change-token.more {
   color: var(--color-row-detail);
 }
+/* Why a listed change does not open: no view draws it. */
+.change-row-note {
+  color: var(--color-row-detail);
+  font: var(--type-body-small);
+  font-style: italic;
+}
 
 /* Above a changed element's details: back, previous and next. */
 .change-navigation {

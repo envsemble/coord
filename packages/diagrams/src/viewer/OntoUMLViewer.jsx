@@ -146,6 +146,7 @@ function ViewerContent({
   const changes = useChangeReview({
     review,
     model,
+    views,
     selected,
     overview,
     setOverview,
@@ -318,9 +319,7 @@ function ViewerContent({
         }
         title={
           learningOpen
-            ? conceptual && !guide
-              ? "Learn OntoUML"
-              : "Understand the model"
+            ? "Understand the model"
             : showOverview
               ? "Changes"
               : null

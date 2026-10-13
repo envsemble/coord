@@ -1,7 +1,8 @@
 // What a proposal changes, rolled up per element for review: one entry per
-// changed type (its members summarized), per changed relation, and per other
-// changed element. Pure functions over the comparison payload and the change
-// view's model, so the panel, the canvas and the tests share them.
+// changed type (its members summarized), per changed relation, per other
+// changed element, and for the model itself. Pure functions over the
+// comparison payload and the change view's model and views, so the panel,
+// the canvas and the tests share them.
 
 export const CHANGE_LABELS = {
   added: "New",
@@ -15,33 +16,70 @@ export const changeGlyph = (status) => GLYPHS[status] || "";
 const MAX_TOKENS = 4;
 const MAX_VALUE = 160;
 
-/** Element id → display name, with owner.member names for members. */
+// Names that only repeat what a relation is: every captured type use has the
+// first, and OntoUML gives the second to relations without a name.
+const GENERIC_RELATION_NAMES = new Set(["declared type use", "association"]);
+
+/** Whether a relation's name says more than its kind. */
+export function informativeName(edge) {
+  const name = typeof edge?.name === "string" ? edge.name.trim() : "";
+  return name && !GENERIC_RELATION_NAMES.has(name.toLowerCase()) ? name : "";
+}
+
+const edgeEnds = (edge) =>
+  "specificId" in edge
+    ? [edge.specificId, edge.generalId]
+    : [edge.sourceId, edge.targetId];
+
+/**
+ * Element id → display name: classes, their members (owner.member), and
+ * relations, which read as their ends when their own name says nothing more.
+ */
 export function nameIndex(...models) {
   const names = new Map();
-  for (const model of models) {
-    if (!model) continue;
+  // The first model's name wins: the proposal's, then the baseline's for
+  // what the proposal removed.
+  const put = (id, name) => {
+    if (id && !names.has(id)) names.set(id, name);
+  };
+  const present = models.filter(Boolean);
+  for (const model of present)
     for (const c of model.classes || []) {
-      names.set(c.id, c.name);
+      put(c.id, c.name);
       for (const m of [...(c.attributes || []), ...(c.methods || [])])
-        names.set(m.id, `${c.name}.${m.name}`);
+        put(m.id, `${c.name}.${m.name}`);
     }
-    for (const e of [...(model.relations || []), ...(model.partitions || [])])
-      if (e.name) names.set(e.originalId || e.id, e.name);
+  for (const model of present) {
+    for (const e of model.relations || []) {
+      const [source, target] = edgeEnds(e).map((id) => names.get(id));
+      put(
+        e.originalId || e.id,
+        informativeName(e) || `${source ?? "?"} → ${target ?? "?"}`,
+      );
+    }
+    for (const g of model.generalizations || []) {
+      const [specific, general] = edgeEnds(g).map((id) => names.get(id));
+      put(
+        g.originalId || g.id,
+        `${specific ?? "?"} ${g.realization ? "implements" : "inherits"} ${general ?? "?"}`,
+      );
+    }
+    for (const p of model.partitions || []) if (p.name) put(p.id, p.name);
   }
   return names;
 }
 
-/** A compared value as short readable text; nested elements show their names. */
+/** A compared value as short readable text: elements, and their identities, show their names. */
 export function readable(value, names = new Map()) {
-  if (typeof value === "string") return value;
-  if (value === undefined) return "none";
-  if (value && typeof value === "object" && typeof value.$element === "string")
+  if (typeof value === "string") return names.get(value) ?? value;
+  if (value === undefined || value === null) return "none";
+  if (typeof value === "object" && typeof value.$element === "string")
     return names.get(value.$element) || value.$element;
   if (Array.isArray(value))
     return value.length
       ? value.map((item) => readable(item, names)).join(", ")
       : "none";
-  if (value && typeof value === "object") {
+  if (typeof value === "object") {
     // Multilingual OntoUML names and descriptions.
     const text = Object.values(value).find((v) => typeof v === "string");
     if (text !== undefined && Object.keys(value).length <= 3) return text;
@@ -49,24 +87,40 @@ export function readable(value, names = new Map()) {
   const text = JSON.stringify(value, (key, v) =>
     v && typeof v === "object" && typeof v.$element === "string"
       ? names.get(v.$element) || v.$element
-      : v,
+      : typeof v === "string"
+        ? (names.get(v) ?? v)
+        : v,
   );
   return text === undefined ? String(value) : text;
 }
 export const shorten = (text, limit = MAX_VALUE) =>
   text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 
-const isMembership = (cell) =>
+// Lists that hold elements: each member's own change tells what changed.
+// Structural models and OntoUML's project list nested elements; OntoUML's
+// packages, classes and relations list their contents, attributes, literals
+// and ends by identity.
+const CONTAINER_KEYS = new Set(["contents", "properties", "literals"]);
+const isElementList = (cell) =>
   !cell.present ||
   (Array.isArray(cell.value) &&
     cell.value.every(
       (v) => v && typeof v === "object" && typeof v.$element === "string",
     ));
+const isIdentityList = (cell) =>
+  !cell.present ||
+  (Array.isArray(cell.value) && cell.value.every((v) => typeof v === "string"));
 /** Property changes that say something the elements' own changes do not:
  * a list of member elements changes exactly when those members do. */
 export const meaningfulProperties = (change) =>
   (change?.properties || []).filter(
-    (p) => !(isMembership(p.before) && isMembership(p.after)),
+    (p) =>
+      !(isElementList(p.before) && isElementList(p.after)) &&
+      !(
+        CONTAINER_KEYS.has(p.key) &&
+        isIdentityList(p.before) &&
+        isIdentityList(p.after)
+      ),
   );
 
 /** A member's short name in a summary: methods get parentheses. */
@@ -83,9 +137,10 @@ export function memberSignature(member, method, profile) {
 }
 
 /**
- * The parts of an identity captured from code (`code:<language>:<repository>:
- * <file>:<name>`) or a database (`db:<engine>:<source>:<schema>:<table>`),
- * each URL-encoded. Proposed elements follow the same convention, so the
+ * The parts of an identity captured from code or a database, each
+ * URL-encoded: TypeScript `code:ts:<repository>:<file>:<name>`, Java
+ * `code:java:<repository>:<qualified name>` and `db:<engine>:<source>:
+ * <schema>:<table>`. Proposed elements follow the same convention, so the
  * identity says where a new declaration is meant to live.
  */
 export function decodeIdentity(id) {
@@ -99,6 +154,14 @@ export function decodeIdentity(id) {
         repository: decodeURIComponent(parts[2]),
         file: decodeURIComponent(parts[3]),
         name: decodeURIComponent(parts[4]),
+      };
+    if (parts[0] === "code" && parts.length === 4)
+      return {
+        source: "code",
+        language: parts[1],
+        repository: decodeURIComponent(parts[2]),
+        file: null,
+        name: decodeURIComponent(parts[3]),
       };
     if (parts[0] === "db" && parts.length >= 5)
       return {
@@ -114,28 +177,51 @@ export function decodeIdentity(id) {
   return null;
 }
 
-/** Where a class lives: its captured location, else what its identity says. */
-export function elementFile(element) {
-  return element?.location?.file || decodeIdentity(element?.id)?.file || null;
+/**
+ * Where a class lives: its captured location, else what its identity says.
+ * A Java identity names a class rather than its file (see javaFile).
+ */
+export function elementFile(element, model) {
+  if (element?.location?.file) return element.location.file;
+  const identity = decodeIdentity(element?.id);
+  if (!identity || identity.source !== "code") return null;
+  if (identity.file) return identity.file;
+  return identity.language === "java" ? javaFile(identity.name, model) : null;
 }
 
-function edgeEnds(edge) {
-  return "specificId" in edge
-    ? [edge.specificId, edge.generalId]
-    : [edge.sourceId, edge.targetId];
+// A Java class nested in a captured class lives in that class's file; any
+// other is where its package puts it, under the source root the captured
+// classes share (src/main/java/com/shop/Cart.java for com.shop.Cart).
+function javaFile(qualified, model) {
+  const captured = (model?.classes || []).filter(
+    (c) => c.location?.file && decodeIdentity(c.id)?.language === "java",
+  );
+  const nameOf = (c) => decodeIdentity(c.id).name;
+  for (let end = qualified.lastIndexOf("."); end > 0; ) {
+    const outer = captured.find((c) => nameOf(c) === qualified.slice(0, end));
+    if (outer) return outer.location.file;
+    end = qualified.lastIndexOf(".", end - 1);
+  }
+  // Packages are lower case by convention; the first capitalized name is the
+  // top-level class, whose file holds any class nested in it.
+  const parts = qualified.split(".");
+  const top = parts.findIndex((part) => /^[A-Z]/.test(part));
+  const relative = `${parts.slice(0, top < 0 ? parts.length : top + 1).join("/")}.java`;
+  for (const c of captured) {
+    const own = `${nameOf(c).replace(/\./g, "/")}.java`;
+    const file = c.location.file;
+    if (file === own || file.endsWith(`/${own}`))
+      return file.slice(0, file.length - own.length) + relative;
+  }
+  return null;
 }
+
 // Kinds every relation of a profile shares say nothing in a list of them.
 const PLAIN_KINDS = new Set(["dependency", "foreign key"]);
 function edgeTag(edge) {
   if ("specificId" in edge) return edge.realization ? "implements" : "inherits";
   if (PLAIN_KINDS.has(edge.stereotype)) return "";
   return edge.stereotype ? `«${edge.stereotype}»` : "";
-}
-
-/** Whether a relation's name says more than its kind. */
-export function informativeName(edge) {
-  const name = typeof edge?.name === "string" ? edge.name.trim() : "";
-  return name && name.toLowerCase() !== "declared type use" ? name : "";
 }
 
 function index(model) {
@@ -157,28 +243,88 @@ function index(model) {
   return { classes, members, edges };
 }
 
+// What the views draw: a row opens only an element the canvas can show. A
+// relation whose ends sit in different views is drawn in none of them.
+function drawn(views) {
+  if (!views) return null;
+  const nodes = new Set(),
+    edges = new Set();
+  for (const view of views)
+    for (const diagram of [view.diagram, view.diagramFields].filter(Boolean)) {
+      for (const node of diagram.nodes || []) nodes.add(node.id);
+      for (const edge of diagram.edges || []) edges.add(edge.id);
+      // Inheritance sharing a supertype is drawn as one joined group.
+      for (const group of diagram.generalizationGroups || [])
+        for (const id of group.memberIds || []) edges.add(id);
+    }
+  return { nodes, edges };
+}
+
+// OntoUML attributes and literals: `type` names the element's own type, and
+// an attribute's type is the class its `propertyType` refers to.
+const ONTOUML_MEMBERS = new Set(["Property", "Literal"]);
 function memberFromChange(change, names) {
   const data = change.after || change.before || {};
+  const conceptual = ONTOUML_MEMBERS.has(data.type);
+  const type = conceptual
+    ? data.propertyType
+      ? readable(data.propertyType, names)
+      : undefined
+    : typeof data.type === "string"
+      ? data.type
+      : undefined;
   const method =
-    typeof data.type === "string" &&
-    (/^[^:]*\(/.test(data.type) || /:method%3A/.test(change.elementId || ""));
+    !conceptual &&
+    typeof type === "string" &&
+    (/^[^:]*\(/.test(type) || /:method%3A/.test(change.elementId || ""));
   return {
     name:
       typeof data.name === "string" ? data.name : readable(change.name, names),
-    type: typeof data.type === "string" ? data.type : undefined,
+    type,
     method,
   };
+}
+
+// The model's own record (a structural model's root, an OntoUML project) and
+// OntoUML packages: what they list is told by each element, but their other
+// properties (constraints, a name) are changes of their own.
+const modelLevelType = (change, ontouml) => {
+  if (!change.elementId) return "model";
+  const type = (change.after || change.before || {}).type;
+  return ontouml && (type === "Project" || type === "Package")
+    ? type.toLowerCase()
+    : null;
+};
+
+// Before → after of a list, as what it gains and loses.
+function listTokens(note, names) {
+  const before = note.before?.present ? note.before.value : [];
+  const after = note.after?.present ? note.after.value : [];
+  if (!Array.isArray(before) || !Array.isArray(after)) return null;
+  const key = (item) => JSON.stringify(item);
+  const had = new Set(before.map(key)),
+    has = new Set(after.map(key));
+  return [
+    ...after
+      .filter((item) => !had.has(key(item)))
+      .map((item) => ({ status: "added", text: readable(item, names) })),
+    ...before
+      .filter((item) => !has.has(key(item)))
+      .map((item) => ({ status: "removed", text: readable(item, names) })),
+  ];
 }
 
 /**
  * Rolls a comparison up per element. `model` is the change view's model: the
  * proposal plus retained removals, with `changeStatus` on classes, routes and
- * the members of changed classes.
+ * the members of changed classes. `views` (the change view's) decide which
+ * rows can open their element on the canvas.
  */
-export function rollupChanges(comparison, model) {
+export function rollupChanges(comparison, model, views) {
   if (!comparison?.changes || !model) return null;
   const { classes, members, edges } = index(model);
   const names = nameIndex(model, comparison.baseline?.model);
+  const canvas = drawn(views);
   const rows = new Map();
   const row = (key, make) => {
     if (!rows.has(key)) rows.set(key, { key, changes: [], ...make() });
@@ -188,7 +334,8 @@ export function rollupChanges(comparison, model) {
     row(`node:${c.id}`, () => ({
       status: status || c.changeStatus || "modified",
       kind: "node",
-      target: { kind: "node", id: c.id },
+      target:
+        !canvas || canvas.nodes.has(c.id) ? { kind: "node", id: c.id } : null,
       id: c.id,
       name: c.name,
       tag: c.stereotype || c.kind || "",
@@ -200,7 +347,10 @@ export function rollupChanges(comparison, model) {
     return row(`edge:${edge.originalId || edge.id}`, () => ({
       status: status || edge.changeStatus || "modified",
       kind: "edge",
-      target: { kind: "edge", id: edge.id },
+      target:
+        !canvas || canvas.edges.has(edge.id)
+          ? { kind: "edge", id: edge.id }
+          : null,
       id: edge.originalId || edge.id,
       name: `${source?.name ?? "?"} → ${target?.name ?? "?"}`,
       sourceName: source?.name,
@@ -218,36 +368,56 @@ export function rollupChanges(comparison, model) {
       notes: [],
     }));
   };
+  // `key` is how the change reads; `property` the compared property itself.
+  const note = (change, p, key = p.key) => ({
+    key,
+    property: p.key,
+    before: p.before,
+    after: p.after,
+  });
+  const ontouml = model.document?.profile === "ontouml";
   for (const change of comparison.changes.changes || []) {
     const id = change.elementId;
     const properties = meaningfulProperties(change);
-    if (!id) continue; // The model's own member lists: told by each element.
+    const level = modelLevelType(change, ontouml);
+    if (level) {
+      if (!properties.length) continue; // Only its element lists changed.
+      const entry = row("model", () => ({
+        status: "model",
+        kind: "model",
+        target: null,
+        id: model.id,
+        name: "Model",
+        tag: "",
+        members: [],
+        notes: [],
+      }));
+      entry.changes.push(change);
+      for (const p of properties)
+        entry.notes.push(
+          note(change, p, level === "package" ? `package ${p.key}` : p.key),
+        );
+      continue;
+    }
     if (classes.has(id)) {
       const entry = nodeRow(classes.get(id), change.kind);
       entry.status = change.kind;
       entry.changes.push(change);
-      for (const p of properties)
-        entry.notes.push({
-          key: p.key,
-          before: p.before,
-          after: p.after,
-        });
+      for (const p of properties) entry.notes.push(note(change, p));
       continue;
     }
     if (edges.has(id)) {
       const entry = edgeRow(edges.get(id), change.kind);
       entry.status = change.kind;
       entry.changes.push(change);
-      for (const p of properties)
-        entry.notes.push({ key: p.key, before: p.before, after: p.after });
+      for (const p of properties) entry.notes.push(note(change, p));
       continue;
     }
-    const owner = change.ownerId;
+    const known = members.get(id);
+    const owner = known ? known.owner.id : change.ownerId;
     if (owner && classes.has(owner)) {
-      const ownerClass = classes.get(owner);
-      const entry = nodeRow(ownerClass, "modified");
+      const entry = nodeRow(classes.get(owner), "modified");
       entry.changes.push(change);
-      const known = members.get(id);
       const member = known
         ? {
             name: known.member.name,
@@ -264,31 +434,36 @@ export function rollupChanges(comparison, model) {
       continue;
     }
     if (owner && edges.has(owner)) {
-      // An association end (OntoUML keeps ends as their own elements).
+      // An association end: OntoUML keeps ends as elements of their own,
+      // named here by the class at that end.
       const entry = edgeRow(edges.get(owner), "modified");
       entry.changes.push(change);
+      const data = change.after || change.before || {};
+      const role = data.name ? readable(data.name) : "";
+      const end = role || `${readable(data.propertyType, names)} end`;
       for (const p of properties)
-        entry.notes.push({
-          key: `${readable(change.name, names)} ${p.key}`,
-          before: p.before,
-          after: p.after,
-        });
+        entry.notes.push(note(change, p, `${end} ${p.key}`));
       continue;
     }
     if (!properties.length && change.kind === "modified") continue;
+    const type = (change.after || change.before || {}).type;
     const entry = row(`other:${id}`, () => ({
       status: change.kind,
       kind: "other",
       target: null,
       id,
-      name: readable(change.name, names),
-      tag: readable((change.after || change.before || {}).type || "element"),
+      name: names.get(id) || readable(change.name, names),
+      tag:
+        type === "GeneralizationSet"
+          ? "generalization set"
+          : typeof type === "string"
+            ? type.toLowerCase()
+            : "element",
       members: [],
       notes: [],
     }));
     entry.changes.push(change);
-    for (const p of properties)
-      entry.notes.push({ key: p.key, before: p.before, after: p.after });
+    for (const p of properties) entry.notes.push(note(change, p));
   }
   const all = [...rows.values()];
   for (const entry of all) {
@@ -330,24 +505,35 @@ export function rollupChanges(comparison, model) {
       elements: [...of("node"), ...of("other")],
       relations: of("edge"),
     };
-  }).filter((g) => g.elements.length || g.relations.length);
-  const ordered = groups.flatMap((g) => [...g.elements, ...g.relations]);
+  });
+  groups.push({
+    status: "model",
+    label: "Model",
+    elements: all.filter((r) => r.kind === "model"),
+    relations: [],
+  });
+  const listed = groups.filter((g) => g.elements.length || g.relations.length);
+  const ordered = listed.flatMap((g) => [...g.elements, ...g.relations]);
+  const navigable = ordered.filter((r) => r.target);
+  const conflicts = comparison.conflicts || [];
   return {
-    groups,
+    groups: listed,
     rows: ordered,
-    navigable: ordered.filter((r) => r.target),
-    conflicts: comparison.conflicts || [],
+    navigable,
+    conflicts,
     total: ordered.length,
+    // What the Changes button counts: changes it can open, and conflicts.
+    count: navigable.length + conflicts.length,
     names,
   };
 }
 
+const change = (n, names) =>
+  `${shorten(cellText(n.before, names, n.property), 40)} → ${shorten(cellText(n.after, names, n.property), 40)}`;
+
 function summarize(entry, names) {
   if (entry.kind === "edge") {
-    const notes = entry.notes.map(
-      (n) =>
-        `${n.key}: ${shorten(cellText(n.before, names), 40)} → ${shorten(cellText(n.after, names), 40)}`,
-    );
+    const notes = entry.notes.map((n) => `${n.key}: ${change(n, names)}`);
     const via = entry.via.length
       ? `via ${entry.via.slice(0, MAX_TOKENS - 1).join(", ")}`
       : "";
@@ -355,20 +541,39 @@ function summarize(entry, names) {
       text: [entry.label || via, ...notes].filter(Boolean).join(" · "),
       tokens: [],
       more: Math.max(0, entry.via.length - (MAX_TOKENS - 1)),
+      note: entry.target ? null : "Not drawn in any view",
+    };
+  }
+  if (entry.kind === "model") {
+    // A list (constraints) reads as what it gains and loses.
+    const tokens = entry.notes.flatMap(
+      (n) =>
+        listTokens(n, names) || [
+          { status: "modified", text: `${n.key}: ${change(n, names)}` },
+        ],
+    );
+    return {
+      text: "",
+      tokens: tokens.slice(0, MAX_TOKENS),
+      more: Math.max(0, tokens.length - MAX_TOKENS),
+      note: null,
     };
   }
   const members = entry.members;
+  const note =
+    entry.target || entry.kind !== "node" ? null : "Not drawn in any view";
   if (entry.status === "modified") {
     const tokens = members.map((m) => ({ status: m.status, text: m.label }));
     const notes = entry.notes.map((n) => ({
       status: "modified",
-      text: `${n.key}: ${shorten(cellText(n.after, names), 40)}`,
+      text: `${n.key}: ${change(n, names)}`,
     }));
     const all = [...notes, ...tokens];
     return {
       text: "",
       tokens: all.slice(0, MAX_TOKENS),
       more: Math.max(0, all.length - MAX_TOKENS),
+      note,
     };
   }
   return {
@@ -378,11 +583,17 @@ function summarize(entry, names) {
       .join(", "),
     tokens: [],
     more: Math.max(0, members.length - (MAX_TOKENS - 1)),
+    note,
   };
 }
 
-export const cellText = (cell, names) =>
-  cell?.present ? readable(cell.value, names) : "none";
+// Names and descriptions are text, never identities to look up.
+const TEXT_KEYS = new Set(["name", "description", "documentation"]);
+/** A compared cell as readable text; `key` is the property it belongs to. */
+export const cellText = (cell, names, key) =>
+  cell?.present
+    ? readable(cell.value, TEXT_KEYS.has(key) ? undefined : names)
+    : "none";
 
 /** The rollup entry for a canvas target, by its semantic identity. */
 export function rowFor(rollup, target, model) {
@@ -442,8 +653,8 @@ export function describeClassChange(rollup, element, profile) {
     status: entry.status,
     properties: entry.notes.map((n) => ({
       key: n.key,
-      before: cellText(n.before, names),
-      after: cellText(n.after, names),
+      before: cellText(n.before, names, n.property),
+      after: cellText(n.after, names, n.property),
       beforePresent: !!n.before?.present,
       afterPresent: !!n.after?.present,
     })),
@@ -456,8 +667,8 @@ function memberChange(member, method, change, profile, names) {
   const status = change?.kind || member.changeStatus;
   const properties = meaningfulProperties(change).map((p) => ({
     key: p.key,
-    before: cellText(p.before, names),
-    after: cellText(p.after, names),
+    before: cellText(p.before, names, p.key),
+    after: cellText(p.after, names, p.key),
   }));
   const before = change?.before;
   return {
@@ -469,7 +680,11 @@ function memberChange(member, method, change, profile, names) {
     previous:
       status === "modified" && before
         ? memberSignature(
-            { ...member, name: before.name ?? member.name, type: before.type },
+            {
+              ...member,
+              name: typeof before.name === "string" ? before.name : member.name,
+              type: typeof before.type === "string" ? before.type : member.type,
+            },
             method,
             profile,
           )
@@ -483,7 +698,7 @@ function memberChange(member, method, change, profile, names) {
 export function fileExists(model, file) {
   if (!file) return false;
   return model.classes.some(
-    (c) => c.changeStatus !== "added" && elementFile(c) === file,
+    (c) => c.changeStatus !== "added" && elementFile(c, model) === file,
   );
 }
 

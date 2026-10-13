@@ -7,35 +7,44 @@ import { ChangeMark } from "./ChangeMark";
 
 function Summary({ row }) {
   const { summary } = row;
+  const note = summary.note && (
+    <span className="change-row-note">{summary.note}</span>
+  );
   if (summary.tokens.length)
     return (
+      <>
+        <span className="change-row-summary">
+          {summary.tokens.map((token, i) => (
+            <span key={i} className="change-token" data-change={token.status}>
+              <span className="change-token-glyph" aria-hidden="true">
+                {changeGlyph(token.status)}
+              </span>
+              <span className="visually-hidden">
+                {CHANGE_LABELS[token.status]}{" "}
+              </span>
+              {token.text}
+            </span>
+          ))}
+          {summary.more > 0 && (
+            <span className="change-token more">+{summary.more} more</span>
+          )}
+        </span>
+        {note}
+      </>
+    );
+  if (!summary.text && !summary.more) return note || null;
+  return (
+    <>
       <span className="change-row-summary">
-        {summary.tokens.map((token, i) => (
-          <span key={i} className="change-token" data-change={token.status}>
-            <span className="change-token-glyph" aria-hidden="true">
-              {changeGlyph(token.status)}
-            </span>
-            <span className="visually-hidden">
-              {CHANGE_LABELS[token.status]}{" "}
-            </span>
-            {token.text}
-          </span>
-        ))}
+        {summary.text}
         {summary.more > 0 && (
-          <span className="change-token more">+{summary.more} more</span>
+          <span className="change-token more">
+            {summary.text ? " " : ""}+{summary.more} more
+          </span>
         )}
       </span>
-    );
-  if (!summary.text && !summary.more) return null;
-  return (
-    <span className="change-row-summary">
-      {summary.text}
-      {summary.more > 0 && (
-        <span className="change-token more">
-          {summary.text ? " " : ""}+{summary.more} more
-        </span>
-      )}
-    </span>
+      {note}
+    </>
   );
 }
 
@@ -131,12 +140,21 @@ function RelationRows({ group, active, returning, onSelect, onHover }) {
   );
 }
 
-// Up and down move between the rows of the whole list, as in a menu.
+// Rows inside a folded list of relations are hidden; its summary is not.
+function shown(item) {
+  const own = item.closest("details");
+  const fold =
+    item.tagName === "SUMMARY" ? own?.parentElement?.closest("details") : own;
+  return !fold || fold.open;
+}
+
+// Up and down move between the rows of the whole list, as in a menu,
+// including a folded list's summary, which opens it.
 function moveFocus(event) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
   const buttons = [
-    ...event.currentTarget.querySelectorAll("button.change-row"),
-  ];
+    ...event.currentTarget.querySelectorAll("button.change-row, summary"),
+  ].filter(shown);
   const at = buttons.indexOf(document.activeElement);
   if (at < 0 && !["Home", "End"].includes(event.key)) return;
   const next =
@@ -255,9 +273,17 @@ export function ChangesOverview({
 
 /**
  * Above a changed element's details: back to every change, and the previous
- * and next change in the list's order.
+ * and next change in the list's order. At either end a step button stays
+ * focusable, marked unavailable, so keyboard focus is not lost.
  */
-export function ChangeNavigation({ position, total, handoff, onBack, onStep }) {
+export function ChangeNavigation({
+  position,
+  total,
+  name,
+  handoff,
+  onBack,
+  onStep,
+}) {
   const back = useRef(null);
   // Opened from the overview, keyboard focus lands on the way back.
   useLayoutEffect(() => {
@@ -282,18 +308,25 @@ export function ChangeNavigation({ position, total, handoff, onBack, onStep }) {
           <ToolButton
             label="Previous change"
             icon={<PreviousIcon />}
-            disabled={position <= 0}
+            aria-disabled={position === 0 || undefined}
             onClick={() => onStep(-1)}
           />
-          <span className="change-position" aria-live="polite">
+          <span
+            className="change-position"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {position >= 0
               ? `${position + 1} of ${total}`
               : `${total} ${total === 1 ? "change" : "changes"}`}
+            {position >= 0 && name && (
+              <span className="visually-hidden">: {name}</span>
+            )}
           </span>
           <ToolButton
             label="Next change"
             icon={<NextIcon />}
-            disabled={position >= total - 1}
+            aria-disabled={position === total - 1 || undefined}
             onClick={() => onStep(1)}
           />
         </span>
