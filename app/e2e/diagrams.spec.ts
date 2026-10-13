@@ -77,6 +77,35 @@ test('a proposal opens on its changes: the overview leads to each change, and de
   await expect(overview).toBeVisible();
 });
 
+test('the keyboard steps through changes without losing focus or entering a folded list', async () => {
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+  await openDiagrams(window, 'Checkout · proposed payment methods');
+  const overview = window.getByRole('complementary', { name: 'Changes in this proposal' });
+  const row = (name: string) => overview.locator('button.change-row', { has: window.locator('.change-row-name', { hasText: new RegExp(`^${name}$`) }) });
+  // Down from the last new type reaches the folded relations' summary, not a hidden row inside.
+  await row('SavedPaymentMethod').focus();
+  await window.keyboard.press('ArrowDown');
+  await expect(overview.locator('.change-relations > summary').first()).toBeFocused();
+  await window.keyboard.press('ArrowDown');
+  await expect(row('AcquirerGateway')).toBeFocused();
+  await window.keyboard.press('End');
+  await expect(row('PaymentGateway')).toBeFocused();
+  // At the last change, Next stays focused and says it has nowhere to go.
+  await window.keyboard.press('Enter');
+  const details = window.getByRole('complementary', { name: 'Model details' });
+  await expect(details.locator('.change-position')).toContainText('15 of 15');
+  const next = details.getByRole('button', { name: 'Next change' });
+  await next.focus();
+  await window.keyboard.press('Enter');
+  await expect(next).toBeFocused();
+  await expect(next).toHaveAttribute('aria-disabled', 'true');
+  await expect(details.locator('.change-position')).toContainText('15 of 15');
+  // The position names the change it announces.
+  await expect(details.locator('.change-position')).toContainText('PaymentGateway');
+});
+
 test('an authored model opens its guide and a full view', async () => {
   launched = await launch({ folder });
   const { window } = launched;
