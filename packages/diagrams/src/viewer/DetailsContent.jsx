@@ -19,6 +19,7 @@ import {
   dependencyMembers,
   describeClassChange,
   informativeName,
+  referencedColumns,
   rowFor,
 } from "../review/changes";
 import {
@@ -214,7 +215,8 @@ function ForeignKey({ relation }) {
         </code>{" "}
         →{" "}
         <code>
-          {relation.target.name}({(relation.targetColumns || []).join(", ")})
+          {relation.target.name}
+          {referencedColumns(relation.targetColumns)}
         </code>
       </Text>
       {(relation.onDelete || relation.onUpdate) && (

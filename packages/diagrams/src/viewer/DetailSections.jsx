@@ -618,7 +618,7 @@ export function TableSchema({
   );
   const tables = new Map(model.classes.map((c) => [c.id, c.name]));
   const keyText = (relation) =>
-    `${relation.columns.join(", ")} → ${tables.get(relation.targetId) || relation.target}(${(relation.targetColumns || []).join(", ")})`;
+    `${relation.columns.join(", ")} → ${tables.get(relation.targetId) || relation.target}${referencedColumns(relation.targetColumns)}`;
   const unique = [
     ...(element.keys || []).filter((key) => !key.primary),
     ...[...keyChanges.values()]
@@ -764,8 +764,8 @@ export function TableSchema({
                           {relation.columns.join(", ")}
                         </span>{" "}
                         <span className="member-type">
-                          → {tables.get(relation.targetId) || relation.target}(
-                          {(relation.targetColumns || []).join(", ")})
+                          → {tables.get(relation.targetId) || relation.target}
+                          {referencedColumns(relation.targetColumns)}
                         </span>
                       </>
                     )}

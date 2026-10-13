@@ -525,6 +525,7 @@ function partChange(before, after) {
   ];
 }
 var knownColumns = (columns) => Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
+var comparable = (item) => isForeignKey(item) ? { ...item, targetColumns: knownColumns(item.targetColumns) } : item;
 var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target, knownColumns(item.targetColumns)])}` : `name:${item.name}` : JSON.stringify(item);
 function itemChanges(note) {
   const before = note.before?.present ? note.before.value : [];
@@ -535,7 +536,7 @@ function itemChanges(note) {
   const out = [];
   for (const [key, item] of now)
     if (!was.has(key)) out.push({ status: "added", after: item });
-    else if (JSON.stringify(was.get(key)) !== JSON.stringify(item))
+    else if (JSON.stringify(comparable(was.get(key))) !== JSON.stringify(comparable(item)))
       out.push({ status: "modified", before: was.get(key), after: item });
   for (const [key, item] of was)
     if (!now.has(key)) out.push({ status: "removed", before: item });
@@ -4583,7 +4584,7 @@ function TableSchema({
     (keyNote ? itemChanges(keyNote) || [] : []).filter((c) => !(c.after ?? c.before)?.primary).map((c) => [(c.after ?? c.before).name, c])
   );
   const tables = new Map(model.classes.map((c) => [c.id, c.name]));
-  const keyText = (relation) => `${relation.columns.join(", ")} \u2192 ${tables.get(relation.targetId) || relation.target}(${(relation.targetColumns || []).join(", ")})`;
+  const keyText = (relation) => `${relation.columns.join(", ")} \u2192 ${tables.get(relation.targetId) || relation.target}${referencedColumns(relation.targetColumns)}`;
   const unique = [
     ...(element.keys || []).filter((key) => !key.primary),
     ...[...keyChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
@@ -4703,9 +4704,7 @@ function TableSchema({
                     /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
                       "\u2192 ",
                       tables.get(relation.targetId) || relation.target,
-                      "(",
-                      (relation.targetColumns || []).join(", "),
-                      ")"
+                      referencedColumns(relation.targetColumns)
                     ] })
                   ] }) }),
                   details.map((p) => /* @__PURE__ */ jsxs14("span", { className: "change-detail", children: [
@@ -4910,9 +4909,7 @@ function ForeignKey({ relation }) {
       " ",
       /* @__PURE__ */ jsxs15("code", { children: [
         relation.target.name,
-        "(",
-        (relation.targetColumns || []).join(", "),
-        ")"
+        referencedColumns(relation.targetColumns)
       ] })
     ] }),
     (relation.onDelete || relation.onUpdate) && /* @__PURE__ */ jsx22(Text7, { tone: "muted", children: [

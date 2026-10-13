@@ -1596,6 +1596,19 @@ test("a table's foreign keys are told once: by the relation that shows them, or 
     tokensOf(unknown.rollup.rows.find((r) => r.name === "orders")),
     ["removed foreign key user_id → accounts"],
   );
+  // Nor does recording them as nulls or leaving them out change it.
+  const { itemChanges } = loadComponents("src/review/changes.js");
+  const unknownKey = { ...key, target: "accounts", targetColumns: [null] };
+  assert.deepEqual(
+    itemChanges({
+      before: { present: true, value: [unknownKey] },
+      after: {
+        present: true,
+        value: [{ ...unknownKey, targetColumns: undefined }],
+      },
+    }),
+    [],
+  );
   // PostgreSQL lists a foreign key as a constraint; its relation tells it.
   const constraint = {
     name: "orders_user_id_fkey",

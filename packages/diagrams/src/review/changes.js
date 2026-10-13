@@ -159,6 +159,12 @@ export function partChange(before, after) {
 // the table and columns it refers to, where those are known.
 const knownColumns = (columns) =>
   Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
+// A part as it is compared: a foreign key's unknown referenced columns are
+// the same whether recorded as nulls or left out.
+const comparable = (item) =>
+  isForeignKey(item)
+    ? { ...item, targetColumns: knownColumns(item.targetColumns) }
+    : item;
 export const partKey = (item) =>
   isPart(item)
     ? isForeignKey(item)
@@ -178,7 +184,10 @@ export function itemChanges(note) {
   const out = [];
   for (const [key, item] of now)
     if (!was.has(key)) out.push({ status: "added", after: item });
-    else if (JSON.stringify(was.get(key)) !== JSON.stringify(item))
+    else if (
+      JSON.stringify(comparable(was.get(key))) !==
+      JSON.stringify(comparable(item))
+    )
       out.push({ status: "modified", before: was.get(key), after: item });
   for (const [key, item] of was)
     if (!now.has(key)) out.push({ status: "removed", before: item });
