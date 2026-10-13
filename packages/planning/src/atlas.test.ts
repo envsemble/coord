@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import atlas, { type AtlasDocument } from '@envsemble/atlas-diagrams';
 const { createWorkspace } = atlas;
-import { AtlasCatalog } from './atlas.ts';
+import { AtlasCatalog, elementNames } from './atlas.ts';
 import { createScopeCache } from './atlasScope.ts';
 import { describeProvenance } from './provenance.ts';
 import { resolveRecordPath } from './paths.ts';
@@ -213,4 +213,49 @@ test('record paths resolve against the work folder only and never escape the pla
   assert.equal(resolveRecordPath('plan.md', null, documents), undefined, 'a record without a work folder does not resolve');
   assert.equal(resolveRecordPath('../../knowledge/a.md', 'active/1', documents)?.path, 'knowledge/a.md');
   for (const escape of ['../../../a.md', '/etc/passwd', 'C:/x.md', 'https://example.com/plan.md', '', 7]) assert.equal(resolveRecordPath(escape, 'active/1', documents), undefined);
+});
+
+test('element chips name relations by their ends when their own name says nothing more', () => {
+  const structural = {
+    type: 'StructuralModel',
+    nodes: [
+      { id: 'checkout', name: 'CheckoutService', attributes: [{ id: 'vault-field', name: 'vault', type: 'PaymentMethodVault' }] },
+      { id: 'vault', name: 'PaymentMethodVault', attributes: [] },
+      { id: 'level', name: 'stock_level', attributes: [] },
+      { id: 'product', name: 'product', attributes: [] },
+    ],
+    relations: [
+      { id: 'uses', name: 'declared type use', stereotype: 'dependency', sourceId: 'checkout', targetId: 'vault' },
+      { id: 'fk', name: 'sku → sku', stereotype: 'foreign key', sourceId: 'level', targetId: 'product' },
+      { id: 'named', name: 'stores cards in', sourceId: 'checkout', targetId: 'vault' },
+      { id: 'unnamed', sourceId: 'vault', targetId: 'checkout' },
+    ],
+    generalizations: [{ id: 'implements', specificId: 'checkout', generalId: 'vault', realization: true }],
+  };
+  const names = elementNames(structural);
+  assert.equal(names.get('uses'), 'CheckoutService → PaymentMethodVault');
+  assert.equal(names.get('fk'), 'stock_level → product');
+  assert.equal(names.get('named'), 'stores cards in');
+  assert.equal(names.get('unnamed'), 'PaymentMethodVault → CheckoutService');
+  assert.equal(names.get('implements'), 'CheckoutService implements PaymentMethodVault');
+  assert.equal(names.get('vault-field'), 'vault', 'members keep their own names');
+  const ontouml = {
+    type: 'Project',
+    elements: [
+      { id: 'order', type: 'Class', name: { en: 'Order' } },
+      { id: 'customer', type: 'Class', name: { en: 'Customer' } },
+      { id: 'person', type: 'Class', name: { en: 'Person' } },
+      { id: 'placed-by', type: 'BinaryRelation', name: { en: 'placed by' }, properties: ['a', 'b'] },
+      { id: 'anonymous', type: 'BinaryRelation', name: null, properties: [{ id: 'c' }, { id: 'd' }] },
+      { id: 'a', type: 'Property', propertyType: 'order' },
+      { id: 'b', type: 'Property', propertyType: 'customer' },
+      { id: 'c', type: 'Property', propertyType: { id: 'customer', type: 'Class' } },
+      { id: 'd', type: 'Property', propertyType: 'order' },
+      { id: 'is-person', type: 'Generalization', name: null, specific: 'customer', general: 'person' },
+    ],
+  };
+  const conceptual = elementNames(ontouml);
+  assert.equal(conceptual.get('placed-by'), 'placed by');
+  assert.equal(conceptual.get('anonymous'), 'Customer → Order');
+  assert.equal(conceptual.get('is-person'), 'Customer inherits Person');
 });

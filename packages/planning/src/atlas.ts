@@ -29,20 +29,51 @@ function inside(parent: string, child: string) {
   return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
 }
 
-/** Element id → display name, for structural models and OntoUML exchange projects. */
-function elementNames(model: unknown): Map<string, string> {
+// Captured type uses all share this name; a profile's relations all share these stereotypes.
+const genericRelationNames = new Set(['declared type use']);
+const plainStereotypes = new Set(['dependency', 'foreign key']);
+
+/**
+ * Element id → display name, for structural models and OntoUML exchange projects. A relation
+ * whose name says nothing more than its kind (a captured type use, a foreign key, or no name)
+ * reads as its two ends, "CheckoutService → PaymentMethodVault"; unnamed inheritance reads
+ * "Customer inherits Person".
+ */
+export function elementNames(model: unknown): Map<string, string> {
   const names = new Map<string, string>();
+  const records: Record<string, unknown>[] = [];
   const visit = (value: unknown, depth: number) => {
     if (depth > 6 || !value || typeof value !== 'object') return;
     if (Array.isArray(value)) { for (const item of value) visit(item, depth + 1); return; }
     const record = value as Record<string, unknown>;
     if (typeof record.id === 'string' && !names.has(record.id)) {
+      records.push(record);
       const name = typeof record.name === 'string' ? record.name : record.name && typeof record.name === 'object' ? Object.values(record.name as Record<string, unknown>).find(item => typeof item === 'string') : undefined;
       if (typeof name === 'string' && name.trim()) names.set(record.id, name.trim());
     }
     for (const child of Object.values(record)) if (child && typeof child === 'object') visit(child, depth + 1);
   };
   visit(model, 0);
+  // References are identities, or objects carrying one.
+  const refId = (value: unknown) => typeof value === 'string' ? value : value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string' ? (value as { id: string }).id : undefined;
+  const nameOf = (id: unknown) => { const key = refId(id); return key ? names.get(key) : undefined; };
+  // OntoUML relations list their ends as properties typed with the classes they join.
+  const endTypes = new Map(records.filter(record => record.type === 'Property' && refId(record.propertyType)).map(record => [record.id as string, refId(record.propertyType)!]));
+  for (const record of records) {
+    const id = record.id as string, own = names.get(id);
+    let ends: [unknown, unknown] | null = null, verb = '→';
+    if (typeof record.sourceId === 'string' && typeof record.targetId === 'string') {
+      if (!own || genericRelationNames.has(own.toLowerCase()) || plainStereotypes.has(String(record.stereotype))) ends = [record.sourceId, record.targetId];
+    } else if (typeof record.specificId === 'string' && typeof record.generalId === 'string') {
+      if (!own) { ends = [record.specificId, record.generalId]; verb = record.realization ? 'implements' : 'inherits'; }
+    } else if (record.type === 'BinaryRelation' && Array.isArray(record.properties)) {
+      if (!own) ends = [endTypes.get(refId(record.properties[0]) ?? ''), endTypes.get(refId(record.properties[1]) ?? '')];
+    } else if (record.type === 'Generalization') {
+      if (!own) { ends = [record.specific, record.general]; verb = 'inherits'; }
+    }
+    const [source, target] = ends ? ends.map(nameOf) : [];
+    if (source && target) names.set(id, `${source} ${verb} ${target}`);
+  }
   return names;
 }
 
