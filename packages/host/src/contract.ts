@@ -56,7 +56,9 @@ export interface CatalogEntry {
   provenance: Provenance; explains: ModelExplains[];
   /**
    * Models laid out together share it: a capture and the proposals over its snapshot. `folder.model`
-   * answers for one of them with the others' payloads too (as `siblings`). Absent from older hosts.
+   * answers for one of them with the others' payloads too (as `siblings`), and names with their
+   * revisions those it serves alone, as they cannot be laid out with the others (as `apart`).
+   * Absent from older hosts.
    */
   family?: string | null;
 }

@@ -400,21 +400,27 @@ async function diagramsFor(folder: string, work: Work, documents: Work['document
   const handles = readdirSync(models).filter(name => /^m-[a-f0-9]{24}\.json$/.test(name)).sort().map(name => name.slice(0, -5));
   if (!handles.length) return [];
   const { default: atlas } = await import('@envsemble/atlas-diagrams');
-  const { elementNames, modelFamilies } = await import('./atlas.ts');
+  const { elementNames, modelFamilies, familyPayloads } = await import('./atlas.ts');
   const workspace = atlas.createWorkspace(folder);
   const loaded = new Map<string, AtlasDocument>();
   for (const handle of handles) {
     try { loaded.set(handle, workspace.load(handle)); } catch { /* Reported below. */ }
   }
   // A capture and its proposals are laid out together, so the viewer switches among them in place;
-  // a family that cannot be drawn together is drawn model by model.
+  // a member that cannot be drawn with the others is drawn alone, and the rest together.
+  const prepared = new Map<string, Promise<unknown>>();
+  const alone = ([handle, document]: [string, AtlasDocument]) => {
+    let pending = prepared.get(handle);
+    if (!pending) {
+      pending = atlas.prepareViewer({ document, includeArtifacts: false }).then(result => result.payload);
+      pending.catch(() => undefined);
+      prepared.set(handle, pending);
+    }
+    return pending;
+  };
   const payloads = new Map<string, unknown>();
-  for (const members of modelFamilies([...loaded]).values()) {
-    try {
-      const family = await atlas.prepareFamily({ documents: members.map(([, document]) => document), includeArtifacts: false });
-      members.forEach(([handle], index) => payloads.set(handle, family.members[index].payload));
-    } catch { /* Each member is prepared alone. */ }
-  }
+  for (const members of modelFamilies([...loaded]).values())
+    for (const [handle, payload] of await familyPayloads(members, alone)) payloads.set(handle, payload);
   const result: ViewDiagram[] = [];
   for (const handle of handles) {
     const file = '.atlas/models/' + handle + '.json';
@@ -428,7 +434,7 @@ async function diagramsFor(folder: string, work: Work, documents: Work['document
     }
     let payload: unknown = payloads.get(handle) ?? null, error: string | null = null;
     if (!payload) {
-      try { payload = (await atlas.prepareViewer({ document, includeArtifacts: false })).payload; }
+      try { payload = await alone([handle, document]); }
       catch (failure) {
         error = 'This model cannot be drawn: ' + (failure instanceof Error ? failure.message.split('\n')[0] : 'unknown error');
         warnings.push(`The model ${file} is exported but cannot be drawn in the viewer.`);

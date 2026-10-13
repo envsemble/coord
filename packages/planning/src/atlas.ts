@@ -16,8 +16,12 @@ export interface AtlasEntry {
   /** Models laid out together share it: a capture and the proposals over its snapshot. Null for a model alone. */
   family: string | null;
 }
-/** A model's payload, with the payloads of the models laid out with it, so a client can switch among them without asking again. */
-export type PreparedModel = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[] };
+/**
+ * A model's payload, with the payloads of the models laid out with it, so a client can switch among
+ * them without asking again, and the rest of its family (`apart`): members that cannot be laid out
+ * with the others, each served alone, at the revisions read.
+ */
+export type PreparedModel = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[]; apart?: { handle: string; revision: string }[] };
 type Loaded = [handle: string, document: AtlasDocument];
 
 /**
@@ -33,6 +37,24 @@ export function modelFamilies(documents: Loaded[]): Map<string, Loaded[]> {
   for (const [key, members] of groups) if (members.length < 2 || !members.some(([, document]) => document.state === 'proposal')) groups.delete(key);
   return groups;
 }
+/**
+ * Lays a family out once: its members' payloads by handle. A member that cannot be prepared even
+ * alone, such as a proposal the viewer cannot draw, is left out, and the rest are laid out together
+ * while they still form a family. The members left out, and every member of a family that cannot be
+ * laid out together otherwise, are missing: the caller prepares them alone with `alone`, which also
+ * tells here which members fail, so a caller that keeps what it prepares does no work twice.
+ */
+export async function familyPayloads(members: Loaded[], alone: (member: Loaded) => Promise<unknown>): Promise<Map<string, ViewerPayload>> {
+  try {
+    const family = await prepareFamily({ documents: members.map(([, document]) => document), includeArtifacts: false });
+    return new Map(members.map(([handle], index) => [handle, family.members[index].payload]));
+  } catch {
+    const fails = await Promise.all(members.map(member => alone(member).then(() => false, () => true)));
+    const rest = members.filter((_, index) => !fails[index]);
+    const family = rest.length < members.length ? [...modelFamilies(rest).values()][0] : undefined;
+    return family ? familyPayloads(family, alone) : new Map();
+  }
+}
 export interface ModelReference {
   handle: string; workId: string; title: string; elementId: string | null; elementName: string | null;
   label: string; section: string | null; provenance: Provenance;
@@ -42,6 +64,9 @@ interface Location { root: string; directory: string }
 const modelFile = /^m-[a-f0-9]{24}\.json$/;
 const handlePattern = /^m-[a-f0-9]{24}$/;
 const claimLimit = 1024 * 1024;
+// A file written this close to its reading may be written again with the same time (file systems
+// keep coarse times), so its time tells nothing until this much later.
+const settleMs = 2000;
 
 function inside(parent: string, child: string) {
   const relative = path.relative(parent, child);
@@ -106,6 +131,8 @@ export class AtlasCatalog {
   private cache = new Map<string, Promise<ViewerPayload>>();
   private families = new Map<string, Promise<Map<string, ViewerPayload>>>();
   private owners = new Map<string, string | undefined>();
+  /** Models read before, by file, with the file's size and time and when it was read. */
+  private documents = new Map<string, { size: number; mtime: number; read: number; document: AtlasDocument }>();
   readonly planningRoot: string;
   constructor(planningRoot: string) { this.planningRoot = planningRoot; }
 
@@ -135,6 +162,25 @@ export class AtlasCatalog {
   }
   private belongs(document: AtlasDocument, work: IndexedWork) {
     return !document.workId || document.workId === work.id;
+  }
+  /**
+   * A model, read and checked as the workspace loads it, and read again only once its file changed:
+   * its size or time differ, or it was written too close to its reading for its time to tell.
+   */
+  private read(location: Location, handle: string): AtlasDocument {
+    const key = location.directory + '\0' + handle;
+    const { size, mtimeMs: mtime } = statSync(path.join(location.directory, handle + '.json'));
+    const known = this.documents.get(key);
+    this.documents.delete(key);
+    if (known && known.size === size && known.mtime === mtime && mtime < known.read - settleMs) {
+      this.documents.set(key, known);
+      return known.document;
+    }
+    const read = Date.now();
+    const document = createWorkspace(location.root).load(handle);
+    this.documents.set(key, { size, mtime, read, document });
+    if (this.documents.size > 32) this.documents.delete(this.documents.keys().next().value!);
+    return document;
   }
   /** The work ID a malformed file claims, read only from a contained, bounded file. */
   private claimedOwner(location: Location, handle: string) {
@@ -178,11 +224,9 @@ export class AtlasCatalog {
     const location = this.location(work);
     if (!location) return { models, issues, invalidHandles };
     const loaded: Loaded[] = [];
-    let workspace: ReturnType<typeof createWorkspace> | null = null;
     for (const handle of this.handles(location.directory)) {
       try {
-        workspace ??= createWorkspace(location.root);
-        const document = workspace.load(handle);
+        const document = this.read(location, handle);
         this.owners.set(location.directory + '\0' + handle, document.workId);
         if (!this.belongs(document, work)) { issues.push(`Model “${document.title}” in this work folder is assigned to ${document.workId}.`); continue; }
         loaded.push([handle, document]);
@@ -209,7 +253,7 @@ export class AtlasCatalog {
     const location = this.location(work);
     if (!location || !existsSync(path.join(location.directory, handle + '.json'))) throw new PlanningError('This model has an invalid update or is unavailable.', 404);
     let document: AtlasDocument;
-    try { document = createWorkspace(location.root).load(handle); }
+    try { document = this.read(location, handle); }
     catch { throw new PlanningError('This model has an invalid update or is unavailable.', 409); }
     if (!this.belongs(document, work)) throw new PlanningError('This model belongs to another work item.', 403);
     return { document, location, work };
@@ -221,12 +265,11 @@ export class AtlasCatalog {
   private family(location: Location, work: IndexedWork, handle: string, document: AtlasDocument): Loaded[] | null {
     const key = familyKey(document);
     if (!key) return null;
-    const workspace = createWorkspace(location.root);
     const loaded: Loaded[] = [];
     for (const other of this.handles(location.directory)) {
       if (other === handle) { loaded.push([handle, document]); continue; }
       try {
-        const candidate = workspace.load(other);
+        const candidate = this.read(location, other);
         if (this.belongs(candidate, work) && familyKey(candidate) === key) loaded.push([other, candidate]);
       } catch { /* An invalid update is not served, so it lays out with no one. */ }
     }
@@ -234,7 +277,8 @@ export class AtlasCatalog {
   }
   /**
    * A model's viewer payload. A capture or proposal in a family comes with its siblings' payloads,
-   * all from one layout, so a client switches among them without another request.
+   * all from one layout, so a client switches among them without another request. A member that
+   * cannot be laid out with the others is served alone, and named to them as `apart`.
    */
   async prepared(snapshot: PlanningIndex, workId: string, handle: string): Promise<PreparedModel> {
     const { document, location, work } = this.find(snapshot, workId, handle);
@@ -243,18 +287,23 @@ export class AtlasCatalog {
       const key = location.directory + '\0' + family.map(([member, loaded]) => member + ':' + loaded.revision.id).join(',');
       let pending = this.families.get(key);
       if (!pending) {
-        pending = prepareFamily({ documents: family.map(([, loaded]) => loaded), includeArtifacts: false })
-          .then(result => new Map(family.map(([member], index) => [member, result.members[index].payload])));
+        // What is laid out together, and what is left out, stays known for these revisions.
+        pending = familyPayloads(family, ([member, loaded]) => this.alone(location, member, loaded));
         this.families.set(key, pending);
         if (this.families.size > 4) this.families.delete(this.families.keys().next().value!);
-        // A failure stays cached for these revisions, so its members are served alone at once.
-        pending.catch(() => undefined);
+        pending.catch(() => this.families.delete(key));
       }
-      try {
-        const payloads = await pending;
-        return { ...payloads.get(handle)!, siblings: family.filter(([member]) => member !== handle).map(([member]) => ({ handle: member, payload: payloads.get(member)! })) };
-      } catch { /* A family that cannot be laid out together, such as one with a proposal no view can draw, is served model by model. */ }
+      const payloads = await pending;
+      const own = payloads.get(handle);
+      if (own) {
+        const apart = family.filter(([member]) => !payloads.has(member)).map(([member, loaded]) => ({ handle: member, revision: loaded.revision.id }));
+        return { ...own, siblings: [...payloads].filter(([member]) => member !== handle).map(([member, payload]) => ({ handle: member, payload })), ...(apart.length ? { apart } : {}) };
+      }
     }
+    return this.alone(location, handle, document);
+  }
+  /** A model's payload laid out alone, kept per revision. */
+  private alone(location: Location, handle: string, document: AtlasDocument): Promise<ViewerPayload> {
     const key = location.directory + '\0' + handle + ':' + document.revision.id;
     let pending = this.cache.get(key);
     if (!pending) {

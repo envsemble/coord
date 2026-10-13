@@ -262,3 +262,221 @@ test("A family is a capture and the proposals over its snapshot", async () => {
   );
   await assert.rejects(atlas.prepareFamily({}), /FAMILY_INPUT/);
 });
+
+// What each state of a payload shows, view by view: its classes and the
+// relations drawn between them, with and without fields.
+const scenes = (payload) =>
+  [
+    payload,
+    ...(payload.comparison
+      ? [payload.comparison.baseline, payload.comparison.changeView]
+      : []),
+  ].map((state) =>
+    state.views.map((view) => ({
+      key: view.key,
+      label: view.label,
+      nodeIds: view.nodeIds,
+      ...Object.fromEntries(
+        ["diagram", "diagramFields"].map((scene) => [
+          scene,
+          {
+            title: view[scene].title,
+            nodes: view[scene].nodes.map((n) => n.id).sort(),
+            edges: view[scene].edges.map((e) => e.id).sort(),
+          },
+        ]),
+      ),
+    })),
+  );
+const ids = (list) => list.map((item) => item.id).sort();
+const capture = {
+  capturedAt: "2026-09-14T08:00:00.000Z",
+  adapter: { id: "test", version: "1" },
+  source: { kind: "typescript", identity: "shop", scope: ["src"] },
+  coverage: { status: "complete", diagnostics: [] },
+  limitations: [],
+};
+
+test("Each member shows its own views as it does alone, where the others' views differ", async () => {
+  const model = {
+    type: "StructuralModel",
+    nodes: [
+      node("checkout", "Checkout"),
+      node("customer", "Customer"),
+      node("payment", "Payment"),
+      node("gateway", "Gateway"),
+      node("audit", "Audit"),
+    ],
+    relations: [
+      relation("pays", "checkout", "payment", "pays with"),
+      relation("charges", "payment", "gateway"),
+      relation("buys", "customer", "checkout"),
+      relation("logs", "audit", "checkout"),
+    ],
+    generalizations: [],
+    generalizationSets: [],
+  };
+  const snapshot = atlas.createSnapshot({
+    id: "capture-views",
+    profile: "code",
+    model,
+    capture,
+  });
+  const captured = atlas.createDocument({
+    id: "views-capture",
+    title: "Checkout",
+    profile: "code",
+    state: "snapshot",
+    model,
+    snapshots: [snapshot],
+    baselineId: snapshot.id,
+    views: [
+      {
+        key: "checkout",
+        label: "Checkout",
+        nodeIds: ["checkout", "customer", "payment"],
+      },
+      { key: "ops", label: "Ops", nodeIds: ["gateway", "audit", "payment"] },
+    ],
+  });
+  const revise = (id, change, views) => {
+    const proposal = atlas.createProposal(captured, { id, title: id });
+    const changed = clone(proposal.model);
+    change(changed);
+    return atlas.reviseDocument(proposal, { model: changed, views });
+  };
+  // A removes the audit, which its change view keeps beside the checkout it
+  // logged; B renames a relation and shows the gateway with the checkout.
+  const a = revise(
+    "option-a",
+    (m) => {
+      m.nodes = m.nodes.filter((n) => n.id !== "audit");
+      m.relations = m.relations.filter((r) => r.id !== "logs");
+    },
+    [
+      {
+        key: "checkout",
+        label: "Checkout",
+        nodeIds: ["checkout", "customer", "payment"],
+      },
+      { key: "ops", label: "Ops", nodeIds: ["gateway", "payment"] },
+    ],
+  );
+  const b = revise(
+    "option-b",
+    (m) => {
+      m.relations.find((r) => r.id === "pays").name = "pays via";
+    },
+    [
+      {
+        key: "checkout",
+        label: "Checkout",
+        nodeIds: ["checkout", "customer", "payment", "gateway"],
+      },
+      { key: "ops", label: "Ops", nodeIds: ["gateway", "audit", "payment"] },
+    ],
+  );
+  const documents = [captured, a, b];
+  const { members } = await atlas.prepareFamily({ documents });
+  for (const [index, document] of documents.entries()) {
+    const alone = (
+      await atlas.prepareViewer({ document, includeArtifacts: false })
+    ).payload;
+    assert.deepEqual(
+      scenes(members[index].payload),
+      scenes(alone),
+      `${document.id} shows what it shows alone`,
+    );
+  }
+  const checkout = (payload) =>
+    shown(payload).views.find((v) => v.key === "checkout").diagram;
+  assert.deepEqual(ids(checkout(members[0].payload).nodes), [
+    "checkout",
+    "customer",
+    "payment",
+  ]);
+  assert.deepEqual(ids(checkout(members[1].payload).nodes), [
+    "audit",
+    "checkout",
+    "customer",
+    "payment",
+  ]);
+  assert.deepEqual(ids(checkout(members[2].payload).edges), [
+    "buys",
+    "charges",
+    "pays",
+  ]);
+  // Every class keeps its place from one member to the next.
+  assert(placements(members.map((m) => m.payload)) >= 12);
+});
+
+test("A capture without views of its own shows what it shows alone, in its proposals' view", async () => {
+  const model = {
+    type: "StructuralModel",
+    nodes: [
+      node("base", "Base"),
+      node("a", "A"),
+      node("b", "B"),
+      { ...node("status", "Status"), kind: "enumeration" },
+    ],
+    relations: [relation("uses", "a", "status")],
+    generalizations: [
+      { id: "a-base", specificId: "a", generalId: "base" },
+      { id: "b-base", specificId: "b", generalId: "base" },
+    ],
+    generalizationSets: [],
+  };
+  const snapshot = atlas.createSnapshot({
+    id: "capture-shapes",
+    profile: "code",
+    model,
+    capture,
+  });
+  const captured = atlas.createDocument({
+    id: "shapes",
+    title: "Shapes",
+    profile: "code",
+    state: "snapshot",
+    model,
+    snapshots: [snapshot],
+    baselineId: snapshot.id,
+  });
+  const proposal = atlas.createProposal(captured, { id: "shapes-c" });
+  const changed = clone(proposal.model);
+  changed.nodes.push(node("c", "C"));
+  const documents = [
+    captured,
+    atlas.reviseDocument(proposal, { model: changed }),
+  ];
+  const { members } = await atlas.prepareFamily({ documents });
+  const alone = await Promise.all(
+    documents.map(
+      async (document) =>
+        (await atlas.prepareViewer({ document, includeArtifacts: false }))
+          .payload,
+    ),
+  );
+  // The capture shows its classes but the enumeration, as alone, in the view
+  // its proposal's is keyed as, so switching keeps the view.
+  const unkeyed = (payload) =>
+    scenes(payload).map((views) => views.map(({ key, ...view }) => view));
+  assert.deepEqual(unkeyed(members[0].payload), unkeyed(alone[0]));
+  assert.deepEqual(ids(members[0].payload.views[0].diagram.nodes), [
+    "a",
+    "b",
+    "base",
+  ]);
+  assert.equal(
+    members[0].payload.views[0].key,
+    shown(members[1].payload).views[0].key,
+  );
+  assert.deepEqual(scenes(members[1].payload), scenes(alone[1]));
+  assert(placements(members.map((m) => m.payload)) >= 3);
+  // Its inheritance is drawn as separate arrows, as in its proposal's view,
+  // where alone it is joined.
+  assert.equal(alone[0].views[0].diagram.generalizationGroups.length, 1);
+  assert.deepEqual(
+    members[0].payload.views[0].diagram.generalizationGroups,
+    [],
+  );
+});
