@@ -43,6 +43,10 @@
   --type-phase: light-dark(#116329, #8ddb8c);
   --type-event: light-dark(#cf222e, #ff938a);
   --type-mode: light-dark(#0a3069, #76e3ea);
+  /* A proposal's changes: added, changed and removed elements. */
+  --change-added: var(--color-tone-success);
+  --change-modified: var(--color-tone-warning);
+  --change-removed: var(--color-tone-danger);
 }
 #canvas {
   position: absolute;
@@ -131,15 +135,25 @@
   cursor: pointer;
   outline: none;
 }
-.node:hover .node-box,
-.node:focus-visible .node-box {
+/* A changed node keeps its change border in every state; hover, focus and
+   selection draw a ring around it instead. */
+.node:not(.changed):hover .node-box,
+.node:not(.changed):focus-visible .node-box {
   stroke: var(--accent);
   stroke-width: 2;
 }
-.diagram-base .node:hover .node-box,
-.diagram-base .node:focus-visible .node-box {
+.node.changed:hover .node-ring,
+.node.changed:focus-visible .node-ring {
+  stroke: var(--accent);
+}
+.diagram-base .node:not(.changed):hover .node-box,
+.diagram-base .node:not(.changed):focus-visible .node-box {
   stroke: var(--diagram-border);
   stroke-width: 1.25;
+}
+.diagram-base .node.changed:hover .node-ring,
+.diagram-base .node.changed:focus-visible .node-ring {
+  stroke: transparent;
 }
 svg.has-focus .diagram-element {
   opacity: 0.22;
@@ -151,45 +165,64 @@ svg.has-focus .diagram-element.highlighted {
 .edge.dimmed {
   opacity: 0.22;
 }
-.node.highlighted .node-box {
+.node:not(.changed).highlighted .node-box {
   stroke: var(--accent);
   stroke-width: 2;
 }
-.node.primary .node-box {
+.node:not(.changed).primary .node-box {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
-.node.primary.selected .node-box {
+.node:not(.changed).primary.selected .node-box {
   stroke-width: 3.5;
+}
+.node.changed.highlighted .node-ring {
+  stroke: var(--accent);
+}
+.node.changed.primary .node-ring {
+  stroke: var(--diagram-selection);
+  stroke-width: 3;
 }
 .edge {
   outline: none;
   cursor: pointer;
 }
-.edge.highlighted .edge-path,
-.edge:focus-visible .edge-path {
+.edge:not(.changed).highlighted .edge-path,
+.edge:not(.changed):focus-visible .edge-path {
   stroke: var(--accent);
   stroke-width: 2.5;
+}
+/* A changed relation keeps its colour; a halo behind it shows focus. */
+.edge.changed.highlighted .edge-path {
+  stroke-width: 2.75;
+}
+.edge.changed.highlighted .edge-halo {
+  stroke: var(--accent);
+  stroke-opacity: 0.35;
+}
+.edge.changed.primary .edge-halo {
+  stroke: var(--diagram-selection);
+  stroke-opacity: 0.5;
 }
 .edge.highlighted .multiplicity rect {
   stroke: var(--accent);
   stroke-width: 1.4;
 }
-.diagram-base .edge:focus-visible .edge-path {
+.diagram-base .edge:not(.changed):focus-visible .edge-path {
   stroke: var(--diagram-edge);
   stroke-width: 1.4;
 }
-.diagram-base .generalization:focus-visible .edge-path {
+.diagram-base .generalization:not(.changed):focus-visible .edge-path {
   stroke: var(--diagram-inheritance);
 }
 .edge.highlighted .edge-label text {
   fill: var(--accent);
 }
-.edge.primary .edge-path {
+.edge:not(.changed).primary .edge-path {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
-.edge.primary.selected .edge-path {
+.edge:not(.changed).primary.selected .edge-path {
   stroke-width: 3.5;
 }
 .edge.primary .multiplicity rect {
@@ -211,18 +244,7 @@ svg.has-focus .diagram-element.highlighted {
     animation: none;
   }
 }
-[data-change="added"] .node-box,
-[data-change="added"] .edge-path {
-  stroke: var(--color-tone-success);
-  stroke-width: 2;
-}
-[data-change="removed"] .node-box,
-[data-change="removed"] .edge-path {
-  stroke: var(--color-tone-danger);
-  stroke-dasharray: 5 3;
-}
-[data-change="modified"] .node-box,
-[data-change="modified"] .edge-path {
-  stroke: var(--color-tone-warning);
-  stroke-width: 2;
+/* Reviewing a proposal: what it leaves unchanged fades into context. */
+.fade-unchanged .diagram-base [data-change="unchanged"] {
+  opacity: 0.32;
 }

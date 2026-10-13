@@ -17,6 +17,26 @@ function members(before, after) {
   for (const v of after) out.set(v.id, v);
   return [...out.values()];
 }
+// A changed class lists its proposed members in their order, with each removed
+// member kept where it was, so the change view can show what disappears.
+function changedMembers(before = [], after = [], statuses) {
+  const proposed = new Set(after.map((m) => m.id));
+  const out = after.map((m) => ({
+    ...m,
+    changeStatus: statuses.get(m.id) || "unchanged",
+  }));
+  let previous = null;
+  for (const m of before) {
+    if (proposed.has(m.id)) {
+      previous = m.id;
+      continue;
+    }
+    const at = previous ? out.findIndex((n) => n.id === previous) + 1 : 0;
+    out.splice(at, 0, { ...m, changeStatus: "removed" });
+    previous = m.id;
+  }
+  return out;
+}
 // Comparisons keep the document's authored views (falling back to the
 // baseline's), so a focused view stays focused. Removed classes join a view
 // when the baseline showed them there or they were connected to its classes.
@@ -234,9 +254,18 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
         });
       template.generalizationGroups = [];
       const focus = view.focusNames.filter((id) => ownClasses.has(id));
-      template.initialFocus = focus.length
-        ? focus
-        : template.nodes.slice(0, 3).map((n) => n.id);
+      // The change view opens on what changed when the whole view is too
+      // large to read at once.
+      const changed = changes
+        ? template.nodes
+            .filter((n) => n.changeStatus !== "unchanged")
+            .map((n) => n.id)
+        : [];
+      template.initialFocus = changed.length
+        ? changed
+        : focus.length
+          ? focus
+          : template.nodes.slice(0, 3).map((n) => n.id);
       return { diagram: template, check: { valid: true, issues: [] } };
     };
     // Each state shows the shared views restricted to its own classes. Route
@@ -267,14 +296,46 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
   }
   const proposed = await state(after, document),
     base = await state(before, baseline);
+  const memberStatuses = new Map(
+    diff.changes
+      .filter((c) => c.elementId && c.ownerId)
+      .map((c) => [c.elementId, c.kind]),
+  );
   const changedModel = {
     ...clone(after),
-    classes: members(before.classes, after.classes).map((c) => ({
-      ...c,
-      changeStatus: statuses.get(c.id) || "unchanged",
+    classes: members(before.classes, after.classes).map((c) => {
+      const a = before.classes.find((n) => n.id === c.id),
+        b = after.classes.find((n) => n.id === c.id);
+      const changeStatus = statuses.get(c.id) || "unchanged";
+      return {
+        ...c,
+        changeStatus,
+        // Members of added, removed and unchanged classes share their class's
+        // status; a changed class marks each of its own.
+        ...(a && b && changeStatus === "modified"
+          ? {
+              attributes: changedMembers(
+                a.attributes,
+                b.attributes,
+                memberStatuses,
+              ),
+              methods: changedMembers(
+                a.methods || [],
+                b.methods || [],
+                memberStatuses,
+              ),
+            }
+          : {}),
+      };
+    }),
+    relations: clone(after.relations).map((r) => ({
+      ...r,
+      changeStatus: statuses.get(r.id) || "unchanged",
     })),
-    relations: clone(after.relations),
-    generalizations: clone(after.generalizations),
+    generalizations: clone(after.generalizations).map((g) => ({
+      ...g,
+      changeStatus: statuses.get(g.id) || "unchanged",
+    })),
     sources: members(before.sources, after.sources),
   };
   // Retain replaced routes as well as deleted IDs. Alternate routes need

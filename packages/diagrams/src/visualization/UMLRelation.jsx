@@ -1,9 +1,17 @@
 import { elementClass, interactionProps, sameTarget } from "./interaction";
+import { CHANGE_COLORS, isChanged } from "./UMLNode";
+
+const knownCount = (value) =>
+  typeof value === "string" && value.trim() !== "" && value.trim() !== "?";
 
 export function relationName(edge) {
-  return edge.type === "generalization"
-    ? `${edge.sourceName} ${edge.realization ? "implements" : "inherits"} ${edge.targetName}`
-    : `${edge.name}: ${edge.sourceName} (${edge.sourceMultiplicity}), ${edge.targetName} (${edge.targetMultiplicity})`;
+  if (edge.type === "generalization")
+    return `${edge.sourceName} ${edge.realization ? "implements" : "inherits"} ${edge.targetName}`;
+  if (edge.stereotype === "dependency" && edge.name === "declared type use")
+    return `${edge.sourceName} uses ${edge.targetName}`;
+  const end = (name, count) =>
+    knownCount(count) ? `${name} (${count})` : name;
+  return `${edge.name}: ${end(edge.sourceName, edge.sourceMultiplicity)}, ${end(edge.targetName, edge.targetMultiplicity)}`;
 }
 
 export function UMLRelation({
@@ -19,45 +27,68 @@ export function UMLRelation({
   const highlighted = focus?.[kind === "group" ? "groups" : "edges"]?.has(
     edge.id,
   );
-  const markerState = sameTarget(target, focus?.primary)
-    ? "-primary"
-    : highlighted
-      ? "-active"
-      : "";
+  const change = isChanged(edge.changeStatus) ? edge.changeStatus : null;
+  // A changed relation keeps its change colour, arrowheads included, whatever
+  // its highlight; its selection shows as a halo instead.
+  const markerState = change
+    ? `-${change}`
+    : sameTarget(target, focus?.primary)
+      ? "-primary"
+      : highlighted
+        ? "-active"
+        : "";
   const aggregationMarker = (kind) =>
     ["SHARED", "COMPOSITE"].includes(kind)
       ? `url(#${markerId}-${kind}${markerState})`
       : undefined;
+  const name =
+    accessibleName ||
+    `${relationName(edge)}${change ? `, ${change === "added" ? "new" : change === "removed" ? "removed" : "changed"}` : ""}`;
   return (
     <g
-      className={`${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}`}
+      className={`${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}${change ? " changed" : ""}`}
       data-edge={edge.id}
       data-element-kind={kind}
       data-element-id={edge.id}
       data-source={edge.source}
       data-target={edge.target}
       data-change={edge.changeStatus}
-      aria-label={accessibleName || relationName(edge)}
+      aria-label={name}
       aria-pressed={handlers ? sameTarget(target, selected) : undefined}
       {...interactionProps(target, handlers)}
     >
-      <title>{accessibleName || relationName(edge)}</title>
+      <title>{name}</title>
       {(edge.branchPaths || edge.paths).map((d, i) => (
         <g key={i}>
+          {change && (
+            <path
+              className="edge-halo"
+              d={d}
+              fill="none"
+              stroke="transparent"
+              strokeWidth="7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
           <path
             className="edge-path"
             d={d}
             fill="none"
             stroke={
-              edge.type === "generalization"
-                ? "var(--diagram-inheritance,#59636e)"
-                : "var(--diagram-edge,#59636e)"
+              change
+                ? CHANGE_COLORS[change]
+                : edge.type === "generalization"
+                  ? "var(--diagram-inheritance,#59636e)"
+                  : "var(--diagram-edge,#59636e)"
             }
-            strokeWidth="1.4"
+            strokeWidth={change ? "2" : "1.4"}
             strokeDasharray={
-              edge.realization || edge.stereotype === "dependency"
-                ? "6 4"
-                : undefined
+              change === "removed"
+                ? "2 4"
+                : edge.realization || edge.stereotype === "dependency"
+                  ? "6 4"
+                  : undefined
             }
             markerStart={
               edge.type === "association"
@@ -126,12 +157,14 @@ export function UMLRelationLabels({
   kind = "edge",
 }) {
   const target = { kind, id: edge.id };
+  if (!edge.labels.length) return null;
   return (
     <g
       className={`${elementClass(kind, edge.id, focus, selected)} relation-labels`}
       data-edge={edge.id}
       data-element-kind={kind}
       data-element-id={edge.id}
+      data-change={edge.changeStatus}
       aria-hidden="true"
       {...interactionProps(target, handlers, false)}
     >

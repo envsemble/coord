@@ -28,7 +28,11 @@ export function createHighlightController(svg, diagram) {
     if (!records.has(key)) records.set(key, []);
     element.classList.remove("dimmed");
     const markers = [];
-    for (const path of element.querySelectorAll(".edge-path")) {
+    // A changed relation keeps its change-coloured arrowheads.
+    const paths = element.classList.contains("changed")
+      ? []
+      : element.querySelectorAll(".edge-path");
+    for (const path of paths) {
       for (const name of ["marker-start", "marker-end"]) {
         const value = path.getAttribute(name);
         if (value)

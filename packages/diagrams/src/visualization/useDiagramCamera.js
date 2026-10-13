@@ -35,7 +35,9 @@ export function useDiagramCamera({
     controls.restoreView(diagram.key, diagram.fields, diagram.initialFocus);
   }, [controls, diagram]);
   useLayoutEffect(() => {
-    if (focusRequest)
+    if (focusRequest?.ids)
+      controls.focusNodes(focusRequest.ids, focusRequest.rightInset);
+    else if (focusRequest)
       controls.focusNode(focusRequest.id, focusRequest.rightInset);
   }, [controls, focusRequest]);
   useLayoutEffect(() => controls.attach(), [controls]);

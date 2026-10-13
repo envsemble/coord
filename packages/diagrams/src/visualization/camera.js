@@ -194,10 +194,26 @@ export function createCamera({
         Math.max(...anchors.map((n) => n.y + n.h))) /
       2;
     const area = visibleArea();
+    // Zoom out from 0.7 only as far as the focused nodes need to fit together
+    // (never below the whole diagram's fit, which was smaller still).
+    const width =
+      Math.max(...anchors.map((n) => n.x + n.w)) -
+      Math.min(...anchors.map((n) => n.x));
+    const height =
+      Math.max(...anchors.map((n) => n.y + n.h)) -
+      Math.min(...anchors.map((n) => n.y));
+    const scale = Math.max(
+      camera.scale,
+      Math.min(
+        0.7,
+        (area.width - 2 * FIT_PADDING) / Math.max(1, width),
+        (area.height - 2 * FIT_PADDING) / Math.max(1, height),
+      ),
+    );
     snapTo({
-      scale: 0.7,
-      x: area.x + area.width / 2 - x * 0.7,
-      y: area.y + area.height / 2 - y * 0.7,
+      scale,
+      x: area.x + area.width / 2 - x * scale,
+      y: area.y + area.height / 2 - y * scale,
       fitted: false,
     });
   }
@@ -276,6 +292,50 @@ export function createCamera({
           area.y +
           area.height / 2 -
           (m.f + Number(r.getAttribute("height")) / 2) * scale,
+        fitted: false,
+      },
+      ZOOM_EASING_MS,
+    );
+  }
+
+  // Centres several nodes together, such as the two ends of a relation,
+  // zooming out only as far as they need to fit beside each other.
+  function focusNodes(ids, rightInset = 0) {
+    const boxes = ids
+      .map((id) =>
+        worldRef.current.querySelector(`.node[data-node-id="${id}"]`),
+      )
+      .filter(Boolean)
+      .map((node) => {
+        const m = node.transform.baseVal.consolidate().matrix;
+        const r = node.querySelector("rect");
+        return {
+          x: m.e,
+          y: m.f,
+          right: m.e + Number(r.getAttribute("width")),
+          bottom: m.f + Number(r.getAttribute("height")),
+        };
+      });
+    if (!boxes.length) return;
+    cancelMotion();
+    const left = Math.min(...boxes.map((b) => b.x)),
+      top = Math.min(...boxes.map((b) => b.y)),
+      right = Math.max(...boxes.map((b) => b.right)),
+      bottom = Math.max(...boxes.map((b) => b.bottom));
+    const area = visibleArea();
+    const freeWidth = Math.max(1, area.width - rightInset);
+    const fits = Math.min(
+      (freeWidth - 2 * FIT_PADDING) / Math.max(1, right - left),
+      (area.height - 2 * FIT_PADDING) / Math.max(1, bottom - top),
+    );
+    const scale = clampScale(
+      Math.min(Math.max(camera.scale, 0.85), Math.max(0.3, fits)),
+    );
+    moveTo(
+      {
+        scale,
+        x: area.x + freeWidth / 2 - ((left + right) / 2) * scale,
+        y: area.y + area.height / 2 - ((top + bottom) / 2) * scale,
         fitted: false,
       },
       ZOOM_EASING_MS,
@@ -525,6 +585,7 @@ export function createCamera({
     attach,
     restoreView,
     focusNode,
+    focusNodes,
     revealNode,
     hasDragged: () => moved,
     fit,

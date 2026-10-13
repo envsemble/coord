@@ -36,35 +36,122 @@ export function stereotypeFamily(stereotype) {
   );
 }
 
+// A proposal's marks are drawn with presentation attributes, so they survive
+// static exports and the bitmap backdrop; the theme supplies the colours.
+export const CHANGE_COLORS = {
+  added: "var(--change-added,#1a7f37)",
+  modified: "var(--change-modified,#9a6700)",
+  removed: "var(--change-removed,#cf222e)",
+};
+const CHANGE_TAGS = { added: "New", modified: "Changed", removed: "Removed" };
+const MEMBER_GLYPHS = { added: "+", modified: "~", removed: "−" };
+export const isChanged = (status) => !!CHANGE_COLORS[status];
+
+/** A member row's text, marked when a proposal adds, changes or removes it. */
+function MemberText({ member, x, y, method }) {
+  const status = isChanged(member.changeStatus) ? member.changeStatus : null;
+  const text = method
+    ? member.type
+    : `${member.name} : ${member.type}${member.multiplicity ? ` [${member.multiplicity}]` : ""}`;
+  if (!status)
+    return (
+      <text x={x} y={y}>
+        {text}
+      </text>
+    );
+  return (
+    <g className="member-change" data-change={status}>
+      <text
+        x={x - 9}
+        y={y}
+        textAnchor="middle"
+        fill={CHANGE_COLORS[status]}
+        fontWeight="700"
+      >
+        {MEMBER_GLYPHS[status]}
+      </text>
+      <text
+        x={x}
+        y={y}
+        fill={CHANGE_COLORS[status]}
+        textDecoration={status === "removed" ? "line-through" : undefined}
+      >
+        {text}
+      </text>
+    </g>
+  );
+}
+
 export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
   const header = node.attributes.length || methods.length ? 66 : node.height;
   const color = stereotypeFamily(node.stereotype);
+  const change = isChanged(node.changeStatus) ? node.changeStatus : null;
+  const tag = change && CHANGE_TAGS[change];
+  const tagWidth = tag ? tag.length * 6.4 + 12 : 0;
   return (
     <g
       id={`${idPrefix}node-${node.id}`}
-      className={elementClass("node", node.id, focus, selected)}
+      className={`${elementClass("node", node.id, focus, selected)}${change ? " changed" : ""}`}
       data-name={node.name}
       data-node-id={node.id}
       data-element-kind="node"
       data-element-id={node.id}
       data-change={node.changeStatus}
-      aria-label={node.name}
+      aria-label={tag ? `${node.name}, ${tag.toLowerCase()}` : node.name}
       aria-pressed={handlers ? sameTarget(target, selected) : undefined}
       transform={`translate(${node.x} ${node.y})`}
       {...interactionProps(target, handlers)}
     >
+      {change && (
+        <rect
+          className="node-ring"
+          x="-5"
+          y="-5"
+          width={node.width + 10}
+          height={node.height + 10}
+          rx="6"
+          fill="none"
+          stroke="transparent"
+          strokeWidth="2.5"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
       <rect
         className="node-box"
         width={node.width}
         height={node.height}
         rx="3"
         fill={`var(--node-${color},${typeBackgrounds[color] || "var(--surface,#f6f8fa)"})`}
-        stroke="var(--diagram-border,#818b98)"
-        strokeWidth="1.25"
+        stroke={
+          change ? CHANGE_COLORS[change] : "var(--diagram-border,#818b98)"
+        }
+        strokeWidth={change ? "2.25" : "1.25"}
+        strokeDasharray={change === "removed" ? "6 4" : undefined}
         vectorEffect="non-scaling-stroke"
       />
+      {tag && (
+        <g className="change-tag" transform="translate(7 7)">
+          <rect
+            width={tagWidth}
+            height="17"
+            rx="8.5"
+            fill={CHANGE_COLORS[change]}
+            fillOpacity="0.16"
+          />
+          <text
+            x={tagWidth / 2}
+            y="12.5"
+            textAnchor="middle"
+            fill={CHANGE_COLORS[change]}
+            fontSize="10.5"
+            fontWeight="600"
+          >
+            {tag}
+          </text>
+        </g>
+      )}
       {node.stereotype && (
         <text
           x={node.width / 2}
@@ -84,18 +171,10 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
         fontSize="15"
         fontWeight="600"
         fontStyle={node.isAbstract ? "italic" : undefined}
+        textDecoration={change === "removed" ? "line-through" : undefined}
       >
         {node.name}
       </text>
-      {node.changeStatus && node.changeStatus !== "unchanged" && (
-        <text x="8" y="15" fill="var(--text)" fontSize="12">
-          {node.changeStatus === "added"
-            ? "+"
-            : node.changeStatus === "removed"
-              ? "−"
-              : "Δ"}
-        </text>
-      )}
       {(node.attributes.length > 0 || methods.length > 0) && (
         <>
           <path
@@ -108,10 +187,12 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             fontSize="12"
           >
             {node.attributes.map((attribute, i) => (
-              <text key={attribute.id || i} x="14" y={85 + i * 20}>
-                {attribute.name} : {attribute.type}
-                {attribute.multiplicity ? ` [${attribute.multiplicity}]` : ""}
-              </text>
+              <MemberText
+                key={attribute.id || i}
+                member={attribute}
+                x={14}
+                y={85 + i * 20}
+              />
             ))}
           </g>
           {methods.length > 0 && (
@@ -126,18 +207,18 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                 fontSize="12"
               >
                 {methods.map((method, i) => (
-                  <text
+                  <MemberText
                     key={method.id || i}
-                    x="14"
+                    member={method}
+                    method
+                    x={14}
                     y={
                       (node.attributes.length
                         ? 97 + node.attributes.length * 20
                         : 85) +
                       i * 20
                     }
-                  >
-                    {method.type}
-                  </text>
+                  />
                 ))}
               </g>
             </>
