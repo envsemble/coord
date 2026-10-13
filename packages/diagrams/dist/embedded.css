@@ -432,6 +432,12 @@
 .atlas-panel .change-token.more {
   color: var(--color-row-detail);
 }
+/* Why a listed change does not open: no view draws it. */
+.atlas-panel .change-row-note {
+  color: var(--color-row-detail);
+  font: var(--type-body-small);
+  font-style: italic;
+}
 
 /* Above a changed element's details: back, previous and next. */
 .atlas-panel .change-navigation {
@@ -1130,15 +1136,6 @@
   position: absolute;
   inset: 0;
   height: auto;
-}
-.atlas-panel .report-diagram {
-  position: absolute;
-  inset: 0;
-}
-.atlas-panel .report-diagram > .atlas-panel {
-  position: absolute;
-  inset: 0;
-  min-height: 0;
 }
 .atlas-panel.atlas-empty .viewer {
   display: grid;
