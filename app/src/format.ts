@@ -42,7 +42,7 @@ export function plural(count: number, word: string, many = word + 's') { return 
 export function compactNumber(value: number) {
   return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 }
-/** Active time: "45 min", "3 h 20 min", "2 d 4 h". */
+/** Agent time: "45 min", "3 h 20 min", "2 d 4 h". */
 export function duration(milliseconds: number) {
   const minutes = Math.round(milliseconds / 60000);
   if (minutes < 1) return milliseconds > 0 ? '< 1 min' : '0 min';

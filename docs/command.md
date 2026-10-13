@@ -28,7 +28,7 @@ atlas planning check <planning-root>
 atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
 atlas plan import <file> [--planning-dir <dir>] [--dry-run]
 atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
-atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]
+atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
 atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]
 atlas --version
 atlas help
@@ -44,7 +44,7 @@ atlas help
 | `atlas plan export`    | Writes a whole work item to one self-contained `.atlas-plan.html` file (by default `<slug>-<work-id>.atlas-plan.html` in the current folder; an existing file needs `--force`). See [plan export](plan-export.md).                                | 0, 1 when the export fails (an unknown work item, an existing file without `--force`, a refused folder), 2 usage errors                                           |
 | `atlas plan import`    | Previews an export, then adds it as new work under the next free number and registers it, without committing; `--dry-run` only previews.                                                                                                          | 0, 1 invalid export or refused folder, 2 usage errors                                                                                                             |
 | `atlas usage log`      | Records which planning documents an agent consulted, for the app's Document use statistics.                                                                                                                                                       | 0 even when it cannot record (gaps are reported on stderr and leave a coverage marker), 2 usage errors                                                            |
-| `atlas work report`    | Records an agent's model, tokens so far and current step at a ledger transition, in `<work>/.atlas/statistics.jsonl`. See [progress and statistics](progress-and-statistics.md).                                                                  | 0, or 2 for usage errors; a report that cannot be written says so on stderr                                                                                       |
+| `atlas work report`    | Records a ledger transition in `<work>/.atlas/statistics.jsonl`; inside Claude Code or Codex, with the session, model, agent time and tokens from the session's log. See [progress and statistics](progress-and-statistics.md).                   | 0, or 2 for usage errors (no `--model` outside Claude Code or Codex); a report that cannot be written or measured says so on stderr                               |
 | `atlas serve`          | Runs the Atlas host without the desktop app, so paired devices can work on this computer's planning folders; `--folder` adds folders to its folder list. It prints a one-time pairing link with a QR code. See [remote access](remote-access.md). | Runs until stopped; 1 when it cannot start (no Tailscale address without `--address`, the app already manages remote access, or it cannot listen), 2 usage errors |
 
 `plan export` and `plan import` use the planning folder given by `--planning-dir`, else the current folder. `usage log` and `work report` never fail an agent's task: reporting is best effort by design.
