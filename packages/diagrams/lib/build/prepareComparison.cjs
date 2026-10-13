@@ -6,6 +6,8 @@ const {
 } = require("../document/comparison.cjs");
 const { prepareModel } = require("./buildViewer.cjs");
 const { fingerprint } = require("../document/document.cjs");
+const { relationLabel, labelSize } = require("../layout/layoutDiagram.cjs");
+const { knownMultiplicity } = require("../layout/multiplicity.cjs");
 const keyOf = (e) => {
   const { originalId, changeStatus, ...data } = e;
   const id = originalId || e.id;
@@ -18,12 +20,14 @@ function members(before, after) {
   return [...out.values()];
 }
 // A changed class lists its proposed members in their order, with each removed
-// member kept where it was, so the change view can show what disappears.
+// member kept where it was, so the change view can show what disappears. A
+// member new to the class is added, also when it moved from another class.
 function changedMembers(before = [], after = [], statuses) {
   const proposed = new Set(after.map((m) => m.id));
+  const had = new Set(before.map((m) => m.id));
   const out = after.map((m) => ({
     ...m,
-    changeStatus: statuses.get(m.id) || "unchanged",
+    changeStatus: had.has(m.id) ? statuses.get(m.id) || "unchanged" : "added",
   }));
   let previous = null;
   for (const m of before) {
@@ -42,24 +46,107 @@ function changedMembers(before = [], after = [], statuses) {
 // that lists it: an attribute to its class, an association end to its relation.
 const refId = (value) =>
   typeof value === "string" ? value : value?.id || null;
+// An association end also says which end it is: a relation lists its source
+// end first.
 function assignOwners(diff, ...projects) {
   const owners = new Map();
   for (const project of projects)
     for (const element of project.elements || []) {
       if (!["Class", "BinaryRelation"].includes(element.type)) continue;
-      for (const item of [
+      const relation = element.type === "BinaryRelation";
+      for (const [i, item] of [
         ...(element.properties || []),
         ...(element.literals || []),
-      ])
-        if (refId(item)) owners.set(refId(item), element.id);
+      ].entries())
+        if (refId(item))
+          owners.set(refId(item), {
+            id: element.id,
+            ...(relation ? { end: i === 0 ? "source" : "target" } : {}),
+          });
     }
-  for (const change of diff.changes)
-    if (owners.has(change.elementId))
-      change.ownerId = owners.get(change.elementId);
+  for (const change of diff.changes) {
+    const owner = owners.get(change.elementId);
+    if (!owner) continue;
+    change.ownerId = owner.id;
+    if (owner.end) change.end = owner.end;
+  }
 }
 const ends = (e) => [e.sourceId ?? e.specificId, e.targetId ?? e.generalId];
+// The same relation, of the same kind, between the same ends: an association
+// that becomes inheritance is a new route.
 const sameEnds = (a, b) =>
-  ends(a).every((end, i) => end === ends(b)[i]) && a.id === b.id;
+  a.id === b.id &&
+  "specificId" in a === "specificId" in b &&
+  ends(a).every((end, i) => end === ends(b)[i]);
+const round = (n) => Number(n.toFixed(2));
+const pointsOf = (path) => {
+  const n = (path.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+  const points = [];
+  for (let i = 0; i + 1 < n.length; i += 2) points.push([n[i], n[i + 1]]);
+  return points;
+};
+// The earlier version of a relation the proposal changed in place takes the
+// proposal's route with its own name and counts. Each label keeps the place
+// of the proposal's; one the proposal has not got sits beside its end of the
+// route, or above the middle of its longest segment.
+function relabel(edge, relation) {
+  if ("specificId" in relation) return edge.labels;
+  const texts = {
+    name: relationLabel(relation),
+    source: knownMultiplicity(relation.sourceMultiplicity)
+      ? relation.sourceMultiplicity
+      : null,
+    target: knownMultiplicity(relation.targetMultiplicity)
+      ? relation.targetMultiplicity
+      : null,
+  };
+  const routes = edge.paths.map(pointsOf);
+  return Object.entries(texts)
+    .filter(([, text]) => text)
+    .map(([kind, text]) => {
+      const size = labelSize(text, kind !== "name");
+      const at = edge.labels.find((l) => l.kind === kind);
+      if (at)
+        return {
+          ...at,
+          text,
+          ...size,
+          x: round(at.x + (at.width - size.width) / 2),
+        };
+      let center;
+      if (kind === "name") {
+        const segments = routes.flatMap((points) =>
+          points.slice(1).map((p, i) => [points[i], p]),
+        );
+        const [a, b] = segments.sort(
+          ([a1, b1], [a2, b2]) =>
+            Math.abs(b2[0] - a2[0]) +
+            Math.abs(b2[1] - a2[1]) -
+            Math.abs(b1[0] - a1[0]) -
+            Math.abs(b1[1] - a1[1]),
+        )[0];
+        center = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - size.height / 2 - 4];
+      } else {
+        const points =
+          kind === "source" ? routes[0] : [...routes.at(-1)].reverse();
+        const [end, next] = points;
+        const dx = Math.sign(next[0] - end[0]),
+          dy = Math.sign(next[1] - end[1]);
+        center = [end[0] + dx * 22 + dy * 16, end[1] + dy * 22 - dx * 16];
+      }
+      return {
+        id: `${edge.id}-${kind === "name" ? "name" : kind === "source" ? "tail" : "head"}`,
+        text,
+        ...size,
+        x: round(center[0] - size.width / 2),
+        y: round(center[1] - size.height / 2),
+        kind,
+        ...(kind === "name"
+          ? {}
+          : { nodeId: kind === "source" ? edge.source : edge.target }),
+      };
+    });
+}
 // Comparisons keep the document's authored views (falling back to the
 // baseline's), so a focused view stays focused. Removed classes join a view
 // when the baseline showed them there or they were connected to its classes.
@@ -163,6 +250,17 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
   for (const c of diff.changes)
     if (c.ownerId && c.ownerId !== "$model" && !statuses.has(c.ownerId))
       statuses.set(c.ownerId, "modified");
+  // A relation the proposal changed in place (its ends kept, a name or a
+  // count changed) is laid out once, on the proposal's route: a second route
+  // would bend other relations around a line the change view does not draw,
+  // and two loops on one class may leave no readable placement.
+  const proposedRoutes = [...after.relations, ...after.generalizations];
+  const proposedKeys = new Set(proposedRoutes.map(keyOf));
+  const proposedById = new Map(proposedRoutes.map((e) => [e.id, e]));
+  const changedInPlace = (e) =>
+    !proposedKeys.has(keyOf(e)) &&
+    proposedById.has(e.id) &&
+    sameEnds(proposedById.get(e.id), e);
   const routes = new Map();
   for (const e of [
     ...before.relations,
@@ -170,7 +268,7 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
     ...before.generalizations,
     ...after.generalizations,
   ])
-    routes.set(keyOf(e), e);
+    if (!changedInPlace(e)) routes.set(keyOf(e), e);
   const union = {
     ...clone(after),
     classes: members(before.classes, after.classes).map((c) => {
@@ -257,26 +355,50 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
               : {}),
           };
         });
-      template.edges = template.edges
-        .filter((e) => ownRoutes.has(e.id))
-        .map((e) => {
-          const original = ownRoutes.get(e.id);
-          return {
-            ...e,
-            id: original.id,
-            ...(original.originalId ? { originalId: original.originalId } : {}),
-            sourceName: ownClasses.get(e.source).name,
-            targetName: ownClasses.get(e.target).name,
-            ...(changes
-              ? {
-                  changeStatus:
-                    original.changeStatus ||
-                    statuses.get(original.originalId || original.id) ||
-                    "unchanged",
-                }
-              : {}),
-          };
-        });
+      // This state's version of a relation changed in place takes the
+      // proposal's route, which the shared layout holds instead.
+      const laidOut = new Set(template.edges.map((e) => e.id));
+      const inPlace = [];
+      for (const [key, own] of ownRoutes) {
+        if (laidOut.has(key)) continue;
+        const match = template.edges.find(
+          (e) => !ownRoutes.has(e.id) && sameEnds(routes.get(e.id), own),
+        );
+        if (match)
+          inPlace.push({
+            ...match,
+            id: key,
+            realization: own.realization,
+            name: own.name || "Generalization",
+            stereotype: own.stereotype || "",
+            sourceMultiplicity: own.sourceMultiplicity,
+            sourceAggregation: own.sourceAggregation,
+            targetAggregation: own.targetAggregation,
+            targetMultiplicity: own.targetMultiplicity,
+            labels: relabel({ ...match, id: key }, own),
+          });
+      }
+      template.edges = [
+        ...template.edges.filter((e) => ownRoutes.has(e.id)),
+        ...inPlace,
+      ].map((e) => {
+        const original = ownRoutes.get(e.id);
+        return {
+          ...e,
+          id: original.id,
+          ...(original.originalId ? { originalId: original.originalId } : {}),
+          sourceName: ownClasses.get(e.source).name,
+          targetName: ownClasses.get(e.target).name,
+          ...(changes
+            ? {
+                changeStatus:
+                  original.changeStatus ||
+                  statuses.get(original.originalId || original.id) ||
+                  "unchanged",
+              }
+            : {}),
+        };
+      });
       template.generalizationGroups = [];
       const focus = view.focusNames.filter((id) => ownClasses.has(id));
       // The change view opens on what changed when the whole view is too
@@ -379,14 +501,14 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
       (e) => e.id,
     ),
   );
-  for (const [kind, old, newer] of [
-    ["relations", before.relations, after.relations],
-    ["generalizations", before.generalizations, after.generalizations],
+  for (const [kind, old] of [
+    ["relations", before.relations],
+    ["generalizations", before.generalizations],
   ])
     for (const e of old)
       // A relation that kept its ends only changed what it says (a count,
       // a name): the proposal's route shows it, marked as changed.
-      if (!newer.some((n) => keyOf(n) === keyOf(e) || sameEnds(n, e))) {
+      if (!proposedKeys.has(keyOf(e)) && !changedInPlace(e)) {
         let id = e.id;
         if (currentIds.has(e.id)) {
           id = `previous:${keyOf(e)}`;

@@ -27,17 +27,22 @@ function relationLabel(relation) {
   const lines = [stereotype ? "«" + stereotype + "»" : "", name.trim() && name];
   return lines.filter(Boolean).join("\n") || null;
 }
-function label(id, text, placement = "CENTER") {
+/** The box a label's text needs: a count at a relation's end, or a name. */
+function labelSize(text, end) {
   const lines = text.split("\n");
-  const end = placement !== "CENTER";
   return {
-    id,
-    text,
     width: Math.max(
       end ? 26 : 0,
       Math.max(...lines.map((t) => t.length)) * (end ? 7.5 : 7) + 14,
     ),
     height: end ? 24 : lines.length * 17 + 8,
+  };
+}
+function label(id, text, placement = "CENTER") {
+  return {
+    id,
+    text,
+    ...labelSize(text, placement !== "CENTER"),
     layoutOptions: { "elk.edgeLabels.placement": placement },
   };
 }
@@ -586,4 +591,4 @@ async function layoutDiagram(
   };
   return { diagram, check };
 }
-module.exports = { layoutDiagram, relationLabel };
+module.exports = { layoutDiagram, relationLabel, labelSize };
