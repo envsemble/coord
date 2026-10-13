@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync, existsSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync, realpathSync, existsSync, symlinkSync, utimesSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import atlas, { type AtlasDocument } from '@envsemble/atlas-diagrams';
@@ -376,6 +376,40 @@ test('a member that cannot be drawn is served alone, and the rest of its family 
     assert.equal(other.model, answer.siblings![0].payload.model);
     assert.deepEqual(other.apart, answer.apart);
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the catalog reads a model again only once its file changes', async () => {
+  const { root, folder, snapshot, workspace } = conceptualFolder('atlas-reads-');
+  const prototype = Object.getPrototypeOf(workspace) as { load: typeof workspace.load };
+  const originalLoad = prototype.load;
+  try {
+    const [refunds, credits] = conceptualProposals('work-1');
+    for (const document of [refunds, credits]) workspace.save(document);
+    // Files written a while ago, whose times tell any later write apart.
+    const models = path.join(folder, '.atlas/models');
+    const past = new Date(Date.now() - 60_000);
+    for (const name of readdirSync(models)) utimesSync(path.join(models, name), past, past);
+    let reads = 0;
+    prototype.load = function(handle: string) { reads++; return originalLoad.call(this, handle); };
+    const catalog = new AtlasCatalog(root);
+    const entries = catalog.list(snapshot, 'work-1').models;
+    const [first, second] = entries.map(entry => entry.handle);
+    assert.equal(reads, 2);
+    const answer = await catalog.prepared(snapshot, 'work-1', first);
+    const other = await catalog.prepared(snapshot, 'work-1', second);
+    assert.equal(other.model, answer.siblings![0].payload.model);
+    assert.equal(reads, 2, 'opening and switching read no model again');
+    // A member changed on disk is read again, and the family laid out again.
+    const changed = [refunds, credits].find(document => document.title === entries[1].title)!;
+    workspace.save(atlas.reviseDocument(changed, { title: changed.title + ', revised' }), changed.revision.id);
+    reads = 0;
+    const revised = await catalog.prepared(snapshot, 'work-1', first);
+    assert.equal(reads, 1);
+    assert.equal(revised.siblings![0].payload.model.title, changed.title + ', revised');
+  } finally {
+    prototype.load = originalLoad;
     rmSync(root, { recursive: true, force: true });
   }
 });

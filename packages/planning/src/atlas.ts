@@ -64,6 +64,9 @@ interface Location { root: string; directory: string }
 const modelFile = /^m-[a-f0-9]{24}\.json$/;
 const handlePattern = /^m-[a-f0-9]{24}$/;
 const claimLimit = 1024 * 1024;
+// A file written this close to its reading may be written again with the same time (file systems
+// keep coarse times), so its time tells nothing until this much later.
+const settleMs = 2000;
 
 function inside(parent: string, child: string) {
   const relative = path.relative(parent, child);
@@ -128,6 +131,8 @@ export class AtlasCatalog {
   private cache = new Map<string, Promise<ViewerPayload>>();
   private families = new Map<string, Promise<Map<string, ViewerPayload>>>();
   private owners = new Map<string, string | undefined>();
+  /** Models read before, by file, with the file's size and time and when it was read. */
+  private documents = new Map<string, { size: number; mtime: number; read: number; document: AtlasDocument }>();
   readonly planningRoot: string;
   constructor(planningRoot: string) { this.planningRoot = planningRoot; }
 
@@ -157,6 +162,25 @@ export class AtlasCatalog {
   }
   private belongs(document: AtlasDocument, work: IndexedWork) {
     return !document.workId || document.workId === work.id;
+  }
+  /**
+   * A model, read and checked as the workspace loads it, and read again only once its file changed:
+   * its size or time differ, or it was written too close to its reading for its time to tell.
+   */
+  private read(location: Location, handle: string): AtlasDocument {
+    const key = location.directory + '\0' + handle;
+    const { size, mtimeMs: mtime } = statSync(path.join(location.directory, handle + '.json'));
+    const known = this.documents.get(key);
+    this.documents.delete(key);
+    if (known && known.size === size && known.mtime === mtime && mtime < known.read - settleMs) {
+      this.documents.set(key, known);
+      return known.document;
+    }
+    const read = Date.now();
+    const document = createWorkspace(location.root).load(handle);
+    this.documents.set(key, { size, mtime, read, document });
+    if (this.documents.size > 32) this.documents.delete(this.documents.keys().next().value!);
+    return document;
   }
   /** The work ID a malformed file claims, read only from a contained, bounded file. */
   private claimedOwner(location: Location, handle: string) {
@@ -200,11 +224,9 @@ export class AtlasCatalog {
     const location = this.location(work);
     if (!location) return { models, issues, invalidHandles };
     const loaded: Loaded[] = [];
-    let workspace: ReturnType<typeof createWorkspace> | null = null;
     for (const handle of this.handles(location.directory)) {
       try {
-        workspace ??= createWorkspace(location.root);
-        const document = workspace.load(handle);
+        const document = this.read(location, handle);
         this.owners.set(location.directory + '\0' + handle, document.workId);
         if (!this.belongs(document, work)) { issues.push(`Model “${document.title}” in this work folder is assigned to ${document.workId}.`); continue; }
         loaded.push([handle, document]);
@@ -231,7 +253,7 @@ export class AtlasCatalog {
     const location = this.location(work);
     if (!location || !existsSync(path.join(location.directory, handle + '.json'))) throw new PlanningError('This model has an invalid update or is unavailable.', 404);
     let document: AtlasDocument;
-    try { document = createWorkspace(location.root).load(handle); }
+    try { document = this.read(location, handle); }
     catch { throw new PlanningError('This model has an invalid update or is unavailable.', 409); }
     if (!this.belongs(document, work)) throw new PlanningError('This model belongs to another work item.', 403);
     return { document, location, work };
@@ -243,12 +265,11 @@ export class AtlasCatalog {
   private family(location: Location, work: IndexedWork, handle: string, document: AtlasDocument): Loaded[] | null {
     const key = familyKey(document);
     if (!key) return null;
-    const workspace = createWorkspace(location.root);
     const loaded: Loaded[] = [];
     for (const other of this.handles(location.directory)) {
       if (other === handle) { loaded.push([handle, document]); continue; }
       try {
-        const candidate = workspace.load(other);
+        const candidate = this.read(location, other);
         if (this.belongs(candidate, work) && familyKey(candidate) === key) loaded.push([other, candidate]);
       } catch { /* An invalid update is not served, so it lays out with no one. */ }
     }
