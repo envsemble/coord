@@ -5175,9 +5175,10 @@ function ChangeNavigation({ position, total, handoff, onBack, onStep }) {
         ref: back,
         variant: "text",
         className: "change-back",
+        "aria-label": "All changes",
         startIcon: /* @__PURE__ */ jsx25(ArrowBack, {}),
         onClick: onBack,
-        children: "All changes"
+        children: /* @__PURE__ */ jsx25("span", { className: "change-back-label", children: "All changes" })
       }
     ),
     total > 0 && /* @__PURE__ */ jsxs17("span", { className: "change-stepper", role: "group", "aria-label": "Changes", children: [
