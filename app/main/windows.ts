@@ -37,8 +37,9 @@ export const titleBarOverlay = (zoom = 1) => {
   return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
 };
 /**
- * Where a person's press starts, which a page cannot fake: a mouse button, a key (not its repeats) or
- * a touch. Releases and the characters a key types do not count, so each press allows one command.
+ * Where a person's press starts, which a page cannot fake: a mouse button, a key (raw from the
+ * system, or cooked when a test injects it; not its repeats) or a touch. Releases and the characters
+ * a key types do not count, so each press allows one command.
  */
 const pressStarts = new Set(['mouseDown', 'rawKeyDown', 'keyDown', 'touchStart']);
 /** macOS keeps its traffic lights, centred in the title bar; elsewhere the overlay draws minimize, maximize and close. */
@@ -92,8 +93,6 @@ export class AtlasWindow {
   private boundsTimer: ReturnType<typeof setTimeout> | null = null;
   /** When the person last pressed, typed or tapped in this window. */
   private lastActivation = 0;
-  /** The last key pressed, which may arrive both raw and cooked. */
-  private lastKey: { at: number; code: string } | null = null;
   /** A question or dialog a page's command opened in this window: one at a time. */
   private asking = false;
   /** Set as the window starts closing, before it leaves the window list. */
@@ -123,15 +122,7 @@ export class AtlasWindow {
     this.guardNavigation();
     this.win.webContents.on('render-process-gone', (_event, details) => this.recover(details.reason));
     this.win.webContents.on('input-event', (_event, input) => {
-      if (!pressStarts.has(input.type) || input.modifiers?.includes('isautorepeat')) return;
-      const now = performance.now();
-      if (input.type === 'rawKeyDown' || input.type === 'keyDown') {
-        const { keyCode } = input as Electron.KeyboardInputEvent;
-        const again = this.lastKey !== null && this.lastKey.code === keyCode && now - this.lastKey.at < 50;
-        this.lastKey = { at: now, code: keyCode };
-        if (again) return;
-      }
-      this.lastActivation = now;
+      if (pressStarts.has(input.type) && !input.modifiers?.includes('isautorepeat')) this.lastActivation = performance.now();
     });
     this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.root }));
     this.win.on('close', () => { this.closing = true; this.saveBounds(); });

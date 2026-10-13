@@ -17,7 +17,7 @@ Remote access is off by default. It works while Atlas (or `atlas serve`) runs on
 
 Choose **File › Remote Access…** on the computer whose folders you want to reach:
 
-1. **Allow paired devices to connect to this computer** turns the network listener on or off. The change applies at once.
+1. **Allow paired devices to connect to this computer** turns the network listener on or off. The change applies at once. Turning it on, or moving it to another address, asks first when it does not follow your click or key press, for example with a screen reader.
 2. **Reach this computer via** picks the address the host listens on:
    - **Tailscale** (recommended): the computer's [Tailscale](https://tailscale.com) address. Tailscale encrypts traffic end to end, and only devices on your tailnet can reach it, from anywhere.
    - **Local network**: an address on your home or office network. Traffic is **not encrypted**, so anyone who can watch that network could read the plans and the device's access token, and use that token as the device. Use it only on a network you trust.

@@ -249,10 +249,13 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [accessSettings],
       handle: async (window, settings: AccessSettings) => {
         // Turning remote access on, or moving it to another address, changes who can reach this
-        // computer; another port does not.
+        // computer; another port does not. The press counts from when the change came: reading the
+        // state may wait for Tailscale.
+        const pressed = window.takeActivation();
         const current = (await owner().request('access.state', {})).settings.network;
         const next = settings.network;
-        if (next.enabled && (!current.enabled || next.address !== current.address)) await confirmed(window, `Let paired devices reach this computer${next.address ? ' at ' + next.address : ''}?`, 'Allow');
+        if (next.enabled && (!current.enabled || next.address !== current.address) && !pressed
+          && !(await window.ask(`Let paired devices reach this computer${next.address ? ' at ' + next.address : ''}?`, 'Allow'))) throw new AtlasError('cancelled', 'Cancelled.');
         return owner().request('access.update', { settings: settings as never });
       },
     },
@@ -260,7 +263,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [computer, nullable(ipAddress), grant],
       handle: async (window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
         const detail = granted.manageAccess ? 'A device that uses it can work on the planning folders and manage who else has access.' : 'A device that uses it can work on the planning folders.';
-        if (!(await window.ask('Create a pairing link?', 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
+        if (!(await window.ask(`Create a pairing link for ${id === null ? 'this computer' : connections.name(id)}?`, 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
         const link = await remoteErrors(connections.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
         const qrSvg = link.url ? await QRCode.toString(link.url, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }) : null;
         return { ...link, qrSvg };

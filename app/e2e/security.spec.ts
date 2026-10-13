@@ -76,7 +76,7 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
   for (const key of ['quit', 'closeWindow', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([
     'Exit Atlas?', 'Close the last window and exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?',
-    'Let paired devices reach this computer at 127.0.0.1?', 'Create a pairing link?', 'Pair with the Atlas at 127.0.0.1:9?', 'Open this address in your browser?',
+    'Let paired devices reach this computer at 127.0.0.1?', 'Create a pairing link for this computer?', 'Pair with the Atlas at 127.0.0.1:9?', 'Open this address in your browser?',
   ]);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   expect(results.external).toMatchObject({ ok: false, error: { code: 'forbidden' } });
@@ -101,15 +101,23 @@ test('each press allows one command a page could misuse, and not its release or 
   await open('release');
   await atlasWindow.keyboard.down('Shift');
   await open('key');
-  // Held down, the key repeats a moment later.
-  await atlasWindow.waitForTimeout(100);
+  // Held down, the key repeats.
   await atlasWindow.keyboard.down('Shift');
   await open('repeat');
   await atlasWindow.keyboard.up('Shift');
   await open('key-release');
+  // Creating a pairing link asks even right after a press.
+  await atlasWindow.mouse.down();
+  await atlasWindow.mouse.up();
+  expect(await atlasWindow.evaluate(async () => {
+    const bridge = (window as unknown as { atlas: { createPairing(...args: unknown[]): Promise<{ ok: boolean; error?: { code: string } }> } }).atlas;
+    const result = await bridge.createPairing(null, null, { label: null, manageAccess: false });
+    return result.ok ? 'created' : result.error!.code;
+  })).toBe('cancelled');
   expect(await app.evaluate(() => (globalThis as unknown as { pressLog: string[] }).pressLog)).toEqual([
     'opened https://example.com/press', 'asked https://example.com/release',
     'opened https://example.com/key', 'asked https://example.com/repeat', 'asked https://example.com/key-release',
+    'asked A device that uses it can work on the planning folders.',
   ]);
 });
 
