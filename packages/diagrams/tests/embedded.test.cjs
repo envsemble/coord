@@ -87,99 +87,102 @@ test("empty captures prepare and export a readable portable document", async () 
   assert.deepEqual(importDocument(exported.html).model.nodes, []);
 });
 
-test("Standalone report focus survives its nested comparison wrapper", () => {
-  const { OntoUMLViewer } = components();
-  const target = { kind: "node", id: "course", request: "report-course" };
-  const payload = { report: {}, comparison: {}, model: {}, views: [] };
-  const report = OntoUMLViewer(payload);
-  const nested = report.props.render({ ...payload, report: undefined }, target);
-  const comparison = OntoUMLViewer(nested.props);
-  assert.equal(comparison.props.focus, target);
-  const diagram = comparison.props.render(
-    { ...payload, report: undefined, comparison: undefined },
-    null,
-  );
-  assert.deepEqual(diagram.props.focus, target);
-  const changed = {
-    kind: "edge",
-    id: "registration",
-    request: "comparison-registration",
+test("A proposal opens its change view in both viewers, with the focus and the review it was given", () => {
+  const { OntoUMLViewer, AtlasPanel } = components();
+  const target = { kind: "node", id: "course" };
+  const changeView = { model: { id: "changes" }, views: [{ key: "all" }] };
+  const comparison = {
+    changeView,
+    changes: { changes: [] },
+    conflicts: [],
   };
-  assert.deepEqual(comparison.props.render({}, changed).props.focus, changed);
-  const { AtlasPanel } = components();
-  const panel = AtlasPanel({ payload });
-  const panelNested = panel.props.render(
-    { ...payload, report: undefined },
-    target,
-  );
-  const panelComparison = AtlasPanel(panelNested.props);
-  assert.equal(panelComparison.props.focus, target);
+  const document = {
+    baselineId: "capture",
+    snapshots: [
+      { id: "capture", capture: { capturedAt: "2026-10-08T10:00:00Z" } },
+    ],
+  };
+  const payload = {
+    comparison,
+    learning: { walkthroughs: [], scenarios: [] },
+    model: { id: "proposal", document },
+    views: [],
+  };
+  for (const viewer of [
+    OntoUMLViewer({ ...payload, focus: target }),
+    AtlasPanel({ payload, focus: target }),
+  ]) {
+    assert.equal(viewer.type.name, "ComparisonViewer");
+    assert.equal(viewer.props.focus, target);
+    const shown = renderToStaticMarkup(
+      createElement(viewer.type, {
+        ...viewer.props,
+        render: (shownPayload, focus, extras) => {
+          // The change view replaces the proposal; the rest travels along.
+          assert.equal(shownPayload.model, changeView.model);
+          assert.equal(shownPayload.views, changeView.views);
+          assert.equal(shownPayload.learning, payload.learning);
+          assert.equal(shownPayload.comparison, undefined);
+          assert.equal(focus, target);
+          assert.equal(extras.review.comparison, comparison);
+          assert.equal(extras.review.baselineDate, "Oct 8, 2026");
+          assert.equal(extras.provenanceDocument, document);
+          return createElement("span", null, "change view");
+        },
+      }),
+    );
+    assert.equal(shown, "<span>change view</span>");
+  }
 });
 
-test("Repeated report navigation clears retained comparison focus and chooses a visible target", () => {
-  const { reconcileComparisonFocus } = components(
-    "src/viewer/comparisonSelection.js",
-  );
-  const scene = (ids) => ({
-    views: [
-      {
-        key: "model",
-        diagram: {
-          nodes: ids.map((id) => ({ id })),
-          edges: [],
-          generalizationGroups: [],
+test("Focus on a member or a removed element of a proposal resolves in its change view", async () => {
+  const document = createDocument({
+    id: "base",
+    profile: "code",
+    model: {
+      type: "StructuralModel",
+      nodes: [
+        {
+          id: "a",
+          name: "A",
+          attributes: [{ id: "a-x", name: "x", type: "string" }],
         },
-      },
-    ],
-  });
-  const first = { kind: "node", id: "a" };
-  const local = { kind: "edge", id: "route" };
-  const payload = {
-    ...scene(["b"]),
-    focus: first,
-    comparison: { baseline: scene(["a"]), changeView: scene(["a", "b"]) },
-  };
-  const retained = { mode: "baseline", focus: local, externalFocus: first };
-  assert.equal(reconcileComparisonFocus(retained, payload), retained);
-  const second = { kind: "node", id: "b" };
-  const next = reconcileComparisonFocus(retained, {
-    ...payload,
-    focus: second,
-  });
-  assert.equal(next.mode, "changes");
-  assert.equal(next.focus, null);
-  assert.equal(next.externalFocus, second);
-  // The change view retains removed elements, so it can still show them.
-  const removed = reconcileComparisonFocus(next, payload);
-  assert.equal(removed.mode, "changes");
-  assert.equal(removed.focus, null);
-  assert.equal(removed.externalFocus, first);
-  assert.equal(reconcileComparisonFocus(removed, payload), removed);
-  const baselineOnly = reconcileComparisonFocus(next, {
-    ...payload,
-    comparison: { ...payload.comparison, changeView: scene(["b"]) },
-  });
-  assert.equal(baselineOnly.mode, "baseline");
-  assert.equal(baselineOnly.externalFocus, first);
-  const field = { kind: "edge", id: "new-field" };
-  const withField = {
-    ...payload,
-    comparison: {
-      ...payload.comparison,
-      changeView: {
-        ...payload.comparison.changeView,
-        model: {
-          classes: [
-            { id: "b", attributes: [{ id: "new-field" }], methods: [] },
-          ],
-        },
-      },
+        { id: "b", name: "B", attributes: [] },
+      ],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
     },
-  };
-  const memberFocus = reconcileComparisonFocus(removed, withField, field);
-  assert.equal(memberFocus.mode, "changes");
-  assert.equal(memberFocus.focus, null);
-  assert.equal(memberFocus.externalFocus, field);
+  });
+  const atlas = require("../lib/index.cjs");
+  const proposal = atlas.createProposal(document);
+  const model = JSON.parse(JSON.stringify(proposal.model));
+  model.nodes = model.nodes.filter((n) => n.id !== "b");
+  model.nodes[0].attributes = [];
+  const changed = atlas.reviseDocument(proposal, { model });
+  const { payload } = await prepareViewer({
+    document: changed,
+    includeArtifacts: false,
+  });
+  const { inspectionTarget } = components("src/model/inspectionTarget.js");
+  const { indexViewerModel } = components("src/model/domainModel.js");
+  const view = payload.comparison.changeView;
+  const index = indexViewerModel(view.model);
+  // The removed class and the removed member are both still there to inspect.
+  assert.deepEqual(
+    inspectionTarget(view.model, index, view.views, view.views[0].key, "b")
+      .target,
+    { kind: "node", id: "b" },
+  );
+  const member = inspectionTarget(
+    view.model,
+    index,
+    view.views,
+    view.views[0].key,
+    "a-x",
+  );
+  assert.deepEqual(member.target, { kind: "node", id: "a" });
+  assert.equal(member.memberId, "a-x");
 });
 
 test("Viewer input failures identify the missing source without a raw TypeError", async () => {
