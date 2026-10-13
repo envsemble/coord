@@ -12,24 +12,44 @@ export interface Work {
   ledger?: string | null; progress?: WorkProgress | null;
   /** Number of Atlas models in this work folder's `.atlas/models`. */
   diagrams?: number;
-  /** Agent-reported statistics and plan revisions; absent where they were not read. */
+  /** Agent reports and plan revisions; absent where they were not read. */
   statistics?: WorkStatistics;
 }
-/** One model's share of a work item, from the reports it made. */
-export interface ModelUsage { model: string; reports: number; sessions: number; activeMs: number; tokens: number | null }
+/** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
+export interface TokenKinds { input: number; cacheRead: number; cacheWrite: number; output: number }
+/** One model's share of a work item: the reports naming it and the agent time and tokens it spent. */
+export interface ModelUsage {
+  model: string; reports: number; sessions: number;
+  /** Measured busy time, plus the time between its unmeasured reports; overlaps other models' time while they work at once. */
+  agentMs: number;
+  tokens: number | null;
+  /** Its measured tokens by kind; null when no session log measured it. */
+  tokenKinds: TokenKinds | null;
+}
 /**
- * What agents reported with `atlas work report` (self-reported and approximate) and how often the
- * main plan changed. Active time sums the intervals between reports in each session or run.
+ * What agents reported with `atlas work report` and how often the main plan changed. Agent time and
+ * tokens are measured from the agent's session log where the report could read it; otherwise agent
+ * time is estimated from the time between a session's reports, and tokens are self-reported.
  */
 export interface WorkStatistics {
   reports: number;
   /** Lines of the statistics file that are not valid reports. */
   invalid: number;
+  /** Most agent time first. */
   models: ModelUsage[];
-  /** The model with the most active time (then tokens, then reports). */
+  /** The model that did most of the work: the most agent time (then tokens, then reports). */
   primaryModel: string | null;
   tokens: number | null;
-  activeMs: number;
+  /** The measured tokens by kind; null when no report was measured. Self-reported tokens have no kinds. */
+  tokenKinds: TokenKinds | null;
+  /** Agent time: measured plus estimated. */
+  agentMs: number;
+  /** Agent time measured from session logs. */
+  measuredMs: number;
+  /** Agent time estimated from the time between reports, for intervals no session log measured. */
+  estimatedMs: number;
+  /** Reports whose interval was measured from the session log. */
+  measuredReports: number;
   firstReport: string | null;
   lastReport: string | null;
   /** Commits that changed the main plan after it was added, up to completion or now; null without Git history. */

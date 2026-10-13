@@ -5,9 +5,9 @@ import { compactNumber, duration, median } from './format.ts';
 import { timeTicks, valueTicks } from './components/ScatterChart.tsx';
 import type { Snapshot, Work, WorkStatistics } from './types.ts';
 
-const statistics = (model: string | null, tokens: number | null, activeMs: number, planRevisions: number | null, lastReport: string | null = null): WorkStatistics => ({
-  reports: model ? 2 : 0, invalid: 0, models: model ? [{ model, reports: 2, sessions: 1, activeMs, tokens }] : [], primaryModel: model, tokens, activeMs,
-  firstReport: lastReport, lastReport, planRevisions,
+const statistics = (model: string | null, tokens: number | null, agentMs: number, planRevisions: number | null, lastReport: string | null = null): WorkStatistics => ({
+  reports: model ? 2 : 0, invalid: 0, models: model ? [{ model, reports: 2, sessions: 1, agentMs, tokens, tokenKinds: null }] : [], primaryModel: model, tokens, tokenKinds: null,
+  agentMs, measuredMs: 0, estimatedMs: agentMs, measuredReports: 0, firstReport: lastReport, lastReport, planRevisions,
 });
 const work = (id: string, values: Partial<Work>): Work => ({
   id, path: 'archive/' + id, repositories: ['shop'], currentPlan: null, title: id, location: 'archived', design: 'accepted', implementation: 'complete',
@@ -30,8 +30,8 @@ test('metric values are absent rather than zero when nothing was reported', () =
     work('work-0001', { completed: '2026-10-02', statistics: statistics('model-a', 1000, 60000, 0), progress: { version: 2, current: null, next: [], blocked: null, updated: null, steps: [{ title: 'A', status: 'done' }, { title: 'B', status: 'done' }] } }),
     work('work-0002', { completed: '2026-10-01', statistics: statistics(null, null, 0, 3) }),
   ]), 'all');
-  assert.deepEqual(['tokens', 'activeMs', 'planRevisions', 'steps'].map(metric => metricValue(reported, metric as never)), [1000, 60000, 0, 2]);
-  assert.deepEqual(['tokens', 'activeMs', 'planRevisions', 'steps'].map(metric => metricValue(silent, metric as never)), [null, null, 3, null]);
+  assert.deepEqual(['tokens', 'agentMs', 'planRevisions', 'steps'].map(metric => metricValue(reported, metric as never)), [1000, 60000, 0, 2]);
+  assert.deepEqual(['tokens', 'agentMs', 'planRevisions', 'steps'].map(metric => metricValue(silent, metric as never)), [null, null, 3, null]);
 });
 
 test('the three models with the most recent completed work get a colour; the rest share Other', () => {

@@ -4,10 +4,10 @@ import { stepCounts } from '@envsemble/atlas-planning/ledger';
 import type { Snapshot, Work, WorkStatistics } from './types';
 import { median } from './format';
 
-export type TrendMetric = 'tokens' | 'activeMs' | 'planRevisions' | 'steps';
+export type TrendMetric = 'tokens' | 'agentMs' | 'planRevisions' | 'steps';
 export const trendMetrics: { id: TrendMetric; label: string; unit: string }[] = [
   { id: 'tokens', label: 'Tokens', unit: 'tokens per work item' },
-  { id: 'activeMs', label: 'Active time', unit: 'active time per work item' },
+  { id: 'agentMs', label: 'Active time', unit: 'active time per work item' },
   { id: 'planRevisions', label: 'Plan revisions', unit: 'plan revisions before completion' },
   { id: 'steps', label: 'Steps', unit: 'ledger steps per work item' },
 ];
@@ -30,7 +30,7 @@ export function metricValue(row: WorkRow, metric: TrendMetric): number | null {
   if (metric === 'steps') return row.steps || null;
   if (metric === 'planRevisions') return row.statistics?.planRevisions ?? null;
   if (!row.statistics?.reports) return null;
-  return metric === 'tokens' ? row.statistics.tokens : row.statistics.activeMs || null;
+  return metric === 'tokens' ? row.statistics.tokens : row.statistics.agentMs || null;
 }
 
 /** Completed work, which the trends compare: each item at its completion date. */
@@ -77,7 +77,7 @@ export function colourSlots(models: string[], slots = 3): Map<string, number> {
 }
 
 export interface ModelSummary {
-  model: string | null; completed: number; tokens: number | null; activeMs: number | null; planRevisions: number | null; steps: number | null;
+  model: string | null; completed: number; tokens: number | null; agentMs: number | null; planRevisions: number | null; steps: number | null;
   first: string | null; last: string | null;
 }
 /** Medians per implementing model (the primary model of each completed work item), most recent first. */
@@ -90,6 +90,6 @@ export function modelSummaries(rows: WorkRow[]): ModelSummary[] {
   const values = (group: WorkRow[], metric: TrendMetric) => median(group.map(row => metricValue(row, metric)).filter((value): value is number => value !== null));
   return [...groups].map(([model, group]) => {
     const dates = group.map(row => row.work.completed!).sort();
-    return { model, completed: group.length, tokens: values(group, 'tokens'), activeMs: values(group, 'activeMs'), planRevisions: values(group, 'planRevisions'), steps: values(group, 'steps'), first: dates[0] ?? null, last: dates.at(-1) ?? null };
+    return { model, completed: group.length, tokens: values(group, 'tokens'), agentMs: values(group, 'agentMs'), planRevisions: values(group, 'planRevisions'), steps: values(group, 'steps'), first: dates[0] ?? null, last: dates.at(-1) ?? null };
   }).sort((a, b) => (b.last ?? '').localeCompare(a.last ?? '') || (a.model === null ? 1 : b.model === null ? -1 : a.model.localeCompare(b.model)));
 }

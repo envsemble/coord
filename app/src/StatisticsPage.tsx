@@ -22,7 +22,7 @@ const otherColor = 'var(--atlas-chart-other)';
 const reportHint = <>Agents record their model, the tokens used so far and the time of each ledger transition with <Code appearance="subtle">atlas work report</Code>, as the <Code appearance="subtle">atlas-implement</Code> skill describes.</>;
 
 const formatMetric = (metric: TrendMetric, value: number | null) => value === null ? '—'
-  : metric === 'tokens' ? compactNumber(value) : metric === 'activeMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
+  : metric === 'tokens' ? compactNumber(value) : metric === 'agentMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
 
 export function Statistics({ snapshot, repository, setRepository }: RepositoryFilter & { snapshot: Snapshot }) {
   const [tab, setTab] = useState<StatisticsTab>('work');
@@ -52,7 +52,7 @@ function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
   const reported = rows.filter(row => row.statistics?.reports);
   const tokens = reported.reduce((sum, row) => sum + (row.statistics!.tokens ?? 0), 0);
   const tokensReported = reported.some(row => row.statistics!.tokens !== null);
-  const active = reported.reduce((sum, row) => sum + row.statistics!.activeMs, 0);
+  const active = reported.reduce((sum, row) => sum + row.statistics!.agentMs, 0);
   const completed = completedRows(rows).filter(row => row.statistics?.planRevisions !== null && row.statistics?.planRevisions !== undefined);
   const revisions = median(completed.map(row => row.statistics!.planRevisions!));
   const invalid = rows.reduce((sum, row) => sum + (row.statistics?.invalid ?? 0), 0);
@@ -82,7 +82,7 @@ function WorkStatisticsRow({ row }: { row: WorkRow }) {
     <TableCell><span className="work-cell"><StatusIcon status={status} /><TargetLink target={workTarget(work.id)}>{work.title}</TargetLink></span><small className="cell-note">{workNumber(work.id)} · {status.label}{statistics?.lastReport ? ' · reported ' + relativeDate(statistics.lastReport) : ''}</small></TableCell>
     <TableCell>{statistics?.primaryModel ? <span className="model-cell"><Code appearance="subtle">{statistics.primaryModel}</Code>{others.length > 0 && <span title={others.map(model => model.model).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
     <TableCell numeric>{statistics?.tokens != null ? compactNumber(statistics.tokens) : '—'}</TableCell>
-    <TableCell numeric>{statistics?.reports ? duration(statistics.activeMs) : '—'}</TableCell>
+    <TableCell numeric>{statistics?.reports ? duration(statistics.agentMs) : '—'}</TableCell>
     <TableCell numeric title={statistics?.planRevisions == null ? 'Not in this folder\'s Git history' : work.completed ? 'Before completion' : 'So far'}>{statistics?.planRevisions ?? '—'}</TableCell>
     <TableCell numeric>{row.steps ? `${row.stepsDone}/${row.steps}` : '—'}</TableCell>
   </TableRow>;
@@ -108,9 +108,9 @@ function ModelsTab({ rows }: { rows: WorkRow[] }) {
     </div>
     {points.length ? <Surface className="chart-box" padding={5}>
       <ScatterChart label={definition.label + ': ' + definition.unit + ', by completion date and implementing model'} points={points} series={series} formatValue={value => formatMetric(metric, value)}
-        valueKind={metric === 'activeMs' ? 'duration' : 'count'} onOpen={id => open(workTarget(id), { pin: true })} />
+        valueKind={metric === 'agentMs' ? 'duration' : 'count'} onOpen={id => open(workTarget(id), { pin: true })} />
       <Text variant="caption" tone="muted" className="chart-note">Each dot is a completed work item: its {definition.unit}, at its completion date, coloured by the model with the most active time.{completed.length > points.length ? ` ${completed.length - points.length} completed ${completed.length - points.length === 1 ? 'item has' : 'items have'} no value and ${completed.length - points.length === 1 ? 'is' : 'are'} not shown.` : ''}</Text>
-    </Surface> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title={completed.length ? 'No completed work has this value yet' : 'No completed work yet'} description={metric === 'tokens' || metric === 'activeMs' ? reportHint : 'Trends compare work items once they are complete.'} />}
+    </Surface> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title={completed.length ? 'No completed work has this value yet' : 'No completed work yet'} description={metric === 'tokens' || metric === 'agentMs' ? reportHint : 'Trends compare work items once they are complete.'} />}
     {summaries.length > 0 && <Table className="model-table" aria-label="Implementing models">
       <TableHead><TableRow>
         <TableHeaderCell>Implementing model</TableHeaderCell><TableHeaderCell numeric>Completed</TableHeaderCell><TableHeaderCell numeric>Median tokens</TableHeaderCell><TableHeaderCell numeric>Median active time</TableHeaderCell><TableHeaderCell numeric>Median plan revisions</TableHeaderCell><TableHeaderCell numeric>Median steps</TableHeaderCell><TableHeaderCell>Completed between</TableHeaderCell>
@@ -119,7 +119,7 @@ function ModelsTab({ rows }: { rows: WorkRow[] }) {
         <TableCell>{summary.model ? <span className="model-cell"><span className="chart-swatch" style={{ background: series.find(entry => entry.key === summary.model)?.color ?? otherColor }} /><Code appearance="subtle">{summary.model}</Code></span> : <span className="muted">Not reported</span>}</TableCell>
         <TableCell numeric>{summary.completed}</TableCell>
         <TableCell numeric>{formatMetric('tokens', summary.tokens)}</TableCell>
-        <TableCell numeric>{formatMetric('activeMs', summary.activeMs)}</TableCell>
+        <TableCell numeric>{formatMetric('agentMs', summary.agentMs)}</TableCell>
         <TableCell numeric>{formatMetric('planRevisions', summary.planRevisions)}</TableCell>
         <TableCell numeric>{formatMetric('steps', summary.steps)}</TableCell>
         <TableCell nowrap>{summary.first === summary.last ? shortDate(summary.first) : shortDate(summary.first) + ' – ' + shortDate(summary.last)}</TableCell>

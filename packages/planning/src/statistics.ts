@@ -1,29 +1,38 @@
-// Work statistics. Agents report their model, tokens and the time of each ledger transition with
-// `atlas work report`, which appends one JSON line to <work>/.atlas/statistics.jsonl. These values
-// are self-reported and approximate. Plan revisions come from the planning folder's Git history.
+// Work statistics. Agents report each ledger transition with `atlas work report`, which appends one
+// JSON line to <work>/.atlas/statistics.jsonl: the time, the model and the step, and, when it could
+// read the agent's session log, the agent time and tokens measured since the session's previous
+// report. Without a measurement, agent time is estimated from the time between reports and tokens
+// are self-reported. Plan revisions come from the planning folder's Git history.
 import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import type { ModelUsage, Work, WorkStatistics } from './types.ts';
+import type { ModelUsage, TokenKinds, Work, WorkStatistics } from './types.ts';
 import { runProgram as execute } from './run.ts';
 
 
 /** Where a work item's reports live, relative to its folder. Plan exports leave it out. */
 export const statisticsFile = '.atlas/statistics.jsonl';
 /**
- * Reports further apart than this start a new stretch of work: the gap is not counted as active
- * time. Without a session, reports of the same model this close together are treated as one run.
+ * Unmeasured reports further apart than this start a new stretch of work: the gap is not counted as
+ * agent time. Without a session, reports of the same model this close together are treated as one run.
  */
 export const sessionGap = 2 * 60 * 60 * 1000;
 export const fileLimit = 4 * 1024 * 1024;
 const lineLimit = 4096;
 const historyLimit = 20000;
 export const stepLimit = 200;
+/** A measurement names at most this many models, so a report stays one short line. */
+export const measuredModelLimit = 8;
 
-export interface StatisticsReport { version: 1; at: string; model: string; session: string | null; tokens: number | null; step: string | null }
-export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; at?: Date }
+/** One model's share of a measured interval. */
+export interface MeasuredModel extends TokenKinds { model: string; agentMs: number }
+/** What the session log showed for (since, at]: the agent's working time and each model's share. */
+export interface Measured { since: string; agentMs: number; models: MeasuredModel[] }
+/** Version 1 throughout: `measured` is optional, and versions that do not know it read the rest. */
+export interface StatisticsReport { version: 1; at: string; model: string; session: string | null; tokens: number | null; step: string | null; measured?: Measured }
+export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; at?: Date; measured?: Measured | null }
 
 /** Model identifiers as harnesses show them, including bracketed variants such as `name[1m]`. */
-const modelPattern = /^[A-Za-z0-9][A-Za-z0-9._:/@+\-[\]]{0,99}$/;
+export const modelPattern = /^[A-Za-z0-9][A-Za-z0-9._:/@+\-[\]]{0,99}$/;
 const sessionPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 /** Control characters, line separators and bidirectional overrides never appear in a step. */
 const unprintable = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
@@ -57,12 +66,47 @@ export function fitStep(value: string): { step: string | null; note: string | nu
   return { step: cut.trimEnd() + '\u2026', note: `The step was shortened to ${stepLimit} characters.`, shortened: true };
 }
 
+/** A UTC timestamp that is a real moment, normalized; 2026-02-30T… is refused, not read as 2 March. */
+function utcTime(value: unknown): string | null {
+  if (typeof value !== 'string' || !timestamp.test(value)) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 19) !== value.slice(0, 19) ? null : date.toISOString();
+}
+const whole = (value: unknown, limit: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= limit;
+const tokenKinds = ['input', 'cacheRead', 'cacheWrite', 'output'] as const;
+
+/** A measurement as reports record it: an interval that ends at the report, times inside it, distinct models. */
+function checkedMeasured(value: unknown, at: string): Measured | null {
+  if (value === null || value === undefined) return null;
+  const invalid = (detail: string) => new StatisticsReportError('The measurement is not valid: ' + detail + '.');
+  if (typeof value !== 'object' || Array.isArray(value)) throw invalid('it is not an object');
+  const entry = value as Record<string, unknown>;
+  const since = utcTime(entry.since);
+  if (!since || since > at) throw invalid('since must be a UTC time no later than the report');
+  if (!whole(entry.agentMs, Date.parse(at) - Date.parse(since))) throw invalid('agentMs must be whole milliseconds within the interval');
+  const total = entry.agentMs;
+  if (!Array.isArray(entry.models) || entry.models.length > measuredModelLimit) throw invalid(`models must be a list of at most ${measuredModelLimit}`);
+  const models = entry.models.map((item: unknown): MeasuredModel => {
+    const model = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+    if (typeof model.model !== 'string' || !modelPattern.test(model.model)) throw invalid('each model needs its identifier');
+    if (!whole(model.agentMs, total)) throw invalid('a model\'s agentMs must be within the interval\'s');
+    for (const kind of tokenKinds) if (!whole(model[kind], 1e12)) throw invalid(kind + ' must be a whole number of tokens');
+    return { model: model.model, agentMs: model.agentMs, input: model.input as number, cacheRead: model.cacheRead as number, cacheWrite: model.cacheWrite as number, output: model.output as number };
+  });
+  if (new Set(models.map(item => item.model)).size !== models.length) throw invalid('a model is listed twice');
+  return { since, agentMs: total, models };
+}
+
 /** Build a valid report line, or throw StatisticsReportError. */
 export function createReport(input: ReportInput): StatisticsReport {
   if (typeof input.model !== 'string' || !modelPattern.test(input.model)) throw new StatisticsReportError('The model must be its identifier, such as the API model name: letters, digits and . _ : / @ + - [ ], at most 100 characters.');
   const session = input.session ?? null;
   if (session !== null && (typeof session !== 'string' || !sessionPattern.test(session))) throw new StatisticsReportError('The session must be an identifier: letters, digits and . _ : -, at most 128 characters.');
-  return { version: 1, at: (input.at ?? new Date()).toISOString(), model: input.model, session, tokens: checkedTokens(input.tokens), step: checkedStep(input.step) };
+  const at = (input.at ?? new Date()).toISOString();
+  const report: StatisticsReport = { version: 1, at, model: input.model, session, tokens: checkedTokens(input.tokens), step: checkedStep(input.step) };
+  const measured = checkedMeasured(input.measured, at);
+  if (measured) report.measured = measured;
+  return report;
 }
 
 /** Read one line; null when it is not a valid report (counted, never fatal). */
@@ -72,34 +116,38 @@ export function parseReport(line: string): StatisticsReport | null {
   try { value = JSON.parse(line); } catch { return null; }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const entry = value as Record<string, unknown>;
-  // A UTC timestamp that is a real moment: 2026-02-30T… is refused, not read as 2 March.
-  if (entry.version !== 1 || typeof entry.at !== 'string' || !timestamp.test(entry.at)) return null;
-  const at = new Date(entry.at);
-  if (Number.isNaN(at.getTime()) || at.toISOString().slice(0, 19) !== entry.at.slice(0, 19)) return null;
-  try { return { ...createReport({ model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null }), at: at.toISOString() }; }
+  const at = utcTime(entry.at);
+  if (entry.version !== 1 || !at) return null;
+  try { return createReport({ model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, at: new Date(at), measured: entry.measured as Measured | undefined }); }
   catch { return null; }
 }
 
+const sum = (kinds: TokenKinds) => kinds.input + kinds.cacheRead + kinds.cacheWrite + kinds.output;
+const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ input: (into?.input ?? 0) + kinds.input, cacheRead: (into?.cacheRead ?? 0) + kinds.cacheRead, cacheWrite: (into?.cacheWrite ?? 0) + kinds.cacheWrite, output: (into?.output ?? 0) + kinds.output });
+
 /**
  * Summarize reports. Each session (or, without one, each model's reports less than two hours
- * apart) is followed in time order:
- * - time: each report covers the time since the previous report, unless more than two hours
- *   passed, which is a break, not work; the first report marks the start;
- * - tokens: a session's count is cumulative, so each report adds its increase over the previous
- *   one, attributed to the reporting model. The first report is the starting point (agents report
- *   when they start), so tokens a session spent before this work are not charged to it. A lower
- *   count means a new conversation under the same session and counts in full.
+ * apart) is followed in time order. Its first report is the starting point: agents report when
+ * they start, so what a session did before this work is not charged to it. Then each report covers
+ * the time since the previous one:
+ * - measured, when the report carries what the session log showed for that interval: the agent's
+ *   working time, and each model's time and tokens;
+ * - estimated otherwise: the whole interval is agent time of the reporting model, unless more than
+ *   two hours passed, which is a break; and a session's self-reported token count is cumulative, so
+ *   a report adds its increase over the previous one (a lower count means a new conversation under
+ *   the same session and counts in full).
  */
 export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit<WorkStatistics, 'planRevisions'> {
   const sorted = [...reports].sort((a, b) => a.at.localeCompare(b.at));
-  const usage = new Map<string, { model: string; reports: number; activeMs: number; tokens: number; tokensReported: boolean; sessions: Set<string> }>();
+  const usage = new Map<string, { model: string; reports: number; agentMs: number; tokens: number; tokensKnown: boolean; tokenKinds: TokenKinds | null; sessions: Set<string> }>();
   const model = (name: string) => {
     let entry = usage.get(name);
-    if (!entry) usage.set(name, entry = { model: name, reports: 0, activeMs: 0, tokens: 0, tokensReported: false, sessions: new Set() });
+    if (!entry) usage.set(name, entry = { model: name, reports: 0, agentMs: 0, tokens: 0, tokensKnown: false, tokenKinds: null, sessions: new Set() });
     return entry;
   };
   const runs = new Map<string, { last: number; tokens: number | null; id: string }>();
-  let anonymous = 0;
+  let anonymous = 0, measuredMs = 0, estimatedMs = 0, measuredReports = 0;
+  let kinds: TokenKinds | null = null;
   for (const report of sorted) {
     const time = Date.parse(report.at);
     const key = report.session ? 'session:' + report.session : 'model:' + report.model;
@@ -108,24 +156,43 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     if (run && !report.session && time - run.last > sessionGap) run = undefined;
     const entry = model(report.model);
     entry.reports++;
+    const previous = run?.last ?? null;
     if (!run) {
       run = { last: time, tokens: null, id: report.session ? 'session:' + report.session : '#run-' + ++anonymous };
       runs.set(key, run);
-    } else if (time - run.last <= sessionGap) entry.activeMs += time - run.last;
+    }
     entry.sessions.add(run.id);
+    if (report.measured) {
+      measuredReports++;
+      measuredMs += report.measured.agentMs;
+      kinds = added(kinds, { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 });
+      for (const item of report.measured.models) {
+        const used = model(item.model);
+        used.agentMs += item.agentMs;
+        used.tokens += sum(item);
+        used.tokensKnown = true;
+        used.tokenKinds = added(used.tokenKinds, item);
+        used.sessions.add(run.id);
+        kinds = added(kinds, item);
+      }
+    } else if (previous !== null && time - previous <= sessionGap) {
+      estimatedMs += time - previous;
+      entry.agentMs += time - previous;
+    }
     if (report.tokens !== null) {
-      // Tokens are known once a report has a starting point to measure from; a lone report is not a cost.
-      if (run.tokens !== null) { entry.tokens += report.tokens < run.tokens ? report.tokens : report.tokens - run.tokens; entry.tokensReported = true; }
+      // Self-reported tokens are known once a report has a starting point to measure from; a lone
+      // report is not a cost. A measured report's own measurement counts instead.
+      if (run.tokens !== null && !report.measured) { entry.tokens += report.tokens < run.tokens ? report.tokens : report.tokens - run.tokens; entry.tokensKnown = true; }
       run.tokens = report.tokens;
     }
     run.last = time;
   }
-  const models: ModelUsage[] = [...usage.values()].map(entry => ({ model: entry.model, reports: entry.reports, sessions: entry.sessions.size, activeMs: entry.activeMs, tokens: entry.tokensReported ? entry.tokens : null }))
-    .sort((a, b) => b.activeMs - a.activeMs || (b.tokens ?? 0) - (a.tokens ?? 0) || b.reports - a.reports || a.model.localeCompare(b.model));
-  const tokens = models.some(entry => entry.tokens !== null) ? models.reduce((sum, entry) => sum + (entry.tokens ?? 0), 0) : null;
+  const models: ModelUsage[] = [...usage.values()].map(entry => ({ model: entry.model, reports: entry.reports, sessions: entry.sessions.size, agentMs: entry.agentMs, tokens: entry.tokensKnown ? entry.tokens : null, tokenKinds: entry.tokenKinds }))
+    .sort((a, b) => b.agentMs - a.agentMs || (b.tokens ?? 0) - (a.tokens ?? 0) || b.reports - a.reports || a.model.localeCompare(b.model));
+  const tokens = measuredReports || models.some(entry => entry.tokens !== null) ? models.reduce((total, entry) => total + (entry.tokens ?? 0), 0) : null;
   return {
-    reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, tokens,
-    activeMs: models.reduce((sum, entry) => sum + entry.activeMs, 0),
+    reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, tokens, tokenKinds: kinds,
+    agentMs: measuredMs + estimatedMs, measuredMs, estimatedMs, measuredReports,
     firstReport: sorted[0]?.at ?? null, lastReport: sorted.at(-1)?.at ?? null,
   };
 }
