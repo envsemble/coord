@@ -9,12 +9,13 @@ import {
   CHANGE_LABELS,
   cellText,
   decodeIdentity,
-  describePart,
   elementFile,
   fileExists,
   itemChanges,
   memberSignature,
   meaningfulProperties,
+  partChange,
+  partKey,
   rowFor,
 } from "../review/changes";
 
@@ -624,12 +625,21 @@ export function TableSchema({
       .map((c) => c.before),
   ];
   // Foreign keys to tables outside the capture have no relation to show
-  // them: the table lists them itself, with their changes.
-  const sameColumns = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // them: the table lists them itself, with their changes. A key is shown by
+  // a current relation from this table over the same columns to the same
+  // table.
+  const shownByRelation = (key) =>
+    outgoing.some(
+      ({ relation }) =>
+        relation.changeStatus !== "removed" &&
+        JSON.stringify(relation.columns) === JSON.stringify(key.columns) &&
+        (relation.target === key.target ||
+          tables.get(relation.targetId) === key.target),
+    );
   const foreignNote = record?.properties?.find((p) => p.key === "foreignKeys");
   const foreignChanges = new Map(
     (foreignNote ? itemChanges(foreignNote) || [] : []).map((c) => [
-      JSON.stringify((c.after ?? c.before).columns),
+      partKey(c.after ?? c.before),
       c,
     ]),
   );
@@ -637,9 +647,8 @@ export function TableSchema({
     ...(element.foreignKeys || []).filter(
       (key) =>
         Array.isArray(key.columns) &&
-        !outgoing.some(({ relation }) =>
-          sameColumns(relation.columns, key.columns),
-        ),
+        typeof key.target === "string" &&
+        !shownByRelation(key),
     ),
     ...[...foreignChanges.values()]
       .filter((c) => c.status === "removed")
@@ -716,8 +725,8 @@ export function TableSchema({
                     <span className="member-type">
                       {change?.status === "modified" ? (
                         <ChangedValue
-                          before={describePart(change.before)}
-                          after={describePart(change.after)}
+                          before={partChange(change.before, change.after)[0]}
+                          after={partChange(change.before, change.after)[1]}
                         />
                       ) : (
                         `(${key.columns.join(", ")})`
@@ -773,10 +782,10 @@ export function TableSchema({
               </li>
             ))}
             {external.map((key) => {
-              const change = foreignChanges.get(JSON.stringify(key.columns));
+              const change = foreignChanges.get(partKey(key));
               return (
                 <li
-                  key={JSON.stringify(key.columns)}
+                  key={partKey(key)}
                   className="member"
                   data-change={change?.status}
                 >
@@ -789,8 +798,8 @@ export function TableSchema({
                   <code className="signature">
                     {change?.status === "modified" ? (
                       <ChangedValue
-                        before={describePart(change.before)}
-                        after={describePart(change.after)}
+                        before={partChange(change.before, change.after)[0]}
+                        after={partChange(change.before, change.after)[1]}
                       />
                     ) : (
                       <>

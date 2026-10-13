@@ -71,9 +71,11 @@ function assignOwners(diff, ...projects) {
     if (owner.end) change.end = owner.end;
   }
 }
-// A table lists its foreign keys, and those whose target was captured are
-// its relations too, which tell them. Each change keeps only the keys no
-// relation shows; a change left with nothing else to tell is the relations'.
+// A table lists its foreign keys (SQLite as `foreignKeys`, PostgreSQL as
+// constraints of type "f"), and those whose target was captured are its
+// relations too, which tell them. Each change keeps only the keys no relation
+// shows; a change left with nothing else to tell is the relations'.
+const KEY_LISTS = new Set(["foreignKeys", "constraints"]);
 function keepUnshownKeys(diff, ...models) {
   const relations = models
     .flatMap((m) => m.relations)
@@ -82,21 +84,27 @@ function keepUnshownKeys(diff, ...models) {
     models.flatMap((m) => m.classes.map((c) => [c.id, c.name])),
   );
   const shown = (table, key) =>
-    relations.some(
-      (r) =>
-        r.sourceId === table &&
-        JSON.stringify(r.columns) === JSON.stringify(key?.columns) &&
-        (r.target === key.target || names.get(r.targetId) === key.target),
+    !!key &&
+    typeof key === "object" &&
+    relations.some((r) =>
+      r.sourceId !== table
+        ? false
+        : key.type === "f"
+          ? r.name === key.name
+          : Array.isArray(key.columns) &&
+            typeof key.target === "string" &&
+            JSON.stringify(r.columns) === JSON.stringify(key.columns) &&
+            (r.target === key.target || names.get(r.targetId) === key.target),
     );
   const unshown = (table, cell) =>
     cell.present && Array.isArray(cell.value)
       ? { present: true, value: cell.value.filter((k) => !shown(table, k)) }
       : cell;
   diff.changes = diff.changes.filter((change) => {
-    if (change.kind !== "modified") return true;
+    if (change.kind !== "modified" || !change.elementId) return true;
     change.properties = change.properties
       .map((p) =>
-        p.key === "foreignKeys"
+        KEY_LISTS.has(p.key)
           ? {
               ...p,
               before: unshown(change.elementId, p.before),
@@ -106,7 +114,7 @@ function keepUnshownKeys(diff, ...models) {
       )
       .filter(
         (p) =>
-          p.key !== "foreignKeys" ||
+          !KEY_LISTS.has(p.key) ||
           JSON.stringify(p.before) !== JSON.stringify(p.after),
       );
     return change.properties.length > 0;

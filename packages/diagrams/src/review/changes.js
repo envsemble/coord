@@ -136,7 +136,7 @@ export function describePart(item) {
 // exclusion, foreign key and constraint trigger.
 const CHECKS = new Set(["c", "x", "f", "t"]);
 /** A part before and after a change, by what tells them apart. */
-function partChange(before, after) {
+export function partChange(before, after) {
   const was = describePart(before),
     is = describePart(after);
   if (was !== is) return [was, is];
@@ -151,10 +151,12 @@ function partChange(before, after) {
   ];
 }
 // A part keeps its identity by its name; a foreign key by its columns.
-const partKey = (item) =>
+// A part keeps its identity by its name; a foreign key by its columns and
+// the table it refers to.
+export const partKey = (item) =>
   isPart(item)
     ? isForeignKey(item)
-      ? `columns:${JSON.stringify(item.columns)}`
+      ? `key:${JSON.stringify([item.columns, item.target])}`
       : `name:${item.name}`
     : JSON.stringify(item);
 /**
@@ -917,13 +919,15 @@ function summarize(entry, names) {
       note,
     };
   }
+  // A new or removed type: what comes or goes with it, not what moved.
+  const own = members.filter((m) => !m.moved);
   return {
-    text: members
+    text: own
       .slice(0, MAX_TOKENS - 1)
       .map((m) => m.label)
       .join(", "),
     tokens: [],
-    more: Math.max(0, members.length - (MAX_TOKENS - 1)),
+    more: Math.max(0, own.length - (MAX_TOKENS - 1)),
     note,
   };
 }

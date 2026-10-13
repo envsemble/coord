@@ -1462,6 +1462,11 @@ test("a removed type counts only what goes with it, and says what moved", async 
   });
   const html = renderDetails(moved, "campus");
   assert(html.includes("The kind is removed, with its 1 attribute."), html);
+  // Its row in the list names only what goes with it.
+  assert.equal(
+    moved.rollup.rows.find((r) => r.name === "Campus").summary.text,
+    "name",
+  );
   assert(html.includes("code moved to Person."));
   assert(renderDetails(moved, "person").includes("Moved from Campus"));
 });
@@ -1494,5 +1499,114 @@ test("a part of a table reads by its columns, or its statement, and a change hid
   assert.match(
     renderDetails(collated, "orders"),
     /index idx_orders_user<\/span> <del class="change-before">\(user_id\); collations none<\/del>.*<ins class="change-after">\(user_id\); collations NOCASE<\/ins>/,
+  );
+});
+
+test("a table's foreign keys are told once: by the relation that shows them, or by the table", async () => {
+  const relation = (key, extra = {}) => ({
+    id: "orders:fk:user",
+    name: "user_id → id",
+    stereotype: "foreign key",
+    sourceId: "orders",
+    targetId: "users",
+    sourceMultiplicity: "0..*",
+    targetMultiplicity: "1",
+    ...key,
+    ...extra,
+  });
+  const key = {
+    columns: ["user_id"],
+    target: "users",
+    targetColumns: ["id"],
+    onDelete: "NO ACTION",
+    onUpdate: "NO ACTION",
+    match: "SIMPLE",
+  };
+  // Pointed from a captured table at one outside the capture: the relation
+  // goes, and the table's own key to the other table is listed in Keys.
+  const retargeted = await tableProposal(
+    { ...ordersTable(), foreignKeys: [key] },
+    (orders, model) => {
+      orders.foreignKeys = [{ ...key, target: "accounts" }];
+      model.relations = [];
+    },
+    { relations: [relation(key)] },
+  );
+  assert.deepEqual(
+    tokensOf(retargeted.rollup.rows.find((r) => r.name === "orders")),
+    ["added foreign key user_id → accounts(id)"],
+  );
+  const keys = renderDetails(retargeted, "orders").split(">Keys<")[1];
+  assert.match(
+    keys,
+    /data-change="added".*user_id<\/span> <span class="member-type">→ accounts\(id\)/,
+  );
+  // Two keys over the same columns to different tables stay two.
+  const twin = await tableProposal(
+    {
+      ...ordersTable(),
+      foreignKeys: [
+        { ...key, target: "accounts" },
+        { ...key, target: "legacy_users" },
+      ],
+    },
+    (orders) => {
+      orders.foreignKeys = [{ ...key, target: "accounts" }];
+    },
+  );
+  assert.deepEqual(
+    tokensOf(twin.rollup.rows.find((r) => r.name === "orders")),
+    ["removed foreign key user_id → legacy_users(id)"],
+  );
+  // PostgreSQL lists a foreign key as a constraint; its relation tells it.
+  const constraint = {
+    name: "orders_user_id_fkey",
+    type: "f",
+    columns: ["user_id"],
+    definition: "FOREIGN KEY (user_id) REFERENCES users(id)",
+  };
+  const postgres = await tableProposal(
+    { ...ordersTable(), foreignKeys: [], constraints: [] },
+    (orders, model) => {
+      orders.constraints = [constraint];
+      model.relations = [
+        relation(
+          { columns: ["user_id"], targetColumns: ["id"] },
+          {
+            id: "orders:fk:orders_user_id_fkey",
+            name: "orders_user_id_fkey",
+            definition: constraint.definition,
+          },
+        ),
+      ];
+    },
+  );
+  assert.deepEqual(
+    postgres.rollup.rows.map((r) => `${r.kind} ${r.status} ${r.name}`),
+    ["edge added orders → users"],
+  );
+});
+
+test("a key that changes only where its description is silent says how", async () => {
+  const origin = await tableProposal(
+    {
+      ...ordersTable(),
+      keys: [
+        { name: "PRIMARY KEY", columns: ["id"], primary: true },
+        {
+          name: "orders_user_key",
+          columns: ["user_id"],
+          primary: false,
+          origin: "u",
+        },
+      ],
+    },
+    (orders) => {
+      orders.keys[1] = { ...orders.keys[1], origin: "c" };
+    },
+  );
+  assert.match(
+    renderDetails(origin, "orders").split(">Keys<")[1],
+    /<del class="change-before">\(user_id\); origin u<\/del>.*<ins class="change-after">\(user_id\); origin c<\/ins>/,
   );
 });
