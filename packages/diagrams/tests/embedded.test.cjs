@@ -109,8 +109,7 @@ test("A proposal opens its change view in both viewers, with the focus and the r
     model: { id: "proposal", document },
     views: [],
   };
-  // The change view replaces the proposal; the rest travels along, and the
-  // same objects come back for the same payload.
+  // The change view replaces the proposal; the rest travels along.
   const shown = reviewedPayload(payload);
   assert.equal(shown.payload.model, changeView.model);
   assert.equal(shown.payload.views, changeView.views);
@@ -119,7 +118,14 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   assert.equal(shown.review.comparison, comparison);
   assert.equal(shown.review.baselineDate, "Oct 8, 2026");
   assert.equal(shown.provenanceDocument, document);
-  assert.equal(reviewedPayload(payload), shown);
+  // A comparison has one review, also when its payload arrives spread into a
+  // viewer's props, as new objects on every render.
+  assert.equal(reviewedPayload(payload).review, shown.review);
+  assert.equal(reviewedPayload({ ...payload }).review, shown.review);
+  assert.equal(
+    OntoUMLViewer({ ...payload }).props.review,
+    OntoUMLViewer({ ...payload }).props.review,
+  );
   // Both viewers render it directly, with no wrapper to remount when a host
   // switches between a capture and its proposals.
   const panel = AtlasPanel({ payload, focus: target });
@@ -131,6 +137,7 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   assert.equal(viewer.props.review.comparison, comparison);
   assert.equal(viewer.props.focus, target);
   assert.equal(viewer.props.provenanceDocument, document);
+  assert.equal(viewer.props.review, panel.props.review);
   // A capture shows itself.
   const capture = { model: { id: "capture", document }, views: [] };
   assert.deepEqual(reviewedPayload(capture), {
