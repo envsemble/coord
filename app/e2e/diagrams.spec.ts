@@ -209,6 +209,12 @@ test('the details resize from their inner edge, by pointer or keyboard, and keep
     await window.keyboard.press('Shift+ArrowRight');
     const chosen = widest - 48;
     await expect(handle).toHaveAttribute('aria-valuenow', String(chosen));
+    // Keys held with Alt are the window's: Alt+← goes back instead of moving the edge.
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.locator('.diagrams')).toHaveCount(0);
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.locator('.diagrams .node').first()).toBeVisible();
+    await expect(window.locator('.diagrams .inspector.open').getByRole('separator', { name: 'Resize details' })).toHaveAttribute('aria-valuenow', String(chosen));
     // The width is the folder's, as the sidebar's is.
     await window.waitForTimeout(600);
     await close(launched);

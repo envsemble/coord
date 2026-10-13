@@ -5639,6 +5639,7 @@ function useInspectorWidth({
         setDragged(null);
       },
       onKeyDown: (event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
         const step = event.shiftKey ? LARGE_STEP : STEP;
         let next;
         if (event.key === "ArrowLeft") next = current() + step;

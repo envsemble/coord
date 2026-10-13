@@ -102,6 +102,8 @@ export function useInspectorWidth({
         setDragged(null);
       }}
       onKeyDown={(event) => {
+        // Keys held with Alt, Ctrl or ⌘ are the host's, such as going back.
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
         const step = event.shiftKey ? LARGE_STEP : STEP;
         let next;
         if (event.key === "ArrowLeft") next = current() + step;

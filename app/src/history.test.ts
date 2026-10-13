@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canGoBack, canGoForward, historyLimit, keyStep, record, sameTarget, shownTarget, showTarget, startHistory, step, type History } from './history.ts';
+import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, sameTarget, shownTarget, showTarget, startHistory, step, type History } from './history.ts';
 import { fileTarget, viewTarget, workTarget } from './targets.ts';
 import type { UiState } from './types.ts';
 
@@ -15,7 +15,8 @@ test('each new thing shown follows the current entry; the same thing again adds 
   history = record(history, plan);
   history = record(history, workTarget('work-0001', 'plan', { diagram: null, anchor: null }));
   history = record(history, ledger);
-  assert.deepEqual(history, { entries: [work, plan, ledger], index: 2 });
+  assert.deepEqual(history, { entries: [work, plan, ledger], ids: [0, 1, 2], index: 2, next: 3 });
+  assert.equal(currentEntry(history), 2);
   assert.equal(canGoBack(history), true);
   assert.equal(canGoForward(history), false);
   // A heading or a diagram is a place of its own.
@@ -25,7 +26,7 @@ test('each new thing shown follows the current entry; the same thing again adds 
 });
 
 test('going back and forward moves through the entries; showing something new drops what was ahead', () => {
-  let history: History = { entries: [work, plan, ledger], index: 2 };
+  let history: History = { entries: [work, plan, ledger], ids: [0, 1, 2], index: 2, next: 3 };
   const back = step(history, -1)!;
   assert.deepEqual(back.target, plan);
   history = step(back.history, -1)!.history;
@@ -37,7 +38,8 @@ test('going back and forward moves through the entries; showing something new dr
   // Recording what an entry already shows (the step itself) changes nothing.
   assert.equal(record(history, plan), history);
   history = record(history, notes);
-  assert.deepEqual(history, { entries: [work, plan, notes], index: 2 });
+  // The new entry has an id of its own, never the dropped entry's.
+  assert.deepEqual(history, { entries: [work, plan, notes], ids: [0, 1, 3], index: 2, next: 4 });
   assert.equal(step(history, 1), null);
 });
 
@@ -48,6 +50,8 @@ test('the history keeps its latest entries', () => {
   assert.equal(history.index, historyLimit - 1);
   assert.deepEqual(history.entries.at(-1), fileTarget(`file-${historyLimit + 9}.md`));
   assert.deepEqual(history.entries[0], fileTarget('file-10.md'));
+  assert.equal(history.ids.length, historyLimit);
+  assert.equal(currentEntry(history), historyLimit + 10);
 });
 
 const ui = (tabs: UiState['tabs'], page: UiState['page'] = 'work'): UiState => ({ sidebar: { visible: true, width: 280, expanded: [] }, tabs, page });

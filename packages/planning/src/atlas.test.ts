@@ -380,17 +380,19 @@ test('a member that cannot be drawn is served alone, and the rest of its family 
   }
 });
 
-test('the catalog reads a model again only once its file changes', async () => {
+test('the catalog reads a model again only once its file or its revision\'s record changes', async () => {
   const { root, folder, snapshot, workspace } = conceptualFolder('atlas-reads-');
   const prototype = Object.getPrototypeOf(workspace) as { load: typeof workspace.load };
   const originalLoad = prototype.load;
   try {
     const [refunds, credits] = conceptualProposals('work-1');
     for (const document of [refunds, credits]) workspace.save(document);
-    // Files written a while ago, whose times tell any later write apart.
-    const models = path.join(folder, '.atlas/models');
+    // Files written a while ago, whose times tell any later write apart: the models and the records
+    // of their revisions.
+    const models = path.join(folder, '.atlas/models'), histories = path.join(folder, '.atlas/history');
     const past = new Date(Date.now() - 60_000);
     for (const name of readdirSync(models)) utimesSync(path.join(models, name), past, past);
+    for (const handle of readdirSync(histories)) for (const name of readdirSync(path.join(histories, handle))) utimesSync(path.join(histories, handle, name), past, past);
     let reads = 0;
     prototype.load = function(handle: string) { reads++; return originalLoad.call(this, handle); };
     const catalog = new AtlasCatalog(root);
@@ -408,6 +410,17 @@ test('the catalog reads a model again only once its file changes', async () => {
     const revised = await catalog.prepared(snapshot, 'work-1', first);
     assert.equal(reads, 1);
     assert.equal(revised.siblings![0].payload.model.title, changed.title + ', revised');
+    // A model whose revision's record is gone is read again, and refused as loading refuses it.
+    for (const handle of readdirSync(models).map(name => name.replace(/\.json$/, ''))) {
+      for (const name of readdirSync(path.join(histories, handle))) utimesSync(path.join(histories, handle, name), past, past);
+      for (const name of readdirSync(models)) utimesSync(path.join(models, name), past, past);
+    }
+    catalog.list(snapshot, 'work-1');
+    reads = 0;
+    rmSync(path.join(histories, first), { recursive: true, force: true });
+    const listed = catalog.list(snapshot, 'work-1');
+    assert.ok(reads >= 1);
+    assert.ok(listed.invalidHandles.includes(first));
   } finally {
     prototype.load = originalLoad;
     rmSync(root, { recursive: true, force: true });

@@ -6,12 +6,16 @@ import { openTab } from './tabs';
 import { viewTarget } from './targets';
 import type { Target, UiState } from './types';
 
-export interface History { entries: Target[]; index: number }
+/** The entries, which is current, and an id for each (so each can keep where it was left). */
+export interface History { entries: Target[]; ids: number[]; index: number; next: number }
 
 /** How many entries a window keeps; the oldest go first. */
 export const historyLimit = 50;
 
-export const startHistory = (target: Target): History => ({ entries: [target], index: 0 });
+export const startHistory = (target: Target): History => ({ entries: [target], ids: [0], index: 0, next: 1 });
+
+/** The current entry's id. */
+export const currentEntry = (history: History) => history.ids[history.index];
 
 const parts = (target: Target) => target.kind === 'view' ? [target.view]
   : target.kind === 'work' ? [target.work, target.section ?? null, target.diagram ?? null, target.element ?? null, target.anchor ?? null]
@@ -23,7 +27,8 @@ export const sameTarget = (a: Target, b: Target) => a.kind === b.kind && JSON.st
 export function record(history: History, target: Target): History {
   if (sameTarget(history.entries[history.index], target)) return history;
   const entries = [...history.entries.slice(0, history.index + 1), target].slice(-historyLimit);
-  return { entries, index: entries.length - 1 };
+  const ids = [...history.ids.slice(0, history.index + 1), history.next].slice(-historyLimit);
+  return { entries, ids, index: entries.length - 1, next: history.next + 1 };
 }
 
 export const canGoBack = (history: History) => history.index > 0;

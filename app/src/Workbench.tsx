@@ -11,7 +11,7 @@ import type { Issue, Snapshot, Target, UiState, ViewName, WindowInfo, Work } fro
 import { api, AtlasError } from './api';
 import { activateTab, closeTab, openTab, pinTab, retarget as retargetTab } from './tabs';
 import { scrollKey, viewLabels, viewTarget, workTarget } from './targets';
-import { canGoBack, canGoForward, keyStep, record, sameTarget, shownTarget, showTarget, startHistory, step } from './history';
+import { canGoBack, canGoForward, currentEntry, keyStep, record, sameTarget, shownTarget, showTarget, startHistory, step } from './history';
 import { workStatus } from './status';
 import { workNumber } from './format';
 import { StatusIcon } from './ui';
@@ -74,6 +74,8 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
   const toast = useToast();
   const page = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef(new Map<string, number>());
+  // Where each entry of the history was left, by the entry's id.
+  const entryPositions = useRef(new Map<number, number>());
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
   // When the mouse's back or forward button last went down on an open menu or dialog, which it closes.
   const closingPress = useRef(0);
@@ -120,12 +122,17 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
   }, [node?.id]);
 
   const scrolled = scrollKey(resolveTarget(shown, snapshot));
-  const anchored = shown.kind !== 'view' && Boolean(shown.anchor);
+  // An entry shown again (a step back or forward) is where it was left, not at its heading again.
+  const revisit = entryPositions.current.has(currentEntry(history));
+  const anchored = shown.kind !== 'view' && Boolean(shown.anchor) && !revisit;
+  const placed: Target = shown.kind !== 'view' && shown.anchor && revisit ? { ...shown, anchor: null } : shown;
   // Forget the positions of what no open tab, page or step back or forward shows.
   useEffect(() => {
     const kept = new Set([...ui.tabs.items.map(tab => scrollKey(resolveTarget(tab.target, snapshot))), ...viewNames.map(view => scrollKey(viewTarget(view))), ...history.entries.map(scrollKey)]);
     for (const key of [...scrollPositions.current.keys()]) if (!kept.has(key)) scrollPositions.current.delete(key);
-  }, [ui.tabs.items, history.entries, snapshot]);
+    const entries = new Set(history.ids);
+    for (const id of [...entryPositions.current.keys()]) if (!entries.has(id)) entryPositions.current.delete(id);
+  }, [ui.tabs.items, history.entries, history.ids, snapshot]);
 
   const exportWork = useCallback(async (work: Work) => {
     try {
@@ -286,10 +293,10 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
         </Notice>}
         {info.notice && <Notice className="folder-error" tone="info">{info.notice}</Notice>}
         <div ref={page} className="workbench-page">
-          <Shown key={active?.id ?? 'page:' + ui.page} target={shown} snapshot={snapshot} repository={repository} setRepository={setRepository}
+          <Shown key={active?.id ?? 'page:' + ui.page} target={placed} snapshot={snapshot} repository={repository} setRepository={setRepository}
             work={{ location, setLocation, search: workSearch, setSearch: setWorkSearch }} />
         </div>
-        <ScrollMemory shown={active?.id ?? 'page:' + ui.page} scrollKey={scrolled} anchored={anchored} content={page} positions={scrollPositions} />
+        <ScrollMemory shown={active?.id ?? 'page:' + ui.page} scrollKey={scrolled} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
       </div>
     </AppShell>
     {quickOpen && <QuickOpen snapshot={snapshot} mode={quickOpen.mode} placeholder={quickOpen.placeholder} onPick={quickOpen.onPick} onClose={() => setQuickOpen(null)} />}
@@ -316,27 +323,33 @@ function describeTab(target: Target, snapshot: Snapshot): Omit<DocumentTab, 'id'
 
 /**
  * Keep the scroll position of what each tab or page shows (its view, work section or file) while
- * switching; a tab that moves to another section or file starts at the top, and one opened at a
- * heading leaves the scrolling to the reader. A document loads again after the switch, so a saved
- * position is reapplied as the content grows, until the user scrolls or three seconds pass, and
- * nothing is saved meanwhile. The shell's content area scrolls, below the title bar and the sticky
- * tabs.
+ * switching, where it was last read; a tab that moves to another section or file starts at the top,
+ * and one opened at a heading leaves the scrolling to the reader. A step back or forward finds its
+ * entry where it was left instead. A document loads again after the switch, so a saved position is
+ * reapplied as the content grows, until the user scrolls or three seconds pass, and nothing is saved
+ * meanwhile. The shell's content area scrolls, below the title bar and the sticky tabs.
  */
-function ScrollMemory({ shown, scrollKey: key, anchored, content: contentRef, positions }: {
-  shown: string; scrollKey: string; anchored: boolean; content: RefObject<HTMLDivElement | null>; positions: RefObject<Map<string, number>>;
+function ScrollMemory({ shown, scrollKey: key, anchored, entry, content: contentRef, positions, entryPositions }: {
+  shown: string; scrollKey: string; anchored: boolean; entry: number; content: RefObject<HTMLDivElement | null>;
+  positions: RefObject<Map<string, number>>; entryPositions: RefObject<Map<number, number>>;
 }) {
   const { getScrollElement } = useAppShell();
   useLayoutEffect(() => {
     const element = getScrollElement();
     if (!element) return;
-    const target = anchored ? null : positions.current.get(key) ?? 0;
+    // An entry shown before (a step back or forward) is where it was left; anything else where its
+    // document was last read, or at its heading.
+    const target = entryPositions.current.get(entry) ?? (anchored ? null : positions.current.get(key) ?? 0);
     if (target !== null) element.scrollTop = target;
     let restoring = Boolean(target);
     let placed = element.scrollTop;
+    // Where this entry is, kept for coming back to it; a scroll event, unlike the cleanup, still
+    // reads this entry's content.
+    let left = element.scrollTop;
     // The browser's scroll anchoring would move the page as it grows; the restore places it instead.
     if (restoring) element.style.overflowAnchor = 'none';
     const content = contentRef.current;
-    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) { element.scrollTop = target!; placed = element.scrollTop; } }) : null;
+    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) { element.scrollTop = target!; placed = left = element.scrollTop; } }) : null;
     const stop = () => { if (restoring) element.style.overflowAnchor = ''; restoring = false; observer?.disconnect(); };
     if (observer && content) observer.observe(content);
     const timer = window.setTimeout(stop, 3000);
@@ -344,7 +357,7 @@ function ScrollMemory({ shown, scrollKey: key, anchored, content: contentRef, po
       // The reader scrolled (also with keys pressed outside the page): the page left where the restore
       // put it, also as far as the content allows now.
       if (restoring && Math.abs(element.scrollTop - placed) > 1 && Math.abs(element.scrollTop - Math.min(placed, element.scrollHeight - element.clientHeight)) > 1) stop();
-      if (!restoring) positions.current.set(key, element.scrollTop);
+      if (!restoring) { positions.current.set(key, element.scrollTop); left = element.scrollTop; }
     };
     // The document's scrolling reaches the window; an element's, the element.
     const scroller: EventTarget = element === document.scrollingElement ? window : element;
@@ -363,8 +376,9 @@ function ScrollMemory({ shown, scrollKey: key, anchored, content: contentRef, po
       window.clearTimeout(timer);
       for (const name of inputs) window.removeEventListener(name, interrupt, { capture: true });
       scroller.removeEventListener('scroll', remember);
+      entryPositions.current.set(entry, left);
     };
-  }, [shown, key, getScrollElement]);
+  }, [shown, key, entry, getScrollElement]);
   return null;
 }
 

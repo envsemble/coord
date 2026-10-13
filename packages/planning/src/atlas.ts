@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import atlas, { type AtlasDocument, type ViewerPayload } from '@envsemble/atlas-diagrams';
@@ -132,7 +133,7 @@ export class AtlasCatalog {
   private families = new Map<string, Promise<Map<string, ViewerPayload>>>();
   private owners = new Map<string, string | undefined>();
   /** Models read before, by file, with the file's size and time and when it was read. */
-  private documents = new Map<string, { size: number; mtime: number; read: number; document: AtlasDocument }>();
+  private documents = new Map<string, { size: number; mtime: number; history: string; historySize: number; historyMtime: number; read: number; document: AtlasDocument }>();
   readonly planningRoot: string;
   constructor(planningRoot: string) { this.planningRoot = planningRoot; }
 
@@ -172,13 +173,20 @@ export class AtlasCatalog {
     const { size, mtimeMs: mtime } = statSync(path.join(location.directory, handle + '.json'));
     const known = this.documents.get(key);
     this.documents.delete(key);
-    if (known && known.size === size && known.mtime === mtime && mtime < known.read - settleMs) {
+    // A model is read again when its file or the history record of its revision (which loading
+    // checks it against) changed, or was written too recently for its time to tell.
+    const history = known && statSync(known.history, { throwIfNoEntry: false });
+    if (known && history && known.size === size && known.mtime === mtime && mtime < known.read - settleMs
+      && known.historySize === history.size && known.historyMtime === history.mtimeMs && history.mtimeMs < known.read - settleMs) {
       this.documents.set(key, known);
       return known.document;
     }
     const read = Date.now();
     const document = createWorkspace(location.root).load(handle);
-    this.documents.set(key, { size, mtime, read, document });
+    // The workspace keeps each revision at .atlas/history/<handle>/<sha-256 of the revision id as JSON>.json.
+    const historyFile = path.join(location.root, '.atlas', 'history', handle, createHash('sha256').update(JSON.stringify(document.revision.id)).digest('hex') + '.json');
+    const recorded = statSync(historyFile, { throwIfNoEntry: false });
+    this.documents.set(key, { size, mtime, history: historyFile, historySize: recorded?.size ?? -1, historyMtime: recorded?.mtimeMs ?? -1, read, document });
     if (this.documents.size > 32) this.documents.delete(this.documents.keys().next().value!);
     return document;
   }

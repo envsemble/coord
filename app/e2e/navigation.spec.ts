@@ -216,6 +216,36 @@ test('going back finds a document where it was before a jump to one of its headi
   await expect.poll(async () => Math.abs(await settledScroll(window) - before)).toBeLessThan(2);
 });
 
+test('a document reached at a heading and read on keeps the reading place across a section switch, and each step back its own', async () => {
+  writeFileSync(path.join(folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').click();
+  await window.getByRole('link', { name: 'the current checkout' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  const atHeading = await settledScroll(window);
+  // Read on from the heading, then look at the ledger and come back to the plan.
+  await window.locator('.work-main').hover();
+  for (let index = 0; index < 3; index++) await window.mouse.wheel(0, 700);
+  const reading = await settledScroll(window);
+  expect(reading - atHeading).toBeGreaterThan(300);
+  await sections(window).filter({ hasText: 'Ledger' }).click();
+  await expect(section(window)).toContainText('Ledger');
+  await sections(window).filter({ hasText: 'Plan' }).click();
+  await expect(section(window)).toContainText('Plan');
+  await expect.poll(async () => Math.abs(await settledScroll(window) - reading)).toBeLessThan(2);
+  // Back to the ledger, then to the plan where it was left before the ledger.
+  await window.locator('body').press('Alt+ArrowLeft');
+  await expect(section(window)).toContainText('Ledger');
+  await window.locator('body').press('Alt+ArrowLeft');
+  await expect(section(window)).toContainText('Plan');
+  await expect.poll(async () => Math.abs(await settledScroll(window) - reading)).toBeLessThan(2);
+});
+
 test('the mouse buttons close an open menu without going back, and one press goes one step however it arrives', async () => {
   launched = await launch({ folder });
   const { window, app } = launched;
