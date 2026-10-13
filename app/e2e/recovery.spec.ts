@@ -16,7 +16,7 @@ test('a crashed window reloads with its tabs', async () => {
   await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
   await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
   await window.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(3);
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(2);
   await window.waitForTimeout(600);
   // End the renderer process as a crash would. (forcefullyCrashRenderer() on Linux leaves a sandboxed
   // renderer stuck in its crash handler, so the process never ends.)
@@ -25,11 +25,11 @@ test('a crashed window reloads with its tabs', async () => {
   const tabs = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(
     "[...document.querySelectorAll('[role=tablist][aria-label=\"Open tabs\"] [role=tab]')].map(tab => (tab.getAttribute('aria-selected') === 'true' ? '*' : '') + tab.textContent).join('|')").catch(() => ''));
   let restored = '';
-  for (let attempt = 0; attempt < 40 && restored !== 'Work|Saved payment methods|*inventory-schema.md'; attempt++) {
+  for (let attempt = 0; attempt < 40 && restored !== 'Saved payment methods|*inventory-schema.md'; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 500));
     restored = await tabs();
   }
-  expect(restored).toBe('Work|Saved payment methods|*inventory-schema.md');
+  expect(restored).toBe('Saved payment methods|*inventory-schema.md');
   const log = readFileSync(path.join(launched.dataDirectory, 'logs', 'atlas.log'), 'utf8');
   expect(log).toContain('Window renderer gone');
 });
@@ -79,14 +79,14 @@ test('Locate… points the window at the folder’s new location and keeps its t
   await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
   await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
   await window.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(2);
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(1);
   await window.waitForTimeout(600);
   const moved = path.join(path.dirname(folder), 'relocated');
   renameSync(folder, moved);
   await expect(window.getByRole('button', { name: 'Locate…' })).toBeVisible();
   await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as typeof dialog.showOpenDialog; }, moved);
   await window.getByRole('button', { name: 'Locate…' }).click();
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(2);
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(1);
   await expect(window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]')).toContainText('inventory-schema.md');
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()))).toEqual(['relocated — Atlas']);
   folder = moved;

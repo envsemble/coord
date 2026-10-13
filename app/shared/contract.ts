@@ -34,8 +34,15 @@ export type EventChannel = typeof eventChannels[number];
 export const themePreferences = ['system', 'light', 'dark'] as const;
 export type ThemePreference = typeof themePreferences[number];
 
-/** Commands the renderer may ask main to run; each one acts on the calling window only. */
-export const appCommands = ['newWindow', 'locate', 'closeWindow', 'openLogs', 'about'] as const;
+/**
+ * Commands the renderer may ask main to run, from the title bar's menus among others; each one acts
+ * on the calling window only (New Window and Exit act on the app).
+ */
+export const appCommands = [
+  'newWindow', 'locate', 'closeFolder', 'closeWindow', 'quit', 'openLogs', 'about',
+  'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
+  'zoomIn', 'zoomOut', 'resetZoom', 'toggleFullScreen', 'reload', 'toggleDevTools',
+] as const;
 export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, tabs, dialogs drawn in the window). */
@@ -75,6 +82,8 @@ export interface WindowInfo {
   computer: ComputerRef;
   /** Set when the folder is on another computer. */
   remote: { hostId: string; hostName: string } | null;
+  /** Whether View offers Reload and the developer tools (unpackaged builds). */
+  devTools: boolean;
 }
 /** `notice`: the folder is readable but cannot be watched, or its computer is not reachable right now. */
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
@@ -93,11 +102,17 @@ export type Target =
   | { kind: 'work'; work: string; section?: WorkSection | null; diagram?: string | null; element?: string | null; anchor?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
 export interface TabState { id: string; target: Target; preview: boolean }
+/**
+ * A window's layout for its folder. Tabs hold documents (work items and files); the views (Work,
+ * Activity and Statistics) are pages of their own, and `page` shows while no tab is active.
+ */
 export interface UiState {
   sidebar: { visible: boolean; width: number; expanded: string[] };
   tabs: { items: TabState[]; active: string | null };
+  page: ViewName;
 }
-export const defaultUiState: UiState = { sidebar: { visible: true, width: 280, expanded: [] }, tabs: { items: [], active: null } };
+export const viewNames = ['work', 'activity', 'statistics'] as const satisfies readonly ViewName[];
+export const defaultUiState: UiState = { sidebar: { visible: true, width: 280, expanded: [] }, tabs: { items: [], active: null }, page: 'work' };
 export const limits = { path: 2048, tabs: 40, expanded: 2000, sidebarMin: 170, sidebarMax: 640 } as const;
 
 export interface ExportResult { path: string; bytes: number; warnings: string[] }

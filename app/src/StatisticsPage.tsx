@@ -162,8 +162,8 @@ function DocumentUse({ snapshot, repository }: { snapshot: Snapshot; repository:
     <div className="section-toolbar">
       <Text as="h2" variant="section-heading">Document use</Text>
       <SegmentedControl aria-label="Usage source" size="compact" value={source} onValueChange={setSource} options={[{ value: 'agent', label: 'Agent reports' }, { value: 'views', label: 'Views in Atlas' }]} />
-      <Select aria-label="Document category" value={kind} onValueChange={value => setKind(value ?? 'meaningful')} options={[{ value: 'meaningful', label: 'Work & knowledge' }, { value: 'knowledge', label: 'Knowledge only' }, { value: 'all', label: 'All documents' }]} />
-      <Select aria-label="Usage order" value={order} onValueChange={value => setOrder(value ?? 'most')} options={[{ value: 'most', label: 'Most used' }, { value: 'least', label: 'Least used' }]} />
+      <Select density="compact" aria-label="Document category" value={kind} onValueChange={value => setKind(value ?? 'meaningful')} options={[{ value: 'meaningful', label: 'Work & knowledge' }, { value: 'knowledge', label: 'Knowledge only' }, { value: 'all', label: 'All documents' }]} />
+      <Select density="compact" aria-label="Usage order" value={order} onValueChange={value => setOrder(value ?? 'most')} options={[{ value: 'most', label: 'Most used' }, { value: 'least', label: 'Least used' }]} />
     </div>
     {rows.length ? <>
       <Table className="usage-table" aria-label="Document use">

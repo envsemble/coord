@@ -1,12 +1,13 @@
-// The window for one planning folder: envUI's application shell with the views and the folder's
-// files in the sidebar, and the open documents as tabs above the page.
+// The window for one planning folder: envUI's application shell with its top bar as the window's
+// title bar (menus, the computer, search and the window buttons), the pages and the folder's files in
+// the sidebar, and the open documents as tabs above the page.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppShell, Button, Counter, DocumentTabs, IconButton, Kbd, Menu, MenuItem, MenuSeparator, NavigationItem, Notice, Popover, useToast, type DocumentTab } from '@envsemble/envui';
+import { AppShell, Button, Counter, DocumentTabs, Kbd, NavigationItem, Notice, Popover, useToast, type DocumentTab } from '@envsemble/envui';
 import { ThemeMenu } from './ThemeMenu';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
-import { ActivityIcon, DevicesIcon, DownloadIcon, FileIcon, FolderIcon, MoreIcon, SearchIcon, StatisticsIcon, UploadIcon, WarningIcon, WorkIcon } from './icons';
-import { limits, type ImportPreview, type MenuCommand } from '../shared/contract';
-import type { Issue, Snapshot, Target, UiState, ViewName, WindowInfo, Work } from './types';
+import { ActivityIcon, FileIcon, SearchIcon, StatisticsIcon, WarningIcon, WorkIcon } from './icons';
+import { limits, viewNames, type ImportPreview, type MenuCommand } from '../shared/contract';
+import type { ComputerFolder, Issue, Snapshot, Target, UiState, ViewName, WindowInfo, Work } from './types';
 import { api, AtlasError } from './api';
 import { activateTab, closeTab, openTab, pinTab, retarget as retargetTab } from './tabs';
 import { scrollKey, viewLabels, viewTarget, workTarget } from './targets';
@@ -20,8 +21,8 @@ import { WorkList } from './WorkList';
 import { FileView, WorkPage, workSection } from './WorkPage';
 import { Activity } from './Views';
 import { Statistics } from './StatisticsPage';
-import { ComputerMenu, openFolderOn, useAppActions } from './Computers';
 import { Gone } from './Pages';
+import { modifierKey, TitleBarStart, type WorkbenchMenus } from './AppMenu';
 import { useWorkbench, WorkbenchContext, type Notify, type OpenOptions, type WorkbenchApi } from './workbenchContext';
 
 const viewIcons: Record<ViewName, ReactNode> = { work: <WorkIcon />, activity: <ActivityIcon />, statistics: <StatisticsIcon /> };
@@ -30,30 +31,48 @@ const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as c
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
 const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+b': 'toggleSidebar', 'ctrl+w': 'closeTab', 'ctrl+shift+e': 'showExplorer' };
 
+/** The folder a window shows, in its computer's folder list: by path here, by its key on another computer. */
+function currentFolder(info: WindowInfo, root: string) {
+  const computer = info.computer;
+  return (folder: ComputerFolder) => computer.hostId === null
+    ? (info.platform === 'win32' || info.platform === 'darwin' ? folder.path.toLowerCase() === root.toLowerCase() : folder.path === root)
+    : root === `atlas-remote:${computer.hostId}/${folder.folderId}`;
+}
+
 export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; snapshot: Snapshot; initialUi: UiState }) {
-  const [ui, setUi] = useState<UiState>(() => initialUi.tabs.items.length ? initialUi : { ...initialUi, tabs: openTab(initialUi.tabs, viewTarget('work'), true) });
+  const [ui, setUi] = useState<UiState>(initialUi);
   const [quickOpen, setQuickOpen] = useState<null | { mode: 'all' | 'work'; placeholder?: string; onPick(target: Target, pin: boolean): void }>(null);
   const [importing, setImporting] = useState<ImportPreview | null>(null);
   const [repository, setRepository] = useState('all');
   const [workSearch, setWorkSearch] = useState('');
   const [location, setLocation] = useState('active');
   const toast = useToast();
-  const actions = useAppActions();
   const page = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef(new Map<string, number>());
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
   const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, variant: toastVariants[tone] }); }, [toast]);
+  const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
 
-  // Persist the sidebar and tabs for this folder (and for crash recovery), debounced.
+  // Persist the sidebar, tabs and page for this folder (and for crash recovery), debounced.
   useEffect(() => {
     const timer = window.setTimeout(() => { api.saveUi(ui).catch(() => undefined); }, 250);
     return () => window.clearTimeout(timer);
   }, [ui]);
 
+  // What the window shows: the active tab's document, or else the page (Work, Activity or Statistics).
   const active = ui.tabs.items.find(tab => tab.id === ui.tabs.active);
+  const shown: Target = active?.target ?? viewTarget(ui.page);
   const setTabs = useCallback((change: (tabs: UiState['tabs']) => UiState['tabs']) => setUi(current => ({ ...current, tabs: change(current.tabs) })), []);
-  const open = useCallback((target: Target, options: OpenOptions = {}) => setTabs(tabs => openTab(tabs, target, options.pin ?? false)), [setTabs]);
-  const retarget = useCallback((target: Target) => setTabs(tabs => tabs.active ? retargetTab(tabs, tabs.active, target) : openTab(tabs, target, true)), [setTabs]);
+  const showPage = useCallback((view: ViewName) => setUi(current => ({ ...current, page: view, tabs: { ...current.tabs, active: null } })), []);
+  // Views are pages: opening one shows it, leaving the tabs as they are.
+  const open = useCallback((target: Target, options: OpenOptions = {}) => {
+    if (target.kind === 'view') showPage(target.view);
+    else setTabs(tabs => openTab(tabs, target, options.pin ?? false));
+  }, [setTabs, showPage]);
+  const retarget = useCallback((target: Target) => {
+    if (target.kind === 'view') showPage(target.view);
+    else setTabs(tabs => tabs.active ? retargetTab(tabs, tabs.active, target) : openTab(tabs, target, true));
+  }, [setTabs, showPage]);
   const setSidebar = useCallback((change: Partial<UiState['sidebar']>) => setUi(current => ({ ...current, sidebar: { ...current.sidebar, ...change } })), []);
 
   // Reveal the active tab's item in the explorer.
@@ -66,16 +85,16 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     });
   }, [node?.id]);
 
-  // Keep the scroll position of what each tab shows (its view, work section or file) while
-  // switching between tabs; a tab that moves to another section or file starts at the top, and
-  // one opened at a heading leaves the scrolling to the reader. A document loads again after the
-  // switch, so a saved position is reapplied as the content grows, until the user scrolls or three
-  // seconds pass, and nothing is saved meanwhile. The window itself scrolls, below the sticky tabs.
-  const scrolled = active ? scrollKey(active.target) : null;
+  // Keep the scroll position of what each tab or page shows (its view, work section or file) while
+  // switching; a tab that moves to another section or file starts at the top, and one opened at a
+  // heading leaves the scrolling to the reader. A document loads again after the switch, so a saved
+  // position is reapplied as the content grows, until the user scrolls or three seconds pass, and
+  // nothing is saved meanwhile. The window itself scrolls, below the sticky tabs.
+  const scrolled = scrollKey(shown);
+  const anchored = shown.kind !== 'view' && Boolean(shown.anchor);
   useLayoutEffect(() => {
     const element = document.scrollingElement;
-    if (!element || !active || !scrolled) return;
-    const anchored = active.target.kind !== 'view' && Boolean(active.target.anchor);
+    if (!element) return;
     const target = anchored ? null : scrollPositions.current.get(scrolled) ?? 0;
     if (target !== null) element.scrollTop = target;
     let restoring = Boolean(target);
@@ -101,11 +120,11 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       for (const name of inputs) window.removeEventListener(name, interrupt, { capture: true });
       window.removeEventListener('scroll', remember);
     };
-  }, [active?.id, scrolled]);
-  // Forget the positions of what no open tab shows.
+  }, [active?.id ?? 'page:' + ui.page, scrolled]);
+  // Forget the positions of what no open tab or page shows.
   useEffect(() => {
-    const shown = new Set(ui.tabs.items.map(tab => scrollKey(tab.target)));
-    for (const key of [...scrollPositions.current.keys()]) if (!shown.has(key)) scrollPositions.current.delete(key);
+    const shownKeys = new Set([...ui.tabs.items.map(tab => scrollKey(tab.target)), ...viewNames.map(view => scrollKey(viewTarget(view)))]);
+    for (const key of [...scrollPositions.current.keys()]) if (!shownKeys.has(key)) scrollPositions.current.delete(key);
   }, [ui.tabs.items]);
 
   const exportWork = useCallback(async (work: Work) => {
@@ -137,13 +156,13 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       case 'showExplorer': setSidebar({ visible: true }); window.setTimeout(() => document.querySelector<HTMLElement>('.explorer-tree [role="tree"], .explorer-tree[role="tree"]')?.focus(), 0); break;
       case 'quickOpen': setQuickOpen({ mode: 'all', onPick: (target, pin) => open(target, { pin }) }); break;
       case 'closeTab': setTabs(tabs => tabs.active ? closeTab(tabs, tabs.active) : tabs); break;
-      case 'openWorkList': open(viewTarget('work'), { pin: true }); break;
-      case 'openActivity': open(viewTarget('activity'), { pin: true }); break;
-      case 'openStatistics': open(viewTarget('statistics'), { pin: true }); break;
+      case 'openWorkList': showPage('work'); break;
+      case 'openActivity': showPage('activity'); break;
+      case 'openStatistics': showPage('statistics'); break;
       case 'importPlan': void startImport(); break;
       case 'exportPlan': chooseExport(); break;
     }
-  }, [ui.sidebar.visible, open, setTabs, setSidebar, startImport, chooseExport]);
+  }, [ui.sidebar.visible, open, setTabs, setSidebar, showPage, startImport, chooseExport]);
 
   // Menu commands from main; ignore one that repeats a shortcut this window just handled.
   useEffect(() => api.onMenu(command => {
@@ -166,50 +185,51 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
 
   const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify, remote: info.remote }), [snapshot, info.revision, open, retarget, notify, info.remote]);
 
+  const root = info.folder?.root ?? '';
+  const menus: WorkbenchMenus = {
+    quickOpen: () => runCommand('quickOpen'),
+    showPage,
+    showExplorer: () => runCommand('showExplorer'),
+    toggleSidebar: () => runCommand('toggleSidebar'),
+    sidebarVisible: ui.sidebar.visible,
+    closeTab: () => runCommand('closeTab'),
+    canCloseTab: Boolean(active),
+    importPlan: () => runCommand('importPlan'),
+    exportPlan: () => runCommand('exportPlan'),
+    isCurrent: currentFolder(info, root),
+    // File › Open Folder… on another computer browses it beside the folder this window shows.
+    near: snapshot.root,
+  };
+
   const tabs: DocumentTab[] = ui.tabs.items.map(tab => ({ id: tab.id, preview: tab.preview, ...describeTab(tab.target, snapshot) }));
-  const activeView = active?.target.kind === 'view' ? active.target.view : null;
   const activeWork = active?.target.kind === 'work' ? snapshot.work.find(work => active.target.kind === 'work' && work.id === active.target.work) : undefined;
   const fills = Boolean(activeWork && active?.target.kind === 'work' && workSection(active.target, activeWork) === 'diagrams');
-  const title = active ? describeTab(active.target, snapshot).label : info.folder?.name ?? 'Atlas';
   const activeCount = snapshot.work.filter(work => work.location === 'active').length;
-  const views: ViewName[] = ['work', 'activity', 'statistics'];
-  const warn = (message: string) => notify(message, 'warning');
 
   return <WorkbenchContext.Provider value={context}>
-    <AppShell className="workbench" brand={<AtlasMark size={24} label="" />} navigationLabel="Atlas"
-      context={<ComputerMenu current={info.computer} onError={warn} />}
-      title={<span className="workbench-title">{title}</span>}
+    <AppShell className="workbench" topbar="full" titleBar brand={<AtlasMark size={20} label="" />} navigationLabel="Atlas"
+      context={<TitleBarStart info={info} workbench={menus} onError={warn} />}
       actions={<>
         <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
         <Health issues={snapshot.issues} />
         <ThemeMenu />
-        <Menu aria-label="More actions" trigger={<IconButton variant="text" icon={<MoreIcon />} aria-label="More actions" />}>
-          <MenuItem icon={<FolderIcon />} shortcut={info.computer.hostId === null ? 'Ctrl+O' : undefined} onClick={() => openFolderOn(info.computer, actions, warn, snapshot.root)}>Open Folder…</MenuItem>
-          <MenuSeparator />
-          <MenuItem icon={<UploadIcon />} onClick={() => void startImport()}>Import Plan…</MenuItem>
-          <MenuItem icon={<DownloadIcon />} onClick={chooseExport}>Export Plan…</MenuItem>
-          <MenuSeparator />
-          <MenuItem icon={<DevicesIcon />} onClick={actions.remoteAccess}>Remote Access…</MenuItem>
-          <MenuItem onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
-        </Menu>
       </>}
       collapsed={!ui.sidebar.visible} onCollapsedChange={collapsed => setSidebar({ visible: !collapsed })}
       resizable sidebarWidth={ui.sidebar.width} sidebarMinWidth={limits.sidebarMin} sidebarMaxWidth={limits.sidebarMax} onSidebarWidthChange={width => setSidebar({ width: Math.round(width) })}
-      navigation={views.map(view => <NavigationItem key={view} icon={viewIcons[view]} selected={activeView === view} onClick={() => open(viewTarget(view), { pin: true })}
+      navigation={viewNames.map(view => <NavigationItem key={view} icon={viewIcons[view]} selected={!active && ui.page === view} onClick={() => showPage(view)}
         trailing={view === 'work' && activeCount > 0 ? <Counter value={activeCount} aria-label={activeCount + ' active work items'} /> : undefined}>{viewLabels[view]}</NavigationItem>)}
-      sidebarContent={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''} root={info.folder?.root ?? ''} computer={info.computer} platform={info.platform}
+      sidebarContent={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''}
         expanded={ui.sidebar.expanded} setExpanded={expanded => setSidebar({ expanded: expanded.slice(-limits.expanded) })} selected={node?.id ?? null} onExportPlan={work => void exportWork(work)} />}>
-      <div className={'workbench-body' + (fills ? ' is-filled' : '')}>
-        <DocumentTabs className="workbench-tabs" items={tabs} value={ui.tabs.active} aria-label="Open tabs"
-          onValueChange={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />
+      <div className={'workbench-body' + (fills ? ' is-filled' : '') + (tabs.length ? ' has-tabs' : '')}>
+        {tabs.length > 0 && <DocumentTabs className="workbench-tabs" items={tabs} value={ui.tabs.active} aria-label="Open tabs"
+          onValueChange={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />}
         {info.error && <Notice className="folder-error" tone="warning" announce title={info.remote ? `Atlas can’t read this planning folder on ${info.remote.hostName} right now.` : 'The planning folder can’t be read right now.'}>
           {info.error} {info.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
         </Notice>}
         {info.notice && <Notice className="folder-error" tone="info">{info.notice}</Notice>}
         <div ref={page} className="workbench-page">
-          {active ? <TabContent key={active.id} target={active.target} snapshot={snapshot} repository={repository} setRepository={setRepository}
+          <Shown key={active?.id ?? 'page:' + ui.page} target={shown} snapshot={snapshot} repository={repository} setRepository={setRepository}
             work={{ location, setLocation, search: workSearch, setSearch: setWorkSearch }} />
-            : <EmptyWorkbench platform={info.platform} onSearch={() => runCommand('quickOpen')} />}
         </div>
       </div>
     </AppShell>
@@ -235,7 +255,8 @@ function describeTab(target: Target, snapshot: Snapshot): Omit<DocumentTab, 'id'
   return { label: target.path.split('/').at(-1) ?? target.path, title: target.path, icon: <FileIcon /> };
 }
 
-function TabContent({ target, snapshot, repository, setRepository, work }: {
+/** The page or document the window shows. */
+function Shown({ target, snapshot, repository, setRepository, work }: {
   target: Target; snapshot: Snapshot; repository: string; setRepository(value: string): void;
   work: { location: string; setLocation(value: string): void; search: string; setSearch(value: string): void };
 }) {
@@ -255,12 +276,10 @@ function TabContent({ target, snapshot, repository, setRepository, work }: {
   return <FileView file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
 }
 
-const key = (platform: string) => platform === 'darwin' ? '⌘' : 'Ctrl';
-
-/** The topbar's search: quick open for work items, files and diagrams. */
+/** The title bar's search: quick open for work items, files and diagrams. */
 function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
   return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
-    <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[key(platform), 'P']} /></span>
+    <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>
   </Button>;
 }
 
@@ -280,14 +299,4 @@ function HealthList({ issues, onOpen }: { issues: Issue[]; onOpen(): void }) {
     <WarningIcon className="health-icon" />
     <span>{issue.workId && <><Button variant="text" underline className="health-link" onClick={() => { onOpen(); open(workTarget(issue.workId!), { pin: true }); }}>{workNumber(issue.workId)}</Button>{' '}</>}{issue.message}</span>
   </li>)}</ul>;
-}
-
-function EmptyWorkbench({ platform, onSearch }: { platform: string; onSearch(): void }) {
-  return <div className="workbench-empty">
-    <dl>
-      <div><dt><Button variant="text" onClick={onSearch}>Search</Button></dt><dd><Kbd keys={[key(platform), 'P']} /></dd></div>
-      <div><dt>Toggle sidebar</dt><dd><Kbd keys={[key(platform), 'B']} /></dd></div>
-      <div><dt>Open folder</dt><dd><Kbd keys={[key(platform), 'O']} /></dd></div>
-    </dl>
-  </div>;
 }

@@ -21,8 +21,65 @@ test('opening a folder from the command line shows its work list in a window nam
   await expect(window.locator('.work-row')).toHaveCount(3);
   await expect(window.locator('.work-row').first()).toContainText('Customer order notifications');
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()))).toEqual(['planning — Atlas']);
-  await expect(activeTab(window)).toHaveText(/Work/);
-  await expect(window.locator('.folder-trigger')).toHaveText(/planning/i);
+  // Work is a page of its own, chosen in the sidebar; tabs are for documents, and none is open yet.
+  await expect(views(window).getByRole('button', { name: /^Work/ })).toHaveAttribute('aria-current', 'page');
+  await expect(tabs(window)).toHaveCount(0);
+  await expect(window.locator('.explorer-title')).toHaveText(/planning/i);
+});
+
+test('the title bar holds the menus, the computer and the actions; the views are pages beside the tabs', async () => {
+  launched = await launch({ folder });
+  const { window } = launched;
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  const menubar = window.getByRole('menubar', { name: 'Application menu' });
+  await expect(menubar.getByRole('menuitem')).toHaveText(['File', 'Edit', 'View', 'Help']);
+  await expect(window.getByRole('button', { name: /^Computer:/ })).toBeVisible();
+  await expect(window.getByRole('button', { name: 'More actions' })).toHaveCount(0);
+  // Empty title bar space moves the window; its controls stay clickable.
+  const regions = await window.evaluate(() => {
+    const region = (element: Element | null) => element ? getComputedStyle(element).getPropertyValue('-webkit-app-region') : null;
+    return { bar: region(document.querySelector('.env-app-topbar')), search: region(document.querySelector('.search-button')) };
+  });
+  expect(regions).toEqual({ bar: 'drag', search: 'no-drag' });
+
+  // File › Open Recent lists this computer's folders, this one checked.
+  await menubar.getByRole('menuitem', { name: 'File' }).click();
+  await window.getByRole('menuitem', { name: 'Open Recent' }).hover();
+  await expect(window.getByRole('menuitemradio', { name: /^planning/ })).toHaveAttribute('aria-checked', 'true');
+  await window.keyboard.press('Escape');
+  await window.keyboard.press('Escape');
+
+  // Opening a document gives it a tab; a view shows over the tabs without one, and the tab comes back.
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
+  await expect(tabs(window)).toHaveCount(1);
+  await expect(activeTab(window)).toContainText('Saved payment methods');
+  await views(window).getByRole('button', { name: 'Activity' }).click();
+  await expect(window.locator('.activity-row')).toHaveCount(1);
+  await expect(tabs(window)).toHaveCount(1);
+  await expect(activeTab(window)).toHaveCount(0);
+  await tabs(window).first().click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  // Closing the last tab shows the page again.
+  await window.keyboard.press('Control+W');
+  await expect(tabs(window)).toHaveCount(0);
+  await expect(window.locator('.activity-row')).toHaveCount(1);
+});
+
+test('File › Close Folder returns the window to the start page', async () => {
+  const dataDirectory = temporaryDirectory('atlas-e2e-data-');
+  dataFolders.push(dataDirectory);
+  launched = await launch({ folder, dataDirectory });
+  const { window, app } = launched;
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  const menubar = window.getByRole('menubar', { name: 'Application menu' });
+  await menubar.getByRole('menuitem', { name: 'File' }).click();
+  await window.getByRole('menuitem', { name: 'Close Folder' }).click();
+  await expect(window.getByRole('heading', { name: 'Atlas', level: 1 })).toBeVisible();
+  await expect(window.locator('.folder-rows')).toContainText('planning');
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()))).toEqual(['Atlas']);
+  // The start page has the title bar too, where Close Folder has nothing to close.
+  await menubar.getByRole('menuitem', { name: 'File' }).click();
+  await expect(window.getByRole('menuitem', { name: 'Close Folder' })).toHaveAttribute('aria-disabled', 'true');
 });
 
 test('the explorer mirrors the folder: work folders show status and title, a Diagrams entry lists models', async () => {
@@ -54,7 +111,7 @@ test('the explorer mirrors the folder: work folders show status and title, a Dia
 
   // A file opens in its own tab, replacing the preview.
   await window.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
-  await expect(tabs(window)).toHaveCount(2);
+  await expect(tabs(window)).toHaveCount(1);
   await expect(previewTabs(window)).toContainText('CONTEXT.md');
   await expect(window.locator('.reader-name')).toContainText('CONTEXT.md');
   await expect(window.locator('.prose h1, .prose h2').first()).toBeVisible();
@@ -70,14 +127,14 @@ test('tabs: single click previews, double click pins, Ctrl+W closes; tabs and si
   await window.locator(row('f:knowledge/shop/inventory-schema.md')).click();
   await expect(previewTabs(window)).toContainText('inventory-schema.md');
   await window.locator(row('f:knowledge/shop/payments-constraints.md')).click();
-  await expect(tabs(window)).toHaveCount(2);
+  await expect(tabs(window)).toHaveCount(1);
   await expect(previewTabs(window)).toContainText('payments-constraints.md');
   await window.locator(row('f:knowledge/shop/payments-constraints.md')).dblclick();
   await expect(previewTabs(window)).toHaveCount(0);
   await window.locator(row('f:knowledge/shop/inventory-schema.md')).click();
-  await expect(tabs(window)).toHaveCount(3);
-  await window.keyboard.press('Control+W');
   await expect(tabs(window)).toHaveCount(2);
+  await window.keyboard.press('Control+W');
+  await expect(tabs(window)).toHaveCount(1);
   await expect(activeTab(window)).toContainText('payments-constraints.md');
 
   // Ctrl+B collapses the sidebar to its icons, hiding the explorer (a pointer over it would expand it
@@ -98,7 +155,7 @@ test('tabs: single click previews, double click pins, Ctrl+W closes; tabs and si
 
   launched = await launch({ dataDirectory });
   window = launched.window;
-  await expect(tabs(window)).toHaveCount(2);
+  await expect(tabs(window)).toHaveCount(1);
   await expect(activeTab(window)).toContainText('payments-constraints.md');
   await expect(window.getByRole('separator', { name: /sidebar/i })).toHaveAttribute('aria-valuenow', '312');
   await expect(window.locator(row('f:knowledge/shop/payments-constraints.md'))).toHaveAttribute('aria-selected', 'true');
@@ -110,7 +167,7 @@ test('a long document scrolls the window below the tabs, and each tab keeps its 
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
-  await expect.poll(() => window.evaluate(() => globalThis.innerHeight)).toBeLessThan(480);
+  await expect.poll(() => window.evaluate(() => globalThis.innerHeight)).toBeLessThanOrEqual(480);
   const sizes = await window.evaluate(() => {
     const page = document.scrollingElement!;
     return {
@@ -129,8 +186,9 @@ test('a long document scrolls the window below the tabs, and each tab keeps its 
   await window.locator('.work-main').hover();
   await window.mouse.wheel(0, 600);
   await expect.poll(scrollTop).toBeGreaterThan(0);
-  // The tabs stay in view under the topbar.
+  // The tabs and the work item's bar stay in view under the title bar.
   await expect(window.getByRole('tablist', { name: 'Open tabs' })).toBeInViewport();
+  await expect(window.getByRole('tablist', { name: 'Work sections' })).toBeInViewport();
   // Wheel scrolling animates: wait until the position settles.
   const settled = async () => {
     let previous = -1;
@@ -144,7 +202,7 @@ test('a long document scrolls the window below the tabs, and each tab keeps its 
   };
   const position = await settled();
 
-  // Switching tabs keeps each tab's scroll position, though the plan loads again after the switch.
+  // Switching to a page and back keeps each tab's scroll position, though the plan loads again after the switch.
   await views(window).getByRole('button', { name: /^Work/ }).click();
   await expect(window.locator('.work-row').first()).toBeVisible();
   await expect.poll(scrollTop).toBe(0);

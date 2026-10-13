@@ -47,7 +47,7 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
       hidden: await bridge.document('active/0001-saved-payment-methods/.atlas/models/m-024410515ef6611f71e02bdc.json'),
       wrongType: await bridge.models(42),
       badHandle: await bridge.model('work-0001', '../../planning.json'),
-      command: await bridge.command('quit'),
+      command: await bridge.command('openFolder'),
       external: await bridge.openExternal('file:///C:/Windows/System32/calc.exe'),
       ok: await bridge.document('README.md').then(value => (value as { ok: boolean }).ok),
     };

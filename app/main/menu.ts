@@ -2,12 +2,16 @@ import { Menu, type MenuItemConstructorOptions } from 'electron';
 import type { ComputerFolder } from '../shared/contract.ts';
 import type { WindowManager } from './windows.ts';
 
-/** How many of this computer's folders File › Open Recent lists; the explorer's folder menu has them all. */
+/** How many of this computer's folders File › Open Recent lists; Manage Folders… has them all. */
 const recentLimit = 10;
 
+/**
+ * The application menu. On macOS it is the system's menu bar; elsewhere windows draw the same menus
+ * in their title bar, and this menu stays hidden, keeping its shortcuts.
+ */
 export function buildMenu(manager: WindowManager, folders: ComputerFolder[], actions: { openLogs(): void; about(): void; devTools: boolean }) {
   const window = () => manager.focused();
-  // This computer's folder list, which its other devices see too; a folder leaves it from the explorer's folder menu.
+  // This computer's folder list, which its other devices see too; a folder leaves it from Manage Folders…
   const recentItems: MenuItemConstructorOptions[] = folders.length
     ? folders.slice(0, recentLimit).map((item): MenuItemConstructorOptions => ({
       label: item.path.replaceAll('&', '&&'),
@@ -24,6 +28,7 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
         { type: 'separator' },
         { label: '&Open Folder…', accelerator: 'CmdOrCtrl+O', click: () => manager.openFolderCommand(window()) },
         { label: 'Open &Recent', id: 'open-recent', submenu: recentItems },
+        { label: 'Close &Folder', click: () => { const target = window(); if (target) manager.closeFolder(target); } },
         { type: 'separator' },
         { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },
         { label: 'Re&mote Access…', click: () => manager.sendMenu('remoteAccess') },

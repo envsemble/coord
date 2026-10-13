@@ -1,10 +1,10 @@
-// Choosing where to work: the computer menu at the top of the window (this computer and the paired
-// ones, like Platform's organization menu), the folder menu above the explorer, and the lists behind
-// them. Choosing in a menu opens in this window; the lists also open a computer or a folder in a new
-// window, and remove folders or forget computers.
+// Choosing where to work: the computer menu in the title bar (this computer and the paired ones,
+// like Platform's organization menu), File › Open Recent, and the lists behind them. Choosing in a
+// menu opens in this window; the lists also open a computer or a folder in a new window, and remove
+// folders or forget computers.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
-  Badge, Button, ConfirmButton, Dialog, EmptyState, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip, useToast,
+  Badge, Button, ConfirmButton, Dialog, EmptyState, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSubmenu, Row, Spinner, Tooltip, useToast,
 } from '@envsemble/envui';
 import { UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
 import { AddIcon, CloseIcon, ComputerIcon, DevicesIcon, FolderIcon, NewWindowIcon } from './icons';
@@ -67,12 +67,12 @@ function switchTo(computer: Computer, current: ComputerRef, newWindow: boolean, 
   api.switchComputer(computer.hostId, newWindow).catch(failure => onError((failure as Error).message));
 }
 
-/** The computer this window works on, in the window's top bar. */
+/** The computer this window works on, in the window's title bar. */
 export function ComputerMenu({ current, onError }: { current: ComputerRef; onError(message: string): void }) {
   const [open, setOpen] = useState(false);
   const { computers } = useComputers(open, onError);
   const actions = useAppActions();
-  return <Menu aria-label={'Computer: ' + current.name} align="start" open={open} onOpenChange={setOpen}
+  return <Menu aria-label={'Computer: ' + current.name} align="start" density="compact" open={open} onOpenChange={setOpen}
     trigger={<Button variant="secondary" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
     <MenuGroup label="Computers">
       {computers === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Checking computers…</MenuItem>
@@ -86,34 +86,35 @@ export function ComputerMenu({ current, onError }: { current: ComputerRef; onErr
     </MenuGroup>
     <MenuSeparator />
     <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
-    <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage computers…</MenuItem>
+    <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage Computers…</MenuItem>
   </Menu>;
 }
 
-/** The folder name above the explorer: this computer's planning folders, opened in this window. */
-export function FolderMenu({ computer, folderName, folderPath, isCurrent, onError }: { computer: ComputerRef; folderName: string; folderPath: string; isCurrent(folder: ComputerFolder): boolean; onError(message: string): void }) {
+/** How many folders File › Open Recent lists; Manage Folders… has them all. */
+const recentLimit = 10;
+
+/**
+ * File › Open Recent: the planning folders of the computer this window works on, the one it shows
+ * checked. They load when the submenu opens.
+ */
+export function RecentFolders({ computer, isCurrent, onError }: { computer: ComputerRef; isCurrent?(folder: ComputerFolder): boolean; onError(message: string): void }) {
   const [open, setOpen] = useState(false);
   const { folders, error } = useComputerFolders(computer.hostId, open);
   const actions = useAppActions();
-  const current = folders?.find(isCurrent);
-  return <Menu aria-label={'Planning folder: ' + folderName} align="start" open={open} onOpenChange={setOpen}
-    trigger={<Button variant="secondary" className="folder-trigger" startIcon={<FolderIcon />} endIcon={<UnfoldMore />} aria-label={'Planning folder: ' + folderName}><span className="folder-trigger-label">{folderName}</span></Button>}>
-    <MenuGroup label={'Planning folders on ' + computer.name}>
-      {folders === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Loading…</MenuItem>
-        : folders.length ? <MenuRadioGroup value={current?.folderId ?? ''} onValueChange={value => {
-          const folder = folders.find(item => item.folderId === value);
-          if (folder) openFolder(computer, folder, false, onError);
-        }}>
-          {folders.map(folder => <MenuRadioItem key={folder.folderId} value={folder.folderId} disabled={!folder.available} description={shortPath(folder.path)}>
-            {folder.name}{!folder.available && <> <Badge tone="warning">Missing</Badge></>}
-          </MenuRadioItem>)}
-        </MenuRadioGroup>
-        : <MenuItem disabled>{error || 'No planning folders yet.'}</MenuItem>}
-    </MenuGroup>
+  const current = isCurrent ? folders?.find(isCurrent) : undefined;
+  const shown = folders?.slice(0, recentLimit) ?? [];
+  return <MenuSubmenu label="Open Recent" onOpenChange={setOpen}>
+    {folders === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Loading…</MenuItem>
+      : shown.length ? <MenuRadioGroup value={current?.folderId ?? ''} onValueChange={value => {
+        const folder = shown.find(item => item.folderId === value);
+        if (folder && folder !== current) openFolder(computer, folder, false, onError);
+      }}>
+        {shown.map(folder => <MenuRadioItem key={folder.folderId} value={folder.folderId} disabled={!folder.available} description={shortPath(folder.path) + (folder.available ? '' : ' · Missing')}>{folder.name}</MenuRadioItem>)}
+      </MenuRadioGroup>
+      : <MenuItem disabled>{error || 'No recent folders'}</MenuItem>}
     <MenuSeparator />
-    <MenuItem icon={<FolderIcon />} onClick={() => openFolderOn(computer, actions, onError, folderPath)}>Open Folder…</MenuItem>
-    <MenuItem onClick={() => actions.manageFolders(computer, isCurrent)}>Manage folders…</MenuItem>
-  </Menu>;
+    <MenuItem onClick={() => actions.manageFolders(computer, isCurrent)}>Manage Folders…</MenuItem>
+  </MenuSubmenu>;
 }
 
 /** A long path as its root, an ellipsis and its last two folders: C:\Dev\…\e2e\fixtures\planning. */
@@ -124,7 +125,7 @@ export function shortPath(path: string, most = 40) {
   return parts.length > 4 ? [...parts.slice(0, 2), '…', ...parts.slice(-3)].join(separator) : path;
 }
 
-function openFolder(computer: ComputerRef, folder: ComputerFolder, newWindow: boolean, onError: (message: string) => void, onOpened?: () => void) {
+export function openFolder(computer: ComputerRef, folder: ComputerFolder, newWindow: boolean, onError: (message: string) => void, onOpened?: () => void) {
   api.openFolder(computer.hostId, folder.path, newWindow).then(() => onOpened?.(), failure => { if ((failure as { code?: string }).code !== 'cancelled') onError((failure as Error).message); });
 }
 
@@ -160,7 +161,7 @@ export function FolderRows({ computer, folders, current, onError, onOpened }: {
   })}</GroupedRows>;
 }
 
-/** Folder menu › Manage folders…: the whole list for one computer. */
+/** File › Open Recent › Manage Folders…: the whole list for one computer. */
 export function FoldersDialog({ computer, isCurrent, onClose }: { computer: ComputerRef; isCurrent?(folder: ComputerFolder): boolean; onClose(): void }) {
   const { folders, error: listError } = useComputerFolders(computer.hostId);
   const [error, setError] = useState('');

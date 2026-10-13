@@ -188,6 +188,8 @@ function start() {
       await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading planning folders.', detail: (error as Error).message + '\n\nDetails are in the log (Help › Open Logs).', buttons: ['OK'] });
     }
     connections.local.start();
+    // The window buttons in each title bar follow the theme.
+    nativeTheme.on('updated', () => { for (const window of manager.all()) window.updateTitleBar(); });
     // After sleep, connections may be dead without either side knowing: try them all again now.
     powerMonitor.on('resume', () => connections.wakeAll());
     const requested = folderArguments(launch.argv, launch.cwd, unpackaged);

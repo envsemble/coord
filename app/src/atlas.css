@@ -16,27 +16,36 @@ body { margin: 0; }
 .status-icon[data-tone='neutral'], .status-text[data-tone='muted'] { color: var(--color-tone-neutral); }
 
 /* A window that is starting, or reading its folder. */
-.page-state { min-block-size: 100dvh; display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
+.page-state { display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
 
-/* The workbench: tabs stick under the topbar; the window scrolls the page below them. */
-.workbench-body { --atlas-tabs-height: 2.75rem; --atlas-sticky-top: calc(var(--topbar-height) + var(--atlas-tabs-height)); min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
+/* The title bar: the logo, the menus and the computer at the start; search, record health and the
+   theme at the end, before the window buttons the system draws. */
+.title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
+.computer-trigger { max-inline-size: 16rem; }
+.window-title-bar { position: sticky; inset-block-start: 0; z-index: 20; background: var(--color-canvas); }
+
+/* The workbench: tabs stick under the title bar; the window scrolls the page below them. */
+.workbench-body { --atlas-tabs-height: 0rem; --atlas-sticky-top: calc(var(--topbar-height) + var(--atlas-tabs-height)); min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
+.workbench-body.has-tabs { --atlas-tabs-height: 2.5rem; }
 .workbench-tabs { position: sticky; inset-block-start: var(--topbar-height); z-index: 10; background: var(--color-canvas); }
 .workbench-body > .folder-error { margin: var(--space-3) var(--space-6) 0; }
 .workbench-page { flex: 1; min-inline-size: 0; padding: var(--space-6) var(--space-7) var(--space-9); }
+/* A work item's bar sits right below the tabs. */
+.workbench-page:has(> .work-page) { padding-block-start: 0; }
 /* The diagrams section fills the window below the tabs, edge to edge. */
 .workbench-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
-.workbench-body.is-filled .workbench-page { display: flex; flex-direction: column; min-block-size: 0; padding: var(--space-4) 0 0; }
+.workbench-body.is-filled .workbench-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
 /* The filled body does not scroll, so its tabs stay where they are instead of sticking. */
 .workbench-body.is-filled .workbench-tabs { position: relative; inset-block-start: auto; }
-.workbench-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-button { min-inline-size: 13rem; justify-content: flex-start; }
 .search-button-label { flex: 1; text-align: start; }
-/* Narrow windows keep the topbar on one line: the search button drops its keys, then its label. */
-@media (max-width: 64rem) {
+/* Narrow windows keep the title bar on one line: the search button drops its keys, then its label. */
+@media (max-width: 72rem) {
   .search-button { min-inline-size: 0; }
   .search-button-keys { display: none; }
 }
-@media (max-width: 52rem) {
+@media (max-width: 60rem) {
   .search-button-label { display: none; }
 }
 .health-button.has-errors { color: var(--color-tone-danger); }
@@ -44,19 +53,12 @@ body { margin: 0; }
 .health-list li { display: flex; gap: var(--space-2); align-items: flex-start; }
 .health-icon { flex: none; margin-block-start: 0.125rem; color: var(--color-tone-warning); }
 .health-list li[data-level='error'] .health-icon { color: var(--color-tone-danger); }
-.workbench-empty { display: grid; place-content: center; min-block-size: 50dvh; color: var(--color-text-muted); }
-.workbench-empty dl { display: grid; gap: var(--space-3); margin: 0; }
-.workbench-empty dl > div { display: grid; grid-template-columns: 10rem auto; align-items: center; gap: var(--space-4); }
-.workbench-empty dt { text-align: end; }
-.workbench-empty dd { margin: 0; }
 
-/* The explorer: the folder menu, then the folder's files filling the rest of the sidebar. */
+/* The explorer: the folder's name, then its files filling the rest of the sidebar. */
 .explorer { display: flex; flex-direction: column; block-size: 100%; min-block-size: 0; }
-.explorer-header { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-3) var(--space-1); }
-.folder-trigger { flex: 1; min-inline-size: 0; }
-.folder-trigger-label, .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
-.folder-trigger-label { font-weight: 600; }
-.computer-trigger { max-inline-size: 100%; }
+.explorer-header { display: flex; align-items: center; gap: var(--space-1); min-block-size: var(--control-height-compact); padding: var(--space-2) var(--space-2) var(--space-1) var(--space-4); }
+.explorer-title { flex: 1; min-inline-size: 0; margin: 0; overflow: hidden; color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; letter-spacing: 0.04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 .explorer-tree { flex: 1; min-block-size: 0; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
 .explorer-diagram { color: var(--color-tone-accent); }
@@ -65,7 +67,8 @@ body { margin: 0; }
 /* Pages in tabs */
 .page { display: grid; gap: var(--space-5); align-content: start; max-inline-size: 76rem; margin-inline: auto; }
 .page-header, .page-heading-row { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
-.page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+/* Page and section toolbars use compact controls, like the title bar and the work bar. */
+.page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
 .section-toolbar > :first-child { margin-inline-end: auto; }
 .work-search { inline-size: min(22rem, 100%); }
 .page-empty { padding-block: var(--space-8); }
@@ -95,12 +98,18 @@ body { margin: 0; }
 .ledger-step-done span { color: var(--color-text-muted); }
 .ledger-step-doing span { font-weight: 600; }
 
-/* Work page */
-.work-page { display: grid; gap: var(--space-4); align-content: start; max-inline-size: 84rem; margin-inline: auto; }
-.work-page-head { display: grid; gap: var(--space-2); }
-.work-header { display: grid; gap: var(--space-3); }
+/* Work page: a bar that keeps the item's place and sections in one spot for every section, sticking
+   below the tabs, then the section. */
+.work-page { --atlas-work-bar-height: 3rem; --atlas-sticky-top: calc(var(--topbar-height) + var(--atlas-tabs-height) + var(--atlas-work-bar-height)); display: grid; align-content: start; }
+.work-bar { position: sticky; inset-block-start: calc(var(--topbar-height) + var(--atlas-tabs-height)); z-index: 9; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-4); min-block-size: var(--atlas-work-bar-height); margin-inline: calc(-1 * var(--space-7)); padding: var(--space-1) var(--space-5) var(--space-1) var(--space-6); border-block-end: 0.0625rem solid var(--color-border-strong); background: var(--color-canvas); --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); }
+.work-bar-place { flex: 1; display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.work-bar-place .breadcrumb { flex: none; }
+.work-bar-title { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; overflow: hidden; font: var(--type-body-small); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.work-bar-title[hidden] { display: none; }
+.work-sections-list { flex: none; }
+.work-header { display: grid; gap: var(--space-3); padding-block-end: var(--space-5); }
 .work-header-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; padding-block-start: var(--space-4); }
+.work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
 .work-main { min-inline-size: 0; }
 .about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: grid; gap: var(--space-6); }
 .about-section { display: grid; gap: var(--space-2); }
@@ -121,11 +130,10 @@ body { margin: 0; }
   .work-layout { grid-template-columns: minmax(0, 1fr); }
   .about { position: static; }
 }
-/* The diagrams section: the header stays, the panel takes the rest of the window. */
-.work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); inline-size: 100%; max-inline-size: none; min-block-size: 0; margin-inline: 0; }
-.work-page.section-diagrams .work-page-head { padding-inline: var(--space-7); }
+/* The diagrams section: the bar stays, the diagrams take the rest of the window. */
+.work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
 .work-page.section-diagrams .work-sections { flex: 1; min-block-size: 0; }
-.work-page.section-diagrams .work-sections-list { margin-inline: var(--space-7); }
+.work-page.section-diagrams .work-bar { position: relative; inset-block-start: auto; margin-inline: 0; }
 
 /* Reader */
 .reader { min-inline-size: 0; }
@@ -150,8 +158,9 @@ body { margin: 0; }
 .element-chip:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
 
 /* The diagrams tab: the canvas fills the panel, edge to edge. */
-.diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; border-block-start: 0.0625rem solid var(--color-border-strong); }
-.diagrams.fullscreen { position: fixed; inset: 0; z-index: 100; min-block-size: 0; border: 0; background: var(--color-canvas); }
+.diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
+/* Full view covers the window below its title bar, which keeps the window buttons and moves the window. */
+.diagrams.fullscreen { position: fixed; inset: var(--topbar-height) 0 0 0; z-index: 100; min-block-size: 0; border: 0; background: var(--color-canvas); }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--space-6); background: var(--color-canvas); }
 .diagrams-state > * { max-inline-size: 30rem; }
@@ -246,15 +255,16 @@ body { margin: 0; }
 .pairing-permission > span { display: grid; }
 .pairing-permission-icon { flex: none; color: var(--color-tone-success); }
 
-/* Welcome and folder problems */
-.welcome { min-block-size: 100dvh; display: grid; justify-items: center; align-content: start; padding: var(--space-9) var(--space-5); }
-.welcome-corner { position: fixed; inset-block-start: var(--space-4); inset-inline-end: var(--space-4); }
+/* Welcome and folder problems, below the window's title bar */
+.window-frame { min-block-size: 100dvh; display: flex; flex-direction: column; }
+.window-frame > :not(.window-title-bar) { flex: 1; }
+.welcome { display: grid; justify-items: center; align-content: start; padding: var(--space-8) var(--space-5) var(--space-9); }
 .welcome-panel { inline-size: min(44rem, 100%); display: grid; gap: var(--space-6); }
 .welcome-brand { display: flex; align-items: center; gap: var(--space-4); }
 .welcome-title { margin: 0; }
 .welcome-start, .welcome-folders { display: grid; gap: var(--space-3); }
 .welcome-version { margin-block-start: var(--space-4); }
-.folder-problem { min-block-size: 100dvh; display: grid; place-items: center; padding: var(--space-6); }
+.folder-problem { display: grid; place-items: center; padding: var(--space-6); }
 .folder-problem-panel { inline-size: min(40rem, 100%); }
 .folder-problem-path, .folder-problem-error { display: block; overflow-wrap: anywhere; }
 .folder-problem-path { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--font-size-body-small); }

@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Badge, Counter, IconButton, MenuItem, MenuSeparator, Tooltip, Tree, type TreeItem } from '@envsemble/envui';
 import { CollapseAllIcon, DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from './icons';
-import type { ComputerFolder, ComputerRef, Snapshot, Target, Work } from './types';
-import { FolderMenu } from './Computers';
+import type { Snapshot, Target, Work } from './types';
 import { api } from './api';
 import { buildIndex, diagramId, diagramsId, fileId, folderId, revealIds, visibleRows, type DiagramState, type ExplorerRow } from './explorerModel';
 import { fileTarget, workTarget } from './targets';
@@ -28,18 +27,13 @@ export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): {
 
 type Row = TreeItem & { row: ExplorerRow };
 
-export function Explorer({ snapshot, folderName, root, computer, platform, expanded, setExpanded, selected, onExportPlan }: {
-  snapshot: Snapshot; folderName: string; root: string; computer: ComputerRef; platform: string; expanded: string[]; setExpanded(next: string[]): void; selected: string | null; onExportPlan(work: Work): void;
+export function Explorer({ snapshot, folderName, expanded, setExpanded, selected, onExportPlan }: {
+  snapshot: Snapshot; folderName: string; expanded: string[]; setExpanded(next: string[]): void; selected: string | null; onExportPlan(work: Work): void;
 }) {
   const { open, revision, notify, remote } = useWorkbench();
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
   const [diagrams, setDiagrams] = useState<Map<string, DiagramState & { revision: number }>>(new Map());
-  // The folder this window shows, in its computer's folder list: by path here, by its key on another computer.
-  const isCurrent = (folder: ComputerFolder) => computer.hostId === null
-    ? (platform === 'win32' || platform === 'darwin' ? folder.path.toLowerCase() === root.toLowerCase() : folder.path === root)
-    : root === `atlas-remote:${computer.hostId}/${folder.folderId}`;
-  const warn = (message: string) => notify(message, 'warning');
 
   // Load the models of each expanded Diagrams entry, and again after the folder changes.
   useEffect(() => {
@@ -90,9 +84,10 @@ export function Explorer({ snapshot, folderName, root, computer, platform, expan
     return <>{entries}{entries && <MenuSeparator />}{collapseAll}</>;
   };
 
+  // The folder's name heads its files; File › Open Recent switches folders.
   return <div className="explorer">
     <div className="explorer-header">
-      <FolderMenu computer={computer} folderName={folderName} folderPath={snapshot.root} isCurrent={isCurrent} onError={warn} />
+      <h2 className="explorer-title" title={remote ? `${folderName} on ${remote.hostName}` : snapshot.root}>{folderName}</h2>
       <Tooltip content="Collapse all folders">
         <IconButton variant="text" icon={<CollapseAllIcon />} aria-label="Collapse all folders" disabled={!expanded.length} onClick={() => setExpanded([])} />
       </Tooltip>

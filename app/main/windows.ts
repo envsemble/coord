@@ -25,6 +25,20 @@ export const baseName = (folder: string) => folder.split(/[\\/]/).filter(Boolean
 /** envUI's canvas colour in the window's theme, shown until the page paints. */
 const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
 
+/** The height of the title bar the window draws itself (envUI's `--title-bar-height`). */
+export const titleBarHeight = 40;
+/**
+ * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
+ * colour. The page reads their area from the window controls overlay's environment variables.
+ */
+export const titleBarOverlay = () => nativeTheme.shouldUseDarkColors
+  ? { color: '#1f1f1f', symbolColor: '#e8eaed', height: titleBarHeight }
+  : { color: '#ffffff', symbolColor: '#202124', height: titleBarHeight };
+/** macOS keeps its traffic lights, centred in the title bar; elsewhere the overlay draws minimize, maximize and close. */
+const titleBar = () => process.platform === 'darwin'
+  ? { titleBarStyle: 'hidden' as const, titleBarOverlay: true, trafficLightPosition: { x: 14, y: 13 } }
+  : { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() };
+
 export interface WindowContext {
   state: StateStore;
   log: RotatingLog;
@@ -78,7 +92,7 @@ export class AtlasWindow {
     this.win = new BrowserWindow({
       ...defaultSize, ...visibleBounds(bounds),
       minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Atlas',
-      icon: context.icon, autoHideMenuBar: false,
+      icon: context.icon, ...titleBar(),
       webPreferences: {
         preload: context.preload, session: this.session,
         contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInWorker: false, nodeIntegrationInSubFrames: false,
@@ -228,6 +242,18 @@ export class AtlasWindow {
     this.load();
   }
 
+  /** File › Close Folder: back to the welcome page of the computer the folder is on. */
+  closeFolder() {
+    if (!this.target) return;
+    this.saveBounds();
+    this.showWelcome(this.computer);
+  }
+
+  /** The window buttons follow the theme (the overlay has no colour of its own on macOS). */
+  updateTitleBar() {
+    if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay());
+  }
+
   /** Point the window at a folder before the host opened it: the renderer shows it loading. */
   private prepare(root: string, name: string, remote: FolderView['remote']) {
     const { context } = this.manager;
@@ -268,7 +294,7 @@ export class AtlasWindow {
       folder: target ? { root: target.root, name: folder?.name ?? target.name } : null,
       // Until the host opened the folder, the window shows it loading.
       status: folder?.status ?? (target ? 'loading' : null), error: folder?.error ?? null, notice: folder?.notice ?? null, revision: folder?.revision ?? this.revisionFloor,
-      version: this.manager.context.version, platform: process.platform, remote: target?.remote ?? null,
+      version: this.manager.context.version, platform: process.platform, remote: target?.remote ?? null, devTools: this.manager.context.devTools,
       computer: { hostId, name: hostId === null ? connections.localName : connections.name(hostId) },
     };
   }
@@ -487,7 +513,14 @@ export class WindowManager {
     return target;
   }
 
-  /** A computer's folder list changed: every window may show it (the explorer's folder menu, the welcome page). */
+  /** File › Close Folder: the window lets its folder go and shows its computer's welcome page. */
+  closeFolder(window: AtlasWindow) {
+    if (!window.root) return;
+    window.closeFolder();
+    this.rememberOpen();
+  }
+
+  /** A computer's folder list changed: every window may show it (the title bar's Open Recent, the welcome page). */
   foldersChanged(hostId: string | null, folders: ComputerFolder[]) {
     for (const window of this.all()) window.send('folders:changed', { hostId, folders });
     if (hostId === null) this.context.onFoldersChanged();

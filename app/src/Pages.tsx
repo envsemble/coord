@@ -21,7 +21,7 @@ export interface RepositoryFilter { repository: string; setRepository(value: str
 export function RepositorySelect({ snapshot, repository, setRepository }: RepositoryFilter & { snapshot: Snapshot }) {
   if (snapshot.repositories.length < 2) return null;
   const count = (id: string) => snapshot.work.filter(work => work.repositories.includes(id)).length;
-  return <Select className="repository-select" aria-label="Repository" value={repository} onValueChange={value => setRepository(value ?? 'all')}
+  return <Select className="repository-select" density="compact" aria-label="Repository" value={repository} onValueChange={value => setRepository(value ?? 'all')}
     options={[{ value: 'all', label: 'All repositories' }, ...snapshot.repositories.map(item => ({ value: item.id, label: `${item.id} (${count(item.id)})` }))]} />;
 }
 

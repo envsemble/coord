@@ -17,8 +17,9 @@ test('identifiers, commands and view events have exact shapes', () => {
   assert.equal(modelHandle('m-024410515ef6611f71e02bdc'), 'm-024410515ef6611f71e02bdc');
   assert.throws(() => modelHandle('m-../../planning.json'));
   assert.equal(command('newWindow'), 'newWindow');
+  assert.equal(command('closeFolder'), 'closeFolder');
   assert.throws(() => command('openFolder'), /must be one of/, 'folders open through their own channels');
-  assert.throws(() => command('quit'));
+  assert.throws(() => command('exit'));
   assert.deepEqual(viewEvent({ id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12', extra: 'dropped' }), { id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12' });
   assert.throws(() => viewEvent({ id: 'x', path: 'README.md', session: 'abcdefgh-2', contentHash: null }));
 });
@@ -39,4 +40,18 @@ test('window state is checked deeply and repaired where it is safe', () => {
   assert.throws(() => uiState({ ...defaultUiState, sidebar: { visible: true, width: 5, expanded: [] } }), /sidebar.width/);
   assert.throws(() => uiState({ ...defaultUiState, tabs: { items: [{ id: 'x', target: { kind: 'file', path: '../secret' }, preview: false }], active: null } }), /path/);
   assert.throws(() => uiState({ ...defaultUiState, tabs: { items: Array.from({ length: 41 }, () => ({ id: 'x', target: { kind: 'view', view: 'work' }, preview: false })), active: null } }), /at most 40/);
+  assert.throws(() => uiState({ ...defaultUiState, page: 'settings' }), /page/);
+});
+
+test('views saved as tabs become pages', () => {
+  const work = { id: 'work:work-0001', target: { kind: 'work', work: 'work-0001' }, preview: false };
+  const activity = { id: 'view:activity', target: { kind: 'view', view: 'activity' }, preview: false };
+  const sidebar = defaultUiState.sidebar;
+  // An active view tab becomes the page; the documents stay as tabs, none active.
+  assert.deepEqual(uiState({ sidebar, tabs: { items: [activity, work], active: 'view:activity' } }), { sidebar, tabs: { items: [work], active: null }, page: 'activity' });
+  // An active document stays active, over the Work page.
+  assert.deepEqual(uiState({ sidebar, tabs: { items: [activity, work], active: 'work:work-0001' } }), { sidebar, tabs: { items: [work], active: 'work:work-0001' }, page: 'work' });
+  // The saved page is kept, with documents open behind it.
+  assert.deepEqual(uiState({ sidebar, tabs: { items: [], active: null }, page: 'statistics' }), { sidebar, tabs: { items: [], active: null }, page: 'statistics' });
+  assert.deepEqual(uiState({ sidebar, tabs: { items: [work], active: null }, page: 'activity' }), { sidebar, tabs: { items: [work], active: null }, page: 'activity' });
 });

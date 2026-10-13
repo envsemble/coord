@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { Button, EmptyState, Kbd, Notice, Surface, Text } from '@envsemble/envui';
-import { ThemeMenu } from './ThemeMenu';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { DevicesIcon, ErrorIcon, FolderIcon } from './icons';
 import type { WindowInfo } from './types';
 import { api } from './api';
-import { ComputerMenu, FolderRows, openFolderOn, useAppActions, useComputerFolders } from './Computers';
+import { FolderRows, openFolderOn, useAppActions, useComputerFolders } from './Computers';
 
-/** A window without a folder: one computer's folder list (this one, or a paired one chosen at the top), and a way to open another folder there. */
+/** A window without a folder: one computer's folder list (this one, or a paired one chosen in the title bar), and a way to open another folder there. */
 export function Welcome({ info }: { info: WindowInfo }) {
   const computer = info.computer;
   const { folders, error: listError } = useComputerFolders(computer.hostId);
@@ -15,13 +14,11 @@ export function Welcome({ info }: { info: WindowInfo }) {
   const actions = useAppActions();
   const here = computer.hostId === null;
   return <main className="welcome">
-    <div className="welcome-corner"><ThemeMenu /></div>
     <div className="welcome-panel">
       <header className="welcome-brand">
         <AtlasMark size={48} label="" />
         <div><Text as="h1" variant="display" className="welcome-title">Atlas</Text><Text tone="muted">Plans, models and shared understanding.</Text></div>
       </header>
-      <div className="welcome-computer"><ComputerMenu current={computer} onError={setError} /></div>
       <section className="welcome-start" aria-label="Start">
         <div className="row-actions">
           <Button variant="primary" startIcon={<FolderIcon />} onClick={() => openFolderOn(computer, actions, setError)}>Open Folder…</Button>
