@@ -3,7 +3,7 @@
 // logs are small synthetic ones written here; the developer's own ~/.claude and ~/.codex are never read.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { harnessSessions, measureSession, sessionLogs, type SessionLogs } from './sessionLog.ts';
@@ -114,6 +114,20 @@ test('one response written as several lines counts once, by its last line; synth
   const result = await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment, home }), -1, 10);
   assert.deepEqual(result.models.map(model => [model.model, model.input, model.cacheRead, model.cacheWrite, model.output]), [['claude-opus-5-5', 10, 100, 10, 80]]);
   assert.equal(minutes(result.agentMs), 4, 'the synthetic message is still the turn at work');
+});
+
+test('a response whose lines straddle a report counts once: it belongs to the moment of its first line', async t => {
+  const { claudeSession, environment, home, config } = folders(t);
+  const second = (seconds: number) => seconds / 60;
+  const big = usage(10, 2000, 500000, 1000);
+  claudeSession([claude.prompt(0), claude.response(second(1), 'msg_main', 'claude-opus-5-5', usage(1, 1))], [[claude.prompt(second(2), { isSidechain: true }), claude.response(second(99), 'msg_helper', 'claude-opus-5-5', big, null)]]);
+  const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
+  const tokens = (result: { models: { input: number; cacheRead: number; cacheWrite: number; output: number }[] }) => result.models.reduce((sum, model) => sum + model.input + model.cacheRead + model.cacheWrite + model.output, 0);
+  // The report at 100 s sees only the response's first line, which already carries its usage.
+  assert.equal(tokens(await measure(logs, 0, second(100), true)), 2 + 503010);
+  // Its second line, written at 101 s, does not make the next report count it again.
+  appendFileSync(path.join(config, 'projects', 'C--work-example', session, 'subagents', 'agent-a0.jsonl'), JSON.stringify(claude.response(second(101), 'msg_helper', 'claude-opus-5-5', big)) + '\n');
+  assert.equal(tokens(await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment, home }), second(100), second(200), true)), 0);
 });
 
 test('waiting for the person inside a turn is not agent time: a question, a plan to approve, a permission prompt', async t => {

@@ -253,7 +253,8 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
  */
 async function claudeTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
-  // One response is written as several lines (one per content block): its last line counts.
+  // One response is written as several lines (one per content block): it belongs to the moment of
+  // its first line, so a report between its lines counts it once, and its latest line has its usage.
   const responses = new Map<string, Spend>();
   for (const log of files) {
     const events: ClaudeEvent[] = [];
@@ -269,8 +270,8 @@ async function claudeTimeline(files: LogFile[], at: number, live: boolean): Prom
       events.push(event);
       const usage = line.message?.usage, model = modelOf(line.message?.model);
       if (line.type !== 'assistant' || !model || !usage || typeof usage !== 'object') continue;
-      const id = line.message?.id;
-      responses.set(typeof id === 'string' ? id : log.file + '#' + number, { at: event.at, model, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
+      const id = line.message?.id, key = typeof id === 'string' ? id : log.file + '#' + number;
+      responses.set(key, { at: Math.min(responses.get(key)?.at ?? event.at, event.at), model, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
     }
     timeline.events += events.length;
     events.sort((a, b) => a.at - b.at);
