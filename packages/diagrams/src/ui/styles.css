@@ -442,8 +442,13 @@ button.change-row[aria-current="true"] {
   gap: var(--space-2);
   min-width: 0;
 }
+.change-back {
+  flex: none;
+  white-space: nowrap;
+}
 .change-stepper {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--space-1);
 }
@@ -847,6 +852,12 @@ button.change-row[aria-current="true"] {
 }
 @container atlas-viewer (max-width: 420px) {
   .provenance-detail {
+    display: none;
+  }
+}
+/* A narrow inspector keeps its change navigation on one row: back becomes an icon. */
+@container atlas-viewer (max-width: 960px) {
+  .change-back-label {
     display: none;
   }
 }

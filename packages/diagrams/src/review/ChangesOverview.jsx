@@ -271,10 +271,11 @@ export function ChangeNavigation({ position, total, handoff, onBack, onStep }) {
         ref={back}
         variant="text"
         className="change-back"
+        aria-label="All changes"
         startIcon={<BackIcon />}
         onClick={onBack}
       >
-        All changes
+        <span className="change-back-label">All changes</span>
       </Button>
       {total > 0 && (
         <span className="change-stepper" role="group" aria-label="Changes">
