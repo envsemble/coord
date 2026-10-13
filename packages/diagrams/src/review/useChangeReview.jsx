@@ -127,7 +127,12 @@ export function useChangeReview({
       <ChangeNavigation
         position={position}
         total={total}
-        name={current?.name}
+        // Two keys between the same tables differ by their names.
+        name={
+          current?.label && current.label !== current.name
+            ? `${current.name}, ${current.label}`
+            : current?.name
+        }
         handoff={handoff}
         onBack={backToOverview}
         onStep={step}

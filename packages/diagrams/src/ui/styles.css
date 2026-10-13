@@ -526,7 +526,7 @@ button.change-row[aria-current="true"] {
 .member[data-change] > .signature {
   color: var(--change-color);
 }
-.member[data-change="removed"] > .signature,
+.member[data-change="removed"] .signature,
 .change-line[data-change="removed"] .signature {
   text-decoration: line-through;
 }

@@ -530,8 +530,9 @@ test("model-level changes are listed under Model; the root's element lists are n
     row.summary.tokens.map((t) => `${t.status}:${t.text}`),
     ["added:Checkout, A payment needs a saved method"],
   );
-  // Nothing on the canvas changed: nothing to step to or count.
-  assert.equal(rollup.count, 0);
+  // Nothing on the canvas changed: nothing to step to, but the change counts.
+  assert.deepEqual(rollup.navigable, []);
+  assert.equal(rollup.count, 1);
   const { ChangesOverview } = loadComponents("src/review/ChangesOverview.jsx");
   const html = renderToStaticMarkup(
     createElement(ChangesOverview, { rollup, profile: "code", onSelect() {} }),
@@ -597,7 +598,7 @@ test("OntoUML proposals group each change under its class or relation, by name",
   assert.equal(rollup.count, 3);
 });
 
-test("a change no view draws is listed, but not stepped to or counted", async () => {
+test("a change no view draws is listed and counted, but not stepped to", async () => {
   const node = (id, name) => ({ id, name, attributes: [] });
   const base = atlas.createDocument({
     id: "split",
@@ -642,7 +643,7 @@ test("a change no view draws is listed, but not stepped to or counted", async ()
     rollup.navigable.map((r) => r.name),
     ["Alpha"],
   );
-  assert.equal(rollup.count, 1);
+  assert.equal(rollup.count, 2);
   const { ChangesOverview } = loadComponents("src/review/ChangesOverview.jsx");
   const html = renderToStaticMarkup(
     createElement(ChangesOverview, { rollup, profile: "code", onSelect() {} }),
@@ -794,5 +795,441 @@ test("a table's keys list each foreign key once, with its change", async () => {
   assert.equal(
     relation.summary.text,
     "updated_by_fkey · targetId: users → accounts",
+  );
+});
+
+const {
+  createEnrollmentDocument,
+} = require("../examples/enrollment/learning.cjs");
+// The enrollment example as an OntoUML baseline, with what a test adds to it:
+// an attribute on Institution, or a relation from Person to itself.
+function enrollment(...extensions) {
+  const base = createEnrollmentDocument();
+  const model = clone(base.model);
+  const byId = new Map(model.elements.map((e) => [e.id, e]));
+  const end = byId.get(byId.get("mediates-person").properties[0]);
+  for (const extend of extensions) extend(model, byId, end);
+  return atlas.reviseDocument(base, { model });
+}
+const withAttribute = (model, byId, end) => {
+  model.elements.push({
+    ...clone(end),
+    id: "institution-code",
+    name: { en: "code" },
+    propertyType: "person",
+    cardinality: "1",
+  });
+  const institution = byId.get("institution");
+  institution.properties = [...institution.properties, "institution-code"];
+};
+const withSelfRelation = (model, byId, end) => {
+  model.elements.push(
+    {
+      ...clone(byId.get("mediates-person")),
+      id: "knows",
+      name: { en: "knows" },
+      stereotype: null,
+      properties: ["knows-source", "knows-target"],
+    },
+    { ...clone(end), id: "knows-source", propertyType: "person" },
+    { ...clone(end), id: "knows-target", propertyType: "person" },
+  );
+  const root = model.elements.find((e) => e.type === "Package");
+  root.contents = [...root.contents, "knows"];
+};
+async function proposing(base, change) {
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  change(model, new Map(model.elements.map((e) => [e.id, e])));
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  return {
+    payload,
+    view,
+    rollup: rollupChanges(payload.comparison, view.model, view.views),
+  };
+}
+const tokensOf = (row) =>
+  row.summary.tokens.map((t) => `${t.status} ${t.text}`);
+function renderDetails({ view, rollup }, id) {
+  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  return renderToStaticMarkup(
+    createElement(ConceptDetails, {
+      concept: view.model.classes.find((c) => c.id === id),
+      model: view.model,
+      snippets: {},
+      review: { rollup },
+      onReference() {},
+    }),
+  );
+}
+
+test("an OntoUML attribute's change reads by its name and type, never its element type", async () => {
+  const base = enrollment(withAttribute);
+  const { describeClassChange } = loadComponents("src/review/changes.js");
+  const renamed = await proposing(base, (model, byId) => {
+    byId.get("institution-code").name = { en: "identifier" };
+  });
+  const institution = renamed.view.model.classes.find(
+    (c) => c.id === "institution",
+  );
+  assert.deepEqual(
+    describeClassChange(renamed.rollup, institution, "ontouml").members.map(
+      (m) => [m.status, m.previous, m.signature],
+    ),
+    [["modified", "code: Person", "identifier: Person"]],
+  );
+  const html = renderDetails(renamed, "institution");
+  assert.match(
+    html,
+    /<del class="change-before">code: Person<\/del>.*<ins class="change-after">identifier: Person<\/ins>/,
+  );
+  assert(!html.includes("Property"));
+  const counted = await proposing(base, (model, byId) => {
+    byId.get("institution-code").cardinality = "0..1";
+  });
+  const countedHtml = renderDetails(counted, "institution");
+  assert(!countedHtml.includes("Property"));
+  assert.match(
+    countedHtml,
+    /code: Person<\/code>.*cardinality: <del class="change-before">1<\/del>.*<ins class="change-after">0..1<\/ins>/,
+  );
+  const retyped = await proposing(base, (model, byId) => {
+    byId.get("institution-code").propertyType = "institution";
+  });
+  assert.match(
+    renderDetails(retyped, "institution"),
+    /code<\/span>: <del class="change-before">Person<\/del>.*<ins class="change-after">Institution<\/ins>/,
+  );
+});
+
+test("a relation changed in place is laid out once, also on one class, and the baseline keeps its own labels", async () => {
+  const base = enrollment(withSelfRelation);
+  for (const [change, before, after] of [
+    [
+      (m, byId) => (byId.get("knows").name = { en: "trusts" }),
+      "knows",
+      "trusts",
+    ],
+    [
+      (m, byId) => (byId.get("knows-target").cardinality = "0..1"),
+      "0..*",
+      "0..1",
+    ],
+  ]) {
+    const { payload, view, rollup } = await proposing(base, change);
+    assert.deepEqual(
+      view.model.relations
+        .filter((r) => (r.originalId || r.id) === "knows")
+        .map((r) => r.changeStatus),
+      ["modified"],
+    );
+    // The view that draws the relation, and its labels there.
+    const drawing = (views) =>
+      views.find((v) => v.diagram.edges.some((e) => e.id === "knows")).diagram;
+    const labels = (views) =>
+      drawing(views)
+        .edges.find((e) => e.id === "knows")
+        .labels.map((l) => l.text);
+    assert(labels(view.views).includes(after));
+    assert(labels(payload.comparison.baseline.views).includes(before));
+    validateDiagram(
+      drawing(payload.comparison.baseline.views),
+      payload.comparison.baseline.model,
+    );
+    assert(rollup.rows.find((r) => r.id === "knows").target);
+  }
+  // Its unnamed ends say which end changed.
+  const { rollup } = await proposing(base, (m, byId) => {
+    byId.get("knows-target").cardinality = "0..1";
+  });
+  assert.equal(
+    rollup.rows.find((r) => r.id === "knows").summary.text,
+    "knows · Person target end cardinality: 0..* → 0..1",
+  );
+});
+
+test("a self-referencing foreign key whose delete rule changes opens, and its key says what changed", async () => {
+  const table = {
+    id: "category",
+    name: "category",
+    attributes: [
+      { id: "category.id", name: "id", type: "integer" },
+      { id: "category.parent_id", name: "parent_id", type: "integer" },
+    ],
+  };
+  const fk = (onDelete) => ({
+    id: "category:fk:parent",
+    name: "category_parent_id_fkey",
+    stereotype: "foreign key",
+    sourceId: "category",
+    targetId: "category",
+    sourceMultiplicity: "0..*",
+    targetMultiplicity: "0..1",
+    columns: ["parent_id"],
+    targetColumns: ["id"],
+    onDelete,
+  });
+  const base = atlas.createDocument({
+    id: "shop",
+    title: "Shop",
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [table],
+      relations: [fk("NO ACTION")],
+      generalizations: [],
+      generalizationSets: [],
+    },
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  model.relations = [fk("CASCADE")];
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  assert.deepEqual(
+    view.model.relations.map((r) => [r.id, r.changeStatus]),
+    [["category:fk:parent", "modified"]],
+  );
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const rollup = rollupChanges(payload.comparison, view.model, view.views);
+  const html = renderDetails({ view, rollup }, "category");
+  const keys = html.slice(html.indexOf(">Keys<"));
+  assert.match(
+    keys,
+    /parent_id<\/span> <span class="member-type">→ category\(id\)<\/span><\/code><span class="change-detail">onDelete: <del class="change-before">NO ACTION<\/del>.*<ins class="change-after">CASCADE<\/ins>/,
+  );
+});
+
+test("a changed relation's mark avoids its labels", async () => {
+  const { changeMarkPoint } = loadComponents(
+    "src/visualization/UMLRelation.jsx",
+  );
+  // The middle is under the name label; the mark moves along the segment.
+  const point = changeMarkPoint(
+    ["M0 0 L200 0"],
+    [{ x: 80, y: -10, width: 40, height: 20 }],
+  );
+  assert(point && (point.x < 71 || point.x > 129), JSON.stringify(point));
+  assert.equal(changeMarkPoint(["M0 0 L30 0"], []), null, "too short");
+  // A labelled OntoUML relation whose count changed carries its mark.
+  const { view } = await proposing(createEnrollmentDocument(), (m, byId) => {
+    byId.get(byId.get("mediates-person").properties[1]).cardinality = "0..1";
+  });
+  const svg = renderSVG(
+    view.views.find((v) =>
+      v.diagram.edges.some((e) => e.id === "mediates-person"),
+    ).diagram,
+  );
+  const start = svg.indexOf('data-edge="mediates-person"');
+  assert(start > 0);
+  const end = svg.indexOf("data-edge=", start + 1);
+  assert(svg.slice(start, end).includes('class="edge-change-mark"'));
+});
+
+test("what moves between classes or packages is listed, by name, where it left and where it went", async () => {
+  const moved = await proposing(enrollment(withAttribute), (model, byId) => {
+    const institution = byId.get("institution"),
+      person = byId.get("person");
+    institution.properties = institution.properties.filter(
+      (id) => id !== "institution-code",
+    );
+    person.properties = [...person.properties, "institution-code"];
+  });
+  const row = (name) => moved.rollup.rows.find((r) => r.name === name);
+  assert.deepEqual(tokensOf(row("Institution")), ["removed code"]);
+  assert.deepEqual(tokensOf(row("Person")), ["added code"]);
+  const member = (id) =>
+    moved.view.model.classes
+      .find((c) => c.id === id)
+      .attributes.find((a) => a.id === "institution-code").changeStatus;
+  assert.equal(member("person"), "added");
+  assert.equal(member("institution"), "removed");
+  assert(renderDetails(moved, "person").includes("Moved from Institution"));
+  assert(renderDetails(moved, "institution").includes("Moved to Person"));
+  // Renamed on the way, it reads as before → after where it arrived.
+  const renamed = await proposing(enrollment(withAttribute), (model, byId) => {
+    const institution = byId.get("institution"),
+      person = byId.get("person");
+    institution.properties = institution.properties.filter(
+      (id) => id !== "institution-code",
+    );
+    person.properties = [...person.properties, "institution-code"];
+    byId.get("institution-code").name = { en: "identifier" };
+  });
+  assert.match(
+    renderDetails(renamed, "person"),
+    /<del class="change-before">code: Person<\/del>.*<ins class="change-after">identifier: Person<\/ins>.*Moved from Institution/,
+  );
+  // A class moved to a new package: the package and the move, under Model.
+  const packaged = await proposing(enrollment(), (model) => {
+    const root = model.elements.find((e) => e.type === "Package");
+    root.contents = [
+      ...root.contents.filter((id) => id !== "person"),
+      "people",
+    ];
+    model.elements.push({
+      ...clone(root),
+      id: "people",
+      name: { en: "People" },
+      contents: ["person"],
+    });
+  });
+  assert.deepEqual(
+    packaged.rollup.groups.map((g) => [g.label, g.elements.map(tokensOf)]),
+    [
+      [
+        "Model",
+        [["added People package", "modified Person: Enrollment → People"]],
+      ],
+    ],
+  );
+  assert.equal(packaged.rollup.count, 1);
+});
+
+test("a foreign key whose columns change shows the key it was", async () => {
+  const table = (id, columns) => ({
+    id,
+    name: id,
+    attributes: columns.map((c) => ({
+      id: `${id}.${c}`,
+      name: c,
+      type: "integer",
+    })),
+  });
+  const fk = (column) => ({
+    id: "orders:fk:creator",
+    name: "orders_creator_fkey",
+    stereotype: "foreign key",
+    sourceId: "orders",
+    targetId: "users",
+    sourceMultiplicity: "0..*",
+    targetMultiplicity: "1",
+    columns: [column],
+    targetColumns: ["id"],
+  });
+  const base = atlas.createDocument({
+    id: "shop",
+    title: "Shop",
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [
+        table("orders", ["id", "created_by", "creator_id"]),
+        table("users", ["id"]),
+      ],
+      relations: [fk("created_by")],
+      generalizations: [],
+      generalizationSets: [],
+    },
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  model.relations = [fk("creator_id")];
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const rollup = rollupChanges(payload.comparison, view.model, view.views);
+  const keys = renderDetails({ view, rollup }, "orders").split(">Keys<")[1];
+  assert.match(
+    keys,
+    /data-change="modified".*<del class="change-before">created_by → users\(id\)<\/del>.*<ins class="change-after">creator_id → users\(id\)<\/ins>/,
+  );
+});
+
+test("a table's own foreign keys and SQL stay out of its summary, and the model's copies of them out of Model", async () => {
+  const definition = (columns) =>
+    `CREATE TABLE "orders" (${columns.map((c) => `"${c}" INTEGER`).join(", ")})`;
+  const orders = (columns, foreignKeys) => ({
+    id: "orders",
+    name: "orders",
+    kind: "table",
+    attributes: columns.map((c) => ({
+      id: `orders.${c}`,
+      name: c,
+      type: "INTEGER",
+    })),
+    definition: definition(columns),
+    foreignKeys,
+  });
+  const users = {
+    id: "users",
+    name: "users",
+    kind: "table",
+    attributes: [{ id: "users.id", name: "id", type: "INTEGER" }],
+  };
+  const base = atlas.createDocument({
+    id: "shop",
+    title: "Shop",
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [orders(["id"], []), users],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
+      constraints: [["orders", definition(["id"])]],
+    },
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  const key = { columns: ["user_id"], target: "users", targetColumns: ["id"] };
+  model.nodes[0] = orders(["id", "user_id"], [key]);
+  model.constraints = [["orders", definition(["id", "user_id"])]];
+  model.relations = [
+    {
+      id: "orders:fk:user",
+      name: "user_id → id",
+      stereotype: "foreign key",
+      sourceId: "orders",
+      targetId: "users",
+      sourceMultiplicity: "0..*",
+      targetMultiplicity: "1",
+      ...key,
+    },
+  ];
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const changes = rollupChanges(payload.comparison, view.model, view.views);
+  assert.deepEqual(
+    changes.groups.map((g) => g.label),
+    ["New", "Changed"],
+  );
+  assert.deepEqual(tokensOf(changes.rows.find((r) => r.name === "orders")), [
+    "modified definition changed",
+    "added user_id",
+  ]);
+});
+
+test("a new Java class is placed only by classes of its own repository", () => {
+  const { elementFile } = loadComponents("src/review/changes.js");
+  const java = (repository, name) =>
+    `code:java:${repository}:${encodeURIComponent(name)}`;
+  const model = {
+    classes: [
+      {
+        id: java("billing", "com.billing.Invoice"),
+        location: { file: "billing/src/main/java/com/billing/Invoice.java" },
+      },
+    ],
+  };
+  assert.equal(elementFile({ id: java("shop", "com.shop.Cart") }, model), null);
+  assert.equal(
+    elementFile({ id: java("billing", "com.billing.Refund") }, model),
+    "billing/src/main/java/com/billing/Refund.java",
   );
 });

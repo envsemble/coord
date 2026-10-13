@@ -101,6 +101,7 @@ export const ConceptDetails = memo(function ConceptDetails({
           element={concept}
           model={model}
           review={!!review}
+          rollup={review?.rollup}
           focus={member}
         />
       ) : (
@@ -277,8 +278,12 @@ export const RelationDetails = memo(function RelationDetails({
       {entry && entry.notes.length > 0 && (
         <Section title="What changes">
           <ul className="change-list">
-            {entry.notes.map((note) => (
-              <li key={note.key} className="change-line" data-change="modified">
+            {entry.notes.map((note, i) => (
+              <li
+                key={`${note.key}-${i}`}
+                className="change-line"
+                data-change="modified"
+              >
                 <ChangeMark status="modified" />
                 <span className="change-line-text">
                   <ChangedProperty

@@ -7,10 +7,13 @@ import { ExternalIcon, LessIcon, MoreIcon } from "../ui/Icons";
 import { ChangeMark } from "../review/ChangeMark";
 import {
   CHANGE_LABELS,
+  cellText,
   decodeIdentity,
   elementFile,
   fileExists,
   memberSignature,
+  meaningfulProperties,
+  rowFor,
 } from "../review/changes";
 
 /** One titled part of the details, such as What changes or Why. */
@@ -185,11 +188,14 @@ function contents(element, profile) {
     .join(" and ");
 }
 
+// A member's type: its own, or the class an OntoUML attribute refers to.
+const TYPE_KEYS = ["type", "propertyType"];
+// What a member's signature already shows.
+const SIGNATURE_KEYS = [...TYPE_KEYS, "name"];
 const typeChange = (member) =>
-  member.properties.find((p) => p.key === "type") &&
-  !member.properties.some((p) => p.key === "name")
-    ? member.properties.find((p) => p.key === "type")
-    : null;
+  member.properties.some((p) => p.key === "name")
+    ? null
+    : member.properties.find((p) => TYPE_KEYS.includes(p.key)) || null;
 
 /** A value before and after a change: the arrow reads as "changed to". */
 export function ChangedValue({ before, after }) {
@@ -265,8 +271,12 @@ export function WhatChanges({ change, element, model, profile }) {
   return (
     <Section title="What changes">
       <ul className="change-list">
-        {change.properties.map((p) => (
-          <li key={p.key} className="change-line" data-change="modified">
+        {change.properties.map((p, i) => (
+          <li
+            key={`${p.key}-${i}`}
+            className="change-line"
+            data-change="modified"
+          >
             <ChangeMark status="modified" />
             <span className="change-line-text">
               <ChangedProperty name={p.key} before={p.before} after={p.after} />
@@ -290,7 +300,7 @@ export function WhatChanges({ change, element, model, profile }) {
                     after={typeChange(m).after}
                   />
                 </code>
-              ) : m.status === "modified" &&
+              ) : (m.status === "modified" || m.moved) &&
                 m.previous &&
                 m.previous !== m.signature ? (
                 <code className="signature">
@@ -300,12 +310,19 @@ export function WhatChanges({ change, element, model, profile }) {
                 <code className="signature">{m.signature}</code>
               )}
               {m.properties
-                .filter((p) => !["type", "name"].includes(p.key))
+                .filter((p) => !SIGNATURE_KEYS.includes(p.key))
                 .map((p) => (
                   <span key={p.key} className="change-detail">
                     {p.key}: <ChangedValue before={p.before} after={p.after} />
                   </span>
                 ))}
+              {m.moved && (
+                <span className="change-detail">
+                  {m.moved.from
+                    ? `Moved from ${m.moved.from}`
+                    : `Moved to ${m.moved.to}`}
+                </span>
+              )}
             </span>
             {m.location && (
               <span
@@ -495,38 +512,63 @@ export function Members({ element, profile, review, focus = null }) {
   );
 }
 
-// A foreign key the proposal points elsewhere keeps its identity, and the
-// change view keeps its previous route beside the new one: list it once, as
-// before → after. A removed key stays listed, marked removed.
-function foreignKeys(element, model, review) {
+// A foreign key keeps its identity when the proposal changes it: list it
+// once, with the key it was (from the baseline's record of it) and what else
+// changed; a key pointed at another table also leaves its earlier route in
+// the change view. A removed key stays listed, marked removed.
+function foreignKeys(element, model, rollup) {
   const outgoing = (model.relations || []).filter(
     (r) => r.sourceId === element.id && Array.isArray(r.columns),
   );
   const current = new Set(
     outgoing.filter((r) => r.changeStatus !== "removed").map((r) => r.id),
   );
-  const previous = new Map(
-    outgoing
-      .filter((r) => r.changeStatus === "removed" && current.has(r.originalId))
-      .map((r) => [r.originalId, r]),
-  );
   return outgoing
     .filter((r) => !(r.changeStatus === "removed" && current.has(r.originalId)))
-    .map((relation) => ({
-      relation,
-      previous: review ? previous.get(relation.id) || null : null,
-      status:
-        review && relation.changeStatus !== "unchanged"
+    .map((relation) => {
+      const status =
+        rollup && relation.changeStatus && relation.changeStatus !== "unchanged"
           ? relation.changeStatus
-          : undefined,
-    }));
+          : undefined;
+      const record =
+        status === "modified"
+          ? rowFor(
+              rollup,
+              { kind: "edge", id: relation.id },
+              model,
+            )?.changes.find((c) => c.elementId === relation.id)
+          : null;
+      const before = record?.before;
+      const previous = Array.isArray(before?.columns)
+        ? {
+            columns: before.columns,
+            targetId: before.targetId,
+            target: before.target,
+            targetColumns: before.targetColumns,
+          }
+        : null;
+      // Whatever else changed, such as what a delete does.
+      const details = meaningfulProperties(record).filter(
+        (p) =>
+          !["columns", "targetId", "target", "targetColumns", "name"].includes(
+            p.key,
+          ),
+      );
+      return { relation, previous, status, details, names: rollup?.names };
+    });
 }
 
 /** A table's columns and keys, its foreign keys, and its definition. */
-export function TableSchema({ element, model, review, focus = null }) {
+export function TableSchema({
+  element,
+  model,
+  review,
+  rollup = null,
+  focus = null,
+}) {
   const columns = element.attributes || [];
   const marks = review && element.changeStatus === "modified";
-  const outgoing = foreignKeys(element, model, review);
+  const outgoing = foreignKeys(element, model, rollup);
   const tables = new Map(model.classes.map((c) => [c.id, c.name]));
   const keyText = (relation) =>
     `${relation.columns.join(", ")} → ${tables.get(relation.targetId) || relation.target}(${(relation.targetColumns || []).join(", ")})`;
@@ -593,7 +635,7 @@ export function TableSchema({ element, model, review, focus = null }) {
                 </code>
               </li>
             ))}
-            {outgoing.map(({ relation, previous, status }) => (
+            {outgoing.map(({ relation, previous, status, details, names }) => (
               <li
                 key={relation.id}
                 className="member"
@@ -607,24 +649,35 @@ export function TableSchema({ element, model, review, focus = null }) {
                     {CHANGE_LABELS[status]}:{" "}
                   </span>
                 )}
-                <code className="signature">
-                  {previous ? (
-                    <ChangedValue
-                      before={keyText(previous)}
-                      after={keyText(relation)}
-                    />
-                  ) : (
-                    <>
-                      <span className="member-name">
-                        {relation.columns.join(", ")}
-                      </span>{" "}
-                      <span className="member-type">
-                        → {tables.get(relation.targetId) || relation.target}(
-                        {(relation.targetColumns || []).join(", ")})
-                      </span>
-                    </>
-                  )}
-                </code>
+                <span className="change-line-text">
+                  <code className="signature">
+                    {previous && keyText(previous) !== keyText(relation) ? (
+                      <ChangedValue
+                        before={keyText(previous)}
+                        after={keyText(relation)}
+                      />
+                    ) : (
+                      <>
+                        <span className="member-name">
+                          {relation.columns.join(", ")}
+                        </span>{" "}
+                        <span className="member-type">
+                          → {tables.get(relation.targetId) || relation.target}(
+                          {(relation.targetColumns || []).join(", ")})
+                        </span>
+                      </>
+                    )}
+                  </code>
+                  {details.map((p) => (
+                    <span key={p.key} className="change-detail">
+                      {p.key}:{" "}
+                      <ChangedValue
+                        before={cellText(p.before, names, p.key)}
+                        after={cellText(p.after, names, p.key)}
+                      />
+                    </span>
+                  ))}
+                </span>
               </li>
             ))}
           </ul>
