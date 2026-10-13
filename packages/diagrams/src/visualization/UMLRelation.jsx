@@ -15,18 +15,20 @@ export function relationName(edge) {
 }
 
 // Where a changed relation shows its +, ~ or − (so the change does not rest
-// on colour alone): the middle of its longest segment that no label covers.
+// on colour alone): a point on its longest segments that no label covers,
+// tried from the middle out, since the layout centres the name label there.
 const MARK_GAP = 9;
-// Shorter segments leave no room beside their ends and arrowheads.
-const MARK_SEGMENT = 40;
+// Room kept at a segment's ends, for arrowheads, diamonds and bends.
+const MARK_END = 18;
+const MARK_PLACES = [0.5, 0.35, 0.65, 0.2, 0.8];
 export function changeMarkPoint(paths, labels = []) {
   const segments = [];
   for (const d of paths) {
     const n = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
     for (let i = 2; i + 1 < n.length; i += 2)
       segments.push({
-        x: (n[i - 2] + n[i]) / 2,
-        y: (n[i - 1] + n[i + 1]) / 2,
+        from: [n[i - 2], n[i - 1]],
+        to: [n[i], n[i + 1]],
         length: Math.abs(n[i] - n[i - 2]) + Math.abs(n[i + 1] - n[i - 1]),
       });
   }
@@ -38,11 +40,18 @@ export function changeMarkPoint(paths, labels = []) {
         y > l.y - MARK_GAP &&
         y < l.y + l.height + MARK_GAP,
     );
-  return (
-    segments
-      .sort((a, b) => b.length - a.length)
-      .find((s) => s.length >= MARK_SEGMENT && free(s)) || null
-  );
+  for (const { from, to, length } of segments.sort(
+    (a, b) => b.length - a.length,
+  ))
+    for (const place of MARK_PLACES) {
+      if (Math.min(place, 1 - place) * length < MARK_END) continue;
+      const point = {
+        x: from[0] + (to[0] - from[0]) * place,
+        y: from[1] + (to[1] - from[1]) * place,
+      };
+      if (free(point)) return point;
+    }
+  return null;
 }
 
 function ChangeMarkGlyph({ change, at }) {
