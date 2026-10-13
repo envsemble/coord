@@ -8,7 +8,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
-import { HostRequestError, type HostClient } from '@envsemble/atlas-host';
+import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas-host';
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
 import { invokeChannels, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
@@ -73,9 +73,9 @@ function requireActivation(window: AtlasWindow) {
 async function confirmed(window: AtlasWindow, message: string, action: string, detail?: string) {
   if (!(await window.confirm(message, action, detail))) throw new AtlasError('cancelled', 'Cancelled.');
 }
-/** The computer a pairing link points at, for the question before pairing. */
-function linkHost(link: string) {
-  try { return new URL(link).host; } catch { return 'another computer'; }
+/** The computer pairing would reach, read from the link as pairing reads it. A link that cannot pair fails here, before the question. */
+function pairingHost(link: string, code: string | null) {
+  try { return new URL(parsePairing(link, code ?? undefined).origin).host; } catch (error) { throw hostError(error); }
 }
 
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): Promise<unknown> }): Record<InvokeChannel, Channel> {
@@ -235,7 +235,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'remote:pair': {
       args: [pairingLink, nullable(pairingCode)],
       handle: async (window, link: string, code: string | null) => {
-        await confirmed(window, `Pair with the Atlas at ${linkHost(link)}?`, 'Pair', 'This app can then work on that computer\'s planning folders.');
+        await confirmed(window, `Pair with the Atlas at ${pairingHost(link, code)}?`, 'Pair', 'This app can then work on that computer\'s planning folders.');
         const paired = await remoteErrors(connections.pair(link, code ?? undefined));
         // Windows already showing this computer's folders read through the new pairing.
         manager.rebindRemote(paired.hostId!);
@@ -248,15 +248,19 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'access:update': {
       args: [accessSettings],
       handle: async (window, settings: AccessSettings) => {
-        // Turning remote access on, or moving it to another address, lets devices reach this computer.
-        if (settings.network.enabled) await confirmed(window, `Let paired devices reach this computer${settings.network.address ? ' at ' + settings.network.address : ''}?`, 'Allow');
+        // Turning remote access on, or moving it to another address, changes who can reach this
+        // computer; another port does not.
+        const current = (await owner().request('access.state', {})).settings.network;
+        const next = settings.network;
+        if (next.enabled && (!current.enabled || next.address !== current.address)) await confirmed(window, `Let paired devices reach this computer${next.address ? ' at ' + next.address : ''}?`, 'Allow');
         return owner().request('access.update', { settings: settings as never });
       },
     },
     'access:pairingCreate': {
       args: [computer, nullable(ipAddress), grant],
       handle: async (window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
-        await confirmed(window, 'Create a pairing link?', 'Create', granted.manageAccess ? 'A device that uses it can work on the planning folders and manage who else has access.' : 'A device that uses it can work on the planning folders.');
+        const detail = granted.manageAccess ? 'A device that uses it can work on the planning folders and manage who else has access.' : 'A device that uses it can work on the planning folders.';
+        if (!(await window.ask('Create a pairing link?', 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
         const link = await remoteErrors(connections.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
         const qrSvg = link.url ? await QRCode.toString(link.url, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }) : null;
         return { ...link, qrSvg };
@@ -270,8 +274,10 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
 
 /** A paired computer's errors as the window shows them (a refused credential is "forbidden" there). */
 async function remoteErrors<T>(pending: Promise<T>): Promise<T> {
-  try { return await pending; }
-  catch (error) { throw error instanceof HostRequestError ? new AtlasError(error.code === 'unauthorized' ? 'forbidden' : error.code, error.message) : error; }
+  try { return await pending; } catch (error) { throw hostError(error); }
+}
+function hostError(error: unknown) {
+  return error instanceof HostRequestError ? new AtlasError(error.code === 'unauthorized' ? 'forbidden' : error.code, error.message) : error;
 }
 
 /** Accept only the Atlas renderer's own top-level frame. */

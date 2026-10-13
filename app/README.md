@@ -134,10 +134,11 @@ The app follows Electron's security checklist (the desktop-only decision is work
   - These also run at once after one:
     - exiting, and closing the last window;
     - opening a window or the logs;
-    - turning remote access on, creating a pairing link and pairing with another computer;
+    - turning remote access on or moving it to another address, and pairing with another computer;
     - opening a web address in the browser.
 
     Otherwise Atlas first asks in a system dialog the page cannot answer, so a screen reader's click, which makes no input event, still works.
+  - **Creating a pairing link**, which hands the computer to whoever uses it, always asks in a system dialog first.
   - Dialogs a page opens (choosing a file or folder, About, Locate…) come one at a time.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
 - Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.

@@ -57,7 +57,10 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
       setState(next);
       setPort(String(next.settings.network.port));
       if (!next.status.listening) setLink(null);
-    } catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); }
+    } catch (failure) {
+      if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message);
+      else setPort(String(state.settings.network.port));
+    }
     finally { setBusy(false); }
   };
   const settings = state?.settings;

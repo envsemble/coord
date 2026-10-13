@@ -14,10 +14,10 @@
   - **Commands a page could misuse** wait for the person: Paste, which reads the clipboard, follows a click, key press or tap in the window. These follow one too, or else Atlas asks first in a system dialog:
     - exiting, and closing the last window;
     - opening windows or the logs;
-    - turning remote access on, creating pairing links and pairing;
+    - turning remote access on or moving it to another address, and pairing;
     - opening web addresses.
 
-    A page's dialogs come one at a time.
+    Creating a pairing link always asks first. A page's dialogs come one at a time.
 
   - **The diagram viewer and plan exports** use the same components; the diagram viewer follows the app's theme, and a standalone model file follows the system's.
   - `npm run dev:envui` runs the app against a local envUI checkout with live reload.

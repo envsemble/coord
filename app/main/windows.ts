@@ -36,8 +36,11 @@ export const titleBarOverlay = (zoom = 1) => {
   const height = Math.round(titleBarHeight * Math.max(1, zoom));
   return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
 };
-/** Input only a person at the computer produces (presses, keys, taps; not pointer movement), which a page cannot fake. */
-const activations = new Set(['mouseDown', 'mouseUp', 'rawKeyDown', 'keyDown', 'keyUp', 'char', 'gestureTap', 'touchEnd']);
+/**
+ * Where a person's press starts, which a page cannot fake: a mouse button, a key (not its repeats) or
+ * a touch. Releases and the characters a key types do not count, so each press allows one command.
+ */
+const pressStarts = new Set(['mouseDown', 'rawKeyDown', 'keyDown', 'touchStart']);
 /** macOS keeps its traffic lights, centred in the title bar; elsewhere the overlay draws minimize, maximize and close. */
 const titleBar = () => process.platform === 'darwin'
   ? { titleBarStyle: 'hidden' as const, titleBarOverlay: true, trafficLightPosition: { x: 14, y: 13 } }
@@ -89,6 +92,8 @@ export class AtlasWindow {
   private boundsTimer: ReturnType<typeof setTimeout> | null = null;
   /** When the person last pressed, typed or tapped in this window. */
   private lastActivation = 0;
+  /** The last key pressed, which may arrive both raw and cooked. */
+  private lastKey: { at: number; code: string } | null = null;
   /** A question or dialog a page's command opened in this window: one at a time. */
   private asking = false;
   /** Set as the window starts closing, before it leaves the window list. */
@@ -117,7 +122,17 @@ export class AtlasWindow {
     this.win.on('move', () => this.scheduleBounds());
     this.guardNavigation();
     this.win.webContents.on('render-process-gone', (_event, details) => this.recover(details.reason));
-    this.win.webContents.on('input-event', (_event, input) => { if (activations.has(input.type)) this.lastActivation = performance.now(); });
+    this.win.webContents.on('input-event', (_event, input) => {
+      if (!pressStarts.has(input.type) || input.modifiers?.includes('isautorepeat')) return;
+      const now = performance.now();
+      if (input.type === 'rawKeyDown' || input.type === 'keyDown') {
+        const { keyCode } = input as Electron.KeyboardInputEvent;
+        const again = this.lastKey !== null && this.lastKey.code === keyCode && now - this.lastKey.at < 50;
+        this.lastKey = { at: now, code: keyCode };
+        if (again) return;
+      }
+      this.lastActivation = now;
+    });
     this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.root }));
     this.win.on('close', () => { this.closing = true; this.saveBounds(); });
     this.win.on('closed', () => manager.closed(this));
@@ -290,7 +305,14 @@ export class AtlasWindow {
    * answer. One question or dialog at a time.
    */
   async confirm(message: string, action: string, detail?: string): Promise<boolean> {
-    if (this.takeActivation()) return true;
+    return this.takeActivation() || this.ask(message, action, detail);
+  }
+
+  /**
+   * Asks in a system dialog the page cannot answer, press or not. Creating a pairing link, which hands
+   * the computer to whoever uses it, always asks. One question or dialog at a time.
+   */
+  async ask(message: string, action: string, detail?: string): Promise<boolean> {
     if (this.win.isDestroyed()) return false;
     if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
     this.asking = true;
@@ -645,7 +667,11 @@ export class WindowManager {
   /** File › Open Folder…: the system's dialog on this computer; the in-app browser in a window on another one. */
   openFolderCommand(from: AtlasWindow | undefined) {
     if (from && from.computer !== null) { from.focus(); from.send('menu:command', 'browseFolder'); return; }
-    void this.chooseFolder(from);
+    // A dialog already open in the window comes forward instead.
+    void this.chooseFolder(from).catch(error => {
+      if ((error as { code?: string }).code !== 'unavailable') this.context.log.warn('Folder not opened', { error: (error as Error).message });
+      from?.focus();
+    });
   }
 
   /** This computer's folder list (File › Open Recent); empty while its host is not reachable. */

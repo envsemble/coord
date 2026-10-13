@@ -83,6 +83,36 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
   expect(results.ok).toBe(true);
 });
 
+test('each press allows one command a page could misuse, and not its release or repeats', async () => {
+  const { window: atlasWindow, app } = launched!;
+  // The page opens web addresses; the person declines every question.
+  await app.evaluate(({ dialog, shell }) => {
+    const log: string[] = [];
+    (globalThis as unknown as { pressLog: string[] }).pressLog = log;
+    shell.openExternal = (async (url: string) => { log.push('opened ' + url); }) as typeof shell.openExternal;
+    dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { log.push('asked ' + (options.detail ?? '')); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
+  });
+  const open = (name: string) => atlasWindow.evaluate(async url => { await (window as unknown as { atlas: { openExternal(url: string): Promise<unknown> } }).atlas.openExternal(url); }, `https://example.com/${name}`);
+  const title = (await atlasWindow.locator('.explorer-title').boundingBox())!;
+  await atlasWindow.mouse.move(title.x + 4, title.y + title.height / 2);
+  await atlasWindow.mouse.down();
+  await open('press');
+  await atlasWindow.mouse.up();
+  await open('release');
+  await atlasWindow.keyboard.down('Shift');
+  await open('key');
+  // Held down, the key repeats a moment later.
+  await atlasWindow.waitForTimeout(100);
+  await atlasWindow.keyboard.down('Shift');
+  await open('repeat');
+  await atlasWindow.keyboard.up('Shift');
+  await open('key-release');
+  expect(await app.evaluate(() => (globalThis as unknown as { pressLog: string[] }).pressLog)).toEqual([
+    'opened https://example.com/press', 'asked https://example.com/release',
+    'opened https://example.com/key', 'asked https://example.com/repeat', 'asked https://example.com/key-release',
+  ]);
+});
+
 test('the file protocol serves only this window’s folder, and the window cannot navigate away or open windows', async () => {
   const { window: atlasWindow, app } = launched!;
   // Requests through the window's own session, as its pages make them.

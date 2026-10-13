@@ -51,6 +51,11 @@ async function listen(owner: Page) {
   return { access, port };
 }
 
+/** The person answers yes to Atlas's questions, such as the one before a pairing link is created. */
+const agree = (app: ElectronApplication) => app.evaluate(({ dialog }) => {
+  dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as unknown as typeof dialog.showMessageBox;
+});
+
 test('another Atlas pairs with a one-time link and works on that computer: its folders, the folder browser, import, switching computers', async () => {
   test.setTimeout(300_000);
   const folder = planningFixture();
@@ -61,6 +66,7 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   sharing = await launch({ folder });
   const owner = sharing.window;
   await expect(owner.locator('.work-row')).toHaveCount(3);
+  await agree(sharing.app);
   const name = await owner.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.info(); return result.ok ? result.value.computer.name : ''; });
 
   // Remote access: no folders to share any more; the pairing step names the device and grants Manage access only when asked.
@@ -96,8 +102,8 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect(viewer.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   // Only revealing a file in a file explorer stays on that computer.
   expect(await viewer.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.reveal('README.md'); return result.ok ? 'revealed' : result.error.code; })).toBe('forbidden');
-  // The link worked once. Pairing through the bridge, without a click, asks first; the person agrees.
-  await reading.app.evaluate(({ dialog }) => { dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as unknown as typeof dialog.showMessageBox; });
+  // The link worked once (pairing through the bridge without a press asks first; the person agrees).
+  await agree(reading.app);
   expect(await viewer.evaluate(async target => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.pairRemote(target, null); return result.ok ? 'paired' : result.error.code; }, link)).not.toBe('paired');
   await expect(access.locator('.device-list li')).toHaveCount(1);
   await expect(access.locator('.device-list li')).toContainText('Reading laptop');
@@ -215,6 +221,7 @@ test('turning remote access off closes the listener and expires an open pairing 
   sharing = await launch({ folder });
   const owner = sharing.window;
   await expect(owner.locator('.work-row')).toHaveCount(3);
+  await agree(sharing.app);
   await fileMenu(sharing.app, 'Re&mote Access…');
   const { access, port } = await listen(owner);
   await access.getByRole('button', { name: 'Create pairing link' }).click();

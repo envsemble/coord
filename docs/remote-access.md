@@ -33,7 +33,7 @@ Choose **File › Remote Access…** on the computer whose folders you want to r
 
    On a local-network address, the step warns again that the connection is not encrypted.
 
-5. **Create pairing link** shows a link with a QR code, such as `http://100.64.1.2:7346/pair#token=<code>`, where the code looks like `7K3M-Q9TX-H2RW-5ZNC`. Above the link, Atlas restates what it grants.
+5. **Create pairing link** asks once more in a system dialog, then shows a link with a QR code, such as `http://100.64.1.2:7346/pair#token=<code>`, where the code looks like `7K3M-Q9TX-H2RW-5ZNC`. Above the link, Atlas restates what it grants.
    - The link works **once** and expires after **five minutes**.
    - **Copy link** copies the whole link, and **Copy code only** copies the code.
    - **Revoke** cancels the link before anyone uses it, and turning remote access off cancels every open link.
