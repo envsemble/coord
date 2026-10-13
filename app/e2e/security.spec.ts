@@ -48,12 +48,17 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
       wrongType: await bridge.models(42),
       badHandle: await bridge.model('work-0001', '../../planning.json'),
       command: await bridge.command('openFolder'),
+      // Quitting and pasting (which reads the clipboard) need a person's click or key press first.
+      quit: await bridge.command('quit'),
+      paste: await bridge.command('paste'),
       external: await bridge.openExternal('file:///C:/Windows/System32/calc.exe'),
       ok: await bridge.document('README.md').then(value => (value as { ok: boolean }).ok),
     };
   });
   for (const key of ['traversal', 'absolute', 'wrongType', 'badHandle', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
+  expect(results.quit).toMatchObject({ ok: false, error: { code: 'forbidden' } });
+  expect(results.paste).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.external).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.ok).toBe(true);
 });

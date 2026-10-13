@@ -7,7 +7,7 @@ import { ThemeMenu } from './ThemeMenu';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { ActivityIcon, FileIcon, SearchIcon, StatisticsIcon, WarningIcon, WorkIcon } from './icons';
 import { limits, viewNames, type ImportPreview, type MenuCommand } from '../shared/contract';
-import type { ComputerFolder, Issue, Snapshot, Target, UiState, ViewName, WindowInfo, Work } from './types';
+import type { Issue, Snapshot, Target, UiState, ViewName, WindowInfo, Work } from './types';
 import { api, AtlasError } from './api';
 import { activateTab, closeTab, openTab, pinTab, retarget as retargetTab } from './tabs';
 import { scrollKey, viewLabels, viewTarget, workTarget } from './targets';
@@ -23,6 +23,7 @@ import { Activity } from './Views';
 import { Statistics } from './StatisticsPage';
 import { Gone } from './Pages';
 import { modifierKey, TitleBarStart, type WorkbenchMenus } from './AppMenu';
+import { currentFolder } from './Computers';
 import { useWorkbench, WorkbenchContext, type Notify, type OpenOptions, type WorkbenchApi } from './workbenchContext';
 
 const viewIcons: Record<ViewName, ReactNode> = { work: <WorkIcon />, activity: <ActivityIcon />, statistics: <StatisticsIcon /> };
@@ -30,14 +31,6 @@ const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as c
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
 const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+b': 'toggleSidebar', 'ctrl+w': 'closeTab', 'ctrl+shift+e': 'showExplorer' };
-
-/** The folder a window shows, in its computer's folder list: by path here, by its key on another computer. */
-function currentFolder(info: WindowInfo, root: string) {
-  const computer = info.computer;
-  return (folder: ComputerFolder) => computer.hostId === null
-    ? (info.platform === 'win32' || info.platform === 'darwin' ? folder.path.toLowerCase() === root.toLowerCase() : folder.path === root)
-    : root === `atlas-remote:${computer.hostId}/${folder.folderId}`;
-}
 
 export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; snapshot: Snapshot; initialUi: UiState }) {
   const [ui, setUi] = useState<UiState>(initialUi);
@@ -53,11 +46,17 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
   const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, variant: toastVariants[tone] }); }, [toast]);
   const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
 
-  // Persist the sidebar, tabs and page for this folder (and for crash recovery), debounced.
+  // Persist the sidebar, tabs and page for this folder (and for crash recovery), debounced; Close
+  // Folder saves at once, before the window lets the folder go.
+  const latestUi = useRef(ui);
+  latestUi.current = ui;
   useEffect(() => {
     const timer = window.setTimeout(() => { api.saveUi(ui).catch(() => undefined); }, 250);
     return () => window.clearTimeout(timer);
   }, [ui]);
+  const closeFolder = useCallback(() => {
+    void api.saveUi(latestUi.current).catch(() => undefined).then(() => api.command('closeFolder')).catch(error => notify((error as Error).message, 'warning'));
+  }, [notify]);
 
   // What the window shows: the active tab's document, or else the page (Work, Activity or Statistics).
   const active = ui.tabs.items.find(tab => tab.id === ui.tabs.active);
@@ -161,8 +160,9 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       case 'openStatistics': showPage('statistics'); break;
       case 'importPlan': void startImport(); break;
       case 'exportPlan': chooseExport(); break;
+      case 'closeFolder': closeFolder(); break;
     }
-  }, [ui.sidebar.visible, open, setTabs, setSidebar, showPage, startImport, chooseExport]);
+  }, [ui.sidebar.visible, open, setTabs, setSidebar, showPage, startImport, chooseExport, closeFolder]);
 
   // Menu commands from main; ignore one that repeats a shortcut this window just handled.
   useEffect(() => api.onMenu(command => {
@@ -196,6 +196,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     canCloseTab: Boolean(active),
     importPlan: () => runCommand('importPlan'),
     exportPlan: () => runCommand('exportPlan'),
+    closeFolder,
     isCurrent: currentFolder(info, root),
     // File › Open Folder… on another computer browses it beside the folder this window shows.
     near: snapshot.root,

@@ -263,12 +263,12 @@ export function PlanViewer({ data }: { data: PlanData }) {
     { id: 'diagrams', label: 'Diagrams', icon: <AccountTree />, count: view.diagrams.length },
     { id: 'files', label: 'Files', icon: <Description />, count: listed.length },
   ];
-  const heading = useRef<HTMLDivElement>(null);
-  const headingVisible = useHeadingVisible(heading, tab !== 'diagrams');
+  const [heading, setHeading] = useState<HTMLElement | null>(null);
+  const headingVisible = useHeadingVisible(heading);
   const body = tab === 'diagrams' ? <Diagrams data={data} route={route} navigate={navigate} />
     : <div className="work-layout">
       <div className="work-main">
-        <header className="work-header" ref={heading}>
+        <header className="work-header" ref={setHeading}>
           <Text as="h1" variant="page-heading">{view.work.title}</Text>
           <div className="work-header-meta">
             <StatusBadge status={workStatus(view.work)} />
@@ -309,18 +309,18 @@ export function PlanViewer({ data }: { data: PlanData }) {
   </main>;
 }
 
-/** Whether a heading shows below the sticky work bar; false while there is none. */
-function useHeadingVisible(element: { current: HTMLElement | null }, present: boolean) {
-  const [visible, setVisible] = useState(present);
+/** Whether a section's heading shows below the sticky work bar; false while there is none. */
+function useHeadingVisible(node: HTMLElement | null) {
+  const [visible, setVisible] = useState(true);
   useEffect(() => {
-    const node = element.current;
-    if (!present || !node) { setVisible(false); return; }
+    if (!node) { setVisible(false); return; }
+    setVisible(true);
     const bar = node.closest('.work-page')?.querySelector('.work-bar');
     const covered = Math.ceil(bar?.getBoundingClientRect().height ?? 0);
     const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: `-${covered}px 0px 0px 0px` });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [element, present]);
+  }, [node]);
   return visible;
 }
 

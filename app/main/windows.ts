@@ -25,15 +25,19 @@ export const baseName = (folder: string) => folder.split(/[\\/]/).filter(Boolean
 /** envUI's canvas colour in the window's theme, shown until the page paints. */
 const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
 
-/** The height of the title bar the window draws itself (envUI's `--title-bar-height`). */
+/** The height of the title bar the window draws itself (envUI's `--title-bar-height`), at 100% zoom. */
 export const titleBarHeight = 40;
 /**
  * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
- * colour. The page reads their area from the window controls overlay's environment variables.
+ * colour, and as tall as the bar at the page's zoom. The page reads their area from the window
+ * controls overlay's environment variables.
  */
-export const titleBarOverlay = () => nativeTheme.shouldUseDarkColors
-  ? { color: '#1f1f1f', symbolColor: '#e8eaed', height: titleBarHeight }
-  : { color: '#ffffff', symbolColor: '#202124', height: titleBarHeight };
+export const titleBarOverlay = (zoom = 1) => {
+  const height = Math.round(titleBarHeight * zoom);
+  return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
+};
+/** Input only a person at the computer produces (presses, keys, taps; not pointer movement), which a page cannot fake. */
+const activations = new Set(['mouseDown', 'mouseUp', 'rawKeyDown', 'keyDown', 'keyUp', 'char', 'gestureTap', 'touchEnd']);
 /** macOS keeps its traffic lights, centred in the title bar; elsewhere the overlay draws minimize, maximize and close. */
 const titleBar = () => process.platform === 'darwin'
   ? { titleBarStyle: 'hidden' as const, titleBarOverlay: true, trafficLightPosition: { x: 14, y: 13 } }
@@ -83,6 +87,8 @@ export class AtlasWindow {
   private readonly manager: WindowManager;
   private crashes: number[] = [];
   private boundsTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When the person last pressed, typed or tapped in this window. */
+  private lastActivation = 0;
 
   constructor(manager: WindowManager, bounds: Partial<Bounds> | undefined, maximized: boolean) {
     this.manager = manager;
@@ -107,6 +113,7 @@ export class AtlasWindow {
     this.win.on('move', () => this.scheduleBounds());
     this.guardNavigation();
     this.win.webContents.on('render-process-gone', (_event, details) => this.recover(details.reason));
+    this.win.webContents.on('input-event', (_event, input) => { if (activations.has(input.type)) this.lastActivation = Date.now(); });
     this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.root }));
     this.win.on('close', () => { this.saveBounds(); });
     this.win.on('closed', () => manager.closed(this));
@@ -249,10 +256,24 @@ export class AtlasWindow {
     this.showWelcome(this.computer);
   }
 
-  /** The window buttons follow the theme (the overlay has no colour of its own on macOS). */
+  /** The window buttons follow the theme and the page zoom (macOS keeps its own traffic lights). */
   updateTitleBar() {
-    if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay());
+    if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
   }
+
+  /** View › Zoom: half a zoom level a step, as Chromium's own, between 25% and 500%; the title bar keeps up. */
+  zoom(change: 'in' | 'out' | 'reset') {
+    if (this.win.isDestroyed()) return;
+    const contents = this.win.webContents;
+    contents.setZoomLevel(change === 'reset' ? 0 : Math.min(8.5, Math.max(-7.5, contents.getZoomLevel() + (change === 'in' ? 0.5 : -0.5))));
+    this.updateTitleBar();
+  }
+
+  /**
+   * Whether the person pressed, typed or tapped in the window just now. Commands a compromised page
+   * could misuse (reading the clipboard through Paste, quitting) need it.
+   */
+  activatedRecently(within = 2000) { return Date.now() - this.lastActivation <= within; }
 
   /** Point the window at a folder before the host opened it: the renderer shows it loading. */
   private prepare(root: string, name: string, remote: FolderView['remote']) {
@@ -282,7 +303,7 @@ export class AtlasWindow {
     const target = this.target;
     const name = this.folder?.name ?? target?.name;
     this.win.setTitle(target ? name + (target.remote ? ' — ' + target.remote.hostName : '') + ' — Atlas' : 'Atlas');
-    if (target && !target.remote) this.win.setRepresentedFilename?.(target.root);
+    if (process.platform === 'darwin') this.win.setRepresentedFilename(target && !target.remote ? target.root : '');
   }
 
   info(): WindowInfo {
@@ -599,8 +620,9 @@ export class WindowManager {
     await this.open(root, { from, mode: 'picker' });
   }
 
-  sendMenu(command: MenuCommand) {
-    const window = this.focused();
+  sendMenu(command: MenuCommand, focusedOnly = false) {
+    const focused = BrowserWindow.getFocusedWindow();
+    const window = focusedOnly ? (focused ? this.windows.get(focused.id) : undefined) : this.focused();
     if (window) { window.focus(); window.send('menu:command', command); }
   }
 

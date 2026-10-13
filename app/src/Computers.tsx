@@ -117,6 +117,14 @@ export function RecentFolders({ computer, isCurrent, onError }: { computer: Comp
   </MenuSubmenu>;
 }
 
+/** The folder a window shows, in its computer's folder list: by path here, by its key on another computer. */
+export function currentFolder(info: { computer: ComputerRef; platform: string }, root: string) {
+  const computer = info.computer;
+  return (folder: ComputerFolder) => computer.hostId === null
+    ? (info.platform === 'win32' || info.platform === 'darwin' ? folder.path.toLowerCase() === root.toLowerCase() : folder.path === root)
+    : root === `atlas-remote:${computer.hostId}/${folder.folderId}`;
+}
+
 /** A long path as its root, an ellipsis and its last two folders: C:\Dev\…\e2e\fixtures\planning. */
 export function shortPath(path: string, most = 40) {
   if (path.length <= most) return path;

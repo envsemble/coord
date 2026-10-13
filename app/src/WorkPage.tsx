@@ -89,8 +89,8 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const note = designNote(work);
   const reading: Document | undefined = section === 'plan' ? plan : section === 'ledger' ? ledger : undefined;
   const references = useReferences(reading, work.id, section !== 'diagrams' && reading?.format === 'markdown');
-  const heading = useRef<HTMLDivElement>(null);
-  const headingVisible = useHeadingVisible(heading, section !== 'diagrams');
+  const [heading, setHeading] = useState<HTMLElement | null>(null);
+  const headingVisible = useHeadingVisible(heading);
   const sections: { id: WorkSection; label: string; icon: ReactNode; count?: number; hidden?: boolean }[] = [
     { id: 'plan', label: 'Plan', icon: <PlanIcon />, hidden: !plan },
     { id: 'ledger', label: 'Ledger', icon: <LedgerIcon />, hidden: !ledger },
@@ -99,7 +99,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const body = section === 'diagrams' ? <AtlasWorkPanel key={work.id} work={work} snapshot={snapshot} target={target} />
     : <div className="work-layout">
       <div className="work-main">
-        <header className="work-header" ref={heading}>
+        <header className="work-header" ref={setHeading}>
           <Text as="h1" variant="page-heading">{work.title}</Text>
           <div className="work-header-meta">
             <StatusBadge status={status} />
@@ -131,19 +131,22 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   </div>;
 }
 
-/** Whether a heading shows below the sticky title bar, tabs and work bar; false while there is none. */
-function useHeadingVisible(element: { current: HTMLElement | null }, present: boolean) {
-  const [visible, setVisible] = useState(present);
+/**
+ * Whether a section's heading shows below the sticky title bar, tabs and work bar; false while there
+ * is none. Each section renders its own heading, so the observer follows the element.
+ */
+function useHeadingVisible(node: HTMLElement | null) {
+  const [visible, setVisible] = useState(true);
   useEffect(() => {
-    const node = element.current;
-    if (!present || !node) { setVisible(false); return; }
+    if (!node) { setVisible(false); return; }
+    setVisible(true);
     // The bars stay where they are while the page scrolls, so the work bar's edge marks what they cover.
     const bar = node.closest('.work-page')?.querySelector('.work-bar');
     const covered = Math.ceil(bar?.getBoundingClientRect().bottom ?? 0);
     const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: `-${covered}px 0px 0px 0px` });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [element, present]);
+  }, [node]);
   return visible;
 }
 

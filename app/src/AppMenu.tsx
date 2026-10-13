@@ -22,6 +22,8 @@ export interface WorkbenchMenus {
   canCloseTab: boolean;
   importPlan(): void;
   exportPlan(): void;
+  /** File › Close Folder, after saving the window's layout. */
+  closeFolder(): void;
   /** The folder this window shows, in its computer's folder list. */
   isCurrent(folder: ComputerFolder): boolean;
   /** Where Open Folder… starts browsing on another computer. */
@@ -53,9 +55,9 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
     <MenubarMenu label="File" accessKey="F">
       <MenuItem shortcut={mod + '+Shift+N'} onClick={run('newWindow')}>New Window</MenuItem>
       <MenuSeparator />
-      <MenuItem shortcut={computer.hostId === null ? mod + '+O' : undefined} onClick={() => openFolderOn(computer, actions, onError, workbench?.near ?? null)}>Open Folder…</MenuItem>
+      <MenuItem shortcut={mod + '+O'} onClick={() => openFolderOn(computer, actions, onError, workbench?.near ?? null)}>Open Folder…</MenuItem>
       <RecentFolders computer={computer} isCurrent={workbench?.isCurrent} onError={onError} />
-      <MenuItem disabled={!info.folder} onClick={run('closeFolder')}>Close Folder</MenuItem>
+      <MenuItem disabled={!info.folder} onClick={workbench?.closeFolder ?? run('closeFolder')}>Close Folder</MenuItem>
       <MenuSeparator />
       <MenuItem onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
       <MenuItem onClick={actions.remoteAccess}>Remote Access…</MenuItem>

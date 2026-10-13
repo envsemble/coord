@@ -68,7 +68,8 @@ test('a moved planning folder shows Locate… and Close, and returns when it com
   renameSync(folder, moved);
   await expect(window.getByRole('heading', { name: 'This planning folder was moved or deleted' })).toBeVisible();
   await expect(window.getByRole('button', { name: 'Locate…' })).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Close' })).toBeVisible();
+  await expect(window.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+  await expect(window.getByRole('button', { name: 'Close Folder' })).toBeVisible();
   renameSync(moved, folder);
   await expect(window.locator('.work-row')).toHaveCount(3, { timeout: 20_000 });
 });
@@ -99,7 +100,7 @@ test('a folder that cannot be read at all explains why, and Close closes the win
   await expect(window.getByRole('heading', { name: 'This planning folder can’t be read' })).toBeVisible();
   await expect(window.locator('.folder-problem-error')).toContainText('planning.json');
   const closed = app.waitForEvent('close');
-  await window.getByRole('button', { name: 'Close' }).click();
+  await window.getByRole('button', { name: 'Close', exact: true }).click();
   await closed;
   // afterEach still runs close(), which removes the data folder of the exited app.
 });

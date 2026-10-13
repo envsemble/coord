@@ -28,7 +28,10 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
         { type: 'separator' },
         { label: '&Open Folder…', accelerator: 'CmdOrCtrl+O', click: () => manager.openFolderCommand(window()) },
         { label: 'Open &Recent', id: 'open-recent', submenu: recentItems },
-        { label: 'Close &Folder', click: () => { const target = window(); if (target) manager.closeFolder(target); } },
+        // The window's computer's whole list (macOS has no Open Recent of that computer in the window).
+        { label: 'Manage &Folders…', click: () => manager.sendMenu('manageFolders') },
+        // Through the window, which saves its layout first; only the window in front closes its folder.
+        { label: 'Close &Folder', click: () => manager.sendMenu('closeFolder', true) },
         { type: 'separator' },
         { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },
         { label: 'Re&mote Access…', click: () => manager.sendMenu('remoteAccess') },
@@ -46,7 +49,7 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
     {
       label: '&View',
       submenu: [
-        { label: '&Quick Open…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
+        { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
         { type: 'separator' },
         { label: '&Explorer', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('showExplorer') },
         { label: 'Toggle &Sidebar', accelerator: 'CmdOrCtrl+B', click: () => manager.sendMenu('toggleSidebar') },
@@ -55,7 +58,10 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
         { label: '&Activity', click: () => manager.sendMenu('openActivity') },
         { label: 'S&tatistics', click: () => manager.sendMenu('openStatistics') },
         { type: 'separator' },
-        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        // Zoom keeps the title bar's window buttons as tall as the bar.
+        { label: '&Actual Size', accelerator: 'CmdOrCtrl+0', click: () => window()?.zoom('reset') },
+        { label: 'Zoom &In', accelerator: 'CmdOrCtrl+Plus', click: () => window()?.zoom('in') },
+        { label: 'Zoom &Out', accelerator: 'CmdOrCtrl+-', click: () => window()?.zoom('out') },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(actions.devTools ? [{ type: 'separator' } as const, { role: 'reload' } as const, { role: 'toggleDevTools' } as const] : []),

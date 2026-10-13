@@ -65,6 +65,11 @@ async function sendImport(folder: FolderView, file: string) {
   return value;
 }
 
+/** A page cannot fake a person's input; commands it could misuse wait for one. */
+function requireActivation(window: AtlasWindow) {
+  if (!window.activatedRecently()) throw new AtlasError('forbidden', 'This needs a click or a key press in the window.');
+}
+
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): void }): Record<InvokeChannel, Channel> {
   const folder = (window: AtlasWindow): FolderView => {
     const view = window.requireFolder();
@@ -106,9 +111,9 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         switch (name) {
           case 'newWindow': await manager.create(null); return;
           case 'locate': await manager.locate(window); return;
-          case 'closeFolder': manager.closeFolder(window); return;
+          case 'closeFolder': await dropImports(entry => entry.window === window.id); manager.closeFolder(window); return;
           case 'closeWindow': window.win.close(); return;
-          case 'quit': app.quit(); return;
+          case 'quit': requireActivation(window); app.quit(); return;
           case 'openLogs': actions.openLogs(); return;
           case 'about': actions.about(window); return;
           // Edit acts on the window's focused element, as the native Edit menu does.
@@ -116,12 +121,11 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
           case 'redo': contents.redo(); return;
           case 'cut': contents.cut(); return;
           case 'copy': contents.copy(); return;
-          case 'paste': contents.paste(); return;
+          case 'paste': requireActivation(window); contents.paste(); return;
           case 'selectAll': contents.selectAll(); return;
-          // The same steps as the native View menu's zoom roles.
-          case 'zoomIn': contents.setZoomLevel(Math.min(contents.getZoomLevel() + 0.5, 9)); return;
-          case 'zoomOut': contents.setZoomLevel(Math.max(contents.getZoomLevel() - 0.5, -8)); return;
-          case 'resetZoom': contents.setZoomLevel(0); return;
+          case 'zoomIn': window.zoom('in'); return;
+          case 'zoomOut': window.zoom('out'); return;
+          case 'resetZoom': window.zoom('reset'); return;
           case 'toggleFullScreen': window.win.setFullScreen(!window.win.isFullScreen()); return;
           case 'reload': if (devTools) contents.reload(); return;
           case 'toggleDevTools': if (devTools) contents.toggleDevTools(); return;

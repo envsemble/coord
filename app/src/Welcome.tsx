@@ -41,10 +41,14 @@ export function Welcome({ info }: { info: WindowInfo }) {
 
 /** A folder that moved, was deleted, or cannot be read at all. */
 export function FolderProblem({ info }: { info: WindowInfo }) {
-  const close = <Button variant="secondary" onClick={() => void api.command('closeWindow')}>Close</Button>;
+  // Back to the start page of the folder's computer, or close the window.
+  const close = <>
+    <Button variant="secondary" onClick={() => void api.command('closeFolder')}>Close Folder</Button>
+    <Button variant="secondary" onClick={() => void api.command('closeWindow')}>Close</Button>
+  </>;
   if (info.remote) return <main className="folder-problem">
     <Surface className="folder-problem-panel" padding={6}>
-      <EmptyState icon={<ErrorIcon />} headingLevel={1} title={`This planning folder on ${info.remote.hostName} can’t be opened`} action={close}
+      <EmptyState icon={<ErrorIcon />} headingLevel={1} title={`This planning folder on ${info.remote.hostName} can’t be opened`} action={<div className="row-actions">{close}</div>}
         description={<>{info.error && <span className="folder-problem-error">{info.error}</span>}<span>Atlas reconnects on its own while this computer is paired with {info.remote.hostName}.</span></>} />
     </Surface>
   </main>;

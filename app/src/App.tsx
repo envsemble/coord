@@ -9,7 +9,7 @@ import { Workbench } from './Workbench';
 import { ConnectDialog } from './ConnectDialog';
 import { RemoteAccessDialog } from './RemoteAccessDialog';
 import { FolderBrowser } from './FolderBrowser';
-import { AppActionsContext, ComputersDialog, FoldersDialog, type AppActions } from './Computers';
+import { AppActionsContext, ComputersDialog, currentFolder, FoldersDialog, type AppActions } from './Computers';
 import { WindowTitleBar } from './AppMenu';
 
 type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'folders'; computer: ComputerRef; isCurrent?: (folder: ComputerFolder) => boolean }
@@ -40,11 +40,15 @@ export default function App() {
   }), []);
   // File › Open Folder… in a window on another computer browses it, beside the folder the window shows.
   const near = snapshot && info?.folder ? snapshot.root : null;
+  const showsWorkbench = Boolean(info?.folder && snapshot && info.status !== 'missing');
   useEffect(() => api.onMenu(command => {
     if (command === 'connectRemote') actions.connect();
     else if (command === 'remoteAccess') actions.remoteAccess();
     else if (command === 'browseFolder' && computer) actions.browse(computer, near);
-  }), [actions, computer, near]);
+    else if (command === 'manageFolders' && info) actions.manageFolders(info.computer, info.folder ? currentFolder(info, info.folder.root) : undefined);
+    // The workbench saves its layout before it closes its folder; other pages close it at once.
+    else if (command === 'closeFolder' && info?.folder && !showsWorkbench) void api.command('closeFolder').catch(() => undefined);
+  }), [actions, computer, near, info, showsWorkbench]);
   const latest = useRef(0);
 
   const refresh = useCallback(async (revision: number) => {
@@ -70,7 +74,6 @@ export default function App() {
     return off;
   }, [refresh]);
 
-  const showsWorkbench = Boolean(info?.folder && snapshot && info.status !== 'missing');
   useEffect(() => {
     if (!showsWorkbench || ui) return;
     api.loadUi().then(setUi).catch(() => setUi(defaultUiState));
