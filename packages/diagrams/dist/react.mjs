@@ -1171,6 +1171,7 @@ function createCamera({
     const height = Math.max(...anchors.map((n) => n.y + n.h)) - Math.min(...anchors.map((n) => n.y));
     const scale = Math.max(
       camera.scale,
+      0.5,
       Math.min(
         0.7,
         (area.width - 2 * FIT_PADDING) / Math.max(1, width),
@@ -3361,6 +3362,10 @@ function rollupChanges(comparison, model) {
       targetName: target?.name,
       tag: edgeTag(edge),
       label: informativeName(edge),
+      // A type-use dependency says which of the source's members use the target.
+      via: edge.stereotype === "dependency" && !informativeName(edge) ? dependencyMembers(source, target).map(
+        ({ member, method }) => memberLabel(member, method)
+      ) : [],
       members: [],
       notes: []
     }));
@@ -3486,10 +3491,11 @@ function summarize(entry, names) {
     const notes = entry.notes.map(
       (n) => `${n.key}: ${shorten(cellText(n.before, names), 40)} \u2192 ${shorten(cellText(n.after, names), 40)}`
     );
+    const via = entry.via.length ? `via ${entry.via.slice(0, MAX_TOKENS - 1).join(", ")}` : "";
     return {
-      text: [entry.label, ...notes].filter(Boolean).join(" \xB7 "),
+      text: [entry.label || via, ...notes].filter(Boolean).join(" \xB7 "),
       tokens: [],
-      more: 0
+      more: Math.max(0, entry.via.length - (MAX_TOKENS - 1))
     };
   }
   const members = entry.members;
