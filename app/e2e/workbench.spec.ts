@@ -353,7 +353,7 @@ test('the work page keeps the plan, ledger and diagrams sections, the About side
   launched = await launch({ folder });
   const { window } = launched;
   await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
-  await expect(sections(window)).toHaveText([/Plan/, /Ledger/, /Diagrams\s*2/]);
+  await expect(sections(window)).toHaveText([/Plan/, /Ledger/, /Diagrams\s*3/]);
   await expect(window.locator('.state-label')).toHaveText('In progress');
   // A version-2 ledger shows its steps and the work left; version 1 (work 0003) keeps current and next.
   await expect(window.locator('.about .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
