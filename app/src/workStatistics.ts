@@ -1,16 +1,56 @@
-// What the Statistics page shows about work: agent-reported model, tokens and active time
-// (atlas work report), plan revisions from Git, and ledger steps. Pure, so it is unit-tested.
+// What the Statistics page and a work item's About sidebar show about work: the model, agent time
+// and tokens from agent reports (atlas work report), plan revisions from Git, and ledger steps.
+// Pure, so it is unit-tested.
 import { stepCounts } from '@envsemble/atlas-planning/ledger';
-import type { Snapshot, Work, WorkStatistics } from './types';
-import { median } from './format';
+import type { TokenKinds } from '@envsemble/atlas-planning/types';
+import type { ModelUsage, Snapshot, Work, WorkStatistics } from './types';
+import { absoluteDate, compactNumber, duration, median } from './format';
 
-export type TrendMetric = 'tokens' | 'activeMs' | 'planRevisions' | 'steps';
+export type TrendMetric = 'tokens' | 'agentMs' | 'planRevisions' | 'steps';
 export const trendMetrics: { id: TrendMetric; label: string; unit: string }[] = [
+  { id: 'agentMs', label: 'Agent time', unit: 'agent time per work item' },
   { id: 'tokens', label: 'Tokens', unit: 'tokens per work item' },
-  { id: 'activeMs', label: 'Active time', unit: 'active time per work item' },
   { id: 'planRevisions', label: 'Plan revisions', unit: 'plan revisions before completion' },
   { id: 'steps', label: 'Steps', unit: 'ledger steps per work item' },
 ];
+
+type Timed = Pick<WorkStatistics, 'reports' | 'agentMs' | 'measuredMs' | 'estimatedMs' | 'measuredReports' | 'firstReport'>;
+/** How agent time was counted: measured from session logs, estimated from report times, or both. */
+export function timeSource(statistics: Timed): 'measured' | 'estimated' | 'mixed' | null {
+  if (!statistics.reports) return null;
+  return !statistics.measuredReports ? 'estimated' : statistics.estimatedMs > 0 ? 'mixed' : 'measured';
+}
+/** What agent time stands for, and since when it is counted. */
+export function agentTimeNote(statistics: Timed): string {
+  const since = statistics.firstReport ? ' since ' + absoluteDate(statistics.firstReport) : '';
+  switch (timeSource(statistics)) {
+    case 'measured': return 'Measured from the agent\'s session logs' + since + ': the time it worked, not the time it waited for a person.';
+    case 'mixed': return duration(statistics.measuredMs) + ' measured from the agent\'s session logs and ' + duration(statistics.estimatedMs) + ' estimated from the time between its reports,' + since + '.';
+    case 'estimated': return 'Estimated from the time between the agent\'s reports' + since + '; breaks of more than two hours are left out.';
+    default: return 'No agent reports yet.';
+  }
+}
+
+/** The token breakdown: cached input, cache writes, input and output as measured, then any self-reported tokens. */
+export function tokenRows(usage: { tokens: number | null; tokenKinds: TokenKinds | null }): { label: string; value: number }[] {
+  if (usage.tokens === null) return [];
+  const kinds = usage.tokenKinds;
+  const rows = kinds ? [{ label: 'Cached input', value: kinds.cacheRead }, { label: 'Cache writes', value: kinds.cacheWrite }, { label: 'Input', value: kinds.input }, { label: 'Output', value: kinds.output }] : [];
+  const reported = usage.tokens - rows.reduce((sum, row) => sum + row.value, 0);
+  if (reported > 0 || !kinds) rows.push({ label: 'Self-reported', value: reported });
+  return rows;
+}
+/** The breakdown as one line, for titles and assistive technology. */
+export const tokenText = (usage: { tokens: number | null; tokenKinds: TokenKinds | null }) => tokenRows(usage).map(row => row.label + ' ' + compactNumber(row.value)).join(' · ');
+
+/** The models besides the primary one that did something, most agent time first. */
+export function otherModels(statistics: Pick<WorkStatistics, 'models' | 'primaryModel'>): ModelUsage[] {
+  return statistics.models.filter(model => model.model !== statistics.primaryModel && (model.agentMs > 0 || (model.tokens ?? 0) > 0 || model.reports > 0));
+}
+/** What one model did: "20 min, 1.3K tokens". */
+export function modelShare(model: ModelUsage) {
+  return [model.agentMs ? duration(model.agentMs) : null, model.tokens !== null ? compactNumber(model.tokens) + ' tokens' : null].filter(Boolean).join(', ');
+}
 
 export interface WorkRow { work: Work; statistics: WorkStatistics | null; steps: number | null; stepsDone: number | null; last: string | null }
 
@@ -30,7 +70,7 @@ export function metricValue(row: WorkRow, metric: TrendMetric): number | null {
   if (metric === 'steps') return row.steps || null;
   if (metric === 'planRevisions') return row.statistics?.planRevisions ?? null;
   if (!row.statistics?.reports) return null;
-  return metric === 'tokens' ? row.statistics.tokens : row.statistics.activeMs || null;
+  return metric === 'tokens' ? row.statistics.tokens : row.statistics.agentMs || null;
 }
 
 /** Completed work, which the trends compare: each item at its completion date. */
@@ -77,7 +117,7 @@ export function colourSlots(models: string[], slots = 3): Map<string, number> {
 }
 
 export interface ModelSummary {
-  model: string | null; completed: number; tokens: number | null; activeMs: number | null; planRevisions: number | null; steps: number | null;
+  model: string | null; completed: number; tokens: number | null; agentMs: number | null; planRevisions: number | null; steps: number | null;
   first: string | null; last: string | null;
 }
 /** Medians per implementing model (the primary model of each completed work item), most recent first. */
@@ -90,6 +130,6 @@ export function modelSummaries(rows: WorkRow[]): ModelSummary[] {
   const values = (group: WorkRow[], metric: TrendMetric) => median(group.map(row => metricValue(row, metric)).filter((value): value is number => value !== null));
   return [...groups].map(([model, group]) => {
     const dates = group.map(row => row.work.completed!).sort();
-    return { model, completed: group.length, tokens: values(group, 'tokens'), activeMs: values(group, 'activeMs'), planRevisions: values(group, 'planRevisions'), steps: values(group, 'steps'), first: dates[0] ?? null, last: dates.at(-1) ?? null };
+    return { model, completed: group.length, tokens: values(group, 'tokens'), agentMs: values(group, 'agentMs'), planRevisions: values(group, 'planRevisions'), steps: values(group, 'steps'), first: dates[0] ?? null, last: dates.at(-1) ?? null };
   }).sort((a, b) => (b.last ?? '').localeCompare(a.last ?? '') || (a.model === null ? 1 : b.model === null ? -1 : a.model.localeCompare(b.model)));
 }

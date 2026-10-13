@@ -182,18 +182,18 @@ Contained Markdown links open their original records. External web references op
 The Statistics view has three tabs. [Progress and statistics](../docs/progress-and-statistics.md) explains what agents report and how Atlas counts it.
 
 - **Work** lists every work item with:
-  - its implementing model;
-  - the tokens and active time agents reported;
+  - its implementing model, by name with its provider's mark;
+  - its agent time and tokens;
   - its plan revisions;
   - its ledger steps done.
 
   Totals and the median plan revisions of completed work sit above the list.
-- **Models over time** compares completed work by implementing model, the model with the most active time. A chart plots tokens, active time, plan revisions or steps for each completed work item at its completion date, coloured for the three models whose completed work is most recent, with the rest as "Other"; a model keeps its colour while others come and go. A table gives each model's medians. Hover a dot or move through the dots with the arrow keys; click it or press Enter to open the work.
+- **Models over time** compares completed work by implementing model, the model that did most of the work. A chart plots agent time, tokens, plan revisions or steps for each completed work item at its completion date, coloured for the three models whose completed work is most recent, with the rest as "Other"; a model keeps its colour while others come and go. A table gives each model's medians. Hover a dot or move through the dots with the arrow keys; click it or press Enter to open the work.
 - **Document use** is described below.
 
-A work item's About sidebar shows the same statistics for that work.
+A work item's About sidebar sums up the same statistics for that work: the model, with any other models below it, the agent time, the tokens and the plan revisions. Hover over or focus the agent time to see how much of it was measured and since when, and the tokens to see them by kind.
 
-Agents report with `atlas work report <planning-root> --work <work-id> --model <id> [--tokens <n>] [--session <id>] [--step <title>]` at ledger transitions, as `atlas-implement` describes. The report is one line in `<work>/.atlas/statistics.jsonl`, so it is versioned and moves with the work folder; plan exports leave it out. The values are self-reported and approximate, and plan revisions need the planning folder's Git history. [Progress and statistics](../docs/progress-and-statistics.md#work-statistics) gives the counting rules: sessions, breaks, token starting points and revisions.
+Agents report each ledger transition with `atlas work report <planning-root> --work <work-id> --step <title>`, as `atlas-implement` describes. Inside Claude Code or Codex, Atlas reads the session, the model, and the agent time and tokens from the session's own log on that computer; elsewhere agents add `--model`, and `--session` and `--tokens` when they know them. The report is one line in `<work>/.atlas/statistics.jsonl`, so it is versioned and moves with the work folder; plan exports leave it out. Reports without a measurement are estimated from report times, and plan revisions need the planning folder's Git history. [Progress and statistics](../docs/progress-and-statistics.md#work-statistics) gives the counting rules: what counts as agent time, sessions, breaks, starting points and revisions.
 
 ### Document use
 

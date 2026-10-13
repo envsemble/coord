@@ -2,9 +2,9 @@
 // grid, a hover and keyboard tooltip (the nearest dot within 24 px), and Enter to open the item.
 // Hand-built SVG: the window's content security policy allows no chart library code from elsewhere.
 // Series colours may be CSS custom properties, so they are applied as styles, not attributes.
-import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
-export interface ChartSeries { key: string; label: string; color: string }
+export interface ChartSeries { key: string; label: ReactNode; color: string }
 export interface ChartPoint { id: string; x: number; y: number; series: string; title: string; detail: string }
 
 const height = 260;

@@ -57,7 +57,7 @@ Plans, models and statistics stay on your computer unless you turn on remote acc
 1. **Plan.** With `atlas-grill`, the agent interviews you about a change and records the plan, its glossary and its decisions as they settle. You accept the plan.
 2. **Implement.** With `atlas-implement`, the agent breaks the accepted plan into steps in the work's ledger and marks each one `todo`, `doing` or `done` as it goes. It reports its model and tokens at each step, and delivers through pull requests with review and CI.
 3. **Follow along.** Atlas shows every work item's progress and the steps left, its plan, ledger and decisions, recent commits, and the diagrams that explain it, updating as files change.
-4. **Learn from it.** With `atlas-record`, the agent keeps the decisions and lessons worth reusing. The Statistics view compares tokens, active time and plan revisions by model over time, so you can see how a new model does on your work.
+4. **Learn from it.** With `atlas-record`, the agent keeps the decisions and lessons worth reusing. The Statistics view compares agent time, tokens and plan revisions by model over time, so you can see how a new model does on your work.
 
 [Progress and statistics](docs/progress-and-statistics.md) explains the ledger's steps, what agents report and how Atlas counts it.
 

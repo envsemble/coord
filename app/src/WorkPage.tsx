@@ -5,13 +5,14 @@ import { CommitIcon } from './icons';
 import type { Document, Snapshot, Target, Work, WorkSection } from './types';
 import { defaultDocument, primaryDocuments } from './work';
 import { workTarget } from './targets';
-import { absoluteDate, compactNumber, duration, relativeDate, shortDate, workNumber } from './format';
+import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
 import { RepositoryBadge, StatusBadge } from './ui';
 import { Reader, useReferences } from './Reader';
 import { AtlasWorkPanel } from './AtlasWorkPanel';
 import { LedgerSteps } from './LedgerProgress';
 import { WorkSections, type SectionOption } from './WorkSections';
+import { WorkStatisticsSummary } from './WorkStatisticsSummary';
 import { useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
@@ -58,17 +59,11 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
     </AboutSection>}
-    <AboutSection title="About">
-      {dates.length > 0 && <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}</dl>}
-      <p className="about-path" title={work.path}><bdi>{work.path}</bdi></p>
-    </AboutSection>
+    {dates.length > 0 && <AboutSection title="About">
+      <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}</dl>
+    </AboutSection>}
     {statistics && (statistics.reports > 0 || statistics.planRevisions !== null) && <AboutSection title="Statistics" note={statistics.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
-      <dl className="facts about-statistics">
-        {statistics.primaryModel && <div><dt>Model</dt><dd><Code appearance="subtle">{statistics.primaryModel}</Code>{statistics.models.length > 1 && <span className="muted" title={statistics.models.slice(1).map(model => model.model).join(', ')}> +{statistics.models.length - 1} more</span>}</dd></div>}
-        {statistics.tokens !== null && <div><dt>Tokens</dt><dd title={statistics.tokens.toLocaleString() + ' tokens, self-reported'}>{compactNumber(statistics.tokens)}</dd></div>}
-        {statistics.reports > 0 && <div><dt>Active time</dt><dd title="Time between reports in each session, self-reported">{duration(statistics.activeMs)}</dd></div>}
-        {statistics.planRevisions !== null && <div><dt>Plan revisions</dt><dd title={work.completed ? 'Commits that changed the plan before completion' : 'Commits that changed the plan so far'}>{statistics.planRevisions}</dd></div>}
-      </dl>
+      <WorkStatisticsSummary work={work} statistics={statistics} />
     </AboutSection>}
     {commits.length > 0 && <AboutSection title="Recent activity">
       <ul className="about-commits">{commits.map(entry => <li key={entry.id}><CommitIcon className="about-commit-icon" /><div><span className="commit-title">{entry.title}</span><span className="muted"><Code appearance="subtle">{entry.id.slice(0, 7)}</Code> · <span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span></div></li>)}</ul>

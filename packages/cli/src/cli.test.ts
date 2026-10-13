@@ -12,12 +12,19 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const command = path.resolve(here, '../bin/atlas.js');
 const { version } = JSON.parse(readFileSync(path.resolve(here, '../package.json'), 'utf8')) as { version: string };
 
+// The command runs outside any agent harness, with no harness logs to find: work reports never
+// measure the developer's own session.
+const noLogs = mkdtempSync(path.join(tmpdir(), 'atlas-cli-no-logs-'));
+test.after(() => rmSync(noLogs, { recursive: true, force: true }));
+const environment: NodeJS.ProcessEnv = { ...process.env, CLAUDE_CONFIG_DIR: path.join(noLogs, 'claude'), CODEX_HOME: path.join(noLogs, 'codex') };
+for (const name of ['CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CLAUDECODE']) delete environment[name];
+
 function atlas(args: string[], options: { input?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {}) {
-  const result = spawnSync(process.execPath, [command, ...args], { encoding: 'utf8', input: options.input, env: options.env ?? process.env, cwd: options.cwd, windowsHide: true, timeout: 60000 });
+  const result = spawnSync(process.execPath, [command, ...args], { encoding: 'utf8', input: options.input, env: options.env ?? environment, cwd: options.cwd, windowsHide: true, timeout: 60000 });
   if (result.error) throw result.error;
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
-function atlasAsync(args: string[], env: NodeJS.ProcessEnv = process.env) {
+function atlasAsync(args: string[], env: NodeJS.ProcessEnv = environment) {
   return new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(process.execPath, [command, ...args], { env, windowsHide: true });
     let stdout = '', stderr = '';
@@ -48,7 +55,7 @@ test('version and help describe the one atlas command', () => {
   assert.equal(shown.stdout.trim(), version);
   const help = atlas(['help']);
   assert.equal(help.status, 0);
-  for (const usage of ['atlas model <operation> --root <workspace>', 'atlas model review --input', 'atlas model tools', 'atlas mcp --root <workspace>', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files', 'atlas work report <planning-root> --work <work-id> --model <model>']) assert.ok(help.stdout.includes(usage), usage);
+  for (const usage of ['atlas model <operation> --root <workspace>', 'atlas model review --input', 'atlas model tools', 'atlas mcp --root <workspace>', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files', 'atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>]']) assert.ok(help.stdout.includes(usage), usage);
   assert.equal(atlas([]).status, 0);
 });
 
@@ -135,7 +142,7 @@ test('atlas usage log writes what the app reads, deduplicates and never fails th
   const directory = temporary(t);
   const root = planningFolder(directory);
   const data = path.join(directory, 'data');
-  const env = { ...process.env, ATLAS_DATA_DIR: data };
+  const env = { ...environment, ATLAS_DATA_DIR: data };
   const logged = atlas(['usage', 'log', root, '--task', 'work-0001', '--session', 'chat-1', '--files', 'active/0001-example/plan.md', 'README.md', 'README.md', '../outside.md'], { env });
   assert.equal(logged.status, 0, logged.stderr);
   assert.equal(logged.stdout.trim(), '{"reported_documents": 2, "unrecorded_documents": 1}');
@@ -185,7 +192,7 @@ test('atlas work report appends one line per report, even from concurrent agents
   const file = path.join(root, 'active/0001-example/.atlas/statistics.jsonl');
   const reported = atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--tokens', '1200', '--session', 'chat-1', '--step', 'Build it']);
   assert.equal(reported.status, 0, reported.stderr);
-  assert.match(reported.stdout, /^\{"recorded":true,"file":"active\/0001-example\/\.atlas\/statistics\.jsonl","at":"[^"]+"\}\n$/);
+  assert.match(reported.stdout, /^\{"recorded":true,"file":"active\/0001-example\/\.atlas\/statistics\.jsonl","at":"[^"]+","model":"model-a"\}\n$/);
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, 'utf8'))), ['version', 'at', 'model', 'session', 'tokens', 'step']);
   // Several agents at once: every report is one whole line.
   const writers = await Promise.all(Array.from({ length: 8 }, (_, index) => atlasAsync(['work', 'report', root, '--work', 'work-0001', '--model', 'model-b', '--tokens', String(index * 1000), '--session', 'parallel-' + index])));
@@ -204,11 +211,51 @@ test('atlas work report appends one line per report, even from concurrent agents
   assert.equal(readFileSync(file, 'utf8').trim().split('\n').length, 9, 'refused reports write nothing');
   // Usage errors exit 2.
   assert.equal(atlas(['work', 'report', root, '--model', 'model-a']).status, 2, '--work is required');
-  assert.equal(atlas(['work', 'report', root, '--work', 'work-0001']).status, 2, '--model is required');
+  assert.equal(atlas(['work', 'report', root, '--work', 'work-0001']).status, 2, '--model is required outside a harness');
   assert.equal(atlas(['work', 'report', '--work', 'work-0001', '--model', 'model-a']).status, 2, 'the planning root is required');
   assert.equal(atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--tokens', '12k']).status, 2);
   assert.equal(atlas(['work', 'tally', root]).status, 2);
   assert.equal(atlas(['planning', 'check', root]).status, 0, 'the planning check accepts the reports');
+});
+
+test('inside a harness, atlas work report needs only the work and the step: the session log gives the rest', t => {
+  const directory = temporary(t);
+  const root = planningFolder(directory);
+  // A synthetic Claude Code session that started ten minutes ago and is at work now.
+  const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
+  const config = path.join(directory, 'claude');
+  const project = path.join(config, 'projects', 'C--work-example');
+  mkdirSync(project, { recursive: true });
+  const usage = { input_tokens: 10, cache_creation_input_tokens: 200, cache_read_input_tokens: 3000, output_tokens: 400 };
+  // A response calls a tool (this command, say) or, with end_turn, ends the turn.
+  const line = (at: number, kind: 'prompt' | 'response' | 'result', id = '', stop = 'tool_use') => JSON.stringify(kind === 'response' ? { type: 'assistant', message: { id, model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: stop, usage }, timestamp: new Date(at).toISOString() }
+    : { type: 'user', message: { role: 'user', content: kind === 'prompt' ? 'Placeholder' : [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] }, timestamp: new Date(at).toISOString() });
+  const log = path.join(project, session + '.jsonl');
+  writeFileSync(log, [line(Date.now() - 600000, 'prompt'), line(Date.now() - 540000, 'response', 'msg_1')].join('\n') + '\n');
+  const env = { ...environment, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session, CLAUDE_CONFIG_DIR: config };
+  const first = atlas(['work', 'report', root, '--work', 'work-0001', '--step', 'Build it'], { env });
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(first.stderr, '');
+  const start = JSON.parse(first.stdout);
+  assert.equal(start.model, 'claude-opus-5-5', 'the model comes from the log');
+  // The turn goes on after the report: a tool result and a response, before the next report.
+  const since = Date.parse(start.at);
+  writeFileSync(log, [line(since + 30, 'result'), line(since + 60, 'response', 'msg_2', 'end_turn')].map(text => text + '\n').join(''), { flag: 'a' });
+  const second = atlas(['work', 'report', root, '--work', 'work-0001', '--step', 'Build it'], { env });
+  assert.equal(second.status, 0, second.stderr);
+  const shown = JSON.parse(second.stdout);
+  assert.deepEqual([shown.model, shown.since, shown.agentMs, shown.tokens], ['claude-opus-5-5', start.at, 60, 3610], 'the turn under way since the first report, and the response in it');
+  const lines = readFileSync(path.join(root, 'active/0001-example/.atlas/statistics.jsonl'), 'utf8').trim().split('\n').map(text => JSON.parse(text));
+  assert.deepEqual(lines.map(report => [report.session, report.model, Boolean(report.measured)]), [[session, 'claude-opus-5-5', false], [session, 'claude-opus-5-5', true]]);
+  // A session without a log: recorded with --model and a warning, or not recorded without one.
+  const elsewhere = { ...env, CLAUDE_CODE_SESSION_ID: '11111111-2222-4333-8444-555555555555' };
+  const unmeasured = atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a'], { env: elsewhere });
+  assert.equal(unmeasured.status, 0);
+  assert.match(unmeasured.stderr, /^WARNING: Agent time and tokens were not measured: no Claude Code log of session 11111111-2222-4333-8444-555555555555 was found on this computer\.\n$/);
+  const unknown = atlas(['work', 'report', root, '--work', 'work-0001'], { env: elsewhere });
+  assert.deepEqual([unknown.status, unknown.stdout], [0, '']);
+  assert.match(unknown.stderr, /^Work statistics were not recorded \(The model is unknown \(no Claude Code log of session .+ was found on this computer\): give it with --model\); continue the task\.\n$/);
+  assert.equal(atlas(['planning', 'check', root]).status, 0, 'the planning check accepts measured reports');
 });
 
 test('atlas plan export and import share a work item with a preview, --dry-run and 0/1/2 exit codes', t => {
