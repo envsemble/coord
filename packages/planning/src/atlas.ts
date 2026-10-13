@@ -247,10 +247,13 @@ export class AtlasCatalog {
           .then(result => new Map(family.map(([member], index) => [member, result.members[index].payload])));
         this.families.set(key, pending);
         if (this.families.size > 4) this.families.delete(this.families.keys().next().value!);
-        pending.catch(() => this.families.delete(key));
+        // A failure stays cached for these revisions, so its members are served alone at once.
+        pending.catch(() => undefined);
       }
-      const payloads = await pending;
-      return { ...payloads.get(handle)!, siblings: family.filter(([member]) => member !== handle).map(([member]) => ({ handle: member, payload: payloads.get(member)! })) };
+      try {
+        const payloads = await pending;
+        return { ...payloads.get(handle)!, siblings: family.filter(([member]) => member !== handle).map(([member]) => ({ handle: member, payload: payloads.get(member)! })) };
+      } catch { /* A family that cannot be laid out together, such as one with a proposal no view can draw, is served model by model. */ }
     }
     const key = location.directory + '\0' + handle + ':' + document.revision.id;
     let pending = this.cache.get(key);
