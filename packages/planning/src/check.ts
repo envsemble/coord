@@ -433,10 +433,17 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (!info) continue;
     if (!info.isFile()) { warnings.push(label + ': a link or not a regular file; statistics are not read'); continue; }
     if (info.size > statisticsFileLimit) { warnings.push(label + ': larger than 4 MB; statistics are not read'); continue; }
-    let invalid = 0;
-    try { for (const line of readText(file).split(/\r?\n/)) if (line.trim() && !parseReport(line)) invalid++; }
-    catch (error) { warnings.push(label + ': ' + (error as Error).message); continue; }
+    let invalid = 0, unmeasured = 0;
+    try {
+      for (const line of readText(file).split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        const report = parseReport(line);
+        if (!report) invalid++;
+        else if (!report.measured && line.includes('"measured":')) unmeasured++;
+      }
+    } catch (error) { warnings.push(label + ': ' + (error as Error).message); continue; }
     if (invalid) warnings.push(label + ': ' + invalid + (invalid === 1 ? ' line is' : ' lines are') + ' not a valid statistics report and will be ignored');
+    if (unmeasured) warnings.push(label + ': ' + unmeasured + (unmeasured === 1 ? ' report has a measurement' : ' reports have measurements') + ' that cannot be read; agent time there is estimated');
   }
   return { errors, warnings };
 }

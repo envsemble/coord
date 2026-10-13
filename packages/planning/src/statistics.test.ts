@@ -100,13 +100,28 @@ test('measured reports are validated when written and read, and stay readable to
     measurement(0, 61, []), measurement(0, -1, []), { ...measurement(0, 5, []), agentMs: 1.5 }, measurement(30, 31, []),
     measurement(0, 5, [['model-a', 6, [0, 0, 0, 0]]]), measurement(0, 5, [['model a', 1, [0, 0, 0, 0]]]), measurement(0, 5, [['model-a', 1, [0, 0, 0, 0]], ['model-a', 1, [0, 0, 0, 0]]]),
     measurement(0, 5, [['model-a', 1, [-1, 0, 0, 0]]]), measurement(0, 5, [['model-a', 1, [0, 0.5, 0, 0]]]), measurement(0, 5, [['model-a', 1, [0, 0, 1e13, 0]]]),
-    { ...measurement(0, 5, []), models: Array.from({ length: 9 }, (_, index) => ({ model: 'm' + index, agentMs: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 })) },
     { ...measurement(0, 5, []), models: [{ model: 'model-a', agentMs: 0, input: 0, cacheRead: 0, cacheWrite: 0 }] }, { since: at(0), agentMs: 0 },
   ];
   for (const value of invalid) {
     assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: value as Measured }), StatisticsReportError, JSON.stringify(value));
-    assert.equal(parseReport(JSON.stringify({ ...report(60, 'model-a'), measured: value })), null, JSON.stringify(value));
+    assert.deepEqual(parseReport(JSON.stringify({ ...report(60, 'model-a'), measured: value })), report(60, 'model-a'), 'read without the measurement: ' + JSON.stringify(value));
   }
+  assert.equal(parseReport(JSON.stringify({ ...report(60, 'model a'), measured: measurement(0, 5, []) })), null, 'the rest of the report must still be valid');
+  // Reports name at most eight models; one with more, from a later version, is still read.
+  const nine = { ...measurement(0, 5, []), models: Array.from({ length: 9 }, (_, index) => ({ model: 'm' + index, agentMs: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 })) };
+  assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: nine }), StatisticsReportError);
+  assert.equal(parseReport(JSON.stringify({ ...report(60, 'model-a'), measured: nine }))?.measured?.models.length, 9);
+});
+
+test('two agents of a session reporting at once measure from the same report: what an earlier report covered counts once', () => {
+  const session = '5752382d-8571-4733-a9e9-0db82c361b65';
+  const summary = summarizeReports([
+    report(0, 'claude-opus-5-5', null, session),
+    measured(60, 'claude-opus-5-5', session, 0, 60, [['claude-opus-5-5', 60, [0, 6000, 0, 600]]]),
+    // A second helper read the file before the first report was written: its interval overlaps by 60 of 80 minutes.
+    measured(80, 'claude-opus-5-5', session, 0, 80, [['claude-opus-5-5', 80, [0, 8000, 0, 800]]]),
+  ]);
+  assert.deepEqual([summary.agentMs / 60000, summary.tokens], [80, 6600 + 2200], 'the second counts its last 20 minutes, and a quarter of its tokens');
 });
 
 test('reports are validated when written and when read', () => {
@@ -289,6 +304,9 @@ test('atlas work report appends to the work folder, which the reader summarizes 
   assert.equal(statistics.planRevisions, null, 'no Git history');
   assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('statistics.jsonl: 1 line is not a valid statistics report')));
   assert.deepEqual(validatePlanning(root).errors, []);
+  appendFileSync(path.join(root, first.file), JSON.stringify({ ...report(50, 'model-a', null, 's1'), measured: { since: at(60), agentMs: 0, models: [] } }) + '\n');
+  assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('statistics.jsonl: 1 report has a measurement that cannot be read; agent time there is estimated')));
+  assert.equal((await loadPlanning(root)).work[0].statistics?.reports, 3, 'the report itself still counts');
 
   const exported = await exportPlan(root, 'work-0001');
   assert.ok(!exported.manifest.files.some(file => file.path.endsWith('statistics.jsonl')), 'plan exports leave the statistics out');

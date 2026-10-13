@@ -75,8 +75,11 @@ function utcTime(value: unknown): string | null {
 const whole = (value: unknown, limit: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= limit;
 const tokenKinds = ['input', 'cacheRead', 'cacheWrite', 'output'] as const;
 
-/** A measurement as reports record it: an interval that ends at the report, times inside it, distinct models. */
-function checkedMeasured(value: unknown, at: string): Measured | null {
+/**
+ * A measurement as reports record it: an interval that ends at the report, times inside it, distinct
+ * models. Reports name at most eight; read, any number fits the line.
+ */
+function checkedMeasured(value: unknown, at: string, modelLimit: number): Measured | null {
   if (value === null || value === undefined) return null;
   const invalid = (detail: string) => new StatisticsReportError('The measurement is not valid: ' + detail + '.');
   if (typeof value !== 'object' || Array.isArray(value)) throw invalid('it is not an object');
@@ -85,7 +88,7 @@ function checkedMeasured(value: unknown, at: string): Measured | null {
   if (!since || since > at) throw invalid('since must be a UTC time no later than the report');
   if (!whole(entry.agentMs, Date.parse(at) - Date.parse(since))) throw invalid('agentMs must be whole milliseconds within the interval');
   const total = entry.agentMs;
-  if (!Array.isArray(entry.models) || entry.models.length > measuredModelLimit) throw invalid(`models must be a list of at most ${measuredModelLimit}`);
+  if (!Array.isArray(entry.models) || entry.models.length > modelLimit) throw invalid(`models must be a list of at most ${modelLimit}`);
   const models = entry.models.map((item: unknown): MeasuredModel => {
     const model = item && typeof item === 'object' ? item as Record<string, unknown> : {};
     if (typeof model.model !== 'string' || !modelPattern.test(model.model)) throw invalid('each model needs its identifier');
@@ -98,18 +101,21 @@ function checkedMeasured(value: unknown, at: string): Measured | null {
 }
 
 /** Build a valid report line, or throw StatisticsReportError. */
-export function createReport(input: ReportInput): StatisticsReport {
+export function createReport(input: ReportInput, modelLimit = measuredModelLimit): StatisticsReport {
   if (typeof input.model !== 'string' || !modelPattern.test(input.model)) throw new StatisticsReportError('The model must be its identifier, such as the API model name: letters, digits and . _ : / @ + - [ ], at most 100 characters.');
   const session = input.session ?? null;
   if (session !== null && (typeof session !== 'string' || !sessionPattern.test(session))) throw new StatisticsReportError('The session must be an identifier: letters, digits and . _ : -, at most 128 characters.');
   const at = (input.at ?? new Date()).toISOString();
   const report: StatisticsReport = { version: 1, at, model: input.model, session, tokens: checkedTokens(input.tokens), step: checkedStep(input.step) };
-  const measured = checkedMeasured(input.measured, at);
+  const measured = checkedMeasured(input.measured, at, modelLimit);
   if (measured) report.measured = measured;
   return report;
 }
 
-/** Read one line; null when it is not a valid report (counted, never fatal). */
+/**
+ * Read one line; null when it is not a valid report (counted, never fatal). A measurement this
+ * version cannot read is left out, and the rest of the report stays, as older versions read it.
+ */
 export function parseReport(line: string): StatisticsReport | null {
   if (line.length > lineLimit) return null;
   let value: unknown;
@@ -118,8 +124,12 @@ export function parseReport(line: string): StatisticsReport | null {
   const entry = value as Record<string, unknown>;
   const at = utcTime(entry.at);
   if (entry.version !== 1 || !at) return null;
-  try { return createReport({ model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, at: new Date(at), measured: entry.measured as Measured | undefined }); }
-  catch { return null; }
+  const fields: ReportInput = { model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, at: new Date(at) };
+  try { return createReport({ ...fields, measured: entry.measured as Measured | undefined }, Number.POSITIVE_INFINITY); }
+  catch {
+    if (entry.measured === undefined) return null;
+    try { return createReport(fields); } catch { return null; }
+  }
 }
 
 const sum = (kinds: TokenKinds) => kinds.input + kinds.cacheRead + kinds.cacheWrite + kinds.output;
@@ -131,7 +141,8 @@ const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ inp
  * they start, so what a session did before this work is not charged to it. Then each report covers
  * the time since the previous one:
  * - measured, when the report carries what the session log showed for that interval: the agent's
- *   working time, and each model's time and tokens;
+ *   working time, and each model's time and tokens. Two agents of a session reporting at the same
+ *   moment measure from the same report; the part an earlier report covered counts once;
  * - estimated otherwise: the whole interval is agent time of the reporting model, unless more than
  *   two hours passed, which is a break; and a session's self-reported token count is cumulative, so
  *   a report adds its increase over the previous one (a lower count means a new conversation under
@@ -163,18 +174,22 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     }
     entry.sessions.add(run.id);
     if (report.measured) {
+      const since = Date.parse(report.measured.since);
+      const share = previous === null || since >= previous ? 1 : time > since ? Math.max(0, time - previous) / (time - since) : 0;
+      const part = (value: number) => Math.round(value * share);
       measuredReports++;
-      measuredMs += report.measured.agentMs;
+      measuredMs += part(report.measured.agentMs);
       // A measurement of no tokens is a known zero.
       kinds ??= { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
       for (const item of report.measured.models) {
+        const counted = { input: part(item.input), cacheRead: part(item.cacheRead), cacheWrite: part(item.cacheWrite), output: part(item.output) };
         const used = model(item.model);
-        used.agentMs += item.agentMs;
-        used.tokens += sum(item);
+        used.agentMs += part(item.agentMs);
+        used.tokens += sum(counted);
         used.tokensKnown = true;
-        used.tokenKinds = added(used.tokenKinds, item);
+        used.tokenKinds = added(used.tokenKinds, counted);
         used.sessions.add(run.id);
-        kinds = added(kinds, item);
+        kinds = added(kinds, counted);
       }
     } else if (previous !== null && time - previous <= sessionGap) {
       estimatedMs += time - previous;
