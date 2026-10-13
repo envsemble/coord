@@ -92,41 +92,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.atlas-panel .comparison-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
 .atlas-panel .zoom-readout {
   min-width: 4rem;
 }
-.atlas-panel .count-added,.atlas-panel
-.count-removed,.atlas-panel
-.count-modified,.atlas-panel
-.count-conflicts {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-.atlas-panel .count-added {
-  color: var(--color-tone-success);
-}
-.atlas-panel .count-removed {
-  color: var(--color-tone-danger);
-}
-.atlas-panel .count-modified {
-  color: var(--color-tone-warning);
-}
-.atlas-panel .count-conflicts {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.125rem;
-  color: var(--color-tone-danger);
-}
-.atlas-panel .count-conflicts svg {
-  width: 1rem;
-  height: 1rem;
-}
-
 /* Concept search: an inline field, or a toggle with a popup when crowded. */
 /* In a crowded toolbar the field opens below the whole tools island. */
 .atlas-panel .search {
@@ -301,48 +269,421 @@
   border: 0.0625rem solid;
   border-radius: 0.1875rem;
 }
-.atlas-panel .field-list {
+.atlas-panel .detail-owner {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.atlas-panel .detail-description {
+  white-space: pre-wrap;
+}
+/* Text read by assistive technology, not shown. */
+.atlas-panel .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A proposal's changes, in the panel: added, changed and removed. */
+.atlas-panel [data-change="added"] {
+  --change-color: var(--change-added);
+}
+.atlas-panel [data-change="modified"] {
+  --change-color: var(--change-modified);
+}
+.atlas-panel [data-change="removed"] {
+  --change-color: var(--change-removed);
+}
+.atlas-panel .change-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.3125rem;
+  background: color-mix(in srgb, var(--change-color) 16%, transparent);
+  color: var(--change-color);
+  font: 600 0.8125rem / 1 var(--font-family-code);
+}
+.atlas-panel .change-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: color-mix(in srgb, var(--change-color) 16%, transparent);
+  color: var(--change-color);
+  font: var(--type-body-small);
+  font-weight: 500;
+}
+
+/* The changes overview: groups of rows, each a button. */
+.atlas-panel .change-groups {
   display: grid;
+  gap: var(--space-5);
+}
+.atlas-panel .changes-overview .change-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.atlas-panel .change-relations {
+  margin-top: var(--space-1);
+}
+.atlas-panel .change-group-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.atlas-panel .change-subheading {
+  margin: var(--space-1) 0 0 var(--space-2);
+}
+.atlas-panel .change-rows {
+  display: grid;
+  gap: 0.125rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.atlas-panel .field-row,.atlas-panel
-.method-row {
-  padding: var(--space-2) 0;
-  border-bottom: 0.0625rem solid var(--color-border-strong);
-  color: var(--color-text-primary);
+.atlas-panel .change-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-row-inner);
+  background: var(--color-row);
+  color: var(--color-row-text);
   font: var(--type-body-small);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.atlas-panel .change-rows > li:first-child > .change-row,.atlas-panel
+.change-rows > .change-row:first-child {
+  border-start-start-radius: var(--radius-standard);
+  border-start-end-radius: var(--radius-standard);
+}
+.atlas-panel .change-rows > li:last-child > .change-row,.atlas-panel
+.change-rows > .change-row:last-child {
+  border-end-start-radius: var(--radius-standard);
+  border-end-end-radius: var(--radius-standard);
+}
+.atlas-panel .change-row.static {
+  cursor: default;
+}
+.atlas-panel button.change-row:hover {
+  background: var(--color-row-hover);
+}
+.atlas-panel button.change-row:active {
+  background: var(--color-row-pressed);
+}
+.atlas-panel button.change-row:focus-visible {
+  outline: 0.125rem solid var(--color-focus-ring);
+  outline-offset: -0.125rem;
+}
+.atlas-panel button.change-row[aria-current="true"] {
+  box-shadow: inset 0.1875rem 0 0 var(--change-color);
+}
+.atlas-panel .change-row > .change-mark {
+  margin-top: 0.0625rem;
+}
+.atlas-panel .change-row-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.atlas-panel .change-row-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.atlas-panel .change-row-name {
+  min-width: 0;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
-.atlas-panel .field-row {
+.atlas-panel .change-row-tag {
+  flex: none;
+  color: var(--color-row-detail);
+}
+.atlas-panel .change-row-summary {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  color: var(--color-row-detail);
+  font: var(--font-size-code) / 1.5 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.atlas-panel .change-token {
+  color: var(--change-color);
+}
+.atlas-panel .change-token-glyph {
+  margin-inline-end: 0.125rem;
+  font-weight: 600;
+}
+.atlas-panel .change-token.more {
+  color: var(--color-row-detail);
+}
+
+/* Above a changed element's details: back, previous and next. */
+.atlas-panel .change-navigation {
+  display: flex;
+  flex: 1;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  min-width: 0;
 }
-.atlas-panel .field-row:last-child,.atlas-panel
-.method-row:last-child {
-  border-bottom: 0;
+.atlas-panel .change-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
-.atlas-panel .field-detail,.atlas-panel
-.field-note {
+.atlas-panel .change-position {
+  min-width: 4.5rem;
   color: var(--color-text-muted);
+  font: var(--type-body-small);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
-.atlas-panel .field-row .field-detail {
-  text-align: end;
+
+/* Details: titled sections, change lists, code places and references. */
+.atlas-panel .detail-section {
+  padding-top: var(--space-4);
+  border-top: 0.0625rem solid var(--color-border-strong);
 }
-.atlas-panel .relation-end-list {
+.atlas-panel .detail-section-title {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.atlas-panel .change-list,.atlas-panel
+.member-list,.atlas-panel
+.reference-list,.atlas-panel
+.relation-end-list {
   display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.atlas-panel .change-list {
+  gap: var(--space-2);
+}
+.atlas-panel .change-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font: var(--type-body-small);
+}
+.atlas-panel .change-line-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.atlas-panel .change-key,.atlas-panel
+.change-detail {
+  color: var(--color-text-muted);
+}
+.atlas-panel .change-before {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+.atlas-panel .change-after {
+  text-decoration: none;
+}
+.atlas-panel .change-arrow {
+  margin: 0 var(--space-1);
+  color: var(--color-text-muted);
+}
+.atlas-panel .signature {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.55 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.atlas-panel [data-change] > .change-line-text > .signature,.atlas-panel
+.member[data-change] > .signature {
+  color: var(--change-color);
+}
+.atlas-panel .member[data-change="removed"] > .signature,.atlas-panel
+.change-line[data-change="removed"] .signature {
+  text-decoration: line-through;
+}
+.atlas-panel .member-list {
+  gap: 0;
+}
+.atlas-panel .member {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 0.3125rem 0;
+  border-bottom: 0.0625rem solid
+    color-mix(in srgb, var(--color-border-strong) 60%, transparent);
+}
+.atlas-panel .member:last-child {
+  border-bottom: 0;
+}
+/* The member a focus asked for, such as a plan's link to it. */
+.atlas-panel .member.focused {
+  border-radius: var(--radius-standard);
+  background: color-mix(in srgb, var(--color-focus-ring) 14%, transparent);
+  box-shadow: inset 0.1875rem 0 0 var(--color-focus-ring);
+  padding-inline-start: var(--space-2);
+}
+.atlas-panel .member > .signature {
+  flex: 1;
+}
+.atlas-panel .member-list.marked .member:not([data-change]) {
+  padding-inline-start: calc(1.125rem + var(--space-2));
+}
+.atlas-panel .member-type,.atlas-panel
+.column-flags {
+  color: var(--color-text-muted);
+}
+.atlas-panel .member-line {
+  flex: none;
+  color: var(--color-text-quiet);
+  font: var(--font-size-code) / 1.55 var(--font-family-code);
+  font-variant-numeric: tabular-nums;
+}
+.atlas-panel .member-line::before {
+  content: "L";
+}
+.atlas-panel .column-flags {
+  flex: none;
+  font: var(--type-body-small);
+}
+.atlas-panel .proposed-location code,.atlas-panel
+.reference-excerpt code,.atlas-panel
+.detail-rationale code {
+  font: 0.92em var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.atlas-panel .code-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+}
+.atlas-panel .code-path {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.5 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.atlas-panel .code-lines {
+  flex: none;
+  color: var(--color-text-muted);
+  font: var(--type-body-small);
+}
+.atlas-panel .code-source-link {
+  justify-self: start;
+}
+.atlas-panel .detail-rationale {
+  white-space: pre-wrap;
+}
+.atlas-panel .reference-list {
+  gap: var(--space-3);
+}
+.atlas-panel .reference {
+  display: grid;
+  gap: 0.125rem;
+}
+.atlas-panel .reference-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-height-small);
+}
+.atlas-panel .reference-head > .reference-link {
+  min-width: 0;
+  text-align: start;
+}
+.atlas-panel .reference-toggle {
+  flex: none;
+}
+.atlas-panel .reference-title {
+  font: var(--type-body-small);
+  font-weight: 500;
+}
+/* Two lines of the passage; the rest on request. */
+.atlas-panel .reference-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.atlas-panel .reference-excerpt.expanded {
+  display: block;
+  white-space: pre-wrap;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+}
+.atlas-panel .relation-ends {
+  gap: var(--space-1);
+}
+
+/* The model guide: walkthrough steps and examples. */
+.atlas-panel .walkthrough-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  list-style: decimal;
+}
+.atlas-panel .walkthrough-steps > li::marker {
+  color: var(--color-text-muted);
+}
+.atlas-panel .walkthrough-steps > li {
+  padding-inline-start: var(--space-1);
+}
+.atlas-panel .step-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+}
+.atlas-panel .example-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.atlas-panel .example-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font: var(--type-body-small);
+}
+.atlas-panel .relation-role {
+  min-width: 4.5rem;
+  color: var(--color-text-muted);
+  font: var(--type-body-small);
 }
 .atlas-panel .relation-end {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
   border-bottom: 0.0625rem solid var(--color-border-strong);
+}
+.atlas-panel .relation-end .count-badge {
+  margin-inline-start: auto;
 }
 .atlas-panel .relation-end:last-child {
   border-bottom: 0;
@@ -402,13 +743,6 @@
   padding-inline-start: var(--space-3);
   border-inline-start: 0.125rem solid var(--color-border-strong);
 }
-.atlas-panel .atlas-context {
-  padding-top: var(--space-4);
-  border-top: 0.0625rem solid var(--color-border-strong);
-}
-.atlas-panel .atlas-context-text {
-  white-space: pre-wrap;
-}
 .atlas-panel .shortcut-list {
   display: grid;
   gap: var(--space-2);
@@ -427,101 +761,6 @@
   margin: 0;
 }
 
-/* The change list in its popover. */
-.atlas-portal .change-group-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.atlas-portal .change-group-icon {
-  display: inline-grid;
-  font-size: 1.25rem;
-}
-.atlas-portal .change-group[data-kind="added"] .change-group-icon {
-  color: var(--color-tone-success);
-}
-.atlas-portal .change-group[data-kind="removed"] .change-group-icon,
-.atlas-portal .change-group[data-kind="conflict"] .change-group-icon {
-  color: var(--color-tone-danger);
-}
-.atlas-portal .change-group[data-kind="modified"] .change-group-icon {
-  color: var(--color-tone-warning);
-}
-.atlas-portal .change-name {
-  font-weight: 500;
-}
-.atlas-portal .change-owner {
-  color: var(--color-row-detail);
-  font-weight: 400;
-}
-/* Details stay narrow enough for the row's Inspect action to keep its place. */
-.atlas-portal .change-properties,
-.atlas-portal .change-rationale {
-  max-inline-size: 15rem;
-}
-.atlas-portal .change-properties {
-  display: grid;
-  gap: var(--space-1);
-  margin: var(--space-2) 0 0;
-}
-.atlas-portal .change-property {
-  display: grid;
-  grid-template-columns: minmax(4rem, max-content) minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--space-2);
-}
-.atlas-portal .change-property dt {
-  color: var(--color-row-detail);
-}
-.atlas-portal .change-property dd {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1);
-  min-width: 0;
-  margin: 0;
-}
-.atlas-portal .change-value {
-  padding: 0.0625rem var(--space-1);
-  border-radius: var(--md-sys-shape-corner-extra-small);
-  color: var(--color-row-text);
-  font: var(--font-size-code) / 1.5 var(--font-family-code);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.atlas-portal .change-value.before {
-  background: color-mix(in srgb, var(--color-tone-danger) 16%, transparent);
-}
-.atlas-portal .change-value.after {
-  background: color-mix(in srgb, var(--color-tone-success) 16%, transparent);
-}
-.atlas-portal .change-value.absent {
-  color: var(--color-row-detail);
-  font: inherit;
-  font-style: italic;
-  background: none;
-}
-.atlas-portal .change-arrow {
-  color: var(--color-row-detail);
-}
-.atlas-portal .change-rationale {
-  margin: var(--space-2) 0 0;
-  padding-inline-start: var(--space-3);
-  border-inline-start: 0.125rem solid var(--color-border-strong);
-  color: var(--color-row-detail);
-  white-space: pre-wrap;
-}
-.atlas-portal .source-code {
-  margin: 0;
-  padding: var(--space-2);
-  overflow: auto;
-  border-radius: var(--radius-standard);
-  background: var(--color-canvas);
-  color: var(--color-text-primary);
-  font: var(--font-size-code) / 1.5 var(--font-family-code);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .atlas-portal.about-content .shortcut-list {
   display: grid;
   gap: var(--space-2);
@@ -619,125 +858,6 @@
   }
 }
 
-/* The model report replaces the diagram in the same panel. */
-.atlas-panel .atlas-report-host {
-  position: relative;
-  height: 100dvh;
-  overflow: hidden;
-  background: var(--color-canvas);
-}
-.atlas-panel .report-diagram {
-  height: 100%;
-}
-.atlas-panel .report-diagram[hidden] {
-  display: none;
-}
-.atlas-panel .report-view {
-  position: absolute;
-  inset: 0;
-}
-.atlas-panel .model-report {
-  display: grid;
-  align-content: start;
-  gap: var(--space-7);
-  height: 100%;
-  overflow-y: auto;
-  padding: 5rem max(var(--space-5), calc((100% - 57.5rem) / 2)) 5rem;
-  color: var(--color-text-primary);
-  /* Report text keeps the line breaks it was written with. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.atlas-panel .report-section {
-  padding-top: var(--space-5);
-  border-top: 0.0625rem solid var(--color-border-strong);
-}
-.atlas-panel .report-quote {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-inline-start: var(--space-4);
-  border-inline-start: 0.1875rem solid var(--color-border-strong);
-}
-.atlas-panel .report-steps {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding-inline-start: var(--space-5);
-}
-.atlas-panel .report-steps > li {
-  display: grid;
-  gap: var(--space-2);
-}
-.atlas-panel .report-step-actions,.atlas-panel
-.report-counts {
-  gap: var(--space-2) var(--space-3);
-}
-.atlas-panel .report-references {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-}
-.atlas-panel .report-figure {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-.atlas-panel .report-figure figcaption {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.atlas-panel .report-figure img {
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--radius-standard);
-  background: var(--color-white);
-}
-.atlas-panel .report-question {
-  padding-inline-start: var(--space-3);
-  border-inline-start: 0.125rem solid var(--color-border-strong);
-}
-.atlas-panel .report-revision {
-  white-space: normal;
-}
-@media print {
-  .atlas-panel,.atlas-panel
-  #root,
-  .atlas-panel,.atlas-panel
-  .atlas-report-host {
-    height: auto !important;
-    overflow: visible !important;
-  }
-  /* Paper has nothing to press: Open view, Open planning passage, Print and
-     the SVG downloads. */
-  .atlas-panel .report-open .report-diagram,.atlas-panel
-  .report-toolbar,.atlas-panel
-  .model-report button,.atlas-panel
-  .model-report a[download] {
-    display: none !important;
-  }
-  .atlas-panel .model-report {
-    height: auto;
-    overflow: visible;
-    padding: 0;
-    font-size: 10pt;
-  }
-  .atlas-panel .report-figure {
-    break-inside: avoid;
-  }
-  .atlas-panel .report-figure img {
-    max-height: 230mm;
-    object-fit: contain;
-  }
-  .atlas-panel .model-report details > * {
-    display: block !important;
-  }
-}
-
 /* The diagram palette is Atlas's own: node fills and stereotype colours stay
    fixed, while the canvas, grid, text, lines and selection follow envUI's
    tokens. It is declared on each of Atlas's theme boundaries (the offline
@@ -783,6 +903,10 @@
   --type-phase: light-dark(#116329, #8ddb8c);
   --type-event: light-dark(#cf222e, #ff938a);
   --type-mode: light-dark(#0a3069, #76e3ea);
+  /* A proposal's changes: added, changed and removed elements. */
+  --change-added: var(--color-tone-success);
+  --change-modified: var(--color-tone-warning);
+  --change-removed: var(--color-tone-danger);
 }
 .atlas-panel #canvas {
   position: absolute;
@@ -871,15 +995,25 @@
   cursor: pointer;
   outline: none;
 }
-.atlas-panel .node:hover .node-box,.atlas-panel
-.node:focus-visible .node-box {
+/* A changed node keeps its change border in every state; hover, focus and
+   selection draw a ring around it instead. */
+.atlas-panel .node:not(.changed):hover .node-box,.atlas-panel
+.node:not(.changed):focus-visible .node-box {
   stroke: var(--accent);
   stroke-width: 2;
 }
-.atlas-panel .diagram-base .node:hover .node-box,.atlas-panel
-.diagram-base .node:focus-visible .node-box {
+.atlas-panel .node.changed:hover .node-ring,.atlas-panel
+.node.changed:focus-visible .node-ring {
+  stroke: var(--accent);
+}
+.atlas-panel .diagram-base .node:not(.changed):hover .node-box,.atlas-panel
+.diagram-base .node:not(.changed):focus-visible .node-box {
   stroke: var(--diagram-border);
   stroke-width: 1.25;
+}
+.atlas-panel .diagram-base .node.changed:hover .node-ring,.atlas-panel
+.diagram-base .node.changed:focus-visible .node-ring {
+  stroke: transparent;
 }
 .atlas-panel svg.has-focus .diagram-element {
   opacity: 0.22;
@@ -891,45 +1025,64 @@
 .edge.dimmed {
   opacity: 0.22;
 }
-.atlas-panel .node.highlighted .node-box {
+.atlas-panel .node:not(.changed).highlighted .node-box {
   stroke: var(--accent);
   stroke-width: 2;
 }
-.atlas-panel .node.primary .node-box {
+.atlas-panel .node:not(.changed).primary .node-box {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
-.atlas-panel .node.primary.selected .node-box {
+.atlas-panel .node:not(.changed).primary.selected .node-box {
   stroke-width: 3.5;
+}
+.atlas-panel .node.changed.highlighted .node-ring {
+  stroke: var(--accent);
+}
+.atlas-panel .node.changed.primary .node-ring {
+  stroke: var(--diagram-selection);
+  stroke-width: 3;
 }
 .atlas-panel .edge {
   outline: none;
   cursor: pointer;
 }
-.atlas-panel .edge.highlighted .edge-path,.atlas-panel
-.edge:focus-visible .edge-path {
+.atlas-panel .edge:not(.changed).highlighted .edge-path,.atlas-panel
+.edge:not(.changed):focus-visible .edge-path {
   stroke: var(--accent);
   stroke-width: 2.5;
+}
+/* A changed relation keeps its colour; a halo behind it shows focus. */
+.atlas-panel .edge.changed.highlighted .edge-path {
+  stroke-width: 2.75;
+}
+.atlas-panel .edge.changed.highlighted .edge-halo {
+  stroke: var(--accent);
+  stroke-opacity: 0.35;
+}
+.atlas-panel .edge.changed.primary .edge-halo {
+  stroke: var(--diagram-selection);
+  stroke-opacity: 0.5;
 }
 .atlas-panel .edge.highlighted .multiplicity rect {
   stroke: var(--accent);
   stroke-width: 1.4;
 }
-.atlas-panel .diagram-base .edge:focus-visible .edge-path {
+.atlas-panel .diagram-base .edge:not(.changed):focus-visible .edge-path {
   stroke: var(--diagram-edge);
   stroke-width: 1.4;
 }
-.atlas-panel .diagram-base .generalization:focus-visible .edge-path {
+.atlas-panel .diagram-base .generalization:not(.changed):focus-visible .edge-path {
   stroke: var(--diagram-inheritance);
 }
 .atlas-panel .edge.highlighted .edge-label text {
   fill: var(--accent);
 }
-.atlas-panel .edge.primary .edge-path {
+.atlas-panel .edge:not(.changed).primary .edge-path {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
-.atlas-panel .edge.primary.selected .edge-path {
+.atlas-panel .edge:not(.changed).primary.selected .edge-path {
   stroke-width: 3.5;
 }
 .atlas-panel .edge.primary .multiplicity rect {
@@ -951,20 +1104,9 @@
     animation: none;
   }
 }
-.atlas-panel [data-change="added"] .node-box,.atlas-panel
-[data-change="added"] .edge-path {
-  stroke: var(--color-tone-success);
-  stroke-width: 2;
-}
-.atlas-panel [data-change="removed"] .node-box,.atlas-panel
-[data-change="removed"] .edge-path {
-  stroke: var(--color-tone-danger);
-  stroke-dasharray: 5 3;
-}
-.atlas-panel [data-change="modified"] .node-box,.atlas-panel
-[data-change="modified"] .edge-path {
-  stroke: var(--color-tone-warning);
-  stroke-width: 2;
+/* Reviewing a proposal: what it leaves unchanged fades into context. */
+.atlas-panel .fade-unchanged .diagram-base [data-change="unchanged"] {
+  opacity: 0.32;
 }
 
 .atlas-panel {
