@@ -227,7 +227,8 @@ test('inside a harness, atlas work report needs only the work and the step: the 
   const project = path.join(config, 'projects', 'C--work-example');
   mkdirSync(project, { recursive: true });
   const usage = { input_tokens: 10, cache_creation_input_tokens: 200, cache_read_input_tokens: 3000, output_tokens: 400 };
-  const line = (at: number, kind: 'prompt' | 'response' | 'result', id = '') => JSON.stringify(kind === 'response' ? { type: 'assistant', message: { id, model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: 'end_turn', usage }, timestamp: new Date(at).toISOString() }
+  // A response calls a tool (this command, say) or, with end_turn, ends the turn.
+  const line = (at: number, kind: 'prompt' | 'response' | 'result', id = '', stop = 'tool_use') => JSON.stringify(kind === 'response' ? { type: 'assistant', message: { id, model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: stop, usage }, timestamp: new Date(at).toISOString() }
     : { type: 'user', message: { role: 'user', content: kind === 'prompt' ? 'Placeholder' : [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] }, timestamp: new Date(at).toISOString() });
   const log = path.join(project, session + '.jsonl');
   writeFileSync(log, [line(Date.now() - 600000, 'prompt'), line(Date.now() - 540000, 'response', 'msg_1')].join('\n') + '\n');
@@ -239,7 +240,7 @@ test('inside a harness, atlas work report needs only the work and the step: the 
   assert.equal(start.model, 'claude-opus-5-5', 'the model comes from the log');
   // The turn goes on after the report: a tool result and a response, before the next report.
   const since = Date.parse(start.at);
-  writeFileSync(log, [line(since + 30, 'result'), line(since + 60, 'response', 'msg_2')].map(text => text + '\n').join(''), { flag: 'a' });
+  writeFileSync(log, [line(since + 30, 'result'), line(since + 60, 'response', 'msg_2', 'end_turn')].map(text => text + '\n').join(''), { flag: 'a' });
   const second = atlas(['work', 'report', root, '--work', 'work-0001', '--step', 'Build it'], { env });
   assert.equal(second.status, 0, second.stderr);
   const shown = JSON.parse(second.stdout);

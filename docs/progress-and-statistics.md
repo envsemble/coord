@@ -43,9 +43,9 @@ atlas work report <planning-root> --work work-0001 --step "Verify tenant boundar
 
 Inside **Claude Code** or **Codex**, that is all it takes. The command runs in the agent's harness, which names its session in the environment (`CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID`) and keeps a log of it on this computer. Atlas reads that log and records the session, the model, and what the agent did since the session's previous report on this work item:
 
-- **Agent time**: the time the agent worked, from each prompt to the last activity of that turn (its output, tool calls and their results), without the time it waited for a person: between turns, for the answer to a question, or in a permission prompt. Its helpers (subagents) count too, and work they do at the same time counts once. A turn still under way when the agent reports, such as a helper waiting for its tests, counts until the report.
+- **Agent time**: the time the agent worked, from each prompt to the last activity of that turn (its output, tool calls and their results), without the time it waited for a person: between turns, for the answer to a question, or in a permission prompt. Its helpers (subagents) count too, and work they do at the same time counts once. A turn still under way when the agent reports, such as a helper waiting for its tests, counts until the report if its log was written in the last quarter of an hour.
 - **Tokens** for each model, by kind: new input, input read from the prompt cache, input written to it, and output.
-- **The model** of each response. The report names the main agent's model.
+- **The model** of each response. The report names the main agent's model, which the log knows better than `--model` would.
 
 The log is only read, never copied: a report holds these numbers and model identifiers, never prompts, paths or tool output. Claude Code's log is `<config>/projects/<project>/<session>.jsonl` with its subagents' logs beside it (`<config>` is `CLAUDE_CONFIG_DIR`, else `~/.claude`); Codex's are the thread's rollouts under `<home>/sessions/`, with its subagents' threads (`<home>` is `CODEX_HOME`, else `~/.codex`).
 

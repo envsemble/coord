@@ -23,7 +23,8 @@ const claude = {
   prompt: (minutes: number, extra: object = {}) => ({ parentUuid: null, isSidechain: false, type: 'user', message: { role: 'user', content: 'Placeholder request' }, uuid: 'u' + minutes, timestamp: iso(minutes), ...extra }),
   imagePrompt: (minutes: number) => ({ type: 'user', message: { role: 'user', content: [{ type: 'image', source: {} }, { type: 'text', text: 'Placeholder' }] }, timestamp: iso(minutes) }),
   result: (minutes: number) => ({ type: 'user', message: { role: 'user', content: [{ tool_use_id: 'toolu_1', type: 'tool_result', content: 'placeholder output' }] }, timestamp: iso(minutes) }),
-  response: (minutes: number, id: string, model: string, tokens = usage(10, 100, 1000, 50)) => ({ type: 'assistant', message: { model, id, type: 'message', role: 'assistant', content: [{ type: 'text', text: 'Placeholder' }], stop_reason: 'end_turn', usage: tokens }, timestamp: iso(minutes) }),
+  /** A response that calls a tool, or with `end_turn` the one that ends the turn; a partial line has no stop reason yet. */
+  response: (minutes: number, id: string, model: string, tokens = usage(10, 100, 1000, 50), stop: string | null = 'tool_use') => ({ type: 'assistant', message: { model, id, type: 'message', role: 'assistant', content: [{ type: 'text', text: 'Placeholder' }], stop_reason: stop, usage: tokens }, timestamp: iso(minutes) }),
   meta: (minutes: number) => ({ type: 'user', isMeta: true, message: { role: 'user', content: 'Injected context' }, timestamp: iso(minutes) }),
   compaction: (minutes: number, durationMs: number, trigger: string) => ({ type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted', compactMetadata: { trigger, durationMs }, timestamp: iso(minutes) }),
   summary: (minutes: number) => ({ type: 'user', isCompactSummary: true, isVisibleInTranscriptOnly: true, message: { role: 'user', content: 'Summary' }, timestamp: iso(minutes) }),
@@ -68,10 +69,10 @@ test('a turn runs from its prompt to its last activity; waiting for the person i
   const { claudeSession, environment, home } = folders(t);
   claudeSession([
     claude.title(),
-    claude.prompt(0), claude.response(1, 'msg_1', 'claude-opus-5-5'), claude.result(5), claude.response(6, 'msg_2', 'claude-opus-5-5'),
+    claude.prompt(0), claude.response(1, 'msg_1', 'claude-opus-5-5'), claude.result(5), claude.response(6, 'msg_2', 'claude-opus-5-5', undefined, 'end_turn'),
     claude.attachment(30), // a message queued while the person reads: not activity
     claude.meta(40), // injected context is not a prompt
-    claude.imagePrompt(60), claude.response(70, 'msg_3', 'claude-opus-5-5'),
+    claude.imagePrompt(60), claude.response(70, 'msg_3', 'claude-opus-5-5', undefined, 'end_turn'),
     claude.prompt(90), // a prompt nobody answered yet
   ]);
   const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
@@ -84,9 +85,9 @@ test('a turn runs from its prompt to its last activity; waiting for the person i
 test('helpers working at the same time count once; each model keeps its own time and tokens', async t => {
   const { claudeSession, environment, home } = folders(t);
   claudeSession(
-    [claude.prompt(0), claude.response(2, 'msg_main_1', 'claude-opus-5-5', usage(5, 50, 2000, 100)), claude.result(28), claude.response(30, 'msg_main_2', 'claude-opus-5-5', usage(5, 70, 2500, 0))],
+    [claude.prompt(0), claude.response(2, 'msg_main_1', 'claude-opus-5-5', usage(5, 50, 2000, 100)), claude.result(28), claude.response(30, 'msg_main_2', 'claude-opus-5-5', usage(5, 70, 2500, 0), 'end_turn')],
     [
-      [claude.prompt(10, { isSidechain: true }), claude.response(12, 'msg_helper_1', 'claude-haiku-5-5', usage(3, 30, 500, 40)), claude.result(40), claude.response(50, 'msg_helper_2', 'claude-haiku-5-5', usage(3, 20, 600, 0))],
+      [claude.prompt(10, { isSidechain: true }), claude.response(12, 'msg_helper_1', 'claude-haiku-5-5', usage(3, 30, 500, 40)), claude.result(40), claude.response(50, 'msg_helper_2', 'claude-haiku-5-5', usage(3, 20, 600, 0), 'end_turn')],
     ],
   );
   const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
@@ -105,7 +106,7 @@ test('one response written as several lines counts once, by its last line; synth
   const { claudeSession, environment, home } = folders(t);
   claudeSession([
     claude.prompt(0),
-    claude.response(1, 'msg_1', 'claude-opus-5-5', usage(10, 5, 100, 10)), // thinking block, partial count
+    claude.response(1, 'msg_1', 'claude-opus-5-5', usage(10, 5, 100, 10), null), // thinking block, partial count
     claude.response(2, 'msg_1', 'claude-opus-5-5', usage(10, 80, 100, 10)), // tool call block, final count
     claude.result(3),
     claude.response(4, 'msg_2', '<synthetic>', usage(0, 0)),
@@ -144,11 +145,25 @@ test('reported from inside the session, a turn still under way runs until the re
     ],
   );
   const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
-  assert.equal(minutes((await measure(logs, -1, 30)).agentMs), 12, 'from outside, each turn ends at its last activity');
-  assert.equal(minutes((await measure(logs, -1, 30, true)).agentMs), 30, 'from inside, the helpers at work are working now');
+  assert.equal(minutes((await measure(logs, -1, 18)).agentMs), 12, 'from outside, each turn ends at its last activity');
+  assert.equal(minutes((await measure(logs, -1, 18, true)).agentMs), 18, 'from inside, the helpers at work are working now');
+  assert.equal(minutes((await measure(logs, -1, 40, true)).agentMs), 12, 'helpers silent for more than a quarter of an hour have most likely stopped');
   const closed = folders(t);
   closed.claudeSession([claude.prompt(0), step(1, 'a', 'tool_use'), claude.result(10), answer(12)], [[claude.prompt(9, { isSidechain: true }), step(11, 'd', 'tool_use', 'AskUserQuestion')]]);
-  assert.equal(minutes((await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment: closed.environment, home }), -1, 30, true)).agentMs), 12, 'a finished turn and a question to the person do not run on');
+  assert.equal(minutes((await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment: closed.environment, home }), -1, 18, true)).agentMs), 12, 'a finished turn and a question to the person do not run on');
+});
+
+test('a helper resumed by its coordinator starts a new turn: the time it sat finished is not work', async t => {
+  const { claudeSession, environment, home } = folders(t);
+  const resumed = (minutes: number, kind: string) => ({ type: 'user', isMeta: true, origin: { kind }, message: { role: 'user', content: 'Placeholder' }, timestamp: iso(minutes) });
+  claudeSession([claude.prompt(0), claude.response(1, 'msg_main', 'claude-opus-5-5', undefined, 'end_turn')], [[
+    claude.prompt(0, { isSidechain: true }), claude.response(10, 'msg_1', 'claude-opus-5-5', undefined, 'end_turn'),
+    resumed(100, 'coordinator'), claude.response(105, 'msg_2', 'claude-opus-5-5', undefined, 'end_turn'),
+    claude.response(200, 'msg_3', 'claude-opus-5-5', undefined, 'end_turn'), // after a closing response, with no prompt seen
+    resumed(300, 'task-notification'), claude.response(302, 'msg_4', 'claude-opus-5-5', undefined, 'end_turn'),
+  ]]);
+  const result = await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment, home }), -1, 400);
+  assert.equal(minutes(result.agentMs), 10 + 5 + 2, 'neither the hours between turns nor the stray response bridge a wait');
 });
 
 test('a compaction is busy for its duration, but a manual one does not bridge the wait before it', async t => {
@@ -156,7 +171,7 @@ test('a compaction is busy for its duration, but a manual one does not bridge th
   claudeSession([
     claude.prompt(0), claude.response(10, 'msg_1', 'claude-opus-5-5'),
     // Auto-compaction inside a turn: written when it ends, then the turn goes on.
-    claude.compaction(14, 3 * 60000, 'auto'), claude.summary(14), claude.response(20, 'msg_2', 'claude-opus-5-5'),
+    claude.compaction(14, 3 * 60000, 'auto'), claude.summary(14), claude.response(20, 'msg_2', 'claude-opus-5-5', undefined, 'end_turn'),
     // The person compacts by hand hours later: its boundary is written before the command's lines.
     claude.compaction(302, 2 * 60000, 'manual'), claude.summary(302), claude.prompt(300, { message: { role: 'user', content: '<command-name>/compact</command-name>' } }),
     claude.prompt(302.1, { message: { role: 'user', content: '<local-command-stdout>Compacted</local-command-stdout>' } }),
@@ -244,6 +259,31 @@ test('Codex: a question to the person pauses the turn until the answer', async t
   rollout(thread, [codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), question(5, 'call_1'), answer(50, 'call_1'), answer(51, 'call_2'), codex.complete(60, 't1')]);
   const result = await measure(await sessionLogs([{ harness: 'codex', session: thread }], { environment, home }), -1, 70);
   assert.equal(minutes(result.agentMs), 5 + 10, 'an output for a call that did not ask the person changes nothing');
+});
+
+test('Codex: a forked subagent\'s copy of its parent\'s history counts neither as its work nor as its tokens', async t => {
+  const { rollout, environment, home } = folders(t);
+  rollout(thread, [codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), codex.tokens(5, 900000, 800000, 9000), codex.complete(10, 't1')]);
+  const fork = '01a118ae-0000-7000-8000-000000000009';
+  // Copied at minute 30, in a burst of a second: a finished turn of the parent and its running count.
+  const copied = (line: { timestamp: string }, offset: number) => ({ ...line, timestamp: new Date(at(30) + offset).toISOString() });
+  rollout(fork, [
+    { ...codex.meta(fork, { session_id: thread, parent_thread_id: thread, forked_from_id: thread }), timestamp: iso(30) },
+    copied(codex.started(0, 't1'), 100), copied(codex.context(0, 't1', 'gpt-6.1-sol'), 200), copied(codex.tokens(5, 900000, 800000, 9000), 300), copied(codex.complete(10, 't1'), 400),
+    // Its own work: a turn of five minutes, whose count continues the copied one.
+    codex.started(31, 'f1'), codex.context(31, 'f1', 'gpt-5-codex-mini'), codex.tokens(33, 950000, 840000, 9500, [50000, 40000, 500]), codex.complete(36, 'f1'),
+  ]);
+  const result = await measure(await sessionLogs([{ harness: 'codex', session: thread }], { environment, home }), 20, 60);
+  assert.equal(minutes(result.agentMs), 5);
+  assert.deepEqual(result.models.map(model => [model.model, minutes(model.agentMs), model.input, model.cacheRead, model.output]), [['gpt-5-codex-mini', 5, 10000, 40000, 500]]);
+});
+
+test('Codex: questions are found whichever field a version writes first', async t => {
+  const { rollout, environment, home } = folders(t);
+  const question = (minutes: number, call: string) => ({ timestamp: iso(minutes), ordinal: 7, type: 'response_item', payload: { type: 'function_call', id: 'fc_1', name: 'request_user_input', arguments: '{}', call_id: call } });
+  const answer = (minutes: number, call: string) => ({ timestamp: iso(minutes), ordinal: 8, type: 'response_item', payload: { type: 'function_call_output', id: 'fco_1', call_id: call, output: '{}' } });
+  rollout(thread, [codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), question(5, 'call_1'), answer(50, 'call_1'), codex.complete(60, 't1')]);
+  assert.equal(minutes((await measure(await sessionLogs([{ harness: 'codex', session: thread }], { environment, home }), -1, 70)).agentMs), 5 + 10);
 });
 
 test('Codex: an open turn ends at its last event, or now when the report comes from inside it', async t => {

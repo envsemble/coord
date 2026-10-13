@@ -47,6 +47,13 @@ export interface SessionLogs {
 const sessionName = /^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/;
 /** A compaction longer than this is not believed. */
 const compactionLimit = 6 * 60 * 60 * 1000;
+/**
+ * A turn under way at a live report runs until it only if its log was written this recently: a
+ * helper silent for longer has most likely stopped (a foreground command times out within ten minutes).
+ */
+const runOnLimit = 15 * 60 * 1000;
+/** A Codex turn that started this long before its line was copied from another thread. */
+const replayed = 5000;
 
 /** The sessions the environment names: Claude Code's, then Codex's. */
 export function harnessSessions(environment: NodeJS.ProcessEnv = process.env): SessionCandidate[] {
@@ -199,7 +206,7 @@ const objectOf = (text: string): Record<string, unknown> | null => {
 interface ClaudeLine {
   type?: unknown; timestamp?: unknown; isMeta?: unknown; isCompactSummary?: unknown; subtype?: unknown;
   compactMetadata?: { durationMs?: unknown } | null;
-  permissionDecision?: { source?: unknown } | null;
+  permissionDecision?: { source?: unknown } | null; origin?: { kind?: unknown } | null;
   message?: { id?: unknown; model?: unknown; content?: unknown; stop_reason?: unknown; usage?: Record<string, unknown> | null } | null;
 }
 /**
@@ -224,9 +231,10 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
     const durationMs = line.subtype === 'compact_boundary' ? count(line.compactMetadata?.durationMs) : 0;
     return durationMs && durationMs <= compactionLimit ? { at, kind: 'compaction', durationMs } : null;
   }
-  // Injected context and a compaction's summary are not prompts; tool results are the turn at work,
-  // unless the person answered the tool or decided in a permission prompt that it may run.
-  if (line.type !== 'user' || line.isMeta === true || line.isCompactSummary === true) return null;
+  // Injected context and a compaction's summary are not prompts, but a hidden message that resumes
+  // the agent (from its coordinator, or a finished background task) is. Tool results are the turn at
+  // work, unless the person answered the tool or decided in a permission prompt that it may run.
+  if (line.type !== 'user' || line.isCompactSummary === true || (line.isMeta === true && typeof line.origin?.kind !== 'string')) return null;
   if (Array.isArray(content)) {
     const results = content.filter(part => part?.type === 'tool_result');
     if (!results.length) return { at, kind: 'prompt' };
@@ -239,8 +247,9 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
 /**
  * Claude Code: each log's lines in time order. A prompt (from the person or a finished background
  * task) starts a turn, which runs until its last activity; each stretch goes to the model that
- * produced it, or that called the tool it waited for. A compaction is busy for its duration. Live,
- * a turn still under way (not ended by a response, nor waiting for the person) runs until now.
+ * produced it, or that called the tool it waited for. A response that ends the turn closes it, so
+ * nothing joins it across the wait that follows. A compaction is busy for its duration. Live, a turn
+ * still under way (not waiting for the person, and recently written) runs until now.
  */
 async function claudeTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
@@ -273,12 +282,14 @@ async function claudeTimeline(files: LogFile[], at: number, live: boolean): Prom
       turn ??= { last: event.at, model: current };
       if (event.at > turn.last && !event.person) timeline.segments.push({ start: turn.last, end: event.at, model: event.model ?? turn.model, main: log.main });
       turn.last = Math.max(turn.last, event.at);
-      if (!event.model) continue;
-      turn.model = current = event.model;
-      if (log.main && event.at <= at && (!timeline.latest || event.at >= timeline.latest.at)) timeline.latest = { at: event.at, model: event.model };
+      if (event.model) {
+        turn.model = current = event.model;
+        if (log.main && event.at <= at && (!timeline.latest || event.at >= timeline.latest.at)) timeline.latest = { at: event.at, model: event.model };
+      }
+      if (event.closes) turn = null;
     }
     const end = events.at(-1);
-    if (live && turn && end && at > turn.last && !(end.kind === 'activity' && (end.closes || end.asks))) timeline.segments.push({ start: turn.last, end: at, model: turn.model, main: log.main });
+    if (live && turn && end && at > turn.last && at - turn.last <= runOnLimit && !(end.kind === 'activity' && end.asks)) timeline.segments.push({ start: turn.last, end: at, model: turn.model, main: log.main });
   }
   timeline.spends = [...responses.values()];
   return timeline;
@@ -290,9 +301,9 @@ interface CodexLine {
   payload?: { type?: unknown; turn_id?: unknown; model?: unknown; started_at?: unknown; call_id?: unknown; info?: { total_token_usage?: unknown; last_token_usage?: unknown } | null } | null;
 }
 /** Codex lines name their type first; only turns, their models, token counts and questions to the person are read. */
-const codexWanted = /"type":"(?:turn_context"|event_msg","payload":\{"type":"(?:task_started|task_complete|turn_aborted|token_count)"|response_item","payload":\{"type":"function_call","name":"request_user_input")/;
+const codexWanted = /"type":"(?:turn_context"|event_msg","payload":\{"type":"(?:task_started|task_complete|turn_aborted|token_count)"|response_item","payload":\{"type":"function_call",(?:"id":"[^"]*",)?"name":"request_user_input")/;
 /** A tool's output, by its call: only the start of the line is looked at, never the output. */
-const codexOutput = /^\{"timestamp":"([^"]+)",(?:"ordinal":\d+,)?"type":"response_item","payload":\{"type":"function_call_output","call_id":"([^"]+)"/;
+const codexOutput = /^\{"timestamp":"([^"]+)",(?:"ordinal":\d+,)?"type":"response_item","payload":\{"type":"function_call_output",(?:"id":"[^"]*",)?"call_id":"([^"]+)"/;
 interface CodexCount { input: number; cached: number; written: number; output: number }
 function codexCount(value: unknown): CodexCount | null {
   if (!value || typeof value !== 'object') return null;
@@ -305,8 +316,10 @@ const codexKinds = (step: CodexCount): TokenKinds => ({ input: Math.max(0, step.
 /**
  * Codex: a turn runs from task_started to task_complete or turn_aborted, with the model its
  * turn_context names, except while it waits for the person to answer a question; an unfinished
- * turn ends at its last event, or, live, now. Tokens are the increases of the thread's running
- * count, each spent by the turn under way.
+ * turn ends at its last event, or, live and recently written, now. Tokens are the increases of the
+ * thread's running count, each spent by the turn under way. A forked subagent's rollout starts with
+ * a copy of its parent's history: copied turns started long before their lines, and the running
+ * count they carry is only the fork's starting point.
  */
 async function codexTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
@@ -315,13 +328,19 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
     const models = new Map<string, string>();
     const asked = new Map<string, number>();
     let open: { turn: string; start: number } | null = null;
-    let current: string | null = null, last = Number.NaN, total: CodexCount | null = null;
+    let current: string | null = null, last = Number.NaN, total: CodexCount | null = null, start = Number.NaN;
+    let own = true;
     const finish = (turn: { turn: string; start: number }, end: number) => {
       if (end > turn.start) timeline.segments.push({ start: turn.start, end, model: models.get(turn.turn) ?? current, main: log.main });
       return null;
     };
     for await (const text of lines(log.file)) {
       const head = text.slice(0, 320);
+      if (Number.isNaN(start)) {
+        // The first line: when the rollout began, and whether it forked another thread.
+        start = Date.parse(/^\{"timestamp":"([^"]+)"/.exec(head)?.[1] ?? '');
+        own = !text.includes('"forked_from_id":"');
+      }
       const answer = codexOutput.exec(head);
       if (answer) {
         // The person answered: the turn worked until it asked and resumes now.
@@ -344,14 +363,18 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
         current = model;
         if (log.main && moment <= at && (!timeline.latest || moment >= timeline.latest.at)) timeline.latest = { at: moment, model };
       } else if (payload.type === 'task_started' && typeof payload.turn_id === 'string') {
+        if (typeof payload.started_at === 'number' && payload.started_at * 1000 < moment - replayed) continue;
         if (open) open = finish(open, last);
         open = { turn: payload.turn_id, start: moment };
+        own = true;
       } else if (payload.type === 'task_complete' || payload.type === 'turn_aborted') {
         if (open && open.turn === payload.turn_id) open = finish(open, moment);
-        else if (!open && typeof payload.turn_id === 'string' && typeof payload.started_at === 'number') finish({ turn: payload.turn_id, start: Math.min(moment, payload.started_at * 1000) }, moment);
+        // A turn whose start is not in this file counts only if it began in this file's time.
+        else if (!open && typeof payload.turn_id === 'string' && typeof payload.started_at === 'number' && payload.started_at * 1000 >= start - replayed) finish({ turn: payload.turn_id, start: Math.min(moment, payload.started_at * 1000) }, moment);
       } else if (payload.type === 'token_count') {
         const running = codexCount(payload.info?.total_token_usage);
         if (!running) continue;
+        if (!own) { total = running; continue; }
         // A file's first count, or one lower than before, is taken from its last response alone:
         // a later part of a thread continues the running count.
         const step = total === null || running.input < total.input || running.output < total.output ? codexCount(payload.info?.last_token_usage)
@@ -362,7 +385,7 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
       last = moment;
     }
     // A thread's earlier parts were left behind; a subagent's thread has one.
-    if (open) finish(open, live && (log === newest || !log.main) ? Math.max(at, last) : last);
+    if (open) finish(open, live && (log === newest || !log.main) && at - last <= runOnLimit ? Math.max(at, last) : last);
   }
   return timeline;
 }
