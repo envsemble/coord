@@ -43,6 +43,36 @@
 .atlas-panel .atlas-overlay-top > * {
   pointer-events: auto;
 }
+/* With the host's own navigation (such as a work item's sections) the
+   overlay has two rows: that navigation and the tools on the first, the
+   diagram's navigation island below them. Each island keeps its cell, so a
+   crowded overlay shows as an island wrapping its controls. */
+.atlas-panel .atlas-overlay-top.stacked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  justify-items: start;
+}
+.atlas-panel .atlas-overlay-top.stacked > .atlas-overlay-sections {
+  grid-area: 1 / 1;
+}
+.atlas-panel .atlas-overlay-top.stacked > .island-start {
+  grid-area: 2 / 1 / 3 / -1;
+}
+.atlas-panel .atlas-overlay-top.stacked > .island-end {
+  grid-area: 1 / 3;
+  justify-self: end;
+}
+/* At the tightest density a long model name gives way, rather than the
+   navigation wrapping its controls. */
+.atlas-panel .atlas-overlay-top.tighter > .island-start {
+  flex-wrap: nowrap;
+}
+.atlas-panel .atlas-overlay-top.tighter > .island-start > :not(.island-leading) {
+  flex-shrink: 0;
+}
+.atlas-panel .atlas-overlay-top.tighter .island-leading > * {
+  min-width: 0;
+}
 
 .atlas-panel .atlas-island {
   position: relative;
@@ -163,20 +193,20 @@
 
 /* Provenance: where a model came from, as a badge and a detail line. */
 .atlas-panel .atlas-provenance {
-  position: absolute;
-  z-index: 10;
-  left: var(--atlas-gutter);
-  bottom: var(--atlas-gutter);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  max-width: calc(100% - 2 * var(--atlas-gutter));
+  max-width: 100%;
   box-shadow: var(--atlas-elevation);
 }
 .atlas-panel .atlas-provenance.inline {
-  position: static;
-  display: inline-flex;
   box-shadow: none;
+}
+/* The standalone viewer's badge beside the model's title. */
+.atlas-panel .island-provenance {
+  display: inline-flex;
+  flex: none;
+  margin-inline-end: var(--space-1);
 }
 .atlas-panel .provenance-detail {
   min-width: 0;
@@ -186,7 +216,8 @@
   white-space: nowrap;
 }
 
-/* Floating panes beside the canvas: the inspector. */
+/* Floating panes beside the canvas: the inspector. Its content scrolls
+   inside it, so the resize handle on its inner edge stays in place. */
 .atlas-panel .panel {
   display: none;
   position: absolute;
@@ -195,13 +226,61 @@
   right: var(--atlas-gutter);
   width: min(22.5rem, calc(100% - 2 * var(--atlas-gutter)));
   max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--atlas-gutter));
-  overflow: auto;
-  overscroll-behavior: contain;
   box-shadow: var(--atlas-elevation);
   user-select: text;
 }
 .atlas-panel .panel.open {
-  display: block;
+  display: flex;
+  flex-direction: column;
+}
+.atlas-panel .panel-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: inherit;
+}
+/* The handle straddles the pane's inner edge; a line shows on hover (after a
+   moment, as envUI's sidebar's) and focus, and while dragging. */
+.atlas-panel .panel-resize {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: -0.3125rem;
+  width: 0.625rem;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.atlas-panel .panel-resize::after {
+  content: "";
+  position: absolute;
+  top: var(--space-5);
+  bottom: var(--space-5);
+  left: calc(50% - 0.0625rem);
+  width: 0.125rem;
+  border-radius: 0.0625rem;
+  background: transparent;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.atlas-panel .panel-resize:hover::after {
+  background: var(--color-border-hover);
+  transition-delay: var(--motion-duration-medium);
+}
+.atlas-panel .panel-resize:focus-visible::after,.atlas-panel
+.viewer.resizing .panel-resize::after {
+  background: var(--color-focus-ring);
+  transition-delay: 0s;
+}
+/* While the details are resized, the width follows the pointer and no text
+   is selected. */
+.atlas-panel .viewer.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+.atlas-panel .viewer.resizing .panel {
+  user-select: none;
 }
 .atlas-panel .panel-header {
   position: sticky;
@@ -839,6 +918,17 @@
     --atlas-gutter: var(--space-2);
     gap: var(--space-1);
   }
+  /* Beside the host's navigation the tools no longer fit: they take the
+     row below the diagram's navigation. */
+  .atlas-panel .atlas-overlay-top.stacked {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .atlas-panel .atlas-overlay-top.stacked > .island-start {
+    grid-area: 2 / 1;
+  }
+  .atlas-panel .atlas-overlay-top.stacked > .island-end {
+    grid-area: 3 / 1;
+  }
   .atlas-panel .panel,.atlas-panel
   .inspector {
     left: var(--space-2);
@@ -846,10 +936,9 @@
     width: auto;
     max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--space-2));
   }
-  .atlas-panel .atlas-provenance {
-    left: var(--space-2);
-    bottom: var(--space-2);
-    max-width: calc(100% - 2 * var(--space-2));
+  /* Spanning the width, the details cannot be resized. */
+  .atlas-panel .panel-resize {
+    display: none;
   }
   .atlas-panel .island-title,.atlas-panel
   .collapsible-label {
@@ -857,7 +946,8 @@
   }
 }
 @container atlas-viewer (max-width: 420px) {
-  .atlas-panel .provenance-detail {
+  .atlas-panel .provenance-detail,.atlas-panel
+  .island-provenance {
     display: none;
   }
 }
