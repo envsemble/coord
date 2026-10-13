@@ -110,10 +110,12 @@ export interface UiState {
   sidebar: { visible: boolean; width: number; expanded: string[] };
   tabs: { items: TabState[]; active: string | null };
   page: ViewName;
+  /** The width the reader gave a diagram's details, in pixels; absent for the default. */
+  inspectorWidth?: number;
 }
 export const viewNames = ['work', 'activity', 'statistics'] as const satisfies readonly ViewName[];
 export const defaultUiState: UiState = { sidebar: { visible: true, width: 280, expanded: [] }, tabs: { items: [], active: null }, page: 'work' };
-export const limits = { path: 2048, tabs: 40, expanded: 2000, sidebarMin: 170, sidebarMax: 640 } as const;
+export const limits = { path: 2048, tabs: 40, expanded: 2000, sidebarMin: 170, sidebarMax: 640, inspectorMin: 240, inspectorMax: 1200 } as const;
 
 export interface ExportResult { path: string; bytes: number; warnings: string[] }
 export interface ImportPreview {

@@ -88,7 +88,7 @@ test('Import Plan… previews the file, then adds it as new work under the next 
   await preview.getByRole('button', { name: 'Import' }).click();
   await expect(window.getByText(/^Imported as #0005/)).toBeVisible();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-  await expect(window.locator('.breadcrumb')).toContainText('#0005');
+  await expect(window.locator('.work-header .work-number')).toHaveText('#0005');
   const imported = window.locator('[role="treeitem"][data-id^="d:active/0005-"]');
   await expect(imported).toBeVisible();
   await expect(imported).toContainText('Order fulfilment model');

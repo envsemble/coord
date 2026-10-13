@@ -33,11 +33,12 @@ export const uiState: Validator<UiState> = (value, at = 'state') => {
     sidebar: object<UiState['sidebar']>({ visible: boolean, width: integer(limits.sidebarMin, limits.sidebarMax), expanded: array(string({ max: limits.path + 64 }), limits.expanded) }),
     tabs: object<UiState['tabs']>({ items: array(tab, limits.tabs), active: nullable(string({ max: limits.path + 64 })) }),
     page: optional(oneOf(viewNames)),
+    inspectorWidth: optional(integer(limits.inspectorMin, limits.inspectorMax)),
   })(value, at);
   const activeTab = saved.tabs.items.find(item => item.id === saved.tabs.active);
   const items = saved.tabs.items.filter(item => item.target.kind !== 'view');
   const page = activeTab?.target.kind === 'view' ? activeTab.target.view : saved.page ?? 'work';
   // No active tab shows the page; a dangling one falls back to the first document.
   const active = saved.tabs.active === null || activeTab?.target.kind === 'view' ? null : activeTab?.id ?? items[0]?.id ?? null;
-  return { sidebar: saved.sidebar, tabs: { items, active }, page };
+  return { sidebar: saved.sidebar, tabs: { items, active }, page, ...(saved.inspectorWidth === undefined ? {} : { inspectorWidth: saved.inspectorWidth }) };
 };

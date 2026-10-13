@@ -14,6 +14,9 @@ export interface WorkbenchApi {
   notify: Notify;
   /** Set when the folder is on another computer: it only reads, and its files are not on this one. */
   remote: { hostId: string; hostName: string } | null;
+  /** The width the reader gave a diagram's details in this folder, kept with its layout; null for the default. */
+  inspectorWidth: number | null;
+  setInspectorWidth(width: number): void;
 }
 
 export const WorkbenchContext = createContext<WorkbenchApi | null>(null);

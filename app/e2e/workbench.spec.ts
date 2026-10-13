@@ -12,7 +12,7 @@ const row = (id: string) => `[role="treeitem"][data-id="${id}"]`;
 const tabs = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab');
 const activeTab = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]');
 const previewTabs = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][data-preview="true"]');
-const sections = (window: Page) => window.getByRole('tablist', { name: 'Work sections' }).getByRole('tab');
+const sections = (window: Page) => window.getByRole('radiogroup', { name: 'Work sections' }).getByRole('radio');
 const views = (window: Page) => window.getByRole('navigation', { name: 'Atlas' });
 
 test('opening a folder from the command line shows its work list in a window named after it', async () => {
@@ -157,7 +157,7 @@ test('the explorer mirrors the folder: work folders show status and title, a Dia
   // A diagram opens the Diagrams view focused on it, in the same (still preview) work tab.
   await diagram.click();
   await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
-  await expect(sections(window).and(window.locator('[aria-selected="true"]'))).toContainText('Diagrams');
+  await expect(sections(window).and(window.locator('[aria-checked="true"]'))).toContainText('Diagrams');
 
   // A file opens in its own tab, replacing the preview.
   await window.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
@@ -242,9 +242,9 @@ test('a long document scrolls the window below the tabs, and each tab keeps its 
   await window.locator('.work-main').hover();
   await window.mouse.wheel(0, 600);
   await expect.poll(scrollTop).toBeGreaterThan(0);
-  // The tabs and the work item's bar stay in view under the title bar.
+  // The tabs and the work item's sections stay in view under the title bar.
   await expect(window.getByRole('tablist', { name: 'Open tabs' })).toBeInViewport();
-  await expect(window.getByRole('tablist', { name: 'Work sections' })).toBeInViewport();
+  await expect(window.getByRole('radiogroup', { name: 'Work sections' })).toBeInViewport();
   // Wheel scrolling animates: wait until the position settles.
   const settled = async () => {
     let previous = -1;
@@ -367,4 +367,47 @@ test('the work page keeps the plan, ledger and diagrams sections, the About side
   await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
   await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
   await expect(activeTab(window)).toContainText('Diagrams');
+});
+
+test('the sections switcher keeps one spot in every section, floats over the scrolled page and keeps focus', async () => {
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  // No bar with a trail: the work number is with the status, the sections one compact group.
+  await expect(window.locator('.work-bar, .work-page .breadcrumb')).toHaveCount(0);
+  await expect(window.locator('.work-header-meta .work-number')).toHaveText('#0001');
+  const switcher = window.getByRole('radiogroup', { name: 'Work sections' });
+  const place = async () => { const box = (await switcher.boundingBox())!; return { x: box.x, y: box.y }; };
+  const near = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1;
+  await sections(window).filter({ hasText: 'Plan' }).click();
+  const at = await place();
+  // Right below the tabs and above the title, as far in as the diagrams' islands.
+  const tabs = (await window.getByRole('tablist', { name: 'Open tabs' }).boundingBox())!;
+  const title = (await window.locator('.work-header h1').boundingBox())!;
+  const content = (await window.locator('.workbench-page').boundingBox())!;
+  expect(at.y).toBeGreaterThan(tabs.y + tabs.height);
+  expect(at.y + 32).toBeLessThan(title.y);
+  expect(at.x - content.x).toBeLessThan(20);
+  // Scrolled, the page passes under it.
+  await window.locator('main').first().evaluate(main => main.scrollTo(0, 900));
+  await expect.poll(async () => window.locator('main').first().evaluate(main => main.scrollTop)).toBeGreaterThan(400);
+  expect(near(await place(), at)).toBe(true);
+  await expect(switcher).toBeInViewport();
+  await sections(window).filter({ hasText: 'Ledger' }).click();
+  expect(near(await place(), at)).toBe(true);
+  // In Diagrams it starts the diagram's overlay, at the same spot.
+  await sections(window).filter({ hasText: 'Diagrams' }).click();
+  await expect(window.locator('.diagrams .node').first()).toBeVisible();
+  await expect(window.locator('.diagrams .atlas-overlay-top').getByRole('radiogroup', { name: 'Work sections' })).toBeVisible();
+  expect(near(await place(), at)).toBe(true);
+  // The arrow keys move between sections; focus stays on the switcher as it leaves the diagram and returns.
+  await sections(window).filter({ hasText: 'Diagrams' }).focus();
+  await window.keyboard.press('ArrowLeft');
+  await expect(window.locator('.work-header h1')).toBeVisible();
+  await expect(sections(window).filter({ hasText: 'Ledger' })).toBeFocused();
+  await window.keyboard.press('ArrowRight');
+  await expect(window.locator('.diagrams .node').first()).toBeVisible();
+  await expect(sections(window).filter({ hasText: 'Diagrams' })).toBeFocused();
 });

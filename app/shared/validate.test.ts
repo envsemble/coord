@@ -41,6 +41,11 @@ test('window state is checked deeply and repaired where it is safe', () => {
   assert.throws(() => uiState({ ...defaultUiState, tabs: { items: [{ id: 'x', target: { kind: 'file', path: '../secret' }, preview: false }], active: null } }), /path/);
   assert.throws(() => uiState({ ...defaultUiState, tabs: { items: Array.from({ length: 41 }, () => ({ id: 'x', target: { kind: 'view', view: 'work' }, preview: false })), active: null } }), /at most 40/);
   assert.throws(() => uiState({ ...defaultUiState, page: 'settings' }), /page/);
+  // The width of a diagram's details is kept when the reader chose one.
+  assert.equal(uiState({ ...defaultUiState, inspectorWidth: 480 }).inspectorWidth, 480);
+  assert.equal('inspectorWidth' in uiState(defaultUiState), false);
+  assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 20 }), /inspectorWidth/);
+  assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 480.5 }), /inspectorWidth/);
 });
 
 test('views saved as tabs become pages', () => {

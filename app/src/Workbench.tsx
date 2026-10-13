@@ -73,6 +73,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     else setTabs(tabs => tabs.active ? retargetTab(tabs, tabs.active, target) : openTab(tabs, target, true));
   }, [setTabs, showPage]);
   const setSidebar = useCallback((change: Partial<UiState['sidebar']>) => setUi(current => ({ ...current, sidebar: { ...current.sidebar, ...change } })), []);
+  const setInspectorWidth = useCallback((width: number) => setUi(current => current.inspectorWidth === width ? current : { ...current, inspectorWidth: width }), []);
 
   // Reveal the active tab's item in the explorer.
   const node = nodeForTarget(active?.target, snapshot);
@@ -149,7 +150,8 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     return () => window.removeEventListener('keydown', key);
   }, [runCommand]);
 
-  const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify, remote: info.remote }), [snapshot, info.revision, open, retarget, notify, info.remote]);
+  const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify, remote: info.remote, inspectorWidth: ui.inspectorWidth ?? null, setInspectorWidth }),
+    [snapshot, info.revision, open, retarget, notify, info.remote, ui.inspectorWidth, setInspectorWidth]);
 
   const root = info.folder?.root ?? '';
   const menus: WorkbenchMenus = {

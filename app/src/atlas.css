@@ -30,7 +30,7 @@ body { margin: 0; }
 .workbench-tabs { position: sticky; inset-block-start: var(--app-sticky-top); z-index: 10; background: var(--color-canvas); }
 .workbench-body > .folder-error { margin: var(--space-3) var(--space-6) 0; }
 .workbench-page { flex: 1; min-inline-size: 0; padding: var(--space-6) var(--space-7) var(--space-9); }
-/* A work item's bar sits right below the tabs. */
+/* A work item's section switcher sits right below the tabs. */
 .workbench-page:has(> .work-page) { padding-block-start: 0; }
 /* The diagrams section fills the content area below the tabs. */
 .workbench-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
@@ -66,7 +66,7 @@ body { margin: 0; }
 /* Pages in tabs */
 .page { display: grid; gap: var(--space-5); align-content: start; max-inline-size: 76rem; margin-inline: auto; }
 .page-header, .page-heading-row { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
-/* Page and section toolbars use compact controls, like the title bar and the work bar. */
+/* Page and section toolbars use compact controls, like the title bar. */
 .page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
 .section-toolbar > :first-child { margin-inline-end: auto; }
 .work-search { inline-size: min(22rem, 100%); }
@@ -97,17 +97,24 @@ body { margin: 0; }
 .ledger-step-done span { color: var(--color-text-muted); }
 .ledger-step-doing span { font-weight: 600; }
 
-/* Work page: a bar that keeps the item's place and sections in one spot for every section, sticking
-   below the tabs, then the section. */
-.work-page { --atlas-work-bar-height: 3rem; --atlas-sticky-top: calc(var(--app-sticky-top) + var(--atlas-tabs-height) + var(--atlas-work-bar-height)); display: grid; align-content: start; }
-.work-bar { position: sticky; inset-block-start: calc(var(--app-sticky-top) + var(--atlas-tabs-height)); z-index: 9; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-4); min-block-size: var(--atlas-work-bar-height); margin-inline: calc(-1 * var(--space-7)); padding: var(--space-1) var(--space-5) var(--space-1) var(--space-6); border-block-end: 0.0625rem solid var(--color-border-strong); background: var(--color-canvas); --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); }
-.work-bar-place { flex: 1; display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
-.work-bar-place .breadcrumb { flex: none; }
-.work-bar-title { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; overflow: hidden; font: var(--type-body-small); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.work-bar-title[hidden] { display: none; }
-.work-sections-list { flex: none; }
+/* Work page: the section switcher floats at the top left of the content area, at the same spot in
+   every section and as far in as the diagrams' islands (--atlas-gutter, narrower in narrow windows as
+   theirs). Here it sticks below the tabs while the reading page scrolls under it, and the reading
+   layout starts below it; the diagrams start their overlay with it. */
+.work-page { --atlas-gutter: var(--space-3); --atlas-sections-height: calc(var(--control-height-compact) + 2 * var(--space-1) + var(--atlas-gutter)); --atlas-sticky-top: calc(var(--app-sticky-top) + var(--atlas-tabs-height) + var(--atlas-sections-height)); display: grid; align-content: start; }
+.section-switcher-bar { position: sticky; inset-block-start: calc(var(--app-sticky-top) + var(--atlas-tabs-height) + var(--atlas-gutter)); z-index: 9; justify-self: start; min-inline-size: 0; max-inline-size: calc(100% + var(--space-7) - var(--atlas-gutter)); margin: var(--atlas-gutter) 0 0 calc(var(--atlas-gutter) - var(--space-7)); }
+/* Text scrolling up fades out behind the switcher across the content area, rather than showing in
+   pieces around it. At the top of the page the band is the canvas over the canvas. */
+.section-switcher-bar::before { content: ''; position: absolute; z-index: -1; inset-block: calc(-1 * var(--atlas-gutter)) calc(-1 * var(--space-3)); inset-inline-start: calc(-1 * var(--atlas-gutter)); inline-size: 100cqw; background: linear-gradient(var(--color-canvas) calc(100% - var(--space-3)), transparent); pointer-events: none; }
+/* An island like the diagram's: a pane pill with their hairline and shadow. */
+.section-switcher, .diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--color-text-primary) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--color-canvas-dark) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--color-canvas-dark) 28%, transparent); }
+.section-switcher { display: flex; inline-size: fit-content; max-inline-size: 100%; }
+@container (max-width: 40rem) {
+  .work-page { --atlas-gutter: var(--space-2); }
+}
 .work-header { display: grid; gap: var(--space-3); padding-block-end: var(--space-5); }
 .work-header-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.work-number { color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
 .work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
 .work-main { min-inline-size: 0; }
 .about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: grid; gap: var(--space-6); }
@@ -129,10 +136,8 @@ body { margin: 0; }
   .work-layout { grid-template-columns: minmax(0, 1fr); }
   .about { position: static; }
 }
-/* The diagrams section: the bar stays, the diagrams take the rest of the window. */
+/* The diagrams section takes the rest of the window. */
 .work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
-.work-page.section-diagrams .work-sections { flex: 1; min-block-size: 0; }
-.work-page.section-diagrams .work-bar { position: relative; inset-block-start: auto; margin-inline: 0; }
 
 /* Reader */
 .reader { min-inline-size: 0; }
@@ -163,10 +168,16 @@ body { margin: 0; }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--space-6); background: var(--color-canvas); }
 .diagrams-state > * { max-inline-size: 30rem; }
-.diagrams-island { position: absolute; inset-block-start: var(--space-3); inset-inline-start: var(--space-3); z-index: 5; }
+/* While a diagram loads, the switcher and the picker are where the diagram's overlay puts them. */
+.diagrams-islands { position: absolute; inset-block-start: var(--atlas-gutter); inset-inline-start: var(--atlas-gutter); z-index: 5; display: grid; justify-items: start; gap: var(--space-2); }
+@container (max-width: 40rem) {
+  .diagrams-islands { gap: var(--space-1); }
+}
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: 40; display: grid; gap: var(--space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
-.model-picker-button { max-inline-size: min(28rem, 60vw); }
+.model-picker-button { min-inline-size: 0; max-inline-size: min(28rem, 60vw); }
 .model-picker-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long title gives way; the model's origin stays whole beside it. */
+.model-picker-button > .env-badge { flex: none; }
 
 /* Activity */
 .activity-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
