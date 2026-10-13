@@ -38,7 +38,8 @@ function spoken(parts: string[], options: { dropZero?: boolean } = {}) {
 function core(id: string) {
   let value = id.toLowerCase();
   value = value.slice(value.lastIndexOf('/') + 1); // anthropic/claude-…, models/gemini-…
-  value = value.replace(/^(?:[a-z]{2,6}\.)?anthropic\./, '').replace(/-v\d+(?::\d+)?$/, ''); // Bedrock: us.anthropic.claude-…-v1:0
+  // Bedrock: us.anthropic.claude-…-v1:0; a version suffix elsewhere (deepseek-v3) names the model.
+  if (/^(?:[a-z]{2,6}\.)?anthropic\./.test(value) || /-v\d+:\d+$/.test(value)) value = value.replace(/^(?:[a-z]{2,6}\.)?anthropic\./, '').replace(/-v\d+(?::\d+)?$/, '');
   value = value.replace(/@\d{8}$/, ''); // Vertex: claude-…@20250929
   return value.replace(/-(?:\d{8}|\d{4}-\d{2}-\d{2}|latest)$/, '');
 }

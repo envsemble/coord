@@ -116,6 +116,7 @@ body { margin: 0; }
 .about-note { color: var(--color-text-muted); font-weight: 400; }
 .about-current { margin: 0; }
 .about-next { margin: 0; padding-inline-start: var(--space-5); }
+.about-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
 .about-commits { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
 .about-commits li { display: flex; gap: var(--space-2); }
 .about-commits li > div { display: grid; min-inline-size: 0; }

@@ -30,7 +30,7 @@ test('Gemini, Mistral and DeepSeek models', () => {
     ['gemini-2.5-pro', 'Gemini 2.5 Pro', 'google'], ['gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite', 'google'], ['gemini-3-pro-preview', 'Gemini 3 Pro Preview', 'google'],
     ['gemini-1.5-pro-002', 'Gemini 1.5 Pro', 'google'], ['models/gemini-2.0-flash', 'Gemini 2.0 Flash', 'google'],
     ['mistral-large-latest', 'Mistral Large', 'mistral'], ['mistral-large-2411', 'Mistral Large', 'mistral'], ['codestral-latest', 'Codestral', 'mistral'], ['devstral-small-2505', 'Devstral Small', 'mistral'], ['ministral-8b-latest', 'Ministral 8B', 'mistral'],
-    ['deepseek-chat', 'DeepSeek Chat', 'deepseek'], ['deepseek-v3.1', 'DeepSeek V3.1', 'deepseek'], ['deepseek-r1', 'DeepSeek R1', 'deepseek'],
+    ['deepseek-chat', 'DeepSeek Chat', 'deepseek'], ['deepseek-v3.1', 'DeepSeek V3.1', 'deepseek'], ['deepseek-v3', 'DeepSeek V3', 'deepseek'], ['deepseek-r1', 'DeepSeek R1', 'deepseek'],
   ]) assert.deepEqual(named(id), [name, provider], id);
 });
 
