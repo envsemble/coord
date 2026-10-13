@@ -207,12 +207,8 @@ async function prepareModel({
           }),
         ),
         exports: { slug, bundle: "" },
-        report: require("../learning/report.cjs").prepareReport(
-          document,
-          model,
-          views,
-        ),
         snippets,
+        ...learningOf(document, model),
       },
     };
   const notes = [
@@ -316,13 +312,17 @@ async function prepareModel({
       views: clientViews,
       exports,
       snippets,
-      report: require("../learning/report.cjs").prepareReport(
-        document,
-        model,
-        views,
-      ),
+      ...learningOf(document, model),
     },
   };
+}
+// Walkthroughs and examples travel only with documents that have them.
+function learningOf(document, model) {
+  const learning = require("../learning/scenarios.cjs").prepareLearning(
+    document,
+    model,
+  );
+  return learning ? { learning } : {};
 }
 // The standalone viewer's stored theme preference; src/main.jsx uses the same
 // key, so envUI's startup script themes the page before the first paint.
@@ -444,7 +444,7 @@ async function buildViewer(input) {
     .replace(
       "/*MODEL_DATA*/",
       () =>
-        `const MODEL=${inline(model)};const VIEWS=${inline(clientViews)};const EXPORTS=${inline(exports)};const SNIPPETS=${inline(snippets)};const COMPARISON=${inline(prepared.payload.comparison || null)};const REPORT=${inline(prepared.payload.report || null)};`,
+        `const MODEL=${inline(model)};const VIEWS=${inline(clientViews)};const EXPORTS=${inline(exports)};const SNIPPETS=${inline(snippets)};const COMPARISON=${inline(prepared.payload.comparison || null)};const LEARNING=${inline(prepared.payload.learning || null)};`,
     )
     .replace("/*APP_SCRIPT*/", () =>
       script.replace(/<\/script/gi, "<\\/script"),

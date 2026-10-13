@@ -92,41 +92,9 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.comparison-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
 .zoom-readout {
   min-width: 4rem;
 }
-.count-added,
-.count-removed,
-.count-modified,
-.count-conflicts {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-.count-added {
-  color: var(--color-tone-success);
-}
-.count-removed {
-  color: var(--color-tone-danger);
-}
-.count-modified {
-  color: var(--color-tone-warning);
-}
-.count-conflicts {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.125rem;
-  color: var(--color-tone-danger);
-}
-.count-conflicts svg {
-  width: 1rem;
-  height: 1rem;
-}
-
 /* Concept search: an inline field, or a toggle with a popup when crowded. */
 /* In a crowded toolbar the field opens below the whole tools island. */
 .search {
@@ -301,48 +269,421 @@ body {
   border: 0.0625rem solid;
   border-radius: 0.1875rem;
 }
-.field-list {
+.detail-owner {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.detail-description {
+  white-space: pre-wrap;
+}
+/* Text read by assistive technology, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A proposal's changes, in the panel: added, changed and removed. */
+[data-change="added"] {
+  --change-color: var(--change-added);
+}
+[data-change="modified"] {
+  --change-color: var(--change-modified);
+}
+[data-change="removed"] {
+  --change-color: var(--change-removed);
+}
+.change-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.3125rem;
+  background: color-mix(in srgb, var(--change-color) 16%, transparent);
+  color: var(--change-color);
+  font: 600 0.8125rem / 1 var(--font-family-code);
+}
+.change-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: color-mix(in srgb, var(--change-color) 16%, transparent);
+  color: var(--change-color);
+  font: var(--type-body-small);
+  font-weight: 500;
+}
+
+/* The changes overview: groups of rows, each a button. */
+.change-groups {
   display: grid;
+  gap: var(--space-5);
+}
+.changes-overview .change-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.change-relations {
+  margin-top: var(--space-1);
+}
+.change-group-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.change-subheading {
+  margin: var(--space-1) 0 0 var(--space-2);
+}
+.change-rows {
+  display: grid;
+  gap: 0.125rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.field-row,
-.method-row {
-  padding: var(--space-2) 0;
-  border-bottom: 0.0625rem solid var(--color-border-strong);
-  color: var(--color-text-primary);
+.change-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-row-inner);
+  background: var(--color-row);
+  color: var(--color-row-text);
   font: var(--type-body-small);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.change-rows > li:first-child > .change-row,
+.change-rows > .change-row:first-child {
+  border-start-start-radius: var(--radius-standard);
+  border-start-end-radius: var(--radius-standard);
+}
+.change-rows > li:last-child > .change-row,
+.change-rows > .change-row:last-child {
+  border-end-start-radius: var(--radius-standard);
+  border-end-end-radius: var(--radius-standard);
+}
+.change-row.static {
+  cursor: default;
+}
+button.change-row:hover {
+  background: var(--color-row-hover);
+}
+button.change-row:active {
+  background: var(--color-row-pressed);
+}
+button.change-row:focus-visible {
+  outline: 0.125rem solid var(--color-focus-ring);
+  outline-offset: -0.125rem;
+}
+button.change-row[aria-current="true"] {
+  box-shadow: inset 0.1875rem 0 0 var(--change-color);
+}
+.change-row > .change-mark {
+  margin-top: 0.0625rem;
+}
+.change-row-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.change-row-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.change-row-name {
+  min-width: 0;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
-.field-row {
+.change-row-tag {
+  flex: none;
+  color: var(--color-row-detail);
+}
+.change-row-summary {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  color: var(--color-row-detail);
+  font: var(--font-size-code) / 1.5 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.change-token {
+  color: var(--change-color);
+}
+.change-token-glyph {
+  margin-inline-end: 0.125rem;
+  font-weight: 600;
+}
+.change-token.more {
+  color: var(--color-row-detail);
+}
+
+/* Above a changed element's details: back, previous and next. */
+.change-navigation {
+  display: flex;
+  flex: 1;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  min-width: 0;
 }
-.field-row:last-child,
-.method-row:last-child {
-  border-bottom: 0;
+.change-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
-.field-detail,
-.field-note {
+.change-position {
+  min-width: 4.5rem;
   color: var(--color-text-muted);
+  font: var(--type-body-small);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
-.field-row .field-detail {
-  text-align: end;
+
+/* Details: titled sections, change lists, code places and references. */
+.detail-section {
+  padding-top: var(--space-4);
+  border-top: 0.0625rem solid var(--color-border-strong);
 }
+.detail-section-title {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.change-list,
+.member-list,
+.reference-list,
 .relation-end-list {
   display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.relation-end {
+.change-list {
+  gap: var(--space-2);
+}
+.change-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font: var(--type-body-small);
+}
+.change-line-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.change-key,
+.change-detail {
+  color: var(--color-text-muted);
+}
+.change-before {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+.change-after {
+  text-decoration: none;
+}
+.change-arrow {
+  margin: 0 var(--space-1);
+  color: var(--color-text-muted);
+}
+.signature {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.55 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+[data-change] > .change-line-text > .signature,
+.member[data-change] > .signature {
+  color: var(--change-color);
+}
+.member[data-change="removed"] > .signature,
+.change-line[data-change="removed"] .signature {
+  text-decoration: line-through;
+}
+.member-list {
+  gap: 0;
+}
+.member {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 0.3125rem 0;
+  border-bottom: 0.0625rem solid
+    color-mix(in srgb, var(--color-border-strong) 60%, transparent);
+}
+.member:last-child {
+  border-bottom: 0;
+}
+/* The member a focus asked for, such as a plan's link to it. */
+.member.focused {
+  border-radius: var(--radius-standard);
+  background: color-mix(in srgb, var(--color-focus-ring) 14%, transparent);
+  box-shadow: inset 0.1875rem 0 0 var(--color-focus-ring);
+  padding-inline-start: var(--space-2);
+}
+.member > .signature {
+  flex: 1;
+}
+.member-list.marked .member:not([data-change]) {
+  padding-inline-start: calc(1.125rem + var(--space-2));
+}
+.member-type,
+.column-flags {
+  color: var(--color-text-muted);
+}
+.member-line {
+  flex: none;
+  color: var(--color-text-quiet);
+  font: var(--font-size-code) / 1.55 var(--font-family-code);
+  font-variant-numeric: tabular-nums;
+}
+.member-line::before {
+  content: "L";
+}
+.column-flags {
+  flex: none;
+  font: var(--type-body-small);
+}
+.proposed-location code,
+.reference-excerpt code,
+.detail-rationale code {
+  font: 0.92em var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.code-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+}
+.code-path {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.5 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.code-lines {
+  flex: none;
+  color: var(--color-text-muted);
+  font: var(--type-body-small);
+}
+.code-source-link {
+  justify-self: start;
+}
+.detail-rationale {
+  white-space: pre-wrap;
+}
+.reference-list {
+  gap: var(--space-3);
+}
+.reference {
+  display: grid;
+  gap: 0.125rem;
+}
+.reference-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-height-small);
+}
+.reference-head > .reference-link {
+  min-width: 0;
+  text-align: start;
+}
+.reference-toggle {
+  flex: none;
+}
+.reference-title {
+  font: var(--type-body-small);
+  font-weight: 500;
+}
+/* Two lines of the passage; the rest on request. */
+.reference-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.reference-excerpt.expanded {
+  display: block;
+  white-space: pre-wrap;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+}
+.relation-ends {
+  gap: var(--space-1);
+}
+
+/* The model guide: walkthrough steps and examples. */
+.walkthrough-steps {
+  display: grid;
   gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  list-style: decimal;
+}
+.walkthrough-steps > li::marker {
+  color: var(--color-text-muted);
+}
+.walkthrough-steps > li {
+  padding-inline-start: var(--space-1);
+}
+.step-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+}
+.example-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.example-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font: var(--type-body-small);
+}
+.relation-role {
+  min-width: 4.5rem;
+  color: var(--color-text-muted);
+  font: var(--type-body-small);
+}
+.relation-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   border-bottom: 0.0625rem solid var(--color-border-strong);
+}
+.relation-end .count-badge {
+  margin-inline-start: auto;
 }
 .relation-end:last-child {
   border-bottom: 0;
@@ -402,13 +743,6 @@ body {
   padding-inline-start: var(--space-3);
   border-inline-start: 0.125rem solid var(--color-border-strong);
 }
-.atlas-context {
-  padding-top: var(--space-4);
-  border-top: 0.0625rem solid var(--color-border-strong);
-}
-.atlas-context-text {
-  white-space: pre-wrap;
-}
 .shortcut-list {
   display: grid;
   gap: var(--space-2);
@@ -427,101 +761,6 @@ body {
   margin: 0;
 }
 
-/* The change list in its popover. */
-.atlas-portal .change-group-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.atlas-portal .change-group-icon {
-  display: inline-grid;
-  font-size: 1.25rem;
-}
-.atlas-portal .change-group[data-kind="added"] .change-group-icon {
-  color: var(--color-tone-success);
-}
-.atlas-portal .change-group[data-kind="removed"] .change-group-icon,
-.atlas-portal .change-group[data-kind="conflict"] .change-group-icon {
-  color: var(--color-tone-danger);
-}
-.atlas-portal .change-group[data-kind="modified"] .change-group-icon {
-  color: var(--color-tone-warning);
-}
-.atlas-portal .change-name {
-  font-weight: 500;
-}
-.atlas-portal .change-owner {
-  color: var(--color-row-detail);
-  font-weight: 400;
-}
-/* Details stay narrow enough for the row's Inspect action to keep its place. */
-.atlas-portal .change-properties,
-.atlas-portal .change-rationale {
-  max-inline-size: 15rem;
-}
-.atlas-portal .change-properties {
-  display: grid;
-  gap: var(--space-1);
-  margin: var(--space-2) 0 0;
-}
-.atlas-portal .change-property {
-  display: grid;
-  grid-template-columns: minmax(4rem, max-content) minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--space-2);
-}
-.atlas-portal .change-property dt {
-  color: var(--color-row-detail);
-}
-.atlas-portal .change-property dd {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1);
-  min-width: 0;
-  margin: 0;
-}
-.atlas-portal .change-value {
-  padding: 0.0625rem var(--space-1);
-  border-radius: var(--md-sys-shape-corner-extra-small);
-  color: var(--color-row-text);
-  font: var(--font-size-code) / 1.5 var(--font-family-code);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.atlas-portal .change-value.before {
-  background: color-mix(in srgb, var(--color-tone-danger) 16%, transparent);
-}
-.atlas-portal .change-value.after {
-  background: color-mix(in srgb, var(--color-tone-success) 16%, transparent);
-}
-.atlas-portal .change-value.absent {
-  color: var(--color-row-detail);
-  font: inherit;
-  font-style: italic;
-  background: none;
-}
-.atlas-portal .change-arrow {
-  color: var(--color-row-detail);
-}
-.atlas-portal .change-rationale {
-  margin: var(--space-2) 0 0;
-  padding-inline-start: var(--space-3);
-  border-inline-start: 0.125rem solid var(--color-border-strong);
-  color: var(--color-row-detail);
-  white-space: pre-wrap;
-}
-.atlas-portal .source-code {
-  margin: 0;
-  padding: var(--space-2);
-  overflow: auto;
-  border-radius: var(--radius-standard);
-  background: var(--color-canvas);
-  color: var(--color-text-primary);
-  font: var(--font-size-code) / 1.5 var(--font-family-code);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .atlas-portal.about-content .shortcut-list {
   display: grid;
   gap: var(--space-2);
@@ -616,124 +855,5 @@ body {
   .diagram-element,
   .suggestion {
     transition: none;
-  }
-}
-
-/* The model report replaces the diagram in the same panel. */
-.atlas-report-host {
-  position: relative;
-  height: 100dvh;
-  overflow: hidden;
-  background: var(--color-canvas);
-}
-.report-diagram {
-  height: 100%;
-}
-.report-diagram[hidden] {
-  display: none;
-}
-.report-view {
-  position: absolute;
-  inset: 0;
-}
-.model-report {
-  display: grid;
-  align-content: start;
-  gap: var(--space-7);
-  height: 100%;
-  overflow-y: auto;
-  padding: 5rem max(var(--space-5), calc((100% - 57.5rem) / 2)) 5rem;
-  color: var(--color-text-primary);
-  /* Report text keeps the line breaks it was written with. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.report-section {
-  padding-top: var(--space-5);
-  border-top: 0.0625rem solid var(--color-border-strong);
-}
-.report-quote {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-inline-start: var(--space-4);
-  border-inline-start: 0.1875rem solid var(--color-border-strong);
-}
-.report-steps {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding-inline-start: var(--space-5);
-}
-.report-steps > li {
-  display: grid;
-  gap: var(--space-2);
-}
-.report-step-actions,
-.report-counts {
-  gap: var(--space-2) var(--space-3);
-}
-.report-references {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-}
-.report-figure {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-.report-figure figcaption {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.report-figure img {
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--radius-standard);
-  background: var(--color-white);
-}
-.report-question {
-  padding-inline-start: var(--space-3);
-  border-inline-start: 0.125rem solid var(--color-border-strong);
-}
-.report-revision {
-  white-space: normal;
-}
-@media print {
-  body,
-  #root,
-  .atlas-panel,
-  .atlas-report-host {
-    height: auto !important;
-    overflow: visible !important;
-  }
-  /* Paper has nothing to press: Open view, Open planning passage, Print and
-     the SVG downloads. */
-  .report-open .report-diagram,
-  .report-toolbar,
-  .model-report button,
-  .model-report a[download] {
-    display: none !important;
-  }
-  .model-report {
-    height: auto;
-    overflow: visible;
-    padding: 0;
-    font-size: 10pt;
-  }
-  .report-figure {
-    break-inside: avoid;
-  }
-  .report-figure img {
-    max-height: 230mm;
-    object-fit: contain;
-  }
-  .model-report details > * {
-    display: block !important;
   }
 }

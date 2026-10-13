@@ -93,8 +93,8 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     sidebarOpen,
     learningOpen,
     aboutOpen,
-    comparisonControls,
-    reportControl,
+    reviewControls,
+    guided = true,
     density = 0,
     themeToggle = false,
     onSidebar,
@@ -132,7 +132,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
         >
           {model.title}
         </Text>
-        {(views.length > 1 || comparisonControls) && <IslandDivider />}
+        {(views.length > 1 || reviewControls) && <IslandDivider />}
         {views.length > 1 && (
           <ViewSwitcher
             items={views}
@@ -141,8 +141,8 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
             compact={density > 0}
           />
         )}
-        {views.length > 1 && comparisonControls && <IslandDivider />}
-        {comparisonControls}
+        {views.length > 1 && reviewControls && <IslandDivider />}
+        {reviewControls}
       </Island>
       <Island label="Diagram tools" className="island-end">
         <ConceptSearch classes={searchClasses} onChoose={onChoose} />
@@ -159,8 +159,8 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
           compact={density > 2}
         />
         <IslandDivider />
-        {conceptual &&
-          (findings > 0 ? (
+        {guided &&
+          (conceptual && findings > 0 ? (
             <Tooltip content="Learn OntoUML" side="bottom">
               <Button
                 id="learn-toggle"
@@ -180,14 +180,17 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
           ) : (
             <ToolButton
               id="learn-toggle"
-              label="Learn OntoUML; no findings"
-              tooltip="Learn OntoUML"
+              label={
+                conceptual
+                  ? "Learn OntoUML; no findings"
+                  : "Understand the model"
+              }
+              tooltip={conceptual ? "Learn OntoUML" : "Understand the model"}
               pressed={learningOpen && sidebarOpen}
               icon={<LearnIcon />}
               onClick={onLearn}
             />
           ))}
-        {reportControl}
         <ToolButton
           id="sidebar-toggle"
           label={sidebarHidden ? "Show details" : "Hide details"}

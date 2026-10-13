@@ -2,18 +2,23 @@ import { Surface, Text } from "@envsemble/envui";
 import { ToolButton } from "./Button";
 import { CloseIcon } from "./Icons";
 
-/** A floating pane beside the canvas, such as the inspector. */
+/**
+ * A floating pane beside the canvas, such as the inspector. Its header holds
+ * the title or a `toolbar` (such as change navigation) and the close button.
+ */
 export function Panel({
   open,
   onClose,
   label = "Diagram details",
   title = label,
+  toolbar = null,
   closeLabel = "Close details",
   children,
   id = "panel",
   className = "",
   ...props
 }) {
+  const compact = !title && !toolbar;
   return (
     <Surface
       as="aside"
@@ -24,8 +29,9 @@ export function Panel({
       aria-label={label}
       {...props}
     >
-      <div className={`panel-header${title ? "" : " compact"}`}>
-        {title && (
+      <div className={`panel-header${compact ? " compact" : ""}`}>
+        {toolbar}
+        {!toolbar && title && (
           <Text as="h2" variant="section-heading" className="panel-title">
             {title}
           </Text>

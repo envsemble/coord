@@ -10,7 +10,7 @@ import {
 import { DiagramCanvas } from "../visualization/DiagramCanvas";
 import { useSVGExport } from "../visualization/useSVGExport";
 import { sameTarget } from "../visualization/interaction";
-import { indexViewerModel, viewForNode } from "../model/domainModel";
+import { indexViewerModel } from "../model/domainModel";
 import {
   Dialog,
   EmptyState,
@@ -18,38 +18,32 @@ import {
   useThemePreference,
 } from "@envsemble/envui";
 import { Panel } from "../ui/Panel";
-import { Island } from "../ui/Island";
 import { ViewerToolbar } from "./ViewerToolbar";
-import {
-  ConceptDetails,
-  RelationDetails,
-  GeneralizationSetDetails,
-  About,
-} from "./DetailsContent";
+import { About } from "./DetailsContent";
 import { useInspection, inspectedTarget } from "./useInspection";
-import { LearningLibrary } from "../learning/LearningContent";
+import { InspectorContent } from "./InspectorContent";
 import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { ComparisonViewer } from "./ComparisonViewer";
-import { ReportViewer } from "./ReportViewer";
 import { useOverlayInsets } from "./useOverlayInsets";
 import { useToolbarDensity } from "./useToolbarDensity";
+import { overviewByDefault, useChangeReview } from "../review/useChangeReview";
 
 export function OntoUMLViewer(props) {
-  // Report and comparison controls travel as extras into the nested viewer.
-  const nested = (payload, focus, extras) => (
-    <OntoUMLViewer
-      {...payload}
-      reportControl={props.reportControl}
-      {...extras}
-      focus={focus || props.focus}
-    />
-  );
-  if (props.report) return <ReportViewer payload={props} render={nested} />;
   if (props.comparison)
     return (
-      <ComparisonViewer payload={props} focus={props.focus} render={nested} />
+      <ComparisonViewer
+        payload={props}
+        focus={props.focus}
+        render={(payload, focus, extras) => (
+          <OntoUMLViewer
+            {...payload}
+            {...extras}
+            focus={focus || props.focus}
+          />
+        )}
+      />
     );
   if (!props.views.length)
     return (
@@ -63,11 +57,6 @@ export function OntoUMLViewer(props) {
           title={props.model.title}
           description="No entities in this model."
         />
-        {props.comparisonControls && (
-          <Island label="Comparison" className="inline">
-            {props.comparisonControls}
-          </Island>
-        )}
       </main>
     );
   return <ViewerContent {...props} />;
@@ -86,9 +75,9 @@ function ViewerContent({
   views,
   exports: exportData,
   snippets = {},
+  learning: guide = null,
   focus = null,
-  comparisonControls,
-  reportControl,
+  review = null,
   provenanceDocument,
 }) {
   const exports = useArtifactArchive(exportData);
@@ -99,13 +88,19 @@ function ViewerContent({
   const theme = preference?.theme || ambientTheme;
   const [selected, setSelected] = useState(null);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [learningOpen, setLearningOpen] = useState(false);
+  const [learningOpen, setLearningOpen] = useState(false),
+    [learningTab, setLearningTab] = useState(null);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [overview, setOverview] = useState(() => overviewByDefault(review));
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
-    previewEnabled: !sidebarHidden,
+    previewEnabled:
+      !sidebarHidden && !(review && overview && !selected && !learningOpen),
     previewVisible: !!selected || learningOpen,
   });
   const [focusRequest, setFocusRequest] = useState(null);
+  // A member asked for by a focus (such as a plan's link) is shown in its
+  // owner's details.
+  const [member, setMember] = useState(null);
   const zoomStore = useMemo(createZoomStore, []);
   const cameraRef = useRef(null);
   const viewerRef = useRef(null),
@@ -113,7 +108,7 @@ function ViewerContent({
   const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
   const density = useToolbarDensity(
     toolbarRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!review}`,
   );
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
@@ -121,16 +116,6 @@ function ViewerContent({
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups],
   );
-  const { diagramURL, backgroundURL } = useSVGExport(
-    exports.readText(
-      `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`,
-    ),
-    theme,
-    viewerRef,
-  );
-  const inspected = inspectedTarget(preview, selected);
-  const element = index.getElement(inspected);
-  const sidebarOpen = !sidebarHidden && (!!element || learningOpen);
   const select = useCallback(
     (target) => {
       clearHover();
@@ -146,6 +131,45 @@ function ViewerContent({
     setLearningOpen(false);
     clearHover();
   }, [clearHover]);
+  const choose = useCallback(
+    (id) => {
+      const next = inspectionTarget(model, index, views, viewKey, id);
+      if (!next) return;
+      setViewKey(next.viewKey);
+      select(next.target);
+      setMember(next.memberId || null);
+      if (next.nodeId) setFocusRequest({ id: next.nodeId });
+      else if (next.nodeIds) setFocusRequest({ ids: next.nodeIds });
+    },
+    [index, model, views, viewKey, select],
+  );
+  const changes = useChangeReview({
+    review,
+    model,
+    selected,
+    overview,
+    setOverview,
+    choose,
+    select,
+    hover,
+    onShowPanel: () => {
+      setSidebarHidden(false);
+      setLearningOpen(false);
+    },
+  });
+  const { diagramURL, backgroundURL } = useSVGExport(
+    exports.readText(
+      `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`,
+    ),
+    theme,
+    viewerRef,
+    !!changes?.fade,
+  );
+  const inspected = inspectedTarget(preview, selected);
+  const element = index.getElement(inspected);
+  const showOverview = !!changes && overview && !element && !learningOpen;
+  const sidebarOpen =
+    !sidebarHidden && (!!element || learningOpen || showOverview);
   useEffect(() => {
     setSelected(null);
     setFocusRequest(null);
@@ -166,16 +190,6 @@ function ViewerContent({
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [clear]);
-  const choose = useCallback(
-    (id) => {
-      const next = inspectionTarget(model, index, views, viewKey, id);
-      if (!next) return;
-      setViewKey(next.viewKey);
-      select(next.target);
-      if (next.nodeId) setFocusRequest({ id: next.nodeId });
-    },
-    [index, model, views, viewKey, select],
-  );
   const lastExternalFocus = useRef(null);
   useEffect(() => {
     if (focus && focus !== lastExternalFocus.current) {
@@ -188,21 +202,47 @@ function ViewerContent({
   useEffect(() => {
     if (selected && !index.getElement(selected)) select(null);
   }, [index, selected, select]);
+  // New content in the inspector starts at its top.
+  const inspector = useRef(null);
+  const showing = learningOpen
+    ? "learning"
+    : selected
+      ? `${selected.kind}:${selected.id}`
+      : showOverview
+        ? "overview"
+        : "";
+  useLayoutEffect(() => {
+    if (inspector.current) inspector.current.scrollTop = 0;
+  }, [showing]);
   // Reopening details must not leave the selected node underneath them.
   useLayoutEffect(() => {
     if (sidebarOpen && selected?.kind === "node")
       cameraRef.current?.revealNode(selected.id);
   }, [sidebarOpen]);
+  const conceptual = !model.document || model.document.profile === "ontouml";
+  // Learning findings can point at relations and sets as well as classes.
+  const inspectLearning = (id) => {
+    if (index.nodes.has(id)) return choose(id);
+    const groupView = views.find((v) =>
+      v.diagram.generalizationGroups?.some((g) => g.id === id),
+    );
+    if (groupView) {
+      setViewKey(groupView.key);
+      select({ kind: "group", id });
+      return;
+    }
+    choose(id);
+  };
   return (
     <div
       ref={viewerRef}
-      className={`viewer${sidebarOpen ? " inspecting" : ""}`}
+      className={`viewer${sidebarOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}`}
     >
       <ViewerToolbar
         ref={toolbarRef}
         density={density}
-        comparisonControls={comparisonControls}
-        reportControl={reportControl}
+        reviewControls={changes?.controls(sidebarOpen && showOverview)}
+        guided={conceptual || !!guide}
         {...{
           model,
           views,
@@ -260,11 +300,29 @@ function ViewerContent({
       />
       <ProvenanceBadge document={provenanceDocument || model.document} />
       <Panel
+        ref={inspector}
         id="inspector"
         className="inspector"
         open={sidebarOpen}
-        label={learningOpen ? "OntoUML learning library" : "Model details"}
-        title={learningOpen ? "Learn OntoUML" : null}
+        label={
+          learningOpen
+            ? "Model guide"
+            : showOverview
+              ? "Changes in this proposal"
+              : "Model details"
+        }
+        title={
+          learningOpen
+            ? conceptual && !guide
+              ? "Learn OntoUML"
+              : "Understand the model"
+            : showOverview
+              ? "Changes"
+              : null
+        }
+        toolbar={
+          !learningOpen && element && changes ? changes.navigation : null
+        }
         closeLabel="Hide details"
         onClose={() => setSidebarHidden(true)}
         onPointerEnter={keepHover}
@@ -274,64 +332,29 @@ function ViewerContent({
           if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
         }}
       >
-        {sidebarOpen && learningOpen && (
-          <LearningLibrary
+        {sidebarOpen && (
+          <InspectorContent
+            learning={learningOpen}
+            element={element}
+            inspected={inspected}
+            member={sameTarget(inspected, selected) ? member : null}
             model={model}
-            onInspect={(id) => {
-              if (index.nodes.has(id)) choose(id);
-              else {
-                const groupView = views.find((v) =>
-                  v.diagram.generalizationGroups?.some((g) => g.id === id),
-                );
-                if (groupView) {
-                  setViewKey(groupView.key);
-                  select({ kind: "group", id });
-                  return;
-                }
-                const edge = index.edges.get(id);
-                const next = views.find((v) =>
-                  v.diagram.edges.some((e) => e.id === id),
-                );
-                if (edge && next) {
-                  setViewKey(next.key);
-                  select({ kind: "edge", id });
-                }
-              }
+            views={views}
+            snippets={snippets}
+            guide={guide}
+            conceptual={conceptual}
+            changes={changes}
+            showOverview={showOverview}
+            learningTab={learningTab}
+            onLearningTab={setLearningTab}
+            onChoose={choose}
+            onInspectLearning={inspectLearning}
+            onView={(key) => {
+              setViewKey(key);
+              setFocusRequest(null);
             }}
           />
         )}
-        {sidebarOpen &&
-          !learningOpen &&
-          element &&
-          inspected.kind === "node" && (
-            <ConceptDetails
-              concept={element}
-              model={model}
-              snippets={snippets}
-            />
-          )}
-        {sidebarOpen &&
-          !learningOpen &&
-          element &&
-          inspected.kind === "edge" && (
-            <RelationDetails
-              relation={element}
-              onChoose={choose}
-              model={model}
-              snippets={snippets}
-            />
-          )}
-        {sidebarOpen &&
-          !learningOpen &&
-          element &&
-          inspected.kind === "group" && (
-            <GeneralizationSetDetails
-              group={element}
-              model={model}
-              snippets={snippets}
-              onChoose={choose}
-            />
-          )}
       </Panel>
       <Dialog
         open={aboutOpen}

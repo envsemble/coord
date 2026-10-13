@@ -63,9 +63,14 @@ export function SourceEvidence({
     .filter(Boolean);
   if (!records.length) return null;
   return (
-    <Stack as="section" gap={3} className="source-evidence" aria-label={label}>
+    <Stack
+      as="section"
+      gap={2}
+      className="source-evidence detail-section"
+      aria-label={label}
+    >
       {label !== "Source" && (
-        <Text as="h2" variant="section-heading">
+        <Text as="h2" variant="caption" className="detail-section-title">
           {label}
         </Text>
       )}

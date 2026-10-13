@@ -7,101 +7,62 @@ import {
   Stack,
   Text,
 } from "@envsemble/envui";
-import { printable } from "../model/printable";
 import { DownloadLink } from "../ui/DownloadLink";
 import { SourceEvidence } from "./SourceEvidence";
 import { ElementLearning } from "../learning/LearningContent";
 import { DetailHeader } from "../ui/DetailHeader";
 import { GeneralizationIcon, RelationIcon } from "../ui/Icons";
-import { formatCaptureDate, sourceKindLabel } from "./provenance";
+import { ChangeMark } from "../review/ChangeMark";
+import {
+  cellText,
+  dependencyMembers,
+  describeClassChange,
+  informativeName,
+  rowFor,
+} from "../review/changes";
+import {
+  CodeWhere,
+  Members,
+  Section,
+  TableSchema,
+  WhatChanges,
+  Why,
+  linkedRecords,
+  memberSignature,
+} from "./DetailSections";
 
-const changeValue = (cell) =>
-  cell.present ? JSON.stringify(cell.value) : "absent";
+const profileOf = (model) => model.document?.profile || "ontouml";
+const changeOf = (review, element) =>
+  review && element.changeStatus && element.changeStatus !== "unchanged"
+    ? element.changeStatus
+    : null;
+const knownCount = (value) =>
+  typeof value === "string" && value.trim() !== "" && value !== "?";
 
-function ChangeDetails({ element, model }) {
-  const ids = new Set([
-    element.originalId || element.id,
-    ...(element.attributes || []).map((a) => a.id),
-    ...(element.methods || []).map((m) => m.id),
-  ]);
-  const changes =
-    model.document?.comparison?.changes?.changes.filter((c) =>
-      ids.has(c.elementId),
-    ) || [];
-  const mappings =
-    model.document?.mappings?.filter((m) => ids.has(m.elementId)) || [];
-  if (!changes.length && !mappings.length) return null;
-  return (
-    <>
-      {!!changes.length && (
-        <DisclosureNote title={`Changes · ${changes.length}`}>
-          {changes.map((c) => (
-            <Stack gap={1} key={c.id}>
-              <Text>
-                {c.kind} ·{" "}
-                {typeof c.name === "string" ? c.name : JSON.stringify(c.name)}
-              </Text>
-              {c.properties.map((p) => (
-                <Text variant="supporting" key={p.key}>
-                  {p.key}: {changeValue(p.before)} → {changeValue(p.after)}
-                </Text>
-              ))}
-              {c.rationale.map((r) => (
-                <Text tone="muted" key={r.id}>
-                  {r.text}
-                </Text>
-              ))}
-            </Stack>
-          ))}
-        </DisclosureNote>
-      )}
-      {!!mappings.length && (
-        <DisclosureNote title="Mappings">
-          {mappings.map((m) => (
-            <Stack gap={1} key={m.id}>
-              <Text>
-                {m.targetTitle} · {m.targetElementId}
-              </Text>
-              <Text>{m.reason}</Text>
-              <Text variant="caption">
-                Authored link · retained {m.targetProfile} snapshot
-              </Text>
-            </Stack>
-          ))}
-        </DisclosureNote>
-      )}
-    </>
-  );
-}
-
-/** Names on the left, types on the right: attributes, columns and methods. */
-function FieldList({ children }) {
-  return <ul className="field-list">{children}</ul>;
-}
-function FieldRow({ name, detail, children }) {
-  return (
-    <li className="field-row">
-      <span className="field-name">
-        {name}
-        {children}
-      </span>
-      <span className="field-detail">{detail}</span>
-    </li>
-  );
-}
-function SourceCode({ children }) {
-  return (
-    <pre className="source-code" tabIndex={0}>
-      <code>{children}</code>
-    </pre>
-  );
-}
-
+/**
+ * A class, interface, table or concept: what a proposal changes about it, where
+ * it is in code, why it exists, and what it holds. `review` is the rolled-up
+ * comparison while a proposal is shown.
+ */
 export const ConceptDetails = memo(function ConceptDetails({
   concept,
   model,
   snippets,
+  review = null,
+  member = null,
+  onReference,
 }) {
+  const profile = profileOf(model);
+  const conceptual = profile === "ontouml";
+  const change = changeOf(review, concept);
+  const described = change
+    ? describeClassChange(review.rollup, concept, profile)
+    : null;
+  const records = linkedRecords(model, [
+    concept.id,
+    ...(concept.attributes || []).map((a) => a.id),
+    ...(concept.methods || []).map((m) => m.id),
+  ]);
   return (
     <>
       <DetailHeader
@@ -109,63 +70,59 @@ export const ConceptDetails = memo(function ConceptDetails({
         tag={`«${concept.stereotype || "unspecified"}»`}
         stereotype={concept.stereotype}
         status={concept.status}
+        change={change}
         description={concept.description}
       />
-      <SourceEvidence
-        evidence={concept.evidence}
-        primary={concept.primarySource}
-        sources={model.sources}
-        snippets={snippets}
+      {conceptual && (
+        <ElementLearning element={concept} model={model} parts="issues" />
+      )}
+      <WhatChanges
+        change={described}
+        element={concept}
+        model={model}
+        profile={profile}
       />
-      {(!model.document || model.document.profile === "ontouml") && (
-        <ElementLearning element={concept} model={model} />
+      {profile === "code" && (
+        <CodeWhere
+          element={concept}
+          model={model}
+          snippets={snippets}
+          change={change}
+        />
       )}
-      {model.document?.profile === "database" && (
-        <CapturedSchema element={concept} />
+      <Why
+        rationale={concept.rationale}
+        questions={concept.questions}
+        records={records}
+        onReference={onReference}
+      />
+      {profile === "database" ? (
+        <TableSchema
+          element={concept}
+          model={model}
+          review={!!review}
+          focus={member}
+        />
+      ) : (
+        <Members
+          element={concept}
+          profile={profile}
+          review={!!review}
+          focus={member}
+        />
       )}
-      <CaptureDetails model={model} />
-      <ChangeDetails element={concept} model={model} />
-      {model.document?.profile === "code" && (
-        <>
-          {concept.definition && (
-            <DisclosureNote title="Definition">
-              <SourceCode>{concept.definition}</SourceCode>
-            </DisclosureNote>
-          )}
-          {concept.methods?.length > 0 && (
-            <DisclosureNote title={`Methods · ${concept.methods.length}`}>
-              <ul className="field-list">
-                {concept.methods.map((method) => (
-                  <li className="method-row" key={method.id}>
-                    {method.modifiers?.length > 0 && (
-                      <span className="field-detail">
-                        {method.modifiers.join(" ")}{" "}
-                      </span>
-                    )}
-                    {method.type}
-                  </li>
-                ))}
-              </ul>
-            </DisclosureNote>
-          )}
-        </>
+      {profile !== "code" && profile !== "database" && (
+        <SourceEvidence
+          evidence={concept.evidence}
+          primary={concept.primarySource}
+          sources={model.sources}
+          snippets={snippets}
+          label="Sources"
+        />
       )}
-      {concept.attributes.length > 0 &&
-        model.document?.profile !== "database" && (
-          <DisclosureNote title={`Fields · ${concept.attributes.length}`}>
-            <FieldList>
-              {concept.attributes.map(
-                ({ name, type, multiplicity: cardinality }, i) => (
-                  <FieldRow
-                    key={i}
-                    name={name}
-                    detail={`${type}${cardinality ? ` [${cardinality}]` : ""}`}
-                  />
-                ),
-              )}
-            </FieldList>
-          </DisclosureNote>
-        )}
+      {conceptual && (
+        <ElementLearning element={concept} model={model} parts="lesson" />
+      )}
     </>
   );
 });
@@ -175,17 +132,18 @@ function RelationEnds({ heading, ends, onChoose }) {
   return (
     <Stack gap={1} className="relation-ends">
       {heading && (
-        <Text as="h2" variant="section-heading">
+        <Text as="h2" variant="caption" className="detail-section-title">
           {heading}
         </Text>
       )}
       <ul className="relation-end-list">
-        {ends.map(([node, count], i) => (
+        {ends.map(([node, count, role], i) => (
           <li className="relation-end" key={`${node.id}-${i}`}>
+            {role && <span className="relation-role">{role}</span>}
             <Button variant="text" onClick={() => onChoose(node.id)}>
               {node.name}
             </Button>
-            {count && (
+            {knownCount(count) && (
               <Badge variant="outline" className="count-badge">
                 {count}
               </Badge>
@@ -200,52 +158,166 @@ function RelationEnds({ heading, ends, onChoose }) {
 const setConstraints = (set) =>
   `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}`;
 
+function relationTitle(relation) {
+  if (relation.type === "generalization")
+    return relation.realization ? "Implementation" : "Inheritance";
+  return (
+    informativeName(relation) ||
+    `${relation.source.name} → ${relation.target.name}`
+  );
+}
+
+function relationTag(relation) {
+  if (relation.type === "generalization") return "Generalization";
+  return relation.stereotype ? `«${relation.stereotype}»` : "Association";
+}
+
+/** Where a code dependency comes from: the source's members typed with the target. */
+function DeclaredBy({ relation, profile }) {
+  const members = dependencyMembers(relation.source, relation.target);
+  if (!members.length) return null;
+  return (
+    <Section title="Declared by">
+      <ul className="member-list">
+        {members.map(({ member, method }) => (
+          <li
+            key={member.id}
+            className="member"
+            data-change={
+              member.changeStatus && member.changeStatus !== "unchanged"
+                ? member.changeStatus
+                : undefined
+            }
+          >
+            <ChangeMark status={member.changeStatus} />
+            <code className="signature">
+              {memberSignature(member, method, profile)}
+            </code>
+            {member.location && (
+              <span className="member-line">{member.location.startLine}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+function ForeignKey({ relation }) {
+  if (!Array.isArray(relation.columns)) return null;
+  return (
+    <Section title="Columns">
+      <Text>
+        <code>
+          {relation.source.name}({relation.columns.join(", ")})
+        </code>{" "}
+        →{" "}
+        <code>
+          {relation.target.name}({(relation.targetColumns || []).join(", ")})
+        </code>
+      </Text>
+      {(relation.onDelete || relation.onUpdate) && (
+        <Text tone="muted">
+          {[
+            relation.onDelete && `On delete ${relation.onDelete.toLowerCase()}`,
+            relation.onUpdate && `on update ${relation.onUpdate.toLowerCase()}`,
+          ]
+            .filter(Boolean)
+            .join(", ")}
+        </Text>
+      )}
+    </Section>
+  );
+}
+
 export const RelationDetails = memo(function RelationDetails({
   relation,
   onChoose,
   model,
   snippets,
+  review = null,
+  onReference,
 }) {
+  const profile = profileOf(model);
+  const conceptual = profile === "ontouml";
   const generalization = relation.type === "generalization";
+  const change = changeOf(review, relation);
+  const entry = change
+    ? rowFor(review.rollup, { kind: "edge", id: relation.id }, model)
+    : null;
+  const semanticId = relation.originalId || relation.id;
   return (
     <>
       <DetailHeader
-        title={
-          generalization
-            ? relation.realization
-              ? "Implementation"
-              : "Inheritance"
-            : relation.name
-        }
+        title={relationTitle(relation)}
         icon={generalization ? GeneralizationIcon : RelationIcon}
-        tag={
-          generalization
-            ? "Generalization"
-            : relation.stereotype
-              ? `«${relation.stereotype}»`
-              : "Association"
-        }
+        tag={relationTag(relation)}
         stereotype={relation.stereotype}
+        change={change}
+        description={relation.description}
       />
       <RelationEnds
-        ends={[
-          [relation.source, relation.sourceMultiplicity],
-          [relation.target, relation.targetMultiplicity],
-        ]}
+        ends={
+          generalization
+            ? [
+                [relation.source, null, "Subtype"],
+                [
+                  relation.target,
+                  null,
+                  relation.realization ? "Implements" : "Supertype",
+                ],
+              ]
+            : [
+                [relation.source, relation.sourceMultiplicity, "From"],
+                [relation.target, relation.targetMultiplicity, "To"],
+              ]
+        }
         onChoose={onChoose}
       />
-      <ChangeDetails element={relation} model={model} />
-      {(!model.document || model.document.profile === "ontouml") && (
-        <ElementLearning element={relation} model={model} relation />
+      {entry && entry.notes.length > 0 && (
+        <Section title="What changes">
+          <ul className="change-list">
+            {entry.notes.map((note) => (
+              <li key={note.key} className="change-line" data-change="modified">
+                <ChangeMark status="modified" />
+                <span className="change-line-text">
+                  <span className="change-key">{note.key}</span>{" "}
+                  <del className="change-before">
+                    {cellText(note.before, review.rollup.names)}
+                  </del>
+                  <span className="change-arrow" aria-label="changed to">
+                    →
+                  </span>
+                  <ins className="change-after">
+                    {cellText(note.after, review.rollup.names)}
+                  </ins>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
       )}
-      {model.document?.profile === "database" && (
-        <CapturedSchema element={relation} />
+      {profile === "code" && !generalization && (
+        <DeclaredBy relation={relation} profile={profile} />
+      )}
+      {profile === "database" && <ForeignKey relation={relation} />}
+      <Why
+        rationale={relation.rationale}
+        questions={relation.questions}
+        records={linkedRecords(model, [semanticId])}
+        onReference={onReference}
+      />
+      {conceptual && (
+        <ElementLearning
+          element={relation}
+          model={model}
+          relation
+          parts="all-but-why"
+        />
       )}
       {generalization &&
         (model.partitions || [])
-          .filter((set) =>
-            set.generalizations.includes(relation.originalId || relation.id),
-          )
+          .filter((set) => set.generalizations.includes(semanticId))
           .map((set) => (
             <Stack gap={1} className="generalization-set-summary" key={set.id}>
               <Text as="h2" variant="section-heading">
@@ -254,24 +326,28 @@ export const RelationDetails = memo(function RelationDetails({
               <Text tone="muted">{setConstraints(set)}</Text>
             </Stack>
           ))}
-      <SourceEvidence
-        evidence={
-          relation.evidence?.length
-            ? relation.evidence
-            : [...relation.source.evidence, ...relation.target.evidence]
-        }
-        sources={model.sources}
-        snippets={snippets}
-        label={relation.evidence?.length ? "Source" : "Endpoint evidence"}
-      />
+      {conceptual && (
+        <SourceEvidence
+          evidence={
+            relation.evidence?.length
+              ? relation.evidence
+              : [...relation.source.evidence, ...relation.target.evidence]
+          }
+          sources={model.sources}
+          snippets={snippets}
+          label={relation.evidence?.length ? "Sources" : "Endpoint evidence"}
+        />
+      )}
     </>
   );
 });
+
 export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
   group,
   onChoose,
   model,
   snippets,
+  onReference,
 }) {
   const declared = group.type === "generalizationSet";
   return (
@@ -313,6 +389,10 @@ export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
               shown. These constraints apply to the full set.
             </Text>
           )}
+          <Why
+            records={linkedRecords(model, [group.id])}
+            onReference={onReference}
+          />
           <ElementLearning element={group} model={model} relation />
         </>
       ) : (
@@ -329,91 +409,11 @@ export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
         primary={group.primarySource}
         sources={model.sources}
         snippets={snippets}
+        label="Sources"
       />
     </>
   );
 });
-function CaptureDetails({ model }) {
-  const document = model.document;
-  const snapshot = document?.snapshots.find(
-    (s) => s.id === document.baselineId,
-  );
-  if (!snapshot) return null;
-  const capture = snapshot.capture;
-  return (
-    <DisclosureNote
-      title={`Capture · ${capture.coverage.status}${document.imported ? " · imported claims" : ""}`}
-    >
-      <Text>Captured {formatCaptureDate(capture.capturedAt)}</Text>
-      <Text>
-        {sourceKindLabel(capture.source.kind)} · {capture.source.identity}
-      </Text>
-      <Text>{printable(capture.consistency?.kind)}</Text>
-      {(capture.coverage.diagnostics || []).map((d, i) => (
-        <Text key={i}>{printable(d.message ?? d)}</Text>
-      ))}
-      {[].concat(capture.limitations || []).map((text, i) => (
-        <Text tone="muted" key={i}>
-          {printable(text)}
-        </Text>
-      ))}
-    </DisclosureNote>
-  );
-}
-function CapturedSchema({ element }) {
-  const sql = [
-    element.definition,
-    ...(element.constraints || []).map((c) => c.definition),
-    ...(element.indexes || []).map((i) => i.definition),
-    ...(element.triggers || []).map((t) => t.definition || t.sql),
-  ].filter(Boolean);
-  return (
-    <>
-      {element.attributes?.length > 0 && (
-        <DisclosureNote title={`Columns · ${element.attributes.length}`} open>
-          <FieldList>
-            {element.attributes.map((column) => (
-              <FieldRow
-                key={column.id}
-                name={column.name}
-                detail={`${column.type} · ${column.nullable ? "nullable" : "required"}${
-                  column.default !== null && column.default !== undefined
-                    ? ` · default ${column.default}`
-                    : ""
-                }`}
-              >
-                {(column.primaryKeyOrder || column.generated) && (
-                  <small className="field-note">
-                    {column.primaryKeyOrder
-                      ? ` · PK ${column.primaryKeyOrder}`
-                      : ""}
-                    {column.generated ? " · generated" : ""}
-                  </small>
-                )}
-              </FieldRow>
-            ))}
-          </FieldList>
-        </DisclosureNote>
-      )}
-      {element.keys?.length > 0 && (
-        <DisclosureNote title="Keys">
-          {element.keys.map((key) => (
-            <Text key={key.name}>
-              {key.primary ? "Primary" : "Unique"} · {key.columns.join(", ")}
-            </Text>
-          ))}
-        </DisclosureNote>
-      )}
-      {sql.length > 0 && (
-        <DisclosureNote title="Captured SQL">
-          {sql.map((text, i) => (
-            <SourceCode key={i}>{text}</SourceCode>
-          ))}
-        </DisclosureNote>
-      )}
-    </>
-  );
-}
 
 /** Help for the standalone viewer: how to move around, and source downloads. */
 export function About({ model, exports }) {

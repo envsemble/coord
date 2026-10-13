@@ -1,6 +1,5 @@
 import { inspectionTarget } from "../model/inspectionTarget";
 import { ComparisonViewer } from "./ComparisonViewer";
-import { ReportViewer } from "./ReportViewer";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { useOverlayInsets } from "./useOverlayInsets";
 import { useToolbarDensity } from "./useToolbarDensity";
@@ -13,14 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  Button,
-  DisclosureNote,
-  EmptyState,
-  Stack,
-  Text,
-  Theme,
-} from "@envsemble/envui";
+import { EmptyState, Theme } from "@envsemble/envui";
 import { DiagramCanvas } from "../visualization/DiagramCanvas";
 import { indexViewerModel } from "../model/domainModel";
 import { sameTarget } from "../visualization/interaction";
@@ -40,46 +32,30 @@ import {
 } from "../ui/Icons";
 import { createZoomStore } from "../ui/zoomStore";
 import { useInspection, inspectedTarget } from "./useInspection";
-import {
-  ConceptDetails,
-  RelationDetails,
-  GeneralizationSetDetails,
-} from "./DetailsContent";
-import { LearningLibrary } from "../learning/LearningContent";
+import { InspectorContent } from "./InspectorContent";
+import { overviewByDefault, useChangeReview } from "../review/useChangeReview";
 
-// Report and comparison wrappers render the same panel again. Their controls
-// travel as extras so every control lives in the panel's floating toolbars.
-// The panel's root is an envUI Theme, so the host's `theme` drives envUI's
-// tokens inside it (and in the popups envUI portals out of it).
+// A proposal renders the same panel again on its change view; its review data
+// travels as an extra prop. The panel's root is an envUI Theme, so the host's
+// `theme` drives envUI's tokens inside it (and in the popups envUI portals out
+// of it).
 export function AtlasPanel(props) {
-  const nested = (payload, focus, extras) => (
-    <AtlasPanel
-      {...props}
-      {...extras}
-      payload={payload}
-      focus={focus || props.focus}
-    />
-  );
-  if (props.payload.report)
-    return (
-      <ReportViewer
-        payload={props.payload}
-        theme={props.theme || "dark"}
-        leading={props.leading}
-        onReference={props.onReference}
-        render={nested}
-      />
-    );
   if (props.payload.comparison)
     return (
       <ComparisonViewer
         payload={props.payload}
         focus={props.focus}
-        render={nested}
+        render={(payload, focus, extras) => (
+          <AtlasPanel
+            {...props}
+            {...extras}
+            payload={payload}
+            focus={focus || props.focus}
+          />
+        )}
       />
     );
   if (!props.payload.views.length) {
-    const tools = [props.leading, props.comparisonControls].filter(Boolean);
     const theme = props.theme || "dark";
     return (
       <Theme
@@ -88,24 +64,11 @@ export function AtlasPanel(props) {
         data-theme={theme}
       >
         <div className="viewer">
-          {(tools.length > 0 || props.reportControl) && (
+          {props.leading && (
             <div className="atlas-overlay-top">
-              {tools.length > 0 && (
-                <Island label="Diagram navigation" className="island-start">
-                  {props.leading && (
-                    <div className="island-leading">{props.leading}</div>
-                  )}
-                  {props.leading && props.comparisonControls && (
-                    <IslandDivider />
-                  )}
-                  {props.comparisonControls}
-                </Island>
-              )}
-              {props.reportControl && (
-                <Island label="Diagram tools" className="island-end">
-                  {props.reportControl}
-                </Island>
-              )}
+              <Island label="Diagram navigation" className="island-start">
+                <div className="island-leading">{props.leading}</div>
+              </Island>
             </div>
           )}
           <EmptyState
@@ -130,17 +93,20 @@ function AtlasPanelContent({
   leading,
   fullscreen = false,
   onFullscreenChange,
-  comparisonControls,
-  reportControl,
+  review = null,
   provenanceDocument,
 }) {
-  const { model, views, snippets } = payload;
+  const { model, views, snippets, learning: guide = null } = payload;
   const [viewKey, setViewKey] = useState(views[0].key);
   const [fields, setFields] = useState(false),
     [selected, setSelected] = useState(null);
   const [hidden, setHidden] = useState(false),
-    [learning, setLearning] = useState(false);
+    [learning, setLearning] = useState(false),
+    [learningTab, setLearningTab] = useState(null);
   const [focusRequest, setFocusRequest] = useState(null);
+  // A member asked for by a focus (such as a plan's link) is shown in its
+  // owner's details.
+  const [member, setMember] = useState(null);
   const camera = useRef(null),
     zoomStore = useMemo(createZoomStore, []);
   const viewerRef = useRef(null),
@@ -148,23 +114,23 @@ function AtlasPanelContent({
   const fitInsets = useOverlayInsets(viewerRef, topRef);
   const density = useToolbarDensity(
     topRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!review}`,
   );
   const lastFocus = useRef(null),
     inspectorId = useId();
-  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
-    previewEnabled: !hidden,
-    previewVisible: !!selected || learning,
-  });
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
   const index = useMemo(
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups],
   );
-  const inspected = inspectedTarget(preview, selected),
-    element = index.getElement(inspected);
-  const open = !hidden && (!!element || learning);
+  const [overview, setOverview] = useState(() => overviewByDefault(review));
+  // The changes overview stays put while the pointer crosses the canvas;
+  // only an inspected element's details follow hover.
+  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
+    previewEnabled: !hidden && !(review && overview && !selected && !learning),
+    previewVisible: !!selected || learning,
+  });
   const select = useCallback(
     (target) => {
       clearHover();
@@ -179,10 +145,30 @@ function AtlasPanelContent({
       if (!next) return;
       setViewKey(next.viewKey);
       select(next.target);
+      setMember(next.memberId || null);
       if (next.nodeId) setFocusRequest({ id: next.nodeId });
+      else if (next.nodeIds) setFocusRequest({ ids: next.nodeIds });
     },
     [index, model, views, viewKey, select],
   );
+  const changes = useChangeReview({
+    review,
+    model,
+    selected,
+    overview,
+    setOverview,
+    choose,
+    select,
+    hover,
+    onShowPanel: () => {
+      setHidden(false);
+      setLearning(false);
+    },
+  });
+  const inspected = inspectedTarget(preview, selected),
+    element = index.getElement(inspected);
+  const showOverview = !!changes && overview && !element && !learning;
+  const open = !hidden && (!!element || learning || showOverview);
   useEffect(() => {
     select(null);
     setViewKey(views[0].key);
@@ -217,6 +203,18 @@ function AtlasPanelContent({
       setViewKey(focus.id);
     else choose(focus.id);
   }, [focus, choose, views]);
+  // New content in the inspector starts at its top.
+  const inspector = useRef(null);
+  const showing = learning
+    ? "learning"
+    : selected
+      ? `${selected.kind}:${selected.id}`
+      : showOverview
+        ? "overview"
+        : "";
+  useLayoutEffect(() => {
+    if (inspector.current) inspector.current.scrollTop = 0;
+  }, [showing]);
   // Reopening details must not leave the selected node underneath them.
   useLayoutEffect(() => {
     if (open && selected?.kind === "node")
@@ -230,24 +228,16 @@ function AtlasPanelContent({
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [select]);
-  const meta = model.document;
-  const context = meta?.context || { records: [], links: [] };
-  const contextIds = new Set([
-    inspected?.id,
-    ...(inspected?.kind === "node"
-      ? element?.attributes.map((a) => a.id) || []
-      : []),
-  ]);
-  const linked = context.records.filter((r) =>
-    context.links.some(
-      (l) => contextIds.has(l.elementId) && l.recordId === r.id,
-    ),
-  );
+  const conceptual = !model.document || model.document.profile === "ontouml";
+  const guided = conceptual || !!guide;
   const showTabs = views.length > 1;
-  const hasStart = !!leading || showTabs || !!comparisonControls;
+  const hasStart = !!leading || showTabs || !!changes;
   return (
     <Theme theme={theme} className="atlas-panel" data-theme={theme}>
-      <div ref={viewerRef} className={`viewer${open ? " inspecting" : ""}`}>
+      <div
+        ref={viewerRef}
+        className={`viewer${open ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}`}
+      >
         <div
           className={`atlas-overlay-top${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
           ref={topRef}
@@ -255,7 +245,7 @@ function AtlasPanelContent({
           {hasStart && (
             <Island label="Diagram navigation" className="island-start">
               {leading && <div className="island-leading">{leading}</div>}
-              {leading && (showTabs || comparisonControls) && <IslandDivider />}
+              {leading && (showTabs || changes) && <IslandDivider />}
               {showTabs && (
                 <ViewSwitcher
                   items={views}
@@ -268,8 +258,8 @@ function AtlasPanelContent({
                   }}
                 />
               )}
-              {showTabs && comparisonControls && <IslandDivider />}
-              {comparisonControls}
+              {showTabs && changes && <IslandDivider />}
+              {changes?.controls(open && showOverview)}
             </Island>
           )}
           <Island label="Diagram tools" className="island-end">
@@ -292,19 +282,18 @@ function AtlasPanelContent({
               onFit={() => camera.current?.fit()}
             />
             <IslandDivider />
-            {(!meta || meta.profile === "ontouml") && (
+            {guided && (
               <ToolButton
-                label="Understand model"
+                label="Understand the model"
                 pressed={learning && open}
                 icon={<LearnIcon />}
                 onClick={() => {
                   clearHover();
                   setHidden(false);
-                  setLearning((v) => !v);
+                  setLearning((v) => !(v && open));
                 }}
               />
             )}
-            {reportControl}
             <ToolButton
               label={hidden ? "Show details" : "Hide details"}
               aria-controls={inspectorId}
@@ -335,73 +324,50 @@ function AtlasPanelContent({
           onHover={hover}
           onClearHover={clearHover}
         />
-        <ProvenanceBadge document={provenanceDocument || meta} />
+        <ProvenanceBadge document={provenanceDocument || model.document} />
         <Panel
+          ref={inspector}
           id={inspectorId}
           className="inspector"
-          title={learning ? "Understand the model" : null}
-          label={learning ? "OntoUML learning library" : "Model details"}
+          title={
+            learning ? "Understand the model" : showOverview ? "Changes" : null
+          }
+          toolbar={!learning && element && changes ? changes.navigation : null}
+          label={
+            learning
+              ? "Model guide"
+              : showOverview
+                ? "Changes in this proposal"
+                : "Model details"
+          }
           open={open}
           closeLabel="Hide details"
           onClose={() => setHidden(true)}
           onPointerEnter={keepHover}
           onPointerLeave={() => hover(null)}
         >
-          {open && learning && (
-            <LearningLibrary model={model} onInspect={choose} />
-          )}
-          {open && !learning && element && inspected.kind === "node" && (
-            <ConceptDetails
-              concept={element}
+          {open && (
+            <InspectorContent
+              learning={learning}
+              element={element}
+              inspected={inspected}
+              member={sameTarget(inspected, selected) ? member : null}
               model={model}
+              views={views}
               snippets={snippets}
-            />
-          )}
-          {open && !learning && element && inspected.kind === "edge" && (
-            <RelationDetails
-              relation={element}
-              model={model}
-              snippets={snippets}
+              guide={guide}
+              conceptual={conceptual}
+              changes={changes}
+              showOverview={showOverview}
+              learningTab={learningTab}
+              onLearningTab={setLearningTab}
               onChoose={choose}
+              onView={(key) => {
+                setViewKey(key);
+                setFocusRequest(null);
+              }}
+              onReference={onReference}
             />
-          )}
-          {open && !learning && element && inspected.kind === "group" && (
-            <GeneralizationSetDetails
-              group={element}
-              model={model}
-              snippets={snippets}
-              onChoose={choose}
-            />
-          )}
-          {open && !learning && linked.length > 0 && (
-            <Stack
-              as="section"
-              gap={2}
-              className="atlas-context"
-              aria-label="Planning references"
-            >
-              <Text as="h2" variant="section-heading">
-                Planning references
-              </Text>
-              {linked.map((record) => (
-                <DisclosureNote
-                  key={record.id}
-                  title={record.title || record.kind}
-                >
-                  <Text className="atlas-context-text">{record.text}</Text>
-                  {onReference && typeof record.path === "string" && (
-                    <div>
-                      <Button
-                        variant="secondary"
-                        onClick={() => onReference(record)}
-                      >
-                        Open {record.kind}
-                      </Button>
-                    </div>
-                  )}
-                </DisclosureNote>
-              ))}
-            </Stack>
           )}
         </Panel>
       </div>

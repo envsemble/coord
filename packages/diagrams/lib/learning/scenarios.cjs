@@ -296,10 +296,31 @@ function assessScenario(model, scenario) {
     limitations: LIMITATIONS,
   };
 }
+/**
+ * A document's walkthroughs and its examples with their assessments, for the
+ * viewer's guide to the model; null when the document has neither.
+ */
+function prepareLearning(document, model) {
+  const learning = document?.learning;
+  if (!learning?.walkthroughs?.length && !learning?.scenarios?.length)
+    return null;
+  return {
+    walkthroughs: learning.walkthroughs || [],
+    scenarios: (learning.scenarios || []).map((scenario) => ({
+      ...scenario,
+      result: assessScenario(model, scenario),
+    })),
+    ...(typeof document.reporting?.scope === "string" &&
+    document.reporting.scope.trim()
+      ? { scope: document.reporting.scope }
+      : {}),
+  };
+}
 module.exports = {
   learningIssues,
   checkScenario,
   assessScenario,
   explainModel,
+  prepareLearning,
   LIMITATIONS,
 };

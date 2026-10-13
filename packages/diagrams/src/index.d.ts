@@ -7,6 +7,7 @@ import type {
 import type {
   AtlasDocument,
   DiagramScene,
+  ModelLearning,
   ViewerPayload,
   ViewerModel,
   PlanningContext,
@@ -118,8 +119,22 @@ export const ElementLearning: ComponentType<{
   element: Record<string, unknown>;
   model: ViewerModel;
   relation?: boolean;
+  /** "issues" or "lesson" alone, everything but rationale and questions ("all-but-why"), or "all" (the default). */
+  parts?: "all" | "issues" | "lesson" | "all-but-why";
 }>;
+/**
+ * Understanding a model: its walkthroughs and examples (`learning`, from the
+ * payload) and, for conceptual models, the OntoUML lessons, checks and open
+ * questions.
+ */
 export const LearningLibrary: ComponentType<{
   model: ViewerModel;
+  learning?: ModelLearning | null;
+  views?: ViewerPayload["views"] | null;
+  conceptual?: boolean;
   onInspect(id: string): void;
+  /** Shows a walkthrough step's view. */
+  onView?(key: string): void;
+  tab?: string | null;
+  onTabChange?(tab: string): void;
 }>;
