@@ -21,6 +21,9 @@ body { margin: 0; }
 /* The title bar: the logo, the menus and the computer at the start; search, record health and the
    theme at the end, before the window buttons the system draws. */
 .title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+/* In a narrow window the menus and arrows keep their width; the computer's name gives way. */
+.title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
+.title-bar-start > .computer-trigger { min-inline-size: 0; }
 .title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
 /* Back and forward, close together after the menus. */
 .history-buttons { display: flex; align-items: center; }
@@ -74,11 +77,11 @@ body { margin: 0; }
 .work-search { inline-size: min(22rem, 100%); }
 .page-empty { padding-block: var(--space-8); }
 
-/* Rows that open one thing: the row's main link or button stretches over the row, which envUI's
-   interactive row positions, so a press anywhere on it opens that; the row's other controls stay
-   above it. */
-.row-target::after { content: ''; position: absolute; inset: 0; }
+/* Rows that open one thing: the row's main link or button covers the row (envUI's interactive row
+   and its data-row-target), so a press anywhere on it opens that; the row's other controls, and
+   details with a tooltip, stay above it. */
 .work-row .diagram-count, .folder-row .row-actions { position: relative; }
+.work-row :is(.blocked-reason, .work-row-steps, .work-row-updated) { position: relative; cursor: pointer; }
 
 /* Work list */
 .work-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

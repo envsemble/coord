@@ -6,21 +6,30 @@ import { designNote, workStatus } from './status';
 import { absoluteDate, relativeDate, workNumber } from './format';
 import { workTarget } from './targets';
 import { RepositoryBadge, StatusIcon } from './ui';
-import { TargetLink } from './workbenchContext';
+import { TargetLink, useWorkbench } from './workbenchContext';
 import { StepBar } from './LedgerProgress';
 import { Page, RepositorySelect, type RepositoryFilter } from './Pages';
 
-/** A work item: the whole row opens it (its title link covers the row); its diagram count opens its diagrams. */
+/**
+ * A work item: the whole row opens it (its title link covers the row); its diagram count opens its
+ * diagrams. Details with a tooltip of their own stay above the link, and open the item too.
+ */
 function WorkRow({ work }: { work: Work }) {
+  const { open } = useWorkbench();
   const status = workStatus(work);
   const note = designNote(work);
   const updated = work.progress?.updated ?? work.updated;
   const counts = work.progress?.steps ? stepCounts(work.progress.steps) : null;
   const finished = ['complete', 'superseded', 'abandoned'].includes(status.key);
   return <Row interactive className="work-row"
+    onClick={event => {
+      // A press on a detail above the link; the links handle their own, and a selection is kept.
+      if (event.defaultPrevented || (event.target as Element).closest('a, button') || window.getSelection()?.toString()) return;
+      open(workTarget(work.id), { pin: event.ctrlKey || event.metaKey });
+    }}
     title={<span className="work-row-title">
       <StatusIcon status={status} />
-      <TargetLink className="row-target" target={workTarget(work.id)}>{work.title}</TargetLink>
+      <TargetLink rowTarget target={workTarget(work.id)}>{work.title}</TargetLink>
       {work.repositories.map(id => <RepositoryBadge key={id} id={id} />)}
     </span>}
     detail={<span className="work-row-meta">

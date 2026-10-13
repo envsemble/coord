@@ -141,10 +141,10 @@ function HistoryButtons({ platform, workbench }: { platform: string; workbench: 
   const keys = historyKeys(platform);
   return <div className="history-buttons">
     <Tooltip content={'Back (' + keys.back + ')'} side="bottom">
-      <IconButton variant="text" icon={<ArrowBack />} aria-label="Back" aria-keyshortcuts={keys.backKeys} disabled={!workbench.canGoBack} onClick={workbench.goBack} />
+      <IconButton variant="text" icon={<ArrowBack />} aria-label="Back" aria-keyshortcuts={keys.backKeys} aria-disabled={!workbench.canGoBack || undefined} onClick={() => { if (workbench.canGoBack) workbench.goBack(); }} />
     </Tooltip>
     <Tooltip content={'Forward (' + keys.forward + ')'} side="bottom">
-      <IconButton variant="text" icon={<ArrowForward />} aria-label="Forward" aria-keyshortcuts={keys.forwardKeys} disabled={!workbench.canGoForward} onClick={workbench.goForward} />
+      <IconButton variant="text" icon={<ArrowForward />} aria-label="Forward" aria-keyshortcuts={keys.forwardKeys} aria-disabled={!workbench.canGoForward || undefined} onClick={() => { if (workbench.canGoForward) workbench.goForward(); }} />
     </Tooltip>
   </div>;
 }

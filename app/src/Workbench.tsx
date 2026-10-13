@@ -34,8 +34,9 @@ const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as c
 const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+b': 'toggleSidebar', 'ctrl+w': 'closeTab', 'ctrl+shift+e': 'showExplorer' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
-/** Where the mouse's back and forward buttons do nothing: open menus and dialogs, which hold focus. */
+/** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
 const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
+const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButtons)) || [...document.querySelectorAll(keepsHistoryButtons)].some(element => element.checkVisibility());
 
 /** What a target shows, a work item at the section it opens on: opening one and then choosing that section is one entry in the history. */
 function resolveTarget(target: Target, snapshot: Snapshot): Target {
@@ -55,10 +56,16 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     const shown = shownTarget(next);
     return { ui: next, history: sameTarget(shown, shownTarget(current.ui)) ? current.history : record(current.history, resolveTarget(shown, latestSnapshot.current)) };
   }), []);
-  const navigate = useCallback((by: -1 | 1) => setWindowState(current => {
-    const moved = step(current.history, by);
-    return moved ? { ui: showTarget(current.ui, moved.target), history: moved.history } : current;
-  }), []);
+  // A step back or forward from main (the menu, or the mouse's buttons over the title bar's empty
+  // space), which the same press reaching the page a moment later repeats; any other step ends it.
+  const lastMenuStep = useRef<{ command: MenuCommand; time: number } | null>(null);
+  const navigate = useCallback((by: -1 | 1) => {
+    lastMenuStep.current = null;
+    setWindowState(current => {
+      const moved = step(current.history, by);
+      return moved ? { ui: showTarget(current.ui, moved.target), history: moved.history } : current;
+    });
+  }, []);
   const [quickOpen, setQuickOpen] = useState<null | { mode: 'all' | 'work'; placeholder?: string; onPick(target: Target, pin: boolean): void }>(null);
   const [importing, setImporting] = useState<ImportPreview | null>(null);
   const [repository, setRepository] = useState('all');
@@ -68,6 +75,8 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
   const page = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef(new Map<string, number>());
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
+  // When the mouse's back or forward button last went down on an open menu or dialog, which it closes.
+  const closingPress = useRef(0);
   const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, variant: toastVariants[tone] }); }, [toast]);
   const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
 
@@ -162,6 +171,12 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
   useEffect(() => api.onMenu(command => {
     const last = lastShortcut.current;
     if (last && last.command === command && Date.now() - last.time < 300) return;
+    if (command === 'goBack' || command === 'goForward') {
+      if (Date.now() - closingPress.current < 300) return;
+      runCommand(command);
+      lastMenuStep.current = { command, time: Date.now() };
+      return;
+    }
     runCommand(command);
   }), [runCommand]);
   useEffect(() => {
@@ -186,14 +201,29 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     return () => window.removeEventListener('keydown', key);
   }, [runCommand, navigate, info.platform]);
   // The mouse's back and forward buttons act as they are released; nothing else takes their presses.
+  // A menu or dialog open as the button goes down closes on that press, which then does nothing more.
   useEffect(() => {
     const buttonStep = (event: MouseEvent) => event.button === 3 ? -1 : event.button === 4 ? 1 : 0;
-    const press = (event: MouseEvent) => { if (buttonStep(event)) event.preventDefault(); };
+    let closing = false;
+    const press = (event: MouseEvent) => {
+      if (!buttonStep(event)) return;
+      event.preventDefault();
+      if (event.type !== 'mousedown') return;
+      closing = popupOpen();
+      if (closing) closingPress.current = Date.now();
+    };
     const release = (event: MouseEvent) => {
       const by = buttonStep(event);
       if (!by) return;
       event.preventDefault();
-      if (!document.activeElement?.closest(keepsHistoryButtons)) navigate(by);
+      const command = by < 0 ? 'goBack' : 'goForward';
+      // Main's echo of this press (Windows and Linux report the buttons to the window too) adds
+      // nothing, and nor does this press when main's came first.
+      lastShortcut.current = { command, time: Date.now() };
+      const echo = lastMenuStep.current;
+      lastMenuStep.current = null;
+      if (closing) { closing = false; return; }
+      if (!echo || echo.command !== command || Date.now() - echo.time >= 300) navigate(by);
     };
     window.addEventListener('mousedown', press, true);
     window.addEventListener('auxclick', press, true);

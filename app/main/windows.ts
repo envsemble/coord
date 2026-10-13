@@ -128,6 +128,12 @@ export class AtlasWindow {
       if (pressStarts.has(input.type) && !input.modifiers?.includes('isautorepeat')) this.lastActivation = performance.now();
     });
     this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.root }));
+    // The mouse's back and forward buttons over the title bar's empty space reach only the window
+    // (Windows and Linux); the page, which also gets them elsewhere, ignores the repeat.
+    this.win.on('app-command', (_event, command) => {
+      if (command === 'browser-backward') this.send('menu:command', 'goBack');
+      else if (command === 'browser-forward') this.send('menu:command', 'goForward');
+    });
     this.win.on('close', () => { this.closing = true; this.saveBounds(); });
     this.win.on('closed', () => manager.closed(this));
   }
@@ -321,7 +327,7 @@ export class AtlasWindow {
     if (await this.confirm('Open this address in your browser?', 'Open', address)) await shell.openExternal(address);
   }
 
-  /** Dialogs a page opens (choosing a file or folder, About) come one at a time, so a page cannot pile them up. */
+  /** Dialogs a page opens (choosing a file or folder) come one at a time, so a page cannot pile them up. */
   async oneDialog<T>(open: () => Promise<T>): Promise<T> {
     if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
     this.asking = true;

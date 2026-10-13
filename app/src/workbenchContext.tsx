@@ -28,11 +28,13 @@ export function useWorkbench(): WorkbenchApi {
 }
 
 /** A link that opens a target in a tab; Ctrl/Cmd-click (or middle click) opens it pinned. */
-export function TargetLink({ target, children, className, title, id, underline = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean }) {
+/** A link to a target; `rowTarget` makes it cover its interactive row (envUI), without being dragged away as a link. */
+export function TargetLink({ target, children, className, title, id, underline = false, rowTarget = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean; rowTarget?: boolean }) {
   const { open } = useWorkbench();
   const activate = (event: MouseEvent) => {
     event.preventDefault();
     open(target, { pin: event.ctrlKey || event.metaKey || event.button === 1 });
   };
-  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate} onAuxClick={event => { if (event.button === 1) activate(event); }}>{children}</Link>;
+  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate} onAuxClick={event => { if (event.button === 1) activate(event); }}
+    {...(rowTarget && { 'data-row-target': '', draggable: false })}>{children}</Link>;
 }

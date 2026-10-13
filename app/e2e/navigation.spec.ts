@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { close, launch, planningFixture, removeDirectory, type Launched } from './app';
@@ -25,6 +26,18 @@ function mouseButton(window: Page, button: 3 | 4) {
     target.dispatchEvent(new MouseEvent('auxclick', init));
     return !released;
   }, button);
+}
+
+/** The content area's scroll position once it has settled. */
+async function settledScroll(window: Page) {
+  let position = -1;
+  await expect.poll(async () => {
+    const top = await window.evaluate(() => document.querySelector('main')!.scrollTop);
+    const steady = Math.abs(top - position) < 0.5;
+    position = top;
+    return steady;
+  }, { intervals: [200] }).toBe(true);
+  return position;
 }
 
 test('back and forward step through pages, a work item and its sections', async () => {
@@ -153,6 +166,17 @@ test('a work row opens from anywhere on it, and its diagram count opens its diag
   const detail = (await row.getByText('#0002').boundingBox())!;
   await window.mouse.click(detail.x + detail.width / 2, detail.y + detail.height / 2);
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  // A detail with a tooltip of its own stays above the link, so the tooltip shows, and it opens the item too.
+  await views(window).getByRole('button', { name: /^Work/ }).click();
+  const updated = row.locator('.work-row-updated');
+  await expect(updated).toHaveAttribute('title', /^Updated /);
+  const box = (await updated.boundingBox())!;
+  expect(await window.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('.work-row-updated')), { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
+  await updated.click();
+  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  // A press that moves a little does not drag the title link away.
+  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await expect(row.getByRole('link', { name: 'Order fulfilment model' })).toHaveAttribute('draggable', 'false');
   await views(window).getByRole('button', { name: /^Work/ }).click();
   await row.locator('.diagram-count').click();
   await expect(section(window)).toContainText('Diagrams');
@@ -160,4 +184,95 @@ test('a work row opens from anywhere on it, and its diagram count opens its diag
   // One link names the row for the keyboard and screen readers.
   await views(window).getByRole('button', { name: /^Work/ }).click();
   await expect(row.getByRole('link')).toHaveText(['Order fulfilment model', /1/]);
+});
+
+test('going back finds a document where it was before a jump to one of its headings', async () => {
+  writeFileSync(path.join(folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click({ modifiers: ['Control'] });
+  await sections(window).filter({ hasText: 'Plan' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await window.locator('.work-main').hover();
+  for (let index = 0; index < 6; index++) await window.mouse.wheel(0, 1500);
+  const before = await settledScroll(window);
+  expect(before).toBeGreaterThan(500);
+  // A file links to one of the plan's headings; the plan opens there.
+  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').click();
+  await expect(window.locator('.reader-name')).toContainText('jump.md');
+  await window.getByRole('link', { name: 'the current checkout' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  const atHeading = await settledScroll(window);
+  expect(Math.abs(atHeading - before)).toBeGreaterThan(100);
+  // Back to the file, then back to the plan as it was before the jump.
+  await window.locator('body').press('Alt+ArrowLeft');
+  await expect(window.locator('.reader-name')).toContainText('jump.md');
+  await window.locator('body').press('Alt+ArrowLeft');
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await expect.poll(async () => Math.abs(await settledScroll(window) - before)).toBeLessThan(2);
+});
+
+test('the mouse buttons close an open menu without going back, and one press goes one step however it arrives', async () => {
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
+  await expect(section(window)).toContainText('Ledger');
+  await sections(window).filter({ hasText: 'Plan' }).click();
+  await expect(section(window)).toContainText('Plan');
+  await sections(window).filter({ hasText: 'Diagrams' }).click();
+  await expect(section(window)).toContainText('Diagrams');
+  // Windows and Linux report the buttons to the window too, as main's back or forward.
+  const windowReports = (command: 'browser-backward' | 'browser-forward') => app.evaluate(({ BrowserWindow }, name) => { BrowserWindow.getAllWindows()[0].emit('app-command', {}, name); }, command);
+
+  // A menu open as the button goes down: the press only closes it, also when the window reports it.
+  await menubar(window).getByRole('menuitem', { name: 'View' }).click();
+  await expect(window.getByRole('menu')).toBeVisible();
+  expect(await mouseButton(window, 3)).toBe(true);
+  await windowReports('browser-backward');
+  await window.waitForTimeout(400);
+  await window.keyboard.press('Escape');
+  await expect(window.getByRole('menu')).toHaveCount(0);
+  await expect(section(window)).toContainText('Diagrams');
+
+  // One press the page and the window both get goes one step, whichever comes first.
+  expect(await mouseButton(window, 3)).toBe(true);
+  await windowReports('browser-backward');
+  await expect(section(window)).toContainText('Plan');
+  await window.waitForTimeout(400);
+  await expect(section(window)).toContainText('Plan');
+  await windowReports('browser-backward');
+  expect(await mouseButton(window, 3)).toBe(true);
+  await expect(section(window)).toContainText('Ledger');
+  await window.waitForTimeout(400);
+  await expect(section(window)).toContainText('Ledger');
+
+  // Over the title bar's empty space only the window gets the press: it goes back.
+  await windowReports('browser-backward');
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  await windowReports('browser-forward');
+  await expect(section(window)).toContainText('Ledger');
+});
+
+test('in a narrow window the menus stay clear of the arrows, which keep focus at the end of the history', async () => {
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(640, 600); });
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  const help = (await menubar(window).getByRole('menuitem', { name: 'Help' }).boundingBox())!;
+  const back = window.getByRole('button', { name: 'Back' });
+  const arrow = (await back.boundingBox())!;
+  expect(help.x + help.width).toBeLessThanOrEqual(arrow.x);
+  // At the end of the history the arrow stays focusable and keeps focus.
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await back.focus();
+  await window.keyboard.press('Enter');
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  await expect(back).toBeDisabled();
+  await expect(back).toBeFocused();
 });
