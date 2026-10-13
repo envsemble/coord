@@ -25,41 +25,57 @@ import { InspectorContent } from "./InspectorContent";
 import { useArtifactArchive } from "./useArtifactArchive";
 import { createZoomStore } from "../ui/zoomStore";
 import { ProvenanceBadge } from "./ProvenanceBadge";
-import { ComparisonViewer } from "./ComparisonViewer";
+import { reviewedPayload } from "./reviewedPayload";
+import { useInspectorWidth } from "./useInspectorWidth";
 import { useOverlayInsets } from "./useOverlayInsets";
 import { useToolbarDensity } from "./useToolbarDensity";
 import { overviewByDefault, useChangeReview } from "../review/useChangeReview";
 
+// A proposal shows its change view, its review data travelling as an extra
+// prop, and the provenance of the proposal itself.
 export function OntoUMLViewer(props) {
-  if (props.comparison)
-    return (
-      <ComparisonViewer
-        payload={props}
-        focus={props.focus}
-        render={(payload, focus, extras) => (
-          <OntoUMLViewer
-            {...payload}
-            {...extras}
-            focus={focus || props.focus}
-          />
-        )}
-      />
-    );
-  if (!props.views.length)
+  const { payload, review, provenanceDocument } = reviewedPayload(props);
+  if (!payload.views.length)
     return (
       <main className="viewer-error">
-        <ProvenanceBadge
-          document={props.provenanceDocument || props.model.document}
-          className="inline"
-        />
+        <ProvenanceBadge document={provenanceDocument} className="inline" />
         <EmptyState
           headingLevel={1}
-          title={props.model.title}
+          title={payload.model.title}
           description="No entities in this model."
         />
       </main>
     );
-  return <ViewerContent {...props} />;
+  return (
+    <ViewerContent
+      {...payload}
+      focus={props.focus}
+      review={review}
+      provenanceDocument={provenanceDocument}
+    />
+  );
+}
+// The offline file keeps the reader's details width in its browser's storage,
+// when it may.
+const WIDTH_KEY = "atlas-inspector-width";
+function useStoredWidth() {
+  const [width, setWidth] = useState(() => {
+    try {
+      const stored = Number(localStorage.getItem(WIDTH_KEY));
+      return stored > 0 ? stored : null;
+    } catch {
+      return null;
+    }
+  });
+  const change = useCallback((next) => {
+    setWidth(next);
+    try {
+      localStorage.setItem(WIDTH_KEY, String(next));
+    } catch {
+      // Storage is unavailable (a file opened with storage blocked).
+    }
+  }, []);
+  return [width, change];
 }
 // The offline file supplies envUI's ThemePreferenceProvider; without one the
 // viewer follows the surrounding Theme and offers no theme toggle.
@@ -91,7 +107,7 @@ function ViewerContent({
   const [learningOpen, setLearningOpen] = useState(false),
     [learningTab, setLearningTab] = useState(null);
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  const [overview, setOverview] = useState(() => overviewByDefault(review));
+  const [overview, setOverview] = useState(overviewByDefault);
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
     previewEnabled:
       !sidebarHidden && !(review && overview && !selected && !learningOpen),
@@ -220,11 +236,20 @@ function ViewerContent({
   useLayoutEffect(() => {
     if (inspector.current) inspector.current.scrollTop = 0;
   }, [showing]);
-  // Reopening details must not leave the selected node underneath them.
+  const [storedWidth, setStoredWidth] = useStoredWidth();
+  const resize = useInspectorWidth({
+    viewerRef,
+    panelRef: inspector,
+    width: storedWidth,
+    onChange: setStoredWidth,
+  });
+  const settledWidth = resize.resizing ? null : resize.width;
+  // Reopening or widening details must not leave the selected node
+  // underneath them.
   useLayoutEffect(() => {
     if (sidebarOpen && selected?.kind === "node")
       cameraRef.current?.revealNode(selected.id);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, settledWidth]);
   const conceptual = !model.document || model.document.profile === "ontouml";
   // Learning findings can point at relations and sets as well as classes.
   const inspectLearning = (id) => {
@@ -242,12 +267,14 @@ function ViewerContent({
   return (
     <div
       ref={viewerRef}
-      className={`viewer${sidebarOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}`}
+      className={`viewer${sidebarOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`}
+      style={resize.style}
     >
       <ViewerToolbar
         ref={toolbarRef}
         density={density}
         reviewControls={changes?.controls(sidebarOpen && showOverview)}
+        provenance={provenanceDocument}
         guided={conceptual || !!guide}
         {...{
           model,
@@ -304,7 +331,6 @@ function ViewerContent({
         onHover={onHover}
         onClearHover={clearHover}
       />
-      <ProvenanceBadge document={provenanceDocument || model.document} />
       <Panel
         ref={inspector}
         id="inspector"
@@ -329,6 +355,7 @@ function ViewerContent({
         }
         closeLabel="Hide details"
         onClose={() => setSidebarHidden(true)}
+        resizer={resize.separator}
         onPointerEnter={keepHover}
         onPointerLeave={() => hover(null)}
         onFocusCapture={keepHover}
@@ -366,7 +393,11 @@ function ViewerContent({
         title={model.title}
         description="About this diagram and its controls"
       >
-        <About model={model} exports={exports} />
+        <About
+          model={model}
+          exports={exports}
+          provenance={provenanceDocument}
+        />
       </Dialog>
     </div>
   );

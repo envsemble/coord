@@ -20,7 +20,9 @@ export const OntoUMLViewer: ComponentType<ViewerPayload>;
 /**
  * The embeddable viewer. Its root is an envUI `Theme` driven by `theme`
  * (default "dark"); hosts load `@envsemble/envui/styles.css` and
- * `@envsemble/atlas-diagrams/embedded.css`.
+ * `@envsemble/atlas-diagrams/embedded.css`. Giving it another payload of the
+ * same `family` (a capture and its proposals, from `prepareFamily`) switches
+ * in place: the camera, the view, the selection and the details stay.
  */
 export const AtlasPanel: ComponentType<{
   payload: ViewerPayload;
@@ -29,11 +31,28 @@ export const AtlasPanel: ComponentType<{
   onReference?(record: PlanningContext["records"][number]): void;
   /** Host content rendered at the start of the floating top-left toolbar island (e.g. a model picker). */
   leading?: ReactNode;
+  /**
+   * The host's own navigation (such as a work item's sections), shown first
+   * at the top left with the tools on the same row; the diagram's navigation
+   * island moves to a row below it.
+   */
+  sections?: ReactNode;
   /** Whether the host currently shows the panel fullscreen. */
   fullscreen?: boolean;
   /** When provided, a fullscreen toggle button appears in the top-right island. */
   onFullscreenChange?(next: boolean): void;
+  /**
+   * The details' width in pixels that the reader chose, kept by the host;
+   * null or absent for the default. Clamped to what the panel's width allows.
+   */
+  inspectorWidth?: number | null;
+  /** Called with the width once the reader has resized the details (by pointer or keyboard). */
+  onInspectorWidthChange?(width: number): void;
 }>;
+/** How many changes a proposal's payload lists, as its Changes button counts them; null for other payloads. */
+export function changeCount(
+  payload: ViewerPayload | null | undefined,
+): number | null;
 /** The Atlas mark: the connected A on its dark tile, in fixed colours. Pass `label=""` when adjacent text already names Atlas. */
 export const AtlasMark: ComponentType<{ size?: number; label?: string }>;
 /** Document fields that determine where a model came from. */

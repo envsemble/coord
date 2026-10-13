@@ -8,6 +8,7 @@ import {
   Text,
 } from "@envsemble/envui";
 import { DownloadLink } from "../ui/DownloadLink";
+import { ProvenanceBadge } from "./ProvenanceBadge";
 import { SourceEvidence } from "./SourceEvidence";
 import { ElementLearning } from "../learning/LearningContent";
 import { DetailHeader } from "../ui/DetailHeader";
@@ -426,9 +427,10 @@ export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
 });
 
 /** Help for the standalone viewer: how to move around, and source downloads. */
-export function About({ model, exports }) {
+export function About({ model, exports, provenance }) {
   return (
     <Stack gap={4} className="atlas-portal about-content">
+      <ProvenanceBadge document={provenance} className="inline" />
       <Text tone="muted">{model.status}</Text>
       <dl className="shortcut-list">
         {[

@@ -116,7 +116,7 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
   assert.equal(formatCaptureDate("not a date"), "");
 });
 
-test("embedded panel floats its controls and shows readable provenance", async () => {
+test("embedded panel floats its controls, below the host's sections, and leaves provenance to its host", async () => {
   const { AtlasPanel } = react;
   const document = atlas.createDocument({
     title: "Enrollment",
@@ -135,8 +135,9 @@ test("embedded panel floats its controls and shows readable provenance", async (
     }),
   );
   assert(html.includes('id="host-picker"'));
-  assert(html.includes("Agent-authored"));
-  assert(html.includes("Structural model"));
+  // The host's picker names the model's origin; the panel draws no chip.
+  assert(!html.includes("Agent-authored"));
+  assert(!html.includes("atlas-provenance"));
   // The model report is gone; a code model has no guide to open either.
   assert(!html.includes("report"));
   assert(!html.includes("Understand the model"));
@@ -152,6 +153,20 @@ test("embedded panel floats its controls and shows readable provenance", async (
     }),
   );
   assert(fullscreen.includes('aria-label="Exit fullscreen"'));
+  // The host's sections come first, at the top left with the tools; the
+  // diagram's navigation takes the row below.
+  const stacked = renderToStaticMarkup(
+    createElement(AtlasPanel, {
+      payload,
+      sections: createElement("span", { id: "host-sections" }, "Sections"),
+      leading: createElement("span", { id: "host-picker" }, "Model picker"),
+    }),
+  );
+  assert(stacked.includes('class="atlas-overlay-top stacked"'));
+  assert(
+    stacked.indexOf('id="host-sections"') < stacked.indexOf('id="host-picker"'),
+  );
+  assert(stacked.includes('class="atlas-overlay-sections"'));
 });
 
 test("proposals open in their change view with a readable list of changes", async () => {
@@ -189,8 +204,7 @@ test("proposals open in their change view with a readable list of changes", asyn
   assert(!html.includes('aria-label="Comparison"'));
   assert(!html.includes("Semantic changes"));
   assert(html.includes('aria-label="Changes, 3"'));
-  assert(html.includes("Agent proposal"));
-  assert(/Changes to source captured [A-Z][a-z]{2} \d{1,2}, \d{4}/.test(html));
+  assert(!html.includes("Agent proposal"), "the host names the origin");
   // The change view marks what changed on the canvas.
   assert(html.includes('data-change="added"'));
   assert(html.includes(">New<") && html.includes(">Changed<"));

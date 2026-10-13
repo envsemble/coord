@@ -862,6 +862,24 @@ export function rollupChanges(comparison, model, views) {
   };
 }
 
+const counted = new WeakMap();
+/**
+ * How many changes a proposal's payload lists, as its Changes button counts
+ * them; null for a payload that is not a proposal. Counted once per payload.
+ */
+export function changeCount(payload) {
+  const comparison = payload?.comparison;
+  if (!comparison?.changes) return null;
+  if (!counted.has(payload)) {
+    const view = comparison.changeView || payload;
+    counted.set(
+      payload,
+      rollupChanges(comparison, view.model, view.views)?.count ?? 0,
+    );
+  }
+  return counted.get(payload);
+}
+
 // Singular names for the parts a table lists, in a list's tokens.
 const SINGULAR = {
   foreignKeys: "foreign key",

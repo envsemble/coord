@@ -7,6 +7,8 @@ import { ExportMenu, downloadData, downloadURL } from "../ui/ExportMenu";
 import { Island, IslandDivider } from "../ui/Island";
 import { ViewSwitcher } from "../ui/ViewSwitcher";
 import { AtlasMark } from "../ui/AtlasMark";
+import { ProvenanceLabel } from "./ProvenanceBadge";
+import { describeProvenance } from "./provenance";
 import {
   AboutIcon,
   ArchiveIcon,
@@ -78,7 +80,9 @@ export function exportChoices({
 }
 
 // The standalone viewer uses the same floating islands as the embedded panel,
-// with offline-only controls (theme, exports, about) in the tools island.
+// with offline-only controls (theme, exports, about) in the tools island. With
+// no model picker, its navigation island names the model and where it came
+// from (the detail, such as the capture date, as the badge's tooltip).
 export const ViewerToolbar = forwardRef(function ViewerToolbar(
   {
     model,
@@ -94,6 +98,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     learningOpen,
     aboutOpen,
     reviewControls,
+    provenance,
     guided = true,
     density = 0,
     themeToggle = false,
@@ -115,6 +120,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     return model.classes.filter((concept) => visibleIds.has(concept.id));
   }, [model.classes, views]);
   const findings = model.validation.counts.error;
+  const origin = describeProvenance(provenance);
   return (
     <header
       className={`atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
@@ -132,6 +138,14 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
         >
           {model.title}
         </Text>
+        {origin.kind !== "unknown" && (
+          <span
+            className="island-provenance"
+            title={origin.detail || undefined}
+          >
+            <ProvenanceLabel document={provenance} />
+          </span>
+        )}
         {(views.length > 1 || reviewControls) && <IslandDivider />}
         {views.length > 1 && (
           <ViewSwitcher

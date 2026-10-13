@@ -1,6 +1,6 @@
 import { inspectionTarget } from "../model/inspectionTarget";
-import { ComparisonViewer } from "./ComparisonViewer";
-import { ProvenanceBadge } from "./ProvenanceBadge";
+import { reviewedPayload } from "./reviewedPayload";
+import { useInspectorWidth } from "./useInspectorWidth";
 import { useOverlayInsets } from "./useOverlayInsets";
 import { useToolbarDensity } from "./useToolbarDensity";
 import {
@@ -35,27 +35,21 @@ import { useInspection, inspectedTarget } from "./useInspection";
 import { InspectorContent } from "./InspectorContent";
 import { overviewByDefault, useChangeReview } from "../review/useChangeReview";
 
-// A proposal renders the same panel again on its change view; its review data
-// travels as an extra prop. The panel's root is an envUI Theme, so the host's
-// `theme` drives envUI's tokens inside it (and in the popups envUI portals out
-// of it).
+// The overlay's first row starts with the host's own navigation (`sections`),
+// when there is any; the diagram's navigation island then takes a row below.
+function overlayClass(sections, density = 0) {
+  return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
+}
+
+// A proposal shows its change view, its review data travelling as an extra
+// prop. The payloads of one family (a capture and the proposals over it, laid
+// out together) render in the same mounted panel, so switching among them
+// keeps the camera, the view, the selection and the details. The panel's root
+// is an envUI Theme, so the host's `theme` drives envUI's tokens inside it
+// (and in the popups envUI portals out of it).
 export function AtlasPanel(props) {
-  if (props.payload.comparison)
-    return (
-      <ComparisonViewer
-        payload={props.payload}
-        focus={props.focus}
-        render={(payload, focus, extras) => (
-          <AtlasPanel
-            {...props}
-            {...extras}
-            payload={payload}
-            focus={focus || props.focus}
-          />
-        )}
-      />
-    );
-  if (!props.payload.views.length) {
+  const { payload, review } = reviewedPayload(props.payload);
+  if (!payload.views.length) {
     const theme = props.theme || "dark";
     return (
       <Theme
@@ -64,26 +58,35 @@ export function AtlasPanel(props) {
         data-theme={theme}
       >
         <div className="viewer">
-          {props.leading && (
-            <div className="atlas-overlay-top">
-              <Island label="Diagram navigation" className="island-start">
-                <div className="island-leading">{props.leading}</div>
-              </Island>
+          {(props.leading || props.sections) && (
+            <div className={overlayClass(props.sections)}>
+              {props.sections && (
+                <div className="atlas-overlay-sections">{props.sections}</div>
+              )}
+              {props.leading && (
+                <Island label="Diagram navigation" className="island-start">
+                  <div className="island-leading">{props.leading}</div>
+                </Island>
+              )}
             </div>
           )}
           <EmptyState
             className="atlas-empty-message"
-            title={props.payload.model.title}
+            title={payload.model.title}
             description="No entities in this model."
-          />
-          <ProvenanceBadge
-            document={props.provenanceDocument || props.payload.model.document}
           />
         </div>
       </Theme>
     );
   }
-  return <AtlasPanelContent {...props} />;
+  return (
+    <AtlasPanelContent
+      {...props}
+      payload={payload}
+      review={review}
+      identity={props.payload.family || payload.model.id}
+    />
+  );
 }
 function AtlasPanelContent({
   payload,
@@ -91,10 +94,13 @@ function AtlasPanelContent({
   onReference,
   focus = null,
   leading,
+  sections,
   fullscreen = false,
   onFullscreenChange,
+  inspectorWidth,
+  onInspectorWidthChange,
   review = null,
-  provenanceDocument,
+  identity,
 }) {
   const { model, views, snippets, learning: guide = null } = payload;
   const [viewKey, setViewKey] = useState(views[0].key);
@@ -112,9 +118,12 @@ function AtlasPanelContent({
   const viewerRef = useRef(null),
     topRef = useRef(null);
   const fitInsets = useOverlayInsets(viewerRef, topRef);
+  // Within a family the toolbar keeps its density; another member's controls
+  // are measured as they appear.
   const density = useToolbarDensity(
     topRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!review}`,
+    identity,
+    `${views.map((v) => v.key).join()}:${!!review}`,
   );
   const lastFocus = useRef(null),
     inspectorId = useId();
@@ -124,7 +133,9 @@ function AtlasPanelContent({
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups],
   );
-  const [overview, setOverview] = useState(() => overviewByDefault(review));
+  // Whether a proposal's changes overview shows while nothing is inspected,
+  // kept as a family switches between its members.
+  const [overview, setOverview] = useState(overviewByDefault);
   // The changes overview stays put while the pointer crosses the canvas;
   // only an inspected element's details follow hover.
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
@@ -170,12 +181,14 @@ function AtlasPanelContent({
     element = index.getElement(inspected);
   const showOverview = !!changes && overview && !element && !learning;
   const open = !hidden && (!!element || learning || showOverview);
+  // Another model starts afresh; another member of the same family keeps what
+  // the reader was looking at.
   useEffect(() => {
     select(null);
     setViewKey(views[0].key);
     setFocusRequest(null);
     lastFocus.current = null;
-  }, [model.id, select]);
+  }, [identity, select]);
   useEffect(() => {
     const visible =
       selected?.kind === "node"
@@ -216,11 +229,19 @@ function AtlasPanelContent({
   useLayoutEffect(() => {
     if (inspector.current) inspector.current.scrollTop = 0;
   }, [showing]);
-  // Reopening details must not leave the selected node underneath them.
+  const resize = useInspectorWidth({
+    viewerRef,
+    panelRef: inspector,
+    width: inspectorWidth,
+    onChange: onInspectorWidthChange,
+  });
+  const settledWidth = resize.resizing ? null : resize.width;
+  // Reopening or widening details must not leave the selected node
+  // underneath them.
   useLayoutEffect(() => {
     if (open && selected?.kind === "node")
       camera.current?.revealNode(selected.id);
-  }, [open]);
+  }, [open, settledWidth]);
   const latestChanges = useRef(null);
   latestChanges.current = changes;
   useEffect(() => {
@@ -234,18 +255,21 @@ function AtlasPanelContent({
   }, [select]);
   const conceptual = !model.document || model.document.profile === "ontouml";
   const guided = conceptual || !!guide;
+  // A member without a guide closes the one another member showed.
+  useEffect(() => {
+    if (!guided) setLearning(false);
+  }, [guided]);
   const showTabs = views.length > 1;
   const hasStart = !!leading || showTabs || !!changes;
   return (
     <Theme theme={theme} className="atlas-panel" data-theme={theme}>
       <div
         ref={viewerRef}
-        className={`viewer${open ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}`}
+        className={`viewer${open ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`}
+        style={resize.style}
       >
-        <div
-          className={`atlas-overlay-top${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
-          ref={topRef}
-        >
+        <div className={overlayClass(sections, density)} ref={topRef}>
+          {sections && <div className="atlas-overlay-sections">{sections}</div>}
           {hasStart && (
             <Island label="Diagram navigation" className="island-start">
               {leading && <div className="island-leading">{leading}</div>}
@@ -328,7 +352,6 @@ function AtlasPanelContent({
           onHover={hover}
           onClearHover={clearHover}
         />
-        <ProvenanceBadge document={provenanceDocument || model.document} />
         <Panel
           ref={inspector}
           id={inspectorId}
@@ -347,6 +370,7 @@ function AtlasPanelContent({
           open={open}
           closeLabel="Hide details"
           onClose={() => setHidden(true)}
+          resizer={resize.separator}
           onPointerEnter={keepHover}
           onPointerLeave={() => hover(null)}
         >

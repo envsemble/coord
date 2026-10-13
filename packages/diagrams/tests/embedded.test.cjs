@@ -89,6 +89,7 @@ test("empty captures prepare and export a readable portable document", async () 
 
 test("A proposal opens its change view in both viewers, with the focus and the review it was given", () => {
   const { OntoUMLViewer, AtlasPanel } = components();
+  const { reviewedPayload } = components("src/viewer/reviewedPayload.js");
   const target = { kind: "node", id: "course" };
   const changeView = { model: { id: "changes" }, views: [{ key: "all" }] };
   const comparison = {
@@ -108,31 +109,35 @@ test("A proposal opens its change view in both viewers, with the focus and the r
     model: { id: "proposal", document },
     views: [],
   };
-  for (const viewer of [
-    OntoUMLViewer({ ...payload, focus: target }),
-    AtlasPanel({ payload, focus: target }),
-  ]) {
-    assert.equal(viewer.type.name, "ComparisonViewer");
-    assert.equal(viewer.props.focus, target);
-    const shown = renderToStaticMarkup(
-      createElement(viewer.type, {
-        ...viewer.props,
-        render: (shownPayload, focus, extras) => {
-          // The change view replaces the proposal; the rest travels along.
-          assert.equal(shownPayload.model, changeView.model);
-          assert.equal(shownPayload.views, changeView.views);
-          assert.equal(shownPayload.learning, payload.learning);
-          assert.equal(shownPayload.comparison, undefined);
-          assert.equal(focus, target);
-          assert.equal(extras.review.comparison, comparison);
-          assert.equal(extras.review.baselineDate, "Oct 8, 2026");
-          assert.equal(extras.provenanceDocument, document);
-          return createElement("span", null, "change view");
-        },
-      }),
-    );
-    assert.equal(shown, "<span>change view</span>");
-  }
+  // The change view replaces the proposal; the rest travels along, and the
+  // same objects come back for the same payload.
+  const shown = reviewedPayload(payload);
+  assert.equal(shown.payload.model, changeView.model);
+  assert.equal(shown.payload.views, changeView.views);
+  assert.equal(shown.payload.learning, payload.learning);
+  assert.equal(shown.payload.comparison, undefined);
+  assert.equal(shown.review.comparison, comparison);
+  assert.equal(shown.review.baselineDate, "Oct 8, 2026");
+  assert.equal(shown.provenanceDocument, document);
+  assert.equal(reviewedPayload(payload), shown);
+  // Both viewers render it directly, with no wrapper to remount when a host
+  // switches between a capture and its proposals.
+  const panel = AtlasPanel({ payload, focus: target });
+  assert.equal(panel.props.payload.model, changeView.model);
+  assert.equal(panel.props.review.comparison, comparison);
+  assert.equal(panel.props.focus, target);
+  const viewer = OntoUMLViewer({ ...payload, focus: target });
+  assert.equal(viewer.props.model, changeView.model);
+  assert.equal(viewer.props.review.comparison, comparison);
+  assert.equal(viewer.props.focus, target);
+  assert.equal(viewer.props.provenanceDocument, document);
+  // A capture shows itself.
+  const capture = { model: { id: "capture", document }, views: [] };
+  assert.deepEqual(reviewedPayload(capture), {
+    payload: capture,
+    review: null,
+    provenanceDocument: document,
+  });
 });
 
 test("Focus on a member or a removed element of a proposal resolves in its change view", async () => {

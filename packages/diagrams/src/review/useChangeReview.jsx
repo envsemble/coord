@@ -9,8 +9,8 @@ import { rollupChanges, rowFor } from "./changes";
 // beside it; in smaller windows the Changes button opens it.
 const ROOMY_WIDTH = 1280;
 /** Whether a proposal opens with its changes overview showing. */
-export const overviewByDefault = (review) =>
-  !!review && typeof window !== "undefined" && window.innerWidth >= ROOMY_WIDTH;
+export const overviewByDefault = () =>
+  typeof window !== "undefined" && window.innerWidth >= ROOMY_WIDTH;
 
 /**
  * Reviewing a proposal: the rolled-up changes, fading unchanged elements, and
