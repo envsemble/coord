@@ -6,7 +6,7 @@ import type { Catalog, CatalogEntry, Snapshot, Target, Work } from './types';
 import { api } from './api';
 import { documentTarget, workTarget } from './targets';
 import { samePath } from './links';
-import { selectModelHandle } from './modelSelection';
+import { modelSummary, selectModelHandle } from './modelSelection';
 import { resolveRecordPath } from '@envsemble/atlas-planning/paths';
 import type { ProvenanceKind } from '@envsemble/atlas-planning/provenance';
 import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, useThemePreference } from '@envsemble/envui';
@@ -16,20 +16,17 @@ import { ProvenanceBadge } from './ui';
 import { useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
-type Explains = CatalogEntry['explains'][number];
 
 const groups: { kind: ProvenanceKind; title: string }[] = [
-  { kind: 'generated', title: 'Generated from code or database' },
-  { kind: 'proposal', title: 'Agent proposals' },
-  { kind: 'authored', title: 'Agent-authored' },
-  { kind: 'unknown', title: 'Other models' },
+  { kind: 'generated', title: 'From code and databases' },
+  { kind: 'proposal', title: 'Proposals' },
+  { kind: 'authored', title: 'Authored' },
+  { kind: 'unknown', title: 'Other' },
 ];
-function explainsText(item: Explains) {
-  return item.section ? item.reference + ' › ' + item.section : item.reference;
-}
+/** The one chooser of what the Diagrams tab shows: a compact menu of the work item's models, by origin. */
 function ModelPicker({ models, handle, onSelect }: { models: CatalogEntry[]; handle: string; onSelect(handle: string): void }) {
   const current = models.find(model => model.handle === handle);
-  return <Menu aria-label="Choose a diagram" align="start" className="model-menu"
+  return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu"
     trigger={<Button variant="secondary" className="model-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
       <span className="model-picker-title">{current?.title ?? (handle ? 'Unavailable model' : 'Choose a diagram')}</span>
       {current && <ProvenanceBadge provenance={current.provenance} />}
@@ -39,8 +36,7 @@ function ModelPicker({ models, handle, onSelect }: { models: CatalogEntry[]; han
         const items = models.filter(model => model.provenance.kind === group.kind);
         if (!items.length) return null;
         return <MenuGroup key={group.kind} label={group.title}>
-          {items.map(model => <MenuRadioItem key={model.handle} value={model.handle}
-            description={[model.provenance.detail, ...model.explains.filter(item => item.path).slice(0, 3).map(item => 'Explains ' + explainsText(item))].filter(Boolean).join(' · ') || undefined}>{model.title}</MenuRadioItem>)}
+          {items.map(model => <MenuRadioItem key={model.handle} value={model.handle} description={modelSummary(model) || undefined}>{model.title}</MenuRadioItem>)}
         </MenuGroup>;
       })}
     </MenuRadioGroup>
