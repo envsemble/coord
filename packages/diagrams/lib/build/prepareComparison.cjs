@@ -5,6 +5,7 @@ const {
   compareDocuments,
 } = require("../document/comparison.cjs");
 const { prepareModel, assertRenderableProject } = require("./buildViewer.cjs");
+const { defaultNodeIds } = require("../layout/prepareViews.cjs");
 const { fingerprint } = require("../document/document.cjs");
 const { relationLabel, labelSize } = require("../layout/layoutDiagram.cjs");
 const { knownMultiplicity } = require("../layout/multiplicity.cjs");
@@ -288,8 +289,11 @@ function comparisonViews(document, baseline, classIds, before, after, routes) {
   }
   return usable;
 }
-// A capture in a family shows its own views, or else one view of every class
-// keyed as its proposals' combined view is, so switching keeps the view.
+// A capture in a family shows its own views, or else the classes it shows
+// alone (all but its datatypes and enumerations) in one view keyed as its
+// proposals' combined view is, so switching keeps the view. As in those views,
+// its inheritance is drawn as separate arrows rather than joined: the shared
+// layout routes each member's generalizations alike.
 // `laidKey` names the laid out route a relation of the capture is drawn on.
 function captureViews(document, model, laidKey) {
   const ids = new Set(model.classes.map((c) => c.id));
@@ -332,7 +336,7 @@ function captureViews(document, model, laidKey) {
           key: "comparison",
           label: "Model",
           title: document.title,
-          nodeIds: [...ids],
+          nodeIds: defaultNodeIds(model),
           mergeGeneralizations: false,
         },
       ];
@@ -588,10 +592,16 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
         shared.payload.views.find((v) => v.key === view.key) ||
         shared.payload.views[0];
       const template = clone(sharedView[fields ? "diagramFields" : "diagram"]);
+      template.title = view.title;
+      // The shared view holds every member's version of it, so a member shows
+      // the classes its own view lists, as it does alone, and only the routes
+      // between them.
+      const visible = new Set(view.names);
+      const shows = (e) => visible.has(e.source) && visible.has(e.target);
       const allowed = routeFilters.get(view.key);
       const drawn = (key) => !allowed || allowed.has(key);
       template.nodes = template.nodes
-        .filter((n) => ownClasses.has(n.id))
+        .filter((n) => visible.has(n.id))
         .map((n) => {
           const own = ownClasses.get(n.id);
           return {
@@ -616,7 +626,7 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
         const match = template.edges.find(
           (e) => !ownRoutes.has(e.id) && sameEnds(routes.get(e.id), original),
         );
-        if (match && drawn(match.id))
+        if (match && drawn(match.id) && shows(match))
           inPlace.push({
             ...match,
             id: key,
@@ -631,7 +641,9 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
           });
       }
       template.edges = [
-        ...template.edges.filter((e) => ownRoutes.has(e.id) && drawn(e.id)),
+        ...template.edges.filter(
+          (e) => ownRoutes.has(e.id) && drawn(e.id) && shows(e),
+        ),
         ...inPlace,
       ].map((e) => {
         const original = ownRoutes.get(e.id);
