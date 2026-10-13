@@ -80,6 +80,103 @@ const textOf = (value) =>
       ? (Object.values(value).find((v) => typeof v === "string") ?? null)
       : null;
 
+// A part of a table: a key, an index, a constraint or trigger (each named),
+// or a foreign key (its columns and the table they refer to).
+const isForeignKey = (item) =>
+  Array.isArray(item?.columns) && typeof item.target === "string";
+const isPart = (item) =>
+  !!item &&
+  typeof item === "object" &&
+  !Array.isArray(item) &&
+  typeof item.$element !== "string" &&
+  (isForeignKey(item) || (typeof item.name === "string" && !!item.name));
+const foreignKeyText = (key) =>
+  `${key.columns.join(", ")} → ${key.target}(${(key.targetColumns || []).join(", ")})`;
+/** What a part of a table is called in a summary: its name, or what a foreign key joins. */
+function partName(item) {
+  return isForeignKey(item) ? foreignKeyText(item) : item.name;
+}
+/**
+ * A part of a table as its details show it, so a change to any of its fields
+ * reads: its definition when it has one, else its columns and what it is.
+ */
+export function describePart(item) {
+  if (isForeignKey(item))
+    return [
+      foreignKeyText(item),
+      item.onDelete && `on delete ${String(item.onDelete).toLowerCase()}`,
+      item.onUpdate && `on update ${String(item.onUpdate).toLowerCase()}`,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  const statement =
+    typeof item.definition === "string"
+      ? item.definition
+      : typeof item.sql === "string"
+        ? item.sql
+        : "";
+  // A key or an index over plain columns reads as its columns; a partial or
+  // expression index, a check and a trigger only as their statement.
+  const plain =
+    Array.isArray(item.columns) &&
+    item.columns.length > 0 &&
+    item.columns.every((c) => typeof c === "string") &&
+    !item.partial &&
+    !item.predicate &&
+    !item.expressions &&
+    !CHECKS.has(item.type);
+  if (!plain && statement) return statement;
+  const columns = Array.isArray(item.columns)
+    ? `(${item.columns.filter(Boolean).join(", ")})`
+    : "";
+  const flags = ["unique", "partial"].filter((flag) => item[flag] === true);
+  return [columns, ...flags].filter(Boolean).join(", ") || item.name;
+}
+// PostgreSQL's constraint types that only their statement describes: check,
+// exclusion, foreign key and constraint trigger.
+const CHECKS = new Set(["c", "x", "f", "t"]);
+/** A part before and after a change, by what tells them apart. */
+function partChange(before, after) {
+  const was = describePart(before),
+    is = describePart(after);
+  if (was !== is) return [was, is];
+  // The difference is in a field the description leaves out, such as a
+  // collation: list each such field.
+  const fields = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]))
+    .map((k) => [k, readable(before[k]), readable(after[k])]);
+  return [
+    `${was}; ${fields.map(([k, b]) => `${k} ${b}`).join("; ")}`,
+    `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`,
+  ];
+}
+// A part keeps its identity by its name; a foreign key by its columns.
+const partKey = (item) =>
+  isPart(item)
+    ? isForeignKey(item)
+      ? `columns:${JSON.stringify(item.columns)}`
+      : `name:${item.name}`
+    : JSON.stringify(item);
+/**
+ * A list's change item by item: what it gains, what it loses, and each named
+ * part that changed in place. Empty when the list was only reordered.
+ */
+export function itemChanges(note) {
+  const before = note.before?.present ? note.before.value : [];
+  const after = note.after?.present ? note.after.value : [];
+  if (!Array.isArray(before) || !Array.isArray(after)) return null;
+  const was = new Map(before.map((item) => [partKey(item), item]));
+  const now = new Map(after.map((item) => [partKey(item), item]));
+  const out = [];
+  for (const [key, item] of now)
+    if (!was.has(key)) out.push({ status: "added", after: item });
+    else if (JSON.stringify(was.get(key)) !== JSON.stringify(item))
+      out.push({ status: "modified", before: was.get(key), after: item });
+  for (const [key, item] of was)
+    if (!now.has(key)) out.push({ status: "removed", before: item });
+  return out;
+}
+
 /** A compared value as short readable text: elements, and their identities, show their names. */
 export function readable(value, names = new Map()) {
   if (typeof value === "string") return names.get(value) ?? value;
@@ -91,8 +188,8 @@ export function readable(value, names = new Map()) {
       ? value.map((item) => readable(item, names)).join(", ")
       : "none";
   if (typeof value === "object") {
-    // A named part of a table, such as a key, an index or a trigger.
-    if (typeof value.name === "string" && value.name) return value.name;
+    // A part of a table (a key, an index, a trigger), with what it holds.
+    if (isPart(value)) return describePart(value);
     // Multilingual OntoUML names and descriptions.
     const text = Object.values(value).find((v) => typeof v === "string");
     if (text !== undefined && Object.keys(value).length <= 3) return text;
@@ -124,8 +221,6 @@ const MEMBER_LISTS = new Set([
   "literals",
   "contents",
 ]);
-// What other elements already say: a table's foreign keys are its relations.
-const TOLD_ELSEWHERE = new Set(["foreignKeys"]);
 const isElementList = (cell) =>
   !cell.present ||
   (Array.isArray(cell.value) &&
@@ -140,7 +235,6 @@ const isIdentityList = (cell) =>
 export const meaningfulProperties = (change) =>
   (change?.properties || []).filter(
     (p) =>
-      !TOLD_ELSEWHERE.has(p.key) &&
       !(isElementList(p.before) && isElementList(p.after)) &&
       !(
         CONTAINER_KEYS.has(p.key) &&
@@ -384,35 +478,24 @@ const modelLevelType = (change, ontouml) => {
 };
 
 /**
- * A list's change as what it gains, loses and changes, each by name: a named
- * item (a key, an index) that changed in place reads as changed.
+ * A list's change as tokens: what it gains, loses and changes, each by name
+ * (a part of a table by its name only). Null for a list that was only
+ * reordered, which reads as before → after instead.
  */
 function listTokens(note, names, prefix = "") {
-  const before = note.before?.present ? note.before.value : [];
-  const after = note.after?.present ? note.after.value : [];
-  if (!Array.isArray(before) || !Array.isArray(after)) return null;
-  const key = (item) => JSON.stringify(item);
-  const had = new Set(before.map(key)),
-    has = new Set(after.map(key));
-  const added = after
-    .filter((item) => !had.has(key(item)))
-    .map((item) => readable(item, names));
-  const removed = before
-    .filter((item) => !has.has(key(item)))
-    .map((item) => readable(item, names));
-  const changed = added.filter((text) => removed.includes(text));
-  return [
-    ...changed.map((text) => ({ status: "modified", text })),
-    ...added
-      .filter((text) => !changed.includes(text))
-      .map((text) => ({ status: "added", text })),
-    ...removed
-      .filter((text) => !changed.includes(text))
-      .map((text) => ({ status: "removed", text })),
-  ].map((token) => ({
-    ...token,
-    text: shorten(prefix ? `${prefix} ${token.text}` : token.text, 60),
-  }));
+  const changes = itemChanges(note);
+  if (!changes?.length) return null;
+  const order = { modified: 0, added: 1, removed: 2 };
+  return changes
+    .sort((a, b) => order[a.status] - order[b.status])
+    .map(({ status, before, after }) => {
+      const item = after ?? before;
+      const text = isPart(item) ? partName(item) : readable(item, names);
+      return {
+        status,
+        text: shorten(prefix ? `${prefix} ${text}` : text, 60),
+      };
+    });
 }
 
 /**
@@ -588,6 +671,8 @@ export function rollupChanges(comparison, model, views) {
       const entry = nodeRow(classes.get(id), change.kind);
       entry.status = change.kind;
       entry.changes.push(change);
+      // (A table's foreign keys that relations show are left out when the
+      // comparison is prepared.)
       for (const p of properties) entry.notes.push(note(p));
       // Members that moved in or out.
       for (const { joined, left } of listChanges(change)) {
@@ -702,12 +787,26 @@ export function rollupChanges(comparison, model, views) {
       entry.members = [
         ...(c?.attributes || []).map((m) => ({ member: m, method: false })),
         ...(c?.methods || []).map((m) => ({ member: m, method: true })),
-      ].map(({ member, method }) => ({
-        id: member.id,
-        status: entry.status,
-        label: memberLabel(member, method),
-        member: { name: member.name, type: member.type, method },
-      }));
+      ].map(({ member, method }) => {
+        const move = moves.get(member.id);
+        const other =
+          entry.status === "added"
+            ? move?.from
+            : (move?.to ?? (move ? currentOwner(member.id) : undefined));
+        return {
+          id: member.id,
+          status: entry.status,
+          label: memberLabel(member, method),
+          member: { name: member.name, type: member.type, method },
+          ...(other
+            ? {
+                moved: {
+                  [entry.status === "added" ? "from" : "to"]: placeName(other),
+                },
+              }
+            : {}),
+        };
+      });
     }
     entry.summary = summarize(entry, names);
   }
@@ -747,6 +846,7 @@ export function rollupChanges(comparison, model, views) {
 
 // Singular names for the parts a table lists, in a list's tokens.
 const SINGULAR = {
+  foreignKeys: "foreign key",
   keys: "key",
   indexes: "index",
   constraints: "constraint",
@@ -757,7 +857,7 @@ const SINGULAR = {
 function noteTokens(n, names, lists = true) {
   if (lists && n.property !== "moved") {
     const tokens = listTokens(n, names, SINGULAR[n.property] ?? n.property);
-    if (tokens) return tokens;
+    if (tokens?.length) return tokens;
   }
   const before = cellText(n.before, names, n.property),
     after = cellText(n.after, names, n.property);
@@ -911,14 +1011,41 @@ export function describeClassChange(rollup, element, profile) {
   }
   return {
     status: entry.status,
-    properties: entry.notes.map((n) => ({
-      key: n.key,
-      before: cellText(n.before, names, n.property),
-      after: cellText(n.after, names, n.property),
-      beforePresent: !!n.before?.present,
-      afterPresent: !!n.after?.present,
-    })),
+    properties: entry.notes.flatMap((n) => {
+      const parts = itemChanges(n);
+      // A list of a table's parts reads part by part, with what each holds.
+      if (parts?.length && parts.every((c) => isPart(c.after ?? c.before)))
+        return parts.map(({ status, before, after }) => {
+          const part = after ?? before;
+          const [was, is] =
+            before && after
+              ? partChange(before, after)
+              : [
+                  before ? describePart(before) : "none",
+                  after ? describePart(after) : "none",
+                ];
+          return {
+            key: isForeignKey(part)
+              ? "foreign key"
+              : `${SINGULAR[n.property] ?? n.property} ${partName(part)}`,
+            status,
+            before: was,
+            after: is,
+          };
+        });
+      return [
+        {
+          key: n.key,
+          status: "modified",
+          before: cellText(n.before, names, n.property),
+          after: cellText(n.after, names, n.property),
+        },
+      ];
+    }),
     members: entry.status === "modified" ? changed : [],
+    // Members of a new or removed type that moved there or away.
+    moved:
+      entry.status === "modified" ? [] : entry.members.filter((m) => m.moved),
     entry,
   };
 }

@@ -9,8 +9,10 @@ import {
   CHANGE_LABELS,
   cellText,
   decodeIdentity,
+  describePart,
   elementFile,
   fileExists,
+  itemChanges,
   memberSignature,
   meaningfulProperties,
   rowFor,
@@ -169,9 +171,10 @@ export function linkedRecords(model, ids) {
 
 const KIND_WORDS = { "type alias": "type alias", enum: "enum" };
 const countOf = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-function contents(element, profile) {
-  const fields = element.attributes?.length || 0,
-    methods = element.methods?.length || 0;
+function contents(element, profile, except = new Set()) {
+  const own = (members) => (members || []).filter((m) => !except.has(m.id));
+  const fields = own(element.attributes).length,
+    methods = own(element.methods).length;
   const field =
     profile === "database"
       ? "column"
@@ -231,7 +234,18 @@ export function WhatChanges({ change, element, model, profile }) {
     KIND_WORDS[element.stereotype] ||
     element.stereotype ||
     (profile === "database" ? "table" : "class");
-  const held = contents(element, profile);
+  // A member that moved in or away is not new, or removed, with the type.
+  const moved = change.moved || [];
+  const held = contents(element, profile, new Set(moved.map((m) => m.id)));
+  const movedText = moved.length
+    ? `${moved
+        .map((m) =>
+          m.moved.to
+            ? `${m.label} moved to ${m.moved.to}`
+            : `${m.label} moved from ${m.moved.from}`,
+        )
+        .join("; ")}.`
+    : "";
   if (change.status === "added") {
     const file = profile === "code" ? elementFile(element, model) : null;
     // Without a file to point at, the identity still names the declaration.
@@ -243,6 +257,7 @@ export function WhatChanges({ change, element, model, profile }) {
           New {kind}
           {held ? ` with ${held}` : ""}.
         </Text>
+        {movedText && <Text>{movedText}</Text>}
         {file ? (
           <Text className="proposed-location">
             Proposed in <code>{file}</code>
@@ -265,6 +280,7 @@ export function WhatChanges({ change, element, model, profile }) {
         <Text>
           The {kind} is removed{held ? `, with its ${held}` : ""}.
         </Text>
+        {movedText && <Text>{movedText}</Text>}
       </Section>
     );
   if (!change.properties.length && !change.members.length) return null;
@@ -275,11 +291,28 @@ export function WhatChanges({ change, element, model, profile }) {
           <li
             key={`${p.key}-${i}`}
             className="change-line"
-            data-change="modified"
+            data-change={p.status}
           >
-            <ChangeMark status="modified" />
+            <ChangeMark status={p.status} />
             <span className="change-line-text">
-              <ChangedProperty name={p.key} before={p.before} after={p.after} />
+              {p.status === "modified" ? (
+                <ChangedProperty
+                  name={p.key}
+                  before={p.before}
+                  after={p.after}
+                />
+              ) : (
+                // A part of a table that is new or removed, as it reads.
+                <span>
+                  <span className="visually-hidden">
+                    {CHANGE_LABELS[p.status]}:{" "}
+                  </span>
+                  <span className="change-key">{p.key}</span>{" "}
+                  <code className="signature">
+                    {p.status === "added" ? p.after : p.before}
+                  </code>
+                </span>
+              )}
             </span>
           </li>
         ))}
@@ -569,10 +602,49 @@ export function TableSchema({
   const columns = element.attributes || [];
   const marks = review && element.changeStatus === "modified";
   const outgoing = foreignKeys(element, model, rollup);
+  // Its unique keys as the proposal changes them: new, changed or removed.
+  const record = rollup
+    ? rowFor(rollup, { kind: "node", id: element.id })?.changes.find(
+        (c) => c.elementId === element.id,
+      )
+    : null;
+  const keyNote = record?.properties?.find((p) => p.key === "keys");
+  const keyChanges = new Map(
+    (keyNote ? itemChanges(keyNote) || [] : [])
+      .filter((c) => !(c.after ?? c.before)?.primary)
+      .map((c) => [(c.after ?? c.before).name, c]),
+  );
   const tables = new Map(model.classes.map((c) => [c.id, c.name]));
   const keyText = (relation) =>
     `${relation.columns.join(", ")} → ${tables.get(relation.targetId) || relation.target}(${(relation.targetColumns || []).join(", ")})`;
-  const unique = (element.keys || []).filter((key) => !key.primary);
+  const unique = [
+    ...(element.keys || []).filter((key) => !key.primary),
+    ...[...keyChanges.values()]
+      .filter((c) => c.status === "removed")
+      .map((c) => c.before),
+  ];
+  // Foreign keys to tables outside the capture have no relation to show
+  // them: the table lists them itself, with their changes.
+  const sameColumns = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const foreignNote = record?.properties?.find((p) => p.key === "foreignKeys");
+  const foreignChanges = new Map(
+    (foreignNote ? itemChanges(foreignNote) || [] : []).map((c) => [
+      JSON.stringify((c.after ?? c.before).columns),
+      c,
+    ]),
+  );
+  const external = [
+    ...(element.foreignKeys || []).filter(
+      (key) =>
+        Array.isArray(key.columns) &&
+        !outgoing.some(({ relation }) =>
+          sameColumns(relation.columns, key.columns),
+        ),
+    ),
+    ...[...foreignChanges.values()]
+      .filter((c) => c.status === "removed")
+      .map((c) => c.before),
+  ];
   const sql = [
     element.definition,
     ...(element.constraints || []).map((c) => c.definition),
@@ -620,21 +692,41 @@ export function TableSchema({
           </ul>
         </Section>
       )}
-      {(outgoing.length > 0 || unique.length > 0) && (
+      {(outgoing.length > 0 || unique.length > 0 || external.length > 0) && (
         <Section title="Keys">
           <ul
-            className={`member-list${outgoing.some((key) => key.status) ? " marked" : ""}`}
+            className={`member-list${outgoing.some((key) => key.status) || keyChanges.size || foreignChanges.size ? " marked" : ""}`}
           >
-            {unique.map((key) => (
-              <li key={key.name} className="member">
-                <code className="signature">
-                  <span className="member-name">unique</span>{" "}
-                  <span className="member-type">
-                    ({key.columns.join(", ")})
-                  </span>
-                </code>
-              </li>
-            ))}
+            {unique.map((key) => {
+              const change = keyChanges.get(key.name);
+              return (
+                <li
+                  key={key.name}
+                  className="member"
+                  data-change={change?.status}
+                >
+                  {change && <ChangeMark status={change.status} />}
+                  {change && (
+                    <span className="visually-hidden">
+                      {CHANGE_LABELS[change.status]}:{" "}
+                    </span>
+                  )}
+                  <code className="signature">
+                    <span className="member-name">unique</span>{" "}
+                    <span className="member-type">
+                      {change?.status === "modified" ? (
+                        <ChangedValue
+                          before={describePart(change.before)}
+                          after={describePart(change.after)}
+                        />
+                      ) : (
+                        `(${key.columns.join(", ")})`
+                      )}
+                    </span>
+                  </code>
+                </li>
+              );
+            })}
             {outgoing.map(({ relation, previous, status, details, names }) => (
               <li
                 key={relation.id}
@@ -680,6 +772,40 @@ export function TableSchema({
                 </span>
               </li>
             ))}
+            {external.map((key) => {
+              const change = foreignChanges.get(JSON.stringify(key.columns));
+              return (
+                <li
+                  key={JSON.stringify(key.columns)}
+                  className="member"
+                  data-change={change?.status}
+                >
+                  {change && <ChangeMark status={change.status} />}
+                  {change && (
+                    <span className="visually-hidden">
+                      {CHANGE_LABELS[change.status]}:{" "}
+                    </span>
+                  )}
+                  <code className="signature">
+                    {change?.status === "modified" ? (
+                      <ChangedValue
+                        before={describePart(change.before)}
+                        after={describePart(change.after)}
+                      />
+                    ) : (
+                      <>
+                        <span className="member-name">
+                          {key.columns.join(", ")}
+                        </span>{" "}
+                        <span className="member-type">
+                          → {key.target}({(key.targetColumns || []).join(", ")})
+                        </span>
+                      </>
+                    )}
+                  </code>
+                </li>
+              );
+            })}
           </ul>
         </Section>
       )}

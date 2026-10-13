@@ -837,12 +837,15 @@ const withSelfRelation = (model, byId, end) => {
   const root = model.elements.find((e) => e.type === "Package");
   root.contents = [...root.contents, "knows"];
 };
-async function proposing(base, change) {
+async function proposing(base, change, views = (v) => v) {
   const proposal = atlas.createProposal(base);
   const model = clone(proposal.model);
   change(model, new Map(model.elements.map((e) => [e.id, e])));
   const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
+    document: atlas.reviseDocument(proposal, {
+      model,
+      views: views(clone(proposal.views)),
+    }),
     includeArtifacts: false,
   });
   const view = payload.comparison.changeView;
@@ -1231,5 +1234,265 @@ test("a new Java class is placed only by classes of its own repository", () => {
   assert.equal(
     elementFile({ id: java("billing", "com.billing.Refund") }, model),
     "billing/src/main/java/com/billing/Refund.java",
+  );
+});
+
+// A database table as captures record it, with its keys, indexes and
+// foreign keys; `change` edits the proposal's copy of it.
+async function tableProposal(table, change, extra = {}) {
+  const users = {
+    id: "users",
+    name: "users",
+    kind: "table",
+    attributes: [{ id: "users.id", name: "id", type: "INTEGER" }],
+  };
+  const base = atlas.createDocument({
+    id: "shop",
+    title: "Shop",
+    profile: "database",
+    model: {
+      type: "StructuralModel",
+      nodes: [table, users],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
+      ...extra,
+    },
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  change(model.nodes[0], model);
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  return {
+    view,
+    rollup: rollupChanges(payload.comparison, view.model, view.views),
+  };
+}
+const ordersTable = () => ({
+  id: "orders",
+  name: "orders",
+  kind: "table",
+  attributes: ["id", "user_id", "created_at", "account_id"].map((c) => ({
+    id: `orders.${c}`,
+    name: c,
+    type: "INTEGER",
+  })),
+  keys: [
+    { name: "PRIMARY KEY", columns: ["id"], primary: true },
+    { name: "orders_user_key", columns: ["user_id"], primary: false },
+  ],
+  indexes: [
+    {
+      name: "idx_orders_user",
+      unique: false,
+      partial: false,
+      columns: ["user_id"],
+      definition: null,
+    },
+  ],
+  // Its target table is outside the capture, so no relation shows it.
+  foreignKeys: [
+    {
+      columns: ["account_id"],
+      target: "accounts",
+      targetColumns: ["id"],
+      onDelete: "NO ACTION",
+      onUpdate: "NO ACTION",
+      match: "SIMPLE",
+    },
+  ],
+});
+
+test("a table's changed keys and indexes read part by part, by name in the list", async () => {
+  const proposal = await tableProposal(ordersTable(), (orders) => {
+    orders.indexes[0] = {
+      ...orders.indexes[0],
+      unique: true,
+      columns: ["user_id", "created_at"],
+    };
+    orders.keys[0] = { ...orders.keys[0], columns: ["id", "created_at"] };
+    orders.keys[1] = { ...orders.keys[1], columns: ["user_id", "created_at"] };
+  });
+  const row = proposal.rollup.rows.find((r) => r.name === "orders");
+  assert.deepEqual(tokensOf(row), [
+    "modified index idx_orders_user",
+    "modified key PRIMARY KEY",
+    "modified key orders_user_key",
+  ]);
+  const html = renderDetails(proposal, "orders");
+  const changes = html.slice(html.indexOf("What changes"));
+  assert.match(
+    changes,
+    /key PRIMARY KEY<\/span> <del class="change-before">\(id\)<\/del>.*<ins class="change-after">\(id, created_at\)<\/ins>/,
+  );
+  assert.match(
+    changes,
+    /index idx_orders_user<\/span> <del class="change-before">\(user_id\)<\/del>.*<ins class="change-after">\(user_id, created_at\), unique<\/ins>/,
+  );
+  // The Keys section marks the unique key it changes.
+  const keys = html.split(">Keys<")[1];
+  assert.match(
+    keys,
+    /data-change="modified".*unique<\/span> <span class="member-type"><del class="change-before">\(user_id\)<\/del>.*<ins class="change-after">\(user_id, created_at\)<\/ins>/,
+  );
+});
+
+test("a foreign key no relation shows is the table's own change", async () => {
+  const proposal = await tableProposal(ordersTable(), (orders) => {
+    orders.foreignKeys[0] = { ...orders.foreignKeys[0], onDelete: "CASCADE" };
+  });
+  const row = proposal.rollup.rows.find((r) => r.name === "orders");
+  assert.deepEqual(tokensOf(row), [
+    "modified foreign key account_id → accounts(id)",
+  ]);
+  const html = renderDetails(proposal, "orders");
+  assert.match(
+    html,
+    /foreign key<\/span> <del class="change-before">account_id → accounts\(id\), on delete no action, on update no action<\/del>.*<ins class="change-after">account_id → accounts\(id\), on delete cascade, on update no action<\/ins>/,
+  );
+  // The table's keys list it too, marked changed.
+  assert.match(
+    html.split(">Keys<")[1],
+    /data-change="modified".*<ins class="change-after">account_id → accounts\(id\), on delete cascade/,
+  );
+  // One a relation shows stays out of the table's own changes.
+  const related = await tableProposal(
+    { ...ordersTable(), foreignKeys: [] },
+    (orders, model) => {
+      const key = {
+        columns: ["user_id"],
+        target: "users",
+        targetColumns: ["id"],
+      };
+      orders.foreignKeys = [key];
+      model.relations = [
+        {
+          id: "orders:fk:user",
+          name: "user_id → id",
+          stereotype: "foreign key",
+          sourceId: "orders",
+          targetId: "users",
+          sourceMultiplicity: "0..*",
+          targetMultiplicity: "1",
+          ...key,
+        },
+      ];
+    },
+  );
+  assert(!related.rollup.rows.some((r) => r.name === "orders"));
+});
+
+test("a list that is only reordered reads before → after", async () => {
+  const node = (modifiers) => ({
+    id: "checkout",
+    name: "Checkout",
+    kind: "class",
+    attributes: [],
+    modifiers,
+  });
+  const base = atlas.createDocument({
+    id: "shop",
+    title: "Shop",
+    profile: "code",
+    model: {
+      type: "StructuralModel",
+      nodes: [node(["abstract", "export"])],
+      relations: [],
+      generalizations: [],
+      generalizationSets: [],
+    },
+  });
+  const proposal = atlas.createProposal(base);
+  const model = clone(proposal.model);
+  model.nodes[0].modifiers = ["export", "abstract"];
+  const { payload } = await atlas.prepareViewer({
+    document: atlas.reviseDocument(proposal, { model }),
+    includeArtifacts: false,
+  });
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const rollup = rollupChanges(payload.comparison, view.model, view.views);
+  assert.deepEqual(tokensOf(rollup.rows[0]), [
+    "modified modifiers: abstract, export → export, abstract",
+  ]);
+});
+
+test("a removed type counts only what goes with it, and says what moved", async () => {
+  // A campus with a code and a name, outside every view and walkthrough.
+  const withCampus = (model, byId, end) => {
+    model.elements.push(
+      {
+        ...clone(byId.get("institution")),
+        id: "campus",
+        name: { en: "Campus" },
+        properties: ["campus-code", "campus-name"],
+      },
+      {
+        ...clone(end),
+        id: "campus-code",
+        name: { en: "code" },
+        propertyType: null,
+      },
+      {
+        ...clone(end),
+        id: "campus-name",
+        name: { en: "name" },
+        propertyType: null,
+      },
+    );
+    const root = model.elements.find((e) => e.type === "Package");
+    root.contents = [...root.contents, "campus"];
+  };
+  const moved = await proposing(enrollment(withCampus), (model, byId) => {
+    // The campus goes with its name; its code moves to Person.
+    model.elements = model.elements.filter(
+      (e) => !["campus", "campus-name"].includes(e.id),
+    );
+    const root = model.elements.find((e) => e.type === "Package");
+    root.contents = root.contents.filter((id) => id !== "campus");
+    byId.get("person").properties = [
+      ...byId.get("person").properties,
+      "campus-code",
+    ];
+  });
+  const html = renderDetails(moved, "campus");
+  assert(html.includes("The kind is removed, with its 1 attribute."), html);
+  assert(html.includes("code moved to Person."));
+  assert(renderDetails(moved, "person").includes("Moved from Campus"));
+});
+
+test("a part of a table reads by its columns, or its statement, and a change hidden from both by its fields", async () => {
+  const { describePart } = loadComponents("src/review/changes.js");
+  assert.equal(
+    describePart({
+      name: "chk_qty",
+      type: "c",
+      columns: ["qty"],
+      definition: "CHECK (qty > 0)",
+    }),
+    "CHECK (qty > 0)",
+  );
+  assert.equal(
+    describePart({
+      name: "idx_open",
+      unique: false,
+      partial: true,
+      columns: ["status"],
+      definition:
+        "CREATE INDEX idx_open ON orders (status) WHERE status = 'open'",
+    }),
+    "CREATE INDEX idx_open ON orders (status) WHERE status = 'open'",
+  );
+  const collated = await tableProposal(ordersTable(), (orders) => {
+    orders.indexes[0] = { ...orders.indexes[0], collations: ["NOCASE"] };
+  });
+  assert.match(
+    renderDetails(collated, "orders"),
+    /index idx_orders_user<\/span> <del class="change-before">\(user_id\); collations none<\/del>.*<ins class="change-after">\(user_id\); collations NOCASE<\/ins>/,
   );
 });

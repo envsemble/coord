@@ -71,6 +71,53 @@ function assignOwners(diff, ...projects) {
     if (owner.end) change.end = owner.end;
   }
 }
+// A table lists its foreign keys, and those whose target was captured are
+// its relations too, which tell them. Each change keeps only the keys no
+// relation shows; a change left with nothing else to tell is the relations'.
+function keepUnshownKeys(diff, ...models) {
+  const relations = models
+    .flatMap((m) => m.relations)
+    .filter((r) => Array.isArray(r.columns));
+  const names = new Map(
+    models.flatMap((m) => m.classes.map((c) => [c.id, c.name])),
+  );
+  const shown = (table, key) =>
+    relations.some(
+      (r) =>
+        r.sourceId === table &&
+        JSON.stringify(r.columns) === JSON.stringify(key?.columns) &&
+        (r.target === key.target || names.get(r.targetId) === key.target),
+    );
+  const unshown = (table, cell) =>
+    cell.present && Array.isArray(cell.value)
+      ? { present: true, value: cell.value.filter((k) => !shown(table, k)) }
+      : cell;
+  diff.changes = diff.changes.filter((change) => {
+    if (change.kind !== "modified") return true;
+    change.properties = change.properties
+      .map((p) =>
+        p.key === "foreignKeys"
+          ? {
+              ...p,
+              before: unshown(change.elementId, p.before),
+              after: unshown(change.elementId, p.after),
+            }
+          : p,
+      )
+      .filter(
+        (p) =>
+          p.key !== "foreignKeys" ||
+          JSON.stringify(p.before) !== JSON.stringify(p.after),
+      );
+    return change.properties.length > 0;
+  });
+  diff.counts = Object.fromEntries(
+    ["added", "removed", "modified"].map((kind) => [
+      kind,
+      diff.changes.filter((c) => c.kind === kind).length,
+    ]),
+  );
+}
 const ends = (e) => [e.sourceId ?? e.specificId, e.targetId ?? e.generalId];
 // The same relation, of the same kind, between the same ends: an association
 // that becomes inheritance is a new route.
@@ -241,6 +288,7 @@ async function prepareComparison({ document, slug, includeArtifacts }) {
   const diff = compareDocuments(baseline, document);
   if (document.profile === "ontouml")
     assignOwners(diff, baseline.model, document.model);
+  if (document.profile === "database") keepUnshownKeys(diff, before, after);
   for (const model of [before, after])
     model.document.comparison = {
       ...(model.document.comparison || {}),
