@@ -1,7 +1,7 @@
 /* Plan export page: the app's work page without its window. Layout only; envUI draws the rest.
    Without the app's title bar and tabs, the work bar sticks to the top of the page. */
 .plan-export { min-block-size: 100dvh; padding: var(--space-5) var(--space-6) 0; container-type: inline-size; }
-.plan-export .work-page { --topbar-height: 0rem; --atlas-tabs-height: 0rem; }
+.plan-export .work-page { --topbar-height: 0rem; --app-sticky-top: 0rem; --atlas-tabs-height: 0rem; }
 .plan-export .work-bar, .plan-export .work-page.section-diagrams .work-bar { margin-inline: calc(-1 * var(--space-6)); }
 .export-banner { max-inline-size: 84rem; margin: 0 auto var(--space-3); }
 /* An export is a scrolling page, not the app's workbench: the diagrams take the window's height below the tabs. */

@@ -1,8 +1,8 @@
 // The window for one planning folder: envUI's application shell with its top bar as the window's
 // title bar (menus, the computer, search and the window buttons), the pages and the folder's files in
 // the sidebar, and the open documents as tabs above the page.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppShell, Button, Counter, DocumentTabs, Kbd, NavigationItem, Notice, Popover, useToast, type DocumentTab } from '@envsemble/envui';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { AppShell, Button, Counter, DocumentTabs, Kbd, NavigationItem, Notice, Popover, useAppShell, useToast, type DocumentTab } from '@envsemble/envui';
 import { ThemeMenu } from './ThemeMenu';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { ActivityIcon, FileIcon, SearchIcon, StatisticsIcon, WarningIcon, WorkIcon } from './icons';
@@ -84,42 +84,8 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     });
   }, [node?.id]);
 
-  // Keep the scroll position of what each tab or page shows (its view, work section or file) while
-  // switching; a tab that moves to another section or file starts at the top, and one opened at a
-  // heading leaves the scrolling to the reader. A document loads again after the switch, so a saved
-  // position is reapplied as the content grows, until the user scrolls or three seconds pass, and
-  // nothing is saved meanwhile. The window itself scrolls, below the sticky tabs.
   const scrolled = scrollKey(shown);
   const anchored = shown.kind !== 'view' && Boolean(shown.anchor);
-  useLayoutEffect(() => {
-    const element = document.scrollingElement;
-    if (!element) return;
-    const target = anchored ? null : scrollPositions.current.get(scrolled) ?? 0;
-    if (target !== null) element.scrollTop = target;
-    let restoring = Boolean(target);
-    const content = page.current;
-    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) element.scrollTop = target!; }) : null;
-    const stop = () => { restoring = false; observer?.disconnect(); };
-    if (observer && content) observer.observe(content);
-    const timer = window.setTimeout(stop, 3000);
-    const remember = () => { if (!restoring) scrollPositions.current.set(scrolled, element.scrollTop); };
-    // The reader's own scrolling stops it: the wheel or touch anywhere, and keys or presses in the
-    // page or what holds it (the window's scrollbar, the shell's main region), not keys pressed in
-    // the sidebar or the tabs.
-    const interrupt = (event: Event) => {
-      const at = event.target;
-      if (event.type === 'wheel' || event.type === 'touchstart' || !(at instanceof Node) || !content || at.contains(content) || content.contains(at)) stop();
-    };
-    const inputs = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
-    for (const name of inputs) window.addEventListener(name, interrupt, { capture: true, passive: true });
-    window.addEventListener('scroll', remember, { passive: true });
-    return () => {
-      stop();
-      window.clearTimeout(timer);
-      for (const name of inputs) window.removeEventListener(name, interrupt, { capture: true });
-      window.removeEventListener('scroll', remember);
-    };
-  }, [active?.id ?? 'page:' + ui.page, scrolled]);
   // Forget the positions of what no open tab or page shows.
   useEffect(() => {
     const shownKeys = new Set([...ui.tabs.items.map(tab => scrollKey(tab.target)), ...viewNames.map(view => scrollKey(viewTarget(view)))]);
@@ -232,6 +198,7 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
           <Shown key={active?.id ?? 'page:' + ui.page} target={shown} snapshot={snapshot} repository={repository} setRepository={setRepository}
             work={{ location, setLocation, search: workSearch, setSearch: setWorkSearch }} />
         </div>
+        <ScrollMemory shown={active?.id ?? 'page:' + ui.page} scrollKey={scrolled} anchored={anchored} content={page} positions={scrollPositions} />
       </div>
     </AppShell>
     {quickOpen && <QuickOpen snapshot={snapshot} mode={quickOpen.mode} placeholder={quickOpen.placeholder} onPick={quickOpen.onPick} onClose={() => setQuickOpen(null)} />}
@@ -254,6 +221,52 @@ function describeTab(target: Target, snapshot: Snapshot): Omit<DocumentTab, 'id'
     return { label, title: work ? workNumber(work.id) + ' · ' + work.path : target.work, icon: work ? <StatusIcon status={workStatus(work)} decorative /> : <WorkIcon /> };
   }
   return { label: target.path.split('/').at(-1) ?? target.path, title: target.path, icon: <FileIcon /> };
+}
+
+/**
+ * Keep the scroll position of what each tab or page shows (its view, work section or file) while
+ * switching; a tab that moves to another section or file starts at the top, and one opened at a
+ * heading leaves the scrolling to the reader. A document loads again after the switch, so a saved
+ * position is reapplied as the content grows, until the user scrolls or three seconds pass, and
+ * nothing is saved meanwhile. The shell's content area scrolls, below the title bar and the sticky
+ * tabs.
+ */
+function ScrollMemory({ shown, scrollKey: key, anchored, content: contentRef, positions }: {
+  shown: string; scrollKey: string; anchored: boolean; content: RefObject<HTMLDivElement | null>; positions: RefObject<Map<string, number>>;
+}) {
+  const { getScrollElement } = useAppShell();
+  useLayoutEffect(() => {
+    const element = getScrollElement();
+    if (!element) return;
+    const target = anchored ? null : positions.current.get(key) ?? 0;
+    if (target !== null) element.scrollTop = target;
+    let restoring = Boolean(target);
+    const content = contentRef.current;
+    const observer = restoring && content ? new ResizeObserver(() => { if (restoring) element.scrollTop = target!; }) : null;
+    const stop = () => { restoring = false; observer?.disconnect(); };
+    if (observer && content) observer.observe(content);
+    const timer = window.setTimeout(stop, 3000);
+    const remember = () => { if (!restoring) positions.current.set(key, element.scrollTop); };
+    // The document's scrolling reaches the window; an element's, the element.
+    const scroller: EventTarget = element === document.scrollingElement ? window : element;
+    // The reader's own scrolling stops it: the wheel or touch anywhere, and keys or presses in the
+    // page or what holds it (the scrollbar, the shell's content area), not keys pressed in the
+    // sidebar or the tabs.
+    const interrupt = (event: Event) => {
+      const at = event.target;
+      if (event.type === 'wheel' || event.type === 'touchstart' || !(at instanceof Node) || !content || at.contains(content) || content.contains(at)) stop();
+    };
+    const inputs = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
+    for (const name of inputs) window.addEventListener(name, interrupt, { capture: true, passive: true });
+    scroller.addEventListener('scroll', remember, { passive: true });
+    return () => {
+      stop();
+      window.clearTimeout(timer);
+      for (const name of inputs) window.removeEventListener(name, interrupt, { capture: true });
+      scroller.removeEventListener('scroll', remember);
+    };
+  }, [shown, key]);
+  return null;
 }
 
 /** The page or document the window shows. */

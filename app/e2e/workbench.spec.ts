@@ -185,20 +185,26 @@ test('a long document scrolls the window below the tabs, and each tab keeps its 
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect.poll(() => window.evaluate(() => globalThis.innerHeight)).toBeLessThanOrEqual(480);
   const sizes = await window.evaluate(() => {
-    const page = document.scrollingElement!;
+    const page = document.querySelector('main')!;
     return {
       window: globalThis.innerHeight,
       explorerBottom: document.querySelector('.explorer')!.getBoundingClientRect().bottom,
       visible: page.clientHeight,
       content: page.scrollHeight,
-      scrollbar: globalThis.innerWidth - document.documentElement.clientWidth,
+      scrollbar: page.offsetWidth - page.clientWidth,
+      pageTop: page.getBoundingClientRect().top,
+      titleBar: document.querySelector('.env-app-topbar')!.getBoundingClientRect().bottom,
+      documentScrolls: document.scrollingElement!.scrollHeight > document.scrollingElement!.clientHeight,
     };
   });
-  // The sidebar ends inside the window, and the plan overflows it: the window scrolls, with a scrollbar.
+  // The sidebar ends inside the window, and the plan overflows the content area, which scrolls below
+  // the title bar with its own scrollbar (so the window buttons never cover it); the document does not.
   expect(sizes.explorerBottom).toBeLessThanOrEqual(sizes.window + 1);
   expect(sizes.content).toBeGreaterThan(sizes.visible);
   expect(sizes.scrollbar).toBeGreaterThan(0);
-  const scrollTop = () => window.evaluate(() => document.scrollingElement!.scrollTop);
+  expect(sizes.pageTop).toBeGreaterThanOrEqual(sizes.titleBar - 1);
+  expect(sizes.documentScrolls).toBe(false);
+  const scrollTop = () => window.evaluate(() => document.querySelector('main')!.scrollTop);
   await window.locator('.work-main').hover();
   await window.mouse.wheel(0, 600);
   await expect.poll(scrollTop).toBeGreaterThan(0);
