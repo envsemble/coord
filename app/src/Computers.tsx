@@ -12,7 +12,7 @@ import type { Computer, ComputerFolder, ComputerRef } from './types';
 import { api } from './api';
 import { plural, relativeDate } from './format';
 
-/** Window-wide actions the menus start: pairing, the folder browser, remote access, and the lists. */
+/** Window-wide actions the menus start: pairing, the folder browser, remote access, the lists and About. */
 export interface AppActions {
   connect(): void;
   browse(computer: ComputerRef, near?: string | null): void;
@@ -20,9 +20,11 @@ export interface AppActions {
   manageComputers(): void;
   /** The list marks the folder this window shows, when the window shows one of them. */
   manageFolders(computer: ComputerRef, isCurrent?: (folder: ComputerFolder) => boolean): void;
+  /** Help › About Atlas. */
+  about(): void;
 }
 const nothing = () => undefined;
-export const AppActionsContext = createContext<AppActions>({ connect: nothing, browse: nothing, remoteAccess: nothing, manageComputers: nothing, manageFolders: nothing });
+export const AppActionsContext = createContext<AppActions>({ connect: nothing, browse: nothing, remoteAccess: nothing, manageComputers: nothing, manageFolders: nothing, about: nothing });
 export const useAppActions = () => useContext(AppActionsContext);
 
 const statusLabels: Record<Computer['status'], string | null> = { online: null, connecting: 'Connecting', offline: 'Offline', revoked: 'Not paired', mismatch: 'Not the same computer', incompatible: 'Needs an update' };
@@ -154,8 +156,9 @@ export function FolderRows({ computer, folders, current, onError, onOpened }: {
   return <GroupedRows className="folder-rows" aria-label={'Planning folders on ' + computer.name}>{folders.map(folder => {
     const here = current?.(folder) ?? false;
     const facts = [folder.available ? folder.workItems !== null && plural(folder.workItems, 'work item') : null, folder.openedAt && 'opened ' + relativeDate(folder.openedAt)].filter(Boolean).join(' · ');
-    return <Row key={folder.folderId} className="folder-row" data-current={here || undefined}
-      title={<button type="button" className="row-link" disabled={!folder.available} aria-current={here || undefined} title={'Open ' + folder.path}
+    // An available folder opens from anywhere on its row: its name's button covers the row.
+    return <Row key={folder.folderId} interactive={folder.available} className="folder-row" data-current={here || undefined}
+      title={<button type="button" className={'row-link' + (folder.available ? ' row-target' : '')} disabled={!folder.available} aria-current={here || undefined} title={'Open ' + folder.path}
         onClick={(event: MouseEvent) => openFolder(computer, folder, wantsNewWindow(event), onError, onOpened)}>
         <span className="row-link-title">{folder.name}</span>
         {!folder.available && <Badge tone="warning">Missing</Badge>}

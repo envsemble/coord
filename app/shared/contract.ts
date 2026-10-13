@@ -18,7 +18,7 @@ export const invokeChannels = [
   'window:info',
   'planning:snapshot', 'planning:document', 'planning:models', 'planning:model', 'planning:references', 'planning:diagrams',
   'usage:view', 'ui:load', 'ui:save',
-  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme',
+  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch',
   'folders:list', 'folders:open', 'folders:choose', 'folders:browse', 'folders:remove',
@@ -39,14 +39,17 @@ export type ThemePreference = typeof themePreferences[number];
  * on the calling window only (New Window and Exit act on the app).
  */
 export const appCommands = [
-  'newWindow', 'locate', 'closeFolder', 'closeWindow', 'quit', 'openLogs', 'about',
+  'newWindow', 'locate', 'closeFolder', 'closeWindow', 'quit', 'openLogs',
   'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
   'zoomIn', 'zoomOut', 'resetZoom', 'toggleFullScreen', 'reload', 'toggleDevTools',
 ] as const;
 export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, tabs, dialogs drawn in the window). */
-export const menuCommands = ['toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess', 'browseFolder', 'manageFolders', 'closeFolder'] as const;
+export const menuCommands = [
+  'toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess', 'browseFolder', 'manageFolders', 'closeFolder',
+  'goBack', 'goForward', 'about',
+] as const;
 export type MenuCommand = typeof menuCommands[number];
 
 export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unauthorized' | 'unavailable' | 'no-folder' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
@@ -117,6 +120,18 @@ export const viewNames = ['work', 'activity', 'statistics'] as const satisfies r
 export const defaultUiState: UiState = { sidebar: { visible: true, width: 280, expanded: [] }, tabs: { items: [], active: null }, page: 'work' };
 export const limits = { path: 2048, tabs: 40, expanded: 2000, sidebarMin: 170, sidebarMax: 640, inspectorMin: 240, inspectorMax: 1200 } as const;
 
+/** What Help › About Atlas shows. */
+export interface AboutInfo {
+  version: string;
+  electron: string;
+  chromium: string;
+  node: string;
+  /** The operating system, its version and the processor architecture, such as Windows 10.0.26200 (x64). */
+  system: string;
+  /** The per-user Atlas data folder. */
+  dataFolder: string;
+}
+
 export interface ExportResult { path: string; bytes: number; warnings: string[] }
 export interface ImportPreview {
   token: string;
@@ -159,6 +174,8 @@ export interface AtlasBridge {
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
   theme(): Promise<Result<ThemePreference>>;
   setTheme(preference: ThemePreference): Promise<Result<void>>;
+  /** The versions and the data folder Help › About Atlas shows. */
+  about(): Promise<Result<AboutInfo>>;
   exportPlan(work: string): Promise<Result<ExportResult | null>>;
   chooseImport(): Promise<Result<ImportPreview | null>>;
   confirmImport(token: string): Promise<Result<ImportResult>>;

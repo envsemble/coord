@@ -11,7 +11,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas-host';
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
-import { invokeChannels, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
+import { invokeChannels, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
 import { absolutePath, argumentsOf, boolean, command, folderId, ipAddress, modelHandle, nullable, object, pairingCode, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import type { FolderView } from './folderView.ts';
@@ -78,7 +78,7 @@ function pairingHost(link: string, code: string | null) {
   try { return new URL(parsePairing(link, code ?? undefined).origin).host; } catch (error) { throw hostError(error); }
 }
 
-export function channels(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): Promise<unknown> }): Record<InvokeChannel, Channel> {
+export function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
   const folder = (window: AtlasWindow): FolderView => {
     const view = window.requireFolder();
     if (!view.folderId) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This planning folder cannot be read.');
@@ -112,6 +112,8 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
+    // Help › About Atlas, which the window shows: versions and the data folder, nothing a page could misuse.
+    'app:about': { args: [], handle: () => actions.about() },
     'app:command': {
       args: [command],
       handle: async (window, name: string) => {
@@ -126,7 +128,6 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
           case 'closeWindow': if (manager.all().filter(other => !other.closing && !other.win.isDestroyed()).length <= 1) await confirmed(window, 'Close the last window and exit Atlas?', 'Close'); window.win.close(); return;
           case 'quit': await confirmed(window, 'Exit Atlas?', 'Exit'); app.quit(); return;
           case 'openLogs': await confirmed(window, 'Open the folder with Atlas’s logs?', 'Open'); actions.openLogs(); return;
-          case 'about': await window.oneDialog(() => actions.about(window)); return;
           // Edit acts on the window's focused element, as the native Edit menu does.
           case 'undo': contents.undo(); return;
           case 'redo': contents.redo(); return;
@@ -296,7 +297,7 @@ function trustedSender(event: IpcMainInvokeEvent, manager: WindowManager): Atlas
   return expected !== null && originOf(frame.url) === expected ? window : null;
 }
 
-export function registerIpc(manager: WindowManager, actions: { openLogs(): void; about(window: AtlasWindow): Promise<unknown> }) {
+export function registerIpc(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }) {
   const table = channels(manager, actions);
   for (const name of invokeChannels) {
     const channel = table[name];

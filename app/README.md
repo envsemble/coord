@@ -87,15 +87,17 @@ Earlier versions kept recent folders in `planning-roots.json`; the folder list s
 
 The window is envUI's application shell, and it draws its own title bar:
 
-- **Title bar:** the Atlas mark (which also collapses the sidebar), the **File**, **Edit**, **View** and **Help** menus, and the computer menu; then **Search** (quick open), record-health notes when there are any, the theme menu (match the system, light or dark; it applies to every window and to Atlas's own menus and dialogs) and the system's minimize, maximize and close buttons. Empty space in the title bar moves the window, and a double click maximizes it. Alt opens the menus from the keyboard (Alt+F for File). On macOS the menus are in the system's menu bar and the title bar starts after the window buttons. Welcome pages and folder problems have the same title bar.
+- **Title bar:** the Atlas mark (which also collapses the sidebar), the **File**, **Edit**, **View** and **Help** menus, back and forward arrows, and the computer menu; then **Search** (quick open), record-health notes when there are any, the theme menu (match the system, light or dark; it applies to every window and to Atlas's own menus and dialogs) and the system's minimize, maximize and close buttons. Empty space in the title bar moves the window, and a double click maximizes it. Alt opens the menus from the keyboard (Alt+F for File). On macOS the menus are in the system's menu bar and the title bar starts after the window buttons. Welcome pages and folder problems have the same title bar.
 - **Sidebar:** **Work** (with the number of active work items), **Activity** and **Statistics** are pages of their own: choosing one shows it in place of the open document, and the tabs stay as they are. Below them, the folder's name and the **explorer**: the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, type-ahead, Enter (open and keep) and Space (preview) work in the tree. A context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**, and, anywhere in the explorer, **Collapse All Folders**. Ctrl+B collapses the sidebar to its icons and back; drag its edge, or use the arrow keys on it, to resize it.
 - **Tabs** hold the open documents: work items and files. A single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab (choosing a section or a diagram), keeps it. Ctrl+W closes a tab; middle-click closes it too. Closing the last one shows the page again. The tabs stay under the title bar while the page scrolls.
 - **A work item** has its sections, **Plan**, **Ledger** and **Diagrams**, in one compact switcher at the top left of its page, in the same spot for each section. It floats over the plan or ledger as they scroll, and starts the diagram's toolbar; the diagrams take the rest of the window. The work number (**#0001**) is beside the item's status, under its title.
-- **Opening things:** clicking a work folder expands it and opens its overview. Clicking a file opens it in a tab; clicking a diagram opens the Diagrams view focused on it. Links between records open their target in a tab (Ctrl+click keeps it).
+- **Opening things:** clicking a work folder expands it and opens its overview. Clicking a file opens it in a tab; clicking a diagram opens the Diagrams view focused on it. Links between records open their target in a tab (Ctrl+click keeps it). A work item's row in the Work list opens it from anywhere on the row, and its diagram count opens its diagrams; a folder's row on the welcome page and in the folder lists opens the folder the same way.
+- **Back and forward** step through what the window showed: its pages, each work item at its section, diagram or heading, and each file. Use the arrows in the title bar, Alt+← and Alt+→ (⌘[ and ⌘] on macOS), a keyboard's or mouse's back and forward buttons, or **View › Back** and **Forward**. A tab that was closed opens again as a preview, where it was. Fields keep Alt+← and Alt+→. The history lasts while the window shows its folder.
 - **Quick open** (Ctrl+P, or **Search**) jumps to any work item, diagram or file by name; Enter previews, Ctrl+Enter keeps the tab.
 
 | Shortcut | Action |
 | --- | --- |
+| Alt+← / Alt+→ (⌘[ / ⌘] on macOS) | Back / forward |
 | Ctrl+P | Quick open |
 | Ctrl+B | Collapse or expand the sidebar |
 | Ctrl+Shift+E | Show and focus the explorer |
@@ -139,7 +141,7 @@ The app follows Electron's security checklist (the desktop-only decision is work
 
     Otherwise Atlas first asks in a system dialog the page cannot answer, so a screen reader's click, which makes no input event, still works.
   - **Creating a pairing link**, which hands the computer to whoever uses it, always asks in a system dialog first.
-  - Dialogs a page opens (choosing a file or folder, About, Locate…) come one at a time.
+  - Dialogs a page opens (choosing a file or folder, Locate…) come one at a time.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
 - Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.
 - No data leaves the machine unless you turn on remote access. Then devices you paired can work on this computer's planning folders as the app does here, and anyone who can reach the chosen address can learn this computer's name and Atlas version. [Remote access](../docs/remote-access.md) describes pairing, tokens, the network and what each computer keeps. There is no telemetry, update check or crash upload.
@@ -159,7 +161,7 @@ Only Reveal in File Explorer stays on that computer. See [remote access](../docs
 
 ## Diagnostics
 
-**Help › Open Logs** opens `logs/` in the data folder: `atlas.log` (the app: start-up, window and connection events) and `host.log` (the Atlas host: folders, the watcher, remote access, pairings and device connections), each 1 MB with up to three older files, including any failures. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions and the data folder.
+**Help › Open Logs** opens `logs/` in the data folder: `atlas.log` (the app: start-up, window and connection events) and `host.log` (the Atlas host: folders, the watcher, remote access, pairings and device connections), each 1 MB with up to three older files, including any failures. **Help › About Atlas**, in any window, shows the version, what stays on this computer, the Electron, Chromium and Node.js versions, the system and the data folder. **Copy Details** copies what a bug report needs: the versions and the system, not the data folder's path.
 
 ## Records and progress
 

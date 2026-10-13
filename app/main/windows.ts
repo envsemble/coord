@@ -25,15 +25,18 @@ export const baseName = (folder: string) => folder.split(/[\\/]/).filter(Boolean
 /** envUI's canvas colour in the window's theme, shown until the page paints. */
 const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
 
-/** The height of the title bar the window draws itself (envUI's `--title-bar-height`), at 100% zoom. */
+/** The height of the title bar the window draws itself, with its line, at 100% zoom. */
 export const titleBarHeight = 40;
 /**
  * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
- * colour, and as tall as the bar when zoomed in (zoomed out, the bar keeps its height and so do they).
- * The page reads their area from the window controls overlay's environment variables.
+ * colour, and as tall as the bar above its line. envUI's title bar takes their height (the window
+ * controls overlay's environment variables) and draws its line below them, so the line runs under
+ * them too; scaled by 150%, the system's buttons reach one device pixel lower, which an odd height
+ * leaves clear. Zoomed in, they grow with the bar; zoomed out, the bar keeps its height and so do
+ * they.
  */
 export const titleBarOverlay = (zoom = 1) => {
-  const height = Math.round(titleBarHeight * Math.max(1, zoom));
+  const height = Math.round((titleBarHeight - 1) * Math.max(1, zoom));
   return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
 };
 /**

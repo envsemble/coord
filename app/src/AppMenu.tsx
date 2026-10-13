@@ -1,8 +1,10 @@
-// The window's title bar: the logo, File, Edit, View and Help, and the computer the window works on.
-// On macOS the system's menu bar holds the menus instead (main's application menu), and the traffic
-// lights take the start of the title bar.
+// The window's title bar: the logo, File, Edit, View and Help, back and forward, and the computer the
+// window works on. On macOS the system's menu bar holds the menus instead (main's application menu),
+// and the traffic lights take the start of the title bar.
 import { useRef, type ReactNode } from 'react';
-import { Menubar, MenubarMenu, MenuItem, MenuSeparator, TitleBar, type MenubarMenuOpenChangeDetails } from '@envsemble/envui';
+import { IconButton, Menubar, MenubarMenu, MenuItem, MenuSeparator, TitleBar, Tooltip, type MenubarMenuOpenChangeDetails } from '@envsemble/envui';
+import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
+import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import type { AppCommand } from '../shared/contract';
 import type { ComputerFolder, ViewName, WindowInfo } from './types';
@@ -11,8 +13,12 @@ import { viewLabels } from './targets';
 import { ComputerMenu, openFolderOn, RecentFolders, useAppActions } from './Computers';
 import { ThemeMenu, ThemeSubmenu } from './ThemeMenu';
 
-/** What the workbench adds to the menus: its tabs, pages, sidebar and plans. */
+/** What the workbench adds to the menus: back and forward, its tabs, pages, sidebar and plans. */
 export interface WorkbenchMenus {
+  goBack(): void;
+  goForward(): void;
+  canGoBack: boolean;
+  canGoForward: boolean;
   quickOpen(): void;
   showPage(view: ViewName): void;
   showExplorer(): void;
@@ -32,11 +38,16 @@ export interface WorkbenchMenus {
 
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
 export const modifierKey = (platform: string) => platform === 'darwin' ? '⌘' : 'Ctrl';
+/** Back and forward: Alt+← and Alt+→, ⌘[ and ⌘] on macOS; as shown, and for aria-keyshortcuts. */
+const historyKeys = (platform: string) => platform === 'darwin'
+  ? { back: '⌘[', forward: '⌘]', backKeys: 'Meta+[ BrowserBack', forwardKeys: 'Meta+] BrowserForward' }
+  : { back: 'Alt+←', forward: 'Alt+→', backKeys: 'Alt+ArrowLeft BrowserBack', forwardKeys: 'Alt+ArrowRight BrowserForward' };
 
 export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; workbench?: WorkbenchMenus; onError(message: string): void }) {
   const actions = useAppActions();
   const computer = info.computer;
   const mod = modifierKey(info.platform);
+  const history = historyKeys(info.platform);
   // Edit acts on what had focus before the menubar took it: focus moves back there before the command runs.
   const focused = useRef<HTMLElement | null>(null);
   const noteFocus = (open: boolean, { previousFocus }: MenubarMenuOpenChangeDetails) => {
@@ -84,6 +95,9 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
     </MenubarMenu>
     <MenubarMenu label="View" accessKey="V">
       {workbench && <>
+        <MenuItem shortcut={history.back} disabled={!workbench.canGoBack} onClick={workbench.goBack}>Back</MenuItem>
+        <MenuItem shortcut={history.forward} disabled={!workbench.canGoForward} onClick={workbench.goForward}>Forward</MenuItem>
+        <MenuSeparator />
         <MenuItem shortcut={mod + '+P'} onClick={workbench.quickOpen}>Search…</MenuItem>
         <MenuSeparator />
         {(['work', 'activity', 'statistics'] as const).map(view => <MenuItem key={view} onClick={() => workbench.showPage(view)}>{viewLabels[view]}</MenuItem>)}
@@ -108,16 +122,30 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
     <MenubarMenu label="Help" accessKey="H">
       <MenuItem onClick={run('openLogs')}>Open Logs</MenuItem>
       <MenuSeparator />
-      <MenuItem onClick={run('about')}>About Atlas</MenuItem>
+      <MenuItem onClick={actions.about}>About Atlas</MenuItem>
     </MenubarMenu>
   </Menubar>;
 }
 
-/** The start of the title bar after the logo: the menus (except on macOS) and the computer. */
+/** The start of the title bar after the logo: the menus (except on macOS), back and forward in a folder's window, and the computer. */
 export function TitleBarStart({ info, workbench, onError }: { info: WindowInfo; workbench?: WorkbenchMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
     {info.platform !== 'darwin' && <AppMenubar info={info} workbench={workbench} onError={onError} />}
+    {workbench && <HistoryButtons platform={info.platform} workbench={workbench} />}
     <ComputerMenu current={info.computer} onError={onError} />
+  </div>;
+}
+
+/** The title bar's quiet back and forward arrows. */
+function HistoryButtons({ platform, workbench }: { platform: string; workbench: WorkbenchMenus }) {
+  const keys = historyKeys(platform);
+  return <div className="history-buttons">
+    <Tooltip content={'Back (' + keys.back + ')'} side="bottom">
+      <IconButton variant="text" icon={<ArrowBack />} aria-label="Back" aria-keyshortcuts={keys.backKeys} disabled={!workbench.canGoBack} onClick={workbench.goBack} />
+    </Tooltip>
+    <Tooltip content={'Forward (' + keys.forward + ')'} side="bottom">
+      <IconButton variant="text" icon={<ArrowForward />} aria-label="Forward" aria-keyshortcuts={keys.forwardKeys} disabled={!workbench.canGoForward} onClick={workbench.goForward} />
+    </Tooltip>
   </div>;
 }
 

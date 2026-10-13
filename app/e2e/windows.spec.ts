@@ -74,17 +74,37 @@ test('a second launch hands its folder to the running app (single instance) and 
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(2);
 });
 
-test('Help › Open Logs and About are in the menu, and About shows the version', async () => {
-  launched = await launch({ folder: fixture() });
-  const { app } = launched;
+test('Help › About Atlas shows the version in the window, also on the welcome page, and copies the details', async () => {
+  launched = await launch();
+  const { app, window } = launched;
+  const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
+  // The title bar's Help › About Atlas, on the welcome page.
+  await expect(window.getByRole('heading', { name: 'Atlas', level: 1 })).toBeVisible();
+  await window.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'Help' }).click();
+  await window.getByRole('menuitem', { name: 'About Atlas' }).click();
+  const about = window.getByRole('dialog', { name: 'Atlas' });
+  await expect(about).toContainText('Version ' + version);
+  await expect(about).toContainText('Atlas works offline.');
+  await expect(about.locator('dt')).toHaveText(['Electron', 'Chromium', 'Node.js', 'System', 'Data folder']);
+  await expect(about.locator('dd').last()).toHaveText(launched.dataDirectory);
+  // The details a bug report needs, without the data folder's path.
+  await about.getByRole('button', { name: 'Copy Details' }).click();
+  await expect(about.getByRole('button', { name: 'Copied' })).toBeVisible();
+  const copied = await app.evaluate(({ clipboard }) => clipboard.readText());
+  expect(copied.split('\n')[0]).toBe('Atlas ' + version);
+  expect(copied).toMatch(/^Electron \S+$/m);
+  expect(copied).not.toContain(launched.dataDirectory);
+  await about.getByRole('button', { name: 'Close' }).click();
+  await expect(about).toHaveCount(0);
+
+  // The application menu's About opens the same dialog in the window in front; no system dialog opens.
   const help = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.find(entry => entry.label === '&Help')!.submenu!.items.map(item => item.label));
   expect(help).toEqual(['Open &Logs', '', '&About Atlas']);
-  const about = await app.evaluate(async ({ app: electronApp, dialog, Menu }) => {
-    let shown: Electron.MessageBoxOptions | undefined;
-    dialog.showMessageBox = (async (...args: unknown[]) => { shown = args.at(-1) as Electron.MessageBoxOptions; return { response: 0, checkboxChecked: false }; }) as typeof dialog.showMessageBox;
+  await app.evaluate(({ dialog, Menu }) => {
+    dialog.showMessageBox = (async () => { throw new Error('A system dialog opened.'); }) as typeof dialog.showMessageBox;
     Menu.getApplicationMenu()!.items.find(entry => entry.label === '&Help')!.submenu!.items.find(item => item.label === '&About Atlas')!.click();
-    await new Promise(resolve => setTimeout(resolve, 200));
-    return { message: shown?.message, version: electronApp.getVersion() };
   });
-  expect(about.message).toBe('Atlas ' + about.version);
+  await expect(about).toContainText('Version ' + version);
+  await window.keyboard.press('Escape');
+  await expect(about).toHaveCount(0);
 });

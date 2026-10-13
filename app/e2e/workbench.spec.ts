@@ -72,23 +72,33 @@ test('the title bar holds the menus, the computer and the actions; the views are
   await expect(search.first()).toHaveValue('reservation');
   await search.first().fill('');
 
-  // Zooming in keeps the window buttons as tall as the title bar (where the system draws them).
+  // The window buttons, where the system draws them, end above the title bar's line, which runs
+  // under them too; zooming in keeps them as tall as the bar above its line.
   const overlay = () => window.evaluate(() => {
     const controls = (navigator as Navigator & { windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay;
     return controls?.visible ? Math.round(controls.getTitlebarAreaRect().height) : null;
   });
   if (await overlay() !== null) {
-    // Zoomed in, the buttons' area stays about 40 CSS pixels tall (the page reports it rounded up)
-    // instead of shrinking with the zoom, and the bar matches it.
-    const bar = () => window.evaluate(() => Math.round(document.querySelector('.env-app-topbar')!.getBoundingClientRect().height));
+    const bar = () => window.evaluate(() => document.querySelector('.env-app-topbar')!.getBoundingClientRect().height);
+    // The line below the buttons: about one CSS pixel (envUI's hairline).
+    const line = async () => await bar() - (await overlay())!;
+    expect(await overlay()).toBe(39);
+    expect(await line()).toBeGreaterThan(0.5);
+    expect(await line()).toBeLessThan(1.5);
+    // Zoomed in, the buttons' area stays about 39 CSS pixels tall (the page reports it rounded up)
+    // instead of shrinking with the zoom, and the bar keeps its line below it.
+    const ratio = () => window.evaluate(() => devicePixelRatio);
+    const unzoomed = await ratio();
     await menubar.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Zoom In' }).click();
-    await expect.poll(overlay).toBeGreaterThanOrEqual(40);
-    expect(await overlay()).toBeLessThanOrEqual(41);
-    await expect.poll(async () => Math.abs(await bar() - (await overlay())!)).toBeLessThanOrEqual(1);
+    await expect.poll(ratio).toBeGreaterThan(unzoomed);
+    await expect.poll(overlay).toBeGreaterThanOrEqual(39);
+    expect(await overlay()).toBeLessThanOrEqual(40);
+    expect(await line()).toBeGreaterThan(0.5);
+    expect(await line()).toBeLessThan(1.5);
     await menubar.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Actual Size' }).click();
-    await expect.poll(overlay).toBe(40);
+    await expect.poll(overlay).toBe(39);
   }
 
   // Opening a document gives it a tab; a view shows over the tabs without one, and the tab comes back.

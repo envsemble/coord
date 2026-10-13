@@ -35,6 +35,7 @@ const api: AtlasBridge = {
   copy: text => call('shell:copy', text),
   theme: () => call('app:theme'),
   setTheme: preference => call('app:setTheme', preference),
+  about: () => call('app:about'),
   command: command => call('app:command', command),
   exportPlan: work => call('plan:export', work),
   chooseImport: () => call('plan:importChoose'),

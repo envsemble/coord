@@ -22,6 +22,8 @@ body { margin: 0; }
    theme at the end, before the window buttons the system draws. */
 .title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
 .title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
+/* Back and forward, close together after the menus. */
+.history-buttons { display: flex; align-items: center; }
 .computer-trigger { max-inline-size: 16rem; }
 
 /* The workbench: tabs stick at the top of the shell's content area, which scrolls the page below them. */
@@ -71,6 +73,12 @@ body { margin: 0; }
 .section-toolbar > :first-child { margin-inline-end: auto; }
 .work-search { inline-size: min(22rem, 100%); }
 .page-empty { padding-block: var(--space-8); }
+
+/* Rows that open one thing: the row's main link or button stretches over the row, which envUI's
+   interactive row positions, so a press anywhere on it opens that; the row's other controls stay
+   above it. */
+.row-target::after { content: ''; position: absolute; inset: 0; }
+.work-row .diagram-count, .folder-row .row-actions { position: relative; }
 
 /* Work list */
 .work-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
@@ -236,6 +244,8 @@ body { margin: 0; }
 
 /* Dialogs */
 .dialog-form { display: grid; gap: var(--space-4); }
+/* About Atlas: the mark beside the name. */
+.about-dialog-title { display: inline-flex; align-items: center; gap: var(--space-3); }
 .dialog-subtitle { margin-block: var(--space-2) 0; }
 .dialog-error { margin: 0; color: var(--color-tone-danger); }
 .dialog-note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
