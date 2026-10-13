@@ -19,7 +19,7 @@
 - [Architecture](architecture.md): the document contracts, profiles and the Atlas host.
 - [Database capture](database-capture.md) and [code capture](code-capture.md): the capture adapters and their limits.
 - [Comparison](comparison.md): proposals, baselines, merges and cross-layer mappings.
-- [Learning reports](learning-reports.md): walkthroughs, scenario checks and printing.
+- [Learning guide](learning-reports.md): walkthroughs and finite scenario checks in the viewer's **Understand the model** guide.
 - [Portable documents](portable-documents.md): exporting and reopening a single model.
 - [Viewer](viewer.md) and [embedding](embedding.md): the viewer's behavior, and using the diagram package and its React panel elsewhere.
 - [PR/MR review](review-ci.md): offline architecture reviews of model changes.

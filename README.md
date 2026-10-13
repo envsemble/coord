@@ -105,13 +105,13 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 
 - Standard [OntoUML exchange JSON](https://github.com/OntoUML/ontouml-schema) and versioned [Atlas documents](docs/architecture.md) keep model semantics separate from scenes and UI.
 - The [atlas command and stdio MCP server](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results.
-- [Proposals](docs/comparison.md) retain frozen baselines. Baseline/Changes share positions; three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
+- [Proposals](docs/comparison.md) retain frozen baselines and open in one change view: the proposal with what it removes kept in place, every change marked, and a list of the changes to step through. Three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
 - In the app, elements link to the plan passages, glossary entries, decisions and code evidence they explain, and plans link back to them.
-- [Learning reports](docs/learning-reports.md) include walkthroughs, finite scenario checks, glossary, source dates, coverage, SVG diagrams and printing. Exported HTML can be imported and revised later.
+- The viewer's **Understand the model** guide holds [walkthroughs and finite scenario checks](docs/learning-reports.md); each element's details hold its rationale, open questions and linked planning passages. Exported HTML can be imported and revised later.
 - The validator combines the official schema with reference, ownership and count checks and a documented subset of OntoUML rules. It does not establish domain accuracy or full ontology model checking; [rule coverage](docs/architecture.md) and [finite-example limits](docs/learning-reports.md) remain visible. Guidance paraphrases the [OntoUML specification](https://ontouml.readthedocs.io/en/latest/).
 - The diagram package works outside Atlas too, as a Node library and a React panel: see [embedding](docs/embedding.md).
 
-![Agent proposal compared with its captured baseline: Baseline and Changes modes, and a change list grouping added and modified elements with before and after values and linked rationale](assets/comparison-dark.jpg)
+![An agent proposal in its change view: new and changed classes and relations marked on the canvas, unchanged ones faded, and the Changes list beside it with each changed type's members summarized](assets/comparison-dark.jpg)
 
 ## Develop
 
