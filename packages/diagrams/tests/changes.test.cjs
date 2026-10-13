@@ -1558,6 +1558,23 @@ test("a table's foreign keys are told once: by the relation that shows them, or 
     tokensOf(twin.rollup.rows.find((r) => r.name === "orders")),
     ["removed foreign key user_id → legacy_users(id)"],
   );
+  // So do two to the same table's different columns.
+  const columns = await tableProposal(
+    {
+      ...ordersTable(),
+      foreignKeys: [
+        { ...key, target: "accounts" },
+        { ...key, target: "accounts", targetColumns: ["legacy_id"] },
+      ],
+    },
+    (orders) => {
+      orders.foreignKeys = [{ ...key, target: "accounts" }];
+    },
+  );
+  assert.deepEqual(
+    tokensOf(columns.rollup.rows.find((r) => r.name === "orders")),
+    ["removed foreign key user_id → accounts(legacy_id)"],
+  );
   // PostgreSQL lists a foreign key as a constraint; its relation tells it.
   const constraint = {
     name: "orders_user_id_fkey",

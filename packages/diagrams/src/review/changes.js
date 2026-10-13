@@ -150,13 +150,12 @@ export function partChange(before, after) {
     `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`,
   ];
 }
-// A part keeps its identity by its name; a foreign key by its columns.
 // A part keeps its identity by its name; a foreign key by its columns and
-// the table it refers to.
+// the table and columns it refers to.
 export const partKey = (item) =>
   isPart(item)
     ? isForeignKey(item)
-      ? `key:${JSON.stringify([item.columns, item.target])}`
+      ? `key:${JSON.stringify([item.columns, item.target, item.targetColumns ?? []])}`
       : `name:${item.name}`
     : JSON.stringify(item);
 /**

@@ -520,7 +520,7 @@ function partChange(before, after) {
     `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`
   ];
 }
-var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target])}` : `name:${item.name}` : JSON.stringify(item);
+var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target, item.targetColumns ?? []])}` : `name:${item.name}` : JSON.stringify(item);
 function itemChanges(note) {
   const before = note.before?.present ? note.before.value : [];
   const after = note.after?.present ? note.after.value : [];
