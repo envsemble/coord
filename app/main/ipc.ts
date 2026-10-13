@@ -262,6 +262,8 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'access:pairingCreate': {
       args: [computer, nullable(ipAddress), grant],
       handle: async (window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
+        // A computer no longer paired fails here, before the question.
+        if (id !== null && !connections.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
         const detail = granted.manageAccess ? 'A device that uses it can work on the planning folders and manage who else has access.' : 'A device that uses it can work on the planning folders.';
         if (!(await window.ask(`Create a pairing link for ${id === null ? 'this computer' : connections.name(id)}?`, 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
         const link = await remoteErrors(connections.use(id, client => client.request('access.pairingCreate', { address, ...granted })));

@@ -37,9 +37,9 @@ export const titleBarOverlay = (zoom = 1) => {
   return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
 };
 /**
- * Where a person's press starts, which a page cannot fake: a mouse button, a key (raw from the
- * system, or cooked when a test injects it; not its repeats) or a touch. Releases and the characters
- * a key types do not count, so each press allows one command.
+ * Where a person's press starts, which a page cannot fake: a mouse button, a key (one raw or cooked
+ * key-down per press; not its repeats) or a touch. Releases and the characters a key types do not
+ * count, so each press allows one command.
  */
 const pressStarts = new Set(['mouseDown', 'rawKeyDown', 'keyDown', 'touchStart']);
 /** macOS keeps its traffic lights, centred in the title bar; elsewhere the overlay draws minimize, maximize and close. */
