@@ -490,6 +490,52 @@ function nameIndex(...models) {
   return names;
 }
 var textOf = (value) => typeof value === "string" ? value : value && typeof value === "object" && !Array.isArray(value) ? Object.values(value).find((v) => typeof v === "string") ?? null : null;
+var isForeignKey = (item) => Array.isArray(item?.columns) && typeof item.target === "string";
+var isPart = (item) => !!item && typeof item === "object" && !Array.isArray(item) && typeof item.$element !== "string" && (isForeignKey(item) || typeof item.name === "string" && !!item.name);
+var foreignKeyText = (key) => `${key.columns.join(", ")} \u2192 ${key.target}(${(key.targetColumns || []).join(", ")})`;
+function partName(item) {
+  return isForeignKey(item) ? foreignKeyText(item) : item.name;
+}
+function describePart(item) {
+  if (isForeignKey(item))
+    return [
+      foreignKeyText(item),
+      item.onDelete && `on delete ${String(item.onDelete).toLowerCase()}`,
+      item.onUpdate && `on update ${String(item.onUpdate).toLowerCase()}`
+    ].filter(Boolean).join(", ");
+  const statement = typeof item.definition === "string" ? item.definition : typeof item.sql === "string" ? item.sql : "";
+  const plain = Array.isArray(item.columns) && item.columns.length > 0 && item.columns.every((c) => typeof c === "string") && !item.partial && !item.predicate && !item.expressions && !CHECKS.has(item.type);
+  if (!plain && statement) return statement;
+  const columns = Array.isArray(item.columns) ? `(${item.columns.filter(Boolean).join(", ")})` : "";
+  const flags = ["unique", "partial"].filter((flag) => item[flag] === true);
+  return [columns, ...flags].filter(Boolean).join(", ") || item.name;
+}
+var CHECKS = /* @__PURE__ */ new Set(["c", "x", "f", "t"]);
+function partChange(before, after) {
+  const was = describePart(before), is = describePart(after);
+  if (was !== is) return [was, is];
+  const fields = [.../* @__PURE__ */ new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k])).map((k) => [k, readable(before[k]), readable(after[k])]);
+  return [
+    `${was}; ${fields.map(([k, b]) => `${k} ${b}`).join("; ")}`,
+    `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`
+  ];
+}
+var partKey = (item) => isPart(item) ? isForeignKey(item) ? `columns:${JSON.stringify(item.columns)}` : `name:${item.name}` : JSON.stringify(item);
+function itemChanges(note) {
+  const before = note.before?.present ? note.before.value : [];
+  const after = note.after?.present ? note.after.value : [];
+  if (!Array.isArray(before) || !Array.isArray(after)) return null;
+  const was = new Map(before.map((item) => [partKey(item), item]));
+  const now = new Map(after.map((item) => [partKey(item), item]));
+  const out = [];
+  for (const [key, item] of now)
+    if (!was.has(key)) out.push({ status: "added", after: item });
+    else if (JSON.stringify(was.get(key)) !== JSON.stringify(item))
+      out.push({ status: "modified", before: was.get(key), after: item });
+  for (const [key, item] of was)
+    if (!now.has(key)) out.push({ status: "removed", before: item });
+  return out;
+}
 function readable(value, names = /* @__PURE__ */ new Map()) {
   if (typeof value === "string") return names.get(value) ?? value;
   if (value === void 0 || value === null) return "none";
@@ -498,7 +544,7 @@ function readable(value, names = /* @__PURE__ */ new Map()) {
   if (Array.isArray(value))
     return value.length ? value.map((item) => readable(item, names)).join(", ") : "none";
   if (typeof value === "object") {
-    if (typeof value.name === "string" && value.name) return value.name;
+    if (isPart(value)) return describePart(value);
     const text2 = Object.values(value).find((v) => typeof v === "string");
     if (text2 !== void 0 && Object.keys(value).length <= 3) return text2;
   }
@@ -517,13 +563,12 @@ var MEMBER_LISTS = /* @__PURE__ */ new Set([
   "literals",
   "contents"
 ]);
-var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["foreignKeys"]);
 var isElementList = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every(
   (v) => v && typeof v === "object" && typeof v.$element === "string"
 );
 var isIdentityList = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every((v) => typeof v === "string");
 var meaningfulProperties = (change) => (change?.properties || []).filter(
-  (p) => !TOLD_ELSEWHERE.has(p.key) && !(isElementList(p.before) && isElementList(p.after)) && !(CONTAINER_KEYS.has(p.key) && isIdentityList(p.before) && isIdentityList(p.after))
+  (p) => !(isElementList(p.before) && isElementList(p.after)) && !(CONTAINER_KEYS.has(p.key) && isIdentityList(p.before) && isIdentityList(p.after))
 );
 var listItems = (cell) => cell?.present && Array.isArray(cell.value) ? cell.value.map((v) => typeof v === "string" ? v : v?.$element).filter((v) => typeof v === "string") : [];
 function listDelta(p) {
@@ -684,22 +729,17 @@ var modelLevelType = (change, ontouml) => {
   return ontouml && (type === "Project" || type === "Package") ? type.toLowerCase() : null;
 };
 function listTokens(note, names, prefix = "") {
-  const before = note.before?.present ? note.before.value : [];
-  const after = note.after?.present ? note.after.value : [];
-  if (!Array.isArray(before) || !Array.isArray(after)) return null;
-  const key = (item) => JSON.stringify(item);
-  const had = new Set(before.map(key)), has = new Set(after.map(key));
-  const added = after.filter((item) => !had.has(key(item))).map((item) => readable(item, names));
-  const removed = before.filter((item) => !has.has(key(item))).map((item) => readable(item, names));
-  const changed = added.filter((text) => removed.includes(text));
-  return [
-    ...changed.map((text) => ({ status: "modified", text })),
-    ...added.filter((text) => !changed.includes(text)).map((text) => ({ status: "added", text })),
-    ...removed.filter((text) => !changed.includes(text)).map((text) => ({ status: "removed", text }))
-  ].map((token) => ({
-    ...token,
-    text: shorten(prefix ? `${prefix} ${token.text}` : token.text, 60)
-  }));
+  const changes = itemChanges(note);
+  if (!changes?.length) return null;
+  const order = { modified: 0, added: 1, removed: 2 };
+  return changes.sort((a, b) => order[a.status] - order[b.status]).map(({ status, before, after }) => {
+    const item = after ?? before;
+    const text = isPart(item) ? partName(item) : readable(item, names);
+    return {
+      status,
+      text: shorten(prefix ? `${prefix} ${text}` : text, 60)
+    };
+  });
 }
 function rollupChanges(comparison, model, views) {
   if (!comparison?.changes || !model) return null;
@@ -927,12 +967,21 @@ function rollupChanges(comparison, model, views) {
       entry.members = [
         ...(c?.attributes || []).map((m) => ({ member: m, method: false })),
         ...(c?.methods || []).map((m) => ({ member: m, method: true }))
-      ].map(({ member, method }) => ({
-        id: member.id,
-        status: entry.status,
-        label: memberLabel(member, method),
-        member: { name: member.name, type: member.type, method }
-      }));
+      ].map(({ member, method }) => {
+        const move = moves.get(member.id);
+        const other = entry.status === "added" ? move?.from : move?.to ?? (move ? currentOwner(member.id) : void 0);
+        return {
+          id: member.id,
+          status: entry.status,
+          label: memberLabel(member, method),
+          member: { name: member.name, type: member.type, method },
+          ...other ? {
+            moved: {
+              [entry.status === "added" ? "from" : "to"]: placeName(other)
+            }
+          } : {}
+        };
+      });
     }
     entry.summary = summarize(entry, names);
   }
@@ -968,6 +1017,7 @@ function rollupChanges(comparison, model, views) {
   };
 }
 var SINGULAR = {
+  foreignKeys: "foreign key",
   keys: "key",
   indexes: "index",
   constraints: "constraint",
@@ -977,7 +1027,7 @@ var SINGULAR = {
 function noteTokens(n, names, lists = true) {
   if (lists && n.property !== "moved") {
     const tokens = listTokens(n, names, SINGULAR[n.property] ?? n.property);
-    if (tokens) return tokens;
+    if (tokens?.length) return tokens;
   }
   const before = cellText(n.before, names, n.property), after = cellText(n.after, names, n.property);
   if (before.length > MAX_INLINE || after.length > MAX_INLINE || /\n/.test(before + after))
@@ -1091,14 +1141,34 @@ function describeClassChange(rollup, element, profile) {
   }
   return {
     status: entry.status,
-    properties: entry.notes.map((n) => ({
-      key: n.key,
-      before: cellText(n.before, names, n.property),
-      after: cellText(n.after, names, n.property),
-      beforePresent: !!n.before?.present,
-      afterPresent: !!n.after?.present
-    })),
+    properties: entry.notes.flatMap((n) => {
+      const parts = itemChanges(n);
+      if (parts?.length && parts.every((c) => isPart(c.after ?? c.before)))
+        return parts.map(({ status, before, after }) => {
+          const part = after ?? before;
+          const [was, is] = before && after ? partChange(before, after) : [
+            before ? describePart(before) : "none",
+            after ? describePart(after) : "none"
+          ];
+          return {
+            key: isForeignKey(part) ? "foreign key" : `${SINGULAR[n.property] ?? n.property} ${partName(part)}`,
+            status,
+            before: was,
+            after: is
+          };
+        });
+      return [
+        {
+          key: n.key,
+          status: "modified",
+          before: cellText(n.before, names, n.property),
+          after: cellText(n.after, names, n.property)
+        }
+      ];
+    }),
     members: entry.status === "modified" ? changed : [],
+    // Members of a new or removed type that moved there or away.
+    moved: entry.status === "modified" ? [] : entry.members.filter((m) => m.moved),
     entry
   };
 }
@@ -4191,8 +4261,9 @@ function linkedRecords(model, ids) {
 }
 var KIND_WORDS = { "type alias": "type alias", enum: "enum" };
 var countOf = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-function contents(element, profile) {
-  const fields = element.attributes?.length || 0, methods = element.methods?.length || 0;
+function contents(element, profile, except = /* @__PURE__ */ new Set()) {
+  const own = (members) => (members || []).filter((m) => !except.has(m.id));
+  const fields = own(element.attributes).length, methods = own(element.methods).length;
   const field = profile === "database" ? "column" : element.stereotype === "enum" ? "member" : profile === "code" ? "field" : "attribute";
   return [
     fields ? countOf(fields, field) : "",
@@ -4220,7 +4291,11 @@ function ChangedProperty({ name, before, after }) {
 function WhatChanges({ change, element, model, profile }) {
   if (!change) return null;
   const kind = KIND_WORDS[element.stereotype] || element.stereotype || (profile === "database" ? "table" : "class");
-  const held = contents(element, profile);
+  const moved = change.moved || [];
+  const held = contents(element, profile, new Set(moved.map((m) => m.id)));
+  const movedText = moved.length ? `${moved.map(
+    (m) => m.moved.to ? `${m.label} moved to ${m.moved.to}` : `${m.label} moved from ${m.moved.from}`
+  ).join("; ")}.` : "";
   if (change.status === "added") {
     const file = profile === "code" ? elementFile(element, model) : null;
     const declared = profile === "code" && !file ? decodeIdentity(element.id)?.name : null;
@@ -4231,6 +4306,7 @@ function WhatChanges({ change, element, model, profile }) {
         held ? ` with ${held}` : "",
         "."
       ] }),
+      movedText && /* @__PURE__ */ jsx21(Text6, { children: movedText }),
       file ? /* @__PURE__ */ jsxs14(Text6, { className: "proposed-location", children: [
         "Proposed in ",
         /* @__PURE__ */ jsx21("code", { children: file }),
@@ -4242,23 +4318,45 @@ function WhatChanges({ change, element, model, profile }) {
     ] });
   }
   if (change.status === "removed")
-    return /* @__PURE__ */ jsx21(Section, { title: "What changes", children: /* @__PURE__ */ jsxs14(Text6, { children: [
-      "The ",
-      kind,
-      " is removed",
-      held ? `, with its ${held}` : "",
-      "."
-    ] }) });
+    return /* @__PURE__ */ jsxs14(Section, { title: "What changes", children: [
+      /* @__PURE__ */ jsxs14(Text6, { children: [
+        "The ",
+        kind,
+        " is removed",
+        held ? `, with its ${held}` : "",
+        "."
+      ] }),
+      movedText && /* @__PURE__ */ jsx21(Text6, { children: movedText })
+    ] });
   if (!change.properties.length && !change.members.length) return null;
   return /* @__PURE__ */ jsx21(Section, { title: "What changes", children: /* @__PURE__ */ jsxs14("ul", { className: "change-list", children: [
     change.properties.map((p, i) => /* @__PURE__ */ jsxs14(
       "li",
       {
         className: "change-line",
-        "data-change": "modified",
+        "data-change": p.status,
         children: [
-          /* @__PURE__ */ jsx21(ChangeMark, { status: "modified" }),
-          /* @__PURE__ */ jsx21("span", { className: "change-line-text", children: /* @__PURE__ */ jsx21(ChangedProperty, { name: p.key, before: p.before, after: p.after }) })
+          /* @__PURE__ */ jsx21(ChangeMark, { status: p.status }),
+          /* @__PURE__ */ jsx21("span", { className: "change-line-text", children: p.status === "modified" ? /* @__PURE__ */ jsx21(
+            ChangedProperty,
+            {
+              name: p.key,
+              before: p.before,
+              after: p.after
+            }
+          ) : (
+            // A part of a table that is new or removed, as it reads.
+            /* @__PURE__ */ jsxs14("span", { children: [
+              /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+                CHANGE_LABELS[p.status],
+                ":",
+                " "
+              ] }),
+              /* @__PURE__ */ jsx21("span", { className: "change-key", children: p.key }),
+              " ",
+              /* @__PURE__ */ jsx21("code", { className: "signature", children: p.status === "added" ? p.after : p.before })
+            ] })
+          ) })
         ]
       },
       `${p.key}-${i}`
@@ -4471,9 +4569,35 @@ function TableSchema({
   const columns = element.attributes || [];
   const marks = review && element.changeStatus === "modified";
   const outgoing = foreignKeys(element, model, rollup);
+  const record = rollup ? rowFor(rollup, { kind: "node", id: element.id })?.changes.find(
+    (c) => c.elementId === element.id
+  ) : null;
+  const keyNote = record?.properties?.find((p) => p.key === "keys");
+  const keyChanges = new Map(
+    (keyNote ? itemChanges(keyNote) || [] : []).filter((c) => !(c.after ?? c.before)?.primary).map((c) => [(c.after ?? c.before).name, c])
+  );
   const tables = new Map(model.classes.map((c) => [c.id, c.name]));
   const keyText = (relation) => `${relation.columns.join(", ")} \u2192 ${tables.get(relation.targetId) || relation.target}(${(relation.targetColumns || []).join(", ")})`;
-  const unique = (element.keys || []).filter((key) => !key.primary);
+  const unique = [
+    ...(element.keys || []).filter((key) => !key.primary),
+    ...[...keyChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
+  ];
+  const sameColumns = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const foreignNote = record?.properties?.find((p) => p.key === "foreignKeys");
+  const foreignChanges = new Map(
+    (foreignNote ? itemChanges(foreignNote) || [] : []).map((c) => [
+      JSON.stringify((c.after ?? c.before).columns),
+      c
+    ])
+  );
+  const external = [
+    ...(element.foreignKeys || []).filter(
+      (key) => Array.isArray(key.columns) && !outgoing.some(
+        ({ relation }) => sameColumns(relation.columns, key.columns)
+      )
+    ),
+    ...[...foreignChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
+  ];
   const sql = [
     element.definition,
     ...(element.constraints || []).map((c) => c.definition),
@@ -4513,20 +4637,41 @@ function TableSchema({
         column.id
       );
     }) }) }),
-    (outgoing.length > 0 || unique.length > 0) && /* @__PURE__ */ jsx21(Section, { title: "Keys", children: /* @__PURE__ */ jsxs14(
+    (outgoing.length > 0 || unique.length > 0 || external.length > 0) && /* @__PURE__ */ jsx21(Section, { title: "Keys", children: /* @__PURE__ */ jsxs14(
       "ul",
       {
-        className: `member-list${outgoing.some((key) => key.status) ? " marked" : ""}`,
+        className: `member-list${outgoing.some((key) => key.status) || keyChanges.size || foreignChanges.size ? " marked" : ""}`,
         children: [
-          unique.map((key) => /* @__PURE__ */ jsx21("li", { className: "member", children: /* @__PURE__ */ jsxs14("code", { className: "signature", children: [
-            /* @__PURE__ */ jsx21("span", { className: "member-name", children: "unique" }),
-            " ",
-            /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
-              "(",
-              key.columns.join(", "),
-              ")"
-            ] })
-          ] }) }, key.name)),
+          unique.map((key) => {
+            const change = keyChanges.get(key.name);
+            return /* @__PURE__ */ jsxs14(
+              "li",
+              {
+                className: "member",
+                "data-change": change?.status,
+                children: [
+                  change && /* @__PURE__ */ jsx21(ChangeMark, { status: change.status }),
+                  change && /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+                    CHANGE_LABELS[change.status],
+                    ":",
+                    " "
+                  ] }),
+                  /* @__PURE__ */ jsxs14("code", { className: "signature", children: [
+                    /* @__PURE__ */ jsx21("span", { className: "member-name", children: "unique" }),
+                    " ",
+                    /* @__PURE__ */ jsx21("span", { className: "member-type", children: change?.status === "modified" ? /* @__PURE__ */ jsx21(
+                      ChangedValue,
+                      {
+                        before: describePart(change.before),
+                        after: describePart(change.after)
+                      }
+                    ) : `(${key.columns.join(", ")})` })
+                  ] })
+                ]
+              },
+              key.name
+            );
+          }),
           outgoing.map(({ relation, previous, status, details, names }) => /* @__PURE__ */ jsxs14(
             "li",
             {
@@ -4573,7 +4718,43 @@ function TableSchema({
               ]
             },
             relation.id
-          ))
+          )),
+          external.map((key) => {
+            const change = foreignChanges.get(JSON.stringify(key.columns));
+            return /* @__PURE__ */ jsxs14(
+              "li",
+              {
+                className: "member",
+                "data-change": change?.status,
+                children: [
+                  change && /* @__PURE__ */ jsx21(ChangeMark, { status: change.status }),
+                  change && /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+                    CHANGE_LABELS[change.status],
+                    ":",
+                    " "
+                  ] }),
+                  /* @__PURE__ */ jsx21("code", { className: "signature", children: change?.status === "modified" ? /* @__PURE__ */ jsx21(
+                    ChangedValue,
+                    {
+                      before: describePart(change.before),
+                      after: describePart(change.after)
+                    }
+                  ) : /* @__PURE__ */ jsxs14(Fragment7, { children: [
+                    /* @__PURE__ */ jsx21("span", { className: "member-name", children: key.columns.join(", ") }),
+                    " ",
+                    /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
+                      "\u2192 ",
+                      key.target,
+                      "(",
+                      (key.targetColumns || []).join(", "),
+                      ")"
+                    ] })
+                  ] }) })
+                ]
+              },
+              JSON.stringify(key.columns)
+            );
+          })
         ]
       }
     ) }),
