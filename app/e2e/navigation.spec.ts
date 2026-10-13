@@ -144,3 +144,20 @@ test('going back reopens a closed tab as a preview at its place, and fields and 
   await expect(window.locator('[role="treeitem"][data-id="d:knowledge/shop"]')).toHaveAttribute('aria-expanded', 'true');
 });
 
+test('a work row opens from anywhere on it, and its diagram count opens its diagrams', async () => {
+  launched = await launch({ folder });
+  const { window } = launched;
+  const row = window.locator('.work-row', { hasText: 'Order fulfilment model' });
+  await expect(row).toBeVisible();
+  // A press on the row's details, away from its title, opens the work item.
+  const detail = (await row.getByText('#0002').boundingBox())!;
+  await window.mouse.click(detail.x + detail.width / 2, detail.y + detail.height / 2);
+  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await row.locator('.diagram-count').click();
+  await expect(section(window)).toContainText('Diagrams');
+  await expect(window.locator('.model-picker-title')).toBeVisible();
+  // One link names the row for the keyboard and screen readers.
+  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await expect(row.getByRole('link')).toHaveText(['Order fulfilment model', /1/]);
+});

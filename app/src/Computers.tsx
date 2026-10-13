@@ -156,8 +156,9 @@ export function FolderRows({ computer, folders, current, onError, onOpened }: {
   return <GroupedRows className="folder-rows" aria-label={'Planning folders on ' + computer.name}>{folders.map(folder => {
     const here = current?.(folder) ?? false;
     const facts = [folder.available ? folder.workItems !== null && plural(folder.workItems, 'work item') : null, folder.openedAt && 'opened ' + relativeDate(folder.openedAt)].filter(Boolean).join(' · ');
-    return <Row key={folder.folderId} className="folder-row" data-current={here || undefined}
-      title={<button type="button" className="row-link" disabled={!folder.available} aria-current={here || undefined} title={'Open ' + folder.path}
+    // An available folder opens from anywhere on its row: its name's button covers the row.
+    return <Row key={folder.folderId} interactive={folder.available} className="folder-row" data-current={here || undefined}
+      title={<button type="button" className={'row-link' + (folder.available ? ' row-target' : '')} disabled={!folder.available} aria-current={here || undefined} title={'Open ' + folder.path}
         onClick={(event: MouseEvent) => openFolder(computer, folder, wantsNewWindow(event), onError, onOpened)}>
         <span className="row-link-title">{folder.name}</span>
         {!folder.available && <Badge tone="warning">Missing</Badge>}

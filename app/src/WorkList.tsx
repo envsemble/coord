@@ -10,16 +10,17 @@ import { TargetLink } from './workbenchContext';
 import { StepBar } from './LedgerProgress';
 import { Page, RepositorySelect, type RepositoryFilter } from './Pages';
 
+/** A work item: the whole row opens it (its title link covers the row); its diagram count opens its diagrams. */
 function WorkRow({ work }: { work: Work }) {
   const status = workStatus(work);
   const note = designNote(work);
   const updated = work.progress?.updated ?? work.updated;
   const counts = work.progress?.steps ? stepCounts(work.progress.steps) : null;
   const finished = ['complete', 'superseded', 'abandoned'].includes(status.key);
-  return <Row className="work-row"
+  return <Row interactive className="work-row"
     title={<span className="work-row-title">
       <StatusIcon status={status} />
-      <TargetLink target={workTarget(work.id)}>{work.title}</TargetLink>
+      <TargetLink className="row-target" target={workTarget(work.id)}>{work.title}</TargetLink>
       {work.repositories.map(id => <RepositoryBadge key={id} id={id} />)}
     </span>}
     detail={<span className="work-row-meta">

@@ -74,6 +74,12 @@ body { margin: 0; }
 .work-search { inline-size: min(22rem, 100%); }
 .page-empty { padding-block: var(--space-8); }
 
+/* Rows that open one thing: the row's main link or button stretches over the row, which envUI's
+   interactive row positions, so a press anywhere on it opens that; the row's other controls stay
+   above it. */
+.row-target::after { content: ''; position: absolute; inset: 0; }
+.work-row .diagram-count, .folder-row .row-actions { position: relative; }
+
 /* Work list */
 .work-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .work-row-meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
