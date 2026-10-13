@@ -194,8 +194,8 @@ export function createCamera({
         Math.max(...anchors.map((n) => n.y + n.h))) /
       2;
     const area = visibleArea();
-    // Zoom out from 0.7 only as far as the focused nodes need to fit together
-    // (never below the whole diagram's fit, which was smaller still).
+    // Zoom out from 0.7 only as far as the focused nodes need to fit together,
+    // and not below 0.5, where names stay readable: a larger focus is centred.
     const width =
       Math.max(...anchors.map((n) => n.x + n.w)) -
       Math.min(...anchors.map((n) => n.x));
@@ -204,6 +204,7 @@ export function createCamera({
       Math.min(...anchors.map((n) => n.y));
     const scale = Math.max(
       camera.scale,
+      0.5,
       Math.min(
         0.7,
         (area.width - 2 * FIT_PADDING) / Math.max(1, width),
