@@ -207,6 +207,13 @@ export function rollupChanges(comparison, model) {
       targetName: target?.name,
       tag: edgeTag(edge),
       label: informativeName(edge),
+      // A type-use dependency says which of the source's members use the target.
+      via:
+        edge.stereotype === "dependency" && !informativeName(edge)
+          ? dependencyMembers(source, target).map(({ member, method }) =>
+              memberLabel(member, method),
+            )
+          : [],
       members: [],
       notes: [],
     }));
@@ -341,10 +348,13 @@ function summarize(entry, names) {
       (n) =>
         `${n.key}: ${shorten(cellText(n.before, names), 40)} → ${shorten(cellText(n.after, names), 40)}`,
     );
+    const via = entry.via.length
+      ? `via ${entry.via.slice(0, MAX_TOKENS - 1).join(", ")}`
+      : "";
     return {
-      text: [entry.label, ...notes].filter(Boolean).join(" · "),
+      text: [entry.label || via, ...notes].filter(Boolean).join(" · "),
       tokens: [],
-      more: 0,
+      more: Math.max(0, entry.via.length - (MAX_TOKENS - 1)),
     };
   }
   const members = entry.members;

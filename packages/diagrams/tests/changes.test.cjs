@@ -222,8 +222,11 @@ test("changes roll up per element: types with their members, then relations, wit
     rollup.rows.find((r) => r.name === "Vault").summary.text,
     "save()",
   );
-  // Relations of a profile's single kind carry no tag.
-  assert.equal(rollup.rows.find((r) => r.name === "Checkout → Vault").tag, "");
+  // Relations of a profile's single kind carry no tag; a type use names
+  // the members that declare it.
+  const uses = rollup.rows.find((r) => r.name === "Checkout → Vault");
+  assert.equal(uses.tag, "");
+  assert.equal(uses.summary.text, "via vault");
   assert.equal(rowFor(rollup, { kind: "node", id: CHECKOUT }), checkout);
   const element = payload.comparison.changeView.model.classes.find(
     (c) => c.id === CHECKOUT,
