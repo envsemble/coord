@@ -5003,6 +5003,7 @@ function ChangeRow({ row, active, onSelect, onHover }) {
       type: "button",
       className: "change-row",
       "data-change": row.status,
+      "data-key": row.key,
       "aria-current": active ? "true" : void 0,
       onClick: () => onSelect(row),
       onPointerEnter: () => onHover?.(row.target),
@@ -5025,9 +5026,11 @@ function RowList({ rows, label, active, onSelect, onHover }) {
     row.key
   )) });
 }
-function RelationRows({ group, active, onSelect, onHover }) {
+function RelationRows({ group, active, returning, onSelect, onHover }) {
   const rows = group.relations;
-  const [open, setOpen] = useState10(() => rows.some((r) => r.key === active));
+  const [open, setOpen] = useState10(
+    () => rows.some((r) => r.key === active || r.key === returning)
+  );
   const list = /* @__PURE__ */ jsx25(
     RowList,
     {
@@ -5079,11 +5082,13 @@ function ChangesOverview({
 }) {
   const list = useRef8(null);
   useEffect8(() => {
-    if (handoff?.current !== "overview") return;
+    const request = handoff?.current;
+    if (request?.to !== "overview") return;
     handoff.current = null;
-    const rows = list.current?.querySelectorAll("button.change-row");
-    const target = list.current?.querySelector('button.change-row[aria-current="true"]') || rows?.[0];
-    target?.focus();
+    const rows = [
+      ...list.current?.querySelectorAll("button.change-row") || []
+    ];
+    (rows.find((row) => row.dataset.key === request.key) || rows[0])?.focus();
   }, [handoff]);
   const source = profile === "code" ? "the code" : profile === "database" ? "the database" : "the model";
   return /* @__PURE__ */ jsxs17(Stack5, { gap: 4, className: "changes-overview", children: [
@@ -5145,6 +5150,7 @@ function ChangesOverview({
             {
               group,
               active,
+              returning: handoff?.current?.key,
               onSelect,
               onHover
             }
@@ -5158,7 +5164,7 @@ function ChangesOverview({
 function ChangeNavigation({ position, total, handoff, onBack, onStep }) {
   const back = useRef8(null);
   useLayoutEffect9(() => {
-    if (handoff?.current !== "details") return;
+    if (handoff?.current?.to !== "details") return;
     handoff.current = null;
     back.current?.focus();
   }, [handoff]);
@@ -5244,19 +5250,23 @@ function useChangeReview({
   }, [select, onShowPanel, setOverview]);
   const openRow = useCallback4(
     (row) => {
-      handoff.current = "details";
+      handoff.current = { to: "details" };
       open(row);
     },
     [open]
   );
   const backToOverview = useCallback4(() => {
-    handoff.current = "overview";
+    handoff.current = { to: "overview", key: current?.key };
     back();
-  }, [back]);
+  }, [back, current]);
   if (!rollup) return null;
   return {
     rollup,
     details,
+    /** Leaving a change's details by keyboard returns focus to it in the overview. */
+    returnFocus: () => {
+      if (overview) handoff.current = { to: "overview", key: current?.key };
+    },
     fade,
     position,
     total,
@@ -5482,9 +5492,14 @@ function ViewerContent({
     },
     [hover]
   );
+  const latestChanges = useRef10(null);
+  latestChanges.current = changes;
   useEffect9(() => {
     const escape = (e) => {
-      if (e.key === "Escape") clear();
+      if (e.key !== "Escape") return;
+      if (e.target.closest?.(".inspector"))
+        latestChanges.current?.returnFocus();
+      clear();
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
@@ -5813,10 +5828,13 @@ function AtlasPanelContent({
     if (open && selected?.kind === "node")
       camera.current?.revealNode(selected.id);
   }, [open]);
+  const latestChanges = useRef11(null);
+  latestChanges.current = changes;
   useEffect10(() => {
     const escape = (e) => {
-      if (e.key === "Escape" && e.target.closest?.(".atlas-panel"))
-        select(null);
+      if (e.key !== "Escape" || !e.target.closest?.(".atlas-panel")) return;
+      if (e.target.closest(".inspector")) latestChanges.current?.returnFocus();
+      select(null);
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
