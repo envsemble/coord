@@ -48,6 +48,22 @@ test('the title bar holds the menus, the computer and the actions; the views are
   await expect(window.getByRole('menuitemradio', { name: /^planning/ })).toHaveAttribute('aria-checked', 'true');
   await window.keyboard.press('Escape');
   await window.keyboard.press('Escape');
+  await expect(window.getByRole('menu')).toHaveCount(0);
+
+  // Alt with a menu's letter opens it from the keyboard.
+  await window.keyboard.press('Alt+V');
+  await expect(window.getByRole('menu', { name: 'View' })).toBeVisible();
+  await window.keyboard.press('Escape');
+  await expect(window.getByRole('menu')).toHaveCount(0);
+
+  // Edit acts on the field that had focus before the menu opened.
+  const search = window.getByRole('searchbox', { name: 'Search work' }).or(window.getByLabel('Search work'));
+  await search.first().fill('fulfil');
+  await search.first().selectText();
+  await menubar.getByRole('menuitem', { name: 'Edit' }).click();
+  await window.getByRole('menuitem', { name: 'Copy' }).click();
+  await expect.poll(() => launched!.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('fulfil');
+  await search.first().fill('');
 
   // Opening a document gives it a tab; a view shows over the tabs without one, and the tab comes back.
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
