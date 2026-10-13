@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { colourSlots, completedRows, metricValue, modelSummaries, otherSeries, seriesModels, seriesOf, workRows } from './workStatistics.ts';
-import { compactNumber, duration, median } from './format.ts';
+import { agentTimeNote, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, timeSource, tokenRows, tokenText, workRows } from './workStatistics.ts';
+import { absoluteDate, compactNumber, duration, median } from './format.ts';
 import { timeTicks, valueTicks } from './components/ScatterChart.tsx';
 import type { Snapshot, Work, WorkStatistics } from './types.ts';
 
@@ -51,6 +51,38 @@ test('the three models with the most recent completed work get a colour; the res
   assert.equal(new Set(after.values()).size, 3, 'three different colours');
   const kept = ['model-c', 'model-b'].filter(model => before.get(model) === after.get(model));
   assert.ok(kept.length >= 1, 'models that stay shown mostly keep their colour when a new one arrives');
+});
+
+test('agent time says whether it was measured or estimated, and since when', () => {
+  const measured = { ...statistics('claude-opus-5-5', 5000, 3600000, 0), measuredMs: 3600000, estimatedMs: 0, measuredReports: 2, firstReport: '2026-10-08T13:00:00.000Z' };
+  assert.equal(timeSource(measured), 'measured');
+  assert.equal(agentTimeNote(measured), 'Measured from the agent\'s session logs since ' + absoluteDate('2026-10-08T13:00:00.000Z') + ': the time it worked, not the time it waited for a person.');
+  const mixed = { ...measured, agentMs: 5400000, estimatedMs: 1800000 };
+  assert.equal(timeSource(mixed), 'mixed');
+  assert.match(agentTimeNote(mixed), /^1 h measured from the agent's session logs and 30 min estimated from the time between its reports, since .+\.$/);
+  const estimated = statistics('model-a', null, 1800000, 0, '2026-10-08T13:00:00.000Z');
+  assert.equal(timeSource(estimated), 'estimated');
+  assert.match(agentTimeNote(estimated), /^Estimated from the time between the agent's reports since .+; breaks of more than two hours are left out\.$/);
+  assert.equal(timeSource(statistics(null, null, 0, 1)), null, 'no reports, nothing to say');
+});
+
+test('tokens break down by kind, with any self-reported tokens apart', () => {
+  const kinds = { input: 9300, cacheRead: 12959000, cacheWrite: 537800, output: 189400 };
+  assert.deepEqual(tokenRows({ tokens: 13815500, tokenKinds: kinds }), [
+    { label: 'Cached input', value: 12959000 }, { label: 'Cache writes', value: 537800 }, { label: 'Input', value: 9300 }, { label: 'Output', value: 189400 }, { label: 'Self-reported', value: 120000 },
+  ]);
+  assert.deepEqual(tokenRows({ tokens: 13695500, tokenKinds: kinds }).map(row => row.label), ['Cached input', 'Cache writes', 'Input', 'Output'], 'all measured');
+  assert.deepEqual(tokenRows({ tokens: 3000, tokenKinds: null }), [{ label: 'Self-reported', value: 3000 }]);
+  assert.deepEqual(tokenRows({ tokens: null, tokenKinds: null }), []);
+  assert.equal(tokenText({ tokens: 3000, tokenKinds: null }), 'Self-reported ' + compactNumber(3000));
+});
+
+test('the other models are those that did something besides the primary one', () => {
+  const usage = (model: string, agentMs: number, tokens: number | null, reports = 0) => ({ model, reports, sessions: 1, agentMs, tokens, tokenKinds: null });
+  const models = [usage('claude-opus-5-5', 9480000, 13243850, 3), usage('claude-sonnet-4-5', 5400000, 120000, 2), usage('claude-haiku-5-5', 1080000, 451650), usage('idle-model', 0, 0)];
+  assert.deepEqual(otherModels({ models, primaryModel: 'claude-opus-5-5' }).map(model => model.model), ['claude-sonnet-4-5', 'claude-haiku-5-5']);
+  assert.equal(modelShare(models[2]), '18 min, ' + compactNumber(451650) + ' tokens');
+  assert.equal(modelShare(usage('model-a', 0, null, 1)), '', 'a model that only reported did nothing to show');
 });
 
 test('formats and chart ticks', () => {

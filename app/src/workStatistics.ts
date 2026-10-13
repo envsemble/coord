@@ -1,16 +1,56 @@
-// What the Statistics page shows about work: agent-reported model, tokens and active time
-// (atlas work report), plan revisions from Git, and ledger steps. Pure, so it is unit-tested.
+// What the Statistics page and a work item's About sidebar show about work: the model, agent time
+// and tokens from agent reports (atlas work report), plan revisions from Git, and ledger steps.
+// Pure, so it is unit-tested.
 import { stepCounts } from '@envsemble/atlas-planning/ledger';
-import type { Snapshot, Work, WorkStatistics } from './types';
-import { median } from './format';
+import type { TokenKinds } from '@envsemble/atlas-planning/types';
+import type { ModelUsage, Snapshot, Work, WorkStatistics } from './types';
+import { absoluteDate, compactNumber, duration, median } from './format';
 
 export type TrendMetric = 'tokens' | 'agentMs' | 'planRevisions' | 'steps';
 export const trendMetrics: { id: TrendMetric; label: string; unit: string }[] = [
+  { id: 'agentMs', label: 'Agent time', unit: 'agent time per work item' },
   { id: 'tokens', label: 'Tokens', unit: 'tokens per work item' },
-  { id: 'agentMs', label: 'Active time', unit: 'active time per work item' },
   { id: 'planRevisions', label: 'Plan revisions', unit: 'plan revisions before completion' },
   { id: 'steps', label: 'Steps', unit: 'ledger steps per work item' },
 ];
+
+type Timed = Pick<WorkStatistics, 'reports' | 'agentMs' | 'measuredMs' | 'estimatedMs' | 'measuredReports' | 'firstReport'>;
+/** How agent time was counted: measured from session logs, estimated from report times, or both. */
+export function timeSource(statistics: Timed): 'measured' | 'estimated' | 'mixed' | null {
+  if (!statistics.reports) return null;
+  return !statistics.measuredReports ? 'estimated' : statistics.estimatedMs > 0 ? 'mixed' : 'measured';
+}
+/** What agent time stands for, and since when it is counted. */
+export function agentTimeNote(statistics: Timed): string {
+  const since = statistics.firstReport ? ' since ' + absoluteDate(statistics.firstReport) : '';
+  switch (timeSource(statistics)) {
+    case 'measured': return 'Measured from the agent\'s session logs' + since + ': the time it worked, not the time it waited for a person.';
+    case 'mixed': return duration(statistics.measuredMs) + ' measured from the agent\'s session logs and ' + duration(statistics.estimatedMs) + ' estimated from the time between its reports,' + since + '.';
+    case 'estimated': return 'Estimated from the time between the agent\'s reports' + since + '; breaks of more than two hours are left out.';
+    default: return 'No agent reports yet.';
+  }
+}
+
+/** The token breakdown: cached input, cache writes, input and output as measured, then any self-reported tokens. */
+export function tokenRows(usage: { tokens: number | null; tokenKinds: TokenKinds | null }): { label: string; value: number }[] {
+  if (usage.tokens === null) return [];
+  const kinds = usage.tokenKinds;
+  const rows = kinds ? [{ label: 'Cached input', value: kinds.cacheRead }, { label: 'Cache writes', value: kinds.cacheWrite }, { label: 'Input', value: kinds.input }, { label: 'Output', value: kinds.output }] : [];
+  const reported = usage.tokens - rows.reduce((sum, row) => sum + row.value, 0);
+  if (reported > 0 || !kinds) rows.push({ label: 'Self-reported', value: reported });
+  return rows;
+}
+/** The breakdown as one line, for titles and assistive technology. */
+export const tokenText = (usage: { tokens: number | null; tokenKinds: TokenKinds | null }) => tokenRows(usage).map(row => row.label + ' ' + compactNumber(row.value)).join(' · ');
+
+/** The models besides the primary one that did something, most agent time first. */
+export function otherModels(statistics: Pick<WorkStatistics, 'models' | 'primaryModel'>): ModelUsage[] {
+  return statistics.models.filter(model => model.model !== statistics.primaryModel && (model.agentMs > 0 || (model.tokens ?? 0) > 0 || model.reports > 0));
+}
+/** What one model did: "20 min, 1.3K tokens". */
+export function modelShare(model: ModelUsage) {
+  return [model.agentMs ? duration(model.agentMs) : null, model.tokens !== null ? compactNumber(model.tokens) + ' tokens' : null].filter(Boolean).join(', ');
+}
 
 export interface WorkRow { work: Work; statistics: WorkStatistics | null; steps: number | null; stepsDone: number | null; last: string | null }
 

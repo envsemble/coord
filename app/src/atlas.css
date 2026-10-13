@@ -116,7 +116,6 @@ body { margin: 0; }
 .about-note { color: var(--color-text-muted); font-weight: 400; }
 .about-current { margin: 0; }
 .about-next { margin: 0; padding-inline-start: var(--space-5); }
-.about-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
 .about-commits { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
 .about-commits li { display: flex; gap: var(--space-2); }
 .about-commits li > div { display: grid; min-inline-size: 0; }
@@ -202,6 +201,26 @@ body { margin: 0; }
 .provider-mark[data-provider='mistral'] { color: light-dark(#f2550f, #ff7a3d); }
 .provider-mark[data-provider='deepseek'] { color: light-dark(#4d6bfe, #7d93ff); }
 .provider-mark[data-plain] { color: inherit; }
+/* A value that says more on hover and focus. */
+.detailed { border-radius: 0.25rem; text-decoration: underline dotted var(--color-text-quiet); text-underline-offset: 0.25em; cursor: help; }
+.detailed:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; }
+.breakdown { display: grid; grid-template-columns: auto auto; row-gap: 0.125rem; margin: 0; font-variant-numeric: tabular-nums; }
+.breakdown > div { display: contents; }
+.breakdown dd { margin: 0; padding-inline-start: var(--space-4); text-align: end; white-space: nowrap; }
+.breakdown-total > * { padding-block-start: 0.25rem; border-block-start: 0.0625rem solid currentColor; font-weight: 600; }
+.breakdown-note { display: grid; gap: var(--space-2); }
+.breakdown-note p { margin: 0; }
+/* A work item's statistics in its About sidebar, like a repository's: the model, then a fact a line. */
+.work-statistics { display: grid; gap: var(--space-3); font-size: var(--font-size-body-small); }
+.work-statistics-model { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.125rem var(--space-2); }
+.work-statistics-model .provider-mark { inline-size: 1.125rem; block-size: 1.125rem; }
+.work-statistics-primary { font-size: var(--font-size-body); font-weight: 600; }
+.work-statistics-others { grid-column: 2; color: var(--color-text-muted); }
+.work-statistics-others .nowrap { white-space: nowrap; }
+.work-statistics-facts { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.work-statistics-facts li { display: flex; align-items: center; gap: var(--space-2); }
+.work-statistics-facts strong { font-weight: 600; }
+.work-statistics-icon { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
 
 /* The scatter chart. Series colours are categorical slots, set per theme. */
 /* light-dark() follows the colour scheme envUI's theme sets. */

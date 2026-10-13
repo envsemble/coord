@@ -1,25 +1,28 @@
-// The Statistics view: how work went (agent-reported model, tokens and active time, plan
-// revisions, ledger steps), how that changes as new models arrive, and how documents are used.
+// The Statistics view: how work went (the implementing model, agent time and tokens from agent
+// reports, plan revisions, ledger steps), how that changes as new models arrive, and how
+// documents are used.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Counter, EmptyState, IconButton, Notice, Popover, SegmentedControl, Select, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Tabs, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import { InfoIcon, StatisticsIcon } from './icons';
 import type { Snapshot } from './types';
 import { documentTarget, workTarget } from './targets';
-import { absoluteDate, compactNumber, duration, median, relativeDate, shortDate, workNumber } from './format';
+import { absoluteDate, compactNumber, duration, median, plural, relativeDate, shortDate, workNumber } from './format';
 import { workStatus } from './status';
 import { StatusIcon } from './ui';
+import { aiModel } from './aiModels';
+import { ModelName } from './AiModel';
 import { ScatterChart, type ChartSeries } from './components/ScatterChart';
 import { TargetLink, useWorkbench } from './workbenchContext';
 import { Page, RepositorySelect, type RepositoryFilter } from './Pages';
-import { colourSlots, completedRows, metricValue, modelSummaries, otherSeries, seriesModels, seriesOf, trendMetrics, workRows, type TrendMetric, type WorkRow } from './workStatistics';
+import { agentTimeNote, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, tokenRows, tokenText, trendMetrics, workRows, type TrendMetric, type WorkRow } from './workStatistics';
 
 type StatisticsTab = 'work' | 'models' | 'documents';
 const tabs: { id: StatisticsTab; label: string }[] = [{ id: 'work', label: 'Work' }, { id: 'models', label: 'Models over time' }, { id: 'documents', label: 'Document use' }];
 /** Categorical slots for the three models with the most recent completed work, set per theme in atlas.css. */
 const seriesColors = ['var(--atlas-chart-1)', 'var(--atlas-chart-2)', 'var(--atlas-chart-3)'];
 const otherColor = 'var(--atlas-chart-other)';
-const reportHint = <>Agents record their model, the tokens used so far and the time of each ledger transition with <Code appearance="subtle">atlas work report</Code>, as the <Code appearance="subtle">atlas-implement</Code> skill describes.</>;
+const reportHint = <>Agents report each ledger transition with <Code appearance="subtle">atlas work report</Code>, as the <Code appearance="subtle">atlas-implement</Code> skill describes. Inside Claude Code or Codex, Atlas reads the model, agent time and tokens from the session's own log.</>;
 
 const formatMetric = (metric: TrendMetric, value: number | null) => value === null ? '—'
   : metric === 'tokens' ? compactNumber(value) : metric === 'agentMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
@@ -33,7 +36,8 @@ export function Statistics({ snapshot, repository, setRepository }: RepositoryFi
     <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
-        <p>Model, tokens and active time are what agents reported with <Code appearance="subtle">atlas work report</Code>: self-reported and approximate. Active time adds up the time between reports in each session.</p>
+        <p>The model, agent time and tokens come from agent reports (<Code appearance="subtle">atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time the agent worked, from each prompt to the end of its turn, with its helpers' work at the same time counted once and the time it waited for a person left out. Tokens are then counted for each model, by kind.</p>
+        <p>Older reports, and agents whose log Atlas cannot read, are estimated: agent time adds up the time between a session's reports, leaving out breaks of more than two hours, and tokens are what the agent reported. The implementing model is the one that did most of the work.</p>
         <p>Plan revisions count the commits that changed a plan after it was added, up to its completion, from this folder's Git history. Moving a plan to the archive is not a revision.</p>
         <p>The three models whose completed work is most recent each have a colour; other models share "Other". Durations of work items are calendar time between acceptance and completion, not engineering time.</p>
         <p>Agent reports of documents are self-reported consultation; views are documents opened in Atlas. Unreported access is unknown, and zero use does not mean a record has no value.</p>
@@ -49,25 +53,28 @@ export function Statistics({ snapshot, repository, setRepository }: RepositoryFi
 }
 
 function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
-  const reported = rows.filter(row => row.statistics?.reports);
-  const tokens = reported.reduce((sum, row) => sum + (row.statistics!.tokens ?? 0), 0);
-  const tokensReported = reported.some(row => row.statistics!.tokens !== null);
-  const active = reported.reduce((sum, row) => sum + row.statistics!.agentMs, 0);
+  const reported = rows.filter(row => row.statistics?.reports).map(row => row.statistics!);
+  const tokens = reported.reduce((sum, statistics) => sum + (statistics.tokens ?? 0), 0);
+  const tokensKnown = reported.some(statistics => statistics.tokens !== null);
+  const tokensMeasured = reported.some(statistics => statistics.tokenKinds), tokensSelfReported = reported.some(statistics => tokenRows(statistics).some(row => row.label === 'Self-reported' && row.value > 0));
+  const agentMs = reported.reduce((sum, statistics) => sum + statistics.agentMs, 0);
+  const measuredMs = reported.reduce((sum, statistics) => sum + statistics.measuredMs, 0);
+  const measured = reported.some(statistics => statistics.measuredReports > 0), estimated = reported.some(statistics => statistics.estimatedMs > 0);
   const completed = completedRows(rows).filter(row => row.statistics?.planRevisions !== null && row.statistics?.planRevisions !== undefined);
   const revisions = median(completed.map(row => row.statistics!.planRevisions!));
   const invalid = rows.reduce((sum, row) => sum + (row.statistics?.invalid ?? 0), 0);
   return <>
     <div className="stats-grid">
       <StatsCard label="Work with reports" value={reported.length} note={'of ' + rows.length + ' work items'} />
-      <StatsCard label="Tokens reported" value={tokensReported ? compactNumber(tokens) : '—'} note="self-reported" />
-      <StatsCard label="Active time" value={reported.length ? duration(active) : '—'} note="between reports" />
-      <StatsCard label="Median plan revisions" value={revisions === null ? '—' : formatMetric('planRevisions', revisions)} note={completed.length + ' completed work items'} />
+      <StatsCard label="Agent time" value={reported.length ? duration(agentMs) : '—'} note={!measured ? 'estimated from report times' : !estimated ? 'measured from session logs' : Math.round(measuredMs / Math.max(agentMs, 1) * 100) + '% measured from session logs'} />
+      <StatsCard label="Tokens" value={tokensKnown ? compactNumber(tokens) : '—'} note={!tokensKnown ? 'none reported yet' : tokensMeasured && tokensSelfReported ? 'measured and self-reported' : tokensMeasured ? 'measured from session logs' : 'self-reported'} />
+      <StatsCard label="Median plan revisions" value={revisions === null ? '—' : formatMetric('planRevisions', revisions)} note={plural(completed.length, 'completed work item')} />
     </div>
     {!reported.length && <Notice tone="info">No agent reports yet. {reportHint}</Notice>}
     {invalid > 0 && <Notice tone="warning">{invalid} {invalid === 1 ? 'line' : 'lines'} of statistics files are not valid reports and are ignored. <Code appearance="subtle">atlas planning check</Code> names the files.</Notice>}
     {rows.length ? <Table className="work-statistics-table" aria-label="Work statistics" stickyHeader>
       <TableHead><TableRow>
-        <TableHeaderCell>Work</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell><TableHeaderCell numeric>Active time</TableHeaderCell><TableHeaderCell numeric>Plan revisions</TableHeaderCell><TableHeaderCell numeric>Steps</TableHeaderCell>
+        <TableHeaderCell>Work</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell><TableHeaderCell numeric>Plan revisions</TableHeaderCell><TableHeaderCell numeric>Steps</TableHeaderCell>
       </TableRow></TableHead>
       <TableBody>{rows.map(row => <WorkStatisticsRow key={row.work.id} row={row} />)}</TableBody>
     </Table> : <EmptyState className="page-empty" title="No work here yet" />}
@@ -77,12 +84,13 @@ function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
 function WorkStatisticsRow({ row }: { row: WorkRow }) {
   const { work, statistics } = row;
   const status = workStatus(work);
-  const others = statistics?.models.slice(1) ?? [];
+  const primary = statistics?.models.find(model => model.model === statistics.primaryModel);
+  const others = statistics ? otherModels(statistics) : [];
   return <TableRow interactive>
     <TableCell><span className="work-cell"><StatusIcon status={status} /><TargetLink target={workTarget(work.id)}>{work.title}</TargetLink></span><small className="cell-note">{workNumber(work.id)} · {status.label}{statistics?.lastReport ? ' · reported ' + relativeDate(statistics.lastReport) : ''}</small></TableCell>
-    <TableCell>{statistics?.primaryModel ? <span className="model-cell"><Code appearance="subtle">{statistics.primaryModel}</Code>{others.length > 0 && <span title={others.map(model => model.model).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
-    <TableCell numeric>{statistics?.tokens != null ? compactNumber(statistics.tokens) : '—'}</TableCell>
-    <TableCell numeric>{statistics?.reports ? duration(statistics.agentMs) : '—'}</TableCell>
+    <TableCell>{primary ? <span className="model-cell"><ModelName model={primary.model} detail={modelShare(primary)} />{others.length > 0 && <span title={'Also ' + others.map(model => aiModel(model.model).name + (modelShare(model) ? ' (' + modelShare(model) + ')' : '')).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
+    <TableCell numeric title={statistics?.reports ? agentTimeNote(statistics) : undefined}>{statistics?.reports ? duration(statistics.agentMs) : '—'}</TableCell>
+    <TableCell numeric title={statistics?.tokens != null ? tokenText(statistics) : undefined}>{statistics?.tokens != null ? compactNumber(statistics.tokens) : '—'}</TableCell>
     <TableCell numeric title={statistics?.planRevisions == null ? 'Not in this folder\'s Git history' : work.completed ? 'Before completion' : 'So far'}>{statistics?.planRevisions ?? '—'}</TableCell>
     <TableCell numeric>{row.steps ? `${row.stepsDone}/${row.steps}` : '—'}</TableCell>
   </TableRow>;
@@ -90,11 +98,12 @@ function WorkStatisticsRow({ row }: { row: WorkRow }) {
 
 function ModelsTab({ rows }: { rows: WorkRow[] }) {
   const { open } = useWorkbench();
-  const [metric, setMetric] = useState<TrendMetric>('tokens');
+  const [metric, setMetric] = useState<TrendMetric>('agentMs');
   const completed = completedRows(rows);
   const models = seriesModels(completed);
   const slots = colourSlots(models);
-  const series: ChartSeries[] = [...models.map(model => ({ key: model, label: model, color: seriesColors[slots.get(model)!] })), { key: otherSeries, label: models.length ? 'Other or unreported model' : 'Model not reported', color: otherColor }];
+  // The series colour says which model: the marks stay in the text colour.
+  const series: ChartSeries[] = [...models.map(model => ({ key: model, label: <ModelName model={model} plain />, color: seriesColors[slots.get(model)!] })), { key: otherSeries, label: models.length ? 'Other or unreported model' : 'Model not reported', color: otherColor }];
   const definition = trendMetrics.find(item => item.id === metric)!;
   const points = completed.flatMap(row => {
     const value = metricValue(row, metric);
@@ -109,17 +118,17 @@ function ModelsTab({ rows }: { rows: WorkRow[] }) {
     {points.length ? <Surface className="chart-box" padding={5}>
       <ScatterChart label={definition.label + ': ' + definition.unit + ', by completion date and implementing model'} points={points} series={series} formatValue={value => formatMetric(metric, value)}
         valueKind={metric === 'agentMs' ? 'duration' : 'count'} onOpen={id => open(workTarget(id), { pin: true })} />
-      <Text variant="caption" tone="muted" className="chart-note">Each dot is a completed work item: its {definition.unit}, at its completion date, coloured by the model with the most active time.{completed.length > points.length ? ` ${completed.length - points.length} completed ${completed.length - points.length === 1 ? 'item has' : 'items have'} no value and ${completed.length - points.length === 1 ? 'is' : 'are'} not shown.` : ''}</Text>
+      <Text variant="caption" tone="muted" className="chart-note">Each dot is a completed work item: its {definition.unit}, at its completion date, coloured by the model that did most of the work.{completed.length > points.length ? ` ${completed.length - points.length} completed ${completed.length - points.length === 1 ? 'item has' : 'items have'} no value and ${completed.length - points.length === 1 ? 'is' : 'are'} not shown.` : ''}</Text>
     </Surface> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title={completed.length ? 'No completed work has this value yet' : 'No completed work yet'} description={metric === 'tokens' || metric === 'agentMs' ? reportHint : 'Trends compare work items once they are complete.'} />}
     {summaries.length > 0 && <Table className="model-table" aria-label="Implementing models">
       <TableHead><TableRow>
-        <TableHeaderCell>Implementing model</TableHeaderCell><TableHeaderCell numeric>Completed</TableHeaderCell><TableHeaderCell numeric>Median tokens</TableHeaderCell><TableHeaderCell numeric>Median active time</TableHeaderCell><TableHeaderCell numeric>Median plan revisions</TableHeaderCell><TableHeaderCell numeric>Median steps</TableHeaderCell><TableHeaderCell>Completed between</TableHeaderCell>
+        <TableHeaderCell>Implementing model</TableHeaderCell><TableHeaderCell numeric>Completed</TableHeaderCell><TableHeaderCell numeric>Median agent time</TableHeaderCell><TableHeaderCell numeric>Median tokens</TableHeaderCell><TableHeaderCell numeric>Median plan revisions</TableHeaderCell><TableHeaderCell numeric>Median steps</TableHeaderCell><TableHeaderCell>Completed between</TableHeaderCell>
       </TableRow></TableHead>
       <TableBody>{summaries.map(summary => <TableRow key={summary.model ?? ''}>
-        <TableCell>{summary.model ? <span className="model-cell"><span className="chart-swatch" style={{ background: series.find(entry => entry.key === summary.model)?.color ?? otherColor }} /><Code appearance="subtle">{summary.model}</Code></span> : <span className="muted">Not reported</span>}</TableCell>
+        <TableCell>{summary.model ? <span className="model-cell"><span className="chart-swatch" style={{ background: series.find(entry => entry.key === summary.model)?.color ?? otherColor }} /><ModelName model={summary.model} plain /></span> : <span className="muted">Not reported</span>}</TableCell>
         <TableCell numeric>{summary.completed}</TableCell>
-        <TableCell numeric>{formatMetric('tokens', summary.tokens)}</TableCell>
         <TableCell numeric>{formatMetric('agentMs', summary.agentMs)}</TableCell>
+        <TableCell numeric>{formatMetric('tokens', summary.tokens)}</TableCell>
         <TableCell numeric>{formatMetric('planRevisions', summary.planRevisions)}</TableCell>
         <TableCell numeric>{formatMetric('steps', summary.steps)}</TableCell>
         <TableCell nowrap>{summary.first === summary.last ? shortDate(summary.first) : shortDate(summary.first) + ' – ' + shortDate(summary.last)}</TableCell>
