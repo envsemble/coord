@@ -265,7 +265,7 @@ function ScrollMemory({ shown, scrollKey: key, anchored, content: contentRef, po
       for (const name of inputs) window.removeEventListener(name, interrupt, { capture: true });
       scroller.removeEventListener('scroll', remember);
     };
-  }, [shown, key]);
+  }, [shown, key, getScrollElement]);
   return null;
 }
 

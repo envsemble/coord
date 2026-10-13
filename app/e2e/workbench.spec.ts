@@ -267,6 +267,25 @@ test('a long document scrolls the window below the tabs, and each tab keeps its 
   await expect.poll(scrollTop).toBe(0);
 });
 
+test('the page a window opens on keeps its scroll position when another page or tab is shown', async () => {
+  launched = await launch({ folder });
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 320); });
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  const content = () => window.evaluate(() => { const main = document.querySelector('main')!; return { top: main.scrollTop, room: main.scrollHeight - main.clientHeight }; });
+  await expect.poll(async () => (await content()).room).toBeGreaterThan(40);
+  // The keyboard scrolls the content area although nothing in it has focus.
+  await window.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await window.keyboard.press('End');
+  await expect.poll(async () => (await content()).top).toBeGreaterThan(40);
+  const position = (await content()).top;
+  await views(window).getByRole('button', { name: 'Activity' }).click();
+  await expect(window.locator('.activity-row')).toHaveCount(1);
+  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await expect(window.locator('.work-row')).toHaveCount(3);
+  await expect.poll(async () => Math.abs((await content()).top - position)).toBeLessThan(2);
+});
+
 test('the work list shows each version-2 ledger\'s progress and keeps version-1 status readable', async () => {
   launched = await launch({ folder });
   const { window } = launched;

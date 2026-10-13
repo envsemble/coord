@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComputerFolder, ComputerRef, Snapshot, UiState, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
-import { EmptyState, Spinner, useToast } from '@envsemble/envui';
+import { EmptyState, Spinner, useToast, WindowFrame } from '@envsemble/envui';
 import { ErrorIcon } from './icons';
 import { FolderProblem, Welcome } from './Welcome';
 import { Workbench } from './Workbench';
@@ -97,7 +97,8 @@ export default function App() {
   else if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) content = <FolderProblem info={info} />;
   else if (!snapshot || !ui) content = <main className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + info.folder.name + (info.remote ? ' on ' + info.remote.hostName : '')} /><span className="page-state-label">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
   else content = <Workbench info={info} snapshot={snapshot} initialUi={ui} />;
-  // The window draws its own title bar: the workbench's shell has one, every other page gets this one.
-  const framed = content.type === Workbench ? content : <div className="window-frame"><WindowTitleBar info={info} onError={warn} />{content}</div>;
+  // The window draws its own title bar: the workbench's shell has one; every other page gets this one,
+  // with the page scrolling below it.
+  const framed = content.type === Workbench ? content : <WindowFrame titleBar={<WindowTitleBar info={info} onError={warn} />}>{content}</WindowFrame>;
   return <AppActionsContext.Provider value={actions}>{framed}{dialogs}</AppActionsContext.Provider>;
 }

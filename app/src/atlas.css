@@ -16,14 +16,13 @@ body { margin: 0; }
 .status-icon[data-tone='neutral'], .status-text[data-tone='muted'] { color: var(--color-tone-neutral); }
 
 /* A window that is starting, or reading its folder. */
-.page-state { display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
+.page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
 
 /* The title bar: the logo, the menus and the computer at the start; search, record health and the
    theme at the end, before the window buttons the system draws. */
 .title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
 .title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
 .computer-trigger { max-inline-size: 16rem; }
-.window-title-bar { flex: none; background: var(--color-canvas); }
 
 /* The workbench: tabs stick at the top of the shell's content area, which scrolls the page below them. */
 .workbench-body { --atlas-tabs-height: 0rem; --atlas-sticky-top: calc(var(--app-sticky-top) + var(--atlas-tabs-height)); min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
@@ -255,17 +254,14 @@ body { margin: 0; }
 .pairing-permission > span { display: grid; }
 .pairing-permission-icon { flex: none; color: var(--color-tone-success); }
 
-/* Welcome and folder problems: the window's title bar, and below it a region that scrolls, so the
-   window buttons never cover a scrollbar and nothing shifts when one appears. */
-.window-frame { position: fixed; inset: 0; display: flex; flex-direction: column; }
-.window-frame > :not(.window-title-bar) { flex: 1; min-block-size: 0; overflow: auto; scrollbar-gutter: stable; }
+/* Welcome and folder problems, in envUI's window frame below the title bar */
 .welcome { display: grid; justify-items: center; align-content: start; padding: var(--space-8) var(--space-5) var(--space-9); }
 .welcome-panel { inline-size: min(44rem, 100%); display: grid; gap: var(--space-6); }
 .welcome-brand { display: flex; align-items: center; gap: var(--space-4); }
 .welcome-title { margin: 0; }
 .welcome-start, .welcome-folders { display: grid; gap: var(--space-3); }
 .welcome-version { margin-block-start: var(--space-4); }
-.folder-problem { display: grid; place-items: center; padding: var(--space-6); }
+.folder-problem { box-sizing: border-box; min-block-size: 100%; display: grid; place-items: center; padding: var(--space-6); }
 .folder-problem-panel { inline-size: min(40rem, 100%); }
 .folder-problem-path, .folder-problem-error { display: block; overflow-wrap: anywhere; }
 .folder-problem-path { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--font-size-body-small); }
