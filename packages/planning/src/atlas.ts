@@ -29,14 +29,15 @@ function inside(parent: string, child: string) {
   return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
 }
 
-// Captured type uses all share this name; a profile's relations all share these stereotypes.
-const genericRelationNames = new Set(['declared type use']);
-const plainStereotypes = new Set(['dependency', 'foreign key']);
+// Names that only repeat what a relation is, which the diagram leaves off its lines too: every
+// captured type use has the first, and OntoUML gives the second to relations without a name.
+const genericRelationNames = new Set(['declared type use', 'association']);
 
 /**
  * Element id → display name, for structural models and OntoUML exchange projects. A relation
- * whose name says nothing more than its kind (a captured type use, a foreign key, or no name)
- * reads as its two ends, "CheckoutService → PaymentMethodVault"; unnamed inheritance reads
+ * whose name says nothing more than its kind (a captured type use, or no name) reads as its two
+ * ends, "CheckoutService → PaymentMethodVault"; any other name, such as a foreign key's
+ * constraint name, is kept, as the diagram labels it. Unnamed inheritance reads
  * "Customer inherits Person".
  */
 export function elementNames(model: unknown): Map<string, string> {
@@ -63,11 +64,11 @@ export function elementNames(model: unknown): Map<string, string> {
     const id = record.id as string, own = names.get(id);
     let ends: [unknown, unknown] | null = null, verb = '→';
     if (typeof record.sourceId === 'string' && typeof record.targetId === 'string') {
-      if (!own || genericRelationNames.has(own.toLowerCase()) || plainStereotypes.has(String(record.stereotype))) ends = [record.sourceId, record.targetId];
+      if (!own || genericRelationNames.has(own.toLowerCase())) ends = [record.sourceId, record.targetId];
     } else if (typeof record.specificId === 'string' && typeof record.generalId === 'string') {
       if (!own) { ends = [record.specificId, record.generalId]; verb = record.realization ? 'implements' : 'inherits'; }
     } else if (record.type === 'BinaryRelation' && Array.isArray(record.properties)) {
-      if (!own) ends = [endTypes.get(refId(record.properties[0]) ?? ''), endTypes.get(refId(record.properties[1]) ?? '')];
+      if (!own || genericRelationNames.has(own.toLowerCase())) ends = [endTypes.get(refId(record.properties[0]) ?? ''), endTypes.get(refId(record.properties[1]) ?? '')];
     } else if (record.type === 'Generalization') {
       if (!own) { ends = [record.specific, record.general]; verb = 'inherits'; }
     }

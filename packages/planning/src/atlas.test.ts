@@ -227,6 +227,8 @@ test('element chips name relations by their ends when their own name says nothin
     relations: [
       { id: 'uses', name: 'declared type use', stereotype: 'dependency', sourceId: 'checkout', targetId: 'vault' },
       { id: 'fk', name: 'sku → sku', stereotype: 'foreign key', sourceId: 'level', targetId: 'product' },
+      { id: 'created', name: 'orders_created_by_fkey', stereotype: 'foreign key', sourceId: 'level', targetId: 'product' },
+      { id: 'updated', name: 'orders_updated_by_fkey', stereotype: 'foreign key', sourceId: 'level', targetId: 'product' },
       { id: 'named', name: 'stores cards in', sourceId: 'checkout', targetId: 'vault' },
       { id: 'unnamed', sourceId: 'vault', targetId: 'checkout' },
     ],
@@ -234,7 +236,10 @@ test('element chips name relations by their ends when their own name says nothin
   };
   const names = elementNames(structural);
   assert.equal(names.get('uses'), 'CheckoutService → PaymentMethodVault');
-  assert.equal(names.get('fk'), 'stock_level → product');
+  // A foreign key's name tells it from others between the same tables, as on the diagram.
+  assert.equal(names.get('fk'), 'sku → sku');
+  assert.equal(names.get('created'), 'orders_created_by_fkey');
+  assert.equal(names.get('updated'), 'orders_updated_by_fkey');
   assert.equal(names.get('named'), 'stores cards in');
   assert.equal(names.get('unnamed'), 'PaymentMethodVault → CheckoutService');
   assert.equal(names.get('implements'), 'CheckoutService implements PaymentMethodVault');
@@ -247,6 +252,7 @@ test('element chips name relations by their ends when their own name says nothin
       { id: 'person', type: 'Class', name: { en: 'Person' } },
       { id: 'placed-by', type: 'BinaryRelation', name: { en: 'placed by' }, properties: ['a', 'b'] },
       { id: 'anonymous', type: 'BinaryRelation', name: null, properties: [{ id: 'c' }, { id: 'd' }] },
+      { id: 'default', type: 'BinaryRelation', name: { en: 'Association' }, properties: ['b', 'a'] },
       { id: 'a', type: 'Property', propertyType: 'order' },
       { id: 'b', type: 'Property', propertyType: 'customer' },
       { id: 'c', type: 'Property', propertyType: { id: 'customer', type: 'Class' } },
@@ -257,5 +263,6 @@ test('element chips name relations by their ends when their own name says nothin
   const conceptual = elementNames(ontouml);
   assert.equal(conceptual.get('placed-by'), 'placed by');
   assert.equal(conceptual.get('anonymous'), 'Customer → Order');
+  assert.equal(conceptual.get('default'), 'Customer → Order');
   assert.equal(conceptual.get('is-person'), 'Customer inherits Person');
 });

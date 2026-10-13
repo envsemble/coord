@@ -400,6 +400,7 @@ async function diagramsFor(folder: string, work: Work, documents: Work['document
   const handles = readdirSync(models).filter(name => /^m-[a-f0-9]{24}\.json$/.test(name)).sort().map(name => name.slice(0, -5));
   if (!handles.length) return [];
   const { default: atlas } = await import('@envsemble/atlas-diagrams');
+  const { elementNames } = await import('./atlas.ts');
   const workspace = atlas.createWorkspace(folder);
   const result: ViewDiagram[] = [];
   for (const handle of handles) {
@@ -419,15 +420,8 @@ async function diagramsFor(folder: string, work: Work, documents: Work['document
       error = 'This model cannot be drawn: ' + (failure instanceof Error ? failure.message.split('\n')[0] : 'unknown error');
       warnings.push(`The model ${file} is exported but cannot be drawn in the viewer.`);
     }
-    const names = new Map<string, string>();
-    const visit = (value: unknown, depth: number) => {
-      if (depth > 6 || !value || typeof value !== 'object') return;
-      if (Array.isArray(value)) { for (const item of value) visit(item, depth + 1); return; }
-      const record = value as Record<string, unknown>;
-      if (typeof record.id === 'string' && typeof record.name === 'string' && !names.has(record.id)) names.set(record.id, record.name);
-      for (const child of Object.values(record)) visit(child, depth + 1);
-    };
-    visit(document.model, 0);
+    // Chips name elements as the app's do: relations by their ends when their own name says nothing more.
+    const names = elementNames(document.model);
     const explains: ViewDiagram['explains'] = [], references: ViewReference[] = [];
     for (const record of document.context.records) {
       const resolved = resolveRecordPath(record.path, work.path, documents, same);

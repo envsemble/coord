@@ -467,3 +467,14 @@ test('refuses an export too large for an import to read', async t => {
   assert.throws(() => readPlanExport(html), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
   assert.throws(() => readPlanExport(Buffer.from(html)), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
 });
+
+test('names the exported diagram chips as the app does', async t => {
+  const source = temporary(t);
+  const work = fixture(source);
+  const model = { type: 'StructuralModel', nodes: [{ id: 'checkout', name: 'CheckoutService', attributes: [] }, { id: 'vault', name: 'PaymentMethodVault', attributes: [] }], relations: [{ id: 'uses', name: 'declared type use', stereotype: 'dependency', sourceId: 'checkout', targetId: 'vault', sourceMultiplicity: '?', targetMultiplicity: '?' }, { id: 'stores', name: 'stores cards in', sourceId: 'checkout', targetId: 'vault', sourceMultiplicity: '1', targetMultiplicity: '0..*' }], generalizations: [], generalizationSets: [] };
+  atlas.createWorkspace(work).save(atlas.createDocument({ id: 'atlas-uses', profile: 'code', title: 'Uses', model: model as never, workId: 'work-0001', context: { records: [record('flow', 'plan.md', 'Data model')], links: [{ elementId: 'uses', recordId: 'flow' }, { elementId: 'stores', recordId: 'flow' }] } }));
+  const { html } = await exportPlan(source, 'work-0001', { now });
+  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { title: string; references: { elementName: string | null }[] }[] };
+  // A relation whose name says nothing more reads as its ends; a named one keeps its name.
+  assert.deepEqual(view.diagrams.find(diagram => diagram.title === 'Uses')!.references.map(item => item.elementName), ['CheckoutService → PaymentMethodVault', 'stores cards in']);
+});
