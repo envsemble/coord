@@ -16,8 +16,12 @@ export interface AtlasEntry {
   /** Models laid out together share it: a capture and the proposals over its snapshot. Null for a model alone. */
   family: string | null;
 }
-/** A model's payload, with the payloads of the models laid out with it, so a client can switch among them without asking again. */
-export type PreparedModel = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[] };
+/**
+ * A model's payload, with the payloads of the models laid out with it, so a client can switch among
+ * them without asking again, and the rest of its family (`apart`): members that cannot be laid out
+ * with the others, each served alone, at the revisions read.
+ */
+export type PreparedModel = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[]; apart?: { handle: string; revision: string }[] };
 type Loaded = [handle: string, document: AtlasDocument];
 
 /**
@@ -32,6 +36,24 @@ export function modelFamilies(documents: Loaded[]): Map<string, Loaded[]> {
   }
   for (const [key, members] of groups) if (members.length < 2 || !members.some(([, document]) => document.state === 'proposal')) groups.delete(key);
   return groups;
+}
+/**
+ * Lays a family out once: its members' payloads by handle. A member that cannot be prepared even
+ * alone, such as a proposal the viewer cannot draw, is left out, and the rest are laid out together
+ * while they still form a family. The members left out, and every member of a family that cannot be
+ * laid out together otherwise, are missing: the caller prepares them alone with `alone`, which also
+ * tells here which members fail, so a caller that keeps what it prepares does no work twice.
+ */
+export async function familyPayloads(members: Loaded[], alone: (member: Loaded) => Promise<unknown>): Promise<Map<string, ViewerPayload>> {
+  try {
+    const family = await prepareFamily({ documents: members.map(([, document]) => document), includeArtifacts: false });
+    return new Map(members.map(([handle], index) => [handle, family.members[index].payload]));
+  } catch {
+    const fails = await Promise.all(members.map(member => alone(member).then(() => false, () => true)));
+    const rest = members.filter((_, index) => !fails[index]);
+    const family = rest.length < members.length ? [...modelFamilies(rest).values()][0] : undefined;
+    return family ? familyPayloads(family, alone) : new Map();
+  }
 }
 export interface ModelReference {
   handle: string; workId: string; title: string; elementId: string | null; elementName: string | null;
@@ -234,7 +256,8 @@ export class AtlasCatalog {
   }
   /**
    * A model's viewer payload. A capture or proposal in a family comes with its siblings' payloads,
-   * all from one layout, so a client switches among them without another request.
+   * all from one layout, so a client switches among them without another request. A member that
+   * cannot be laid out with the others is served alone, and named to them as `apart`.
    */
   async prepared(snapshot: PlanningIndex, workId: string, handle: string): Promise<PreparedModel> {
     const { document, location, work } = this.find(snapshot, workId, handle);
@@ -243,18 +266,23 @@ export class AtlasCatalog {
       const key = location.directory + '\0' + family.map(([member, loaded]) => member + ':' + loaded.revision.id).join(',');
       let pending = this.families.get(key);
       if (!pending) {
-        pending = prepareFamily({ documents: family.map(([, loaded]) => loaded), includeArtifacts: false })
-          .then(result => new Map(family.map(([member], index) => [member, result.members[index].payload])));
+        // What is laid out together, and what is left out, stays known for these revisions.
+        pending = familyPayloads(family, ([member, loaded]) => this.alone(location, member, loaded));
         this.families.set(key, pending);
         if (this.families.size > 4) this.families.delete(this.families.keys().next().value!);
-        // A failure stays cached for these revisions, so its members are served alone at once.
-        pending.catch(() => undefined);
+        pending.catch(() => this.families.delete(key));
       }
-      try {
-        const payloads = await pending;
-        return { ...payloads.get(handle)!, siblings: family.filter(([member]) => member !== handle).map(([member]) => ({ handle: member, payload: payloads.get(member)! })) };
-      } catch { /* A family that cannot be laid out together, such as one with a proposal no view can draw, is served model by model. */ }
+      const payloads = await pending;
+      const own = payloads.get(handle);
+      if (own) {
+        const apart = family.filter(([member]) => !payloads.has(member)).map(([member, loaded]) => ({ handle: member, revision: loaded.revision.id }));
+        return { ...own, siblings: [...payloads].filter(([member]) => member !== handle).map(([member, payload]) => ({ handle: member, payload })), ...(apart.length ? { apart } : {}) };
+      }
     }
+    return this.alone(location, handle, document);
+  }
+  /** A model's payload laid out alone, kept per revision. */
+  private alone(location: Location, handle: string, document: AtlasDocument): Promise<ViewerPayload> {
     const key = location.directory + '\0' + handle + ':' + document.revision.id;
     let pending = this.cache.get(key);
     if (!pending) {

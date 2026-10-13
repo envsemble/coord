@@ -321,3 +321,61 @@ test('a capture and its proposals are served together, laid out once, and stand 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+/**
+ * OntoUML proposals over one authored model: two add a class each, and the last a three-way
+ * relation, which the viewer cannot draw. One project grows, so its stages share their IDs.
+ */
+function conceptualProposals(workId: string) {
+  const project = new atlas.Project(), root = project.packageBuilder().root().name('Orders').build();
+  const stage = () => JSON.parse(JSON.stringify(project));
+  const add = (name: string) => root.classBuilder().kind().name(name).build();
+  const [order, line, product] = ['Order', 'Line', 'Product'].map(add);
+  const base = stage();
+  add('Refund');
+  const refunds = stage();
+  add('Credit');
+  const credits = stage();
+  root.naryRelationBuilder().members(order, line, product).name('Three way').build();
+  const threeWay = stage();
+  const authored = atlas.createDocument({ id: 'conceptual', title: 'Orders', profile: 'ontouml', model: base, workId });
+  const proposal = (id: string, title: string, model: unknown) => atlas.reviseDocument(atlas.createProposal(authored, { id, title }), { model: model as AtlasDocument['model'] });
+  return [proposal('refunds', 'Refunds', refunds), proposal('credits', 'Credits', credits), proposal('three-way', 'Three-way', threeWay)];
+}
+function conceptualFolder(name: string) {
+  const root = mkdtempSync(path.join(os.tmpdir(), name));
+  const folder = path.join(root, 'active/0001-orders');
+  mkdirSync(folder, { recursive: true });
+  const snapshot = { work: [{ id: 'work-1', path: 'active/0001-orders' }], documents: [] } as unknown as Snapshot;
+  return { root, folder, snapshot, workspace: createWorkspace(folder) };
+}
+
+test('a member that cannot be drawn is served alone, and the rest of its family together', async () => {
+  const { root, snapshot, workspace } = conceptualFolder('atlas-apart-');
+  try {
+    const proposals = conceptualProposals('work-1');
+    for (const document of proposals) workspace.save(document);
+    const catalog = new AtlasCatalog(root);
+    const entries = catalog.list(snapshot, 'work-1').models;
+    const [refunds, credits, threeWay] = proposals.map(document => entries.find(entry => entry.title === document.title)!.handle);
+    // Listed as one family: only laying it out tells the member that cannot be drawn.
+    assert.equal(entries.length, 3);
+    assert(entries.every(entry => entry.family === proposals[0].baselineId));
+    const answer = await catalog.prepared(snapshot, 'work-1', refunds);
+    assert.equal(answer.family, proposals[0].baselineId);
+    assert.deepEqual(answer.siblings!.map(item => item.handle), [credits]);
+    assert.deepEqual(answer.apart, [{ handle: threeWay, revision: proposals[2].revision.id }]);
+    const place = (payload: typeof answer, name: string) => {
+      const node = payload.comparison!.changeView!.views[0].diagram.nodes.find(item => item.name === name)!;
+      return [node.x, node.y];
+    };
+    assert.deepEqual(place(answer.siblings![0].payload, 'Refund'), place(answer, 'Refund'));
+    await assert.rejects(catalog.prepared(snapshot, 'work-1', threeWay), /binary class relations/);
+    // The other comes from the same layout, which is not tried again.
+    const other = await catalog.prepared(snapshot, 'work-1', credits);
+    assert.equal(other.model, answer.siblings![0].payload.model);
+    assert.deepEqual(other.apart, answer.apart);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -48,15 +48,19 @@ function ModelPicker({ models, handle, payloads, onSelect }: { models: CatalogEn
   </Menu>;
 }
 
-/** A model's payload as the host answers: with the payloads of the models laid out with it. */
-type Answer = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[] };
-/** Payloads that arrived together, by handle, and the revisions they were laid out at. */
+/**
+ * A model's payload as the host answers: with the payloads of the models laid out with it, and the
+ * rest of its family, which the host serves alone.
+ */
+type Answer = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[]; apart?: { handle: string; revision: string }[] };
+/** Payloads that arrived together, by handle, and the revisions they (and the family's members served apart) were read at. */
 interface Loaded { payloads: Map<string, ViewerPayload>; revisions: string }
 const revisionsOf = (entries: [string, string][]) => entries.map(([handle, revision]) => handle + '@' + revision).sort().join(' ');
 function loadedFrom(handle: string, answer: Answer): Loaded {
-  const { siblings = [], ...payload } = answer;
+  const { siblings = [], apart = [], ...payload } = answer;
   const payloads = new Map<string, ViewerPayload>([[handle, payload], ...siblings.map(item => [item.handle, item.payload] as [string, ViewerPayload])]);
-  return { payloads, revisions: revisionsOf([...payloads].map(([key, value]) => [key, value.model.document?.revision.id ?? ''])) };
+  const read: [string, string][] = [...payloads].map(([key, value]) => [key, value.model.document?.revision.id ?? '']);
+  return { payloads, revisions: revisionsOf([...read, ...apart.map(item => [item.handle, item.revision] as [string, string])]) };
 }
 
 /**
