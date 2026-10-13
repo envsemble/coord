@@ -60,6 +60,7 @@
   - **Collapse All Folders** moves to the explorer's right-click menu.
   - **`atlas serve`** runs the host without the app; devices open folders there themselves.
   - **The Atlas host:** planning folders are now read by the Atlas host (`packages/host`, TypeScript with Hono), which the app runs in a utility process. Devices hold revocable tokens.
+  - **Protocol version 3:** work statistics changed shape, so a computer on an earlier build is asked to update Atlas on both computers rather than showing broken statistics.
 
   See [remote access](docs/remote-access.md).
 

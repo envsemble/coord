@@ -6,7 +6,7 @@ import type { DocumentContent, PlanImportResult, PlanningIndex, Usage } from '@e
 import type { Provenance } from '@envsemble/atlas-planning/provenance';
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 2;
+export const protocolVersion = 3;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
