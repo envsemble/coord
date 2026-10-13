@@ -7,19 +7,13 @@
 import { useEffect, useState } from 'react';
 import { Badge, Button, Checkbox, ConfirmButton, Dialog, GroupedRows, Input, Notice, Row, Select, Spinner, Switch, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
-import { CheckIcon, CopyIcon } from './icons';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from './types';
 import { api } from './api';
 import { absoluteDate, relativeDate } from './format';
+import { CheckIcon } from './icons';
+import { CopyButton } from './ui';
 
 const platforms: Record<string, string> = { win32: 'Windows', linux: 'Linux', darwin: 'macOS', android: 'Android', ios: 'iOS' };
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [done, setDone] = useState(false);
-  return <Button variant="secondary" startIcon={done ? <CheckIcon /> : <CopyIcon />} onClick={() => { void api.copy(text).then(() => { setDone(true); window.setTimeout(() => setDone(false), 1500); }); }}>
-    {done ? 'Copied' : label}
-  </Button>;
-}
 
 export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; computer: ComputerRef }) {
   const here = computer.hostId === null;

@@ -122,7 +122,7 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
     <MenubarMenu label="Help" accessKey="H">
       <MenuItem onClick={run('openLogs')}>Open Logs</MenuItem>
       <MenuSeparator />
-      <MenuItem onClick={run('about')}>About Atlas</MenuItem>
+      <MenuItem onClick={actions.about}>About Atlas</MenuItem>
     </MenubarMenu>
   </Menubar>;
 }

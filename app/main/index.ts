@@ -17,7 +17,8 @@ import { buildMenu } from './menu.ts';
 import { refusalMessage, startupRefusal, type Refusal } from './refusal.ts';
 import { scheme } from './protocol.ts';
 import { StateStore } from './state.ts';
-import { WindowManager, type AtlasWindow } from './windows.ts';
+import { WindowManager } from './windows.ts';
+import type { AboutInfo } from '../shared/contract.ts';
 
 const dataDirectory = atlasDataDirectory();
 // Electron's per-user folder is the Atlas data folder shared with the `atlas` command; Chromium's
@@ -81,23 +82,13 @@ function start() {
   let manager: WindowManager;
 
   const openLogs = () => { void shell.openPath(log.directory); };
-  const about = (window?: AtlasWindow) => {
-    const options = {
-      type: 'info' as const, title: 'About Atlas', message: 'Atlas ' + app.getVersion(),
-      detail: [
-        'Plans, models and shared understanding for agents and the people they work with.',
-        '',
-        `Electron ${process.versions.electron} · Chromium ${process.versions.chrome} · Node.js ${process.versions.node}`,
-        'Data folder: ' + dataDirectory,
-        '',
-        'Atlas works offline. Plans, models, statistics and logs stay on this computer, unless you turn on remote access (File › Remote Access…) so your paired devices can use its planning folders.',
-      ].join('\n'),
-      buttons: ['OK'],
-    };
-    const target = window ?? manager.focused();
-    return target ? dialog.showMessageBox(target.win, options) : dialog.showMessageBox(options);
-  };
-  const refreshMenu = () => { void manager.localFolders().then(list => buildMenu(manager, list, { openLogs, about: () => void about(), devTools })); };
+  // Help › About Atlas is a dialog in the window; these are its facts.
+  const systems: Record<string, string> = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+  const about = (): AboutInfo => ({
+    version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node,
+    system: `${systems[process.platform] ?? process.platform} ${process.getSystemVersion()} (${process.arch})`, dataFolder: dataDirectory,
+  });
+  const refreshMenu = () => { void manager.localFolders().then(list => buildMenu(manager, list, { openLogs, devTools })); };
 
   const localHost = new LocalHost({
     entry: path.join(import.meta.dirname, 'host.js'), dataDirectory, version: app.getVersion(), log,

@@ -227,6 +227,8 @@ body { margin: 0; }
 
 /* Dialogs */
 .dialog-form { display: grid; gap: var(--space-4); }
+/* About Atlas: the mark beside the name. */
+.about-dialog-title { display: inline-flex; align-items: center; gap: var(--space-3); }
 .dialog-subtitle { margin-block: var(--space-2) 0; }
 .dialog-error { margin: 0; color: var(--color-tone-danger); }
 .dialog-note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }

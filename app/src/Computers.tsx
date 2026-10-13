@@ -12,7 +12,7 @@ import type { Computer, ComputerFolder, ComputerRef } from './types';
 import { api } from './api';
 import { plural, relativeDate } from './format';
 
-/** Window-wide actions the menus start: pairing, the folder browser, remote access, and the lists. */
+/** Window-wide actions the menus start: pairing, the folder browser, remote access, the lists and About. */
 export interface AppActions {
   connect(): void;
   browse(computer: ComputerRef, near?: string | null): void;
@@ -20,9 +20,11 @@ export interface AppActions {
   manageComputers(): void;
   /** The list marks the folder this window shows, when the window shows one of them. */
   manageFolders(computer: ComputerRef, isCurrent?: (folder: ComputerFolder) => boolean): void;
+  /** Help › About Atlas. */
+  about(): void;
 }
 const nothing = () => undefined;
-export const AppActionsContext = createContext<AppActions>({ connect: nothing, browse: nothing, remoteAccess: nothing, manageComputers: nothing, manageFolders: nothing });
+export const AppActionsContext = createContext<AppActions>({ connect: nothing, browse: nothing, remoteAccess: nothing, manageComputers: nothing, manageFolders: nothing, about: nothing });
 export const useAppActions = () => useContext(AppActionsContext);
 
 const statusLabels: Record<Computer['status'], string | null> = { online: null, connecting: 'Connecting', offline: 'Offline', revoked: 'Not paired', mismatch: 'Not the same computer', incompatible: 'Needs an update' };

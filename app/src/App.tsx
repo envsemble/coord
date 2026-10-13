@@ -11,8 +11,9 @@ import { RemoteAccessDialog } from './RemoteAccessDialog';
 import { FolderBrowser } from './FolderBrowser';
 import { AppActionsContext, ComputersDialog, currentFolder, FoldersDialog, type AppActions } from './Computers';
 import { WindowTitleBar } from './AppMenu';
+import { AboutDialog } from './AboutDialog';
 
-type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'folders'; computer: ComputerRef; isCurrent?: (folder: ComputerFolder) => boolean }
+type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'about' } | { kind: 'folders'; computer: ComputerRef; isCurrent?: (folder: ComputerFolder) => boolean }
   | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
 
 /**
@@ -26,7 +27,7 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [ui, setUi] = useState<UiState | null>(null);
   const [failure, setFailure] = useState('');
-  // Pairing, remote access and the folder browser work in every window.
+  // Pairing, remote access, the folder browser and About work in every window.
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const toast = useToast();
   const warn = useCallback((message: string) => { toast.show({ message, variant: 'info' }); }, [toast]);
@@ -37,6 +38,7 @@ export default function App() {
     browse: (target, near = null) => { if (target.hostId !== null) setDialog({ kind: 'browse', computer: { hostId: target.hostId, name: target.name }, near }); },
     manageComputers: () => setDialog({ kind: 'computers' }),
     manageFolders: (target, isCurrent) => setDialog({ kind: 'folders', computer: target, isCurrent }),
+    about: () => setDialog({ kind: 'about' }),
   }), []);
   // File › Open Folder… in a window on another computer browses it, beside the folder the window shows.
   const near = snapshot && info?.folder ? snapshot.root : null;
@@ -46,6 +48,7 @@ export default function App() {
     else if (command === 'remoteAccess') actions.remoteAccess();
     else if (command === 'browseFolder' && computer) actions.browse(computer, near);
     else if (command === 'manageFolders' && info) actions.manageFolders(info.computer, info.folder ? currentFolder(info, info.folder.root) : undefined);
+    else if (command === 'about') actions.about();
     // The workbench saves its layout before it closes its folder; other pages close it at once.
     else if (command === 'closeFolder' && info?.folder && !showsWorkbench) void api.command('closeFolder').catch(() => undefined);
   }), [actions, computer, near, info, showsWorkbench]);
@@ -90,6 +93,7 @@ export default function App() {
     {dialog?.kind === 'browse' && <FolderBrowser computer={dialog.computer} near={dialog.near} onClose={close} />}
     {dialog?.kind === 'computers' && computer && <ComputersDialog current={computer} onClose={close} />}
     {dialog?.kind === 'folders' && <FoldersDialog computer={dialog.computer} isCurrent={dialog.isCurrent} onClose={close} />}
+    {dialog?.kind === 'about' && <AboutDialog onClose={close} onError={warn} />}
   </>;
   let content;
   if (!info) content = failure ? <main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main> : <main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>;

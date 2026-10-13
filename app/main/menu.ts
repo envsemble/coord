@@ -9,7 +9,7 @@ const recentLimit = 10;
  * The application menu. On macOS it is the system's menu bar; elsewhere windows draw the same menus
  * in their title bar, and this menu stays hidden, keeping its shortcuts.
  */
-export function buildMenu(manager: WindowManager, folders: ComputerFolder[], actions: { openLogs(): void; about(): void; devTools: boolean }) {
+export function buildMenu(manager: WindowManager, folders: ComputerFolder[], actions: { openLogs(): void; devTools: boolean }) {
   const window = () => manager.focused();
   const mac = process.platform === 'darwin';
   // This computer's folder list, which its other devices see too; a folder leaves it from Manage Folders…
@@ -77,7 +77,7 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
       submenu: [
         { label: 'Open &Logs', click: actions.openLogs },
         { type: 'separator' },
-        { label: '&About Atlas', click: actions.about },
+        { label: '&About Atlas', click: () => manager.sendMenu('about') },
       ],
     },
   ];

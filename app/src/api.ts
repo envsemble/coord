@@ -40,6 +40,7 @@ export const api: Unwrapped = {
   command: command => unwrap(bridge().command(command)),
   theme: () => unwrap(bridge().theme()),
   setTheme: preference => unwrap(bridge().setTheme(preference)),
+  about: () => unwrap(bridge().about()),
   exportPlan: work => unwrap(bridge().exportPlan(work)),
   chooseImport: () => unwrap(bridge().chooseImport()),
   confirmImport: token => unwrap(bridge().confirmImport(token)),

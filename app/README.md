@@ -141,7 +141,7 @@ The app follows Electron's security checklist (the desktop-only decision is work
 
     Otherwise Atlas first asks in a system dialog the page cannot answer, so a screen reader's click, which makes no input event, still works.
   - **Creating a pairing link**, which hands the computer to whoever uses it, always asks in a system dialog first.
-  - Dialogs a page opens (choosing a file or folder, About, Locate…) come one at a time.
+  - Dialogs a page opens (choosing a file or folder, Locate…) come one at a time.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
 - Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.
 - No data leaves the machine unless you turn on remote access. Then devices you paired can work on this computer's planning folders as the app does here, and anyone who can reach the chosen address can learn this computer's name and Atlas version. [Remote access](../docs/remote-access.md) describes pairing, tokens, the network and what each computer keeps. There is no telemetry, update check or crash upload.
@@ -161,7 +161,7 @@ Only Reveal in File Explorer stays on that computer. See [remote access](../docs
 
 ## Diagnostics
 
-**Help › Open Logs** opens `logs/` in the data folder: `atlas.log` (the app: start-up, window and connection events) and `host.log` (the Atlas host: folders, the watcher, remote access, pairings and device connections), each 1 MB with up to three older files, including any failures. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions and the data folder.
+**Help › Open Logs** opens `logs/` in the data folder: `atlas.log` (the app: start-up, window and connection events) and `host.log` (the Atlas host: folders, the watcher, remote access, pairings and device connections), each 1 MB with up to three older files, including any failures. **Help › About Atlas**, in any window, shows the version, what stays on this computer, the Electron, Chromium and Node.js versions, the system and the data folder. **Copy Details** copies what a bug report needs: the versions and the system, not the data folder's path.
 
 ## Records and progress
 
