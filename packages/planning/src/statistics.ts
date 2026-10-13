@@ -165,7 +165,8 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     if (report.measured) {
       measuredReports++;
       measuredMs += report.measured.agentMs;
-      kinds = added(kinds, { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 });
+      // A measurement of no tokens is a known zero.
+      kinds ??= { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
       for (const item of report.measured.models) {
         const used = model(item.model);
         used.agentMs += item.agentMs;

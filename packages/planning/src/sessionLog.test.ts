@@ -131,6 +131,26 @@ test('waiting for the person inside a turn is not agent time: a question, a plan
   assert.equal(minutes(result.agentMs), 4 + 1 + 2 + 5);
 });
 
+test('reported from inside the session, a turn still under way runs until the report, unless it waits for the person', async t => {
+  const { claudeSession, environment, home } = folders(t);
+  const step = (minutes: number, id: string, stop: string | null, tool = 'Bash') => ({ type: 'assistant', message: { model: 'claude-opus-5-5', id, role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_' + id, name: tool, input: {} }], stop_reason: stop, usage: usage(1, 1) }, timestamp: iso(minutes) });
+  const answer = (minutes: number) => ({ type: 'assistant', message: { model: 'claude-opus-5-5', id: 'msg_done', role: 'assistant', content: [{ type: 'text', text: 'Done' }], stop_reason: 'end_turn', usage: usage(1, 1) }, timestamp: iso(minutes) });
+  claudeSession(
+    [claude.prompt(0), step(1, 'a', 'tool_use'), claude.result(10), answer(12)], // the main agent finished its turn and waits
+    [
+      [claude.prompt(5, { isSidechain: true }), step(6, 'b', 'tool_use')], // a helper waiting for its tests since minute 6
+      [claude.prompt(7, { isSidechain: true }), step(8, 'c', null)], // a helper whose response is still being written
+      [claude.prompt(9, { isSidechain: true }), step(11, 'd', 'tool_use', 'AskUserQuestion')], // a helper waiting for the person
+    ],
+  );
+  const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
+  assert.equal(minutes((await measure(logs, -1, 30)).agentMs), 12, 'from outside, each turn ends at its last activity');
+  assert.equal(minutes((await measure(logs, -1, 30, true)).agentMs), 30, 'from inside, the helpers at work are working now');
+  const closed = folders(t);
+  closed.claudeSession([claude.prompt(0), step(1, 'a', 'tool_use'), claude.result(10), answer(12)], [[claude.prompt(9, { isSidechain: true }), step(11, 'd', 'tool_use', 'AskUserQuestion')]]);
+  assert.equal(minutes((await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment: closed.environment, home }), -1, 30, true)).agentMs), 12, 'a finished turn and a question to the person do not run on');
+});
+
 test('a compaction is busy for its duration, but a manual one does not bridge the wait before it', async t => {
   const { claudeSession, environment, home } = folders(t);
   claudeSession([

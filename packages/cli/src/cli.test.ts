@@ -227,7 +227,7 @@ test('inside a harness, atlas work report needs only the work and the step: the 
   const project = path.join(config, 'projects', 'C--work-example');
   mkdirSync(project, { recursive: true });
   const usage = { input_tokens: 10, cache_creation_input_tokens: 200, cache_read_input_tokens: 3000, output_tokens: 400 };
-  const line = (at: number, kind: 'prompt' | 'response' | 'result', id = '') => JSON.stringify(kind === 'response' ? { type: 'assistant', message: { id, model: 'claude-opus-5-5', role: 'assistant', content: [], usage }, timestamp: new Date(at).toISOString() }
+  const line = (at: number, kind: 'prompt' | 'response' | 'result', id = '') => JSON.stringify(kind === 'response' ? { type: 'assistant', message: { id, model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: 'end_turn', usage }, timestamp: new Date(at).toISOString() }
     : { type: 'user', message: { role: 'user', content: kind === 'prompt' ? 'Placeholder' : [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] }, timestamp: new Date(at).toISOString() });
   const log = path.join(project, session + '.jsonl');
   writeFileSync(log, [line(Date.now() - 600000, 'prompt'), line(Date.now() - 540000, 'response', 'msg_1')].join('\n') + '\n');

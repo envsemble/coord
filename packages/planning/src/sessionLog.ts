@@ -200,10 +200,13 @@ interface ClaudeLine {
   type?: unknown; timestamp?: unknown; isMeta?: unknown; isCompactSummary?: unknown; subtype?: unknown;
   compactMetadata?: { durationMs?: unknown } | null;
   permissionDecision?: { source?: unknown } | null;
-  message?: { id?: unknown; model?: unknown; content?: unknown; usage?: Record<string, unknown> | null } | null;
+  message?: { id?: unknown; model?: unknown; content?: unknown; stop_reason?: unknown; usage?: Record<string, unknown> | null } | null;
 }
-/** A tool result after the person's answer or decision closes a stretch that was theirs, not the agent's. */
-type ClaudeEvent = { at: number } & ({ kind: 'prompt' } | { kind: 'activity'; model: string | null; person?: boolean } | { kind: 'compaction'; durationMs: number });
+/**
+ * A tool result after the person's answer or decision closes a stretch that was theirs, not the
+ * agent's. A response that ends its turn closes it; one that asks the person leaves it waiting.
+ */
+type ClaudeEvent = { at: number } & ({ kind: 'prompt' } | { kind: 'activity'; model: string | null; person?: boolean; closes?: boolean; asks?: boolean } | { kind: 'compaction'; durationMs: number });
 /** Tools that wait for the person: a question, and approval of a plan. */
 const personTools = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
@@ -212,8 +215,10 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
   if (Number.isNaN(at)) return null;
   const content = line.message?.content;
   if (line.type === 'assistant') {
-    if (Array.isArray(content)) for (const part of content) if (part?.type === 'tool_use' && personTools.has(part.name)) asked.add(part.id);
-    return { at, kind: 'activity', model: modelOf(line.message?.model) };
+    let asks = false;
+    if (Array.isArray(content)) for (const part of content) if (part?.type === 'tool_use' && personTools.has(part.name)) { asked.add(part.id); asks = true; }
+    const stop = line.message?.stop_reason;
+    return { at, kind: 'activity', model: modelOf(line.message?.model), closes: typeof stop === 'string' && stop !== 'tool_use', asks };
   }
   if (line.type === 'system') {
     const durationMs = line.subtype === 'compact_boundary' ? count(line.compactMetadata?.durationMs) : 0;
@@ -234,9 +239,10 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
 /**
  * Claude Code: each log's lines in time order. A prompt (from the person or a finished background
  * task) starts a turn, which runs until its last activity; each stretch goes to the model that
- * produced it, or that called the tool it waited for. A compaction is busy for its duration.
+ * produced it, or that called the tool it waited for. A compaction is busy for its duration. Live,
+ * a turn still under way (not ended by a response, nor waiting for the person) runs until now.
  */
-async function claudeTimeline(files: LogFile[], at: number): Promise<Timeline> {
+async function claudeTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
   // One response is written as several lines (one per content block): its last line counts.
   const responses = new Map<string, Spend>();
@@ -271,6 +277,8 @@ async function claudeTimeline(files: LogFile[], at: number): Promise<Timeline> {
       turn.model = current = event.model;
       if (log.main && event.at <= at && (!timeline.latest || event.at >= timeline.latest.at)) timeline.latest = { at: event.at, model: event.model };
     }
+    const end = events.at(-1);
+    if (live && turn && end && at > turn.last && !(end.kind === 'activity' && (end.closes || end.asks))) timeline.segments.push({ start: turn.last, end: at, model: turn.model, main: log.main });
   }
   timeline.spends = [...responses.values()];
   return timeline;
@@ -353,7 +361,8 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
       }
       last = moment;
     }
-    if (open) finish(open, live && log === newest ? Math.max(at, last) : last);
+    // A thread's earlier parts were left behind; a subagent's thread has one.
+    if (open) finish(open, live && (log === newest || !log.main) ? Math.max(at, last) : last);
   }
   return timeline;
 }
@@ -372,14 +381,15 @@ function covered(segments: Segment[], from: number, to: number) {
 /**
  * Measure a session's working time and tokens in (since, at]. Without `since` (the session's first
  * report on a work item, its starting point) only the main model is read. `live` means the report
- * comes from inside the session, so a Codex turn still under way runs until now.
+ * comes from inside the session, so a turn still under way runs until now.
  */
 export async function measureSession(logs: SessionLogs, interval: { since: number | null; at: number; live?: boolean }): Promise<SessionMeasure> {
   const { since, at } = interval;
   // Logs last written before the interval add nothing to it; the main log still names the model.
   const files = logs.files.filter(file => file.main || (since !== null && file.modified >= since));
   if (logs.harness === 'codex' && since !== null) files.push(...await codexHelpers(logs, since));
-  const timeline = logs.harness === 'claude-code' ? await claudeTimeline(files, at) : await codexTimeline(files, at, interval.live ?? false);
+  const live = interval.live ?? false;
+  const timeline = logs.harness === 'claude-code' ? await claudeTimeline(files, at, live) : await codexTimeline(files, at, live);
   if (!timeline.events) throw new Error('its log has nothing Atlas can read');
   const from = since ?? at;
   const usage = new Map<string, ModelMeasure>();

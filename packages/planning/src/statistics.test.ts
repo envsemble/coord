@@ -308,23 +308,24 @@ test('inside a harness, atlas work report reads the session, model, agent time a
   mkdirSync(path.join(project, session, 'subagents'), { recursive: true });
   const usage = { input_tokens: 10, cache_creation_input_tokens: 200, cache_read_input_tokens: 3000, output_tokens: 400 };
   const prompt = (minutes: number) => JSON.stringify({ type: 'user', message: { role: 'user', content: 'Placeholder' }, timestamp: at(minutes) });
-  const response = (minutes: number, id: string, model: string) => JSON.stringify({ type: 'assistant', message: { id, model, role: 'assistant', content: [], usage }, timestamp: at(minutes) });
+  // A response that calls a tool, or the one that ends the turn.
+  const response = (minutes: number, id: string, model: string, stop = 'tool_use') => JSON.stringify({ type: 'assistant', message: { id, model, role: 'assistant', content: [], stop_reason: stop, usage }, timestamp: at(minutes) });
   const result = (minutes: number) => JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] }, timestamp: at(minutes) });
   const log = path.join(project, session + '.jsonl');
-  writeFileSync(log, [prompt(0), response(1, 'msg_1', 'claude-opus-5-5'), result(19), response(20, 'msg_2', 'claude-opus-5-5')].join('\n') + '\n');
+  writeFileSync(log, [prompt(0), response(1, 'msg_1', 'claude-opus-5-5'), result(19), response(20, 'msg_2', 'claude-opus-5-5', 'end_turn')].join('\n') + '\n');
   const options = { environment: { CLAUDE_CODE_SESSION_ID: session, CLAUDECODE: '1', CLAUDE_CONFIG_DIR: config }, home: config };
 
   const first = await recordWorkReport(root, 'work-0001', { step: 'Build it', at: new Date(at(2)) }, options);
   assert.deepEqual([first.report.model, first.report.session, first.report.measured, first.warnings], ['claude-opus-5-5', session, undefined, []], 'the first report is the starting point, with the model from the log');
-  appendFileSync(log, [prompt(100), response(101, 'msg_3', 'claude-opus-5-5'), result(130), response(130, 'msg_4', 'claude-opus-5-5')].join('\n') + '\n');
-  writeFileSync(path.join(project, session, 'subagents', 'agent-a1.jsonl'), [prompt(110), response(111, 'msg_5', 'claude-haiku-5-5'), result(140)].join('\n') + '\n');
+  appendFileSync(log, [prompt(100), response(101, 'msg_3', 'claude-opus-5-5'), result(130), response(130, 'msg_4', 'claude-opus-5-5', 'end_turn')].join('\n') + '\n');
+  writeFileSync(path.join(project, session, 'subagents', 'agent-a1.jsonl'), [prompt(110), response(111, 'msg_5', 'claude-haiku-5-5'), result(139), response(140, 'msg_6', 'claude-haiku-5-5', 'end_turn')].join('\n') + '\n');
   const second = await recordWorkReport(root, 'work-0001', { step: 'Ship it', at: new Date(at(150)) }, options);
   assert.deepEqual(second.report.measured, { since: at(2), agentMs: (20 - 2 + 140 - 100) * 60000, models: [
     { model: 'claude-opus-5-5', agentMs: (20 - 2 + 30) * 60000, input: 30, cacheRead: 9000, cacheWrite: 600, output: 1200 },
-    { model: 'claude-haiku-5-5', agentMs: 30 * 60000, input: 10, cacheRead: 3000, cacheWrite: 200, output: 400 },
+    { model: 'claude-haiku-5-5', agentMs: 30 * 60000, input: 20, cacheRead: 6000, cacheWrite: 400, output: 800 },
   ] }, 'from the previous report on, waiting excluded, the helper\'s parallel work once');
   const statistics = (await loadPlanning(root)).work[0].statistics!;
-  assert.deepEqual([statistics.agentMs / 60000, statistics.measuredMs / 60000, statistics.estimatedMs, statistics.primaryModel, statistics.tokens], [58, 58, 0, 'claude-opus-5-5', 4 * 3610]);
+  assert.deepEqual([statistics.agentMs / 60000, statistics.measuredMs / 60000, statistics.estimatedMs, statistics.primaryModel, statistics.tokens], [58, 58, 0, 'claude-opus-5-5', 5 * 3610], 'five responses since the first report');
 
   // An explicit model and session work as before, measured when the session has a log.
   const named = await recordWorkReport(root, 'work-0001', { model: 'claude-opus-5-5[1m]', session, at: new Date(at(160)) }, { environment: { CLAUDE_CONFIG_DIR: config }, home: config });
