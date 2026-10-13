@@ -25,6 +25,10 @@ module.exports = {
   // Validation consumers need neither the layout engine nor a React compiler.
   prepareViewer: (...args) =>
     require("./build/buildViewer.cjs").prepareViewer(...args),
+  prepareFamily: (...args) =>
+    require("./build/prepareComparison.cjs").prepareFamily(...args),
+  familyKey: (...args) =>
+    require("./build/prepareComparison.cjs").familyKey(...args),
   buildViewer: (...args) =>
     require("./build/buildViewer.cjs").buildViewer(...args),
   writeViewer: (...args) =>

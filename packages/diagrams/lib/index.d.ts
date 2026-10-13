@@ -282,6 +282,18 @@ export interface ViewerPayload {
     changes: SemanticComparison;
     conflicts: MergeConflict[];
   } | null;
+  /**
+   * Set on the payloads `prepareFamily` lays out together: the baseline
+   * snapshot a capture and its proposals share. Viewers switch among the
+   * payloads of one family in place, keeping the camera and the selection.
+   */
+  family?: string;
+}
+/** A capture and its proposals, laid out once: each document's prepared viewer, in the order given. */
+export interface PreparedFamily {
+  /** The baseline snapshot the members share; each payload's `family`. */
+  key: string;
+  members: PreparedViewer[];
 }
 export interface PreparedViewer {
   artifacts: Map<string, string | Uint8Array>;
@@ -803,6 +815,19 @@ export const toolDefinitions: {
   inputSchema: Record<string, unknown>;
 }[];
 export function prepareViewer(input: ViewerBuildInput): Promise<PreparedViewer>;
+/**
+ * Lays out a capture and the proposals over its snapshot (`familyKey`) once,
+ * so each member's classes and routes keep their places from one member to
+ * the next. At least one document must be a proposal; all must share the
+ * baseline snapshot and profile.
+ */
+export function prepareFamily(input: {
+  documents: AtlasDocument[];
+  slug?: string;
+  includeArtifacts?: boolean;
+}): Promise<PreparedFamily>;
+/** The baseline snapshot a capture or a proposal shares with its family; null for other documents. */
+export function familyKey(document: AtlasDocument): string | null;
 export function buildViewer(input: ViewerBuildInput): Promise<BuildResult>;
 export function writeViewer(result: BuildResult, outputPath: string): void;
 export type ReviewRevision =
