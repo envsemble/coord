@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Badge, Breadcrumbs, Button, Counter, EmptyState, Notice, Surface, Tabs, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import { CommitIcon, DiagramIcon, LedgerIcon, PlanIcon } from './icons';
@@ -7,7 +7,7 @@ import { defaultDocument, primaryDocuments } from './work';
 import { viewTarget, workTarget } from './targets';
 import { absoluteDate, compactNumber, duration, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
-import { RepositoryBadge, StatusBadge } from './ui';
+import { RepositoryBadge, StatusBadge, StatusIcon } from './ui';
 import { Reader, useReferences } from './Reader';
 import { AtlasWorkPanel } from './AtlasWorkPanel';
 import { LedgerSteps } from './LedgerProgress';
@@ -75,6 +75,12 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
   </aside>;
 }
 
+/**
+ * A work item: a bar with its place and its sections (Plan, Ledger, Diagrams) that stays in the same
+ * spot for every section and sticks below the tabs, then the section. Reading sections show the title
+ * as their heading, and the bar names the item once the heading scrolls away; the diagrams take the
+ * rest of the window.
+ */
 export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
   const { retarget } = useWorkbench();
   const section = workSection(target, work);
@@ -83,6 +89,8 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const note = designNote(work);
   const reading: Document | undefined = section === 'plan' ? plan : section === 'ledger' ? ledger : undefined;
   const references = useReferences(reading, work.id, section !== 'diagrams' && reading?.format === 'markdown');
+  const heading = useRef<HTMLDivElement>(null);
+  const headingVisible = useHeadingVisible(heading, section !== 'diagrams');
   const sections: { id: WorkSection; label: string; icon: ReactNode; count?: number; hidden?: boolean }[] = [
     { id: 'plan', label: 'Plan', icon: <PlanIcon />, hidden: !plan },
     { id: 'ledger', label: 'Ledger', icon: <LedgerIcon />, hidden: !ledger },
@@ -91,25 +99,29 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const body = section === 'diagrams' ? <AtlasWorkPanel key={work.id} work={work} snapshot={snapshot} target={target} />
     : <div className="work-layout">
       <div className="work-main">
+        <header className="work-header" ref={heading}>
+          <Text as="h1" variant="page-heading">{work.title}</Text>
+          <div className="work-header-meta">
+            <StatusBadge status={status} />
+            {work.location === 'archived' && <Badge tone="warning">Archived</Badge>}
+            {note && <Badge>{note}</Badge>}
+            {work.repositories.map(id => <RepositoryBadge key={id} id={id} />)}
+          </div>
+        </header>
         {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan or ledger." />}
       </div>
       <About work={work} snapshot={snapshot} />
     </div>;
   return <div className={'work-page section-' + section}>
-    <header className="work-page-head">
-      <Trail items={[{ label: 'Work', target: viewTarget('work') }, { label: workNumber(work.id) }]} />
-      <div className="work-header">
-        <Text as="h1" variant="page-heading">{work.title}</Text>
-        <div className="work-header-meta">
-          <StatusBadge status={status} />
-          {work.location === 'archived' && <Badge tone="warning">Archived</Badge>}
-          {note && <Badge>{note}</Badge>}
-          {work.repositories.map(id => <RepositoryBadge key={id} id={id} />)}
-        </div>
-      </div>
-    </header>
     <Tabs className="work-sections" aria-label="Work sections" value={section} activation="manual" fill={section === 'diagrams'} listClassName="work-sections-list"
+      renderList={list => <div className="work-bar">
+        <div className="work-bar-place">
+          <Trail items={[{ label: 'Work', target: viewTarget('work') }, { label: workNumber(work.id) }]} />
+          <span className="work-bar-title" hidden={headingVisible}><StatusIcon status={status} decorative />{work.title}</span>
+        </div>
+        {list}
+      </div>}
       onValueChange={value => { if (value) retarget(workTarget(work.id, value as WorkSection, value === 'diagrams' ? { diagram: target.diagram ?? null } : {})); }}
       items={sections.filter(item => !item.hidden).map(item => ({
         value: item.id,
@@ -117,6 +129,22 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         content: item.id === section ? body : null,
       }))} />
   </div>;
+}
+
+/** Whether a heading shows below the sticky title bar, tabs and work bar; false while there is none. */
+function useHeadingVisible(element: { current: HTMLElement | null }, present: boolean) {
+  const [visible, setVisible] = useState(present);
+  useEffect(() => {
+    const node = element.current;
+    if (!present || !node) { setVisible(false); return; }
+    // The bars stay where they are while the page scrolls, so the work bar's edge marks what they cover.
+    const bar = node.closest('.work-page')?.querySelector('.work-bar');
+    const covered = Math.ceil(bar?.getBoundingClientRect().bottom ?? 0);
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: `-${covered}px 0px 0px 0px` });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [element, present]);
+  return visible;
 }
 
 export function FileView({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {

@@ -245,9 +245,19 @@ export function PlanViewer({ data }: { data: PlanData }) {
     { id: 'diagrams', label: 'Diagrams', icon: <AccountTree />, count: view.diagrams.length },
     { id: 'files', label: 'Files', icon: <Description />, count: listed.length },
   ];
+  const heading = useRef<HTMLDivElement>(null);
+  const headingVisible = useHeadingVisible(heading, tab !== 'diagrams');
   const body = tab === 'diagrams' ? <Diagrams data={data} route={route} navigate={navigate} />
     : <div className="work-layout">
       <div className="work-main">
+        <header className="work-header" ref={heading}>
+          <Text as="h1" variant="page-heading">{view.work.title}</Text>
+          <div className="work-header-meta">
+            <StatusBadge status={workStatus(view.work)} />
+            {view.work.location === 'archive' && <Badge tone="warning">Archived</Badge>}
+            {view.work.repositories.map(repository => <Badge key={repository.id} variant="outline" title={repository.name}>{repository.id}</Badge>)}
+          </div>
+        </header>
         {tab === 'files' ? <div className="files-tab">
           <FileTree files={listed} selected={selected?.path} onSelect={file => navigate({ tab: 'files', file })} />
           {selected ? <Surface className="file-surface" padding={0}><Reader key={selected.path} file={selected} data={data} anchor={route.anchor} toolbar navigate={navigate} /></Surface> : <Text tone="muted" className="tree-empty">No files.</Text>}
@@ -256,26 +266,22 @@ export function PlanViewer({ data }: { data: PlanData }) {
       </div>
       <About data={data} />
     </div>;
+  // The app's work page without its window: the export's notice, then the same bar with the work
+  // item's place and sections (and the theme), then the section.
   return <main className="plan-export">
+    <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note" title="Read-only plan export">
+      {payload.source.workId} from <Code appearance="subtle">{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code appearance="subtle">atlas plan import &lt;file&gt;</Code>
+    </Notice>
     <div className={'work-page section-' + tab}>
-      <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note" title="Read-only plan export">
-        {payload.source.workId} from <Code appearance="subtle">{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code appearance="subtle">atlas plan import &lt;file&gt;</Code>
-      </Notice>
-      <header className="work-page-head">
-        <div className="export-trail">
-          <Breadcrumbs className="breadcrumb" items={[{ label: payload.source.planningFolder }, { label: workNumber(view.work.id) }]} />
-          <ThemeToggle />
-        </div>
-        <div className="work-header">
-          <Text as="h1" variant="page-heading">{view.work.title}</Text>
-          <div className="work-header-meta">
-            <StatusBadge status={workStatus(view.work)} />
-            {view.work.location === 'archive' && <Badge tone="warning">Archived</Badge>}
-            {view.work.repositories.map(repository => <Badge key={repository.id} variant="outline" title={repository.name}>{repository.id}</Badge>)}
+      <Tabs className="work-sections" aria-label="Work sections" value={tab} activation="manual" onValueChange={value => { if (value) navigate({ tab: value as Tab }); }} listClassName="work-sections-list"
+        renderList={list => <div className="work-bar">
+          <div className="work-bar-place">
+            <Breadcrumbs className="breadcrumb" items={[{ label: payload.source.planningFolder }, { label: workNumber(view.work.id) }]} />
+            <span className="work-bar-title" hidden={headingVisible}>{view.work.title}</span>
           </div>
-        </div>
-      </header>
-      <Tabs className="work-sections" aria-label="Work sections" value={tab} activation="manual" onValueChange={value => { if (value) navigate({ tab: value as Tab }); }}
+          {list}
+          <ThemeToggle />
+        </div>}
         items={tabs.filter(item => !item.hidden).map(item => ({
           value: item.id,
           button: <Button variant="secondary" startIcon={item.icon}>{item.label}{item.count ? <> <Counter value={item.count} /></> : null}</Button>,
@@ -283,6 +289,21 @@ export function PlanViewer({ data }: { data: PlanData }) {
         }))} />
     </div>
   </main>;
+}
+
+/** Whether a heading shows below the sticky work bar; false while there is none. */
+function useHeadingVisible(element: { current: HTMLElement | null }, present: boolean) {
+  const [visible, setVisible] = useState(present);
+  useEffect(() => {
+    const node = element.current;
+    if (!present || !node) { setVisible(false); return; }
+    const bar = node.closest('.work-page')?.querySelector('.work-bar');
+    const covered = Math.ceil(bar?.getBoundingClientRect().height ?? 0);
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: `-${covered}px 0px 0px 0px` });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [element, present]);
+  return visible;
 }
 
 export function ExportError({ message }: { message: string }) {
