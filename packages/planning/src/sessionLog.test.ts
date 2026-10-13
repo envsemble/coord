@@ -308,6 +308,25 @@ test('Codex: an open turn ends at its last event, or now when the report comes f
   assert.equal(minutes((await measure(logs, -1, 30, true)).agentMs), 30, 'live: the turn is still under way');
 });
 
+test('Codex: a subagent\'s thread is measured as the root session it belongs to', async t => {
+  const { rollout, environment, home } = folders(t);
+  const helper = '01a118ae-0000-7000-8000-000000000001', grandchild = '01a118ae-0000-7000-8000-000000000002';
+  rollout(thread, [codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), codex.complete(10, 't1')]);
+  rollout(helper, [codex.meta(helper, { session_id: thread, parent_thread_id: thread }), codex.started(10, 'h1'), codex.context(10, 'h1', 'gpt-5-codex-mini'), codex.complete(70, 'h1')]);
+  rollout(grandchild, [codex.meta(grandchild, { session_id: thread, parent_thread_id: helper }), codex.started(20, 'g1'), codex.context(20, 'g1', 'gpt-5-codex-mini'), codex.complete(30, 'g1')]);
+  for (const asked of [helper, grandchild]) {
+    const logs = await sessionLogs([{ harness: 'codex', session: asked }], { environment, home });
+    assert.deepEqual([logs?.session, logs?.requested], [thread, asked], 'the root, asked for by its subagent');
+    assert.equal(minutes((await measure(logs, -1, 80)).agentMs), 70, 'the root with all its subagents');
+  }
+  const root = await sessionLogs([{ harness: 'codex', session: thread }], { environment, home });
+  assert.deepEqual([root?.session, root?.requested], [thread, thread]);
+  // A thread whose root is not on this computer stays its own session.
+  const orphan = '01a118ae-0000-7000-8000-000000000003';
+  rollout(orphan, [codex.meta(orphan, { session_id: '01a00000-0000-7000-8000-00000000000f' }), codex.started(0, 'o1'), codex.complete(5, 'o1')]);
+  assert.deepEqual((await sessionLogs([{ harness: 'codex', session: orphan }], { environment, home }))?.session, orphan);
+});
+
 test('Codex: later parts of a thread continue it, and subagent threads that name it are included', async t => {
   const { rollout, environment, home } = folders(t);
   rollout(thread, [codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), codex.tokens(5, 1000, 0, 100), codex.complete(10, 't1')]);
