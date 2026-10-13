@@ -5,13 +5,12 @@ const {
   generalizationGroups,
   groupLabel,
 } = require("./generalizationGroups.cjs");
+const { knownMultiplicity } = require("./multiplicity.cjs");
 const round = (n) => Number(n.toFixed(2));
-// Captures record unknown counts as "?": an end without a count gets no label.
-const knownMultiplicity = (value) =>
-  typeof value === "string" && value.trim() !== "" && value.trim() !== "?";
-// Every captured type-use dependency has this name; repeated on each edge it
-// says nothing the dashed arrow does not.
-const GENERIC_NAMES = new Set(["declared type use"]);
+// Names that only repeat what a relation is: every captured type-use
+// dependency has the first, and OntoUML relations without a name of their own
+// the second. Repeated on each edge they say nothing the line does not.
+const GENERIC_NAMES = new Set(["declared type use", "association"]);
 // Stereotypes the line style (a dependency's dashed open arrow) or the profile
 // (every relation between tables is a foreign key) already shows.
 const IMPLIED_STEREOTYPES = new Set(["dependency", "foreign key"]);
@@ -25,8 +24,8 @@ function relationLabel(relation) {
   const stereotype = IMPLIED_STEREOTYPES.has(relation.stereotype)
     ? ""
     : relation.stereotype;
-  if (!name.trim() && !stereotype) return null;
-  return (stereotype ? "«" + stereotype + "»\n" : "") + name;
+  const lines = [stereotype ? "«" + stereotype + "»" : "", name.trim() && name];
+  return lines.filter(Boolean).join("\n") || null;
 }
 function label(id, text, placement = "CENTER") {
   const lines = text.split("\n");
@@ -587,4 +586,4 @@ async function layoutDiagram(
   };
   return { diagram, check };
 }
-module.exports = { layoutDiagram, relationLabel, knownMultiplicity };
+module.exports = { layoutDiagram, relationLabel };

@@ -1,6 +1,5 @@
 const assert = require("node:assert/strict");
-const knownMultiplicity = (value) =>
-  typeof value === "string" && value.trim() !== "" && value.trim() !== "?";
+const { knownMultiplicity } = require("./multiplicity.cjs");
 const coordinates = (path) =>
   (path.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
 

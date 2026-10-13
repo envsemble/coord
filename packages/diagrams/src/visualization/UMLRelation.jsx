@@ -1,17 +1,69 @@
 import { elementClass, interactionProps, sameTarget } from "./interaction";
 import { CHANGE_COLORS, isChanged } from "./UMLNode";
-
-const knownCount = (value) =>
-  typeof value === "string" && value.trim() !== "" && value.trim() !== "?";
+import { knownMultiplicity } from "../model/multiplicity";
+import { changeGlyph, informativeName } from "../review/changes";
 
 export function relationName(edge) {
   if (edge.type === "generalization")
     return `${edge.sourceName} ${edge.realization ? "implements" : "inherits"} ${edge.targetName}`;
-  if (edge.stereotype === "dependency" && edge.name === "declared type use")
+  const own = informativeName(edge);
+  if (!own && edge.stereotype === "dependency")
     return `${edge.sourceName} uses ${edge.targetName}`;
   const end = (name, count) =>
-    knownCount(count) ? `${name} (${count})` : name;
-  return `${edge.name}: ${end(edge.sourceName, edge.sourceMultiplicity)}, ${end(edge.targetName, edge.targetMultiplicity)}`;
+    knownMultiplicity(count) ? `${name} (${count})` : name;
+  return `${own || edge.stereotype || "Association"}: ${end(edge.sourceName, edge.sourceMultiplicity)}, ${end(edge.targetName, edge.targetMultiplicity)}`;
+}
+
+// Where a changed relation shows its +, ~ or − (so the change does not rest
+// on colour alone): the middle of its longest segment that no label covers.
+const MARK_GAP = 9;
+// Shorter segments leave no room beside their ends and arrowheads.
+const MARK_SEGMENT = 40;
+export function changeMarkPoint(paths, labels = []) {
+  const segments = [];
+  for (const d of paths) {
+    const n = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    for (let i = 2; i + 1 < n.length; i += 2)
+      segments.push({
+        x: (n[i - 2] + n[i]) / 2,
+        y: (n[i - 1] + n[i + 1]) / 2,
+        length: Math.abs(n[i] - n[i - 2]) + Math.abs(n[i + 1] - n[i - 1]),
+      });
+  }
+  const free = ({ x, y }) =>
+    !labels.some(
+      (l) =>
+        x > l.x - MARK_GAP &&
+        x < l.x + l.width + MARK_GAP &&
+        y > l.y - MARK_GAP &&
+        y < l.y + l.height + MARK_GAP,
+    );
+  return (
+    segments
+      .sort((a, b) => b.length - a.length)
+      .find((s) => s.length >= MARK_SEGMENT && free(s)) || null
+  );
+}
+
+function ChangeMarkGlyph({ change, at }) {
+  return (
+    <g
+      className="edge-change-mark"
+      transform={`translate(${at.x} ${at.y})`}
+      aria-hidden="true"
+    >
+      <circle r="7.5" fill={CHANGE_COLORS[change]} />
+      <text
+        y="4.5"
+        textAnchor="middle"
+        fill="var(--canvas,#ffffff)"
+        fontSize="13"
+        fontWeight="700"
+      >
+        {changeGlyph(change)}
+      </text>
+    </g>
+  );
 }
 
 export function UMLRelation({
@@ -44,6 +96,8 @@ export function UMLRelation({
   const name =
     accessibleName ||
     `${relationName(edge)}${change ? `, ${change === "added" ? "new" : change === "removed" ? "removed" : "changed"}` : ""}`;
+  const routes = edge.branchPaths || edge.paths;
+  const mark = change ? changeMarkPoint(routes, edge.labels) : null;
   return (
     <g
       className={`${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}${change ? " changed" : ""}`}
@@ -58,7 +112,7 @@ export function UMLRelation({
       {...interactionProps(target, handlers)}
     >
       <title>{name}</title>
-      {(edge.branchPaths || edge.paths).map((d, i) => (
+      {routes.map((d, i) => (
         <g key={i}>
           {change && (
             <path
@@ -116,6 +170,7 @@ export function UMLRelation({
           )}
         </g>
       ))}
+      {mark && <ChangeMarkGlyph change={change} at={mark} />}
     </g>
   );
 }
@@ -190,21 +245,25 @@ export function UMLRelationLabels({
                 fill="var(--diagram-label,#1f2328)"
                 fontSize="13"
               >
-                {label.text.split("\n").map((line, i, lines) => (
-                  <tspan
-                    key={i}
-                    x={label.width / 2}
-                    y={17 + i * 17}
-                    fontSize={i === 0 && lines.length > 1 ? "11.5" : undefined}
-                    fill={
-                      i === 0 && lines.length > 1
-                        ? "var(--diagram-muted,#59636e)"
-                        : undefined
-                    }
-                  >
-                    {line}
-                  </tspan>
-                ))}
+                {label.text.split("\n").map((line, i, lines) => {
+                  // The «stereotype» line, alone or above the name, is
+                  // smaller and muted.
+                  const stereotype =
+                    i === 0 && (lines.length > 1 || /^«.*»$/.test(line));
+                  return (
+                    <tspan
+                      key={i}
+                      x={label.width / 2}
+                      y={17 + i * 17}
+                      fontSize={stereotype ? "11.5" : undefined}
+                      fill={
+                        stereotype ? "var(--diagram-muted,#59636e)" : undefined
+                      }
+                    >
+                      {line}
+                    </tspan>
+                  );
+                })}
               </text>
             </>
           )}

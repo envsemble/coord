@@ -9,15 +9,6 @@
   inset: 0;
   height: auto;
 }
-.atlas-panel .report-diagram {
-  position: absolute;
-  inset: 0;
-}
-.atlas-panel .report-diagram > .atlas-panel {
-  position: absolute;
-  inset: 0;
-  min-height: 0;
-}
 .atlas-panel.atlas-empty .viewer {
   display: grid;
   place-content: center;
