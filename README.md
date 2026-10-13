@@ -66,7 +66,7 @@ Plans, models and statistics stay on your computer unless you turn on remote acc
 - **Share a plan.** `atlas plan export <work-id>` (or **File › Export Plan…**) writes the whole work item to one `.atlas-plan.html` file: plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history. Anyone can open it in a browser to read the plan offline; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds it to another planning folder as new work. See [plan export](docs/plan-export.md).
 - **Work on another computer.** **File › Remote Access…** lets your other devices work on this computer's planning folders as if they were local: turn it on, choose the Tailscale address and create a pairing link.
   - On the other device, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes).
-  - The computer menu at the top left of the window then switches between computers, and the folder menu above the explorer opens any planning folder there.
+  - The computer menu in the title bar then switches between computers, and **File › Open Recent** and **Open Folder…** open any planning folder there.
   - `atlas serve` does the same without the app.
 
   See [remote access](docs/remote-access.md).

@@ -47,11 +47,11 @@ On Windows, the first time the host listens on a network address, Windows Defend
 
 ## Connect from another device
 
-On the other device, choose **File › Connect to Another Atlas…** (also on the welcome page, in the computer menu and in the window's **More** menu) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Atlas then lists that computer's planning folders. Choose one to open it, or **Open Folder on …** to browse that computer for another.
+On the other device, choose **File › Connect to Another Atlas…** (also on the welcome page and in the computer menu) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Atlas then lists that computer's planning folders. Choose one to open it, or **Open Folder on …** to browse that computer for another.
 
 ## Work on another computer
 
-Each window says where it works: the **computer menu** (the pill with the computer's name, at the top left) and the **folder menu** (the folder's name, above the explorer).
+Each window says where it works: the **computer menu** (the computer's name in the title bar, after the menus) and the folder's name above the explorer.
 
 - **The computer menu** lists this computer and every computer this one is paired with. Computers that do not answer are marked **Offline**.
   - Choosing a computer works on it in this window. Atlas opens:
@@ -63,12 +63,13 @@ Each window says where it works: the **computer menu** (the pill with the comput
     On a welcome page, choosing a computer shows its folder list instead.
 
   - **Connect to Another Atlas…** pairs with one more.
-  - **Manage computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
+  - **Manage Computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
 
-- **The folder menu** lists the computer's planning folders, newest first, then **Open Folder…** and **Manage folders…**:
+- **File › Open Recent** lists the computer's planning folders, newest first, then **Manage Folders…**; **File › Open Folder…** opens another one:
   - on this computer, **Open Folder…** opens the system's dialog;
   - on another, it opens the **folder browser**. It lists that computer's folders (never files), marks planning folders (those with a `planning.json`) and opens only those. It starts beside the folder the window shows; **Home** goes to the home folder and the drives.
-  - **Manage folders…** lists every folder with its path, its number of work items and when it was last opened, and marks the one this window shows. **↗** opens a folder in a new window, and **×** takes it off the list on every device.
+  - **Manage Folders…** lists every folder with its path, its number of work items and when it was last opened, and marks the one this window shows. **↗** opens a folder in a new window, and **×** takes it off the list on every device.
+  - **File › Close Folder** goes back to the computer's welcome page.
 - **Choosing a folder or a computer** opens it in this window. In a folder list, Ctrl+click (⌘+click on macOS) or **↗** opens it in a new window. A folder that is already open somewhere brings that window forward.
 - **The welcome page**, in a window without a folder, has the same computer menu and lists the chosen computer's folders.
 
@@ -92,7 +93,7 @@ Windows showing another computer's folders reopen on the next start while the co
 Each computer keeps one **folder list**, in `host/folders.json` in its Atlas data folder.
 
 - **Joining:** a planning folder joins the list when it is opened there from any device, from the command line, or with `atlas serve --folder`.
-- **Everyone sees the same list:** this computer's File › Open Recent, the welcome page and every paired device's folder menu. A folder opened on one device appears on the others at once.
+- **Everyone sees the same list:** File › Open Recent and the welcome page, on this computer and on every paired device. A folder opened on one device appears on the others at once.
 - **Leaving:** a folder stays until someone removes it with **×** in a folder list, which removes it for every device.
 - **Missing folders:** a folder that was moved or deleted is marked **Missing**.
 - **The first list** starts from the folders this Atlas recently opened and, from the first version of remote access, the folders it shared.

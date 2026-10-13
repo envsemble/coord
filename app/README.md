@@ -65,11 +65,12 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 Each window shows exactly one planning folder, like VS Code, on this computer or on a computer this one is paired with ([remote access](../docs/remote-access.md)):
 
 - **File › Open Folder…** (Ctrl+O) picks a folder. It must contain a readable `planning.json` with schema version 1; otherwise Atlas explains why and opens nothing. A window without a folder is reused; otherwise the folder opens in a new window, and a folder that is already open gets focus instead. In a window on another computer, it opens that computer's folder browser.
-- **The folder menu** (the folder's name above the explorer) lists the computer's planning folders, newest first. Choosing one opens it in this window. **Manage folders…** lists them with a button to open each one in a new window (Ctrl+click on a name does the same) and one to remove it from the list.
-- **The computer menu** (the pill at the top left of the window) lists this computer and the paired ones. Choosing a computer works on it in this window: Atlas opens its only folder, the one this device last showed there, its most recent folder, or, with none, that computer's welcome page. On a welcome page, choosing a computer shows its folder list. **Manage computers…** opens a computer in a new window or forgets a paired one.
-- **File › Open Recent** lists this computer's most recent folders (missing ones are marked). **New Window** (Ctrl+Shift+N) opens an empty window, whose welcome page shows a computer's folder list and Open Folder.
+- **File › Open Recent** lists the planning folders of the computer the window works on, newest first, with the window's own folder checked. Choosing one opens it in this window. **Manage Folders…** lists them all with a button to open each one in a new window (Ctrl+click on a name does the same) and one to remove it from the list.
+- **File › Close Folder** takes the window back to the welcome page of its computer. **Close Window** (Ctrl+Shift+W) closes it.
+- **The computer menu** (the computer's name in the title bar, after the menus) lists this computer and the paired ones. Choosing a computer works on it in this window: Atlas opens its only folder, the one this device last showed there, its most recent folder, or, with none, that computer's welcome page. On a welcome page, choosing a computer shows its folder list. **Manage Computers…** opens a computer in a new window or forgets a paired one.
+- **New Window** (Ctrl+Shift+N) opens an empty window, whose welcome page shows a computer's folder list and Open Folder.
 - **The folder list** belongs to the computer: every planning folder opened there, from any device or the command line, stays on it, newest first, until someone removes it, and every device sees the same list.
-- Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility, expanded folders and open tabs. Closing windows one by one keeps the last one.
+- Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility, expanded folders, open tabs and the page it showed. Closing windows one by one keeps the last one.
 - Two windows may show overlapping folders, such as nested planning roots; each reads only its own folder.
 
 Atlas keeps its own data in the per-user Atlas data folder, shared with the `atlas` command: `%APPDATA%\Atlas` on Windows and `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR`. There it keeps:
@@ -84,11 +85,12 @@ Earlier versions kept recent folders in `planning-roots.json`; the folder list s
 
 ## Layout
 
-The window is envUI's application shell:
+The window is envUI's application shell, and it draws its own title bar:
 
-- **Top bar:** the computer menu, the page's name, **Search** (quick open), record-health notes when there are any, the theme menu (match the system, light or dark; it applies to every window and to Atlas's own menus and dialogs) and a **More** menu (Open Folder…, Import Plan…, Export Plan…, Remote Access…, Connect to Another Atlas…).
-- **Sidebar:** **Work** (with the number of active work items), **Activity** and **Statistics** open those views in a tab. Below them, the folder menu and the **explorer**: the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, type-ahead, Enter (open and keep) and Space (preview) work in the tree. A context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**, and, anywhere in the explorer, **Collapse All Folders**. Ctrl+B collapses the sidebar to its icons and back; drag its edge, or use the arrow keys on it, to resize it.
-- **Tabs:** a single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab (choosing a section or a diagram), keeps it. Ctrl+W closes a tab; middle-click closes it too. The tabs stay under the top bar while the page scrolls.
+- **Title bar:** the Atlas mark (which also collapses the sidebar), the **File**, **Edit**, **View** and **Help** menus, and the computer menu; then **Search** (quick open), record-health notes when there are any, the theme menu (match the system, light or dark; it applies to every window and to Atlas's own menus and dialogs) and the system's minimize, maximize and close buttons. Empty space in the title bar moves the window, and a double click maximizes it. Alt opens the menus from the keyboard (Alt+F for File). On macOS the menus are in the system's menu bar and the title bar starts after the window buttons. Welcome pages and folder problems have the same title bar.
+- **Sidebar:** **Work** (with the number of active work items), **Activity** and **Statistics** are pages of their own: choosing one shows it in place of the open document, and the tabs stay as they are. Below them, the folder's name and the **explorer**: the planning folder as it is on disk, with real folder and file names. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its plan title; it holds a virtual **Diagrams** entry listing its models with their provenance labels. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, type-ahead, Enter (open and keep) and Space (preview) work in the tree. A context menu offers **Open Overview**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**, and, anywhere in the explorer, **Collapse All Folders**. Ctrl+B collapses the sidebar to its icons and back; drag its edge, or use the arrow keys on it, to resize it.
+- **Tabs** hold the open documents: work items and files. A single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab (choosing a section or a diagram), keeps it. Ctrl+W closes a tab; middle-click closes it too. Closing the last one shows the page again. The tabs stay under the title bar while the page scrolls.
+- **A work item** has a bar under the tabs with its place (**Work › #0001**) and its sections, **Plan**, **Ledger** and **Diagrams**, in the same spot for each section. The bar stays while the page scrolls and names the item once its heading scrolls away; the diagrams take the rest of the window.
 - **Opening things:** clicking a work folder expands it and opens its overview. Clicking a file opens it in a tab; clicking a diagram opens the Diagrams view focused on it. Links between records open their target in a tab (Ctrl+click keeps it).
 - **Quick open** (Ctrl+P, or **Search**) jumps to any work item, diagram or file by name; Enter previews, Ctrl+Enter keeps the tab.
 
@@ -101,6 +103,7 @@ The window is envUI's application shell:
 | Ctrl+O | Open a folder |
 | Ctrl+Shift+N | New window |
 | Ctrl+Shift+W | Close the window |
+| Alt, Alt+F/E/V/H | Open the menus |
 
 ## Staying current and recovering
 

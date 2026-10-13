@@ -3,10 +3,12 @@
 ## Unreleased
 
 - The whole interface is built on [envUI](https://github.com/envsemble/envUI), Envsemble's component library, in its light and dark themes:
-  - **The window** is envUI's application shell: the computer menu, the page name, **Search**, record health, a theme menu and a **More** menu in the top bar; **Work**, **Activity** and **Statistics** and the explorer in one sidebar, which collapses to its icons (Ctrl+B) and resizes from its edge; and the open documents as tabs that stay under the top bar.
+  - **The window** is envUI's application shell and draws its own title bar: the Atlas mark, the **File**, **Edit**, **View** and **Help** menus (compact, with their shortcuts and an **Open Recent** submenu; Alt opens them from the keyboard), the computer menu, **Search**, record health, the theme menu and the system's window buttons. On macOS the menus stay in the system's menu bar. **Work**, **Activity** and **Statistics** are pages of their own beside the explorer in one sidebar, which collapses to its icons (Ctrl+B) and resizes from its edge; the open documents are tabs that stay under the title bar, and closing the last one shows the page again. Welcome pages and folder problems have the same title bar.
+  - **File › Close Folder** takes a window back to its computer's welcome page.
+  - **A work item** has one bar under the tabs with its place and its sections (Plan, Ledger, Diagrams), in the same spot for every section; it stays while the page scrolls and names the item once its heading scrolls away. The diagrams take the rest of the window, and their full view keeps the title bar.
   - **The theme** matches the system, or is light or dark, for every window; Atlas's own menus and dialogs follow it.
   - **Views and dialogs** use envUI's rows, tables, tabs, segmented controls, menus, notices, dialogs and toasts, Material Symbols icons and the Inter font. Quick open is envUI's command palette; the explorer is its tree, with a compact context menu.
-  - **Lists of folders and computers:** the folder menu's **Manage folders…** and the computer menu's **Manage computers…** open a folder or a computer in a new window, remove a folder from the list, or forget a computer. The menus themselves open in this window.
+  - **Lists of folders and computers:** **File › Open Recent › Manage Folders…** and the computer menu's **Manage Computers…** open a folder or a computer in a new window, remove a folder from the list, or forget a computer. The menus themselves open in this window.
   - **The diagram viewer and plan exports** use the same components; the diagram viewer follows the app's theme, and a standalone model file follows the system's.
   - `npm run dev:envui` runs the app against a local envUI checkout with live reload.
 - Ledger status version 2: the ledger header lists the agreed steps of the work, each `todo`, `doing` or `done`, and replaces `current` and `next`. The app and plan exports show a progress bar, the steps done and left, and each step; the work list shows progress per work item. `atlas planning check` validates the steps. Version-1 headers stay valid and readable. The planning contract (`PLANS.md`), the governance template and the `atlas-implement` and `atlas-record` skills describe the new header.
@@ -23,7 +25,7 @@
 
     Only Reveal in File Explorer stays local.
 
-  - **The computer and folder menus:** the top bar holds a computer menu (this computer and the paired ones) and the explorer a folder menu (the computer's folder list). Each opens in this window; their **Manage** lists also open in a new one. Another computer's folders open through an in-app folder browser.
+  - **The computer menu and Open Recent:** the title bar holds a computer menu (this computer and the paired ones), and **File › Open Recent** lists the computer's folders. Each opens in this window; their **Manage** lists also open in a new one. Another computer's folders open through an in-app folder browser.
   - **The folder list:** each computer keeps one, which every device sees live.
   - **Collapse All Folders** moves to the explorer's right-click menu.
   - **`atlas serve`** runs the host without the app; devices open folders there themselves.
