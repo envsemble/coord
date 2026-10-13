@@ -11,6 +11,7 @@ const recentLimit = 10;
  */
 export function buildMenu(manager: WindowManager, folders: ComputerFolder[], actions: { openLogs(): void; about(): void; devTools: boolean }) {
   const window = () => manager.focused();
+  const mac = process.platform === 'darwin';
   // This computer's folder list, which its other devices see too; a folder leaves it from Manage Folders…
   const recentItems: MenuItemConstructorOptions[] = folders.length
     ? folders.slice(0, recentLimit).map((item): MenuItemConstructorOptions => ({
@@ -49,6 +50,10 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
     {
       label: '&View',
       submenu: [
+        // The window takes these keys itself, except in a field, where they reach this menu and the window ignores them.
+        { label: '&Back', accelerator: mac ? 'Cmd+[' : 'Alt+Left', click: () => manager.sendMenu('goBack') },
+        { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
+        { type: 'separator' },
         { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
         { type: 'separator' },
         { label: '&Explorer', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('showExplorer') },

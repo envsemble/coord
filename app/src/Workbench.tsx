@@ -11,6 +11,7 @@ import type { Issue, Snapshot, Target, UiState, ViewName, WindowInfo, Work } fro
 import { api, AtlasError } from './api';
 import { activateTab, closeTab, openTab, pinTab, retarget as retargetTab } from './tabs';
 import { scrollKey, viewLabels, viewTarget, workTarget } from './targets';
+import { canGoBack, canGoForward, keyStep, record, sameTarget, shownTarget, showTarget, startHistory, step } from './history';
 import { workStatus } from './status';
 import { workNumber } from './format';
 import { StatusIcon } from './ui';
@@ -31,9 +32,33 @@ const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as c
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
 const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+b': 'toggleSidebar', 'ctrl+w': 'closeTab', 'ctrl+shift+e': 'showExplorer' };
+/** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
+const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
+/** Where the mouse's back and forward buttons do nothing: open menus and dialogs, which hold focus. */
+const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
+
+/** What a target shows, a work item at the section it opens on: opening one and then choosing that section is one entry in the history. */
+function resolveTarget(target: Target, snapshot: Snapshot): Target {
+  const work = target.kind === 'work' ? snapshot.work.find(item => item.id === target.work) : undefined;
+  return work && target.kind === 'work' ? { ...target, section: workSection(target, work) } : target;
+}
 
 export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; snapshot: Snapshot; initialUi: UiState }) {
-  const [ui, setUi] = useState<UiState>(initialUi);
+  // The layout and the history of what the window showed (back and forward) change together: each
+  // change of what shows is recorded, except a step back or forward.
+  const latestSnapshot = useRef(snapshot);
+  latestSnapshot.current = snapshot;
+  const [{ ui, history }, setWindowState] = useState(() => ({ ui: initialUi, history: startHistory(resolveTarget(shownTarget(initialUi), snapshot)) }));
+  const setUi = useCallback((change: (current: UiState) => UiState) => setWindowState(current => {
+    const next = change(current.ui);
+    if (next === current.ui) return current;
+    const shown = shownTarget(next);
+    return { ui: next, history: sameTarget(shown, shownTarget(current.ui)) ? current.history : record(current.history, resolveTarget(shown, latestSnapshot.current)) };
+  }), []);
+  const navigate = useCallback((by: -1 | 1) => setWindowState(current => {
+    const moved = step(current.history, by);
+    return moved ? { ui: showTarget(current.ui, moved.target), history: moved.history } : current;
+  }), []);
   const [quickOpen, setQuickOpen] = useState<null | { mode: 'all' | 'work'; placeholder?: string; onPick(target: Target, pin: boolean): void }>(null);
   const [importing, setImporting] = useState<ImportPreview | null>(null);
   const [repository, setRepository] = useState('all');
@@ -84,13 +109,13 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     });
   }, [node?.id]);
 
-  const scrolled = scrollKey(shown);
+  const scrolled = scrollKey(resolveTarget(shown, snapshot));
   const anchored = shown.kind !== 'view' && Boolean(shown.anchor);
-  // Forget the positions of what no open tab or page shows.
+  // Forget the positions of what no open tab, page or step back or forward shows.
   useEffect(() => {
-    const shownKeys = new Set([...ui.tabs.items.map(tab => scrollKey(tab.target)), ...viewNames.map(view => scrollKey(viewTarget(view)))]);
-    for (const key of [...scrollPositions.current.keys()]) if (!shownKeys.has(key)) scrollPositions.current.delete(key);
-  }, [ui.tabs.items]);
+    const kept = new Set([...ui.tabs.items.map(tab => scrollKey(resolveTarget(tab.target, snapshot))), ...viewNames.map(view => scrollKey(viewTarget(view))), ...history.entries.map(scrollKey)]);
+    for (const key of [...scrollPositions.current.keys()]) if (!kept.has(key)) scrollPositions.current.delete(key);
+  }, [ui.tabs.items, history.entries, snapshot]);
 
   const exportWork = useCallback(async (work: Work) => {
     try {
@@ -127,10 +152,12 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
       case 'importPlan': void startImport(); break;
       case 'exportPlan': chooseExport(); break;
       case 'closeFolder': closeFolder(); break;
+      case 'goBack': navigate(-1); break;
+      case 'goForward': navigate(1); break;
     }
-  }, [ui.sidebar.visible, open, setTabs, setSidebar, showPage, startImport, chooseExport, closeFolder]);
+  }, [ui.sidebar.visible, open, setTabs, setSidebar, showPage, startImport, chooseExport, closeFolder, navigate]);
 
-  // Menu commands from main; ignore one that repeats a shortcut this window just handled.
+  // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   useEffect(() => api.onMenu(command => {
     const last = lastShortcut.current;
     if (last && last.command === command && Date.now() - last.time < 300) return;
@@ -138,6 +165,15 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
   }), [runCommand]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
+      const by = keyStep(event, info.platform);
+      if (by) {
+        // Taken here or left to a field, the key reaches the application menu only as an echo.
+        lastShortcut.current = { command: by < 0 ? 'goBack' : 'goForward', time: Date.now() };
+        if (event.defaultPrevented || event.isComposing || (event.target instanceof Element && event.target.closest(keepsHistoryKeys))) return;
+        event.preventDefault();
+        navigate(by);
+        return;
+      }
       const name = [(event.ctrlKey || event.metaKey) && 'ctrl', event.shiftKey && 'shift', event.altKey && 'alt', event.key.toLowerCase()].filter(Boolean).join('+');
       const command = shortcuts[name];
       if (!command) return;
@@ -147,12 +183,35 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [runCommand]);
+  }, [runCommand, navigate, info.platform]);
+  // The mouse's back and forward buttons act as they are released; nothing else takes their presses.
+  useEffect(() => {
+    const buttonStep = (event: MouseEvent) => event.button === 3 ? -1 : event.button === 4 ? 1 : 0;
+    const press = (event: MouseEvent) => { if (buttonStep(event)) event.preventDefault(); };
+    const release = (event: MouseEvent) => {
+      const by = buttonStep(event);
+      if (!by) return;
+      event.preventDefault();
+      if (!document.activeElement?.closest(keepsHistoryButtons)) navigate(by);
+    };
+    window.addEventListener('mousedown', press, true);
+    window.addEventListener('auxclick', press, true);
+    window.addEventListener('mouseup', release, true);
+    return () => {
+      window.removeEventListener('mousedown', press, true);
+      window.removeEventListener('auxclick', press, true);
+      window.removeEventListener('mouseup', release, true);
+    };
+  }, [navigate]);
 
   const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify, remote: info.remote }), [snapshot, info.revision, open, retarget, notify, info.remote]);
 
   const root = info.folder?.root ?? '';
   const menus: WorkbenchMenus = {
+    goBack: () => navigate(-1),
+    goForward: () => navigate(1),
+    canGoBack: canGoBack(history),
+    canGoForward: canGoForward(history),
     quickOpen: () => runCommand('quickOpen'),
     showPage,
     showExplorer: () => runCommand('showExplorer'),
