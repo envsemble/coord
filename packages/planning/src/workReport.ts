@@ -32,7 +32,7 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
   createReport({ ...input, model: input.model ?? 'unknown', step, at });
   const root = await realpath(inputRoot).catch(() => { throw new StatisticsReportError('The planning folder does not exist: ' + inputRoot); });
   let registry: unknown;
-  try { registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^﻿/, '')); }
+  try { registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, '')); }
   catch { throw new StatisticsReportError('The planning folder needs a readable planning.json registry.'); }
   const items = (registry as { work_items?: unknown })?.work_items;
   if (!Array.isArray(items)) throw new StatisticsReportError('The planning registry has no work_items list.');
