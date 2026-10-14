@@ -3,13 +3,14 @@
 // prints nothing, exits 0 and notes the failure in the home's logs/hooks.log.
 //
 // SessionStart tells the agent its planning folder and active work. PostToolUse checks planning
-// files the agent edited in the home (blocking with the problems so it fixes them) and links the
-// session to the work item it edits or calls an Atlas tool on. Stop and SubagentStop record the
+// files the agent edited in the home (blocking with the problems so it fixes them), links the
+// session to the work item it edits or calls an Atlas tool on, and records the planning files it
+// reads as document use. Stop and SubagentStop record the
 // work statistics of each linked work item from the session's log.
 import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { atlasHome, checkPaths, findPlanning, homePlanningDirectory, parseFrontmatter, recordWorkReport, resolvePlanningFolder, type Whereabouts } from '@envsemble/atlas-planning';
+import { atlasHome, checkPaths, findPlanning, homePlanningDirectory, logConsultation, parseFrontmatter, recordWorkReport, resolvePlanningFolder, type Whereabouts } from '@envsemble/atlas-planning';
 import type { Output } from './args.ts';
 
 export interface HookInput {
@@ -145,6 +146,10 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   }
   const base = await realpath(homePlanningDirectory(home)).catch(() => null);
   if (!base) return { output: null, changed };
+  if (input.tool_name === 'Read') {
+    await recordRead(input, base, home, links);
+    return { output: null, changed };
+  }
   const files: { root: string; relative: string; absolute: string }[] = [];
   for (const absolute of editedFiles(input)) {
     const resolved = await realpath(absolute).catch(() => absolute);
@@ -169,6 +174,18 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   if (!problems.length) return { output: null, changed };
   const reason = 'Atlas found problems in the planning files you edited; fix them:\n' + problems.map(problem => '- ' + problem).join('\n');
   return { output: { decision: 'block', reason, hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: reason } }, changed };
+}
+
+/** Record a planning file the agent read as document use, for the work item the session is linked to there. */
+async function recordRead(input: HookInput, base: string, home: string, links: SessionLinks) {
+  const file = (input.tool_input as { file_path?: unknown } | undefined)?.file_path;
+  if (typeof file !== 'string') return;
+  const resolved = await realpath(path.resolve(input.cwd && path.isAbsolute(input.cwd) ? input.cwd : process.cwd(), file)).catch(() => null);
+  if (!resolved || !inside(base, resolved)) return;
+  const root = path.join(base, path.relative(base, resolved).split(path.sep)[0]);
+  const task = links.work.find(item => key(item.planningFolder) === key(root))?.workId;
+  const result = await logConsultation(root, [resolved], { home, session: links.session, ...task && { task } });
+  if (result.unavailable) logFailure(home, 'PostToolUse', new Error('document use not recorded: ' + result.unavailable));
 }
 
 // ---- Stop and SubagentStop ----------------------------------------------------------------------

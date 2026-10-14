@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { atlas, homeWithPlanning, planText, temporary } from './testing.ts';
 
@@ -58,6 +59,12 @@ test('hooks give the session its planning context, check and link planning edits
   writeFileSync(plan, planText('work-0001', 'Cart', 'accepted'));
   // Files outside the home are not Atlas's business.
   assert.equal(hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(checkout, 'src.ts') } }), null);
+  // Reading a planning file records it as document use, for the work item the session is linked to.
+  assert.equal(hook('PostToolUse', { tool_name: 'Read', tool_input: { file_path: plan } }), null);
+  const usage = path.join(base.ATLAS_HOME!, 'usage');
+  const database = new DatabaseSync(path.join(usage, readdirSync(usage)[0], 'usage.sqlite'));
+  assert.deepEqual({ ...database.prepare('SELECT path, task_id, session_id FROM events').get() }, { path: 'active/0001-cart/plan.md', task_id: 'work-0001', session_id: session });
+  database.close();
 
   // Codex: apply_patch names its files in the patch, relative to the session's folder.
   assert.equal(atlas(['work', 'create', '--title', 'Payments', '--repo', 'shop', '--planning-dir', root], { env }).status, 0);
