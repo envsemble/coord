@@ -174,12 +174,13 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   const shop = path.join(directory, 'shop');
   mkdirSync(shop);
   git(shop, 'init', '-q');
-  git(shop, 'remote', 'add', 'origin', 'https://github.com/example/shop.git');
+  git(shop, 'remote', 'add', 'origin', 'https://someone:secret-token@github.com/example/shop.git');
   mkdirSync(path.join(shop, 'src'));
   await acceptWork(root, 'work-0001', today);
   await startWork(root, 'work-0001', { steps: ['Build'] }, today);
   const where = await findPlanning(path.join(shop, 'src'), { home });
   assert.equal(where.checkout, realpathSync(shop));
+  assert.deepEqual(where.remotes, ['https://github.com/example/shop.git'], 'credentials in a remote are never shown');
   assert.deepEqual(where.matches.map(match => [match.planningFolder, match.via, match.repositories]), [[root, ['remote'], ['shop']]]);
   assert.deepEqual(where.matches[0].work.map(item => [item.workId, item.title, item.designStatus, item.progress]), [['work-0001', 'Existing work', 'accepted', '0 of 1 step done · 1 left']]);
   // A repository without a remote matches by its absolute path hint.
