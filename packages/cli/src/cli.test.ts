@@ -193,7 +193,7 @@ test('atlas work report appends one line per report, even from concurrent agents
   const reported = atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--tokens', '1200', '--session', 'chat-1', '--step', 'Build it']);
   assert.equal(reported.status, 0, reported.stderr);
   assert.match(reported.stdout, /^\{"recorded":true,"file":"active\/0001-example\/\.atlas\/statistics\.jsonl","at":"[^"]+","model":"model-a"\}\n$/);
-  assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, 'utf8'))), ['version', 'at', 'model', 'session', 'tokens', 'step']);
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, 'utf8'))), ['version', 'at', 'model', 'session', 'tokens', 'step', 'stage']);
   // Several agents at once: every report is one whole line.
   const writers = await Promise.all(Array.from({ length: 8 }, (_, index) => atlasAsync(['work', 'report', root, '--work', 'work-0001', '--model', 'model-b', '--tokens', String(index * 1000), '--session', 'parallel-' + index])));
   assert.ok(writers.every(result => result.status === 0 && result.stdout.includes('"recorded":true')), JSON.stringify(writers));
