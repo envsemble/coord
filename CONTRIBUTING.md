@@ -16,14 +16,10 @@ With the GitHub CLI, `NODE_AUTH_TOKEN=$(gh auth token)` works once its token has
 
 - `npm run dev` starts the desktop app with hot reload (`npm run dev -- /path/to/planning` opens a folder);
 - `npm run dev:envui` does the same against a local envUI checkout beside this one (`../envUI`, or `ENVUI_PATH`), with live reload for envUI's components too; it links that checkout into the app, the plan viewer and the diagram viewer without changing `package.json` or the lockfile. `npm run envui:unlink` returns to the published version, and `node scripts/dev-envui.mjs --link` links again after an `npm install` replaced the link;
-- `npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates;
+- `npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/`, showing the shop example, with React/Vite live updates;
 - `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module. The HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service.
 
-The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation. Build the enrollment example with its report:
-
-```sh
-node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --report
-```
+The examples in `packages/diagrams/examples` are work folders of diagram files: `shop` is a TypeScript capture with a proposal of saved payment methods, shown by [index.html](packages/diagrams/index.html), and `enrollment` a class diagram with four scenarios. `npm run check` checks them and the committed showcase.
 
 ## Layout
 
@@ -33,7 +29,7 @@ node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --repor
 | `packages/host`     | The Atlas host: reads and watches planning folders for the app and serves them to paired computers ([remote access](docs/remote-access.md)).                                                                                            |
 | `packages/planning` | The planning-folder reader shared by the app, the host and the `atlas` command, plan export and import, and the plan export viewer (`packages/planning/viewer`).                                                                        |
 | `packages/cli`      | The `atlas` command ([command reference](docs/command.md)).                                                                                                                                                                             |
-| `packages/diagrams` | The diagram package: source and UI in `lib/`, `src/` and `development/`, and the R5 model under `examples/r5`.                                                                                                                          |
+| `packages/diagrams` | The diagram package: source and UI in `lib/`, `src/` and `development/`, and the example diagrams under `examples/`.                                                                                                                    |
 | `skills/`           | The agent skills ([skills](skills/README.md)).                                                                                                                                                                                          |
 
 The [architecture](docs/architecture.md), [agent](docs/agent-interface.md) and adapter guides own their contracts. The host, the planning reader and the command are TypeScript that Node 24 runs directly without a build step, so they use only erasable syntax (no enums, namespaces or parameter properties; their `erasableSyntaxOnly` setting enforces this) and `.ts` import extensions. The plan export viewer reuses the app's styles and the diagram package's React viewer; `npm run build --workspace @envsemble/atlas-planning` rebuilds its committed bundle, `packages/planning/dist/plan-viewer.html`, and CI fails when the committed bundle is stale.

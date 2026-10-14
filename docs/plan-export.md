@@ -1,6 +1,6 @@
 # Plan export
 
-A plan export is one self-contained HTML file that carries a whole work item: its plan, ledger, glossary, decision records, supporting notes, evidence, attachments and diagrams with their revision history. Anyone can open it in a browser to read the plan offline. Atlas can import it into another planning folder as new work. This is the way to share a plan; `atlas model export` remains for a single model ([portable documents](portable-documents.md)).
+A plan export is one self-contained HTML file that carries a whole work item: its plan, ledger, glossary, decision records, supporting notes, evidence, attachments and diagrams. Anyone can open it in a browser to read the plan offline. Atlas can import it into another planning folder as new work. This is the way to share a plan; a single diagram is a `.puml` file of its own.
 
 ```sh
 atlas plan export work-0003 --planning-dir planning              # writes customer-notifications-work-0003.atlas-plan.html

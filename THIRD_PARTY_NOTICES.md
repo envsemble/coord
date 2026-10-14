@@ -18,8 +18,6 @@ Vite 8.3.3 and its React plugin 6.1.2 provide the development server and Fast Re
 
 fflate 0.8.3 supplies the compressed export archive and offline decompression. Its MIT license is in packages/diagrams/licenses/fflate-LICENSE and retained in bundled code notices. Shiki 4.5.0 highlights snippets at build time; its MIT license is in packages/diagrams/licenses/shiki-LICENSE. Shiki's runtime, WebAssembly and grammars are not shipped as browser runtime dependencies.
 
-The R5 SDK and Flowstate repositories are evidence for the separate example at pinned commits. Short, unmodified excerpts remain in packages/diagrams/examples/r5/source-snippets.json and its generated HTML with repository, commit, file and line attribution. Copyright in those excerpts remains with their upstream authors. The core library package excludes the example and its excerpts. Complete repositories and game binaries are not bundled.
-
 PostgreSQL capture uses node-postgres (`pg`) under its MIT license, retained in its npm distribution. Local D1 fixtures use Wrangler (MIT/Apache 2.0) and workerd (Apache 2.0); these development tools are not bundled in exported HTML.
 
 The Atlas host (`packages/host`), which the desktop app runs and `atlas serve` starts, serves planning folders with [Hono](https://github.com/honojs/hono) 4.13.13 and @hono/node-server 2.1.4, and its WebSocket connections with [ws](https://github.com/websockets/ws) 8.22.0, each under its MIT license. Pairing links are drawn as QR codes with [node-qrcode](https://github.com/soldair/node-qrcode) 1.5.4 and its dijkstrajs 1.0.3 and pngjs 5.0.0 dependencies, under their MIT licenses. The desktop app bundles them into its main and host processes; their license texts remain in their npm distributions.
