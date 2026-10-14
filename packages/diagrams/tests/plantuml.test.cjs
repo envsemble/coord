@@ -232,6 +232,9 @@ test("everything outside the subset is an error at its line and column that says
     ["title <b>Shop</b>", /The title uses formatting \(`<b>`\)/],
     ["A --> B : owns >", /remove the reading direction/],
     ["A --> B : **owns**", /The label uses formatting/],
+    ['class C {\n  link : "a//b//c"\n}', /The attribute uses formatting/],
+    ["class C {\n  x : <u>int</u>\n}", /The attribute uses formatting/],
+    ["class C {\n  f(x : **y**) : int\n}", /The operation uses formatting/],
     ['A "many" --> B', /`many` is not a multiplicity/],
     ['A "2..1" --> B', /lower bound above its upper bound/],
     ["A --|> B : is", /Inheritance has no label/],
@@ -285,6 +288,20 @@ test("everything outside the subset is an error at its line and column that says
       [5, "model.puml"],
       [6, "model.puml"],
     ],
+  );
+  // PlantUML formats a member only between a pair of markers, and never with
+  // `__`, so code such as a type parameter or one URL reads as written.
+  assert.deepEqual(
+    atlas.checkDiagram(
+      withLine(
+        'class C {\n  __proto__ : List<U>\n  home : "http://example.com"\n  map(f : Fn<B, I>) : Map<S, U>\n}',
+      ),
+    ),
+    [],
+  );
+  assert.match(
+    atlas.checkDiagram(withLine("title List<U>"))[0].message,
+    /title uses formatting/,
   );
 });
 
