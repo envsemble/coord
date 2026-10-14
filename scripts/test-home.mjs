@@ -8,5 +8,12 @@ import path from "node:path";
 if (!process.env.ATLAS_HOME) {
   const home = mkdtempSync(path.join(tmpdir(), "atlas-test-home-"));
   process.env.ATLAS_HOME = home;
-  process.once("exit", () => rmSync(home, { recursive: true, force: true }));
+  process.once("exit", () => {
+    // The home database may still be open in this process; the system removes what is left.
+    try {
+      rmSync(home, { recursive: true, force: true });
+    } catch {
+      /* Left for the system's temporary folder cleanup. */
+    }
+  });
 }

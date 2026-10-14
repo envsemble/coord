@@ -5,7 +5,6 @@ import { createHash } from 'node:crypto';
 import { homedir, hostname } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
-import { schema } from './telemetry.ts';
 
 // `~/` and, on Windows, `~\` start a path in the user's home folder.
 const tilde = process.platform === 'win32' ? /^~(?=$|[\\/])/ : /^~(?=$|\/)/;
@@ -13,9 +12,9 @@ const expand = (value: string, home: string) => path.resolve(value.replace(tilde
 
 /**
  * The Atlas home: `~/.atlas`, or ATLAS_HOME; an explicit override (such as --home) takes precedence
- * over both. Its `planning/` folder holds the planning folders, and Atlas keeps its own state beside
- * them: usage statistics, the host's identity and folder list, connections, desktop state, session
- * links and logs. Electron's own caches stay in Electron's per-user folder.
+ * over both. Its `planning/` folder holds the planning folders (the projects), and Atlas keeps its
+ * own state beside them: the home database (atlas.db) and logs. Electron's own caches stay in
+ * Electron's per-user folder.
  */
 export function atlasHome(override?: string, environment: NodeJS.ProcessEnv = process.env, home = homedir()) {
   const chosen = override || environment.ATLAS_HOME;
@@ -74,6 +73,8 @@ async function moveEntry(from: string, to: string) {
   }
 }
 const exists = (target: string) => stat(target).then(() => true, () => false);
+/** The schema of a planning folder's usage statistics before the home database (usage/<hash>/usage.sqlite). */
+export const legacyUsageSchema = 'CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, source TEXT NOT NULL, document_key TEXT NOT NULL, path TEXT NOT NULL, task_id TEXT, session_id TEXT, timestamp TEXT NOT NULL, revision TEXT, content_hash TEXT); CREATE INDEX IF NOT EXISTS event_document ON events(document_key); CREATE TABLE IF NOT EXISTS failures (timestamp TEXT NOT NULL, detail TEXT NOT NULL);';
 const childNames = (folder: string, keep: (entry: { name: string; isDirectory(): boolean }) => boolean) =>
   readdir(folder, { withFileTypes: true }).then(entries => entries.filter(keep).map(entry => entry.name).sort(), () => [] as string[]);
 
@@ -89,7 +90,7 @@ export async function mergeUsage(from: string, to: string) {
   if (await exists(source)) {
     const store = new DatabaseSync(path.join(to, 'usage.sqlite'));
     try {
-      store.exec('PRAGMA busy_timeout = 2000;' + schema);
+      store.exec('PRAGMA busy_timeout = 2000;' + legacyUsageSchema);
       store.prepare('ATTACH DATABASE ? AS old').run(source);
       store.exec(`BEGIN;
         INSERT OR IGNORE INTO events (id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash)
@@ -186,40 +187,11 @@ export async function homePlanningFolders(home: string): Promise<string[]> {
   return folders;
 }
 
-/** Usage statistics for one planning folder: <home>/usage/<canonical-path hash>. */
+/** Where a planning folder's usage statistics were kept before the home database: <home>/usage/<canonical-path hash>. */
 export async function statisticsDirectory(root: string, base?: string) {
   const canonical = await realpath(root).catch(() => path.resolve(root));
   const unicode = await filesystemNormalizesUnicode(canonical) ? canonical.normalize('NFC') : canonical;
   const normalized = (await filesystemCaseSensitive(canonical) ? unicode : unicode.toLowerCase()).split(path.sep).join('/');
   const identity = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
   return path.join(atlasHome(base), 'usage', identity);
-}
-
-/** Recently opened planning folders. */
-export function recentRootsFile(base?: string) {
-  return path.join(atlasHome(base), 'planning-roots.json');
-}
-
-export async function cacheOutsidePlanning(root: string, destination: string) {
-  const planning = await realpath(root).catch(() => path.resolve(root));
-  let ancestor = path.resolve(destination);
-  const suffix: string[] = [];
-  let canonical = '';
-  while (!canonical) {
-    try { canonical = await realpath(ancestor); }
-    catch {
-      const parent = path.dirname(ancestor);
-      if (parent === ancestor) throw new Error('The statistics location could not be resolved.');
-      suffix.unshift(path.basename(ancestor)); ancestor = parent;
-    }
-  }
-  const directory = path.join(canonical, ...suffix);
-  const sensitive = await filesystemCaseSensitive(planning);
-  const unicode = await filesystemNormalizesUnicode(planning);
-  const normalize = (value: string) => { const spelling = unicode ? value.normalize('NFC') : value; return sensitive ? spelling : spelling.toLowerCase(); };
-  const relative = path.relative(normalize(planning), normalize(directory));
-  if (!relative || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))) {
-    throw new Error('Choose a statistics cache outside the planning folder.');
-  }
-  return directory;
 }

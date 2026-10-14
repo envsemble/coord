@@ -2,17 +2,20 @@
 // the step and the work item's stage, and, when the command runs inside the agent's harness (or is
 // given a session it keeps a log of, or the log itself, as hooks are), the agent time, tokens and
 // subagents that log shows since the session's previous report on this work item (or since the
-// session started on it, when the caller knows). The registry is
-// read directly, without indexing the whole planning folder, so reporting stays fast.
+// session started on it, when the caller knows). The report goes into the home database, under the
+// planning folder's project. The registry is read directly, without indexing the whole planning
+// folder, so reporting stays fast.
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { ledgerStatus } from './ledger.ts';
 import { normalizedLocation, readDocument } from './planning.ts';
 import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionCandidate, type SessionMeasure } from './sessionLog.ts';
-import { appendReport, createReport, fitStep, measuredModelLimit, measuredSubagentLimit, readReports, StatisticsReportError, type Measured, type ReportInput, type StatisticsReport } from './statistics.ts';
+import { createReport, fitStep, insertReport, measuredModelLimit, measuredSubagentLimit, storedReports, StatisticsReportError, type Measured, type ReportInput, type StatisticsReport } from './statistics.ts';
+import { projectOf, withDatabaseAsync } from './database.ts';
 import type { WorkStage } from './types.ts';
 
-export interface RecordedReport { file: string; report: StatisticsReport; warnings: string[] }
+/** `project`: the name of the project the report was recorded under. */
+export interface RecordedReport { project: string; report: StatisticsReport; warnings: string[] }
 /** What the caller gives: the model may come from the session log instead; the stage comes from the plan. */
 export type WorkReportInput = Omit<ReportInput, 'model' | 'measured' | 'stage'> & { model?: string | null };
 export interface WorkReportOptions extends LogOptions {
@@ -22,6 +25,8 @@ export interface WorkReportOptions extends LogOptions {
   transcriptPath?: string;
   /** When the session started on this work item (ISO time), measured from when it has no earlier report here. */
   since?: string;
+  /** The Atlas home whose database records the report; ATLAS_HOME or ~/.atlas by default. */
+  atlasHome?: string;
 }
 const harnessNames: Record<Harness, string> = { 'claude-code': 'Claude Code', codex: 'Codex' };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,6 +62,8 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
   const location = normalizedLocation(item.path);
   if (!(await stat(path.join(root, location)).then(info => info.isDirectory(), () => false))) throw new StatisticsReportError('The work folder ' + location + ' does not exist.');
   const stage = options.amending ? 'planning' : await designStage(root, item.current_plan);
+  // The work item's reports so far, to measure from the session's previous one.
+  const earlier = await withDatabaseAsync(options.atlasHome, async database => storedReports(database, (await projectOf(database, root)).id, [workId]).get(workId) ?? []);
 
   // The session: the log a hook names, else the session given, else the one the harness names in the
   // environment. Harnesses name sessions with UUIDs; a session named otherwise has no log to read.
@@ -75,7 +82,7 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
       session = logs.session;
       // The session's previous report here starts the interval; without one, when the session started
       // on the work, if known; else this first report is the starting point.
-      const previous = (await readReports(root, { path: location })).reports.filter(report => report.session === session && report.at <= at.toISOString()).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+      const previous = earlier.filter(report => report.session === session && report.at <= at.toISOString()).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
       const startedAt = options.since ? Date.parse(options.since) : NaN;
       const started = startedAt <= at.getTime() ? new Date(startedAt).toISOString() : null;
       since = previous?.at ?? started;
@@ -110,6 +117,10 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
       if (status?.steps && !status.steps.some(entry => fitStep(entry.title).step === report.step || (shortened && entry.title.startsWith(report.step!.slice(0, -1))))) warnings.push('The step "' + report.step + '" is not one of the ledger\'s steps.');
     } catch { /* No readable ledger: the step stays as reported. */ }
   }
-  const file = await appendReport(root, { path: location }, report);
-  return { file, report, warnings };
+  const project = await withDatabaseAsync(options.atlasHome, async database => {
+    const found = await projectOf(database, root);
+    insertReport(database, found.id, workId, report);
+    return found;
+  });
+  return { project: project.name, report, warnings };
 }

@@ -1,20 +1,18 @@
-// Record reported planning-document consultation without requiring a running app.
-// Ported from the former log_consultation.py: the same registry checks, document keys,
-// SQLite schema and storage location, so the app reads what the command writes.
-import { DatabaseSync } from 'node:sqlite';
-import { appendFileSync, createReadStream } from 'node:fs';
-import { mkdir, readdir, readFile, realpath, stat } from 'node:fs/promises';
+// Record reported planning-document consultation without requiring a running app, as document use
+// of the planning folder's project in the home database, which the app reads. Ported from the former
+// log_consultation.py: the same registry checks and document keys.
+import { createReadStream } from 'node:fs';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { normalizedLocation } from './planning.ts';
-import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
-import { schema } from './telemetry.ts';
+import { HomeDatabase, projectOf } from './database.ts';
+import { recordCollectionGap } from './telemetry.ts';
 import { runProgram as execute } from './run.ts';
 
 const hiddenNames = new Set(['node_modules', '__pycache__', 'dist', 'build']);
-const failureDetail = 'A requested consultation could not be recorded.';
 
 export interface ConsultationOptions { task?: string; session?: string; home?: string }
 interface Registration { id: string; path: string; current_plan?: string | null }
@@ -74,13 +72,12 @@ export function documentIdentity(relative: string, workItems: Registration[], ca
   return work.id + ':' + (identity === normalize(work.path) ? path.basename(relative) : relative.split('/').slice(depth(work.path)).join('/'));
 }
 
-/** Keep a coverage signal when the shared database cannot accept a write. */
+/** Keep a coverage signal when a consultation could not be recorded; never throws. */
 export async function recordAgentCollectionGap(root: string, home?: string) {
   try {
-    const destination = await cacheOutsidePlanning(root, await statisticsDirectory(expandHome(root), home));
-    await mkdir(destination, { recursive: true });
-    appendFileSync(path.join(destination, 'collection-gaps.jsonl'), JSON.stringify({ source: 'agent_report', timestamp: new Date().toISOString() }) + '\n');
-  } catch { /* A wholly unavailable cache cannot retain its own failure; the caller still discloses it. */ }
+    const database = HomeDatabase.open(home);
+    try { recordCollectionGap(database, (await projectOf(database, expandHome(root))).id, 'agent_report'); } finally { database.close(); }
+  } catch { /* A wholly unavailable database cannot retain its own failure; the caller still discloses it. */ }
 }
 
 async function digest(filename: string) {
@@ -121,8 +118,6 @@ export async function reportConsultation(inputRoot: string, files: string[], opt
     identities.add(work.id); locations.add(identity);
     registrations.push({ id: work.id, path: location, current_plan: currentPlan });
   }
-  const destination = await cacheOutsidePlanning(root, await statisticsDirectory(root, options.home));
-  await mkdir(destination, { recursive: true });
   let revision: string | null = null;
   try {
     const { stdout: top } = await execute('git', ['-C', root, 'rev-parse', '--show-toplevel'], { timeout: 3000, windowsHide: true });
@@ -132,41 +127,32 @@ export async function reportConsultation(inputRoot: string, files: string[], opt
       revision = stdout.trim() || null;
     }
   } catch { /* An unknown revision remains null. */ }
-  const timestamp = new Date().toISOString();
-  let recorded = 0, failed = 0;
+  // The documents are read first; the database is written in one short transaction.
+  const at = new Date().toISOString();
+  const events: { relative: string; hash: string }[] = [];
   const seen = new Set<string>();
-  const database = new DatabaseSync(path.join(destination, 'usage.sqlite'));
-  try {
-    database.exec('PRAGMA busy_timeout = 2000; PRAGMA journal_mode = WAL;' + schema);
-    database.exec('BEGIN IMMEDIATE');
+  let failed = 0;
+  for (const supplied of files) {
     try {
-      database.prepare('INSERT OR IGNORE INTO metadata VALUES (?, ?)').run('agent_since', timestamp);
-      const insert = database.prepare('INSERT INTO events (id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      const failure = database.prepare('INSERT INTO failures VALUES (?, ?)');
-      for (const supplied of files) {
-        let event: { relative: string; hash: string } | null = null;
-        try {
-          const actual = await realpath(path.resolve(root, supplied));
-          const relative = await retainedRelative(actual, root, caseSensitive);
-          if (!(await stat(actual)).isFile() || relative.split('/').some(part => part.startsWith('.') || hiddenNames.has(part))) throw new ConsultationError('Unreadable planning document');
-          if (seen.has(relative)) continue;
-          seen.add(relative);
-          event = { relative, hash: await digest(actual) };
-        } catch {
-          failure.run(timestamp, failureDetail);
-          failed++;
-          continue;
-        }
-        insert.run(randomUUID(), 'agent_report', documentIdentity(event.relative, registrations, caseSensitive, normalizesUnicode), event.relative, options.task || null, options.session || null, timestamp, revision, event.hash);
-        recorded++;
-      }
-      database.exec('COMMIT');
-    } catch (error) {
-      try { database.exec('ROLLBACK'); } catch { /* The failed transaction is already closed. */ }
-      throw error;
-    }
+      const actual = await realpath(path.resolve(root, supplied));
+      const relative = await retainedRelative(actual, root, caseSensitive);
+      if (!(await stat(actual)).isFile() || relative.split('/').some(part => part.startsWith('.') || hiddenNames.has(part))) throw new ConsultationError('Unreadable planning document');
+      if (seen.has(relative)) continue;
+      seen.add(relative);
+      events.push({ relative, hash: await digest(actual) });
+    } catch { failed++; }
+  }
+  const database = HomeDatabase.open(options.home);
+  try {
+    const project = await projectOf(database, root);
+    database.transaction(() => {
+      const insert = database.db.prepare("INSERT INTO document_use (id, project_id, source, path, document_key, work_id, session, at, revision, content_hash) VALUES (?, ?, 'agent_report', ?, ?, ?, ?, ?, ?, ?)");
+      for (const event of events) insert.run(randomUUID(), project.id, event.relative, documentIdentity(event.relative, registrations, caseSensitive, normalizesUnicode), options.task || null, options.session || null, at, revision, event.hash);
+      // A document that could not be recorded leaves a lasting coverage signal.
+      for (let index = 0; index < failed; index++) recordCollectionGap(database, project.id, 'agent_report');
+    });
   } finally { database.close(); }
-  return { recorded, failed };
+  return { recorded: events.length, failed };
 }
 
 /**

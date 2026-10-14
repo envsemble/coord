@@ -7,7 +7,11 @@ import path from 'node:path';
 import { validatePlanning } from './check.ts';
 import { checkPaths, fileCheckers } from './checkPaths.ts';
 import { adoptPlanningFolder } from './adopt.ts';
-import { statisticsDirectory } from './storage.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { legacyUsageSchema, statisticsDirectory } from './storage.ts';
+import { withDatabase } from './database.ts';
+import { storedReports } from './statistics.ts';
+import { usageSummary } from './telemetry.ts';
 import { findPlanning, normalizeRemote, resolvePlanningFolder } from './resolve.ts';
 import { acceptWork, addSteps, archiveWork, closeWork, createWork, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 
@@ -247,23 +251,29 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
   assert.equal(await resolvePlanningFolder({ planningFolder: root, home }), root);
   await assert.rejects(resolvePlanningFolder({ cwd: directory, home }), /No planning folder in the Atlas home/);
+  // A second project registers the shop too: both are listed by name, and the tools need the one to plan in.
+  writeFileSync(path.join(home, 'planning', 'unrelated', 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Coord', repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop' }], work_items: [] }));
+  const several = await findPlanning(shop, { home });
+  assert.deepEqual(several.matches.map(match => match.project), ['main', 'Coord']);
+  await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects register this checkout's repository: main \(.*\), Coord \(.*\)\. Ask the user which project to plan in/);
+  assert.equal(await resolvePlanningFolder({ cwd: shop, home, work: 'work-0001' }), root, 'a work item only one of them registers names its project');
 });
 
 test('atlas check attributes findings to the files asked about and runs registered checkers', async t => {
   const root = planningFolder(temporary(t));
   writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001').replace('title: "Existing work"', 'title: 1.5'));
-  const [whole] = checkPaths([root]);
+  const [whole] = await checkPaths([root]);
   assert.deepEqual(whole.errors, ['active/0001-existing/plan.md: ambiguous implicit YAML scalar; quote intended strings']);
-  assert.deepEqual(checkPaths([path.join(root, 'active/0001-existing/plan.md')])[0].errors, whole.errors);
-  assert.deepEqual(checkPaths([path.join(root, 'active/0002-other/plan.md')])[0].errors, [], 'another file has no findings');
-  assert.deepEqual(checkPaths([path.join(root, 'active/0001-existing')])[0].errors, whole.errors, 'a folder gets the findings about its files');
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/plan.md')]))[0].errors, whole.errors);
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0002-other/plan.md')]))[0].errors, [], 'another file has no findings');
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing')]))[0].errors, whole.errors, 'a folder gets the findings about its files');
   writeFileSync(path.join(root, 'planning.json'), read(root, 'planning.json').replace('"schema_version": 1', '"schema_version": 2'));
-  assert.deepEqual(checkPaths([path.join(root, 'planning.json')])[0].errors, ['registry schema_version must be integer 1']);
-  const outside = checkPaths([tmpdir()]);
+  assert.deepEqual((await checkPaths([path.join(root, 'planning.json')]))[0].errors, ['registry schema_version must be integer 1']);
+  const outside = await checkPaths([tmpdir()]);
   assert.match(outside[0].errors[0], /not inside a planning folder/);
   // Diagram files are checked as diagrams, with the line and column of each problem.
   write(path.join(root, 'active/0001-existing/model.puml'), '@startuml\nclass A\nclass B\nA -up-> B\n@enduml\n');
-  const [diagram] = checkPaths([path.join(root, 'active/0001-existing/model.puml')]);
+  const [diagram] = await checkPaths([path.join(root, 'active/0001-existing/model.puml')]);
   assert.equal(diagram.errors.length, 1);
   assert.match(diagram.errors[0], /^active\/0001-existing\/model\.puml:4:\d+: .*remove the direction `up`/);
   // A whole folder's check finds them too; a proposal reads its baseline beside it, never outside the planning folder.
@@ -271,29 +281,57 @@ test('atlas check attributes findings to the files asked about and runs register
   write(path.join(root, 'active/0001-existing/proposal.puml'), "@startuml\n' atlas proposal model.puml\nclass A\nclass B\n@enduml\n");
   write(path.join(root, 'active/0002-other/proposal.puml'), "@startuml\n' atlas proposal ../../../outside.puml\nclass A\n@enduml\n");
   write(path.join(root, '..', 'outside.puml'), '@startuml\nclass A\n@enduml\n');
-  const errors = checkPaths([root])[0].errors.filter(error => error.includes('.puml'));
+  const errors = (await checkPaths([root]))[0].errors.filter(error => error.includes('.puml'));
   assert.deepEqual(errors.map(error => error.split(':')[0]), ['active/0002-other/proposal.puml']);
   assert.match(errors[0], /outside\.puml does not exist/);
   // Other kinds of file can register their own checker.
   write(path.join(root, 'active/0001-existing/notes.txt'), 'x');
   fileCheckers.set('.txt', (_, file) => ({ errors: [file + ': checked'], warnings: [] }));
   t.after(() => fileCheckers.delete('.txt'));
-  assert.ok(checkPaths([path.join(root, 'active/0001-existing/notes.txt')])[0].errors.includes('active/0001-existing/notes.txt: checked'));
+  assert.ok((await checkPaths([path.join(root, 'active/0001-existing/notes.txt')]))[0].errors.includes('active/0001-existing/notes.txt: checked'));
 });
 
-test('a planning folder is adopted into the home with its path hints made absolute', async t => {
+test('atlas check warns about a diagram no document of its work item links, and checks the project name', async t => {
+  const root = planningFolder(temporary(t));
+  write(path.join(root, 'active/0001-existing/diagrams/model.puml'), '@startuml\nclass A\n@enduml\n');
+  write(path.join(root, 'notes.puml'), '@startuml\nclass B\n@enduml\n');
+  const unlinked = (await checkPaths([root]))[0].warnings.filter(warning => warning.includes('links this diagram'));
+  assert.deepEqual(unlinked, ['active/0001-existing/diagrams/model.puml: no document of work-0001 links this diagram; link it from the plan under the heading it explains'], 'a diagram outside every work folder is not a work item\'s');
+  writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001') + '\n## Model\n\n[The model](diagrams/model.puml)\n');
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/diagrams/model.puml')]))[0].warnings, []);
+  const registry = JSON.parse(read(root, 'planning.json'));
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, name: 'Shop' }));
+  assert.deepEqual(validatePlanning(root).errors, []);
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, name: ' ' }));
+  assert.deepEqual(validatePlanning(root).errors, ['name must be a nonempty string of at most 100 characters when supplied']);
+});
+
+test('a planning folder is adopted into the home with its path hints made absolute, its statistics imported', async t => {
   const directory = temporary(t);
   const root = planningFolder(directory);
   const home = path.join(directory, 'home');
   await assert.rejects(adoptPlanningFolder(path.join(root, 'active'), { home }), /no planning\.json/);
+  // Document use from before the home database, kept by the folder's path, and a work statistics file.
   const usage = await statisticsDirectory(root, home);
-  write(path.join(usage, 'usage.sqlite'), 'statistics');
+  mkdirSync(usage, { recursive: true });
+  const old = new DatabaseSync(path.join(usage, 'usage.sqlite'));
+  old.exec(legacyUsageSchema);
+  old.prepare("INSERT INTO events (id, source, document_key, path, timestamp) VALUES ('e-1', 'agent_report', 'root:README.md', 'README.md', '2026-10-01T10:00:00.000Z')").run();
+  old.close();
+  write(path.join(root, 'active/0001-existing/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-02T10:00:00.000Z', model: 'claude-opus-5-5', session: null, tokens: null, step: null }) + '\nnot a report\n');
   const adopted = await adoptPlanningFolder(root, { home, name: 'shop-planning' });
-  assert.equal(read(await statisticsDirectory(adopted.to, home), 'usage.sqlite'), 'statistics', 'document use follows the folder');
-  assert.ok(!existsSync(usage));
+  assert.ok(!existsSync(usage), 'the old document use is imported');
   assert.equal(adopted.to, path.join(home, 'planning', 'shop-planning'));
   assert.ok(!existsSync(root) && existsSync(path.join(adopted.to, '.git')));
   assert.deepEqual(adopted.rewritten, [{ id: 'shop', from: '../shop', to: path.join(directory, 'shop') }]);
+  assert.deepEqual(adopted.statistics, { files: ['active/0001-existing/.atlas/statistics.jsonl'], reports: 1, invalid: 1, problems: [] });
+  assert.ok(!existsSync(path.join(adopted.to, 'active/0001-existing/.atlas')), 'the statistics file is gone from the planning folder');
+  withDatabase(home, database => {
+    const project = database.projectByFolder(adopted.to)!;
+    assert.equal(project.name, adopted.project);
+    assert.equal(usageSummary(database, project.id).reports, 1);
+    assert.equal(storedReports(database, project.id).get('work-0001')?.length, 1);
+  });
   const repositories = JSON.parse(read(adopted.to, 'planning.json')).repositories;
   assert.deepEqual(repositories.map((item: { path: string }) => item.path), ['.', path.join(directory, 'shop'), path.join(directory, 'tools')]);
   const other = planningFolder(directory, 'again');

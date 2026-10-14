@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { inspectPlanningRoot, RecentPlanningRoots } from './planningRoots.ts';
+import { inspectPlanningRoot } from './planningRoots.ts';
 
 const registry = (work = 0) => JSON.stringify({ schema_version: 1, repositories: [], work_items: Array.from({ length: work }, (_, index) => ({ id: 'work-' + String(index + 1).padStart(4, '0'), path: 'active/' + index, repositories: [], current_plan: null })) });
 
@@ -33,22 +33,5 @@ test('planning folders are validated before opening', async () => {
     await assert.rejects(inspectPlanningRoot(temporary), /no readable planning.json/);
     await assert.rejects(inspectPlanningRoot(broken), /no readable planning.json/);
     await assert.rejects(inspectPlanningRoot(future), /schema version 1/);
-  } finally { await rm(temporary, { recursive: true }); }
-});
-
-test('recent folders persist outside planning and can be forgotten', async () => {
-  const { temporary, current, demo } = await workspace();
-  try {
-    const recents = new RecentPlanningRoots(path.join(temporary, 'cache/planning-roots.json'));
-    assert.deepEqual(await recents.list(), []);
-    await recents.remember(current); await recents.remember(demo); await recents.remember(current);
-    assert.deepEqual(await recents.list(), [current, demo]);
-    for (let index = 0; index < 12; index++) await recents.remember(path.join(temporary, 'other-' + index));
-    assert.equal((await recents.list()).length, 8);
-    const [first, second] = await recents.list();
-    assert.deepEqual((await recents.forget(first)).slice(0, 1), [second]);
-    assert.deepEqual(await recents.clear(), []);
-    await writeFile(path.join(temporary, 'cache/planning-roots.json'), '{"recent": ["relative/path", 5]}');
-    assert.deepEqual(await recents.list(), []);
   } finally { await rm(temporary, { recursive: true }); }
 });

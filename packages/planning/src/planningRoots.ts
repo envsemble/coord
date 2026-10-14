@@ -1,11 +1,10 @@
-import { mkdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { PlanningError } from './planning.ts';
 
 export interface PlanningRootInfo { path: string; name: string; parent: string; workItems: number }
 
 const registryLimit = 2 * 1024 * 1024;
-const recentLimit = 8;
 
 function absolute(value: string) {
   if (process.platform === 'win32') return /^[a-z]:[\\/]/i.test(value) || /^\\\\[^\\]+\\[^\\]+/.test(value);
@@ -35,35 +34,6 @@ export async function inspectPlanningRoot(input: unknown): Promise<PlanningRootI
   return { path: canonical, name: path.basename(canonical), parent: path.dirname(canonical), workItems: registry.work_items.length };
 }
 
-/** Recently opened planning folders, kept in the Atlas data folder (never in planning). */
-export class RecentPlanningRoots {
-  private readonly filename: string;
-  constructor(filename: string) { this.filename = filename; }
-  async list(): Promise<string[]> {
-    try {
-      const value = JSON.parse(await readFile(this.filename, 'utf8'));
-      return Array.isArray(value?.recent) ? value.recent.filter((item: unknown): item is string => typeof item === 'string' && absolute(item)).slice(0, recentLimit) : [];
-    } catch { return []; }
-  }
-  async remember(root: string) {
-    return this.save([root, ...(await this.list()).filter(item => !samePlatformPath(item, root))].slice(0, recentLimit));
-  }
-  async forget(root: string) {
-    return this.save((await this.list()).filter(item => !samePlatformPath(item, root)));
-  }
-  async clear() {
-    return this.save([]);
-  }
-  private async save(recent: string[]) {
-    try {
-      await mkdir(path.dirname(this.filename), { recursive: true });
-      const temporary = this.filename + '.' + process.pid + '.tmp';
-      await writeFile(temporary, JSON.stringify({ recent }, null, 2) + '\n');
-      await rename(temporary, this.filename);
-    } catch { /* Recents are a convenience; opening folders still works without them. */ }
-    return recent;
-  }
-}
 export function samePlatformPath(first: string, second: string) {
   return process.platform === 'win32' || process.platform === 'darwin' ? first.toLowerCase() === second.toLowerCase() : first === second;
 }

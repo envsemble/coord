@@ -1,12 +1,11 @@
 // Consultation logging (ported from test_log_consultation.py).
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { documentIdentity, recordAgentCollectionGap, reportConsultation } from './consultation.ts';
-import { cacheOutsidePlanning, statisticsDirectory } from './storage.ts';
+import { withDatabase } from './database.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 
 function temporary(t: TestContext) {
@@ -14,9 +13,19 @@ function temporary(t: TestContext) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   return directory;
 }
+/**
+ * Rows of the project's document use (`events`, with the columns the old usage store had) and
+ * collection gaps (`failures`) in the home database at `destination`.
+ */
 async function rows(root: string, destination: string, query: string) {
-  const database = new DatabaseSync(path.join(await statisticsDirectory(root, destination), 'usage.sqlite'));
-  try { return database.prepare(query).all().map(row => Object.values(row)); } finally { database.close(); }
+  return withDatabase(destination, database => {
+    const project = database.projectByFolder(realpathSync.native(root));
+    if (!project) return [];
+    const scoped = query
+      .replace('FROM events', `FROM (SELECT source, document_key, path, work_id AS task_id, session AS session_id, content_hash FROM document_use WHERE project_id = ${project.id})`)
+      .replace('FROM failures', `FROM (SELECT at FROM collection_gap WHERE project_id = ${project.id})`);
+    return database.db.prepare(scoped).all().map(row => Object.values(row));
+  });
 }
 const registryFile = (root: string, items: unknown[]) => writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, work_items: items }));
 
@@ -29,7 +38,6 @@ test('POSIX backslash roots and document names remain distinct', { skip: process
     mkdirSync(folder, { recursive: true });
     writeFileSync(path.join(folder, 'planning.json'), '{"schema_version": 1, "work_items": []}');
   }
-  assert.notEqual(await statisticsDirectory(root, destination), await statisticsDirectory(nested, destination));
   writeFileSync(path.join(root, 'foo\\bar.md'), 'Original record\n');
   assert.deepEqual(await reportConsultation(root, ['foo\\bar.md'], { home: destination }), { recorded: 1, failed: 0 });
   assert.deepEqual(await rows(root, destination, 'SELECT document_key, path FROM events'), [['root:foo\\bar.md', 'foo\\bar.md']]);
@@ -155,14 +163,14 @@ test('case-insensitive registry casing preserves work document identity', async 
   const registryBytes = readFileSync(path.join(root, 'planning.json'));
   const destination = path.join(directory, 'metrics');
   assert.deepEqual(await reportConsultation(root, ['active/0001-example/Plan.md', 'ACTIVE/0001-EXAMPLE/plan.md', document.toUpperCase(), 'LEGACY.MD'], { home: destination }), { recorded: 2, failed: 0 });
-  assert.equal(await statisticsDirectory(root, destination), await statisticsDirectory(path.join(path.dirname(root), 'PLANNING'), destination));
-  await assert.rejects(cacheOutsidePlanning(root, path.join(path.dirname(root), 'PLANNING', 'cache')), /outside the planning folder/);
   assert.deepEqual(await rows(root, destination, 'SELECT document_key FROM events ORDER BY document_key'), [['work-0001:Plan.md'], ['work-0002:legacy.md']]);
+  assert.deepEqual(await reportConsultation(path.join(path.dirname(root), 'PLANNING'), ['LEGACY.MD'], { home: destination }), { recorded: 1, failed: 0 }, 'a case-folded alias records into the same project');
+  assert.equal(withDatabase(destination, database => database.projects().length), 1);
   assert.deepEqual(readFileSync(path.join(root, 'planning.json')), registryBytes);
   assert.deepEqual(readFileSync(document), original);
 });
 
-test('closed-app collection records unknown identities and refuses a store inside planning', async t => {
+test('closed-app collection records unknown identities and writes nothing into the planning folder', async t => {
   const directory = temporary(t);
   const root = path.join(directory, 'planning');
   mkdirSync(root);
@@ -176,9 +184,8 @@ test('closed-app collection records unknown identities and refuses a store insid
   assert.equal((row[4] as string).length, 64);
   assert.deepEqual(readFileSync(path.join(root, 'note.md')), original);
   assert.deepEqual(readdirSync(root).sort(), ['note.md', 'planning.json']);
-  await assert.rejects(reportConsultation(root, ['note.md'], { home: path.join(root, 'cache') }), /outside the planning folder/);
-  await recordAgentCollectionGap(root, path.join(root, 'cache'));
-  assert.equal(existsSync(path.join(root, 'cache')), false);
+  await recordAgentCollectionGap(root, destination);
+  assert.deepEqual(await rows(root, destination, 'SELECT count(*) FROM failures'), [[1]], 'a gap is kept with the project');
 });
 
 test('archived work keeps its document identity and escapes are rejected', async t => {

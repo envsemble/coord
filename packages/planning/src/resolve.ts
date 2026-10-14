@@ -9,6 +9,7 @@ import { ledgerStatus, stepCounts, stepSummary } from './ledger.ts';
 import { samePlatformPath } from './planningRoots.ts';
 import { runProgram } from './run.ts';
 import { atlasHome, homePlanningFolders } from './storage.ts';
+import { planningName } from './database.ts';
 import type { LedgerStep } from './types.ts';
 
 export interface ActiveWork {
@@ -20,6 +21,8 @@ export interface ActiveWork {
 }
 export interface PlanningMatch {
   planningFolder: string;
+  /** The project's name: its registry's `name`, else the folder's own name. */
+  project: string;
   /** How the checkout matched: by Git remote, by an absolute path hint, or by being inside the folder. */
   via: ('remote' | 'path' | 'inside')[];
   /** The registered repositories the checkout is. */
@@ -130,7 +133,7 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
     const scope = new Set(repositories);
     const items = registry.work_items.filter(item => typeof item?.id === 'string' && typeof item.path === 'string' && item.path.startsWith('active/')
       && (!scope.size || (Array.isArray(item.repositories) && item.repositories.some(id => scope.has(id)))));
-    matches.push({ planningFolder: root, via: [...via], repositories, work: await Promise.all(items.map(item => activeWork(root, item))) });
+    matches.push({ planningFolder: root, project: await planningName(root), via: [...via], repositories, work: await Promise.all(items.map(item => activeWork(root, item))) });
   }
   return { cwd: resolvedCwd, checkout: found?.checkout ?? null, remotes: found?.remotes ?? [], home, matches };
 }
@@ -154,5 +157,6 @@ export async function resolvePlanningFolder(options: { planningFolder?: string |
   }
   if (candidates.length === 1) return candidates[0];
   if (!candidates.length) throw new PlanningNotFoundError(`No planning folder in the Atlas home (${where.home}) is registered for ${where.checkout ?? where.cwd}. Give the planning folder explicitly, or register this repository's remote in a planning folder's planning.json.`);
-  throw new PlanningNotFoundError('Several planning folders match this checkout: ' + candidates.join(', ') + '. Give the planning folder explicitly.');
+  const named = where.matches.filter(match => candidates.includes(match.planningFolder)).map(match => `${match.project} (${match.planningFolder})`);
+  throw new PlanningNotFoundError("Several projects register this checkout's repository: " + named.join(', ') + '. Ask the user which project to plan in, then give its planning folder (--planning-dir, or planningFolder in the Atlas tools).');
 }
