@@ -396,9 +396,12 @@ async function diagramsFor(files: { path: string; data: string }[], warnings: st
   if (!sources.length) return [];
   const { default: atlas } = await import('@envsemble/atlas-diagrams');
   const described = describeFiles(sources);
-  let prepared = new Map<string, unknown>();
-  try { prepared = new Map([...(await atlas.prepareDiagrams({ files: sources })).prepared].map(([name, viewer]) => [name, viewer.payload])); }
-  catch { /* Each diagram is reported as not drawn below. */ }
+  // Each family is laid out on its own, as the app lays it out, so one that fails leaves the rest drawn.
+  const prepared = new Map<string, unknown>();
+  for (const root of new Set(described.filter(diagram => diagram.valid).map(diagram => diagram.family ?? diagram.path))) {
+    try { for (const [name, viewer] of (await atlas.prepareDiagrams({ files: sources, paths: [root] })).prepared) prepared.set(name, viewer.payload); }
+    catch { /* The family's diagrams are reported as not drawn below. */ }
+  }
   const references = new Map<string, ViewReference[]>();
   for (const file of files) {
     if (!isMarkdown(file.path)) continue;
