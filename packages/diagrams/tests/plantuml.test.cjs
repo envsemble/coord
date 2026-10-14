@@ -562,6 +562,26 @@ test("a proposal's and a comparison's baselines must exist, read and be of their
   };
   assert.deepEqual(check(after("shop.puml")), []);
   assert.match(check(after("schema.puml"))[0], /schema.puml is not a capture/);
+  // Baselines never come round again: to this file, or among themselves.
+  files["p.puml"] = proposal("p.puml");
+  assert.deepEqual(check(files["p.puml"]), [
+    "The baselines run in a cycle (p.puml → p.puml); a proposal or a capture names an earlier diagram, never itself or one that leads back to it.",
+  ]);
+  files["q.puml"] = proposal("r.puml");
+  files["r.puml"] = proposal("q.puml");
+  assert.match(
+    check(files["q.puml"])[0],
+    /cycle \(p\.puml → r\.puml → q\.puml → r\.puml\)/,
+  );
+  assert.match(
+    check(proposal("q.puml"))[0],
+    /cycle \(p\.puml → q\.puml → r\.puml → q\.puml\)/,
+  );
+  files["c.puml"] = after("c.puml");
+  assert.match(
+    check(files["c.puml"]).join(),
+    /cycle \(p\.puml → c\.puml → c\.puml\)/,
+  );
 });
 
 test("a diagram becomes the viewer's model, identified by names", () => {

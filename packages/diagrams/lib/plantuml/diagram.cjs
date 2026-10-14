@@ -4,6 +4,7 @@
 // what to do instead. `checkDiagram` adds the model rules and the rules of the
 // `' atlas` headers, which may need the files a header names.
 const { createHash } = require("node:crypto");
+const { posix } = require("node:path");
 const { parse } = require("./parser.cjs");
 
 const MULTIPLICITY = /^(?:\d+|\*)(?:\.\.(?:\d+|\*))?$/;
@@ -1149,6 +1150,15 @@ function checkDiagram(text, options = {}) {
       `${baseline.name} is ${article(baseline.diagram.kind)} diagram; a proposal keeps its baseline's kind.`,
     );
   const before = reference("compares", 1);
+  for (const found of [baseline, before])
+    if (found) {
+      const cycle = baselineCycle(found.name, read, options.path);
+      if (cycle)
+        found.fail(
+          "REFERENCE_CYCLE",
+          `The baselines run in a cycle (${cycle.join(" → ")}); a proposal or a capture names an earlier diagram, never itself or one that leads back to it.`,
+        );
+    }
   if (before) {
     if (!before.diagram.capture)
       before.fail(
@@ -1208,6 +1218,25 @@ function checkDiagram(text, options = {}) {
 }
 const article = (kind) =>
   kind === "object" || kind === "entity" ? `an ${kind}` : `a ${kind}`;
+/**
+ * The chain of baselines from the one named `name` when it comes round again,
+ * to this file or to one of its own; null when it ends. Names are relative to
+ * this file, `file` being its path.
+ */
+function baselineCycle(name, read, file) {
+  const named = (reference) => posix.normalize(reference.replace(/\\/g, "/"));
+  const chain = file ? [posix.basename(named(file))] : [];
+  for (let path = named(name); chain.length < 100; ) {
+    if (chain.includes(path)) return [...chain, path];
+    chain.push(path);
+    const text = read(path);
+    const diagram = typeof text === "string" && parseDiagram(text).diagram;
+    const next = diagram && (diagram.proposal || diagram.compares);
+    if (!next) return null;
+    path = named(posix.join(posix.dirname(path), named(next)));
+  }
+  return null;
+}
 
 // --- Writing ---------------------------------------------------------------
 

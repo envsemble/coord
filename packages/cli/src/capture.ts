@@ -38,6 +38,7 @@ export async function capture(args: string[], out: Output) {
   if (values.compares) {
     earlier = [path.resolve(values.compares), path.resolve(path.dirname(file), values.compares)].find(candidate => existsSync(candidate)) ?? null;
     if (!earlier) throw new CaptureError(`${values.compares} does not exist; name the earlier capture by its path.`);
+    if (path.relative(file, earlier) === '') throw new CaptureError(`${values.compares} is the file this capture writes; a capture compares with an earlier capture in another file.`);
   }
   const { default: diagrams } = await import('@envsemble/atlas-diagrams');
   let text: string;
@@ -47,8 +48,13 @@ export async function capture(args: string[], out: Output) {
     const reference = path.relative(path.dirname(file), earlier).split(path.sep).join('/');
     const { diagram } = diagrams.parseDiagram(text);
     text = diagrams.formatDiagram({ ...diagram!, compares: reference });
-    const earlierText = readFileSync(earlier, 'utf8');
-    const problems = diagrams.checkDiagram(text, { read: name => (name === reference ? earlierText : null) }).filter(p => p.severity === 'error');
+    // The diagrams it names, relative to the capture, which it is about to be.
+    const read = (name: string) => {
+      const target = path.resolve(path.dirname(file), name);
+      if (path.relative(file, target) === '') return text;
+      try { return readFileSync(target, 'utf8'); } catch { return null; }
+    };
+    const problems = diagrams.checkDiagram(text, { path: path.basename(file), read }).filter(p => p.severity === 'error');
     if (problems.length) throw new CaptureError(problems.map(p => p.message).join(' '));
   }
   const { diagram } = diagrams.parseDiagram(text);

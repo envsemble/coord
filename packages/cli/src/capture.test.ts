@@ -65,6 +65,14 @@ test('a later capture compares with an earlier one, which must be a capture of i
   const missing = run('--name', 'wrong', '--compares', 'nowhere.puml');
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /nowhere\.puml does not exist/);
+  // Never with itself, nor with a capture that compares with it.
+  const itself = run('--name', 'before', '--compares', 'before.puml', '--force');
+  assert.equal(itself.status, 1);
+  assert.match(itself.stderr, /before\.puml is the file this capture writes/);
+  const round = run('--name', 'before', '--compares', 'after.puml', '--force');
+  assert.equal(round.status, 1);
+  assert.match(round.stderr, /The baselines run in a cycle \(before\.puml → after\.puml → before\.puml\)/);
+  assert.equal(readFileSync(path.join(diagramsFolder, 'before.puml'), 'utf8'), before);
 });
 
 test('capture writes to a file of its own, reports a failed capture, and checks its arguments', t => {
