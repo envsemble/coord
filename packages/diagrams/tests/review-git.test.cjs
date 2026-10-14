@@ -5,10 +5,8 @@ const { test } = require("node:test"),
   os = require("node:os");
 const { execFileSync } = require("node:child_process"),
   { pathToFileURL } = require("node:url");
-const {
-    createEnrollmentDocument,
-  } = require("../examples/enrollment/learning.cjs"),
-  { loadRevision } = require("../lib/review/review.cjs");
+const { loadRevision } = require("../lib/review/review.cjs"),
+  { createDocument } = require("../lib/index.cjs");
 test("Review never lazy-fetches missing blobs from a partial clone", (t) => {
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-promisor-")),
     source = path.join(stage, "source"),
@@ -27,7 +25,18 @@ test("Review never lazy-fetches missing blobs from a partial clone", (t) => {
   git(source, "config", "uploadpack.allowFilter", "true");
   fs.writeFileSync(
     path.join(source, "model.json"),
-    JSON.stringify(createEnrollmentDocument()),
+    JSON.stringify(
+      createDocument({
+        profile: "code",
+        model: {
+          type: "StructuralModel",
+          nodes: [{ id: "a", name: "A", attributes: [] }],
+          relations: [],
+          generalizations: [],
+          generalizationSets: [],
+        },
+      }),
+    ),
   );
   git(source, "add", ".");
   git(source, "commit", "-qm", "Captured");

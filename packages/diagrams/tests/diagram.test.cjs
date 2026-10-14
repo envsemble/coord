@@ -160,13 +160,15 @@ test("same-named entities have unique SVG identities, and abstract classes use U
   assert.equal((svg.match(/font-style="italic"/g) || []).length, 2);
   assert.match(svg, /marker-start="url\(#[^"]+-COMPOSITE\)"/);
 });
-test("multi-word stereotypes keep a valid themed node fill", () => {
+test("every class has the one neutral look, whatever its stereotype", () => {
   const diagram = diagramFixture();
   diagram.nodes[0].stereotype = "type alias";
+  diagram.nodes[1].stereotype = "interface";
   const svg = renderSVG(diagram);
-  assert(svg.includes("var(--node-type-alias,"));
-  assert(
-    !/var\(--[\w-]* /.test(svg),
-    "custom property names cannot contain spaces",
+  assert(svg.includes("«type alias»"));
+  assert.equal(
+    svg.match(/class="node-box"[^>]*fill="var\(--surface,#f6f8fa\)"/g).length,
+    diagram.nodes.length,
   );
+  assert(!/var\(--(?:node|type)-/.test(svg));
 });

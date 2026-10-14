@@ -1,189 +1,199 @@
 const { test } = require("node:test"),
   assert = require("node:assert/strict");
-const atlas = require("../lib/index.cjs"),
-  { createEnrollmentDocument } = require("../examples/enrollment/learning.cjs");
-const fs = require("node:fs"),
-  os = require("node:os"),
-  path = require("node:path");
-test("Finite OntoUML examples assess both ends and inherited complete/disjoint memberships", () => {
-  const document = createEnrollmentDocument();
-  assert.equal(
-    atlas.checkScenario(document, "valid-enrollment").outcome,
-    "valid",
+const atlas = require("../lib/index.cjs");
+const { createElement } = require("react"),
+  { renderToStaticMarkup } = require("react-dom/server");
+const { loadComponents: load } = require("./load-components.cjs");
+
+// Enrollment: each needs one learner and one school, and is active or
+// suspended. Scenarios are object diagrams of example instances.
+const ENROLLMENT = `@startuml
+title Enrollment
+abstract class Enrollment
+class Active
+class Suspended
+class Person {
+  name : String
+}
+class School
+Active --|> Enrollment
+Suspended --|> Enrollment
+Enrollment "0..*" -- "1" Person : learner
+Enrollment "0..*" -- "1" School : school
+@enduml
+`;
+const scenario = (expected, ...lines) =>
+  [
+    "@startuml",
+    `' atlas scenario enrollment.puml expected ${expected}`,
+    ...lines,
+    "@enduml",
+    "",
+  ].join("\n");
+const read = (reference) =>
+  reference === "enrollment.puml" ? ENROLLMENT : null;
+const check = (text) =>
+  atlas.checkDiagram(text, { path: "example.puml", read });
+const VALID = scenario(
+  "valid",
+  'object "e1 : Active" as e1',
+  'object "ada : Person" as ada {',
+  '  name = "Ada"',
+  "}",
+  'object "mit : School" as mit',
+  "e1 -- ada : learner",
+  "e1 -- mit : school",
+);
+
+test("Object diagrams are assessed against their class diagram, with inherited memberships and both ends", () => {
+  assert.deepEqual(check(VALID), []);
+  // Without its learner the enrollment breaks the learner end's count.
+  const orphan = VALID.replace("e1 -- ada : learner\n", "");
+  assert.deepEqual(
+    check(orphan.replace("expected valid", "expected invalid")),
+    [],
   );
-  for (const [id, code] of [
-    ["invalid-overlap", "SET_DISJOINT"],
-    ["invalid-unclassified", "SET_COMPLETE"],
-    ["invalid-participation", "MULTIPLICITY"],
-  ]) {
-    const result = atlas.checkScenario(document, id);
-    assert.equal(result.outcome, "invalid");
-    assert.equal(result.expectationMet, true);
-    assert(result.issues.some((i) => i.code === code));
-  }
-  const explanations = atlas.explainModel(atlas.documentViewerModel(document));
+  const [problem] = check(orphan);
+  assert.equal(problem.code, "SCENARIO");
+  assert.match(
+    problem.message,
+    /expected to be valid.*e1 has 0 linked instances; this end requires 1/,
+  );
+  // An abstract class needs a concrete subclass membership.
+  const abstract = VALID.replace('"e1 : Active"', '"e1 : Enrollment"');
+  assert.match(
+    check(abstract)[0].message,
+    /abstract membership needs a declared concrete subtype/,
+  );
+  // A link written from the other end means the same.
+  assert.deepEqual(
+    check(VALID.replace("e1 -- mit : school", "mit -- e1 : school")),
+    [],
+  );
+  // An invalid example that holds is a finding too.
+  assert.match(
+    check(VALID.replace("expected valid", "expected invalid"))[0].message,
+    /expected to be invalid, but enrollment.puml accepts it/,
+  );
+  const { diagram } = atlas.parseDiagram(ENROLLMENT);
+  const explanations = atlas.explainModel(atlas.diagramViewerModel(diagram));
   assert(
     explanations.some((e) =>
       e.text.includes("For each Enrollment: exactly 1 Person"),
     ),
   );
-  assert(
-    explanations.some((e) =>
-      e.text.includes("For each Person: at least 0 Enrollment"),
-    ),
+});
+
+test("Scenario classes, slots and links must resolve in the class diagram", () => {
+  const messages = (text) => check(text).map((p) => `${p.line} ${p.code}`);
+  assert.deepEqual(
+    messages(VALID.replace('"mit : School"', '"mit : University"')),
+    ["7 SCENARIO_CLASS"],
+  );
+  assert.deepEqual(messages(VALID.replace('name = "Ada"', 'age = "36"')), [
+    "5 SCENARIO_SLOT",
+  ]);
+  assert.deepEqual(messages(VALID.replace(": school", ": campus")), [
+    "9 SCENARIO_LINK",
+  ]);
+  assert.deepEqual(messages(VALID.replace("e1 -- mit : school", "e1 -- mit")), [
+    "9 LINK",
+  ]);
+  assert.deepEqual(messages(VALID.replace('"e1 : Active" as e1', "e1")), [
+    "3 OBJECT",
+  ]);
+  // The class diagram itself must exist and read.
+  assert.deepEqual(
+    atlas
+      .checkDiagram(VALID, { path: "example.puml", read: () => null })
+      .map((p) => p.code),
+    ["REFERENCE"],
+  );
+  assert.deepEqual(
+    atlas
+      .checkDiagram(VALID, {
+        path: "example.puml",
+        read: () => "@startuml\nentity t\n@enduml\n",
+      })
+      .map((p) => p.code),
+    ["REFERENCE"],
   );
 });
-test("Overlapping and incomplete sets permit their corresponding instance situations", () => {
-  const original = createEnrollmentDocument(),
-    model = structuredClone(original.model);
-  for (const e of model.elements)
-    if (e.type === "GeneralizationSet") {
-      e.isComplete = false;
-      e.isDisjoint = false;
-    }
-  const document = atlas.reviseDocument(original, { model });
-  assert.equal(
-    atlas.checkScenario(document, "invalid-overlap").outcome,
-    "valid",
+
+test("Unknown counts and dependencies leave an example unassessed, a warning rather than an error", () => {
+  const classes = `@startuml
+class A
+class B
+A ..> B
+@enduml
+`;
+  const problems = atlas.checkDiagram(
+    '@startuml\n\' atlas scenario classes.puml expected valid\nobject "one : A" as one\nobject "two : B" as two\none -- two : uses\n@enduml\n',
+    { read: () => classes },
   );
-  assert.equal(
-    atlas.checkScenario(document, "invalid-unclassified").outcome,
-    "valid",
+  assert.deepEqual(
+    problems.map((p) => p.code),
+    ["SCENARIO_LINK"],
+    "a dependency has no name to link by",
   );
-  assert.equal(
-    atlas.checkScenario(document, "invalid-overlap").expectationMet,
-    false,
+  const unlinked = atlas.checkDiagram(
+    '@startuml\n\' atlas scenario classes.puml expected valid\nobject "one : A" as one\n@enduml\n',
+    { read: () => classes },
+  );
+  assert.deepEqual(
+    unlinked.map((p) => [p.code, p.severity]),
+    [["SCENARIO_UNASSESSED", "warning"]],
   );
 });
-test("Scenario references, duplicate pairs, declared limits and walkthrough views are checked before publication", () => {
-  for (const edit of [
-    (d) => d.learning.scenarios[0].instances[0].classIds.push("absent"),
-    (d) =>
-      d.learning.scenarios[0].links.push({
-        ...d.learning.scenarios[0].links[0],
-      }),
-    (d) => (d.learning.scenarios[0].links[0].relationId = "enrollment"),
-    (d) => (d.learning.walkthroughs[0].steps[0].viewKey = "absent"),
-    (d) => (d.learning.scenarios[0].contextIds = ["absent"]),
-    (d) =>
-      (d.learning.scenarios[0].instances = Array.from(
-        { length: 101 },
-        (_, i) => ({ id: `i-${i}`, classIds: ["enrollment"] }),
-      )),
-  ]) {
-    const document = structuredClone(createEnrollmentDocument());
-    edit(document);
-    assert(!atlas.validateDocument(document).valid);
-  }
-});
-test("Unknown counts, dependency links and text invariants leave finite examples unassessed", () => {
-  const document = atlas.createDocument({
-    profile: "code",
-    model: {
-      type: "StructuralModel",
-      nodes: [
-        { id: "a", name: "A", attributes: [] },
-        { id: "b", name: "B", attributes: [] },
-      ],
-      relations: [
-        {
-          id: "uses",
-          name: "uses",
-          sourceId: "a",
-          targetId: "b",
-          sourceMultiplicity: "?",
-          targetMultiplicity: "?",
-          stereotype: "dependency",
-        },
-      ],
-      generalizations: [],
-      generalizationSets: [],
-    },
-    learning: {
-      walkthroughs: [],
-      scenarios: [
-        {
-          id: "unknown",
-          title: "Unknown runtime",
-          expected: "valid",
-          instances: [
-            { id: "one", classIds: ["a"] },
-            { id: "two", classIds: ["b"] },
-          ],
-          links: [{ relationId: "uses", sourceId: "one", targetId: "two" }],
-        },
-      ],
-    },
+
+test("A class diagram's payload carries the scenarios that exemplify it, assessed, for the guide", async () => {
+  const { diagrams, prepared } = await atlas.prepareDiagrams({
+    files: [
+      { path: "enrollment.puml", text: ENROLLMENT },
+      {
+        path: "examples/valid.puml",
+        text: VALID.replace("enrollment.puml", "../enrollment.puml"),
+      },
+    ],
   });
-  const result = atlas.checkScenario(document, "unknown");
-  assert.equal(result.outcome, "unassessed");
-  assert.equal(result.expectationMet, null);
-  assert(result.unassessed.length);
-});
-test("Viewers carry walkthroughs and assessed examples, with their scope, in editable HTML", async () => {
-  const document = createEnrollmentDocument(),
-    built = await atlas.buildViewer({ document });
-  // The model report is gone; its walkthroughs and examples guide the viewer.
-  assert.equal(built.payload.report, undefined);
-  assert(!built.html.includes("const REPORT="));
-  assert(built.html.includes("const LEARNING="));
-  const learning = built.payload.learning;
-  assert.deepEqual(learning.walkthroughs, document.learning.walkthroughs);
-  assert.equal(learning.scenarios.length, 4);
-  assert(learning.scenarios.every((s) => s.result.outcome));
-  assert.equal(learning.scope, document.reporting.scope);
-  const { createElement } = require("react"),
-    { renderToStaticMarkup } = require("react-dom/server");
-  const { loadComponents: load } = require("./load-components.cjs");
+  assert.deepEqual(
+    diagrams.map((d) => [d.path, d.role, d.profile, d.scenario?.of ?? null]),
+    [
+      ["enrollment.puml", "diagram", "class", null],
+      ["examples/valid.puml", "scenario", "object", "enrollment.puml"],
+    ],
+  );
+  const payload = prepared.get("enrollment.puml").payload;
+  const [example] = payload.learning.scenarios;
+  assert.equal(example.id, "examples/valid.puml");
+  assert.equal(example.result.outcome, "valid");
+  assert.equal(example.result.expectationMet, true);
   const guide = renderToStaticMarkup(
     createElement(load("src/learning/LearningContent.jsx").LearningLibrary, {
-      model: built.model,
-      learning,
-      views: built.payload.views,
+      model: payload.model,
+      learning: payload.learning,
       onInspect() {},
-      onView() {},
     }),
-  );
-  assert(guide.includes(">Guide<"));
-  assert(guide.includes("Read an enrollment"));
-  assert(
-    guide.includes(
-      "From Glossary › Enrollment, Plan › State transition question",
-    ),
   );
   assert(guide.includes(">Examples<"));
-  assert(guide.includes(document.reporting.scope));
-  // Without lessons to offer, a structural model's guide needs no tabs.
-  const plain = renderToStaticMarkup(
-    createElement(load("src/learning/LearningContent.jsx").LearningLibrary, {
-      model: built.model,
-      learning,
-      conceptual: false,
-      onInspect() {},
-    }),
+  assert(guide.includes("Valid · as expected"));
+  assert(guide.includes("ada : Person"));
+  assert(!guide.includes('role="tablist"'));
+  // The object diagram is drawn too: its objects with their slot values.
+  const objects = prepared.get("examples/valid.puml");
+  const ada = objects.model.classes.find((c) => c.id === "ada");
+  assert.equal(ada.stereotype, "object");
+  assert.deepEqual(
+    ada.attributes.map((a) => [a.name, a.type, a.slot]),
+    [["name", '"Ada"', true]],
   );
-  assert(!plain.includes('role="tablist"'));
-  assert(plain.includes("Read an enrollment"));
-  const reopened = atlas.importDocument(built.html);
-  assert.deepEqual(reopened.learning, document.learning);
-  assert.deepEqual(reopened.reporting, document.reporting);
-  const proposal = atlas.createProposal(reopened);
-  await atlas.prepareViewer({ document: proposal, includeArtifacts: false });
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-scenarios-"));
-  try {
-    const w = atlas.createWorkspace(temp),
-      saved = await w.execute("atlas_create", { input: document });
-    const checked = await w.execute("atlas_scenarios", {
-      handle: saved.handle,
-      offset: 1,
-      limit: 1,
-    });
-    assert.equal(checked.total, 4);
-    assert.equal(checked.scenarios[0].outcome, "invalid");
-    assert.equal(checked.scenarios[0].expectationMet, true);
-  } finally {
-    fs.rmSync(temp, { recursive: true, force: true });
-  }
+  const { UMLNode } = load();
+  const node = objects.views[0].diagramFields.nodes.find((n) => n.id === "ada");
+  assert(
+    renderToStaticMarkup(
+      createElement("svg", null, createElement(UMLNode, { node })),
+    ).includes("name = &quot;Ada&quot;"),
+  );
 });
 
 test("Abstract captured types require a concrete subtype, not an unrelated concrete membership", () => {
@@ -234,32 +244,52 @@ test("Abstract captured types require a concrete subtype, not an unrelated concr
   }
 });
 test("Details show structured rationale safely, leave capture diagnostics out, and navigation resolves sets/members", async () => {
-  const { createElement } = require("react"),
-    { renderToStaticMarkup } = require("react-dom/server");
-  const { loadComponents: load } = require("./load-components.cjs");
-  const doc = createEnrollmentDocument(),
-    snapshot = atlas.createSnapshot({
-      profile: doc.profile,
-      model: doc.model,
-      capture: {
-        capturedAt: doc.revision.createdAt,
-        adapter: { id: "fixture", version: "1" },
-        source: {
-          identity: "Structured fixture",
-          kind: "authored",
-          scope: ["model"],
-          revision: { hash: "structured revision" },
-        },
-        coverage: {
-          status: "partial",
-          diagnostics: [{ message: { details: "structured diagnostic" } }],
-        },
-        limitations: [{ message: "structured limitation" }],
-        consistency: { kind: { note: "structured" } },
+  const model = {
+    type: "StructuralModel",
+    nodes: ["enrollment", "active", "suspended"].map((id) => ({
+      id,
+      name: id[0].toUpperCase() + id.slice(1),
+      attributes: [],
+    })),
+    relations: [],
+    generalizations: ["active", "suspended"].map((id) => ({
+      id: `inherits-${id}`,
+      specificId: id,
+      generalId: "enrollment",
+    })),
+    generalizationSets: [
+      {
+        id: "enrollment-state",
+        name: "Enrollment state",
+        generalizations: ["inherits-active", "inherits-suspended"],
+        complete: true,
+        disjoint: true,
       },
-    });
+    ],
+  };
+  const snapshot = atlas.createSnapshot({
+    profile: "code",
+    model,
+    capture: {
+      capturedAt: "2026-10-08T00:00:00.000Z",
+      adapter: { id: "fixture", version: "1" },
+      source: {
+        identity: "Structured fixture",
+        kind: "authored",
+        scope: ["model"],
+        revision: { hash: "structured revision" },
+      },
+      coverage: {
+        status: "partial",
+        diagnostics: [{ message: { details: "structured diagnostic" } }],
+      },
+      limitations: [{ message: "structured limitation" }],
+      consistency: { kind: { note: "structured" } },
+    },
+  });
   const captured = atlas.createDocument({
-    ...doc,
+    profile: "code",
+    model,
     state: "snapshot",
     snapshots: [snapshot],
     baselineId: snapshot.id,
@@ -298,7 +328,7 @@ test("Details show structured rationale safely, leave capture diagnostics out, a
       prepared.model,
       index,
       prepared.views,
-      "inheritance",
+      prepared.views[0].key,
       "enrollment-state",
     ).target.kind,
     "group",
