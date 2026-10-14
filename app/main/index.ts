@@ -62,8 +62,9 @@ if (refusal) {
  * Move the old data folder's files into the home. Holding the lock means no older Atlas app uses
  * them, but an older `atlas serve` may. Only the packaged app moves them on its own; a development
  * run leaves them to `atlas setup`, as the user's own Atlas may still be an older version that needs
- * them. Atlas never starts on the home while they wait, or it would fill the home with new settings
- * and the move would then set the user's own aside. Returns why it cannot start, or null.
+ * them. Atlas never starts on the home while its settings wait (host/, connections, desktop state, the
+ * recent list), or it would fill the home with new ones and the move would then set the user's own
+ * aside; logs and statistics left behind are merged or set aside later. Returns why it cannot start, or null.
  */
 async function moveLegacyData(): Promise<string | null> {
   if (!(await legacyData(electronData)).length) return null;
@@ -73,10 +74,10 @@ async function moveLegacyData(): Promise<string | null> {
   log.info('Moved the old data folder into the home', { from: electronData, ...migration });
   // What could not move (a file held open elsewhere) would otherwise be shadowed by the home's new settings.
   const left = await legacySettings(electronData);
-  return left.length ? `Some of Atlas's settings could not be moved from ${electronData} into ${dataDirectory} (${migration.failed.join('; ') || left.join(', ')}). Close any other program using them, then start Atlas again.` : null;
+  return left.length ? `Some of Atlas's settings could not be moved from ${electronData} into ${dataDirectory} (${migration.failed.filter(item => left.includes(item.split(':')[0])).join('; ') || left.join(', ')}). Close any other program using them, then start Atlas again.` : null;
 }
 
-/** Leave without touching the home while the old data folder's files wait to be moved. */
+/** Leave without touching the home's settings while the old data folder's wait to be moved. */
 function refuseHome(reason: string) {
   log.warn('Not started: the old data folder has not moved into the home', { reason });
   process.stderr.write(reason + '\n');

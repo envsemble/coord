@@ -28,8 +28,8 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
     warn: (message: string, detail?: unknown) => out.stderr('Warning: ' + message + (detail && typeof detail === 'object' && 'message' in detail ? ': ' + String((detail as { message: unknown }).message) : '')),
     error: (message: string, detail?: unknown) => out.stderr('Error: ' + message + (detail instanceof Error ? ': ' + detail.message : '')),
   };
-  // Serving from the default home before the old data folder moved into it would give the home fresh
-  // settings, and the move would then set the user's own aside.
+  // Serving from the default home before the old data folder's settings moved into it would give the
+  // home fresh ones, and the move would then set the user's own aside.
   if (!options.home && !process.env.ATLAS_HOME && (await legacySettings(legacyDataDirectory())).length) {
     throw new Error(`Atlas's settings are still in ${legacyDataDirectory()}. Run atlas setup to move them into the Atlas home first, or give --home.`);
   }

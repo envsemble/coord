@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSyn
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { atlasAppRunning, atlasHome, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
+import { atlasAppRunning, atlasHome, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
 import { hostRunning } from '@envsemble/atlas-host';
 import { parseOptions, positionals, wantsHelp, type Output } from './args.ts';
 
@@ -316,12 +316,18 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
 
   const user = userHome(environment);
   const home = atlasHome(undefined, environment, user);
-  // The old data folder's files move into the default home, but never while an older Atlas app or
-  // `atlas serve` uses them (the app holds Electron's lock there, a host its remote-access lock).
-  const legacy = environment.ATLAS_HOME ? null : legacyDataDirectory(environment, process.platform, user);
+  // The old data folder's files move into the default home, but never while an Atlas app or
+  // `atlas serve` uses that folder (the app holds Electron's lock there, a host its remote-access
+  // lock): it may be an older one still working there. Settings waiting there stop setup; logs and
+  // statistics alone wait for a later run, as the current app uses the folder for Electron's files.
+  let legacy = environment.ATLAS_HOME ? null : legacyDataDirectory(environment, process.platform, user);
   if (legacy && (await legacyData(legacy)).length && (atlasAppRunning(legacy) || await hostRunning(legacy))) {
-    out.stderr(`atlas: Atlas is running and uses ${legacy}. Quit it (the app or atlas serve), then run atlas setup again: setup moves its settings and statistics from there into ${home}.`);
-    return 1;
+    if ((await legacySettings(legacy)).length) {
+      out.stderr(`atlas: Atlas is running and uses ${legacy}. Quit it (the app or atlas serve), then run atlas setup again: setup moves its settings and statistics from there into ${home}.`);
+      return 1;
+    }
+    out.stdout(`Atlas is running, so the logs and statistics left in ${legacy} move on a later run of atlas setup.`);
+    legacy = null;
   }
   if (dryRun) {
     out.stdout(existsSync(home) ? `Atlas home: ${home}` : `Would create the Atlas home: ${home}`);
@@ -335,7 +341,12 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
       if (migration.moved.length) out.stdout(`Moved from ${legacy}: ${migration.moved.join(', ')}`);
       if (migration.merged.length) out.stdout(`Merged into the home's usage statistics (the old copies are in ${path.join(home, 'legacy')}): ${migration.merged.join(', ')}`);
       if (migration.setAside.length) out.stdout(`The home had its own, so the old copies are in ${path.join(home, 'legacy')}: ${migration.setAside.join(', ')}`);
-      for (const item of migration.failed) { failed = true; out.stderr(`Not moved from ${legacy}: ${item}`); }
+      // Only settings left behind matter: the home's own would shadow them. Logs and statistics wait.
+      const stuck = new Set(await legacySettings(legacy));
+      for (const item of migration.failed) {
+        if (stuck.has(item.split(':')[0])) failed = true;
+        out.stderr(`Not moved from ${legacy}: ${item}`);
+      }
     }
   }
 
