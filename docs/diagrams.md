@@ -154,14 +154,31 @@ PlantUML ignores comments, so facts Atlas needs are `' atlas` comment lines. The
 | `' atlas compares <path>`                         | A capture that compares with an earlier capture, to show the system [before and after](#before-and-after) a plan's implementation. |
 | `' atlas scenario <path> expected valid\|invalid` | An object diagram of example instances of the class diagram at `path`, and whether it should hold.                                 |
 
-Directly above an element, member or relation, two more describe it:
+Directly above an element, member or relation, more describe it, each at most once:
 
-| Line                      | Meaning                                                                                                                                                          |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `' atlas evidence {json}` | Where it is declared: `file` (required), `line`, `endLine`, `repo`, `commit`, `url` (`http` or `https`), `title` and `claim`. The details show it as its source. |
-| `' atlas snippet {json}`  | A short excerpt of its source, at most twelve lines: `language`, `code`, and optionally `startLine` and `file`. The viewer highlights it.                        |
+| Line                         | Meaning                                                                                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `' atlas description <text>` | What it is for, in one short sentence of plain text (at most 280 characters) on the same line. Classes, interfaces, enums, entities, objects and their members take one; relations do not. |
+| `' atlas evidence {json}`    | Where it is declared: `file` (required), `line`, `endLine`, `repo`, `commit`, `url` (`http` or `https`), `title` and `claim`. The details show it as its source.                           |
+| `' atlas snippet {json}`     | A short excerpt of its source, at most twelve lines: `language`, `code`, and optionally `startLine` and `file`. The viewer highlights it.                                                  |
 
 Any other `' atlas` word is an error, so a typo is caught; write remarks as plain `'` comments.
+
+### Descriptions
+
+The subset has no notes, so a description is how a diagram says what an element or member is for:
+
+```plantuml
+' atlas description A tab of a window, showing something of one project.
+entity tab {
+  *id : integer <<PK>>
+  --
+  ' atlas description Empty for a project page.
+  target : text
+}
+```
+
+The viewer shows a description in the element's details, under its name or beside the member, and as its tooltip on the canvas. A proposal that adds, changes or removes a description changes that element. Write one sentence of purpose where the name does not say it, such as for each table of a database diagram; why the design is so is rationale, which belongs in the plan. `atlas check` reports a description that is empty, longer than 280 characters, formatted (`**bold**`, `<b>`), repeated for one element, or not directly above a class, interface, enum, entity, object or member.
 
 ## Captures
 
@@ -201,7 +218,7 @@ The command refuses to replace an existing file unless given `--force`. It print
 
 ### What a capture holds
 
-The `' atlas capture` header records the capture's date (`capturedAt`), the `adapter` and its version (and the compiler's), the `source` (its kind, identity and scope, and for code each project's Git revision and the fingerprints of its files, configuration and dependencies), the `coverage` (`complete`, or `partial` with the diagnostics that say what was left out), how it was kept consistent, and its `limitations`. Each element carries its evidence, and code elements a snippet of their declaration; each member carries the line it is declared on. A link to the source is pinned to a commit only when the files are as that commit has them.
+The `' atlas capture` header records the capture's date (`capturedAt`), the `adapter` and its version (and the compiler's), the `source` (its kind, identity and scope, and for code each project's Git revision and the fingerprints of its files, configuration and dependencies), the `coverage` (`complete`, or `partial` with the diagnostics that say what was left out), how it was kept consistent, and its `limitations`. Each element carries its evidence, and code elements a snippet of their declaration; each member carries the line it is declared on. A code declaration or member with a documentation comment (JSDoc or Javadoc) is described by the comment's first sentence, without inline tags and HTML; one longer than a description may be is left out. Database captures carry no descriptions. A link to the source is pinned to a commit only when the files are as that commit has them.
 
 Code becomes a class diagram: classes, abstract classes, interfaces, enums (with their constants) and records, with their fields and their methods and constructors, and visibility where it is declared. Type aliases are classes whose snippet shows their definition. `extends` and `implements` become inheritance and implementation; a TypeScript class that implements a class, or an interface that extends one, has no UML arrow and becomes a dependency labelled `implements` or `extends`. Every other declared type use is a dependency, `..>`. A TypeScript project's folders and Java's packages become packages.
 
