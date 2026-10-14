@@ -113,7 +113,16 @@ function tomlStringAt(text: string, index: number): { end: number; value: string
   while (cursor < text.length && text[cursor] !== quote && text[cursor] !== '\n') cursor += quote === '"' && text[cursor] === '\\' ? 2 : 1;
   if (text[cursor] !== quote) throw new Error('a string does not end on its line');
   const raw = text.slice(index, cursor + 1);
-  return { end: cursor + 1, value: quote === "'" ? raw.slice(1, -1) : JSON.parse(raw) as string };
+  return { end: cursor + 1, value: quote === "'" ? raw.slice(1, -1) : tomlBasic(raw.slice(1, -1)) };
+}
+const tomlEscapes: Record<string, string> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', e: '\x1b', '"': '"', '\\': '\\' };
+/** A basic string's text, its escapes decoded as TOML defines them. */
+function tomlBasic(body: string) {
+  return body.replace(/\\(?:u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|x([0-9A-Fa-f]{2})|(.))/g, (_, short: string, long: string, byte: string, other: string) => {
+    if (short || long || byte) return String.fromCodePoint(parseInt(short ?? long ?? byte, 16));
+    if (other in tomlEscapes) return tomlEscapes[other];
+    throw new Error('a string has an unknown escape');
+  });
 }
 /** The dotted key starting at `index`, as its parts. */
 function tomlKeyAt(text: string, index: number): { end: number; path: string[] } {
@@ -162,7 +171,7 @@ interface TomlTable { path: string[]; array: boolean; lineEnd: number }
 interface TomlKey { table: string[]; key: string[]; start: number; value: number }
 function tomlStructure(text: string): { tables: TomlTable[]; keys: TomlKey[] } {
   const tables: TomlTable[] = [], keys: TomlKey[] = [];
-  let table: string[] = [], index = 0;
+  let table: string[] = [], index = text.startsWith('﻿') ? 1 : 0;
   while (index < text.length) {
     if (/[ \t\r\n]/.test(text[index])) { index++; continue; }
     if (text[index] === '#') { index = tomlLineEnd(text, index); continue; }

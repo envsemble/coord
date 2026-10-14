@@ -41,7 +41,7 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
     npm run dev                          # the desktop app, with hot reload
     npm run dev -- C:/path/to/planning   # …opening a planning folder
 
-`npm run dev` runs electron-vite: the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode. Set `ATLAS_HOME` to a folder of its own for development runs (`ATLAS_HOME=~/.atlas-dev npm run dev`): the run then keeps all its files there, Electron's included, and runs beside your installed Atlas. Without it, a development run uses your Atlas home, shares the installed app's single-instance lock, and never moves the old data folder's files into the home (`atlas setup` does).
+`npm run dev` runs electron-vite: the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode. Set `ATLAS_HOME` to a folder of its own for development runs (`ATLAS_HOME=~/.atlas-dev npm run dev`): the run then keeps all its files there, Electron's included, and runs beside your installed Atlas. Without it, a development run uses your Atlas home, shares the installed app's single-instance lock, and does not start while the old data folder's files wait to be moved into the home: run `atlas setup` first.
 
     npm run package    # app/release: NSIS installer on Windows, AppImage on Linux
     npm run test:e2e   # Playwright drives the packaged app (run npm run package first)
@@ -80,7 +80,7 @@ Atlas keeps its own data in the **Atlas home**, `~/.atlas` (or `ATLAS_HOME`), sh
 - `connections.json`: the computers this one paired with;
 - `logs/`.
 
-Electron's own files and Chromium's caches stay in the per-user folder Atlas used before (`%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux); the first start of the installed app with the default home moves Atlas's own files from there into the home (a development run leaves them to `atlas setup`). The [command reference](../docs/command.md#the-atlas-home) lists the whole home.
+Electron's own files and Chromium's caches stay in the per-user folder Atlas used before (`%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux); the first start of the installed app with the default home moves Atlas's own files from there into the home (a development run refuses to start until `atlas setup` has moved them). The [command reference](../docs/command.md#the-atlas-home) lists the whole home.
 
 Earlier versions kept recent folders in `planning-roots.json`; the folder list starts from it once. Nothing is written into a planning folder except by an explicit import.
 

@@ -54,30 +54,34 @@ if (refusal) {
   app.quit();
 } else {
   await prepareHome();
-  if (!process.env.ATLAS_HOME) await moveLegacyData();
-  start();
+  const waiting = process.env.ATLAS_HOME ? null : await moveLegacyData();
+  if (waiting) refuseHome(waiting); else start();
 }
 
 /**
  * Move the old data folder's files into the home. Holding the lock means no older Atlas app uses
- * them, but an older `atlas serve` may: then the move waits for a later start. Only the packaged
- * app moves them on its own; a development run leaves them to `atlas setup`, as the user's own
- * Atlas may still be an older version that needs them.
+ * them, but an older `atlas serve` may. Only the packaged app moves them on its own; a development
+ * run leaves them to `atlas setup`, as the user's own Atlas may still be an older version that needs
+ * them. Atlas never starts on the home while they wait, or it would fill the home with new settings
+ * and the move would then set the user's own aside. Returns why it cannot start, or null.
  */
-async function moveLegacyData() {
-  if (!(await legacyData(electronData)).length) return;
-  if (!app.isPackaged) {
-    const message = `Atlas's files in ${electronData} were not moved into ${dataDirectory}: a development run never moves them; atlas setup does. Set ATLAS_HOME to develop with a separate home.`;
-    log.warn(message);
-    process.stderr.write(message + '\n');
-    return;
-  }
-  if (await hostRunning(electronData)) {
-    log.warn('An older atlas serve uses the old data folder; its files move into the home when Atlas starts after it stops', { from: electronData });
-    return;
-  }
+async function moveLegacyData(): Promise<string | null> {
+  if (!(await legacyData(electronData)).length) return null;
+  if (!app.isPackaged) return `Atlas's settings are still in ${electronData}. A development run does not move them: run atlas setup to move them into ${dataDirectory}, or set ATLAS_HOME to develop with a separate home.`;
+  if (await hostRunning(electronData)) return `An older atlas serve is using Atlas's settings in ${electronData}. Stop it, then start Atlas again to move them into ${dataDirectory}.`;
   const migration = await migrateLegacyData(dataDirectory, electronData);
   log.info('Moved the old data folder into the home', { from: electronData, ...migration });
+  return null;
+}
+
+/** Leave without touching the home while the old data folder's files wait to be moved. */
+function refuseHome(reason: string) {
+  log.warn('Not started: the old data folder has not moved into the home', { reason });
+  process.stderr.write(reason + '\n');
+  void app.whenReady().then(async () => {
+    await dialog.showMessageBox({ type: 'warning', title: 'Atlas', message: 'Atlas cannot start yet', detail: reason, buttons: ['Close'] });
+    app.exit(1);
+  });
 }
 
 /** The end-to-end test build is packaged with "atlasEndToEndBuild": true in its package.json. */

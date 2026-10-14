@@ -71,6 +71,9 @@ test('quoted keys are the keys they name, and nothing inside a string or comment
   assert.equal(grantCodexRoot(strings, home), strings + `\n[sandbox_workspace_write]\nwritable_roots = [${literal}]\n`);
   const later = '[sandbox_workspace_write]\nlists = [\n  [1],\n]\nwritable_roots = []\n';
   assert.equal(grantCodexRoot(later, home), later.replace('writable_roots = []', `writable_roots = [${literal}]`));
+  // TOML's own escapes, literal tabs in strings and a byte order mark are ordinary TOML.
+  const escapes = '\uFEFFpath = "C:\\\\x\\U0001F600\\e"\nnotify = ["a\tb"]\n';
+  assert.equal(grantCodexRoot(escapes, home), escapes + `\n[sandbox_workspace_write]\nwritable_roots = [${literal}]\n`);
   // Unsure: the file stays as it is, and the message says what to add by hand.
   const refused = (config: string, reason: RegExp) => assert.throws(() => grantCodexRoot(config, home), (error: Error) => reason.test(error.message) && error.message.endsWith(`add ${literal} to [sandbox_workspace_write] writable_roots by hand`));
   refused('"sandbox_workspace_write" = { network_access = true }\n', /inline table/);
