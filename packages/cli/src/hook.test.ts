@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { hostname, release } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { atlas, command, homeWithPlanning, planText, temporary, write } from './testing.ts';
@@ -115,6 +116,29 @@ test('hooks of one session running at once keep each other\'s links', async t =>
   const linked = JSON.parse(readFileSync(path.join(env.ATLAS_HOME!, 'sessions', session + '.json'), 'utf8')).work.map((item: { workId: string }) => item.workId);
   assert.deepEqual(linked.sort(), ids);
   assert.deepEqual(readdirSync(path.join(env.ATLAS_HOME!, 'sessions')), [session + '.json'], 'no lock is left behind');
+});
+
+test('a stop clears amending only for edits its report counted, and a dead hook\'s lock is taken over at once', t => {
+  const { root, checkout, directory, env: base } = homeWithPlanning(t);
+  const config = path.join(directory, 'claude');
+  const transcript = claudeLog(config);
+  const env = { ...base, CLAUDE_CONFIG_DIR: config };
+  const file = path.join(base.ATLAS_HOME!, 'sessions', session + '.json');
+  const stop = () => atlas(['hook', 'Stop'], { env, input: JSON.stringify({ session_id: session, transcript_path: transcript, cwd: checkout, hook_event_name: 'Stop' }) });
+  const linkedAmending = (amended: string) => write(file, JSON.stringify({ session, transcriptPath: transcript, updated: amended, work: [{ planningFolder: root, workId: 'work-0001', amending: true, linked: new Date(Date.now() - 60000).toISOString(), amended }] }));
+  const amending = () => JSON.parse(readFileSync(file, 'utf8')).work[0].amending;
+  // An amending edit recorded after the report began (here: later than now) stays for the next report.
+  linkedAmending(new Date(Date.now() + 60000).toISOString());
+  // A lock left by a hook that died names its process: it does not hold the stop up.
+  write(file + '.lock', JSON.stringify({ pid: 2 ** 30, hostname: hostname(), platform: process.platform, release: release(), token: 'gone', createdAt: new Date().toISOString() }));
+  const started = Date.now();
+  assert.equal(stop().status, 0);
+  assert.ok(Date.now() - started < 8000, 'the dead hook\'s lock was taken over without waiting for it to go stale');
+  assert.ok(!existsSync(file + '.lock'));
+  assert.equal(amending(), true);
+  linkedAmending(new Date(Date.now() - 1000).toISOString());
+  stop();
+  assert.equal(amending(), false, 'the report counted the edit');
 });
 
 test('a hook never breaks the session: bad input prints nothing, exits 0 and is logged', t => {

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { AccessStore, lockAddress, normalizeCode } from './access.ts';
+import { AccessStore, hostRunning, lockAddress, normalizeCode } from './access.ts';
 import { HostClient, HostRequestError, describeHost, pairWithHost, parsePairing, type ClientStatus } from './client.ts';
 import { browse } from './browse.ts';
 import { FolderList } from './folderList.ts';
@@ -442,6 +442,19 @@ test('the lock is a system object that disappears with its process, named after 
   assert.notEqual(lockAddress('secret-two', 'linux').address, linux.address, 'another data folder, another lock');
   assert.equal(lockAddress('secret-one', 'darwin').file, true);
   assert.ok(lockAddress('secret-one', 'darwin').address.length < 104, 'socket paths are short');
+});
+
+test('a host running from a data folder is seen by its remote-access lock', async t => {
+  const data = temporary(t, 'atlas-access-');
+  assert.equal(await hostRunning(data), false, 'no host/access.json');
+  const store = new AccessStore(path.join(data, 'host'), quiet, 'atlas serve');
+  assert.equal(await hostRunning(data), false, 'nobody holds the lock');
+  assert.equal(await store.lock(), null);
+  assert.equal(await hostRunning(data), true);
+  store.unlock();
+  assert.equal(await hostRunning(data), false, 'the lock went with it');
+  writeFileSync(path.join(data, 'host', 'access.json'), '{ broken');
+  assert.equal(await hostRunning(data), false);
 });
 
 test('stored access survives one bad device record, and device names are trimmed and never blank', async t => {

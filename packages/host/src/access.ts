@@ -102,6 +102,19 @@ function lockHolder(address: string, secret: string): Promise<{ owner: string; p
   });
 }
 
+/**
+ * Whether a host runs from the data folder `directory`: something answers at the remote-access lock
+ * named after the secret in its host/access.json. A host started while another process held that
+ * lock (and one whose settings are unreadable) holds none, so it is not seen.
+ */
+export async function hostRunning(directory: string): Promise<boolean> {
+  let secret: unknown;
+  try { secret = (JSON.parse(readFileSync(path.join(directory, 'host', 'access.json'), 'utf8')) as { secret?: unknown }).secret; }
+  catch { return false; }
+  if (typeof secret !== 'string' || !secret) return false;
+  return await lockHolder(lockAddress(secret).address, secret) !== null;
+}
+
 /** A device's scopes as stored; `planning:read` (version 1, shared folders only) becomes the whole computer. */
 const scopes: Validator<DeviceScope[]> = (value, at) => {
   const stored = array(oneOf(['planning:read', 'computer', 'access:manage'] as const), 3)(value, at);

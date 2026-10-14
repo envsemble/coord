@@ -13,8 +13,6 @@ import { PlanningError, loadPlanning } from './planning.ts';
 import { samePath, workRelative } from './paths.ts';
 import type { Provenance } from './provenance.ts';
 import { describeFiles, isDiagram } from './diagrams.ts';
-import { diagramLinks } from './diagramLinks.ts';
-import { markdownBody } from './headings.ts';
 import { appendRegistryEntries, RegistryFormatError } from './registryText.ts';
 import { acquireImportLock, ImportLockBusyError } from './importLock.ts';
 import type { Work } from './types.ts';
@@ -403,6 +401,8 @@ async function diagramsFor(files: { path: string; data: string }[], warnings: st
     catch { /* The family's diagrams are reported as not drawn below. */ }
   }
   const references = new Map<string, ViewReference[]>();
+  // The Markdown parser loads only for an export, so the commands that never export start faster.
+  const [{ diagramLinks }, { markdownBody }] = await Promise.all([import('./diagramLinks.ts'), import('./headings.ts')]);
   for (const file of files) {
     if (!isMarkdown(file.path)) continue;
     for (const link of diagramLinks(markdownBody(text(file)), file.path)) references.set(link.target, [...references.get(link.target) ?? [], { path: file.path, section: link.section, element: link.element }]);

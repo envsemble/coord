@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { Telemetry } from './telemetry.ts';
-import { atlasAppRunning, atlasHome, homePlanningFolders, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
+import { atlasAppRunning, atlasHome, homePlanningFolders, legacyData, legacyDataDirectory, mergeUsage, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { logConsultation, reportConsultation } from './consultation.ts';
 
@@ -51,6 +51,31 @@ test('the Atlas home is ~/.atlas unless overridden, and the old data folder foll
   assert.equal(path.dirname(statistics), path.join(atlasHome(), 'usage'));
   assert.match(path.basename(statistics), /^[a-f0-9]{16}$/);
   assert.equal(recentRootsFile(), path.join(atlasHome(), 'planning-roots.json'));
+});
+
+test('merging the same usage statistics again adds nothing, so a failed move can be retried', async () => {
+  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'atlas-usage-merge-')));
+  try {
+    const from = path.join(temporary, 'old'), to = path.join(temporary, 'home');
+    const store = new Telemetry(path.join(from, 'usage.sqlite'));
+    store.recordView({ id: randomUUID(), path: 'old.md', key: 'old.md', session: randomUUID(), revision: null, contentHash: null });
+    store.close();
+    const database = new DatabaseSync(path.join(from, 'usage.sqlite'));
+    database.prepare('INSERT INTO failures (timestamp, detail) VALUES (?, ?)').run('2026-10-01T00:00:00.000Z', 'locked');
+    database.close();
+    await writeFile(path.join(from, 'collection-gaps.jsonl'), '{"source":"agent_report","timestamp":"2026-10-02T00:00:00.000Z"}\n');
+    await mkdir(to);
+    await writeFile(path.join(to, 'collection-gaps.jsonl'), '{"source":"dashboard_view","timestamp":"2026-10-03T00:00:00.000Z"}');
+    const counted = () => { const merged = new Telemetry(path.join(to, 'usage.sqlite')); try { const { failures, documents } = merged.summary(); return { failures, documents: documents.length }; } finally { merged.close(); } };
+    await mergeUsage(from, to);
+    const once = counted();
+    assert.deepEqual(once, { failures: 3, documents: 1 }, 'a failure and two gaps (the home\'s own included)');
+    await mergeUsage(from, to);
+    assert.deepEqual(counted(), once);
+    assert.equal(readFileSync(path.join(to, 'collection-gaps.jsonl'), 'utf8').trim().split('\n').length, 2, 'the home\'s unfinished last line is kept apart');
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 });
 
 test("the old data folder moves into the home once, merging usage per planning folder and setting aside what the home has", async () => {

@@ -454,15 +454,18 @@ export interface ArchiveRequest { disposition?: 'superseded' | 'abandoned' | nul
 
 /**
  * Archive the work: move its folder from active/ to archive/. Work that is not complete needs a
- * disposition: `superseded` by another registered work item, or `abandoned` with the reason. It
- * becomes the plan's design_status (and superseded_by), and the reason goes into the ledger, or the
- * plan without one, so archiving never hides open work.
+ * disposition: `superseded` by another registered work item (naming it implies superseded), or
+ * `abandoned` with the reason. It becomes the plan's design_status (and superseded_by), and the
+ * reason goes into the ledger, or the plan without one, so archiving never hides open work. A reason
+ * comes only with a disposition, so it is never dropped.
  */
 export async function archiveWork(root: string, workId: string, request: ArchiveRequest = {}, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
-  const { disposition = null, supersededBy = null } = request;
+  const { supersededBy = null } = request;
+  const disposition = request.disposition ?? (supersededBy ? 'superseded' : null);
   if (disposition !== null && disposition !== 'superseded' && disposition !== 'abandoned') throw new WorkError('The disposition is superseded or abandoned.');
   const reason = request.reason ? oneLine(request.reason, 'The reason', 1000) : null;
+  if (reason && !disposition) throw new WorkError('A reason is recorded only with a disposition: archive the work as superseded or abandoned, or leave the reason out.');
   const loaded = await load(root, workId);
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
   const complete = loaded.planMetadata.implementation_status === 'complete' && !openItems(loaded).length;

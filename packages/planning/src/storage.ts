@@ -79,8 +79,9 @@ const childNames = (folder: string, keep: (entry: { name: string; isDirectory():
 
 /**
  * Add one planning folder's usage statistics (`from`, a usage/<hash> folder) to another's (`to`):
- * the events it lacks (each has its own ID), recorded failures, collection gaps, and the earlier of
- * each "since" date.
+ * the events it lacks (each has its own ID), the recorded failures and collection gaps it lacks, and
+ * the earlier of each "since" date. Merging the same statistics again adds nothing, so a move that
+ * failed after its merge can be tried again.
  */
 export async function mergeUsage(from: string, to: string) {
   await mkdir(to, { recursive: true });
@@ -93,14 +94,19 @@ export async function mergeUsage(from: string, to: string) {
       store.exec(`BEGIN;
         INSERT OR IGNORE INTO events (id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash)
           SELECT id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash FROM old.events ORDER BY sequence;
-        INSERT INTO failures (timestamp, detail) SELECT timestamp, detail FROM old.failures;
+        INSERT INTO failures (timestamp, detail) SELECT DISTINCT timestamp, detail FROM old.failures AS o
+          WHERE NOT EXISTS (SELECT 1 FROM main.failures AS f WHERE f.timestamp = o.timestamp AND f.detail = o.detail);
         INSERT INTO metadata (key, value) SELECT key, value FROM old.metadata WHERE true ON CONFLICT (key) DO UPDATE SET value = min(value, excluded.value);
         COMMIT;
         DETACH DATABASE old;`);
     } finally { store.close(); }
   }
-  const gaps = await readFile(path.join(from, 'collection-gaps.jsonl'), 'utf8').catch(() => '');
-  if (gaps) await appendFile(path.join(to, 'collection-gaps.jsonl'), gaps);
+  const gaps = (await readFile(path.join(from, 'collection-gaps.jsonl'), 'utf8').catch(() => '')).split(/\r?\n/).filter(Boolean);
+  const target = path.join(to, 'collection-gaps.jsonl');
+  const existing = await readFile(target, 'utf8').catch(() => '');
+  const known = new Set(existing.split(/\r?\n/));
+  const added = [...new Set(gaps.filter(line => !known.has(line)))];
+  if (added.length) await appendFile(target, (existing && !existing.endsWith('\n') ? '\n' : '') + added.join('\n') + '\n');
 }
 
 /** Atlas's own files in the old data folder, as paths relative to it: what migrateLegacyData moves. */

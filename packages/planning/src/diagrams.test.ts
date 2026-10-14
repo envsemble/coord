@@ -143,6 +143,9 @@ test('a link\'s section is the anchor the reader gives its heading', () => {
   ].join('\n\n')), ['order_items-table', 'the-ledger_status-field', 'emphasis-and-strong-with-a-link-']);
   // Setext headings are headings; a repeated heading is numbered as the reader numbers it.
   assert.deepEqual(sections('Orders\n======\n\n[a](a.puml)\n\nLines\n---\n\n[b](b.puml)\n\n## Orders\n\n[c](c.puml)\n\n## Orders\n\n[d](d.puml)'), ['orders', 'lines', 'orders-1', 'orders-2']);
+  // A footnote reference reads as the number the reader shows: footnotes count by first reference.
+  assert.deepEqual(sections('## Title[^1]\n\n[a](a.puml)\n\n[^1]: A note.'), ['title1']);
+  assert.deepEqual(sections('Before[^b].\n\n## Title[^a]\n\n[a](a.puml)\n\n## Again [^b]\n\n[b](b.puml)\n\n[^a]: A.\n[^b]: B.'), ['title2', 'again-1']);
 });
 
 test('links count where they are used, not in code, comments or unused definitions', () => {

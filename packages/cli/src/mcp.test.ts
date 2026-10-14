@@ -58,6 +58,10 @@ test('atlas mcp serves the planning-state tools over stdio, resolving the planni
     const created = await call('work_create', { title: 'Payments' });
     assert.deepEqual([created.structuredContent!.workId, created.structuredContent!.repositories], ['work-0002', ['shop']]);
     assert.match(readFileSync(path.join(root, 'active/0001-cart/ledger.md'), 'utf8'), /status: done/);
+    // A reason alone is refused, not dropped; naming the work that supersedes it implies superseded.
+    assert.match((await call('work_archive', { work: 'work-0001', reason: 'Replaced' })).content![0].text, /only with a disposition/);
+    const archived = await call('work_archive', { work: 'work-0001', supersededBy: 'work-0002', reason: 'Payments covers it' });
+    assert.deepEqual([archived.structuredContent!.location, archived.structuredContent!.designStatus], ['archive', 'superseded']);
     assert.equal(atlas(['planning', 'check', root], { env }).status, 0);
     assert.equal(atlas(['mcp', '--root', root], { env }).status, 2, 'the former model server spelling is gone');
   } finally { child.stdin.end(); child.kill(); await exited; }
