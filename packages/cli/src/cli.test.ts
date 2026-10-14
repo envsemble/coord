@@ -16,7 +16,7 @@ const { version } = JSON.parse(readFileSync(path.resolve(here, '../package.json'
 // measure the developer's own session.
 const noLogs = mkdtempSync(path.join(tmpdir(), 'atlas-cli-no-logs-'));
 test.after(() => rmSync(noLogs, { recursive: true, force: true }));
-const environment: NodeJS.ProcessEnv = { ...process.env, CLAUDE_CONFIG_DIR: path.join(noLogs, 'claude'), CODEX_HOME: path.join(noLogs, 'codex') };
+const environment: NodeJS.ProcessEnv = { ...process.env, CLAUDE_CONFIG_DIR: path.join(noLogs, 'claude'), CODEX_HOME: path.join(noLogs, 'codex'), ATLAS_HOME: path.join(noLogs, 'home') };
 for (const name of ['CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CLAUDECODE']) delete environment[name];
 
 function atlas(args: string[], options: { input?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {}) {
@@ -55,66 +55,16 @@ test('version and help describe the one atlas command', () => {
   assert.equal(shown.stdout.trim(), version);
   const help = atlas(['help']);
   assert.equal(help.status, 0);
-  for (const usage of ['atlas model <operation> --root <workspace>', 'atlas model review --input', 'atlas model tools', 'atlas mcp --root <workspace>', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files', 'atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>]']) assert.ok(help.stdout.includes(usage), usage);
+  for (const usage of ['atlas where', 'atlas work create --title <title>', 'atlas work step remove <work-id> <title> --reason <why>', 'atlas work close <work-id>', 'atlas check [<path>...]', 'atlas home adopt <folder>', 'atlas mcp', 'atlas hook <SessionStart|PostToolUse|Stop|SubagentStop>', 'atlas setup [--dry-run]', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files', 'atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>]']) assert.ok(help.stdout.includes(usage), usage);
   assert.equal(atlas([]).status, 0);
 });
 
 test('unknown commands and retired spellings are usage errors', () => {
-  for (const args of [['tools'], ['review', '--input', 'x.json'], ['inspect', '--root', '.'], ['model', 'mcp', '--root', '.'], ['planning'], ['planning', 'lint', '.'], ['usage'], ['usage', 'show', '.'], ['plan'], ['plan', 'share']]) {
+  for (const args of [['tools'], ['review', '--input', 'x.json'], ['inspect', '--root', '.'], ['model', 'tools'], ['model', 'create', '--root', '.'], ['mcp', '--root', '.'], ['planning'], ['planning', 'lint', '.'], ['usage'], ['usage', 'show', '.'], ['plan'], ['plan', 'share']]) {
     const result = atlas(args);
     assert.equal(result.status, 2, args.join(' '));
     assert.match(result.stderr, /atlas: error:/);
   }
-});
-
-test('atlas model delegates to the diagram tools with JSON output and exit codes', t => {
-  const workspace = temporary(t);
-  const tools = atlas(['model', 'tools']);
-  assert.equal(tools.status, 0);
-  assert.ok((JSON.parse(tools.stdout) as { name: string }[]).some(tool => tool.name === 'atlas_create'));
-  assert.match(atlas(['model']).stdout, /atlas model <operation>/);
-  const project = { type: 'StructuralModel', nodes: [{ id: 'order', name: 'Order', attributes: [{ id: 'total', name: 'total', type: 'number' }] }], relations: [], generalizations: [], generalizationSets: [] };
-  const created = atlas(['model', 'create', '--root', workspace, '--input', '-'], { input: JSON.stringify({ input: { title: 'Orders', profile: 'code', model: project } }) });
-  assert.equal(created.status, 0, created.stderr);
-  const { handle } = JSON.parse(created.stdout) as { handle: string };
-  const request = path.join(workspace, 'inspect.json');
-  writeFileSync(request, JSON.stringify({ handle }));
-  const inspected = atlas(['model', 'inspect', '--root', workspace, '--input', request]);
-  assert.equal(inspected.status, 0, inspected.stderr);
-  assert.equal(JSON.parse(inspected.stdout).title, 'Orders');
-  assert.ok(existsSync(path.join(workspace, '.atlas/models', handle + '.json')));
-  const validated = atlas(['model', 'validate', '--root', workspace, '--input', request]);
-  assert.ok([0, 1].includes(validated.status!), 'validation exits 0 or 1 for blocking findings');
-  assert.equal(typeof JSON.parse(validated.stdout).valid, 'boolean');
-  const malformed = atlas(['model', 'inspect', '--root', workspace, '--unknown', 'x']);
-  assert.equal(malformed.status, 2);
-  assert.ok(JSON.parse(malformed.stderr), 'input failures are bounded JSON');
-  assert.equal(atlas(['model', 'inspect']).status, 2, 'a workspace root is required');
-  assert.equal(atlas(['model', 'review']).status, 2, 'review needs an explicit request');
-  assert.equal(atlas(['model', 'job', 'help']).status, 0);
-  assert.equal(atlas(['model', 'job', 'unknown']).status, 2);
-});
-
-test('atlas mcp serves the model tools over stdio', async t => {
-  const workspace = temporary(t);
-  const child = spawn(process.execPath, [command, 'mcp', '--root', workspace], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-  t.after(() => { if (child.exitCode === null) child.kill(); });
-  let output = '';
-  const response = new Promise<{ result: { tools: { name: string }[] } }>((resolve, reject) => {
-    child.stdout.on('data', chunk => {
-      output += chunk;
-      const line = output.split('\n').find(item => item.includes('"id":2'));
-      if (line) resolve(JSON.parse(line));
-    });
-    child.on('exit', status => reject(new Error('MCP server exited with ' + status + ': ' + output)));
-  });
-  const send = (message: object) => child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n');
-  send({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'atlas-cli-test', version: '1' } } });
-  send({ method: 'notifications/initialized' });
-  send({ id: 2, method: 'tools/list', params: {} });
-  const listed = await Promise.race([response, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('MCP timeout: ' + output)), 30000))]);
-  assert.ok(listed.result.tools.some(tool => tool.name === 'atlas_inspect'));
-  assert.equal(atlas(['mcp']).status, 2, 'mcp needs --root');
 });
 
 test('atlas planning check validates read-only with 0/1/2 exit codes', t => {
@@ -141,22 +91,22 @@ test('atlas planning check validates read-only with 0/1/2 exit codes', t => {
 test('atlas usage log writes what the app reads, deduplicates and never fails the caller', async t => {
   const directory = temporary(t);
   const root = planningFolder(directory);
-  const data = path.join(directory, 'data');
-  const env = { ...environment, ATLAS_DATA_DIR: data };
+  const data = path.join(directory, 'home');
+  const env = { ...environment, ATLAS_HOME: data };
   const logged = atlas(['usage', 'log', root, '--task', 'work-0001', '--session', 'chat-1', '--files', 'active/0001-example/plan.md', 'README.md', 'README.md', '../outside.md'], { env });
   assert.equal(logged.status, 0, logged.stderr);
   assert.equal(logged.stdout.trim(), '{"reported_documents": 2, "unrecorded_documents": 1}');
   assert.match(logged.stderr, /Some usage reports were not recorded; continue the task\./);
   const statistics = await statisticsDirectory(root, data);
-  assert.equal(path.dirname(statistics), path.join(data, 'usage'), 'statistics live in the Atlas data folder, keyed by the planning folder');
+  assert.equal(path.dirname(statistics), path.join(data, 'usage'), 'statistics live in the Atlas home, keyed by the planning folder');
   const store = new Telemetry(path.join(statistics, 'usage.sqlite'));
   try {
     let summary = store.summary();
     assert.equal(summary.reports, 2); assert.equal(summary.tasks, 1); assert.equal(summary.failures, 1);
     assert.deepEqual(summary.documents.map(item => item.key).sort(), ['root:README.md', 'work-0001:plan.md']);
     const explicit = path.join(directory, 'explicit');
-    assert.equal(atlas(['usage', 'log', root, '--data-dir', explicit, '--files', 'README.md'], { env }).status, 0);
-    assert.ok(existsSync(path.join(await statisticsDirectory(root, explicit), 'usage.sqlite')), '--data-dir overrides ATLAS_DATA_DIR');
+    assert.equal(atlas(['usage', 'log', root, '--home', explicit, '--files', 'README.md'], { env }).status, 0);
+    assert.ok(existsSync(path.join(await statisticsDirectory(root, explicit), 'usage.sqlite')), '--home overrides ATLAS_HOME');
     // Concurrent writers (several agents at once) share the store; each report is recorded or leaves a gap.
     const writers = await Promise.all(Array.from({ length: 6 }, (_, index) => atlasAsync(['usage', 'log', root, '--task', 'parallel-' + index, '--files', 'README.md'], env)));
     assert.ok(writers.every(result => result.status === 0));

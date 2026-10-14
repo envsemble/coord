@@ -2,7 +2,7 @@
   "name": "@envsemble/atlas-cli",
   "version": "0.6.0",
   "private": true,
-  "description": "The atlas command: model tools, the MCP server, planning checks, consultation logging, work statistics and the headless host",
+  "description": "The atlas command: planning-state operations, the MCP server, harness hooks and setup, checks, consultation logging, work statistics and the headless host",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/envsemble/atlas.git",
@@ -21,9 +21,9 @@
     "check:types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@envsemble/atlas-diagrams": "*",
     "@envsemble/atlas-host": "*",
-    "@envsemble/atlas-planning": "*"
+    "@envsemble/atlas-planning": "*",
+    "@modelcontextprotocol/sdk": "1.32.1"
   },
   "devDependencies": {
     "@types/node": "^24",
