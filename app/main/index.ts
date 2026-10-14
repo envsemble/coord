@@ -5,7 +5,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
-import { atlasHome, legacyDataDirectory, migrateLegacyData, prepareHome } from '@envsemble/atlas-planning';
+import { hostRunning } from '@envsemble/atlas-host';
+import { atlasHome, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
 import { Connections } from './connections.ts';
@@ -53,12 +54,30 @@ if (refusal) {
   app.quit();
 } else {
   await prepareHome();
-  // Holding the lock means no older Atlas uses the old data folder: its files move into the home now.
-  if (!process.env.ATLAS_HOME) {
-    const migration = await migrateLegacyData(dataDirectory, electronData);
-    if (Object.values(migration).some(list => list.length)) log.info('Moved the old data folder into the home', { from: electronData, ...migration });
-  }
+  if (!process.env.ATLAS_HOME) await moveLegacyData();
   start();
+}
+
+/**
+ * Move the old data folder's files into the home. Holding the lock means no older Atlas app uses
+ * them, but an older `atlas serve` may: then the move waits for a later start. Only the packaged
+ * app moves them on its own; a development run leaves them to `atlas setup`, as the user's own
+ * Atlas may still be an older version that needs them.
+ */
+async function moveLegacyData() {
+  if (!(await legacyData(electronData)).length) return;
+  if (!app.isPackaged) {
+    const message = `Atlas's files in ${electronData} were not moved into ${dataDirectory}: a development run never moves them; atlas setup does. Set ATLAS_HOME to develop with a separate home.`;
+    log.warn(message);
+    process.stderr.write(message + '\n');
+    return;
+  }
+  if (await hostRunning(electronData)) {
+    log.warn('An older atlas serve uses the old data folder; its files move into the home when Atlas starts after it stops', { from: electronData });
+    return;
+  }
+  const migration = await migrateLegacyData(dataDirectory, electronData);
+  log.info('Moved the old data folder into the home', { from: electronData, ...migration });
 }
 
 /** The end-to-end test build is packaged with "atlasEndToEndBuild": true in its package.json. */

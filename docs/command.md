@@ -94,7 +94,7 @@ These are the operations the [MCP server](agent-interface.md#mcp-tools) offers a
 
 `atlas setup` makes Atlas part of every agent session on this computer, and changes nothing when run again:
 
-1. It creates the [Atlas home](#the-atlas-home), moving Atlas's files from the old data folder into it. While an Atlas app runs from that folder, setup refuses and asks you to quit it first.
+1. It creates the [Atlas home](#the-atlas-home), moving Atlas's files from the old data folder into it. While an older Atlas app or `atlas serve` runs from that folder, setup refuses and asks you to quit it first.
 2. It grants the home to **Claude Code** (`permissions.additionalDirectories` in its `settings.json`) and **Codex** (`[sandbox_workspace_write] writable_roots` in its `config.toml`, or `sandbox_workspace_write.writable_roots` where that table is written as dotted keys), so agents in any checkout or worktree can edit planning files there. It edits only that list, or adds the key, and leaves the rest of each file's text as it was.
 3. For each harness on the PATH, it adds this checkout as the `atlas` plugin marketplace and installs the `atlas@atlas` plugin through the harness's own commands. Claude Code reads the plugin from the checkout in place. Codex installs a copy, so run `atlas setup` again after updating the checkout to refresh it; a Codex marketplace named `atlas` added from another checkout is replaced by this one.
 
@@ -111,6 +111,6 @@ The **Atlas home** is `~/.atlas`, or `ATLAS_HOME` when set (`--home` for `usage 
 - `logs/`: the app's, the host's and the hooks' logs;
 - `legacy/`: files from the old data folder that the home already had its own of.
 
-Atlas used to keep these files in a per-user data folder (`%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux). With the default home, they move into it when the desktop app starts (it shares the older app's single-instance lock, so the older app is not running then) or when `atlas setup` runs (refused while an Atlas app runs); never from other commands, the host or the hooks. Usage statistics move per planning folder, merged with the home's own for a folder the home already has; nothing else in the home is overwritten, the old copy goes to `legacy/` instead. The app's log records what moved. Electron's own caches stay in that folder.
+Atlas used to keep these files in a per-user data folder (`%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux). With the default home, they move into it when the installed desktop app starts (it shares the older app's single-instance lock, so the older app is not running then; while an older `atlas serve` still runs from that folder, the move waits for a later start) or when `atlas setup` runs (refused while an older app or `atlas serve` runs); never from a development run of the app (`npm run dev`), other commands, the host or the hooks. Usage statistics move per planning folder, merged with the home's own for a folder the home already has; nothing else in the home is overwritten, the old copy goes to `legacy/` instead. The app's log records what moved. Electron's own caches stay in that folder.
 
 Work statistics are not in the home: they belong to the work, as `<work>/.atlas/statistics.jsonl` in its planning folder.

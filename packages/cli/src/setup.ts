@@ -1,5 +1,5 @@
 // `atlas setup`: make Atlas part of every agent session on this computer. It creates the Atlas home
-// (moving the old data folder's files into it, refused while an Atlas app uses them), grants the home to Claude Code
+// (moving the old data folder's files into it, refused while an older Atlas uses them), grants the home to Claude Code
 // (permissions.additionalDirectories) and Codex ([sandbox_workspace_write] writable_roots) so agents
 // can edit planning prose from any checkout, and installs the Atlas plugin into each harness on PATH
 // through the harness's own commands. Running it again changes nothing. --dry-run only says what it
@@ -10,6 +10,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { atlasAppRunning, atlasHome, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
+import { hostRunning } from '@envsemble/atlas-host';
 import { parseOptions, positionals, wantsHelp, type Output } from './args.ts';
 
 const line = 'Usage: atlas setup [--dry-run]';
@@ -217,10 +218,11 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
 
   const user = userHome(environment);
   const home = atlasHome(undefined, environment, user);
-  // The old data folder's files move into the default home, but never while an Atlas app uses them.
+  // The old data folder's files move into the default home, but never while an older Atlas app or
+  // `atlas serve` uses them (the app holds Electron's lock there, a host its remote-access lock).
   const legacy = environment.ATLAS_HOME ? null : legacyDataDirectory(environment, process.platform, user);
-  if (legacy && atlasAppRunning(legacy) && (await legacyData(legacy)).length) {
-    out.stderr(`atlas: Atlas is running and uses ${legacy}. Quit it, then run atlas setup again: setup moves its settings and statistics from there into ${home}.`);
+  if (legacy && (await legacyData(legacy)).length && (atlasAppRunning(legacy) || await hostRunning(legacy))) {
+    out.stderr(`atlas: Atlas is running and uses ${legacy}. Quit it (the app or atlas serve), then run atlas setup again: setup moves its settings and statistics from there into ${home}.`);
     return 1;
   }
   if (dryRun) {
