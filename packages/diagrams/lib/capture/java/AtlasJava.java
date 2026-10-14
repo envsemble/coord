@@ -169,10 +169,17 @@ public class AtlasJava {
               id + ":method:" + signature,
               "name",
               name,
-              "type",
-              signature +
-                " : " +
-                executable.getReturnType() +
+              "parameters",
+              executable
+                .getParameters()
+                .stream()
+                .map(parameter ->
+                  parameter.getSimpleName() + ": " + parameter.asType()
+                )
+                .reduce((a, b) -> a + ", " + b)
+                .orElse(""),
+              "returns",
+              executable.getReturnType() +
                 (executable.getThrownTypes().isEmpty()
                   ? ""
                   : " throws " +
