@@ -3,13 +3,10 @@ const fs = require("node:fs"),
   os = require("node:os");
 const { execFileSync, execFile } = require("node:child_process");
 const { promisify } = require("node:util");
-const { randomUUID } = require("node:crypto");
-const {
-  fingerprint,
-  createSnapshot,
-  createDocument,
-} = require("../document/document.cjs");
-const { emptyModel, sourceOptions } = require("./database.cjs");
+const { fingerprint } = require("../fingerprint.cjs");
+const { sourceOptions } = require("./database.cjs");
+const { codeDiagram } = require("./write.cjs");
+const emptyModel = () => ({ nodes: [], relations: [], generalizations: [] });
 const BOUNDS = {
   files: 200,
   bytes: 8 * 1024 * 1024,
@@ -149,63 +146,60 @@ function verifySources(sources) {
         "CAPTURE_INCONSISTENT: a source file changed during capture",
       );
 }
-function projectEvidence(
-  project,
-  sources,
-  nodes,
-  evidence,
-  snippets,
-  language,
-) {
+// Where each declaration and member is (its file relative to the repository,
+// with the commit and a link when the file is as HEAD has it), and up to
+// twelve lines of each declaration.
+function projectEvidence(project, sources, nodes, language) {
   const info = gitInfo(project.path, sources, project.repositoryUrl);
+  const relative = (file) =>
+    slash(
+      path.relative(
+        info.top || resolved(project.path),
+        resolved(path.resolve(project.path, file)),
+      ),
+    );
+  const repo = info.url
+    ? new URL(info.url).pathname.replace(/^\//, "")
+    : project.identity;
+  const commit = info.pinned ? info.revision : undefined;
+  const at = ({ location }) => ({
+    file: relative(location.file),
+    line: location.startLine,
+    ...(location.endLine > location.startLine
+      ? { endLine: location.endLine }
+      : {}),
+  });
   for (const node of nodes) {
-    const file = path.resolve(project.path, node.location.file),
-      text = sources.get(file);
+    const text = sources.get(path.resolve(project.path, node.location.file));
     if (text === undefined)
       throw new Error("CAPTURE_SOURCE: declaration source is unavailable");
     const startLine = node.location.startLine,
       endLine = Math.min(node.location.endLine, startLine + 11);
-    const sourceId = `code-source:${node.id}`,
-      relative = slash(
-        path.relative(info.top || resolved(project.path), resolved(file)),
-      );
+    const file = relative(node.location.file);
     const url =
       info.pinned && info.url
-        ? `${info.url}${new URL(info.url).hostname === "github.com" ? "/blob/" : "/-/blob/"}${info.revision}/${relative.split("/").map(encodeURIComponent).join("/")}#L${startLine}`
+        ? `${info.url}${new URL(info.url).hostname === "github.com" ? "/blob/" : "/-/blob/"}${info.revision}/${file.split("/").map(encodeURIComponent).join("/")}#L${startLine}`
         : undefined;
-    const repo = info.url
-      ? new URL(info.url).pathname.replace(/^\//, "")
-      : project.identity;
-    const commit = info.pinned ? info.revision : undefined;
-    evidence.sources.push({
-      id: sourceId,
-      file: relative,
+    node.evidence = {
+      ...at(node),
       repo,
       ...(commit ? { commit } : {}),
-      line: startLine,
-      title: `${node.name} declaration`,
-      claim:
-        "Observed compiler declaration in captured source; no runtime interpretation.",
       ...(url ? { url } : {}),
-    });
-    evidence.elements[node.id] = {
-      status: "observed",
-      evidence: [sourceId],
-      primarySource: sourceId,
     };
-    snippets[sourceId] = {
+    node.snippet = {
       language,
       startLine,
-      endLine,
       code: text
         .split(/\r?\n/)
         .slice(startLine - 1, endLine)
         .join("\n"),
-      ...(url ? { url } : {}),
-      repo,
-      ...(commit ? { commit } : {}),
-      file: relative,
     };
+    for (const member of [
+      ...node.attributes,
+      ...node.methods,
+      ...(node.literals || []),
+    ])
+      if (member.location) member.evidence = at(member);
   }
   return {
     identity: project.identity,
@@ -224,15 +218,8 @@ function projectEvidence(
     ),
   };
 }
-function finishCode(
-  options,
-  model,
-  diagnostics,
-  projects,
-  evidence,
-  snippets,
-  adapter,
-) {
+// The capture as a class diagram with its header.
+function finishCode(options, model, diagnostics, projects, adapter) {
   if (
     model.nodes.length > BOUNDS.declarations ||
     model.nodes.reduce(
@@ -244,8 +231,9 @@ function finishCode(
     throw new Error(
       "CAPTURE_LIMIT: code model exceeds 500 declarations, 4000 members or 8 MiB",
     );
-  for (const key of ["nodes", "relations", "generalizations"])
-    model[key].sort((a, b) => a.id.localeCompare(b.id, "en"));
+  model.nodes.sort((a, b) => a.id.localeCompare(b.id, "en"));
+  // Diagnostics name what they concern in their message.
+  for (const d of diagnostics) delete d.elementId;
   const capture = {
     capturedAt: new Date().toISOString(),
     adapter: {
@@ -271,25 +259,16 @@ function finishCode(
     },
     limitations: [
       "Named declarations and declared type use only; no runtime/reflection/framework mappings or conceptual multiplicities are inferred.",
+      "Type aliases are drawn as classes, which their snippets define; enums show their constants without their fields and operations; of the modifiers only visibility is drawn.",
     ],
-    schemaFingerprint: fingerprint(model),
   };
-  evidence.unknowns = [
-    ...capture.limitations,
-    ...diagnostics.map((d) => d.message),
-  ];
-  const snapshot = createSnapshot({ profile: "code", model, capture });
-  return createDocument({
-    id: `capture-${randomUUID()}`,
+  return codeDiagram({
     title: options.title || `${options.identity} classes`,
-    profile: "code",
-    state: "snapshot",
-    model,
-    evidence,
-    snippets,
-    snapshots: [snapshot],
-    baselineId: snapshot.id,
-    ...(options.workId ? { workId: options.workId } : {}),
+    capture,
+    nodes: model.nodes,
+    generalizations: model.generalizations,
+    dependencies: model.relations,
+    memberVisibility: adapter.memberVisibility,
   });
 }
 function optionsCheck(options) {
@@ -324,8 +303,6 @@ async function captureTypeScript(options) {
     );
   const model = emptyModel(),
     diagnostics = [],
-    evidence = { sources: [], elements: {} },
-    snippets = {},
     projects = [],
     pending = [],
     symbols = new Map(),
@@ -469,18 +446,33 @@ async function captureTypeScript(options) {
             ts.isConstructorDeclaration(member) ||
             ts.isCallSignatureDeclaration(member) ||
             ts.isConstructSignatureDeclaration(member);
-          const signature = method
-            ? checker.signatureToString(
-                checker.getSignatureFromDeclaration(member),
-              )
-            : checker.typeToString(checker.getTypeAtLocation(member));
+          const signature =
+            method && checker.getSignatureFromDeclaration(member);
           const key = `${method ? "method" : "field"}:${name}:${method ? (member.parameters || []).map((p) => p.type?.getText(source) || "inferred").join(",") : ""}`,
             ordinal = counts.get(key) || 0;
           counts.set(key, ordinal + 1);
           const data = {
             id: `${id}:${encodeURIComponent(key)}:${ordinal}`,
             name,
-            type: method ? `${name}${signature}` : signature,
+            ...(method
+              ? {
+                  parameters: signature.parameters
+                    .map((p) => {
+                      const d = p.valueDeclaration;
+                      const optional = !!(d?.questionToken || d?.initializer);
+                      const type = checker.typeToString(
+                        checker.getTypeOfSymbolAtLocation(p, member),
+                      );
+                      return `${d?.dotDotDotToken ? "..." : ""}${p.name}${optional ? "?" : ""}: ${optional ? type.replace(/ \| undefined$/, "") : type}`;
+                    })
+                    .join(", "),
+                  returns: ts.isConstructorDeclaration(member)
+                    ? null
+                    : checker.typeToString(signature.getReturnType()),
+                }
+              : {
+                  type: checker.typeToString(checker.getTypeAtLocation(member)),
+                }),
             modifiers: modifiers(member),
             optional: !!member.questionToken,
             location: {
@@ -526,12 +518,21 @@ async function captureTypeScript(options) {
             : ts.isEnumDeclaration(node)
               ? "enum"
               : "type alias";
+        // A project's folders group its declarations, under the project's
+        // name when there are several.
+        const folder = path.posix.dirname(file);
         const fact = {
           id,
           name: qualified,
+          package:
+            [
+              ...(options.projects.length > 1 ? [project.identity] : []),
+              ...(folder === "." ? [] : [folder]),
+            ].join("/") || null,
           kind,
-          attributes,
+          attributes: kind === "enum" ? [] : attributes,
           methods,
+          ...(kind === "enum" ? { literals: attributes } : {}),
           location,
           abstract: !!node.modifiers?.some(
             (m) => m.kind === ts.SyntaxKind.AbstractKeyword,
@@ -600,14 +601,7 @@ async function captureTypeScript(options) {
         );
     verifySources(sources);
     projects.push({
-      ...projectEvidence(
-        project,
-        sources,
-        located,
-        evidence,
-        snippets,
-        "typescript",
-      ),
+      ...projectEvidence(project, sources, located, "typescript"),
       tsconfig: slash(path.relative(project.path, configFile)),
       configurationFingerprint: fingerprint(configText),
       dependencyFingerprint: fingerprint(
@@ -705,7 +699,7 @@ async function captureTypeScript(options) {
       for (const parent of clause.types)
         for (const argument of parent.typeArguments || []) typeUse(argument);
   }
-  return finishCode(options, model, diagnostics, projects, evidence, snippets, {
+  return finishCode(options, model, diagnostics, projects, {
     id: "typescript",
     version: ts.version,
   });
@@ -727,15 +721,11 @@ async function captureJava(options) {
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 5000,
     });
-  } catch (error) {
-    if (error.status !== undefined)
-      throw new Error("CAPTURE_PREREQUISITE: a Java 21 JDK is required");
-    throw new Error("CAPTURE_PREREQUISITE: a Java 21 JDK is required");
+  } catch {
+    throw new Error("CAPTURE_PREREQUISITE: a JDK 21 or newer is required");
   }
   const model = emptyModel(),
     diagnostics = [],
-    evidence = { sources: [], elements: {} },
-    snippets = {},
     projects = [];
   let totalFiles = 0,
     totalBytes = 0,
@@ -811,12 +801,33 @@ async function captureJava(options) {
       compilerVersion = result.version;
       const prefix = `code:java:${encodeURIComponent(project.identity)}:`;
       const id = (name) => prefix + encodeURIComponent(name);
-      const nodes = result.nodes.map((node) => ({
-        ...node,
-        id: id(node.id),
-        attributes: node.attributes.map((a) => ({ ...a, id: id(a.id) })),
-        methods: node.methods.map((m) => ({ ...m, id: id(m.id) })),
-      }));
+      // A declaration's package is its qualified name without the classes
+      // it is nested in.
+      const qualified = new Set(result.nodes.map((node) => node.id));
+      const packageOf = (name) => {
+        const owner = name.slice(0, Math.max(0, name.lastIndexOf(".")));
+        return qualified.has(owner) ? packageOf(owner) : owner || null;
+      };
+      const nodes = result.nodes.map((node) => {
+        const pkg = packageOf(node.id);
+        const kind = node.kind.replace("_", " ");
+        // An enum's constants are the fields of its own type.
+        const constant = (a) => kind === "enum" && a.type === node.id;
+        return {
+          ...node,
+          id: id(node.id),
+          name: pkg ? node.id.slice(pkg.length + 1) : node.id,
+          package: pkg,
+          kind,
+          attributes: node.attributes.filter((a) => !constant(a)),
+          literals: node.attributes.filter(constant),
+          methods: node.methods.map((m) =>
+            m.name === "<init>"
+              ? { ...m, name: node.id.split(".").at(-1), returns: null }
+              : m,
+          ),
+        };
+      });
       model.nodes.push(...nodes);
       model.generalizations.push(
         ...result.generalizations.map((g) => ({
@@ -838,9 +849,8 @@ async function captureJava(options) {
       );
       diagnostics.push(
         ...result.diagnostics.map((d) => ({
-          ...d,
+          code: d.code,
           message: project.identity + ": " + d.message,
-          ...(d.elementId ? { elementId: id(d.elementId) } : {}),
         })),
       );
       verifySources(sources);
@@ -849,7 +859,7 @@ async function captureJava(options) {
           "CAPTURE_INCONSISTENT: classpath files changed during capture",
         );
       projects.push({
-        ...projectEvidence(project, sources, nodes, evidence, snippets, "java"),
+        ...projectEvidence(project, sources, nodes, "java"),
         classpathFingerprint: dependenciesBefore,
       });
       if (classpath.some((file) => fs.statSync(file).isDirectory()))
@@ -860,44 +870,19 @@ async function captureJava(options) {
     } catch (error) {
       if (error.message.startsWith("CAPTURE_")) throw error;
       throw new Error(
-        "CAPTURE_JAVA: compiler inspection failed; check JDK 21 and source/classpath configuration",
+        "CAPTURE_JAVA: compiler inspection failed; check the JDK (21 or newer) and source/classpath configuration",
       );
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
     }
   }
   // Separately compiled projects preserve identities; cross-project targets require a later explicit mapping.
-  return finishCode(options, model, diagnostics, projects, evidence, snippets, {
+  return finishCode(options, model, diagnostics, projects, {
     id: "java",
     version: compilerVersion,
+    // Java members without a modifier are package-private, an interface's
+    // public.
+    memberVisibility: (node) => (node.kind === "interface" ? "+" : "~"),
   });
 }
-async function captureCodeFromConfig(workspace, file, workId) {
-  let config;
-  try {
-    config = JSON.parse(workspace.readFile(file).replace(/^\uFEFF/, ""));
-  } catch {
-    throw new Error(
-      "CAPTURE_CONFIG: code configuration is unavailable or malformed",
-    );
-  }
-  const validate = new (require("ajv/dist/2020"))({ strict: false }).compile(
-    require("../../schemas/code-source-schema.json"),
-  );
-  if (!validate(config))
-    throw new Error(
-      "CAPTURE_CONFIG: source configuration does not match code-source v1",
-    );
-  const options = {
-    ...config,
-    ...(workId ? { workId } : {}),
-    projects: config.projects.map((project) => ({
-      ...project,
-      path: workspace.resolve(path.join(path.dirname(file), project.path)),
-    })),
-  };
-  return config.adapter === "typescript"
-    ? captureTypeScript(options)
-    : captureJava(options);
-}
-module.exports = { captureTypeScript, captureJava, captureCodeFromConfig };
+module.exports = { captureTypeScript, captureJava };

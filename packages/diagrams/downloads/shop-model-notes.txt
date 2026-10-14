@@ -1,0 +1,60 @@
+Saved payment methods
+
+
+SOURCES
+source:Checkout: src/checkout.ts
+src/checkout.ts
+
+source:Checkout.lines: src/checkout.ts
+src/checkout.ts
+
+source:Checkout.gateway: src/checkout.ts
+src/checkout.ts
+
+source:Checkout.constructor(gateway:Gateway): src/checkout.ts
+src/checkout.ts
+
+source:Checkout.total(): src/checkout.ts
+src/checkout.ts
+
+source:Checkout.pay(card:string): src/checkout.ts
+src/checkout.ts
+
+source:Gateway: src/payments.ts
+src/payments.ts
+
+source:Gateway.charge(amount:number,token:string): src/payments.ts
+src/payments.ts
+
+source:LegacyGateway: src/payments.ts
+src/payments.ts
+
+source:LegacyGateway.apiKey: src/payments.ts
+src/payments.ts
+
+source:LegacyGateway.constructor(apiKey:string): src/payments.ts
+src/payments.ts
+
+source:LegacyGateway.charge(amount:number,token:string): src/payments.ts
+src/payments.ts
+
+source:Vault: src/vault.ts
+src/vault.ts
+
+source:Line: src/checkout.ts
+src/checkout.ts
+
+source:Line.sku: src/checkout.ts
+src/checkout.ts
+
+source:Line.quantity: src/checkout.ts
+src/checkout.ts
+
+source:Line.price: src/checkout.ts
+src/checkout.ts
+
+
+OPEN QUESTIONS
+
+VALIDATION
+Checks cover Atlas's PlantUML subset and its model rules; they do not establish that the model is accurate.

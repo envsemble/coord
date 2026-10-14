@@ -79,10 +79,12 @@ try {
       fs.writeFileSync('tsconfig.json',JSON.stringify({files:['consumer.ts'],compilerOptions:{target:'ES2022',skipLibCheck:true}}));
       fs.writeFileSync('consumer.ts','export class Consumer { value!: string; }');
       const ts=await captureTypeScript({identity:'consumer',projects:[{identity:'ts',path:process.cwd()}]});
-      assert.equal(ts.model.nodes[0].name,'Consumer');
+      assert.match(ts,/^class Consumer \{$/m);
+      assert.deepEqual(checkDiagram(ts),[]);
       fs.writeFileSync('Consumer.java','class Consumer { String value; }');
       const java=await captureJava({identity:'consumer',projects:[{identity:'java',path:process.cwd(),files:['Consumer.java']}]});
-      assert.equal(java.model.nodes[0].name,'Consumer');
+      assert.match(java,/^class Consumer \{$/m);
+      assert.deepEqual(checkDiagram(java),[]);
       const react=await import('@envsemble/atlas-diagrams/react');
       assert.equal(typeof react.DiagramViewer,'function');
       assert.equal(typeof react.AtlasPanel,'function');

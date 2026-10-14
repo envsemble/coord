@@ -1,8 +1,8 @@
 // Families: models laid out once together, each shown alone or compared with
 // its baseline. A family's members are entries (see prepareEntry): a model with
 // its views, snippets and semantic content, and a proposal's baseline entry.
-const { clone, fingerprint } = require("../document/document.cjs");
-const { semantic, compareModels } = require("../document/comparison.cjs");
+const { clone, fingerprint } = require("../fingerprint.cjs");
+const { semantic, compareModels } = require("./compareModels.cjs");
 const { prepareModel } = require("./buildViewer.cjs");
 const { defaultNodeIds } = require("../layout/prepareViews.cjs");
 const { relationLabel, labelSize } = require("../layout/layoutDiagram.cjs");
@@ -863,36 +863,7 @@ async function prepareEntries({
   for (const member of family.members) member.payload.family = key;
   return { key, members: family.members };
 }
-/**
- * The legacy documents' family: a capture and the proposals over its
- * snapshot, keyed by that snapshot.
- */
-async function prepareFamily({
-  documents,
-  slug = "model",
-  includeArtifacts = false,
-} = {}) {
-  const { documentEntry } = require("../document/document.cjs");
-  const key = documents?.find((d) => d.state === "proposal")?.baselineId;
-  if (!key || documents.some((d) => familyKey(d) !== key))
-    throw new Error(
-      "FAMILY_INPUT: a family is a capture and the proposals over its snapshot",
-    );
-  const entries = documents.map(documentEntry);
-  // A capture in the family is the baseline its proposals compare with.
-  const capture = entries.find((e, i) => documents[i].state === "snapshot");
-  if (capture) for (const e of entries) if (e.baseline) e.baseline = capture;
-  return prepareEntries({ entries, key, slug, includeArtifacts });
-}
-/** The baseline snapshot a legacy capture or proposal shares with its family, or null. */
-function familyKey(document) {
-  return ["snapshot", "proposal"].includes(document?.state)
-    ? document.baselineId || null
-    : null;
-}
 module.exports = {
   prepareComparison,
   prepareEntries,
-  prepareFamily,
-  familyKey,
 };

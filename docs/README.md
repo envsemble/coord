@@ -14,15 +14,12 @@
 - [The atlas skill](../plugin/skills/atlas/SKILL.md) and [atlas-implement](../plugin/skills/atlas-implement/SKILL.md): planning and implementing with Atlas.
 - [Planning contract](../plugin/skills/atlas/assets/planning/PLANS.md): plan and ledger headers, work statistics, diagrams and the planning folder's layout.
 
-## Models
+## Diagrams
 
-- [Architecture](architecture.md): the document contracts, profiles and the Atlas host.
-- [Database capture](database-capture.md) and [code capture](code-capture.md): the capture adapters and their limits.
-- [Comparison](comparison.md): proposals, baselines, merges and cross-layer mappings.
-- [Learning guide](learning-reports.md): walkthroughs and finite scenario checks in the viewer's **Understand the model** guide.
-- [Portable documents](portable-documents.md): exporting and reopening a single model.
+- [Diagrams](diagrams.md): Atlas's PlantUML subset, `' atlas` comments, captures with `atlas capture`, proposals, before-and-after comparisons, scenarios, and linking a diagram from a plan.
+- [Code capture](code-capture.md) and [database capture](database-capture.md): the capture adapters and their limits.
 - [Viewer](viewer.md) and [embedding](embedding.md): the viewer's behavior, and using the diagram package and its React panel elsewhere.
-- [PR/MR review](review-ci.md): offline architecture reviews of model changes.
+- [Architecture](architecture.md): the diagram package's parts and the Atlas host.
 
 ## Developing Atlas
 

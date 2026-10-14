@@ -75,13 +75,6 @@ test("Object diagrams are assessed against their class diagram, with inherited m
     check(VALID.replace("expected valid", "expected invalid"))[0].message,
     /expected to be invalid, but enrollment.puml accepts it/,
   );
-  const { diagram } = atlas.parseDiagram(ENROLLMENT);
-  const explanations = atlas.explainModel(atlas.diagramViewerModel(diagram));
-  assert(
-    explanations.some((e) =>
-      e.text.includes("For each Enrollment: exactly 1 Person"),
-    ),
-  );
 });
 
 test("Scenario classes, slots and links must resolve in the class diagram", () => {
@@ -196,86 +189,46 @@ test("A class diagram's payload carries the scenarios that exemplify it, assesse
   );
 });
 
-test("Abstract captured types require a concrete subtype, not an unrelated concrete membership", () => {
-  for (const flag of ["abstract", "isAbstract"]) {
-    const document = atlas.createDocument({
-      profile: "code",
-      model: {
-        type: "StructuralModel",
-        nodes: [
-          { id: "a", name: "Abstract", [flag]: true, attributes: [] },
-          { id: "b", name: "Unrelated", attributes: [] },
-          { id: "c", name: "Concrete", attributes: [] },
-        ],
-        relations: [],
-        generalizations: [{ id: "inherits", specificId: "c", generalId: "a" }],
-        generalizationSets: [],
-      },
-      learning: {
-        walkthroughs: [],
-        scenarios: [
-          {
-            id: "only",
-            title: "Only abstract",
-            expected: "invalid",
-            instances: [{ id: "i", classIds: ["a"] }],
-            links: [],
-          },
-          {
-            id: "unrelated",
-            title: "Unrelated concrete",
-            expected: "invalid",
-            instances: [{ id: "i", classIds: ["a", "b"] }],
-            links: [],
-          },
-          {
-            id: "concrete",
-            title: "Concrete subtype",
-            expected: "valid",
-            instances: [{ id: "i", classIds: ["c"] }],
-            links: [],
-          },
-        ],
-      },
-    });
-    assert.equal(atlas.checkScenario(document, "only").outcome, "invalid");
-    assert.equal(atlas.checkScenario(document, "unrelated").outcome, "invalid");
-    assert.equal(atlas.checkScenario(document, "concrete").outcome, "valid");
-  }
+test("Abstract classes require a concrete subtype, not an unrelated concrete membership", () => {
+  const classes = `@startuml
+abstract class Abstract
+class Unrelated
+class Concrete
+Concrete --|> Abstract
+@enduml
+`;
+  const scenario = (classNames, expected) =>
+    atlas.checkDiagram(
+      `@startuml
+' atlas scenario classes.puml expected ${expected}
+object "i : ${classNames}" as i
+@enduml
+`,
+      { read: () => classes },
+    );
+  assert.deepEqual(scenario("Abstract", "invalid"), []);
+  assert.deepEqual(scenario("Abstract, Unrelated", "invalid"), []);
+  assert.deepEqual(scenario("Concrete", "valid"), []);
+  assert.match(
+    scenario("Abstract", "valid")[0].message,
+    /expected to be valid/,
+  );
 });
-test("Details show structured rationale safely, leave capture diagnostics out, and navigation resolves sets/members", async () => {
-  const model = {
-    type: "StructuralModel",
-    nodes: ["enrollment", "active", "suspended"].map((id) => ({
-      id,
-      name: id[0].toUpperCase() + id.slice(1),
-      attributes: [],
-    })),
-    relations: [],
-    generalizations: ["active", "suspended"].map((id) => ({
-      id: `inherits-${id}`,
-      specificId: id,
-      generalId: "enrollment",
-    })),
-    generalizationSets: [
-      {
-        id: "enrollment-state",
-        name: "Enrollment state",
-        generalizations: ["inherits-active", "inherits-suspended"],
-        complete: true,
-        disjoint: true,
-      },
-    ],
-  };
-  const snapshot = atlas.createSnapshot({
-    profile: "code",
-    model,
+test("Details show structured rationale safely, leave capture diagnostics out, and navigation resolves members", async () => {
+  const { diagram } = atlas.parseDiagram(`@startuml
+abstract class Enrollment
+class Active
+Active --|> Enrollment
+@enduml
+`);
+  const text = atlas.formatDiagram({
+    ...diagram,
     capture: {
       capturedAt: "2026-10-08T00:00:00.000Z",
       adapter: { id: "fixture", version: "1" },
       source: {
         identity: "Structured fixture",
-        kind: "authored",
+        kind: "typescript",
         scope: ["model"],
         revision: { hash: "structured revision" },
       },
@@ -287,17 +240,10 @@ test("Details show structured rationale safely, leave capture diagnostics out, a
       consistency: { kind: { note: "structured" } },
     },
   });
-  const captured = atlas.createDocument({
-    profile: "code",
-    model,
-    state: "snapshot",
-    snapshots: [snapshot],
-    baselineId: snapshot.id,
+  const { prepared: viewers } = await atlas.prepareDiagrams({
+    files: [{ path: "capture.puml", text }],
   });
-  const prepared = await atlas.prepareViewer({
-    document: captured,
-    includeArtifacts: false,
-  });
+  const prepared = viewers.get("capture.puml");
   const extended = structuredClone(prepared.model);
   extended.classes[0].rationale = { claim: "retained extension" };
   extended.classes[0].questions = {
@@ -319,20 +265,6 @@ test("Details show structured rationale safely, leave capture diagnostics out, a
   assert(!details.includes("structured limitation"));
   const { inspectionTarget } = load("src/model/inspectionTarget.js"),
     { indexViewerModel } = load("src/model/domainModel.js");
-  const index = indexViewerModel(
-    prepared.model,
-    prepared.views[0].diagram.generalizationGroups,
-  );
-  assert.equal(
-    inspectionTarget(
-      prepared.model,
-      index,
-      prepared.views,
-      prepared.views[0].key,
-      "enrollment-state",
-    ).target.kind,
-    "group",
-  );
   const codeModel = {
     ...prepared.model,
     classes: [

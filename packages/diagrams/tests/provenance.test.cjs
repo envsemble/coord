@@ -14,20 +14,23 @@ const capture = (kind, identity, capturedAt, status = "complete") => ({
     coverage: { status, diagnostics: [] },
   },
 });
-const structural = {
-  type: "StructuralModel",
-  nodes: [
-    {
-      id: "student",
-      name: "Student",
-      attributes: [{ id: "student-name", name: "name", type: "string" }],
-    },
-    { id: "course", name: "Course", attributes: [] },
-  ],
-  relations: [],
-  generalizations: [],
-  generalizationSets: [],
-};
+const ENROLLMENT = `class Student {
+  name : string
+}
+class Course`;
+// The prepared payloads of a work folder's diagrams, by path.
+async function payloads(files) {
+  const { prepared } = await atlas.prepareDiagrams({
+    files: Object.entries(files).map(([path, body]) => ({
+      path,
+      text: `@startuml
+${body}
+@enduml
+`,
+    })),
+  });
+  return (path) => prepared.get(path).payload;
+}
 const ISO = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
 test("provenance distinguishes generated captures, agent proposals and agent-authored models", () => {
@@ -64,13 +67,12 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
       profile: "database",
       baselineId: database.id,
       snapshots: [database],
-      imported: true,
     }),
     {
       kind: "generated",
       label: "Generated from database",
       detail:
-        "SQLite · semester-demo · captured Oct 8, 2026 · partial coverage · Imported",
+        "SQLite · semester-demo · captured Oct 8, 2026 · partial coverage",
       tone: "accent",
     },
   );
@@ -103,12 +105,8 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
     },
   );
   assert.equal(
-    describeProvenance({
-      state: "authored",
-      profile: "database",
-      imported: true,
-    }).detail,
-    "Entity diagram · Imported",
+    describeProvenance({ state: "authored", profile: "database" }).detail,
+    "Entity diagram",
   );
   assert.equal(describeProvenance(undefined).kind, "unknown");
   assert.equal(describeProvenance({}).kind, "unknown");
@@ -118,15 +116,9 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
 
 test("embedded panel floats its controls, below the host's sections, and leaves provenance to its host", async () => {
   const { AtlasPanel } = react;
-  const document = atlas.createDocument({
-    title: "Enrollment",
-    profile: "code",
-    model: structural,
-  });
-  const { payload } = await atlas.prepareViewer({
-    document,
-    includeArtifacts: false,
-  });
+  const payload = (await payloads({ "enrollment.puml": ENROLLMENT }))(
+    "enrollment.puml",
+  );
   assert.equal(payload.views.length, 1);
   const html = renderToStaticMarkup(
     createElement(AtlasPanel, {
@@ -138,7 +130,7 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
   // The host's picker names the model's origin; the panel draws no chip.
   assert(!html.includes("Agent-authored"));
   assert(!html.includes("atlas-provenance"));
-  // The model report is gone; a code model has no guide to open either.
+  // The model report is gone; a diagram without scenarios has no guide.
   assert(!html.includes("report"));
   assert(!html.includes("Understand the model"));
   // A single view needs no view switcher.
@@ -171,33 +163,34 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
 
 test("proposals open in their change view with a readable list of changes", async () => {
   const { AtlasPanel } = react;
-  const base = atlas.createDocument({
-    id: "enrollment",
-    title: "Enrollment",
-    profile: "code",
-    model: structural,
-    context: {
-      records: [
-        {
-          id: "plan",
-          kind: "plan",
-          title: "Decision",
-          text: "Learners replace students.",
-        },
-      ],
-      links: [{ elementId: "student", recordId: "plan" }],
-    },
+  const { diagram } = atlas.parseDiagram(
+    `@startuml
+title Enrollment
+${ENROLLMENT}
+@enduml
+`,
+  );
+  const captured = atlas.formatDiagram({
+    ...diagram,
+    capture: capture("typescript", "enrollment", "2026-10-08T01:34:34.898Z")
+      .capture,
   });
-  const proposal = atlas.createProposal(base);
-  const model = JSON.parse(JSON.stringify(proposal.model));
-  model.nodes[1].name = "Learner";
-  model.nodes[0].name = "Pupil";
-  model.nodes.push({ id: "term", name: "Term", attributes: [] });
-  const changed = atlas.reviseDocument(proposal, { model });
-  const { payload } = await atlas.prepareViewer({
-    document: changed,
-    includeArtifacts: false,
+  const { prepared } = await atlas.prepareDiagrams({
+    files: [
+      { path: "capture.puml", text: captured },
+      {
+        path: "proposal.puml",
+        text: `@startuml
+' atlas proposal capture.puml
+${ENROLLMENT.replace("name : string", "name : text")}
+class Term
+Course "1" -- "0..*" Term : runs in
+@enduml
+`,
+      },
+    ],
   });
+  const payload = prepared.get("proposal.puml").payload;
   const html = renderToStaticMarkup(createElement(AtlasPanel, { payload }));
   // One way to choose what is shown: no Baseline/Changes control, no popover.
   assert(!html.includes(">Baseline<"));
@@ -225,14 +218,7 @@ test("proposals open in their change view with a readable list of changes", asyn
   );
   assert(list.includes(">New<") && list.includes(">Changed<"));
   assert(list.includes(">Term<"));
-  // Renamed types appear once each, under their new names.
-  assert(list.includes(">Pupil<") && list.includes(">Learner<"));
-  // A rename reads as the old name and the new one.
-  assert(list.includes("name: Student → Pupil"));
-  assert(
-    !list.includes("Learners replace students."),
-    "no rationale in the list",
-  );
+  assert(list.includes(">Student<"));
   assert(list.includes("Compared with the code captured Oct 8, 2026."));
   assert(!ISO.test(list), "raw ISO timestamps stay out of the UI");
 });

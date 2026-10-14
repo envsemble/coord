@@ -16,14 +16,10 @@ With the GitHub CLI, `NODE_AUTH_TOKEN=$(gh auth token)` works once its token has
 
 - `npm run dev` starts the desktop app with hot reload (`npm run dev -- /path/to/planning` opens a folder);
 - `npm run dev:envui` does the same against a local envUI checkout beside this one (`../envUI`, or `ENVUI_PATH`), with live reload for envUI's components too; it links that checkout into the app, the plan viewer and the diagram viewer without changing `package.json` or the lockfile. `npm run envui:unlink` returns to the published version, and `node scripts/dev-envui.mjs --link` links again after an `npm install` replaced the link;
-- `npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates;
+- `npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/`, showing the shop example, with React/Vite live updates;
 - `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module. The HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service.
 
-The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation. Build the enrollment example with its report:
-
-```sh
-node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --report
-```
+The examples in `packages/diagrams/examples` are work folders of diagram files: `shop` is a TypeScript capture with a proposal of saved payment methods, shown by [index.html](packages/diagrams/index.html), and `enrollment` a class diagram with four scenarios. `npm run check` checks them and the committed showcase.
 
 ## Layout
 
@@ -33,7 +29,7 @@ node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --repor
 | `packages/host`     | The Atlas host: reads and watches planning folders for the app and serves them to paired computers ([remote access](docs/remote-access.md)).                                                                                                                                                                                                            |
 | `packages/planning` | The planning-folder reader shared by the app, the host and the `atlas` command, plan export and import, and the plan export viewer (`packages/planning/viewer`).                                                                                                                                                                                        |
 | `packages/cli`      | The `atlas` command ([command reference](docs/command.md)).                                                                                                                                                                                                                                                                                             |
-| `packages/diagrams` | The diagram package: source and UI in `lib/`, `src/` and `development/`, and the R5 model under `examples/r5`.                                                                                                                                                                                                                                          |
+| `packages/diagrams` | The diagram package: source and UI in `lib/`, `src/` and `development/`, and the example diagrams under `examples/`.                                                                                                                                                                                                                                    |
 | `plugin/`           | The Atlas plugin for Claude Code and Codex: its manifests, MCP server configuration, hooks and the `atlas` and `atlas-implement` skills, with their packaging test in `plugin/tests` ([agent interface](docs/agent-interface.md)). The marketplace manifests that name it are `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`. |
 | `extras/`           | Skills that are not part of the plugin, installed separately: `babysit-pr`.                                                                                                                                                                                                                                                                             |
 

@@ -319,89 +319,15 @@ export function memberSignature(member, method, profile) {
 }
 
 /**
- * The parts of an identity captured from code or a database, each
- * URL-encoded: TypeScript `code:ts:<repository>:<file>:<name>`, Java
- * `code:java:<repository>:<qualified name>` and `db:<engine>:<source>:
- * <schema>:<table>`. Proposed elements follow the same convention, so the
- * identity says where a new declaration is meant to live.
- */
-export function decodeIdentity(id) {
-  if (typeof id !== "string") return null;
-  const parts = id.split(":");
-  try {
-    if (parts[0] === "code" && parts.length >= 5)
-      return {
-        source: "code",
-        language: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        file: decodeURIComponent(parts[3]),
-        name: decodeURIComponent(parts[4]),
-      };
-    if (parts[0] === "code" && parts.length === 4)
-      return {
-        source: "code",
-        language: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        file: null,
-        name: decodeURIComponent(parts[3]),
-      };
-    if (parts[0] === "db" && parts.length >= 5)
-      return {
-        source: "database",
-        engine: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        schema: decodeURIComponent(parts[3]),
-        name: decodeURIComponent(parts[4]),
-      };
-  } catch {
-    // A malformed escape is not a location.
-  }
-  return null;
-}
-
-/**
- * Where a class lives: its captured location, else what its identity says.
- * A Java identity names a class rather than its file (see javaFile).
+ * Where a class lives: its captured location, else the file its evidence
+ * names, which a proposal can give a new class to say where it goes.
  */
 export function elementFile(element, model) {
   if (element?.location?.file) return element.location.file;
-  const identity = decodeIdentity(element?.id);
-  if (!identity || identity.source !== "code") return null;
-  if (identity.file) return identity.file;
-  return identity.language === "java" ? javaFile(identity, model) : null;
-}
-
-// A Java class nested in a captured class lives in that class's file; any
-// other is where its package puts it, under the source root the captured
-// classes of its repository share (src/main/java/com/shop/Cart.java for
-// com.shop.Cart).
-function javaFile({ name: qualified, repository }, model) {
-  const captured = (model?.classes || []).filter((c) => {
-    const identity = decodeIdentity(c.id);
-    return (
-      c.location?.file &&
-      identity?.language === "java" &&
-      identity.repository === repository
-    );
-  });
-  const nameOf = (c) => decodeIdentity(c.id).name;
-  for (let end = qualified.lastIndexOf("."); end > 0; ) {
-    const outer = captured.find((c) => nameOf(c) === qualified.slice(0, end));
-    if (outer) return outer.location.file;
-    end = qualified.lastIndexOf(".", end - 1);
-  }
-  // Packages are lower case by convention; the first capitalized name is the
-  // top-level class, whose file holds any class nested in it.
-  const parts = qualified.split(".");
-  const top = parts.findIndex((part) => /^[A-Z]/.test(part));
-  const relative = `${parts.slice(0, top < 0 ? parts.length : top + 1).join("/")}.java`;
-  for (const c of captured) {
-    const own = `${nameOf(c).replace(/\./g, "/")}.java`;
-    const file = c.location.file;
-    if (file === own || file.endsWith(`/${own}`))
-      return file.slice(0, file.length - own.length) + relative;
-  }
-  return null;
+  const source = (model?.sources || []).find(
+    (s) => s.id === element?.primarySource,
+  );
+  return source?.file || null;
 }
 
 // Kinds every relation of a profile shares say nothing in a list of them.

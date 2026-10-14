@@ -2,123 +2,11 @@ const LIMITATIONS = [
   "Finite closed-world examples check only declared memberships, binary links, numeric multiplicities and complete/disjoint sets.",
   "Unknown counts, type-use dependencies, arbitrary OCL/SQL and domain accuracy are not established.",
 ];
-function learningIssues(document, ids, nodeIds) {
-  const issues = [],
-    add = (message, elementId = null) =>
-      issues.push({
-        code: "LEARNING_REFERENCE",
-        severity: "error",
-        layer: "reference",
-        message,
-        elementId,
-      });
-  const learning = document.learning || { walkthroughs: [], scenarios: [] };
-  const entries = [...learning.walkthroughs, ...learning.scenarios];
-  if (new Set(entries.map((e) => e.id)).size !== entries.length)
-    add("Learning entries need unique identities");
-  const records = new Set(document.context.records.map((r) => r.id));
-  const views = new Set(document.views.map((v) => v.key));
-  for (const entry of entries) {
-    if (entry.contextIds?.some((id) => !records.has(id)))
-      add("Learning context must refer to retained records", entry.id);
-    if (entry.elementIds?.some((id) => !ids.has(id)))
-      add("Learning guidance must refer to current elements", entry.id);
-  }
-  for (const walkthrough of learning.walkthroughs)
-    for (const step of walkthrough.steps) {
-      if (
-        (step.viewKey && !views.has(step.viewKey)) ||
-        step.elementIds.some((id) => !ids.has(id))
-      )
-        add(
-          "Walkthrough step needs an existing view and elements",
-          walkthrough.id,
-        );
-    }
-  for (const scenario of learning.scenarios) {
-    const relationIds = new Set(document.model.relations.map((e) => e.id));
-    const instances = new Set(scenario.instances.map((i) => i.id));
-    if (instances.size !== scenario.instances.length)
-      add("Scenario instance identities must be unique", scenario.id);
-    for (const instance of scenario.instances)
-      if (instance.classIds.some((id) => !nodeIds.has(id)))
-        add("Scenario memberships must refer to classes/tables", instance.id);
-    const links = new Set();
-    for (const link of scenario.links) {
-      const key = JSON.stringify([
-        link.relationId,
-        link.sourceId,
-        link.targetId,
-      ]);
-      if (
-        !relationIds.has(link.relationId) ||
-        !instances.has(link.sourceId) ||
-        !instances.has(link.targetId) ||
-        links.has(key)
-      )
-        add(
-          "Scenario links need existing binary relations and instances without duplicate pairs",
-          scenario.id,
-        );
-      links.add(key);
-    }
-  }
-  return issues;
-}
 function bounds(value) {
   if (value === "*") return [0, Infinity];
   if (!/^\d+(\.\.(\d+|\*))?$/.test(value || "")) return null;
   const [a, b] = value.split("..");
   return [Number(a), b === "*" ? Infinity : Number(b ?? a)];
-}
-function explainModel(model) {
-  const classes = new Map(model.classes.map((n) => [n.id, n.name]));
-  const descriptions = [];
-  for (const r of model.relations) {
-    for (const [owner, count, target] of [
-      [r.sourceId, r.targetMultiplicity, r.targetId],
-      [r.targetId, r.sourceMultiplicity, r.sourceId],
-    ]) {
-      const limit = bounds(count);
-      const meaning = !limit
-        ? "an unestablished number of"
-        : limit[1] === Infinity
-          ? `at least ${limit[0]}`
-          : limit[0] === limit[1]
-            ? `exactly ${limit[0]}`
-            : `${limit[0]} to ${limit[1]}`;
-      descriptions.push({
-        elementId: r.id,
-        text: `For each ${classes.get(owner)}: ${meaning} ${classes.get(target)} instances via ${r.name || r.stereotype || "this relation"}.`,
-        assessed: !!limit && r.stereotype !== "dependency",
-      });
-    }
-  }
-  const gens = new Map(model.generalizations.map((g) => [g.id, g]));
-  for (const set of model.partitions || []) {
-    const members = set.generalizations
-      .map((id) => gens.get(id))
-      .filter(Boolean);
-    descriptions.push({
-      elementId: set.id,
-      text: `${set.name}: every ${classes.get(members[0]?.generalId) || "supertype"} instance ${set.complete ? "must belong to at least one" : "may belong to none"} of ${members.map((g) => classes.get(g.specificId)).join(", ")}; ${set.disjoint ? "at most one subtype in this set" : "multiple memberships are permitted"}.`,
-      assessed: true,
-    });
-  }
-  return descriptions;
-}
-function checkScenario(document, scenarioId) {
-  const {
-    assertDocument,
-    documentViewerModel,
-  } = require("../document/document.cjs");
-  assertDocument(document);
-  const scenario = document.learning?.scenarios.find(
-    (s) => s.id === scenarioId,
-  );
-  if (!scenario)
-    throw new Error("SCENARIO_NOT_FOUND: choose a retained scenario");
-  return assessScenario(documentViewerModel(document), scenario);
 }
 function assessScenario(model, scenario) {
   const issues = [],
@@ -290,31 +178,6 @@ function assessScenario(model, scenario) {
     limitations: LIMITATIONS,
   };
 }
-/**
- * A document's walkthroughs and its examples with their assessments, for the
- * viewer's guide to the model; null when the document has neither.
- */
-function prepareLearning(document, model) {
-  const learning = document?.learning;
-  if (!learning?.walkthroughs?.length && !learning?.scenarios?.length)
-    return null;
-  return {
-    walkthroughs: learning.walkthroughs || [],
-    scenarios: (learning.scenarios || []).map((scenario) => ({
-      ...scenario,
-      result: assessScenario(model, scenario),
-    })),
-    ...(typeof document.reporting?.scope === "string" &&
-    document.reporting.scope.trim()
-      ? { scope: document.reporting.scope }
-      : {}),
-  };
-}
 module.exports = {
-  learningIssues,
-  checkScenario,
   assessScenario,
-  explainModel,
-  prepareLearning,
-  LIMITATIONS,
 };

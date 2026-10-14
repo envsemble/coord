@@ -1,0 +1,27 @@
+@startuml
+title Enrollment
+
+class Person {
+  name : String
+}
+
+class Institution {
+  name : String
+}
+
+abstract class Enrollment {
+  startedOn : Date
+  endedOn : Date [0..1]
+}
+
+class UndergraduateEnrollment
+
+class GraduateEnrollment {
+  thesisTitle : String [0..1]
+}
+
+UndergraduateEnrollment --|> Enrollment
+GraduateEnrollment --|> Enrollment
+Enrollment "0..*" -- "1" Person : learner
+Enrollment "0..*" -- "1" Institution : school
+@enduml

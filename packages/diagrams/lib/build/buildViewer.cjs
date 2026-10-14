@@ -10,20 +10,9 @@ const { highlightSnippets } = require("./highlightSnippets.cjs");
 const rootPath = path.resolve(__dirname, "../..");
 const SLUG = /^[A-Za-z0-9_-]+$/;
 /**
- * A legacy Atlas document's viewer (code and database captures until they
- * write diagrams). Diagram files are prepared by prepareDiagrams.
+ * One diagram's viewer (an entry of prepareDiagrams): alone, or compared with
+ * its baseline.
  */
-async function prepareViewer({
-  document,
-  includeArtifacts = true,
-  slug = "model",
-} = {}) {
-  if (!document) throw new Error("VIEWER_INPUT: provide an Atlas document");
-  const { assertDocument, documentEntry } = require("../document/document.cjs");
-  assertDocument(document);
-  return prepareEntry(documentEntry(document), { slug, includeArtifacts });
-}
-/** One entry's viewer: alone, or compared with its baseline. */
 function prepareEntry(entry, { slug = "model", includeArtifacts = true } = {}) {
   if (!SLUG.test(slug)) throw new Error("Invalid artifact slug");
   if (entry.baseline)
@@ -260,24 +249,19 @@ async function bundleClient() {
 /**
  * An offline viewer in one HTML file. `prepared` is a viewer prepared with its
  * artifacts (by prepareDiagrams) and `file` the diagram it shows, which the
- * page carries for reading back; a legacy `document` is prepared here.
+ * page carries for reading back.
  */
-async function buildViewer(input = {}) {
-  const prepared =
-    input.prepared ||
-    (await prepareViewer({
-      document: input.document,
-      slug: input.slug,
-      includeArtifacts: true,
-    }));
+async function buildViewer({ prepared, file } = {}) {
+  if (!prepared?.payload)
+    throw new Error(
+      "VIEWER_INPUT: provide a viewer prepared by prepareDiagrams",
+    );
   const { model } = prepared;
   const { views: clientViews, exports, snippets } = prepared.payload;
   const inline = (value) => JSON.stringify(value).replaceAll("<", "\\u003c");
-  const carried = input.prepared
-    ? input.file
-      ? `<script id="atlas-diagram" type="application/json">${inline(input.file)}</script>`
-      : ""
-    : `<script id="atlas-document" type="application/json">${inline(input.document)}</script>`;
+  const carried = file
+    ? `<script id="atlas-diagram" type="application/json">${inline(file)}</script>`
+    : "";
   const template = fs.readFileSync(
     path.join(rootPath, "src/viewer.html"),
     "utf8",
@@ -326,7 +310,6 @@ function writeViewer(built, outputPath) {
   fs.writeFileSync(path.join(outputPath, "index.html"), built.html);
 }
 module.exports = {
-  prepareViewer,
   prepareEntry,
   prepareModel,
   buildViewer,

@@ -10,7 +10,6 @@ export { Close as CloseIcon } from "@envsemble/envui/icons/Close";
 export { Code as CodeIcon } from "@envsemble/envui/icons/Code";
 export { Contrast as FadeIcon } from "@envsemble/envui/icons/Contrast";
 export { Database as DatabaseIcon } from "@envsemble/envui/icons/Database";
-export { DataObject as JSONIcon } from "@envsemble/envui/icons/DataObject";
 export { Description as FileIcon } from "@envsemble/envui/icons/Description";
 export { Difference as ProposalIcon } from "@envsemble/envui/icons/Difference";
 export { Download as DownloadIcon } from "@envsemble/envui/icons/Download";

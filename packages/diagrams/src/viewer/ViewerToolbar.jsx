@@ -16,24 +16,13 @@ import {
   FieldsIcon,
   HideDetailsIcon,
   ImageIcon,
-  JSONIcon,
   LearnIcon,
   ShowDetailsIcon,
 } from "../ui/Icons";
 
 /** The standalone viewer's downloads, for its export menu. */
-export function exportChoices({
-  exports,
-  viewKey,
-  fields,
-  theme,
-  diagramURL,
-  diagram = true,
-}) {
-  // A diagram file's PlantUML, or a legacy document's structural JSON.
-  const sourceFile = diagram
-    ? `${exports.slug}.puml`
-    : `${exports.slug}-structural.json`;
+export function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
+  const sourceFile = `${exports.slug}.puml`;
   return [
     {
       key: "svg-download",
@@ -47,27 +36,13 @@ export function exportChoices({
           `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
         ),
     },
-    diagram
-      ? {
-          key: "source-download",
-          label: "PlantUML",
-          description: "The diagram's source",
-          icon: <CodeIcon />,
-          onSelect: () =>
-            downloadData(exports.readText(sourceFile), sourceFile),
-        }
-      : {
-          key: "source-download",
-          label: "Structural JSON",
-          description: "The whole model",
-          icon: <JSONIcon />,
-          onSelect: () =>
-            downloadData(
-              exports.readText(sourceFile),
-              sourceFile,
-              "application/json",
-            ),
-        },
+    {
+      key: "source-download",
+      label: "PlantUML",
+      description: "The diagram's source",
+      icon: <CodeIcon />,
+      onSelect: () => downloadData(exports.readText(sourceFile), sourceFile),
+    },
     {
       key: "bundle-download",
       label: "Models ZIP",
@@ -201,7 +176,6 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
             fields,
             theme,
             diagramURL,
-            diagram: !!model.document?.path,
           })}
         />
         <ToolButton

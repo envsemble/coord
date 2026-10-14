@@ -29,6 +29,7 @@ function sharedHighlighter() {
           "csharp",
           "go",
           "rust",
+          "sql",
           squirrel,
         ],
       }),
@@ -76,6 +77,7 @@ async function highlightSnippets(sources, excerpts) {
           "C#": "csharp",
           Go: "go",
           Rust: "rust",
+          SQL: "sql",
           Text: "text",
         }[excerpt.language] ||
         (highlighter.getLoadedLanguages().includes(excerpt.language)

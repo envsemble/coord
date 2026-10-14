@@ -23,8 +23,7 @@
     "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.atlasEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
     "test": "tsx --test \"src/*.test.ts\" && node --test \"main/*.test.ts\" \"shared/*.test.ts\"",
     "test:e2e": "node scripts/electron.mjs playwright test",
-    "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "check:review": "node scripts/check-review.mjs"
+    "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",

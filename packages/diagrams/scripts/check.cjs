@@ -1,13 +1,35 @@
+// The committed showcase (index.html and downloads/) is what the build writes
+// from the examples, and works offline: no remote resources, its diagram and
+// payload embedded, source previews intact and the ZIP holding every export.
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const assert = require("node:assert/strict");
 const { unzipSync } = require("fflate");
-const { build } = require("./build.cjs");
+const { build, exampleFiles } = require("./build.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
+const { checkDiagram } = require("../lib/plantuml/diagram.cjs");
 const root = path.resolve(__dirname, "..");
 
 async function check() {
+  // Every example diagram has no problems.
+  for (const name of ["shop", "enrollment"]) {
+    const files = exampleFiles(name);
+    const texts = new Map(files.map((f) => [f.path, f.text]));
+    for (const file of files) {
+      const read = (reference) =>
+        texts.get(
+          path.posix.normalize(
+            path.posix.join(path.posix.dirname(file.path), reference),
+          ),
+        ) ?? null;
+      assert.deepEqual(
+        checkDiagram(file.text, { path: file.path, read }),
+        [],
+        `${name}/${file.path}`,
+      );
+    }
+  }
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const committed = new Map(
     fs
@@ -47,10 +69,12 @@ async function check() {
   );
   assert(!/url\(\s*['"]?https?:/i.test(html), "Remote CSS dependency");
   const data = html.match(
-    /<script id="atlas-document" type="application\/json">([\s\S]*?)<\/script>/,
+    /<script id="atlas-diagram" type="application\/json">([\s\S]*?)<\/script>/,
   );
-  assert(data, "Missing editable document payload");
-  assert.equal(JSON.parse(data[1]).formatVersion, 1);
+  assert(data, "Missing the diagram the page shows");
+  const carried = JSON.parse(data[1]);
+  assert.equal(carried.path, "diagrams/saved-methods.puml");
+  assert.equal(built.artifacts.get("shop.puml"), carried.text);
   const scripts = [
     ...html.matchAll(
       /<script(?![^>]*type="application\/json")[^>]*>([\s\S]*?)<\/script>/gi,
@@ -72,33 +96,35 @@ async function check() {
   const dataLine = application.match(/^\s*(const MODEL=.*)\r?$/m)?.[1];
   assert(dataLine, "Missing embedded model and export data");
   const embedded = new vm.Script(
-    `${dataLine}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS})`,
+    `${dataLine}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS,COMPARISON})`,
   ).runInNewContext({});
-  const excerpts = require("../examples/r5/source-snippets.json");
-  for (const source of embedded.MODEL.sources) {
-    const snippet = embedded.SNIPPETS[source.id];
-    assert(snippet, `Missing offline source preview: ${source.id}`);
-    assert.equal(snippet.code, excerpts[source.id].code);
+  assert(
+    embedded.COMPARISON?.changes.changes.length,
+    "Missing the proposal's changes",
+  );
+  const snippets = Object.entries(embedded.SNIPPETS);
+  assert(snippets.length, "Missing offline source previews");
+  for (const [id, snippet] of snippets) {
+    assert(
+      embedded.MODEL.sources.some((s) => s.id === id),
+      `A preview without its source: ${id}`,
+    );
     assert.equal(
       snippet.lines
         .map((line) => line.map((token) => token.content).join(""))
         .join("\n"),
       snippet.code,
-      `Highlighted code changed: ${source.id}`,
+      `Highlighted code changed: ${id}`,
     );
     assert.equal(snippet.endLine - snippet.startLine + 1, snippet.lines.length);
-    assert.equal(
-      snippet.url,
-      `${source.url.split("#")[0]}#L${snippet.startLine}-L${snippet.endLine}`,
-    );
   }
   assert.equal(
     JSON.stringify(embedded.MODEL, null, 2),
-    built.artifacts.get("r5-model-evidence.json"),
+    built.artifacts.get("shop-model-evidence.json"),
   );
   assert.deepEqual(
     Buffer.from(embedded.EXPORTS.bundle, "base64"),
-    built.artifacts.get("r5-models.zip"),
+    built.artifacts.get("shop-models.zip"),
   );
   for (const view of embedded.VIEWS) {
     validateDiagram(view.diagram, embedded.MODEL);
@@ -111,21 +137,20 @@ async function check() {
         `Missing local link: ${href}`,
       );
   }
-  const zip = unzipSync(built.artifacts.get("r5-models.zip"));
-  assert.equal(
-    Object.keys(zip).length,
-    built.artifacts.size - 1,
-    "Model bundle is incomplete",
-  );
+  // The ZIP holds every export of the proposal itself; its baseline's and
+  // change view's images are downloads of their own.
+  const zip = unzipSync(built.artifacts.get("shop-models.zip"));
   for (const [name, data] of built.artifacts)
-    if (!name.endsWith(".zip"))
+    if (!name.endsWith(".zip") && !/^shop-(?:baseline|changes)-/.test(name))
       assert.deepEqual(
-        Buffer.from(zip[name]),
+        Buffer.from(zip[name] || []),
         Buffer.from(data),
         `ZIP content mismatch: ${name}`,
       );
+  for (const name of Object.keys(zip))
+    assert(built.artifacts.has(name), `ZIP holds an unknown file: ${name}`);
   console.log(
-    "Passed: reproducible outputs, inline script syntax, offline runtime and source snippets, embedded export payloads, local links, model schema/structure, orthogonal layout geometry, and ZIP exports.",
+    "Passed: valid example diagrams, reproducible outputs, inline script syntax, offline runtime and source previews, embedded diagram and export payloads, local links, orthogonal layout geometry, and ZIP exports.",
   );
 }
 check().catch((error) => {

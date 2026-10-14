@@ -8,7 +8,6 @@ import { ChangeMark } from "../review/ChangeMark";
 import {
   CHANGE_LABELS,
   cellText,
-  decodeIdentity,
   elementFile,
   fileExists,
   itemChanges,
@@ -249,9 +248,6 @@ export function WhatChanges({ change, element, model, profile }) {
     : "";
   if (change.status === "added") {
     const file = profile === "code" ? elementFile(element, model) : null;
-    // Without a file to point at, the identity still names the declaration.
-    const declared =
-      profile === "code" && !file ? decodeIdentity(element.id)?.name : null;
     return (
       <Section title="What changes">
         <Text>
@@ -259,18 +255,11 @@ export function WhatChanges({ change, element, model, profile }) {
           {held ? ` with ${held}` : ""}.
         </Text>
         {movedText && <Text>{movedText}</Text>}
-        {file ? (
+        {file && (
           <Text className="proposed-location">
             Proposed in <code>{file}</code>
             {fileExists(model, file) ? "" : " (a new file)"}
           </Text>
-        ) : (
-          declared &&
-          declared !== element.name && (
-            <Text className="proposed-location">
-              Proposed as <code>{declared}</code>
-            </Text>
-          )
         )}
       </Section>
     );

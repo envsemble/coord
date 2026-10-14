@@ -146,7 +146,7 @@ ${status}`,
       process.execPath,
       [
         "-e",
-        "const {createEnrollmentDocument}=require('./examples/enrollment/learning.cjs'); require('./lib/index.cjs').buildViewer({document:createEnrollmentDocument(),slug:'enrollment'}).then(b=>process.stdout.write(b.html)).catch(e=>{console.error(e);process.exitCode=1});",
+        "require('./scripts/build.cjs').buildExample('enrollment').then(b=>process.stdout.write(b.html)).catch(e=>{console.error(e);process.exitCode=1});",
       ],
       {
         cwd: diagramsRoot,
@@ -157,7 +157,7 @@ ${status}`,
     );
     files.set("enrollment.html", html);
     files.set(
-      "r5.html",
+      "shop.html",
       fs.readFileSync(path.join(diagramsRoot, "index.html")),
     );
     for (const [name, data] of Object.entries(tracked)) {

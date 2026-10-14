@@ -135,9 +135,27 @@ const problem = (line, column, code, message) => ({
 // The column of the first character a statement writes.
 const columnOf = (lines, line) => (lines[line - 1] || "").search(/\S/) + 1 || 1;
 
-// The first Creole or HTML formatting a text uses, if any.
-const formattingIn = (text) =>
-  CREOLE.find((token) => (text || "").toLowerCase().includes(token)) || null;
+// The first Creole or HTML formatting a text uses, if any. PlantUML formats
+// an attribute or operation only between a pair of markers (`//a//`,
+// `<u>a</u>`), and never with `__`, so a member's `List<U>`, one `//` in a URL
+// or a `__proto__` stays as written; titles, names and labels are formatted
+// from a single marker on.
+function formattingIn(text, member = false) {
+  const lower = (text || "").toLowerCase();
+  if (!member) return CREOLE.find((token) => lower.includes(token)) || null;
+  return (
+    CREOLE.find((token) => {
+      if (token === "__") return false;
+      const at = lower.indexOf(token);
+      if (at < 0) return false;
+      const tag = /^<([a-z]+)>$/.exec(token);
+      if (tag) return lower.includes(`</${tag[1]}>`, at);
+      return ["**", "//", '""', "~~"].includes(token)
+        ? lower.includes(token, at + token.length)
+        : true;
+    }) || null
+  );
+}
 
 function syntaxProblem(error, text) {
   if (!/^\s*@startuml/m.test(text))
@@ -451,8 +469,8 @@ class Reader {
         "Object diagrams are scenarios; they are not captured or proposed.",
       );
   }
-  checkText(line, text, what) {
-    const token = formattingIn(text);
+  checkText(line, text, what, member = false) {
+    const token = formattingIn(text, member);
     if (token)
       this.fail(
         line,
@@ -623,7 +641,7 @@ class Reader {
         "MEMBER",
         `Give the attribute a type: \`${member.name} : Type\`.`,
       );
-    this.checkText(line, `${member.name} ${type}`, "The attribute");
+    this.checkText(line, `${member.name} ${type}`, "The attribute", true);
     let key = null;
     for (const stereotype of stereotypes)
       if (
@@ -678,6 +696,7 @@ class Reader {
       member.line,
       `${member.name}(${member.parameters}) ${member.returns || ""}`,
       "The operation",
+      true,
     );
     element.operations.push({
       name: member.name,
@@ -1352,4 +1371,5 @@ module.exports = {
   modelProblems,
   diagramFingerprint,
   foreignKeyColumns,
+  formattingIn,
 };

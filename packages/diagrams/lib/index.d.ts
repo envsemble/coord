@@ -236,16 +236,6 @@ export interface ElementEvidence {
   rationale?: string;
   questions?: ModelingQuestion[];
 }
-export interface ModelEvidence {
-  title?: string;
-  version?: string;
-  status?: string;
-  repositories?: { repo: string; commit: string }[];
-  sources?: SourceRecord[];
-  elements?: Record<string, ElementEvidence>;
-  unknowns?: string[];
-  constraints?: string[][];
-}
 export interface ValidationIssue {
   code: string;
   severity: "error" | "warning" | "info";
@@ -326,6 +316,33 @@ export interface ViewerGeneralizationSet extends ElementEvidence {
   generalizations: string[];
   evidence: string[];
 }
+/** What a capture recorded about its source, from its `' atlas capture` header. */
+export interface CaptureMetadata {
+  capturedAt: string;
+  adapter: { id: string; version: string; [key: string]: unknown };
+  source: {
+    kind: string;
+    identity: string;
+    scope: string[];
+    [key: string]: unknown;
+  };
+  coverage: {
+    status: "complete" | "partial";
+    diagnostics: Record<string, unknown>[];
+    [key: string]: unknown;
+  };
+  [field: string]: unknown;
+}
+/** Planning records a model links to; a diagram file has none of its own. */
+export interface PlanningContext {
+  records: {
+    id: string;
+    kind: "plan" | "glossary" | "decision" | "scenario";
+    text: string;
+    [field: string]: unknown;
+  }[];
+  links: { elementId: string; recordId: string; [field: string]: unknown }[];
+}
 export interface ViewerModel {
   id: string;
   title: string;
@@ -341,35 +358,32 @@ export interface ViewerModel {
   constraints: string[][];
   unknowns: string[];
   validation?: ValidationReport;
-  /** Where the model comes from: a diagram file (`id` and `path` its path) or a legacy document. */
+  /** The diagram file the model comes from: `id` and `path` are its path. */
   document?: {
     id: string;
     path?: string;
     profile: ModelProfile;
     state: "authored" | "snapshot" | "proposal";
-    revision: AtlasDocument["revision"];
+    /** `id` is a hash of the file's text, `createdAt` a capture's date. */
+    revision: {
+      id: string;
+      parentId: string | null;
+      createdAt: string;
+      reason: string;
+    };
     /** What it is compared with: a proposal's baseline, a comparing capture's earlier capture, or its own capture. */
     baselineId: string | null;
-    /** A capture's own snapshot. */
+    /** A capture's own path. */
     captureId?: string;
-    snapshots: Omit<SourceSnapshot, "model" | "integrity" | "profile">[];
+    /** The captures involved: its own and the one it is compared with. */
+    snapshots: {
+      id: string;
+      profile: ModelProfile;
+      capture: CaptureMetadata;
+    }[];
     context: PlanningContext;
-    imported?: boolean;
-    comparison?:
-      | (AtlasDocument["comparison"] & { changes?: SemanticComparison })
-      | null;
+    comparison?: { changes?: SemanticComparison } | null;
   };
-}
-export interface ViewSettings {
-  key: string;
-  nodeIds: string[];
-  label?: string;
-  title?: string;
-  edgeIds?: string[];
-  focusIds?: string[];
-  columns?: string[][];
-  mergeGeneralizations?: boolean;
-  direction?: "RIGHT" | "DOWN";
 }
 export interface DiagramNode {
   id: string;
@@ -451,14 +465,6 @@ export interface PreparedView {
   svg?: string;
   svgFields?: string;
 }
-export interface SourceExcerpt {
-  repo?: string;
-  commit?: string;
-  file: string;
-  startLine: number;
-  language: string;
-  code: string;
-}
 export interface HighlightedExcerpt {
   language: string;
   startLine: number;
@@ -472,7 +478,7 @@ export interface ExportData {
   bundle: string;
 }
 export interface ViewerPayload {
-  /** A document's walkthroughs and assessed examples, when it has any. */
+  /** The scenarios that exemplify a class diagram, assessed, when it has any. */
   learning?: ModelLearning | null;
   model: ViewerModel & { validation: ValidationReport };
   views: Pick<
@@ -488,21 +494,15 @@ export interface ViewerPayload {
       "model" | "views" | "snippets" | "exports"
     >;
     changes: SemanticComparison;
-    /** Always empty: merging went with the model tools. */
+    /** Always empty: there is no merging. */
     conflicts: never[];
   } | null;
   /**
-   * Set on the payloads laid out together (`prepareDiagrams`, or
-   * `prepareFamily` for legacy documents). Viewers switch among the payloads
-   * of one family in place, keeping the camera and the selection.
+   * Set on the payloads `prepareDiagrams` lays out together. Viewers switch
+   * among the payloads of one family in place, keeping the camera and the
+   * selection.
    */
   family?: string;
-}
-/** A legacy capture and its proposals, laid out once: each document's prepared viewer, in the order given. */
-export interface PreparedFamily {
-  /** The baseline snapshot the members share; each payload's `family`. */
-  key: string;
-  members: PreparedViewer[];
 }
 export interface PreparedViewer {
   artifacts: Map<string, string | Uint8Array>;
@@ -516,275 +516,11 @@ export interface BuildResult extends PreparedViewer {
 }
 /** What a model is: a class diagram, a capture of code (and its proposals), an entity diagram or an object diagram. */
 export type ModelProfile = "class" | "code" | "database" | "object";
-export interface StructuralNode {
-  id: string;
-  name: string;
-  kind?: string;
-  attributes: Attribute[];
-  [field: string]: unknown;
-}
-export interface StructuralModel {
-  type: "StructuralModel";
-  nodes: StructuralNode[];
-  relations: (Pick<
-    ViewerAssociation,
-    | "id"
-    | "name"
-    | "sourceId"
-    | "targetId"
-    | "sourceMultiplicity"
-    | "targetMultiplicity"
-  > &
-    Partial<ViewerAssociation> &
-    Record<string, unknown>)[];
-  generalizations: (Pick<
-    ViewerGeneralization,
-    "id" | "specificId" | "generalId"
-  > &
-    Partial<ViewerGeneralization>)[];
-  generalizationSets: (Pick<
-    ViewerGeneralizationSet,
-    "id" | "name" | "generalizations" | "complete" | "disjoint"
-  > &
-    Partial<ViewerGeneralizationSet>)[];
-  [field: string]: unknown;
-}
-export interface CaptureMetadata {
-  capturedAt: string;
-  adapter: { id: string; version: string; [key: string]: unknown };
-  source: {
-    kind: string;
-    identity: string;
-    scope: string[];
-    [key: string]: unknown;
-  };
-  coverage: {
-    status: "complete" | "partial";
-    diagnostics: Record<string, unknown>[];
-    [key: string]: unknown;
-  };
-  [field: string]: unknown;
-}
-export interface SourceSnapshot {
-  id: string;
-  profile: AtlasDocument["profile"];
-  model: StructuralModel;
-  capture: CaptureMetadata;
-  integrity: string;
-}
-export interface PlanningContext {
-  records: {
-    id: string;
-    kind: "plan" | "glossary" | "decision" | "scenario";
-    text: string;
-    [field: string]: unknown;
-  }[];
-  links: { elementId: string; recordId: string; [field: string]: unknown }[];
-}
-export interface AtlasDocument {
-  learning?: LearningContent;
-  reporting?: { scope: string; author?: string };
-  format: "atlas/document";
-  formatVersion: 1;
-  id: string;
-  title: string;
-  profile: "database" | "code";
-  state: "authored" | "snapshot" | "proposal";
-  model: StructuralModel;
-  evidence: ModelEvidence;
-  views: ViewSettings[];
-  snippets: Record<string, SourceExcerpt>;
-  context: PlanningContext;
-  snapshots: SourceSnapshot[];
-  baselineId: string | null;
-  imported?: boolean;
-  comparison?: {
-    originDocumentId?: string;
-    ancestorRevision?: string;
-    ancestorRevisions?: string[];
-    [key: string]: unknown;
-  };
-  workId?: string;
-  revision: {
-    id: string;
-    parentId: string | null;
-    createdAt: string;
-    reason: string;
-  };
-}
-export type CreateDocumentInput = Partial<
-  Omit<AtlasDocument, "revision" | "model">
-> & {
-  parentId?: string;
-  createdAt?: string;
-  reason?: string;
-  model: StructuralModel;
-  profile: AtlasDocument["profile"];
-};
-export function createDocument(input: CreateDocumentInput): AtlasDocument;
-export function reviseDocument(
-  document: AtlasDocument,
-  changes: Partial<
-    Pick<
-      AtlasDocument,
-      | "title"
-      | "model"
-      | "evidence"
-      | "views"
-      | "snippets"
-      | "context"
-      | "learning"
-      | "reporting"
-    >
-  > & { reason?: string },
-  expectedRevision?: string,
-): AtlasDocument;
-/**
- * Record a revision that moves a document to another work item: it changes only
- * `workId` and the `path` of the named context records (null removes a path),
- * and keeps the document's state, including a captured snapshot.
- */
-export function relocateDocument(
-  document: AtlasDocument,
-  changes: {
-    workId?: string;
-    recordPaths?: Record<string, string | null>;
-    reason?: string;
-  },
-  expectedRevision?: string,
-): AtlasDocument;
-export function validateDocument(document: unknown): ValidationReport;
-export function createSnapshot(input: {
-  profile: AtlasDocument["profile"];
-  model: StructuralModel;
-  capture: CaptureMetadata;
-  id?: string;
-}): SourceSnapshot;
-export function documentViewerModel(document: AtlasDocument): ViewerModel;
-export function importDocument(input: string | Uint8Array): AtlasDocument;
-export interface AtlasToolArguments {
-  atlas_scenarios: { handle: string; offset?: number; limit?: number };
-  atlas_proposal: { handle: string; title?: string };
-  atlas_compare: {
-    handle: string;
-    baseHandle?: string;
-    offset?: number;
-    limit?: number;
-  };
-  atlas_capture_code: { file: string; workId?: string };
-  atlas_capture_database: { file: string; workId?: string };
-  atlas_create: { input: Parameters<typeof createDocument>[0] };
-  atlas_load: { file: string };
-  atlas_import: { file: string };
-  atlas_list: { workId?: string; offset?: number; limit?: number };
-  atlas_inspect: {
-    handle: string;
-    elementId?: string;
-    offset?: number;
-    limit?: number;
-  };
-  atlas_revise: {
-    handle: string;
-    expectedRevision: string;
-    changes?: Parameters<typeof reviseDocument>[1];
-    operations?: {
-      action: "upsert" | "delete";
-      collection:
-        | "elements"
-        | "nodes"
-        | "relations"
-        | "generalizations"
-        | "generalizationSets";
-      id: string;
-      value?: Record<string, unknown>;
-    }[];
-  };
-  atlas_validate: { handle: string; offset?: number; limit?: number };
-  atlas_prepare: { handle: string };
-  atlas_export: { handle: string; file?: string };
-}
-export interface AtlasWorkspace {
-  readonly root: string;
-  load(handle: string): AtlasDocument;
-  /** Store a document and its revision history; `expectedRevision` must name the stored revision it replaces. */
-  save(
-    document: AtlasDocument,
-    expectedRevision?: string | null,
-  ): AtlasModelSummary;
-  execute<T extends keyof AtlasToolArguments>(
-    name: T,
-    args: AtlasToolArguments[T],
-  ): Promise<AtlasToolResults[T] | AtlasResultReference>;
-}
-export interface AtlasModelSummary {
-  handle: string;
-  id: string;
-  title: string;
-  profile: ModelProfile;
-  state: AtlasDocument["state"];
-  revision: string;
-  workId: string | null;
-  conflicts: number;
-  elements: number;
-  baselineId: string | null;
-  file: string;
-  captures: {
-    id: string;
-    capturedAt: string;
-    coverage: "complete" | "partial";
-  }[];
-}
-export interface AtlasResultReference {
-  handle: string | null;
-  revision: string | null;
-  resultFile: string;
-  notice: string;
-}
-export interface AtlasToolResults {
-  atlas_scenarios: {
-    total: number;
-    offset: number;
-    scenarios: (ScenarioResult & {
-      title: string;
-      expected: Scenario["expected"];
-    })[];
-  };
-  atlas_proposal: AtlasModelSummary;
-  atlas_compare: SemanticComparison & { total: number; offset: number };
-  atlas_capture_code: AtlasModelSummary;
-  atlas_capture_database: AtlasModelSummary;
-  atlas_create: AtlasModelSummary;
-  atlas_load: AtlasModelSummary;
-  atlas_import: AtlasModelSummary;
-  atlas_revise: AtlasModelSummary;
-  atlas_list: { total: number; offset: number; models: AtlasModelSummary[] };
-  atlas_inspect: AtlasModelSummary & {
-    offset?: number;
-    items?: { id: string; name: unknown; type: string }[];
-    element?: Record<string, unknown>;
-    evidence?: Record<string, unknown>;
-    context?: PlanningContext["records"];
-  };
-  atlas_validate: Pick<
-    ValidationReport,
-    "valid" | "counts" | "issues" | "limitations" | "schema"
-  > & { total: number; offset: number };
-  atlas_prepare: AtlasModelSummary & {
-    payloadFile: string;
-    views: { key: string; title: string; nodes: number }[];
-    validation: ValidationReport["counts"];
-  };
-  atlas_export: AtlasModelSummary & {
-    htmlFile: string;
-    bytes: number;
-    validation: ValidationReport["counts"];
-  };
-}
-export function createWorkspace(root: string): AtlasWorkspace;
 export interface ValueCell {
   present: boolean;
   value?: unknown;
 }
+/** An object diagram as an example of its class diagram. */
 export interface Scenario {
   id: string;
   title: string;
@@ -794,16 +530,6 @@ export interface Scenario {
   contextIds?: string[];
   instances: { id: string; label?: string; classIds: string[] }[];
   links: { relationId: string; sourceId: string; targetId: string }[];
-}
-export interface LearningContent {
-  walkthroughs: {
-    id: string;
-    title: string;
-    contextIds?: string[];
-    elementIds?: string[];
-    steps: { text: string; viewKey?: string; elementIds: string[] }[];
-  }[];
-  scenarios: Scenario[];
 }
 export interface ScenarioResult {
   id: string;
@@ -818,23 +544,18 @@ export interface ScenarioResult {
   unassessed: { elementId: string | null; message: string }[];
   limitations: string[];
 }
-/** The viewer's guide to a model: its walkthroughs and assessed examples. */
+/** The viewer's guide to a model: its assessed examples. */
 export interface ModelLearning {
-  walkthroughs: LearningContent["walkthroughs"];
+  walkthroughs: {
+    id: string;
+    title: string;
+    contextIds?: string[];
+    elementIds?: string[];
+    steps: { text: string; viewKey?: string; elementIds: string[] }[];
+  }[];
   scenarios: (Scenario & { result: ScenarioResult })[];
-  /** The document's stated scope (`reporting.scope`), when it has one. */
   scope?: string;
 }
-export interface ModelExplanation {
-  elementId: string;
-  text: string;
-  assessed: boolean;
-}
-export function checkScenario(
-  document: AtlasDocument,
-  scenarioId: string,
-): ScenarioResult;
-export function explainModel(model: ViewerModel): ModelExplanation[];
 export interface SemanticChange {
   id: string;
   elementId: string | null;
@@ -853,42 +574,60 @@ export interface SemanticComparison {
   proposedRevision?: string;
   missingRationale?: string[];
 }
-export function compareModels(
-  base: unknown,
-  proposed: unknown,
-): SemanticComparison;
-export function compareDocuments(
-  base: AtlasDocument,
-  proposed: AtlasDocument,
-): SemanticComparison;
-export function createProposal(
-  base: AtlasDocument,
-  options?: { id?: string; title?: string; reason?: string },
-): AtlasDocument;
+/**
+ * An offline viewer in one HTML file: a viewer `prepared` with its artifacts
+ * by {@link prepareDiagrams}, carrying the diagram `file` it shows.
+ */
+export function buildViewer(input: {
+  prepared: PreparedViewer;
+  file?: DiagramFile;
+}): Promise<BuildResult>;
+export function writeViewer(result: BuildResult, outputPath: string): void;
+
+/**
+ * What every capture takes. A capture returns a diagram file's text: a class
+ * diagram of code or an entity diagram of a database, with the `' atlas
+ * capture` header (source, date, adapter and version, coverage and
+ * diagnostics, limitations and the fingerprints of what was read), its `'
+ * atlas fingerprint`, and where each element is declared. Captured again from
+ * an unchanged source, a capture differs only in its date and fingerprint. A
+ * capture that fails rejects with an error whose message starts with its code
+ * (`CAPTURE_CONFIG`, `CAPTURE_PREREQUISITE`, `CAPTURE_SCOPE`,
+ * `CAPTURE_LIMIT`, …).
+ */
+export interface CaptureOptions {
+  /** The source's name: letters, numbers, dots, colons and dashes. */
+  identity: string;
+  /** The diagram's title; by default `<identity> classes` or `<identity> schema`. */
+  title?: string;
+}
 export interface CodeCaptureProject {
   identity: string;
+  /** Its folder; its files, tsconfig and classpath are relative to it. */
   path: string;
+  /** Its repository's web address, for links; by default its Git remote `origin`. */
   repositoryUrl?: string;
 }
-export function captureTypeScript(options: {
-  identity: string;
-  title?: string;
-  workId?: string;
-  projects: (CodeCaptureProject & { tsconfig?: string })[];
-}): Promise<AtlasDocument>;
-export function captureJava(options: {
-  identity: string;
-  title?: string;
-  workId?: string;
-  java?: string;
-  projects: (CodeCaptureProject & { files: string[]; classpath?: string[] })[];
-}): Promise<AtlasDocument>;
-export interface DatabaseCaptureOptions {
-  identity: string;
-  title?: string;
-  workId?: string;
+/** A class diagram of TypeScript projects, read with the TypeScript 6.0.3 compiler. */
+export function captureTypeScript(
+  options: CaptureOptions & {
+    projects: (CodeCaptureProject & { tsconfig?: string })[];
+  },
+): Promise<string>;
+/** A class diagram of Java source files, read with a JDK 21 or newer; `java` names its launcher. */
+export function captureJava(
+  options: CaptureOptions & {
+    java?: string;
+    projects: (CodeCaptureProject & {
+      files: string[];
+      classpath?: string[];
+    })[];
+  },
+): Promise<string>;
+export interface DatabaseCaptureOptions extends CaptureOptions {
   schemas?: string[];
   tables?: string[];
+  /** Files (such as migrations) describing a table, cited as its evidence. */
   references?: {
     table: string;
     schema?: string;
@@ -897,127 +636,29 @@ export interface DatabaseCaptureOptions {
     url?: string;
   }[];
 }
+/** An entity diagram of a SQLite database file, read only. */
 export function captureSQLite(
   options: DatabaseCaptureOptions & { file: string },
-): Promise<AtlasDocument>;
+): Promise<string>;
+/** An entity diagram of PostgreSQL 17 schemas, read in a read-only transaction. */
 export function capturePostgres(
   options: Omit<DatabaseCaptureOptions, "tables"> & {
     connectionString: string;
     schemas: string[];
   },
-): Promise<AtlasDocument>;
+): Promise<string>;
+/** An entity diagram of a D1 database, read twice through `queryBatch`. */
 export function captureD1(
   options: DatabaseCaptureOptions & {
     queryBatch(queries: string[]): Promise<Record<string, unknown>[][]>;
     execution?: string;
   },
-): Promise<AtlasDocument>;
-export const toolDefinitions: {
-  name: keyof AtlasToolArguments;
-  description: string;
-  inputSchema: Record<string, unknown>;
-}[];
-/** A legacy document's viewer. Diagram files are prepared by {@link prepareDiagrams}. */
-export function prepareViewer(input: {
-  document: AtlasDocument;
-  includeArtifacts?: boolean;
-  slug?: string;
-}): Promise<PreparedViewer>;
+): Promise<string>;
 /**
- * Lays out a capture and the proposals over its snapshot (`familyKey`) once,
- * so each member's classes and routes keep their places from one member to
- * the next. At least one document must be a proposal; all must share the
- * baseline snapshot and profile.
+ * A capture described by a source configuration file: JSON matching
+ * `code-source-schema` or `database-source-schema`, its paths relative to the
+ * file. It captures TypeScript, Java, SQLite, PostgreSQL (connecting through
+ * the environment variable its `connectionEnv` names) or local D1 through
+ * Wrangler.
  */
-export function prepareFamily(input: {
-  documents: AtlasDocument[];
-  slug?: string;
-  includeArtifacts?: boolean;
-}): Promise<PreparedFamily>;
-/** The baseline snapshot a capture or a proposal shares with its family; null for other documents. */
-export function familyKey(document: AtlasDocument): string | null;
-/**
- * An offline viewer in one HTML file: a viewer `prepared` with its artifacts
- * by {@link prepareDiagrams}, carrying the diagram `file` it shows; or a
- * legacy document.
- */
-export function buildViewer(
-  input:
-    | { prepared: PreparedViewer; file?: DiagramFile }
-    | { document: AtlasDocument; slug?: string },
-): Promise<BuildResult>;
-export function writeViewer(result: BuildResult, outputPath: string): void;
-export type ReviewRevision =
-  | { file: string }
-  | { repository: string; ref: string; path: string };
-export interface EvidenceRepository {
-  identity: string;
-  repository: string;
-  baseRef: string;
-  headRef: string;
-}
-export interface ModelReview {
-  format: "atlas/review";
-  formatVersion: 1;
-  base: {
-    documentId: string;
-    revision: string;
-    commit?: string;
-    path?: string;
-    contentHash?: string;
-  };
-  head: {
-    documentId: string;
-    revision: string;
-    commit?: string;
-    path?: string;
-    contentHash?: string;
-  };
-  outcome: "pass" | "findings";
-  exitCode: 0 | 1;
-  changes: SemanticComparison;
-  validation: ValidationReport;
-  scenarios: ScenarioResult[];
-  unresolvedConflicts: number;
-  evidence: {
-    checks: {
-      id: string;
-      repo: string | null;
-      file: string;
-      status: "unchanged" | "changed" | "missing" | "stale" | "unassessed";
-      reason: string;
-      baseCommit?: string;
-      headCommit?: string;
-      baseHash?: string | null;
-      headHash?: string | null;
-      capturedHash?: string | null;
-    }[];
-    counts: Record<string, number>;
-    sources: { identity: string; baseCommit: string; headCommit: string }[];
-    limitations: string[];
-  };
-  limitations: string[];
-}
-export interface ReviewBuildInput {
-  base: ReviewRevision;
-  head: ReviewRevision;
-  sources?: EvidenceRepository[];
-}
-export function reviewDocuments(
-  base: AtlasDocument,
-  head: AtlasDocument,
-  options?: { sources?: EvidenceRepository[] },
-): ModelReview;
-export function buildReview(
-  input: ReviewBuildInput,
-): Promise<{ report: ModelReview; files: Map<string, string | Uint8Array> }>;
-export function writeReview(
-  input: ReviewBuildInput & { outputDirectory: string },
-): Promise<{
-  exitCode: 0 | 1;
-  outcome: "pass" | "findings";
-  base: ModelReview["base"];
-  head: ModelReview["head"];
-  outputDirectory: string;
-  files: string[];
-}>;
+export function captureFromConfig(file: string): Promise<string>;

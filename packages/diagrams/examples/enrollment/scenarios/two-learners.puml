@@ -1,0 +1,11 @@
+@startuml
+title One enrollment, two learners
+' atlas scenario ../enrollment.puml expected invalid
+object "ada : Person" as ada
+object "alan : Person" as alan
+object "mit : Institution" as mit
+object "e1 : UndergraduateEnrollment" as e1
+e1 -- ada : learner
+e1 -- alan : learner
+e1 -- mit : school
+@enduml

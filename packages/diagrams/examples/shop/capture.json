@@ -1,0 +1,7 @@
+{
+  "formatVersion": 1,
+  "adapter": "typescript",
+  "identity": "shop",
+  "title": "Shop checkout",
+  "projects": [{ "identity": "shop", "path": "." }]
+}

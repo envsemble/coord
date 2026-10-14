@@ -20,13 +20,13 @@ Atlas keeps plans, decisions and diagrams where both a coding agent and its huma
 | [App](app/README.md)                 | The desktop app for Windows and Linux: one window per planning folder with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams.   |
 | [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas` and `atlas-implement` skills, and the hooks.                                     |
 | [`atlas` command](docs/command.md)   | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.               |
-| [Diagram package](packages/diagrams) | Lays out and renders diagrams, and exports self-contained offline HTML. Used by the app and the command.                                                 |
+| [Diagram package](packages/diagrams) | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.        |
 | [Planning reader](packages/planning) | The planning-folder reader and planning operations shared by the app, the host and the command, including [plan export and import](docs/plan-export.md). |
 | [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, to the devices you pair.                                 |
 
 ## Get started
 
-Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for Envsemble's private envUI package; [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run) shows how.
+Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for Envsemble's private envUI package; [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run) shows how. Java capture also needs a **JDK 21** or newer, and PostgreSQL capture needs a supported PostgreSQL 17 schema.
 
 1. **Install the `atlas` command** from a clone of this repository, and set Atlas up for your agents:
 
@@ -81,11 +81,13 @@ The skills work in Codex and Claude Code and name no model or provider. A standa
 
 ## Diagrams
 
-A work item can carry diagrams that explain its plan: conceptual class diagrams of the domain, captures of code and databases, and proposals built on them. They are files in the work folder, written in a subset of PlantUML that Atlas checks and renders in its own viewer, and the app shows each one under the plan heading it explains. The [atlas skill](plugin/skills/atlas/references/diagrams.md) tells agents how to write them.
+A diagram is a `.puml` file in a work item, in Atlas's subset of PlantUML: a class diagram of concepts or code, an entity diagram of a database, or an object diagram of example instances. The agent writes and edits diagrams like any file, and links each from the plan under the heading it explains; the hooks check them after every edit. `atlas capture` writes captures of TypeScript and Java code (through the compiler) and of SQLite, PostgreSQL and local D1 databases, frozen and dated. A proposal starts as a copy of a capture and shows an intended change, and a capture taken after implementing a plan compares with the one taken before. Atlas lays out and draws every diagram itself, in the app, in plan exports and in offline HTML. See [diagrams](docs/diagrams.md).
+
+![An agent proposal in its change view: new and changed classes and relations marked on the canvas, unchanged ones faded, and the Changes list beside it with each changed type's members summarized](assets/comparison-dark.jpg)
 
 ## Develop
 
-[Contributing](CONTRIBUTING.md) covers the layout of this repository, the development servers and the checks CI runs. CI runs them on Linux and Windows, including the packaged app's end-to-end tests, and builds revision-labelled [review artifacts](docs/review-ci.md) and versioned [release ZIPs](docs/releases.md). No release is published or deployed.
+[Contributing](CONTRIBUTING.md) covers the layout of this repository, the development servers and the checks CI runs. CI runs them on Linux and Windows, including the packaged app's end-to-end tests, and builds versioned [release ZIPs](docs/releases.md). No release is published or deployed.
 
 [Changelog](CHANGELOG.md) · [Release instructions](docs/releases.md) · [Repository history maps](docs/history/README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
