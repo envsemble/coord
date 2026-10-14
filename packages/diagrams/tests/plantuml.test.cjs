@@ -257,6 +257,51 @@ test("everything outside the subset is an error at its line and column that says
     ["A : x : int", /Write A's members inside its body/],
     ["}", /This brace does not open or close/],
     ["abstract Thing", /`abstract class`/],
+    // What PlantUML would read otherwise, or not at all.
+    ["A -- B : x \\", /PlantUML joins a line that ends in `\\`/],
+    ["' see C:\\x\\", /PlantUML joins a line that ends in `\\`/],
+    ["title <", /Give the title a word.*\(`<`\)/],
+    ["title >", /Give the title a word/],
+    ["title {", /Give the title a word/],
+    ["title <<draft>> Orders", /The title has a stereotype \(`<<draft>>`\)/],
+    [
+      `class ${String.fromCodePoint(0x1f600)}`,
+      /could not read this declaration/,
+    ],
+    [
+      "class C {\n  x : int {static}\n}",
+      /no member modifiers; remove `\{static\}`/,
+    ],
+    [
+      "class C {\n  f() : int {abstract}\n}",
+      /no member modifiers; remove `\{abstract\}`/,
+    ],
+    [
+      "class C {\n  f() {Abstract}\n}",
+      /no member modifiers; remove `\{Abstract\}`/,
+    ],
+    [
+      "class C {\n  f() : int <<x>>\n}",
+      /The operation has a stereotype \(`<<x>>`\)/,
+    ],
+    ["class C {\n  x : a <<b>> c\n}", /The attribute has a stereotype/],
+    ["A -- B : <<uses>>", /The label has a stereotype \(`<<uses>>`\)/],
+    ["enum E {\n  __Weird__\n}", /reads `__Weird__` as a separator/],
+    // Misleading messages, named for what is wrong.
+    [
+      "enum E {\n  A = 1\n}",
+      /Enum literals have no values in Atlas; write the literal's name alone, `A`/,
+    ],
+    ["title: Orders", /Write the title without a colon: `title Orders`/],
+    ["x : int", /`x : int` stands outside any body/],
+    [
+      '\' atlas evidence {"file":"a.ts","url":"javascript:alert(1)"}\nclass C',
+      /Evidence links a `url` starting with http:\/\/ or https:\/\//,
+    ],
+    [
+      `' atlas snippet ${JSON.stringify({ language: "ts", code: "x\n".repeat(12) + "y" })}\nclass C`,
+      /A snippet is at most twelve lines/,
+    ],
   ];
   for (const [line, message] of cases) {
     const problems = atlas.checkDiagram(withLine(line));
@@ -303,6 +348,90 @@ test("everything outside the subset is an error at its line and column that says
     atlas.checkDiagram(withLine("title List<U>"))[0].message,
     /title uses formatting/,
   );
+  // A label reads as a member does, so it names columns as they are; an enum
+  // literal is a separator only between two `__`.
+  assert.deepEqual(
+    atlas.checkDiagram(
+      withLine(
+        "A -- B : customer__id, x__y__z\nA --> B : see //docs\nenum E {\n  a__b\n  __c\n}",
+      ),
+    ),
+    [],
+  );
+  // A body opened on its own line is reported once, at its `{`.
+  assert.deepEqual(
+    atlas
+      .checkDiagram(withLine('class "C c" as C\n{\n  x : int\n  f()\n}'))
+      .map((p) => [p.line, p.message]),
+    [
+      [
+        5,
+        'Open C\'s body at the end of its declaration, `class "C c" as C {`; Atlas reads no body from a `{` on a line of its own.',
+      ],
+    ],
+  );
+  // An object's slot values are read as a member is.
+  const slots = atlas.checkDiagram(
+    '@startuml\nobject "a : P" as a {\n  name = "**Ada**"\n  url = "http://x"\n}\na : nick = __A__\na : bold = **Ada**\n@enduml\n',
+  );
+  assert.deepEqual(
+    slots.map((p) => [p.line, p.code]),
+    [
+      [3, "FORMATTING"],
+      [7, "FORMATTING"],
+    ],
+  );
+});
+
+test("an entity's primary key columns stand above its separator, and its other columns below", () => {
+  const entity = (body) =>
+    atlas
+      .checkDiagram(`@startuml\nentity t {\n${body}\n}\n@enduml\n`)
+      .map((p) => [p.line, p.message]);
+  assert.deepEqual(entity("  *id : int <<PK>>\n  --\n  name : text"), []);
+  assert.deepEqual(entity("  *id : int <<PK>>\n  *code : text <<PK>>"), []);
+  assert.deepEqual(entity("  name : text\n  note : text"), []);
+  assert.deepEqual(entity("  a : int\n  --\n  *id : int <<PK>>"), [
+    [
+      4,
+      "The `--` separator stands below an entity's <<PK>> columns; write them above it, or remove it when the entity has none.",
+    ],
+    [5, "Move the <<PK>> column id above the `--` separator."],
+  ]);
+  assert.deepEqual(entity("  *id : int <<PK>>\n  a : int\n  --\n  b : int"), [
+    [4, "Only <<PK>> columns stand above the `--` separator; move a below it."],
+  ]);
+  assert.deepEqual(entity("  *id : int <<PK>>\n  name : text"), [
+    [
+      4,
+      "List t's <<PK>> columns first, with a `--` line below them and its other columns below that.",
+    ],
+  ]);
+});
+
+test("a deeply nested unclosed package is read in linear time", () => {
+  const nested = (depth, closing) =>
+    "@startuml\n" +
+    Array.from(
+      { length: depth },
+      (_, i) => `package p${i} {\n  class C${i}\n`,
+    ).join("") +
+    "}\n".repeat(closing) +
+    "@enduml\n";
+  const started = performance.now();
+  for (const closing of [0, 29])
+    assert.deepEqual(
+      atlas.checkDiagram(nested(30, closing)).map((p) => p.code),
+      ["UNCLOSED"],
+    );
+  assert.deepEqual(
+    atlas
+      .checkDiagram(nested(30, 0).replace("@enduml\n", ""))
+      .map((p) => p.code),
+    ["SYNTAX"],
+  );
+  // Each level read twice would take minutes; once, a few milliseconds.
+  assert(performance.now() - started < 2000);
 });
 
 test("a file must be one @startuml … @enduml diagram of one kind", () => {
@@ -336,6 +465,16 @@ test("a file must be one @startuml … @enduml diagram of one kind", () => {
   assert.deepEqual(
     only("@startuml\ntitle A\ntitle B\n@enduml\n")[0].slice(0, 2),
     [3, "TITLE"],
+  );
+  assert.deepEqual(
+    only("@startuml\nclass A\n@enduml\n@startuml\nclass B\n@enduml\n"),
+    [
+      [
+        4,
+        "SYNTAX",
+        "A file holds one diagram; move the diagram from this `@startuml` to its `@enduml` into a file of its own.",
+      ],
+    ],
   );
   // Windows line endings, a byte order mark and a missing final newline read alike.
   assert.deepEqual(atlas.checkDiagram("﻿@startuml\r\nclass A\r\n@enduml"), []);
@@ -510,6 +649,68 @@ test("' atlas comments carry captures, proposals, comparisons, scenarios and evi
   );
 });
 
+// A capture of code whose names and types PlantUML would read as more than
+// text, or join with the next line, if they were written as they are.
+function awkwardCapture() {
+  const { codeDiagram } = require("../lib/capture/write.cjs");
+  const node = (id, name, kind, members) => ({
+    id,
+    name,
+    package: null,
+    kind,
+    abstract: false,
+    attributes: [],
+    methods: [],
+    literals: [],
+    ...members,
+  });
+  const attribute = (name, type) => ({ name, type, modifiers: [] });
+  return codeDiagram({
+    title: "Awkward \\",
+    capture: CAPTURE,
+    nodes: [
+      node("e", "Mode", "enum", {
+        literals: [{ name: "__Weird__" }, { name: "a__b" }],
+      }),
+      node("s", `Smile${String.fromCodePoint(0x1f600)}`, "class", {
+        attributes: [
+          attribute("count", "int {static}"),
+          attribute("tagged", "a <<b>> c"),
+          attribute("path", "C:\\dir\\"),
+        ],
+        methods: [
+          {
+            name: "run",
+            parameters: "x : {Abstract}",
+            returns: "int <<x>>",
+            modifiers: [],
+          },
+        ],
+      }),
+    ],
+    generalizations: [],
+    dependencies: [],
+  });
+}
+
+test("a capture writes what PlantUML would misread so that it reads as written", () => {
+  const text = awkwardCapture();
+  assert.deepEqual(atlas.checkDiagram(text), []);
+  assert.match(text, /^title Awkward$/m);
+  assert.match(text, /^enum Mode \{\n {2}_Weird__\n {2}a__b\n\}$/m);
+  assert.match(
+    text,
+    new RegExp(
+      `^class "Smile${String.fromCodePoint(0x1f600)}" as Smile_ \\{$`,
+      "mu",
+    ),
+  );
+  assert.match(text, /^ {2}count : int \{ static \}$/m);
+  assert.match(text, /^ {2}tagged : a < < b>> c$/m);
+  assert.match(text, /^ {2}path : \(C:\\dir\\\)$/m);
+  assert.match(text, /^ {2}run\(x : \{ Abstract \}\) : \(int < < x>>\)$/m);
+});
+
 test("a capture is frozen: an edit no longer matches its fingerprint", () => {
   const text = captureText();
   assert.deepEqual(atlas.checkDiagram(text.replace(/\n/g, "\r\n")), []);
@@ -562,6 +763,26 @@ test("a proposal's and a comparison's baselines must exist, read and be of their
   };
   assert.deepEqual(check(after("shop.puml")), []);
   assert.match(check(after("schema.puml"))[0], /schema.puml is not a capture/);
+  // Baselines never come round again: to this file, or among themselves.
+  files["p.puml"] = proposal("p.puml");
+  assert.deepEqual(check(files["p.puml"]), [
+    "The baselines run in a cycle (p.puml → p.puml); a proposal or a capture names an earlier diagram, never itself or one that leads back to it.",
+  ]);
+  files["q.puml"] = proposal("r.puml");
+  files["r.puml"] = proposal("q.puml");
+  assert.match(
+    check(files["q.puml"])[0],
+    /cycle \(p\.puml → r\.puml → q\.puml → r\.puml\)/,
+  );
+  assert.match(
+    check(proposal("q.puml"))[0],
+    /cycle \(p\.puml → q\.puml → r\.puml → q\.puml\)/,
+  );
+  files["c.puml"] = after("c.puml");
+  assert.match(
+    check(files["c.puml"]).join(),
+    /cycle \(p\.puml → c\.puml → c\.puml\)/,
+  );
 });
 
 test("a diagram becomes the viewer's model, identified by names", () => {
@@ -993,6 +1214,11 @@ test(
         text,
       })),
       ...workFolder().filter((f) => f.path !== "broken.puml"),
+      { path: "awkward.puml", text: awkwardCapture() },
+      {
+        path: "edges.puml",
+        text: "@startuml\ntitle Edges\nclass A\nclass B\nenum E {\n  a__b\n  __c\n}\nA -- B : customer__id, x__y__z\nA --> B : see //docs\n@enduml\n",
+      },
     ];
     const names = [];
     for (const [i, file] of files.entries()) {
@@ -1017,17 +1243,34 @@ test(
       { encoding: "utf8" },
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    // And it rejects what Atlas reports as unclosed.
-    const broken = path.join(directory, "broken.puml");
-    fs.writeFileSync(broken, "@startuml\nclass A {\n@enduml\n");
-    assert.notEqual(
-      spawnSync("java", [
-        "-jar",
-        process.env.ATLAS_TEST_PLANTUML_JAR,
-        "-checkonly",
-        broken,
-      ]).status,
-      0,
-    );
+    // And it rejects these, which Atlas reports too: an unclosed body, titles
+    // of symbols only, relating a name beyond the Basic Multilingual Plane and
+    // a line joined with the `}` after it.
+    const smile = String.fromCodePoint(0x1f600);
+    for (const [i, body] of [
+      "class A {",
+      "title <",
+      "title >",
+      "title {",
+      `class A${smile}\nclass B\nA${smile} -- B`,
+      "class A {\n  x : a\\\n}",
+      "object a {\n  x = a\\\n}",
+    ].entries()) {
+      const text = `@startuml\n${body}\n@enduml\n`;
+      assert.notDeepEqual(atlas.checkDiagram(text), [], body);
+      const broken = path.join(directory, `broken-${i}.puml`);
+      fs.writeFileSync(broken, text);
+      assert.notEqual(
+        spawnSync("java", [
+          "-Djava.awt.headless=true",
+          "-jar",
+          process.env.ATLAS_TEST_PLANTUML_JAR,
+          "-checkonly",
+          broken,
+        ]).status,
+        0,
+        body,
+      );
+    }
   },
 );

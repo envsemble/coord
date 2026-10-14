@@ -13,16 +13,14 @@ function assessScenario(model, scenario) {
     unassessed = [],
     add = (code, message, elementId, instanceId) =>
       issues.push({ code, message, elementId, instanceId });
+  // An instance of a class is an instance of what it inherits and of the
+  // interfaces it implements; an interface, like an abstract class, has no
+  // instances of its own.
   const parents = new Map(),
     classes = new Map(model.classes.map((n) => [n.id, n]));
+  const isAbstract = (type) =>
+    type?.isAbstract || type?.abstract || type?.stereotype === "interface";
   for (const g of model.generalizations) {
-    if (g.realization) {
-      unassessed.push({
-        elementId: g.id,
-        message: "Implementation is not an instance membership assertion.",
-      });
-      continue;
-    }
     if (!parents.has(g.specificId)) parents.set(g.specificId, []);
     parents.get(g.specificId).push(g.generalId);
   }
@@ -37,12 +35,11 @@ function assessScenario(model, scenario) {
       pending.push(...(parents.get(id) || []));
     }
     memberships.set(instance.id, found);
-    for (const abstractId of [...found].filter(
-      (id) => classes.get(id)?.isAbstract || classes.get(id)?.abstract,
+    for (const abstractId of [...found].filter((id) =>
+      isAbstract(classes.get(id)),
     )) {
       const supported = instance.classIds.some((concreteId) => {
-        const type = classes.get(concreteId);
-        if (type?.isAbstract || type?.abstract) return false;
+        if (isAbstract(classes.get(concreteId))) return false;
         const seen = new Set(),
           pending = [concreteId];
         while (pending.length) {

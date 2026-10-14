@@ -4,6 +4,7 @@
 // what to do instead. `checkDiagram` adds the model rules and the rules of the
 // `' atlas` headers, which may need the files a header names.
 const { createHash } = require("node:crypto");
+const { posix } = require("node:path");
 const { parse } = require("./parser.cjs");
 
 const MULTIPLICITY = /^(?:\d+|\*)(?:\.\.(?:\d+|\*))?$/;
@@ -135,11 +136,15 @@ const problem = (line, column, code, message) => ({
 // The column of the first character a statement writes.
 const columnOf = (lines, line) => (lines[line - 1] || "").search(/\S/) + 1 || 1;
 
+// Member modifiers, which PlantUML reads anywhere in a member's line.
+const MODIFIER = /\{(?:static|abstract|classifier|field|method)\}/i;
+
 // The first Creole or HTML formatting a text uses, if any. PlantUML formats
-// an attribute or operation only between a pair of markers (`//a//`,
-// `<u>a</u>`), and never with `__`, so a member's `List<U>`, one `//` in a URL
-// or a `__proto__` stays as written; titles, names and labels are formatted
-// from a single marker on.
+// an attribute, operation, slot or relation label only between a pair of
+// markers (`//a//`, `<u>a</u>`), and never with `__`, so a member's `List<U>`,
+// one `//` in a URL or a `__proto__` stays as written; titles, names and
+// packages are formatted from a single marker on. (A body line that starts
+// and ends with `__`, such as an enum literal `__A__`, is a separator.)
 function formattingIn(text, member = false) {
   const lower = (text || "").toLowerCase();
   if (!member) return CREOLE.find((token) => lower.includes(token)) || null;
@@ -157,6 +162,8 @@ function formattingIn(text, member = false) {
   );
 }
 
+// The problem of a file the grammar cannot read; without an error, of one
+// that is not worth reading.
 function syntaxProblem(error, text) {
   if (!/^\s*@startuml/m.test(text))
     return problem(1, 1, "SYNTAX", "A diagram starts with a line `@startuml`.");
@@ -164,6 +171,17 @@ function syntaxProblem(error, text) {
     const line = text.split(/\r?\n/).length;
     return problem(line, 1, "SYNTAX", "A diagram ends with a line `@enduml`.");
   }
+  if (!error) return null;
+  const starts = text
+    .split(/\r?\n/)
+    .flatMap((l, i) => (/^\s*@startuml/.test(l) ? [i + 1] : []));
+  if (starts.length > 1)
+    return problem(
+      starts[1],
+      1,
+      "SYNTAX",
+      "A file holds one diagram; move the diagram from this `@startuml` to its `@enduml` into a file of its own.",
+    );
   const { line, column } = error.location?.start || { line: 1, column: 1 };
   return problem(
     line,
@@ -183,6 +201,8 @@ function parseDiagram(text, options = {}) {
     throw new TypeError("parseDiagram needs the diagram's text");
   const source = text.replace(/^\uFEFF/, "");
   const lines = source.split(/\r?\n/);
+  const unreadable = syntaxProblem(null, source);
+  if (unreadable) return { diagram: null, problems: [unreadable] };
   let tree;
   try {
     tree = parse(source.endsWith("\n") ? source : `${source}\n`);
@@ -234,6 +254,15 @@ class Reader {
       );
     if (tree.end.rest)
       this.fail(tree.end.line, "END", "Write `@enduml` alone on its line.");
+    this.lines.forEach((text, i) => {
+      if (/\\\s*$/.test(text))
+        this.fail(
+          i + 1,
+          "CONTINUATION",
+          "PlantUML joins a line that ends in `\\` with the next one; end this line with something other than a backslash.",
+          text.lastIndexOf("\\") + 1,
+        );
+    });
     this.statements(tree.statements, null);
     this.annotate(null);
     if (this.kinds.size > 1)
@@ -254,6 +283,19 @@ class Reader {
   statements(statements, packageName) {
     for (const statement of statements) {
       if (statement.type !== "atlas") this.annotate(statement);
+      // The lines of a body opened on a line of its own are reported once,
+      // with its `{`.
+      if (this.strayBody) {
+        if (statement.type === "unknown" && statement.text === "}") {
+          this.strayBody = false;
+          continue;
+        }
+        if (
+          ["memberLine", "unknown", "blank", "comment"].includes(statement.type)
+        )
+          continue;
+        this.strayBody = false;
+      }
       switch (statement.type) {
         case "blank":
         case "comment":
@@ -270,7 +312,13 @@ class Reader {
             );
           else if (this.diagram.title !== null)
             this.fail(statement.line, "TITLE", "A diagram has one `title`.");
-          this.checkText(statement.line, statement.text, "The title");
+          if (!/[\p{L}\p{N}]/u.test(statement.text))
+            this.fail(
+              statement.line,
+              "TITLE",
+              `Give the title a word; PlantUML cannot read a title of symbols only (\`${statement.text}\`).`,
+            );
+          else this.checkText(statement.line, statement.text, "The title");
           this.diagram.title ??= statement.text;
           break;
         case "package":
@@ -300,6 +348,8 @@ class Reader {
         default:
           this.unknown(statement);
       }
+      if (!["blank", "comment", "atlas"].includes(statement.type))
+        this.previous = statement;
     }
   }
   // Evidence and snippets describe the element, member or relation that
@@ -338,20 +388,27 @@ class Reader {
     if (keyword === "evidence" || keyword === "snippet") {
       const value = json();
       if (value) {
-        const check =
+        const wrong =
           keyword === "evidence"
-            ? typeof value.file === "string" && value.file
-            : typeof value.code === "string" &&
-              typeof value.language === "string";
-        if (check) this.pending.push({ line, key: keyword, value });
-        else
-          this.fail(
-            line,
-            "ATLAS_JSON",
-            keyword === "evidence"
+            ? !(typeof value.file === "string" && value.file)
               ? "Evidence names at least its `file`."
-              : "A snippet has its `language` and `code`.",
-          );
+              : value.url !== undefined &&
+                  !(
+                    typeof value.url === "string" &&
+                    /^https?:\/\//.test(value.url)
+                  )
+                ? "Evidence links a `url` starting with http:// or https://."
+                : null
+            : !(
+                  typeof value.code === "string" &&
+                  typeof value.language === "string"
+                )
+              ? "A snippet has its `language` and `code`."
+              : value.code.split(/\r?\n/).length > 12
+                ? "A snippet is at most twelve lines; shorten its `code`."
+                : null;
+        if (wrong) this.fail(line, "ATLAS_JSON", wrong);
+        else this.pending.push({ line, key: keyword, value });
       }
       return;
     }
@@ -469,13 +526,30 @@ class Reader {
         "Object diagrams are scenarios; they are not captured or proposed.",
       );
   }
-  checkText(line, text, what, member = false) {
+  // Text PlantUML would read as more than text: formatting, a stereotype and,
+  // in a member, a modifier such as `{static}`. `member` reads formatting as
+  // PlantUML reads a member's (and a label's).
+  checkText(line, text, what, member = false, modifiers = member) {
     const token = formattingIn(text, member);
+    const stereotype = /<<[^<>]*>>/.exec(text || "");
+    const modifier = modifiers && MODIFIER.exec(text || "");
     if (token)
       this.fail(
         line,
         "FORMATTING",
         `${what} uses formatting (\`${token}\`); Atlas diagrams are plain text.`,
+      );
+    else if (stereotype)
+      this.fail(
+        line,
+        "STEREOTYPE",
+        `${what} has a stereotype (\`${stereotype[0]}\`); Atlas has none but <<PK>> and <<FK>> after an entity column. Remove it.`,
+      );
+    else if (modifier)
+      this.fail(
+        line,
+        "MEMBER",
+        `Atlas has no member modifiers; remove \`${modifier[0]}\`.`,
       );
   }
   package(statement, packageName) {
@@ -539,28 +613,39 @@ class Reader {
         "GENERIC",
         `Only classes and interfaces take type parameters; remove \`${statement.generic}\`.`,
       );
-    let separators = 0;
+    let separator = null;
     for (const member of members || []) {
       if (member.type !== "atlas") this.annotate(member);
       if (member.type === "atlas") this.atlas(member, packageName, true);
       else if (member.type === "separator") {
-        separators++;
         if (kind !== "entity")
           this.fail(
             member.line,
             "SEPARATOR",
             "Only entities take the `--` separator below their key columns; remove it.",
           );
-        else if (separators > 1)
+        else if (separator)
           this.fail(
             member.line,
             "SEPARATOR",
             "An entity has one `--` separator.",
           );
+        else
+          separator = { line: member.line, above: element.attributes.length };
       } else if (member.type === "field") this.field(element, member);
       else if (member.type === "method") this.operation(element, member);
       else if (member.type === "literal") {
-        if (kind === "enum")
+        if (
+          kind === "enum" &&
+          /^__/.test(member.name) &&
+          /__$/.test(member.name)
+        )
+          this.fail(
+            member.line,
+            "MEMBER",
+            `PlantUML reads \`${member.name}\` as a separator with a title; rename the literal so that it does not both start and end with \`__\`.`,
+          );
+        else if (kind === "enum")
           element.literals.push({
             name: member.name,
             line: member.line,
@@ -575,22 +660,62 @@ class Reader {
               : `Give the attribute a type: \`${member.name} : Type\`.`,
           );
       } else if (member.type === "slot") {
-        if (kind === "object")
+        if (kind === "object") {
+          this.checkText(member.line, member.value, "The slot's value", true);
           element.slots.push({
             name: member.name,
             value: member.value,
             line: member.line,
           });
-        else
+        } else
           this.fail(
             member.line,
             "MEMBER",
-            "Only objects have slot values (`name = value`); write an attribute as `name : Type`.",
+            kind === "enum"
+              ? `Enum literals have no values in Atlas; write the literal's name alone, \`${member.name}\`.`
+              : "Only objects have slot values (`name = value`); write an attribute as `name : Type`.",
           );
       } else if (member.type === "unknown") this.unknownMember(member, kind);
     }
     this.annotate(null);
+    if (kind === "entity") this.entityKeys(element, separator);
     this.diagram.elements.push(element);
+  }
+  // An entity's primary key columns stand above its `--` separator, and its
+  // other columns below it.
+  entityKeys(element, separator) {
+    const columns = element.attributes;
+    if (!separator) {
+      const other = columns.find((a) => a.key !== "PK");
+      if (other && columns.some((a) => a.key === "PK"))
+        this.fail(
+          other.line,
+          "SEPARATOR",
+          `List ${element.id}'s <<PK>> columns first, with a \`--\` line below them and its other columns below that.`,
+        );
+      return;
+    }
+    const keyed = columns.slice(0, separator.above).some((a) => a.key === "PK");
+    if (!keyed)
+      this.fail(
+        separator.line,
+        "SEPARATOR",
+        "The `--` separator stands below an entity's <<PK>> columns; write them above it, or remove it when the entity has none.",
+      );
+    columns.forEach((a, i) => {
+      if (i >= separator.above && a.key === "PK")
+        this.fail(
+          a.line,
+          "SEPARATOR",
+          `Move the <<PK>> column ${a.name} above the \`--\` separator.`,
+        );
+      else if (keyed && i < separator.above && a.key !== "PK")
+        this.fail(
+          a.line,
+          "SEPARATOR",
+          `Only <<PK>> columns stand above the \`--\` separator; move ${a.name} below it.`,
+        );
+    });
   }
   annotations(statement) {
     return {
@@ -607,7 +732,9 @@ class Reader {
           ? `Draw inheritance as a relation of its own, \`${id} ${extra.startsWith("extends") ? "--|>" : "..|>"} ${extra.split(/\s+/)[1] || "Parent"}\`, instead of \`${extra}\`.`
           : /^as\b/.test(extra)
             ? `Write a display name first: \`${kind} "Display name" as ${id}\`.`
-            : `Atlas does not support \`${extra}\` after a declaration.`;
+            : /^[\uD800-\uDFFF]/.test(extra)
+              ? `PlantUML cannot relate an element whose name has a character such as \`${String.fromCodePoint(extra.codePointAt(0))}\`; give it a display name, \`${kind} "${id}${extra.split(/[\s{]/)[0]}" as ${id}\`.`
+              : `Atlas does not support \`${extra}\` after a declaration.`;
     this.fail(line, "DECLARATION", message);
   }
   field(element, member) {
@@ -711,8 +838,8 @@ class Reader {
     const text = member.text;
     const message = /^(?:\.\.|==|__|---)/.test(text)
       ? "Atlas does not draw separators in bodies; remove this line."
-      : /^\{(?:static|abstract|field|method|classifier)\}/i.test(text)
-        ? `Atlas has no member modifiers; remove \`${/^\{[^}]*\}/.exec(text)[0]}\`.`
+      : MODIFIER.test(text)
+        ? `Atlas has no member modifiers; remove \`${MODIFIER.exec(text)[0]}\`.`
         : /<</.test(text)
           ? "Atlas has no stereotypes on members."
           : kind === "object"
@@ -729,7 +856,9 @@ class Reader {
       (e) => e.id === statement.target,
     );
     const slot = /^([A-Za-z_][\w]*)\s*=\s*(.+)$/.exec(statement.text);
+    const { target, text } = statement;
     if (element?.kind === "object" && slot) {
+      this.checkText(statement.line, slot[2], "The slot's value", true);
       element.slots.push({
         name: slot[1],
         value: slot[2].trim(),
@@ -742,7 +871,13 @@ class Reader {
       "MEMBER_LINE",
       element && element.kind !== "object"
         ? `Write ${element.id}'s members inside its body: \`${element.kind} ${element.id} {\` … \`}\`.`
-        : `Declare the object ${statement.target} before its slots, and write a slot as \`${statement.target} : name = value\`.`,
+        : element
+          ? `Write a slot of ${target} as \`${target} : name = value\`.`
+          : target === "title"
+            ? `Write the title without a colon: \`title ${text}\`.`
+            : slot
+              ? `Declare the object ${target} before its slots, and write a slot as \`${target} : name = value\`.`
+              : `\`${target} : ${text}\` stands outside any body; write members inside their element's body, \`class Name {\` … \`}\`, and relations with an arrow, \`A -- B : label\`.`,
     );
   }
   rejected(statement) {
@@ -764,6 +899,21 @@ class Reader {
   unknown(statement) {
     const text = statement.text;
     const word = /^[^\s{(]*/.exec(text)[0];
+    const previous = this.previous;
+    if (
+      text === "{" &&
+      previous?.type === "element" &&
+      previous.members === null &&
+      !previous.extra
+    ) {
+      this.fail(
+        statement.line,
+        "UNSUPPORTED",
+        `Open ${previous.id}'s body at the end of its declaration, \`${previous.kind} ${previous.quoted ? `"${previous.name}" as ${previous.id}` : previous.id}${previous.generic || ""} {\`; Atlas reads no body from a \`{\` on a line of its own.`,
+      );
+      this.strayBody = true;
+      return;
+    }
     for (const [pattern, message] of REJECTED_LINES)
       if (pattern.test(text)) {
         this.fail(
@@ -820,7 +970,7 @@ class Reader {
     const kind = this.diagram.kind;
     const label = statement.label || null;
     if (label !== null) {
-      this.checkText(line, label, "The label");
+      this.checkText(line, label, "The label", true, false);
       if (/^[<>]\s|\s[<>]$|^[<>]$/.test(label))
         fail(
           "Atlas draws relations itself; remove the reading direction (`<` or `>`) from the label.",
@@ -1149,6 +1299,15 @@ function checkDiagram(text, options = {}) {
       `${baseline.name} is ${article(baseline.diagram.kind)} diagram; a proposal keeps its baseline's kind.`,
     );
   const before = reference("compares", 1);
+  for (const found of [baseline, before])
+    if (found) {
+      const cycle = baselineCycle(found.name, read, options.path);
+      if (cycle)
+        found.fail(
+          "REFERENCE_CYCLE",
+          `The baselines run in a cycle (${cycle.join(" → ")}); a proposal or a capture names an earlier diagram, never itself or one that leads back to it.`,
+        );
+    }
   if (before) {
     if (!before.diagram.capture)
       before.fail(
@@ -1208,6 +1367,25 @@ function checkDiagram(text, options = {}) {
 }
 const article = (kind) =>
   kind === "object" || kind === "entity" ? `an ${kind}` : `a ${kind}`;
+/**
+ * The chain of baselines from the one named `name` when it comes round again,
+ * to this file or to one of its own; null when it ends. Names are relative to
+ * this file, `file` being its path.
+ */
+function baselineCycle(name, read, file) {
+  const named = (reference) => posix.normalize(reference.replace(/\\/g, "/"));
+  const chain = file ? [posix.basename(named(file))] : [];
+  for (let path = named(name); chain.length < 100; ) {
+    if (chain.includes(path)) return [...chain, path];
+    chain.push(path);
+    const text = read(path);
+    const diagram = typeof text === "string" && parseDiagram(text).diagram;
+    const next = diagram && (diagram.proposal || diagram.compares);
+    if (!next) return null;
+    path = named(posix.join(posix.dirname(path), named(next)));
+  }
+  return null;
+}
 
 // --- Writing ---------------------------------------------------------------
 
@@ -1218,7 +1396,8 @@ const quoted = (text) => {
     );
   return `"${text}"`;
 };
-const NAME = /^[A-Za-z_\u00C0-\uFFEF][A-Za-z0-9_\u00C0-\uFFEF]*$/;
+const NAME =
+  /^[A-Za-z_\u00C0-\uD7FF\uE000-\uFFEF][A-Za-z0-9_\u00C0-\uD7FF\uE000-\uFFEF]*$/;
 function declaredName(element) {
   if (!NAME.test(element.id))
     throw new Error(

@@ -58,9 +58,7 @@ Statement
   / RejectedBlock
   / Title
   / Package
-  / UnclosedPackage
   / Element
-  / UnclosedElement
   / Relation
   / MemberLine
 
@@ -82,13 +80,18 @@ Title
   = _ "title" Space text:$(!NL .)+ NL
     { return { type: "title", ...at(), text: text.trim() }; }
 
+// A package, or one whose body runs to `@enduml`. Each is read once, so
+// nested unclosed packages take no longer than closed ones.
 Package
-  = _ "package" Space name:PackageName extra:Extra "{" _ NL body:Inner* _ "}" _ NL
-    { return { type: "package", ...at(), name, extra, body }; }
+  = _ "package" Space name:PackageName extra:Extra "{" _ NL body:Inner* closed:Close
+    { return closed ? { type: "package", ...at(), name, extra, body } : { type: "unclosed", ...at(), what: "package", name }; }
 
-UnclosedPackage
-  = _ "package" Space name:PackageName Extra "{" _ NL Inner* &End
-    { return { type: "unclosed", ...at(), what: "package", name }; }
+// The `}` that closes a body, or `@enduml` where it is missing.
+Close
+  = _ "}" _ NL
+    { return true; }
+  / &End
+    { return false; }
 
 PackageName
   = Quoted
@@ -97,14 +100,10 @@ PackageName
 // A class, abstract class, interface, enum, entity or object, with or without
 // a body.
 Element
-  = _ kind:ElementKind Space name:ElementName generic:Generic? extra:Extra "{" _ NL members:Member* _ "}" _ NL
-    { return { type: "element", ...at(), kind, ...name, generic, extra, members }; }
+  = _ kind:ElementKind Space name:ElementName generic:Generic? extra:Extra "{" _ NL members:Member* closed:Close
+    { return closed ? { type: "element", ...at(), kind, ...name, generic, extra, members } : { type: "unclosed", ...at(), what: kind, name: name.name }; }
   / _ kind:ElementKind Space name:ElementName generic:Generic? extra:Extra NL
     { return { type: "element", ...at(), kind, ...name, generic, extra, members: null }; }
-
-UnclosedElement
-  = _ kind:ElementKind Space name:ElementName Generic? Extra "{" _ NL Member* &End
-    { return { type: "unclosed", ...at(), what: kind, name: name.name }; }
 
 ElementKind
   = "abstract" Space "class" { return "abstract class"; }
@@ -209,7 +208,7 @@ RejectedBlock
     { return { type: "rejected", ...at(), what: "style" }; }
   / _ "/'" (!"'/" .)* "'/" _ NL
     { return { type: "rejected", ...at(), what: "block comment" }; }
-  / _ "together" _ "{" _ NL body:Inner* _ "}" _ NL
+  / _ "together" _ "{" _ NL body:Inner* Close
     { return { type: "rejected", ...at(), what: "together", body }; }
 
 Unknown
@@ -224,8 +223,10 @@ Quoted
   = "\"" text:$[^"\n\r]* "\""
     { return text; }
 
+// Letters of the Basic Multilingual Plane, without surrogate halves: PlantUML
+// reads no name with a character beyond it.
 Name
-  = $([A-Za-z_\u00C0-\uFFEF] [A-Za-z0-9_\u00C0-\uFFEF]*)
+  = $([A-Za-z_\u00C0-\uD7FF\uE000-\uFFEF] [A-Za-z0-9_\u00C0-\uD7FF\uE000-\uFFEF]*)
 
 Visibility
   = [-#~+]

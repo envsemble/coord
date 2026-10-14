@@ -299,6 +299,34 @@ test("a key to a table outside the selection is told by the diagnostics and the 
   );
 });
 
+// Columns whose names PlantUML would read as more than text elsewhere: a
+// relation's label names them exactly.
+const underscores = `CREATE TABLE customer(id INTEGER PRIMARY KEY);
+CREATE TABLE orders(id INTEGER PRIMARY KEY,
+  customer__id INTEGER NOT NULL REFERENCES customer(id),
+  a__b__c INTEGER REFERENCES customer(id));`;
+
+test("a foreign key column with `__` in its name is named by its relation as it is", async (t) => {
+  const root = fixture(t),
+    file = path.join(root, "underscores.sqlite"),
+    db = new DatabaseSync(file);
+  db.exec(underscores);
+  db.close();
+  const d = read(await captureSQLite({ file, identity: "underscores" }));
+  assert.deepEqual(
+    table(d, "orders").attributes.map((a) => [a.name, a.key]),
+    [
+      ["id", "PK"],
+      ["customer__id", "FK"],
+      ["a__b__c", "FK"],
+    ],
+  );
+  assert.deepEqual(keys(d), [
+    ["customer", "orders", "a__b__c", "0..1", "0..*"],
+    ["customer", "orders", "customer__id", "1", "0..*"],
+  ]);
+});
+
 test("a table the configuration names a reference for cites it", async (t) => {
   const root = fixture(t),
     file = path.join(root, "refs.sqlite"),
@@ -521,11 +549,19 @@ test(
       db = new DatabaseSync(file);
     db.exec(sql);
     db.close();
-    const diagram = path.join(root, "schema.puml");
-    fs.writeFileSync(
-      diagram,
-      await captureSQLite({ file, identity: "fixture" }),
-    );
+    const other = path.join(root, "underscores.sqlite"),
+      second = new DatabaseSync(other);
+    second.exec(underscores);
+    second.close();
+    const diagrams = [
+      [file, "fixture"],
+      [other, "underscores"],
+    ];
+    for (const [source, identity] of diagrams)
+      fs.writeFileSync(
+        path.join(root, `${identity}.puml`),
+        await captureSQLite({ file: source, identity }),
+      );
     const result = require("node:child_process").spawnSync(
       "java",
       [
@@ -533,7 +569,7 @@ test(
         "-jar",
         process.env.ATLAS_TEST_PLANTUML_JAR,
         "-checkonly",
-        diagram,
+        ...diagrams.map(([, identity]) => path.join(root, `${identity}.puml`)),
       ],
       { encoding: "utf8" },
     );

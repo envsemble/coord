@@ -12,13 +12,16 @@ const {
 } = require("../plantuml/diagram.cjs");
 
 const MARKERS = ["**", "//", '""', "__", "~~", "[["];
-// Text as written, on one line, with any formatting marker broken by a space.
-// A name or a label has no double quotes.
+// Text as written, on one line, with any formatting marker, stereotype and
+// member modifier broken by a space. A name has no double quotes, and does
+// not end in a backslash, which would join its line with the next.
 function plain(text, member = false) {
   let value = String(text ?? "")
     .replace(/\s+/g, " ")
-    .trim();
-  if (!member) value = value.replace(/"/g, "'");
+    .trim()
+    .replace(/<<(?=[^<>]*>>)/g, "< < ")
+    .replace(/\{(static|abstract|classifier|field|method)\}/gi, "{ $1 }");
+  if (!member) value = value.replace(/"/g, "'").replace(/\s*\\+$/, "");
   for (let i = 0; i < 4 && formattingIn(value, member); i++) {
     for (const marker of MARKERS)
       value = value.replaceAll(marker, `${marker[0]} ${marker[1]}`);
@@ -26,19 +29,24 @@ function plain(text, member = false) {
   }
   return value;
 }
-// A PlantUML name for a source name. Outside members, PlantUML underlines
-// between two `__`, so an element name has single underscores.
+// A PlantUML name for a source name: letters of the Basic Multilingual Plane,
+// digits and underscores. Outside members, PlantUML underlines between two
+// `__`, so an element name has single underscores.
 function plantName(text, member = false) {
-  let name = String(text).replace(/[^A-Za-z0-9_\u00C0-\uFFEF]+/g, "_");
+  let name = String(text).replace(
+    /[^A-Za-z0-9_\u00C0-\uD7FF\uE000-\uFFEF]+/g,
+    "_",
+  );
   if (!member) name = name.replace(/_{2,}/g, "_");
-  if (!/^[A-Za-z_\u00C0-\uFFEF]/.test(name)) name = `_${name}`;
+  if (!/^[A-Za-z_\u00C0-\uD7FF\uE000-\uFFEF]/.test(name)) name = `_${name}`;
   return name;
 }
 // A type as an attribute's line reads it: brackets at its end would be read
-// as a multiplicity and `<<…>>` as a stereotype, so such a type is wrapped.
+// as a multiplicity and a backslash as joining the next line, so such a type
+// is wrapped.
 function typeText(text) {
   const type = plain(text, true) || "unknown";
-  return /\[[^\[\]]+\]\s*$|>>\s*$/.test(type) ? `(${type})` : type;
+  return /\[[^\[\]]+\]\s*$|>>\s*$|\\$/.test(type) ? `(${type})` : type;
 }
 // Parameters between balanced parentheses.
 function parameterText(text) {
@@ -81,11 +89,13 @@ function uniqueNames(items, choices) {
   }
   return names;
 }
-// Members' names, unique within their element.
-function memberNames(members) {
+// Members' names, unique within their element. A literal that starts and
+// ends with `__` would be read as a separator, so it starts with one `_`.
+function memberNames(members, literals = false) {
   const taken = new Set();
   return members.map((m) => {
-    const base = plantName(m.name, true);
+    let base = plantName(m.name, true);
+    if (literals && /^__/.test(base) && /__$/.test(base)) base = base.slice(1);
     let name = base;
     for (let n = 2; taken.has(name); n++) name = `${base}_${n}`;
     taken.add(name);
@@ -191,7 +201,7 @@ function codeDiagram({
         ...(a.evidence ? { evidence: a.evidence } : {}),
       })),
       operations: [...operations.values()],
-      literals: memberNames(kind === "enum" ? n.literals || [] : []).map(
+      literals: memberNames(kind === "enum" ? n.literals || [] : [], true).map(
         (name, i) => ({
           name,
           ...(n.literals[i].evidence
@@ -297,7 +307,8 @@ function entityDiagram({ title, capture, tables, foreignKeys }) {
       )
         ? fk.sourceMultiplicity
         : "0..*",
-      label: plain(columns.filter(Boolean).join(", ")) || null,
+      // The columns' PlantUML names exactly, which a label shows as written.
+      label: columns.filter(Boolean).join(", ") || null,
     });
   }
   const elements = tables.map((t) => {

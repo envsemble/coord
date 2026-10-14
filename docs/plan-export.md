@@ -45,7 +45,7 @@ Both JSON elements are inert data; every `<` in them is written as the JSON esca
 }
 ```
 
-`files` lists every file of the work folder by work-folder-relative POSIX path, sorted. It includes `.atlas/models` and `.atlas/history`, so diagrams keep their revisions. It leaves out Atlas's transient output (`.atlas/results`, `.atlas/prepared`, `.atlas/exports`, lock and temporary files), the agent-reported work statistics (`.atlas/statistics.jsonl`), other hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, a Markdown file relative to the work folder and outside `.atlas/`, or `null` for a legacy item without one. `repositories` carries the work's repository scope with their registered names (not local checkout paths). Git history is not exported.
+`files` lists every file of the work folder by work-folder-relative POSIX path, sorted, its diagram files (`*.puml`) among them; a diagram's revisions are its Git history. It leaves out Atlas's transient output (`.atlas/results`, `.atlas/prepared`, `.atlas/exports`, lock and temporary files), the agent-reported work statistics (`.atlas/statistics.jsonl`), other hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, a Markdown file relative to the work folder and outside `.atlas/`, or `null` for a legacy item without one. `repositories` carries the work's repository scope with their registered names (not local checkout paths). Git history is not exported.
 
 Text in the manifest (title, planning folder, repository names and remotes, paths) may not contain control characters, so it cannot rewrite a terminal when it is shown.
 
@@ -64,14 +64,10 @@ Embedded content is displayed, never executed. Raw HTML in Markdown is left out.
 3. The target must pass `atlas planning check`; otherwise the import is refused with guidance to bootstrap a planning repository.
 4. The work gets the next free number: one more than the highest registered work ID, skipping any number an unregistered folder in `active/` or `archive/` already uses. It keeps the source's location: `<active|archive>/<NNNN>-<slug>/`, with the slug cut to 100 characters. Importing the same file twice creates two work items.
 5. The files are written to a hidden temporary folder beside the destination and renamed into place.
-6. The work's identity is rewritten:
-   - the main plan's `id` and the ledger's `work_id` metadata lines, keeping their quoting, line endings and byte order mark;
-   - each diagram's `workId`, through a recorded model revision ("Imported as work-NNNN", made with the diagram package's `relocateDocument`), so revision integrity holds and captured snapshots stay snapshots.
-7. References to other work are cleared, because they name work in the source planning folder:
-   - the plan's `supersedes` becomes `[]` and `superseded_by` becomes `null`;
-   - diagram context record paths that reach the work folder through the planning root (`../../active/0003-x/plan.md` or `active/0003-x/plan.md`) are rewritten work-relative, and paths that point outside the work folder (such as `../../knowledge/…`) are removed, keeping the record's retained text. This happens in the same recorded model revision.
+6. The work's identity is rewritten: the main plan's `id` and the ledger's `work_id` metadata lines, keeping their quoting, line endings and byte order mark.
+7. References to other work are cleared, because they name work in the source planning folder: the plan's `supersedes` becomes `[]` and `superseded_by` becomes `null`.
 
-   Every other byte, including earlier revisions and history files, is as exported.
+   Every other byte, diagrams included, is as exported: a diagram names no work, and its references to other diagrams are relative to it, so captures stay frozen.
 
 8. `evidence/import-provenance.json` records the original planning folder, work ID, title, location and folder, the export time and Atlas version, every rewrite and cleared reference with its original value, and the repositories it registered. It uses the export's own spelling of the evidence folder. When that name is taken (compared as a case-insensitive, normalizing filesystem would, so `Import-Provenance.json` counts), as when re-importing an imported item, the earlier record is kept and this one is written as `import-provenance-2.json`.
 9. The item is registered in `planning.json` by inserting its entry after the last one, in the style of its neighbours (indentation, inline or multi-line arrays, line endings and byte order mark); repositories the target does not know are registered the same way, with their remotes. When a repository ID is already registered under another name or remote, the work uses the registered entry and the notes say so. The rest of the file is untouched.
