@@ -183,7 +183,7 @@ test('a work row opens from anywhere on it, and its diagram count opens its diag
   await expect(window.locator('.model-picker-title')).toBeVisible();
   // One link names the row for the keyboard and screen readers.
   await views(window).getByRole('button', { name: /^Work/ }).click();
-  await expect(row.getByRole('link')).toHaveText(['Order fulfilment model', /1/]);
+  await expect(row.getByRole('link')).toHaveText(['Order fulfilment model', /2/]);
 });
 
 test('going back finds a document where it was before a jump to one of its headings', async () => {
