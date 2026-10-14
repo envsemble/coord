@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { close, launch, planningFixture, removeDirectory, temporaryDirectory, type Launched } from './app';
@@ -269,6 +269,30 @@ test('an element chip and a link in the plan open the diagram at that element, a
   await expect(window.locator('.model-picker-title')).toHaveText('Fulfilment · conceptual model');
   await window.locator('.model-picker-button').hover();
   await expect(details.getByRole('heading', { level: 1 })).toHaveText('Order');
+});
+
+test('a card sits under its heading however the heading is written, and a fragment may name a class as it reads', async () => {
+  const work = path.join(folder, 'active/0002-order-fulfilment-model');
+  writeFileSync(path.join(work, 'diagrams/lines.puml'), '@startuml\ntitle Order lines\nclass "Order Item" as OrderItem\nclass Order\nOrder "1" *-- "1..*" OrderItem : lines\n@enduml\n');
+  const plan = path.join(work, 'plan.md');
+  writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## The `order_items` table\n\nEach row is an [order item](diagrams/lines.puml#Order%20Item).\n\n## Open questions\n\nThe [lines](diagrams/lines.puml) again.\n');
+  launched = await launch({ folder });
+  const { window } = launched;
+  await window.locator('.work-row', { hasText: 'Order fulfilment model' }).getByRole('link', { name: 'Order fulfilment model' }).click();
+  const after = (heading: Locator) => heading.locator('xpath=following-sibling::*[1]');
+  // Code and underscores in a heading, and the second of two equal headings, each get their card.
+  const table = after(window.locator('.prose h2', { hasText: 'order_items' }));
+  await expect(table).toHaveClass(/diagram-cards/);
+  await expect(table.locator('.element-chip')).toHaveText(['Order Item']);
+  const questions = window.locator('.prose h2', { hasText: 'Open questions' });
+  await expect(questions).toHaveCount(2);
+  await expect(after(questions.first())).not.toHaveClass(/diagram-cards/);
+  await expect(after(questions.last())).toContainText('Order lines');
+  // The chip names the class by its display name; the diagram opens at it.
+  await table.locator('.element-chip').click();
+  await expect(window.locator('.model-picker-title')).toHaveText('Order lines');
+  await window.locator('.model-picker-button').hover();
+  await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Order Item');
 });
 
 test('a diagram with problems shows them instead of drawing', async () => {

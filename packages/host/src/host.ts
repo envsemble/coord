@@ -532,8 +532,12 @@ export class Host {
   private async listed() {
     const entries = await this.folderList.entries();
     const known = new Set(entries.map(entry => pathKey(entry.path)));
-    const home = (await homePlanningFolders(this.options.home)).filter(folder => !known.has(pathKey(folder)));
-    return [...entries, ...home.map(folder => ({ path: folder, openedAt: null }))];
+    const home = await homePlanningFolders(this.options.home);
+    const inHome = new Set(home.map(folder => pathKey(folder)));
+    return [
+      ...entries.map(entry => ({ ...entry, inHome: inHome.has(pathKey(entry.path)) })),
+      ...home.filter(folder => !known.has(pathKey(folder))).map(folder => ({ path: folder, openedAt: null, inHome: true })),
+    ];
   }
 
   /** The computer's folder list, as clients see it: newest first, each with whether it is still there. */
@@ -545,7 +549,7 @@ export class Host {
         const info = await inspectPlanningRoot(entry.path).catch(() => null);
         return { info, available: info !== null || await stat(entry.path).then(found => found.isDirectory(), () => false) };
       })(), folderCheck).catch(() => ({ info: null, available: false }));
-      return { folderId: this.folders.idOf(entry.path), path: entry.path, name: path.basename(entry.path) || entry.path, openedAt: entry.openedAt, available: checked.available, workItems: checked.info?.workItems ?? null };
+      return { folderId: this.folders.idOf(entry.path), path: entry.path, name: path.basename(entry.path) || entry.path, openedAt: entry.openedAt, available: checked.available, workItems: checked.info?.workItems ?? null, inHome: entry.inHome };
     }));
   }
   /** A folder was opened here: it moves to the top of the folder list, which every client sees. */
@@ -617,8 +621,8 @@ export class Host {
       }
       case 'folders.remove': {
         const root = await this.pathOf((p as { folderId: string }).folderId);
-        if (root && !(await this.folderList.entries()).some(entry => pathKey(entry.path) === pathKey(root)) && (await homePlanningFolders(this.options.home)).some(folder => pathKey(folder) === pathKey(root))) {
-          throw new HostError('not-found', 'Planning folders in the Atlas home are always listed; move the folder out of the home to remove it.');
+        if (root && (await homePlanningFolders(this.options.home)).some(folder => pathKey(folder) === pathKey(root))) {
+          throw new HostError('forbidden', 'Planning folders in the Atlas home are always listed; move the folder out of the home to remove it.');
         }
         if (!root || !await this.folderList.remove(root)) throw new HostError('not-found', 'This folder is not on the folder list.');
         this.broadcastFolders();

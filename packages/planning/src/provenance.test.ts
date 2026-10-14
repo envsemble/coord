@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { describeProvenance, modelSummary, type ProvenanceSource } from './provenance.ts';
+import { describeProvenance, elementId, modelSummary, type ProvenanceSource } from './provenance.ts';
 
 test('the picker describes each diagram in one short line', () => {
   const summary = (kind: string, detail: string, profile = 'code') => modelSummary({ profile, provenance: { kind, detail } });
@@ -34,4 +34,11 @@ test('provenance reads as the viewer words it', async () => {
   ];
   for (const [diagram, document] of cases) assert.deepEqual(describeProvenance(diagram), viewer.describeProvenance(document as never), JSON.stringify(diagram));
   assert.equal(describeProvenance(undefined).kind, 'unknown');
+});
+
+test('a fragment names an element by its id first, then a class by its display name', () => {
+  const model = { classes: [{ id: 'OrderItem', name: 'Order Item' }, { id: 'Order', name: 'Order' }, { id: 'Line', name: 'OrderItem' }] };
+  assert.equal(elementId(model, 'Order Item'), 'OrderItem');
+  assert.equal(elementId(model, 'OrderItem'), 'OrderItem', 'an id wins over a display name');
+  assert.equal(elementId(model, 'OrderItem.quantity'), 'OrderItem.quantity', 'members and relations keep their ids');
 });

@@ -6,7 +6,7 @@ import type { DiagramEntry, Target, Work } from './types';
 import { api } from './api';
 import { workTarget } from './targets';
 import { selectDiagram } from './diagramSelection';
-import { modelSummary } from '@envsemble/atlas-planning/provenance';
+import { elementId, modelSummary } from '@envsemble/atlas-planning/provenance';
 import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { DiagramIcon } from './icons';
@@ -48,11 +48,15 @@ function describe(diagram: DiagramEntry, diagrams: DiagramEntry[], payload: View
 }
 /**
  * The one chooser of what the Diagrams section shows: a compact menu of the work item's diagrams, by
- * family. A proposal says how many changes it makes once it is here, so alternatives read apart.
+ * family. A proposal says how many changes it makes once it is here, so alternatives read apart. Its
+ * owner keeps whether it is open: the picker moves into the drawn diagram's toolbar when the diagram
+ * arrives, and a menu opened while it loaded stays open there.
  */
-function DiagramPicker({ diagrams, selected, payloads, onSelect }: { diagrams: DiagramEntry[]; selected: string; payloads: Map<string, ViewerPayload>; onSelect(path: string): void }) {
+function DiagramPicker({ diagrams, selected, payloads, open, onOpenChange, onSelect }: {
+  diagrams: DiagramEntry[]; selected: string; payloads: Map<string, ViewerPayload>; open: boolean; onOpenChange(open: boolean): void; onSelect(path: string): void;
+}) {
   const current = diagrams.find(diagram => diagram.path === selected);
-  return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu"
+  return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu" open={open} onOpenChange={onOpenChange}
     trigger={<Button variant="secondary" className="model-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
       <span className="model-picker-title">{current?.title ?? (selected ? 'Unavailable diagram' : 'Choose a diagram')}</span>
       {current && <ProvenanceBadge provenance={current.provenance} />}
@@ -97,6 +101,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [shown, setShown] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const listed = diagrams ?? [];
   const selected = selectDiagram(listed, shown, target.diagram || '');
   const entry = listed.find(diagram => diagram.path === selected);
@@ -139,7 +144,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
   }, [fullscreen]);
 
   const select = (next: string) => retarget(workTarget(work.id, 'diagrams', { diagram: next }));
-  const picker = listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={loaded?.payloads ?? new Map()} onSelect={select} /> : null;
+  const picker = listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={loaded?.payloads ?? new Map()} open={pickerOpen} onOpenChange={setPickerOpen} onSelect={select} /> : null;
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
   const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
@@ -148,7 +153,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
   return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: target.element } : null}
+        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: elementId(payload.model, target.element) } : null}
           leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>

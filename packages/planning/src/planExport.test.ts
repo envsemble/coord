@@ -449,7 +449,7 @@ test('carries the diagrams with the links to them, drawn as the app draws them',
   const orders = view.diagrams.find(diagram => diagram.path === 'diagrams/orders.puml')!;
   assert.equal(orders.title, 'Orders');
   assert.equal(orders.payload!.model.document?.path, 'diagrams/orders.puml');
-  assert.deepEqual(orders.references, [{ path: 'CONTEXT.md', section: 'Orders', element: 'OrderLine' }, { path: 'plan.md', section: 'Data model', element: 'Order' }]);
+  assert.deepEqual(orders.references, [{ path: 'CONTEXT.md', section: 'orders', element: 'OrderLine' }, { path: 'plan.md', section: 'data-model', element: 'Order' }]);
 });
 
 test('lays a family out together, and exports a diagram it cannot draw undrawn', async t => {
@@ -468,5 +468,17 @@ test('lays a family out together, and exports a diagram it cannot draw undrawn',
   assert.equal(diagram('broken.puml').payload, null);
   assert.match(diagram('broken.puml').error!, /^Line 4: .*direction/);
   assert(warnings.includes('The diagram diagrams/broken.puml is exported but cannot be drawn in the viewer.'));
+});
 
+test('a family that cannot be laid out leaves the other diagrams drawn', async t => {
+  const source = temporary(t);
+  fixture(source);
+  const prepare = atlas.prepareDiagrams;
+  t.mock.method(atlas, 'prepareDiagrams', (options: Parameters<typeof prepare>[0]) =>
+    !options?.paths || options.paths.includes('diagrams/captured.puml') ? Promise.reject(new Error('layout failed')) : prepare(options));
+  const { html, warnings } = await exportPlan(source, 'work-0001', { now });
+  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { path: string; payload: ViewerPayload | null; error: string | null }[] };
+  const drawn = Object.fromEntries(view.diagrams.map(item => [item.path, item.payload !== null]));
+  assert.deepEqual(drawn, { 'diagrams/captured.puml': false, 'diagrams/orders.puml': true, 'diagrams/proposed.puml': false });
+  assert.deepEqual(warnings.filter(warning => /cannot be drawn/.test(warning)).length, 2);
 });

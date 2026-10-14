@@ -124,7 +124,7 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   assert.equal(payload.family, 'diagrams/checkout-capture.puml');
   assert.equal(payload.siblings?.length, 2);
   const references = await connection.request('folder.references', { folderId: opened.folderId, work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md' });
-  assert.deepEqual(references.find(reference => reference.element === 'CardSession'), { workId: 'work-0001', path: 'diagrams/checkout-capture.puml', title: 'Checkout · captured TypeScript', provenance: diagrams[1].provenance, section: 'Current checkout', element: 'CardSession' });
+  assert.deepEqual(references.find(reference => reference.element === 'CardSession'), { workId: 'work-0001', path: 'diagrams/checkout-capture.puml', title: 'Checkout · captured TypeScript', provenance: diagrams[1].provenance, section: 'current-checkout', element: 'CardSession' });
   assert.equal((await connection.request('folder.diagramIndex', { folderId: opened.folderId })).length, 8);
   for (const path of ['../planning.json', 'plan.md', '/etc/x.puml'])
     await assert.rejects(connection.request('folder.diagram', { folderId: opened.folderId, work: 'work-0001', path }), (error: HostRequestError) => error.code === 'invalid-argument', path);
@@ -311,9 +311,12 @@ test('the folder list starts from the recent folders and the folders the first r
   cpSync(fixture, inHome, { recursive: true });
   mkdirSync(path.join(data, 'planning', 'not-planning'));
   const withHome = await owner.connection.request('folders.list', {});
-  assert.deepEqual(withHome.map(entry => [entry.path, entry.openedAt]), [[older, after[0].openedAt], [recent, null], [shared, null], [inHome, null]]);
-  await assert.rejects(owner.connection.request('folders.remove', { folderId: withHome[3].folderId }), (error: HostRequestError) => error.code === 'not-found' && /Atlas home/.test(error.message));
+  assert.deepEqual(withHome.map(entry => [entry.path, entry.openedAt, entry.inHome]), [[older, after[0].openedAt, false], [recent, null, false], [shared, null, false], [inHome, null, true]]);
+  await assert.rejects(owner.connection.request('folders.remove', { folderId: withHome[3].folderId }), (error: HostRequestError) => error.code === 'forbidden' && /Atlas home/.test(error.message));
   assert.equal((await owner.connection.request('folders.open', { path: inHome, remember: false })).folderId, withHome[3].folderId);
+  // Opened, so on the list itself, it still cannot leave it.
+  await owner.connection.request('folders.open', { path: inHome });
+  await assert.rejects(owner.connection.request('folders.remove', { folderId: withHome[3].folderId }), (error: HostRequestError) => error.code === 'forbidden');
   // The settings are saved as version 2 by the next change, without the shared folders.
   await owner.connection.request('access.update', { settings: { network: { enabled: false, address: null, port: 7346 } } });
   const rewritten = JSON.parse(readFileSync(file, 'utf8'));

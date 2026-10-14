@@ -105,15 +105,15 @@ test('links in a document attach diagrams under their headings, with the element
   const catalog = new DiagramCatalog(root);
   const references = await catalog.references(snapshot, 'work-1', 'active/1/plan.md');
   assert.deepEqual(references.map(item => [item.workId, item.path, item.title, item.section, item.element]), [
-    ['work-1', 'glossary.puml', 'Glossary', 'Checkout', null],
-    ['work-1', 'glossary.puml', 'Glossary', 'Data model', 'Order'],
-    ['work-1', 'glossary.puml', 'Glossary', 'Data model', 'Line'],
-    ['work-1', 'proposals/vault.puml', 'Vault', 'Payments', null],
-    ['work-2', 'other.puml', 'other', 'Payments', null],
+    ['work-1', 'glossary.puml', 'Glossary', 'checkout', null],
+    ['work-1', 'glossary.puml', 'Glossary', 'data-model', 'Order'],
+    ['work-1', 'glossary.puml', 'Glossary', 'data-model', 'Line'],
+    ['work-1', 'proposals/vault.puml', 'Vault', 'payments', null],
+    ['work-2', 'other.puml', 'other', 'payments', null],
   ]);
   assert.equal(references[3].provenance.kind, 'proposal');
   // Shared knowledge links to work items' diagrams too.
-  assert.deepEqual((await catalog.references(snapshot, undefined, 'knowledge/shop.md')).map(item => [item.workId, item.path, item.section, item.element]), [['work-1', 'glossary.puml', 'Orders', 'Order']]);
+  assert.deepEqual((await catalog.references(snapshot, undefined, 'knowledge/shop.md')).map(item => [item.workId, item.path, item.section, item.element]), [['work-1', 'glossary.puml', 'orders', 'Order']]);
   await assert.rejects(catalog.references(snapshot, 'work-2', 'active/1/plan.md'), /indexed work or knowledge/);
   await assert.rejects(catalog.references(snapshot, 'work-1', '../../outside.md'), /indexed work or knowledge/);
   await assert.rejects(catalog.references(snapshot, undefined, 'active/1/plan.md'), /shared knowledge/);
@@ -122,16 +122,35 @@ test('links in a document attach diagrams under their headings, with the element
 
 test('diagram links resolve against their document and stay inside the planning folder', () => {
   const links = (markdown: string, from = 'active/1/plan.md') => diagramLinks(markdown, from).map(link => [link.target, link.element, link.section]);
-  assert.deepEqual(links('[a](a.puml)\n# One\n[b](sub/b.puml#Order%20line "title")\n[c]: ../../knowledge/c.puml\n## **Two** [x](y)\n![d](<d e.puml>)'), [
+  assert.deepEqual(links('[a](a.puml)\n# One\n[b](sub/b.puml#Order%20line "title")\n## **Two** [x](y)\n![d](<d e.puml>) [e](../../knowledge/e.puml)'), [
     ['active/1/a.puml', null, null],
-    ['active/1/sub/b.puml', 'Order line', 'One'],
-    ['knowledge/c.puml', null, 'One'],
-    ['active/1/d e.puml', null, 'Two x'],
+    ['active/1/sub/b.puml', 'Order line', 'one'],
+    ['active/1/d e.puml', null, 'two-x'],
+    ['knowledge/e.puml', null, 'two-x'],
   ]);
   assert.deepEqual(links('[a](../../../a.puml) [b](/b.puml) [c](https://x/c.puml) [d](#e) [f](f.md) `[g](g.puml)`\n~~~\n[h](h.puml)\n~~~'), []);
-  assert.deepEqual(links('[a](a.puml) [again](a.puml)\n# A\n[a](a.puml)'), [['active/1/a.puml', null, null], ['active/1/a.puml', null, 'A']]);
+  assert.deepEqual(links('[a](a.puml) [again](a.puml)\n# A\n[a](a.puml)'), [['active/1/a.puml', null, null], ['active/1/a.puml', null, 'a']]);
   assert.deepEqual(links('[a](a.puml)', 'plan.md'), [['a.puml', null, null]]);
 });
+
+test('a link\'s section is the anchor the reader gives its heading', () => {
+  const sections = (markdown: string) => diagramLinks(markdown, 'plan.md').map(link => link.section);
+  // The heading's text as it reads: underscores and code keep their text, marks and link targets go.
+  assert.deepEqual(sections([
+    '## order_items table', '[a](a.puml)',
+    '## The `ledger_status` field', '[b](b.puml)',
+    '## *Emphasis* and __strong__ with [a link](https://example.com) ![an image](x.png)', '[c](c.puml)',
+  ].join('\n\n')), ['order_items-table', 'the-ledger_status-field', 'emphasis-and-strong-with-a-link-']);
+  // Setext headings are headings; a repeated heading is numbered as the reader numbers it.
+  assert.deepEqual(sections('Orders\n======\n\n[a](a.puml)\n\nLines\n---\n\n[b](b.puml)\n\n## Orders\n\n[c](c.puml)\n\n## Orders\n\n[d](d.puml)'), ['orders', 'lines', 'orders-1', 'orders-2']);
+});
+
+test('links count where they are used, not in code, comments or unused definitions', () => {
+  const links = (markdown: string) => diagramLinks(markdown, 'plan.md').map(link => [link.target, link.section]);
+  assert.deepEqual(links('# Defined\n\n[unused]: unused.puml\n[model]: model.puml\n\n# Used\n\nSee [the model][model] and [model].'), [['model.puml', 'used']]);
+  assert.deepEqual(links('# Code\n\n    [indented](indented.puml)\n\n<!-- [hidden](hidden.puml) -->\n\n<a href="html.puml">html</a>'), []);
+});
+
 
 test('polling reuses a coalesced planning index and refreshes changed or failed scope', async () => {
   let calls = 0, signature = 'v1', fail = false;
