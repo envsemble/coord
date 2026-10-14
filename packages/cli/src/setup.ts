@@ -92,26 +92,116 @@ export function grantClaudeDirectory(text: string | null, directory: string): st
   return insertJson(text, jsonContainer(text, list.start), null, directory, unit, eol);
 }
 
-/** The strings of the TOML array starting at `start` (a `[`), and where it ends. */
+// Just enough of TOML to edit one key of a config.toml safely: its tables and keys (quoted keys
+// read as what they name), where each value is, and nothing inside strings or comments. Anything
+// else throws, and the file is left alone.
+const tomlSpace = (text: string, index: number) => { while (text[index] === ' ' || text[index] === '\t') index++; return index; };
+const tomlLineEnd = (text: string, index: number) => { while (index < text.length && text[index] !== '\n' && text[index] !== '\r') index++; return index; };
+/** The TOML string starting at `index`: where it ends, and its text. */
+function tomlStringAt(text: string, index: number): { end: number; value: string } {
+  const quote = text[index];
+  if (text.startsWith(quote.repeat(3), index)) {
+    let cursor = index + 3;
+    while (cursor < text.length && !text.startsWith(quote.repeat(3), cursor)) cursor += quote === '"' && text[cursor] === '\\' ? 2 : 1;
+    if (cursor >= text.length) throw new Error('a multi-line string does not end');
+    // Up to two more quotes belong to the string.
+    let end = cursor + 3;
+    while (text[end] === quote && end < cursor + 5) end++;
+    return { end, value: text.slice(index + 3, end - 3).replace(/^\r?\n/, '') };
+  }
+  let cursor = index + 1;
+  while (cursor < text.length && text[cursor] !== quote && text[cursor] !== '\n') cursor += quote === '"' && text[cursor] === '\\' ? 2 : 1;
+  if (text[cursor] !== quote) throw new Error('a string does not end on its line');
+  const raw = text.slice(index, cursor + 1);
+  return { end: cursor + 1, value: quote === "'" ? raw.slice(1, -1) : JSON.parse(raw) as string };
+}
+/** The dotted key starting at `index`, as its parts. */
+function tomlKeyAt(text: string, index: number): { end: number; path: string[] } {
+  const path: string[] = [], bare = /[A-Za-z0-9_-]+/y;
+  for (;;) {
+    index = tomlSpace(text, index);
+    if (text[index] === '"' || text[index] === "'") {
+      if (text.startsWith(text[index].repeat(3), index)) throw new Error('a key could not be read');
+      const read = tomlStringAt(text, index);
+      path.push(read.value);
+      index = read.end;
+    } else {
+      bare.lastIndex = index;
+      const part = bare.exec(text)?.[0];
+      if (!part) throw new Error('a key could not be read');
+      path.push(part);
+      index += part.length;
+    }
+    index = tomlSpace(text, index);
+    if (text[index] !== '.') return { end: index, path };
+    index++;
+  }
+}
+/** Where the value starting at `index` ends: a string, list or inline table whole, else at the comment or line end. */
+function tomlValueEnd(text: string, index: number): number {
+  const start = index;
+  let depth = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '"' || char === "'") { index = tomlStringAt(text, index).end; if (!depth) return index; continue; }
+    if (char === '#' || char === '\n' || char === '\r') {
+      if (!depth) break;
+      index = char === '#' ? tomlLineEnd(text, index) : index + 1;
+      continue;
+    }
+    if (char === '[' || char === '{') depth++;
+    else if (char === ']' || char === '}') { if (!depth) break; if (!--depth) return index + 1; }
+    index++;
+  }
+  if (depth) throw new Error('a list or inline table does not end');
+  while (index > start && (text[index - 1] === ' ' || text[index - 1] === '\t')) index--;
+  if (index === start) throw new Error('a key has no value');
+  return index;
+}
+interface TomlTable { path: string[]; array: boolean; lineEnd: number }
+interface TomlKey { table: string[]; key: string[]; start: number; value: number }
+function tomlStructure(text: string): { tables: TomlTable[]; keys: TomlKey[] } {
+  const tables: TomlTable[] = [], keys: TomlKey[] = [];
+  let table: string[] = [], index = 0;
+  while (index < text.length) {
+    if (/[ \t\r\n]/.test(text[index])) { index++; continue; }
+    if (text[index] === '#') { index = tomlLineEnd(text, index); continue; }
+    let header: TomlTable | null = null;
+    if (text[index] === '[') {
+      const array = text[index + 1] === '[';
+      const read = tomlKeyAt(text, index + (array ? 2 : 1));
+      if (!text.startsWith(array ? ']]' : ']', read.end)) throw new Error('a table header could not be read');
+      index = read.end + (array ? 2 : 1);
+      table = read.path;
+      tables.push(header = { path: read.path, array, lineEnd: 0 });
+    } else {
+      const read = tomlKeyAt(text, index);
+      if (text[read.end] !== '=') throw new Error('a line is neither a table header nor a key');
+      const value = tomlSpace(text, read.end + 1);
+      keys.push({ table, key: read.path, start: index, value });
+      index = tomlValueEnd(text, value);
+    }
+    // The rest of the line may hold only a comment.
+    index = tomlSpace(text, index);
+    if (text[index] === '#') index = tomlLineEnd(text, index);
+    if (index < text.length && text[index] !== '\n' && text[index] !== '\r') throw new Error('a line holds more than one key or table');
+    if (header) header.lineEnd = index;
+  }
+  return { tables, keys };
+}
+
+/** The strings of the TOML list starting at `start` (a `[`), and where it ends. */
 function tomlArray(text: string, start: number): { end: number; items: string[] } {
   const items: string[] = [];
   let index = start + 1;
   while (index < text.length) {
     const char = text[index];
     if (char === ']') return { end: index + 1, items };
-    if (char === '#') { while (index < text.length && text[index] !== '\n') index++; continue; }
-    if (char === "'") {
-      const close = text.indexOf("'", index + 1);
-      if (close < 0) break;
-      items.push(text.slice(index + 1, close));
-      index = close + 1;
-      continue;
-    }
-    if (char === '"') {
-      let cursor = index + 1;
-      while (cursor < text.length && text[cursor] !== '"') cursor += text[cursor] === '\\' ? 2 : 1;
-      items.push(JSON.parse(text.slice(index, cursor + 1)));
-      index = cursor + 1;
+    if (char === '#') { index = tomlLineEnd(text, index); continue; }
+    if (char === "'" || char === '"') {
+      const read = tomlStringAt(text, index);
+      items.push(read.value);
+      index = read.end;
       continue;
     }
     if (!/[\s,]/.test(char)) throw new Error('writable_roots holds something other than strings');
@@ -124,60 +214,58 @@ const tomlString = (value: string) => value.includes("'") || /[\r\n]/.test(value
 /**
  * Codex's config.toml with `directory` in [sandbox_workspace_write] writable_roots, changing only
  * that list (or adding the key, as a dotted key when the table is defined by dotted keys, or the
- * table); null when it is there already.
+ * table); null when it is there already. Throws, saying what to add by hand, when the file is
+ * written in a way this cannot edit safely.
  */
 export function grantCodexRoot(text: string | null, directory: string): string | null {
   const source = text ?? '';
   const eol = source.includes('\r\n') ? '\r\n' : '\n';
   const entry = tomlString(directory);
-  if (/^[ \t]*sandbox_workspace_write[ \t]*=/m.test(source)) throw new Error('sandbox_workspace_write is an inline table; add the home to its writable_roots by hand');
-  const header = /^[ \t]*\[[ \t]*sandbox_workspace_write[ \t]*\][ \t]*(?:#[^\r\n]*)?$/m.exec(source);
-  // The key: in the table, or as a dotted key before the first table.
-  let section: { start: number; end: number } | null = null;
-  let keyPattern: RegExp;
-  if (header) {
-    const start = header.index + header[0].length;
-    const next = /^[ \t]*\[/m.exec(source.slice(start));
-    section = { start, end: next ? start + next.index : source.length };
-    keyPattern = /^[ \t]*writable_roots[ \t]*=[ \t]*/m;
-  } else {
-    const first = /^[ \t]*\[/m.exec(source);
-    section = { start: 0, end: first ? first.index : source.length };
-    keyPattern = /^[ \t]*sandbox_workspace_write\.writable_roots[ \t]*=[ \t]*/m;
-  }
-  const found = keyPattern.exec(source.slice(section.start, section.end));
-  if (found) {
-    const open = section.start + found.index + found[0].length;
-    if (source[open] !== '[') throw new Error('writable_roots is not a list');
-    const { end, items } = tomlArray(source, open);
-    if (items.some(item => same(item, directory))) return null;
-    const inner = source.slice(open + 1, end - 1);
-    let replaced: string;
-    if (!items.length) replaced = '[' + entry + ']';
-    else if (!/[\r\n]/.test(inner)) replaced = '[' + inner.replace(/[ \t,]*$/, '') + ', ' + entry + ']';
-    else {
-      // One item per line: a new line in the style of the last, before the closing bracket's line.
-      const lines = inner.split(/\r?\n/);
-      const last = [...lines].reverse().find(item => /['"]/.test(item)) ?? '';
-      const indent = /^[ \t]*/.exec(last)![0];
-      const closing = lines.pop()!;
-      while (lines.length && !lines.at(-1)!.trim()) lines.pop();
-      const lastIndex = lines.length - 1;
-      if (!/,\s*(?:#.*)?$/.test(lines[lastIndex])) lines[lastIndex] = lines[lastIndex].replace(/(['"])(\s*(?:#.*)?)$/, '$1,$2');
-      replaced = '[' + [...lines, indent + entry + ',', closing].join(eol) + ']';
+  const name = 'sandbox_workspace_write';
+  try {
+    const { tables, keys } = tomlStructure(source);
+    const is = (path: string[], ...expected: string[]) => path.length === expected.length && path.every((part, index) => part === expected[index]);
+    const full = keys.map(key => ({ ...key, path: [...key.table, ...key.key] }));
+    if (tables.some(table => table.array && table.path[0] === name)) throw new Error(`${name} is a list of tables`);
+    if (full.some(key => is(key.path, name))) throw new Error(`${name} is an inline table`);
+    if ([...full, ...tables].some(item => item.path.length > 2 && item.path[0] === name && item.path[1] === 'writable_roots')) throw new Error('writable_roots is not a list');
+    const roots = full.find(key => is(key.path, name, 'writable_roots'));
+    if (roots) {
+      const open = roots.value;
+      if (source[open] !== '[') throw new Error('writable_roots is not a list');
+      const { end, items } = tomlArray(source, open);
+      if (items.some(item => same(item, directory))) return null;
+      const inner = source.slice(open + 1, end - 1);
+      let replaced: string;
+      if (!items.length) replaced = '[' + entry + ']';
+      else if (!/[\r\n]/.test(inner)) replaced = '[' + inner.replace(/[ \t,]*$/, '') + ', ' + entry + ']';
+      else {
+        // One item per line: a new line in the style of the last, before the closing bracket's line.
+        const lines = inner.split(/\r?\n/);
+        const last = [...lines].reverse().find(item => /['"]/.test(item)) ?? '';
+        const indent = /^[ \t]*/.exec(last)![0];
+        const closing = lines.pop()!;
+        while (lines.length && !lines.at(-1)!.trim()) lines.pop();
+        const lastIndex = lines.length - 1;
+        if (!/,\s*(?:#.*)?$/.test(lines[lastIndex])) lines[lastIndex] = lines[lastIndex].replace(/(['"])(\s*(?:#.*)?)$/, '$1,$2');
+        replaced = '[' + [...lines, indent + entry + ',', closing].join(eol) + ']';
+      }
+      return source.slice(0, open) + replaced + source.slice(end);
     }
-    return source.slice(0, open) + replaced + source.slice(end);
+    const header = tables.find(table => !table.array && is(table.path, name));
+    if (header) return source.slice(0, header.lineEnd) + eol + 'writable_roots = [' + entry + ']' + source.slice(header.lineEnd);
+    // The table defined by dotted keys (`sandbox_workspace_write.network_access = true`) cannot also
+    // have a header: add the key as one more dotted key, before the first.
+    const dotted = full.find(key => !key.table.length && key.path[0] === name);
+    if (dotted) {
+      const at = source.lastIndexOf('\n', dotted.start - 1) + 1;
+      return source.slice(0, at) + name + '.writable_roots = [' + entry + ']' + eol + source.slice(at);
+    }
+    const table = '[' + name + ']' + eol + 'writable_roots = [' + entry + ']' + eol;
+    return !source ? table : source + (source.endsWith('\n') ? eol : eol + eol) + table;
+  } catch (error) {
+    throw new Error(`${(error as Error).message}; add ${entry} to [${name}] writable_roots by hand`);
   }
-  if (header) {
-    const at = header.index + header[0].length;
-    return source.slice(0, at) + eol + 'writable_roots = [' + entry + ']' + source.slice(at);
-  }
-  // The table defined by dotted keys (`sandbox_workspace_write.network_access = true`) cannot also
-  // have a header: add the key as one more dotted key, before the first.
-  const dotted = /^[ \t]*sandbox_workspace_write[ \t]*\./m.exec(source.slice(section.start, section.end));
-  if (dotted) return source.slice(0, dotted.index) + 'sandbox_workspace_write.writable_roots = [' + entry + ']' + eol + source.slice(dotted.index);
-  const table = '[sandbox_workspace_write]' + eol + 'writable_roots = [' + entry + ']' + eol;
-  return !source ? table : source + (source.endsWith('\n') ? eol : eol + eol) + table;
 }
 
 /** A program on PATH, as Windows finds it too (atlas.cmd, claude.exe). */

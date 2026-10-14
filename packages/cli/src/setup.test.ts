@@ -59,6 +59,29 @@ test('the home is added to Codex\'s writable roots with a text edit that keeps e
   assert.throws(() => grantCodexRoot('[sandbox_workspace_write]\nwritable_roots = "x"\n', home), /not a list/);
 });
 
+test('quoted keys are the keys they name, and nothing inside a string or comment is edited', () => {
+  // A quoted dotted key defines the table as much as a bare one does.
+  const quoted = '"sandbox_workspace_write".network_access = true\n';
+  assert.equal(grantCodexRoot(quoted, home), `sandbox_workspace_write.writable_roots = [${literal}]\n` + quoted);
+  const quotedHeader = "[ 'sandbox_workspace_write' ] # sandbox\n\"writable_roots\" = ['/tmp/a']\n";
+  assert.equal(grantCodexRoot(quotedHeader, home), quotedHeader.replace("'/tmp/a']", `'/tmp/a', ${literal}]`));
+  assert.equal(grantCodexRoot('[sandbox_workspace_write] # sandbox\nnetwork_access = true\n', home), `[sandbox_workspace_write] # sandbox\nwritable_roots = [${literal}]\nnetwork_access = true\n`);
+  // A multi-line string or a list spanning lines is not a key or a table, whatever its lines look like.
+  const strings = 'notes = """\nsandbox_workspace_write.network_access = true\n[sandbox_workspace_write]\n"""\nraw = \'\'\'\nsandbox_workspace_write = {}\'\'\'\nnested = [\n  [1, 2], # sandbox_workspace_write.x = 1\n  "]",\n]\n';
+  assert.equal(grantCodexRoot(strings, home), strings + `\n[sandbox_workspace_write]\nwritable_roots = [${literal}]\n`);
+  const later = '[sandbox_workspace_write]\nlists = [\n  [1],\n]\nwritable_roots = []\n';
+  assert.equal(grantCodexRoot(later, home), later.replace('writable_roots = []', `writable_roots = [${literal}]`));
+  // Unsure: the file stays as it is, and the message says what to add by hand.
+  const refused = (config: string, reason: RegExp) => assert.throws(() => grantCodexRoot(config, home), (error: Error) => reason.test(error.message) && error.message.endsWith(`add ${literal} to [sandbox_workspace_write] writable_roots by hand`));
+  refused('"sandbox_workspace_write" = { network_access = true }\n', /inline table/);
+  refused('[[sandbox_workspace_write]]\n', /list of tables/);
+  refused('[sandbox_workspace_write]\nwritable_roots.x = 1\n', /not a list/);
+  refused('notes = """\nnever closed\n', /multi-line string does not end/);
+  refused('[sandbox_workspace_write\n', /table header/);
+  refused('key = "a" "b"\n', /more than one/);
+  refused('this is not toml\n', /neither a table header nor a key|key could not be read/);
+});
+
 /**
  * A stand-in for a harness's command that records how it was called. Like Codex, it refuses to add
  * a marketplace another source added already, until that is removed.
