@@ -50,9 +50,10 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
     return {
       traversal: await bridge.document('../outside.md'),
       absolute: await bridge.document('C:/Windows/win.ini'),
-      hidden: await bridge.document('active/0001-saved-payment-methods/.atlas/models/m-024410515ef6611f71e02bdc.json'),
-      wrongType: await bridge.models(42),
-      badHandle: await bridge.model('work-0001', '../../planning.json'),
+      hidden: await bridge.document('active/0001-saved-payment-methods/.atlas/statistics.jsonl'),
+      wrongType: await bridge.diagrams(42),
+      badDiagram: await bridge.diagram('work-0001', '../../planning.json'),
+      notDiagram: await bridge.diagram('work-0001', 'plan.md'),
       command: await bridge.command('openFolder'),
       // Pasting (which reads the clipboard) needs a person's click or key press; quitting, closing
       // the last window and opening windows or the logs ask first.
@@ -70,7 +71,7 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
       ok: await bridge.document('README.md').then(value => (value as { ok: boolean }).ok),
     };
   });
-  for (const key of ['traversal', 'absolute', 'wrongType', 'badHandle', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
+  for (const key of ['traversal', 'absolute', 'wrongType', 'badDiagram', 'notDiagram', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.paste).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   for (const key of ['quit', 'closeWindow', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
@@ -130,7 +131,7 @@ test('the file protocol serves only this window’s folder, and the window canno
     return {
       readme: await get('atlas://planning/README.md'),
       escape: await get('atlas://planning/..%2F..%2Fsecret.txt'),
-      hidden: await get('atlas://planning/active/0001-saved-payment-methods/.atlas/models/m-024410515ef6611f71e02bdc.json'),
+      hidden: await get('atlas://planning/active/0001-saved-payment-methods/.atlas/statistics.jsonl'),
       app: await get('atlas://app/index.html'),
       appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
       other: await get('atlas://elsewhere/README.md'),

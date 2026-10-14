@@ -142,7 +142,7 @@ test('File › Close Folder returns the window to the start page', async () => {
   await expect(activeTab(window)).toContainText('Saved payment methods');
 });
 
-test('the explorer mirrors the folder: work folders show status and title, a Diagrams entry lists models', async () => {
+test('the explorer mirrors the folder: work folders show status and title, and diagram files open as diagrams', async () => {
   launched = await launch({ folder });
   const { window } = launched;
   await expect(window.locator(row('d:active'))).toBeVisible();
@@ -157,14 +157,11 @@ test('the explorer mirrors the folder: work folders show status and title, a Dia
   await work.click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect(previewTabs(window)).toContainText('Saved payment methods');
-  await expect(window.locator(row('g:work-0001'))).toContainText('Diagrams');
-  await window.locator(row('g:work-0001')).click();
-  const diagram = window.locator(row('m:work-0001:m-024410515ef6611f71e02bdc'));
-  await expect(diagram).toContainText('Checkout · proposed payment methods');
-  await expect(diagram).toContainText('Agent proposal');
-  await expect(window.locator(row('m:work-0001:m-66a2183cd2019ea903061470'))).toContainText('Generated from code');
+  await window.locator(row('d:active/0001-saved-payment-methods/diagrams')).click();
+  const diagram = window.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml'));
+  await expect(diagram).toContainText('checkout-proposal.puml');
 
-  // A diagram opens the Diagrams view focused on it, in the same (still preview) work tab.
+  // A diagram file opens the Diagrams view focused on it, in the same (still preview) work tab.
   await diagram.click();
   await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
   await expect(sections(window).and(window.locator('[aria-checked="true"]'))).toContainText('Diagrams');
@@ -328,7 +325,10 @@ test('quick open finds work items, diagrams and files by name', async () => {
   const first = palette.getByRole('option').first();
   await window.keyboard.press('Control+P');
   await expect(input).toBeFocused();
+  // Diagrams are listed by title once their index arrives; a work item's own name ranks it first.
   await input.fill('fulfil');
+  await expect(palette.getByRole('option', { name: /Fulfilment · conceptual model/ })).toBeVisible();
+  await input.fill('order fulfil');
   await expect(first).toContainText('Order fulfilment model');
   await input.press('Enter');
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');

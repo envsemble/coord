@@ -4,6 +4,8 @@ Vocabulary for storing and reusing customer cards through the acquirer's vault.
 
 ## Language
 
+The terms below appear in the [proposed payment methods](diagrams/checkout-proposal.puml#SavedPaymentMethod).
+
 **Saved payment method**:
 A customer's card stored at the acquirer, represented in the shop only by a token and display metadata.
 _Avoid_: stored card, card on file, wallet

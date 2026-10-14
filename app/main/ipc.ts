@@ -12,7 +12,7 @@ import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atla
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
 import { invokeChannels, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
-import { absolutePath, argumentsOf, boolean, command, folderId, ipAddress, modelHandle, nullable, object, pairingCode, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
+import { absolutePath, argumentsOf, boolean, command, diagramPath, folderId, ipAddress, nullable, object, pairingCode, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import type { FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
@@ -90,10 +90,10 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'window:info': { args: [], handle: window => window.info() },
     'planning:snapshot': { args: [], handle: window => { const view = folder(window); return view.request('folder.snapshot', { folderId: view.folderId }); } },
     'planning:document': { args: [relativePath], handle: (window, file: string) => { const view = folder(window); return view.request('folder.document', { folderId: view.folderId, path: file }); } },
-    'planning:models': { args: [workId], handle: (window, work: string) => { const view = folder(window); return view.request('folder.models', { folderId: view.folderId, work }); } },
-    'planning:model': { args: [workId, modelHandle], handle: (window, work: string, handle: string) => { const view = folder(window); return view.request('folder.model', { folderId: view.folderId, work, handle }); } },
+    'planning:diagrams': { args: [workId], handle: (window, work: string) => { const view = folder(window); return view.request('folder.diagrams', { folderId: view.folderId, work }); } },
+    'planning:diagram': { args: [workId, diagramPath], handle: (window, work: string, file: string) => { const view = folder(window); return view.request('folder.diagram', { folderId: view.folderId, work, path: file }); } },
     'planning:references': { args: [nullable(workId), relativePath], handle: (window, work: string | null, file: string) => { const view = folder(window); return view.request('folder.references', { folderId: view.folderId, work, path: file }); } },
-    'planning:diagrams': { args: [], handle: window => { const view = folder(window); return view.request('folder.diagrams', { folderId: view.folderId }); } },
+    'planning:diagramIndex': { args: [], handle: window => { const view = folder(window); return view.request('folder.diagramIndex', { folderId: view.folderId }); } },
     // Views count in the document use of the computer the folder is on.
     'usage:view': { args: [viewEvent], handle: async (window, event) => { const view = folder(window); await view.request('folder.recordView', { folderId: view.folderId, event }); } },
     'ui:load': { args: [], handle: window => manager.context.state.ui(window.requireFolder().root) },

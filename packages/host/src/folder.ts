@@ -6,7 +6,7 @@ import path from 'node:path';
 import { readDocument, recordCollectionGap } from '@envsemble/atlas-planning';
 import { PlanningSession } from '@envsemble/atlas-planning/session';
 import type { Usage } from '@envsemble/atlas-planning/types';
-import type { Catalog, DiagramIndexEntry, FolderState, FolderStatus, ModelReference, Snapshot, ViewEventInput } from './contract.ts';
+import type { DiagramEntry, DiagramIndexEntry, DiagramReference, FolderState, FolderStatus, Snapshot, ViewEventInput } from './contract.ts';
 import { HostError, type Logger } from './errors.ts';
 import { watchFolder, type FolderWatcher } from './watcher.ts';
 import { runProgram as run } from '@envsemble/atlas-planning';
@@ -55,7 +55,7 @@ export class FolderSession {
   private loading: Promise<void> | null = null;
   private again = false;
   private closed = false;
-  private diagramIndex: { revision: number; entries: Promise<DiagramIndexEntry[]> } | null = null;
+  private diagramIndexCache: { revision: number; entries: Promise<DiagramIndexEntry[]> } | null = null;
   private readonly options: FolderOptions;
 
   constructor(root: string, options: FolderOptions) {
@@ -100,7 +100,7 @@ export class FolderSession {
         }
       } catch { collectionError = 'Local usage statistics could not be read. Document viewing still works; collection is incomplete.'; }
       let counts: Record<string, number> = {};
-      try { counts = planning.atlas.counts(index); } catch { /* Counts are an indicator only. */ }
+      try { counts = planning.diagrams.counts(index); } catch { /* Counts are an indicator only. */ }
       const folders = await listFolders(index.root);
       this.current = { ...index, work: index.work.map(item => ({ ...item, diagrams: counts[item.id] ?? 0 })), usage, usageByRepository, collectionError, folders };
       this.status = 'ready';
@@ -121,7 +121,7 @@ export class FolderSession {
       this.options.log.warn('Planning folder unreadable', { root: this.root, status: this.status, error: this.error });
     }
     this.revision++;
-    this.diagramIndex = null;
+    this.diagramIndexCache = null;
     this.emit();
   }
 
@@ -182,20 +182,15 @@ export class FolderSession {
   }
 
   document(relative: string) { return readDocument(this.root, relative); }
-  models(work: string): Catalog { return this.session().atlas.list(this.snapshot(), work); }
-  model(work: string, handle: string) { return this.session().atlas.prepared(this.snapshot(), work, handle); }
-  references(work: string | null, relative: string): ModelReference[] { return this.session().atlas.references(this.snapshot(), work ?? undefined, relative); }
+  diagrams(work: string): Promise<DiagramEntry[]> { return this.session().diagrams.list(this.snapshot(), work); }
+  diagram(work: string, file: string) { return this.session().diagrams.prepared(this.snapshot(), work, file); }
+  references(work: string | null, relative: string): Promise<DiagramReference[]> { return this.session().diagrams.references(this.snapshot(), work ?? undefined, relative); }
 
   /** Every diagram in the folder, for quick open. Computed on demand and reused until the folder changes. */
-  diagrams(): Promise<DiagramIndexEntry[]> {
-    if (this.diagramIndex?.revision === this.revision) return this.diagramIndex.entries;
-    const snapshot = this.snapshot();
-    const atlas = this.session().atlas;
-    const entries = (async () => snapshot.work.filter(work => work.diagrams).flatMap(work => {
-      try { return atlas.list(snapshot, work.id).models.map(model => ({ workId: work.id, handle: model.handle, title: model.title, provenance: model.provenance })); }
-      catch { return []; }
-    }))();
-    this.diagramIndex = { revision: this.revision, entries };
+  diagramIndex(): Promise<DiagramIndexEntry[]> {
+    if (this.diagramIndexCache?.revision === this.revision) return this.diagramIndexCache.entries;
+    const entries = this.session().diagrams.index(this.snapshot());
+    this.diagramIndexCache = { revision: this.revision, entries };
     return entries;
   }
 

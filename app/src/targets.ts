@@ -1,6 +1,7 @@
 // What a tab shows. Tabs are identified by what they show, so opening something that already
 // has a tab focuses that tab (and updates its position, such as a heading or a diagram).
 import type { Document, Target, ViewName, Work, WorkSection } from './types';
+import { workRelative } from '@envsemble/atlas-planning/paths';
 
 export function tabId(target: Target): string {
   switch (target.kind) {
@@ -15,10 +16,16 @@ export const workTarget = (work: string, section: WorkSection | null = null, ext
   ({ kind: 'work', work, section, diagram: extra.diagram ?? null, element: extra.element ?? null, anchor: extra.anchor ?? null });
 export const fileTarget = (path: string, anchor: string | null = null): Target => ({ kind: 'file', path, anchor });
 
-/** Where a link to a document goes: a work item's plan and ledger open in its overview, anything else as a file. */
+export const isDiagramFile = (path: string) => /\.puml$/i.test(path);
+
+/**
+ * Where a link to a document goes: a work item's plan and ledger open in its overview, its diagram
+ * files in its Diagrams section (an anchor naming an element), anything else as a file.
+ */
 export function documentTarget(file: Document, work: Work | undefined, anchor: string | null = null): Target {
   if (work && file.path === work.currentPlan) return workTarget(work.id, 'plan', { anchor });
   if (work && file.path === work.ledger) return workTarget(work.id, 'ledger', { anchor });
+  if (work && isDiagramFile(file.path)) return workTarget(work.id, 'diagrams', { diagram: workRelative(file.path, work.path), element: anchor || null });
   return fileTarget(file.path, anchor);
 }
 

@@ -36,10 +36,10 @@ const pause = (milliseconds: number) => new Promise(resolve => setTimeout(resolv
 test('on Linux each visible folder gets its own watch; Git objects and dependencies get none', () => {
   const directory = temporary();
   const root = path.join(directory, 'planning');
-  const fake = linuxSystem(root, ['', 'active', 'active/0001-x', 'active/0001-x/.atlas', 'active/0001-x/.atlas/models', 'active/0001-x/.atlas/prepared', '.git', '.git/objects', '.git/objects/ab', '.git/refs', 'node_modules', 'node_modules/x', '.atlas-import-1a2b']);
+  const fake = linuxSystem(root, ['', 'active', 'active/0001-x', 'active/0001-x/.atlas', 'active/0001-x/.atlas/prepared', '.git', '.git/objects', '.git/objects/ab', '.git/refs', 'node_modules', 'node_modules/x', '.atlas-import-1a2b']);
   const watcher = watchFolder(root, { onChange: () => undefined, onError: () => assert.fail('no error expected') }, fake.system);
   try {
-    assert.deepEqual(fake.open(), ['', '.git', '.git/refs', 'active', 'active/0001-x', 'active/0001-x/.atlas', 'active/0001-x/.atlas/models']);
+    assert.deepEqual(fake.open(), ['', '.git', '.git/refs', 'active', 'active/0001-x', 'active/0001-x/.atlas']);
   } finally { watcher.close(); rmSync(directory, { recursive: true, force: true }); }
   assert.deepEqual(fake.open(), []);
 });
@@ -117,12 +117,12 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
 
 test('folders that are never watched (they would exhaust inotify watches on Linux)', () => {
   for (const ignored of ['.git/objects', '.git/objects/ab', 'node_modules', 'active/x/node_modules/y', '__pycache__', 'active/0001/.atlas/prepared', 'active/0001/.atlas/results/x.json', 'active/0001/.atlas/exports', '.atlas-import.lock', '.atlas-import.lock.takeover', '.atlas-import-1b2c', '.\\node_modules', 'knowledge\\node_modules\\x']) assert.ok(ignoredPath(ignored), ignored);
-  for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'active/0001/.atlas/models', 'active/0001/.atlas/history/m-1', 'knowledge/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
+  for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'active/0001/.atlas', 'active/0001/.atlas/statistics.jsonl', 'knowledge/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
 });
 
 test('only changes that can alter the view count, and bursts coalesce', async () => {
   assert.ok(relevantChange('active/0001/plan.md'));
-  assert.ok(relevantChange('active/0001/.atlas/models/m-1.json'));
+  assert.ok(relevantChange('active/0001/.atlas/statistics.jsonl'));
   assert.ok(relevantChange('.git/HEAD'));
   assert.ok(relevantChange('.git/refs/heads/main'));
   assert.ok(!relevantChange('.git/objects/ab/cdef'));

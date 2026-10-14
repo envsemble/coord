@@ -4,19 +4,19 @@
 // The planning data itself is the Atlas host's (packages/host/src/contract.ts): main forwards the
 // window's requests to the host of the computer its folder is on, this one or another one.
 import type {
-  AccessSettings, AccessState, BrowseEntry, BrowseResult, Catalog, CatalogEntry, ComputerFolder, DiagramIndexEntry, ModelExplains, ModelReference, PairedDevice,
+  AccessSettings, AccessState, BrowseEntry, BrowseResult, ComputerFolder, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice,
   PairingGrant, PairingLink, Snapshot, ViewEventInput,
 } from '@envsemble/atlas-host/contract';
 import type { DocumentContent } from '@envsemble/atlas-planning/types';
 
 export type {
-  AccessSettings, AccessState, BrowseEntry, BrowseResult, Catalog, CatalogEntry, ComputerFolder, DiagramIndexEntry, DocumentContent, ModelExplains, ModelReference, PairedDevice,
+  AccessSettings, AccessState, BrowseEntry, BrowseResult, ComputerFolder, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice,
   PairingGrant, Snapshot, ViewEventInput,
 };
 
 export const invokeChannels = [
   'window:info',
-  'planning:snapshot', 'planning:document', 'planning:models', 'planning:model', 'planning:references', 'planning:diagrams',
+  'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
   'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
@@ -100,6 +100,7 @@ export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 export type WorkSection = 'plan' | 'ledger' | 'diagrams';
 export type ViewName = 'work' | 'activity' | 'statistics';
+/** `diagram` is a diagram file's path in the work folder; `element`, an element of it by name. */
 export type Target =
   | { kind: 'view'; view: ViewName }
   | { kind: 'work'; work: string; section?: WorkSection | null; diagram?: string | null; element?: string | null; anchor?: string | null }
@@ -160,10 +161,14 @@ export interface AtlasBridge {
   info(): Promise<Result<WindowInfo>>;
   snapshot(): Promise<Result<Snapshot>>;
   document(path: string): Promise<Result<DocumentContent>>;
-  models(work: string): Promise<Result<Catalog>>;
-  model(work: string, handle: string): Promise<Result<unknown>>;
-  references(work: string | null, path: string): Promise<Result<ModelReference[]>>;
-  diagrams(): Promise<Result<DiagramIndexEntry[]>>;
+  /** A work item's diagram files. */
+  diagrams(work: string): Promise<Result<DiagramEntry[]>>;
+  /** A diagram's viewer payload, by its path in the work folder, with its family's. */
+  diagram(work: string, path: string): Promise<Result<unknown>>;
+  /** The diagrams a document links to. */
+  references(work: string | null, path: string): Promise<Result<DiagramReference[]>>;
+  /** Every diagram of the folder, for quick open. */
+  diagramIndex(): Promise<Result<DiagramIndexEntry[]>>;
   recordView(event: ViewEventInput): Promise<Result<void>>;
   loadUi(): Promise<Result<UiState>>;
   saveUi(state: UiState): Promise<Result<void>>;

@@ -2,10 +2,10 @@
 // state. The generic validators and the planning shapes are the host's (packages/host/src/validate.ts);
 // this module adds what only the desktop window sends. Unknown object keys are dropped.
 import { appCommands, limits, themePreferences, viewNames, type TabState, type Target, type UiState, type ViewName } from './contract.ts';
-import { array, boolean, integer, modelHandle, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas-host/validate';
+import { array, boolean, diagramPath, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas-host/validate';
 
 export {
-  ValidationError, absolutePath, argumentsOf, array, boolean, folderId, integer, ipAddress, modelHandle, nullable, object, oneOf, optional, pairingCode,
+  ValidationError, absolutePath, argumentsOf, array, boolean, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
   port, relativePath, string, token, viewEvent, workId, type Validator,
 } from '@envsemble/atlas-host/validate';
 
@@ -14,12 +14,14 @@ export const themePreference = oneOf(themePreferences);
 export const url = string({ min: 1, max: 4096 });
 
 const anchor = optional(nullable(string({ max: 512 })));
+/** A tab's diagram; one that names no diagram file (as layouts saved before diagram files did) shows the work item's first. */
+const tabDiagram: Validator<string | null> = value => { try { return value == null ? null : diagramPath(value); } catch { return null; } };
 export const target: Validator<Target> = (value, at = 'target') => {
   const kind = object({ kind: oneOf(['view', 'work', 'file'] as const) })(value, at).kind;
   if (kind === 'view') return object<Extract<Target, { kind: 'view' }>>({ kind: oneOf(['view'] as const), view: oneOf(viewNames) })(value, at);
   if (kind === 'work') return object<Extract<Target, { kind: 'work' }>>({
     kind: oneOf(['work'] as const), work: workId, section: optional(nullable(oneOf(['plan', 'ledger', 'diagrams'] as const))),
-    diagram: optional(nullable(modelHandle)), element: optional(nullable(string({ max: 512 }))), anchor,
+    diagram: optional(tabDiagram), element: optional(nullable(string({ max: 512 }))), anchor,
   })(value, at);
   return object<Extract<Target, { kind: 'file' }>>({ kind: oneOf(['file'] as const), path: relativePath, anchor })(value, at);
 };

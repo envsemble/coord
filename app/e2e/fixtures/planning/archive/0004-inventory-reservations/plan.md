@@ -34,11 +34,15 @@ A reservation is **held** when checkout starts, then ends in exactly one of:
 
 Ended reservations never change again. Fifteen minutes covers a 3-D Secure challenge (p99 four minutes) with margin.
 
+In the [reservation proposal](diagrams/reservation-proposal.puml#stock_reservation).
+
 ## Data model
 
 - A new `stock_reservation` row per order line per warehouse, referencing `stock_level (warehouse_id, sku)`.
 - `stock_level.reserved` holds the reserved quantity. Available stock is `on_hand - reserved`; checkout never writes `on_hand`.
 - Migration 002 only adds; old code keeps working against the new schema.
+
+The [reservation proposal](diagrams/reservation-proposal.puml#stock_reservation) changes the [schema captured before](diagrams/inventory-before.puml#stock_level); the [as-built capture](diagrams/inventory-capture.puml#stock_reservation) compares with it.
 
 ## Concurrency
 

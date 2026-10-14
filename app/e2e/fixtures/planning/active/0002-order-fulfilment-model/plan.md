@@ -28,13 +28,15 @@ An agreed conceptual model of fulfilment (orders, shipments, parcels, carriers, 
 
 ## Why a conceptual model first
 
-One-order-one-shipment is encoded in several places: `OrderStatus.Shipped`, the notification topics, and `Shipment.carrier` as a free-text string. Agreeing the concepts before touching the types avoids a second migration. The OntoUML diagram is the working artefact for this discussion; it is a draft, not a specification.
+One-order-one-shipment is encoded in several places: `OrderStatus.Shipped`, the notification topics, and `Shipment.carrier` as a free-text string. Agreeing the concepts before touching the types avoids a second migration. The [class diagram](diagrams/fulfilment.puml) of [orders](diagrams/fulfilment.puml#Order) and [shipments](diagrams/fulfilment.puml#Shipment) is the working artefact for this discussion; it is a draft, not a specification.
 
 ## Participants
 
 - **Settled**: An order is between a customer and the seller. The seller is always Northwind today; modelling it as a role keeps marketplace sellers possible without promising them.
 - **Settled**: A shipment belongs to exactly one order and leaves from exactly one warehouse. An order has zero or more shipments.
 - **Proposed**: A carrier is optional until dispatch, because an allocated shipment has none yet. Parcels exist from packing onwards.
+
+[Order 1042](diagrams/split-order.puml) is split across two warehouses.
 
 ## Shipment lifecycle
 

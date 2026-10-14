@@ -10,7 +10,7 @@ export interface Work {
   created: string | null; updated: string | null; accepted: string | null;
   completed: string | null; durationDays: number | null; documents: Document[];
   ledger?: string | null; progress?: WorkProgress | null;
-  /** Number of Atlas models in this work folder's `.atlas/models`. */
+  /** Number of diagram files (`.puml`) in this work folder. */
   diagrams?: number;
   /** Agent reports and plan revisions; absent where they were not read. */
   statistics?: WorkStatistics;

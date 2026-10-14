@@ -2,7 +2,7 @@
 // renders Markdown as text-safe React elements and draws diagrams with the shared viewer.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { AtlasMark, AtlasPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
-import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
+import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import {
   Badge, Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, SearchField, SegmentedControl, Surface, Text, ThemeToggle, Tree,
   useThemePreference, type TreeItem,
@@ -126,7 +126,7 @@ function Reader({ file, data, anchor, toolbar, hideTitle, navigate }: { file: Ex
       : format === 'markdown' ? <Markdown path={file.path} body={markdownBody(text!)} files={data.files} diagrams={data.view.diagrams} hideTitle={hideTitle}
         onFile={(target, targetAnchor) => navigate({ tab: 'files', file: target, anchor: targetAnchor ?? null })}
         onAnchor={target => scrollToHeading(article.current, target)}
-        onDiagram={(handle, element) => navigate({ tab: 'diagrams', diagram: handle, element: element ?? null })} />
+        onDiagram={(diagram, element) => navigate({ tab: 'diagrams', diagram, element: element ?? null })} />
       : format === 'text' ? <pre className="source-text">{text}</pre>
       : format === 'image' ? <div className="attachment"><img src={blobURL(file, 'view')} alt={baseName(file.path)} /></div>
       : <div className="attachment"><EmptyState icon={<Description />} title={baseName(file.path)} action={download} description={bytes(file.size)} /></div>}
@@ -173,24 +173,23 @@ const pickerGroups: { kind: ProvenanceKind; title: string }[] = [
 ];
 /** One short line under a diagram's title, as the app's picker has it: a proposal with its count of changes. */
 function diagramSummary(diagram: ViewDiagram) {
-  const document = (diagram.payload as { model?: { document?: { profile?: string; state?: string; imported?: boolean } } } | null)?.model?.document;
-  return modelSummary({ profile: document?.profile ?? '', state: document?.state ?? '', imported: document?.imported ?? diagram.provenance.detail.endsWith('Imported'), provenance: diagram.provenance },
-    changeCount(diagram.payload as ViewerPayload | null));
+  const profile = (diagram.payload as { model?: { document?: { profile?: string } } } | null)?.model?.document?.profile ?? null;
+  return modelSummary({ profile, provenance: diagram.provenance }, changeCount(diagram.payload as ViewerPayload | null));
 }
 const byTitle = (a: ViewDiagram, b: ViewDiagram) => a.title.localeCompare(b.title, undefined, { numeric: true });
 /** The app's model picker: a compact menu of the work item's diagrams, by origin and title. */
-function ModelPicker({ diagrams, handle, onSelect }: { diagrams: ViewDiagram[]; handle: string; onSelect(handle: string): void }) {
-  const current = diagrams.find(diagram => diagram.handle === handle);
+function ModelPicker({ diagrams, selected, onSelect }: { diagrams: ViewDiagram[]; selected: string; onSelect(path: string): void }) {
+  const current = diagrams.find(diagram => diagram.path === selected);
   return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu"
     trigger={<Button variant="secondary" className="model-picker-button" startIcon={<AccountTree />} endIcon={<ExpandMore />}>
       <span className="model-picker-title">{current?.title ?? 'Choose a diagram'}</span>{current && <ProvenanceBadge provenance={current.provenance} />}
     </Button>}>
-    <MenuRadioGroup value={handle} onValueChange={onSelect}>
+    <MenuRadioGroup value={selected} onValueChange={onSelect}>
       {pickerGroups.map(group => {
         const items = diagrams.filter(diagram => diagram.provenance.kind === group.kind).sort(byTitle);
         if (!items.length) return null;
         return <MenuGroup key={group.kind} label={group.title}>
-          {items.map(diagram => <MenuRadioItem key={diagram.handle} value={diagram.handle} description={diagramSummary(diagram) || undefined}>{diagram.title}</MenuRadioItem>)}
+          {items.map(diagram => <MenuRadioItem key={diagram.path} value={diagram.path} description={diagramSummary(diagram) || undefined}>{diagram.title}</MenuRadioItem>)}
         </MenuGroup>;
       })}
     </MenuRadioGroup>
@@ -220,9 +219,8 @@ function Diagrams({ data, route, navigate, sections }: { data: PlanData; route: 
   const [inspectorWidth, setInspectorWidth] = useStoredWidth();
   const section = useRef<HTMLElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [notice, setNotice] = useState('');
-  const handle = diagrams.some(diagram => diagram.handle === route.diagram) ? route.diagram! : diagrams.find(diagram => diagram.payload)?.handle ?? diagrams[0]?.handle ?? '';
-  const current = diagrams.find(diagram => diagram.handle === handle);
+  const selected = diagrams.some(diagram => diagram.path === route.diagram) ? route.diagram! : diagrams.find(diagram => diagram.payload)?.path ?? diagrams[0]?.path ?? '';
+  const current = diagrams.find(diagram => diagram.path === selected);
   useLayoutEffect(() => {
     const element = section.current;
     if (!element) return;
@@ -238,22 +236,12 @@ function Diagrams({ data, route, navigate, sections }: { data: PlanData; route: 
     document.body.classList.add('has-fullscreen');
     return () => { window.removeEventListener('keydown', key); document.body.classList.remove('has-fullscreen'); };
   }, [fullscreen]);
-  const onReference = useCallback((record: PlanningContext['records'][number]) => {
-    const target = typeof record.path === 'string' ? record.path.replaceAll('\\', '/').split('#', 1)[0].split('/').reduce<string[] | null>((parts, segment) => {
-      if (!parts || !segment || segment === '.') return parts;
-      if (segment === '..') return parts.length ? parts.slice(0, -1) : null;
-      return [...parts, segment];
-    }, [])?.join('/') : undefined;
-    if (!target || !data.files.has(target)) { setNotice('This passage is not included in this export.'); return; }
-    setFullscreen(false);
-    navigate({ tab: 'files', file: target, anchor: typeof record.section === 'string' ? record.section : null });
-  }, [data.files, navigate]);
-  const picker = diagrams.length ? <ModelPicker diagrams={diagrams} handle={handle} onSelect={next => navigate({ tab: 'diagrams', diagram: next })} /> : null;
+  const picker = diagrams.length ? <ModelPicker diagrams={diagrams} selected={selected} onSelect={next => navigate({ tab: 'diagrams', diagram: next })} /> : null;
   const payload = current?.payload as ViewerPayload | null | undefined;
   return <section ref={section} className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
-      {payload ? <ViewerErrorBoundary key={payload.family ?? handle} resetKey={handle}>
-        <AtlasPanel payload={payload} theme={theme} focus={route.element ? { kind: 'node', id: route.element } : undefined} onReference={onReference}
+      {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={selected}>
+        <AtlasPanel payload={payload} theme={theme} focus={route.element ? { kind: 'node', id: route.element } : undefined}
           leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>
@@ -265,7 +253,6 @@ function Diagrams({ data, route, navigate, sections }: { data: PlanData; route: 
         <div className="diagrams-state">{current ? <EmptyState icon={<ErrorIcon />} title="This diagram cannot be shown" description={current.error} />
           : <EmptyState icon={<AccountTree />} title="No diagrams" description="This work item has no diagrams." />}</div>
       </>}
-      {notice && <div className="diagrams-notices" role="status"><Notice tone="warning">{notice}</Notice></div>}
     </div>
   </section>;
 }

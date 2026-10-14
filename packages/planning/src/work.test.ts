@@ -209,10 +209,24 @@ test('atlas check attributes findings to the files asked about and runs register
   assert.deepEqual(checkPaths([path.join(root, 'planning.json')])[0].errors, ['registry schema_version must be integer 1']);
   const outside = checkPaths([tmpdir()]);
   assert.match(outside[0].errors[0], /not inside a planning folder/);
-  write(path.join(root, 'active/0001-existing/model.puml'), '@startuml\n@enduml\n');
-  fileCheckers.set('.puml', (_, file) => ({ errors: [file + ': checked'], warnings: [] }));
-  t.after(() => fileCheckers.delete('.puml'));
-  assert.ok(checkPaths([path.join(root, 'active/0001-existing/model.puml')])[0].errors.includes('active/0001-existing/model.puml: checked'));
+  // Diagram files are checked as diagrams, with the line and column of each problem.
+  write(path.join(root, 'active/0001-existing/model.puml'), '@startuml\nclass A\nclass B\nA -up-> B\n@enduml\n');
+  const [diagram] = checkPaths([path.join(root, 'active/0001-existing/model.puml')]);
+  assert.equal(diagram.errors.length, 1);
+  assert.match(diagram.errors[0], /^active\/0001-existing\/model\.puml:4:\d+: .*remove the direction `up`/);
+  // A whole folder's check finds them too; a proposal reads its baseline beside it, never outside the planning folder.
+  write(path.join(root, 'active/0001-existing/model.puml'), '@startuml\nclass A\n@enduml\n');
+  write(path.join(root, 'active/0001-existing/proposal.puml'), "@startuml\n' atlas proposal model.puml\nclass A\nclass B\n@enduml\n");
+  write(path.join(root, 'active/0002-other/proposal.puml'), "@startuml\n' atlas proposal ../../../outside.puml\nclass A\n@enduml\n");
+  write(path.join(root, '..', 'outside.puml'), '@startuml\nclass A\n@enduml\n');
+  const errors = checkPaths([root])[0].errors.filter(error => error.includes('.puml'));
+  assert.deepEqual(errors.map(error => error.split(':')[0]), ['active/0002-other/proposal.puml']);
+  assert.match(errors[0], /outside\.puml does not exist/);
+  // Other kinds of file can register their own checker.
+  write(path.join(root, 'active/0001-existing/notes.txt'), 'x');
+  fileCheckers.set('.txt', (_, file) => ({ errors: [file + ': checked'], warnings: [] }));
+  t.after(() => fileCheckers.delete('.txt'));
+  assert.ok(checkPaths([path.join(root, 'active/0001-existing/notes.txt')])[0].errors.includes('active/0001-existing/notes.txt: checked'));
 });
 
 test('a planning folder is adopted into the home with its path hints made absolute', async t => {

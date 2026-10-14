@@ -94,7 +94,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const switcher = <WorkSections options={sections.filter(item => !item.hidden)} value={section} focusMemory={switcherFocus}
     onChange={value => retarget(workTarget(work.id, value, value === 'diagrams' ? { diagram: target.diagram ?? null } : {}))} />;
   if (section === 'diagrams') return <div className="work-page section-diagrams">
-    <AtlasWorkPanel key={work.id} work={work} snapshot={snapshot} target={target} sections={switcher} />
+    <AtlasWorkPanel key={work.id} work={work} target={target} sections={switcher} />
   </div>;
   return <div className={'work-page section-' + section}>
     <div className="section-switcher-bar">{switcher}</div>

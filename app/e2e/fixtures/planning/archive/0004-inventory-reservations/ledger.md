@@ -25,7 +25,7 @@ blocked: null
 
 ## Departures
 
-- Added `stock_level.version` for optimistic concurrency with the WMS sync. The plan's conditional update alone was not enough once a second writer exists.
+- Added `stock_level.version` ([as built](diagrams/inventory-capture.puml#stock_level)) for optimistic concurrency with the WMS sync. The plan's conditional update alone was not enough once a second writer exists.
 - Dropped the proposed `released_at` column. `status` plus `created_at` and `expires_at` answer every question we had, and `expired` is now a status of its own instead of a kind of release.
 
 ## Outcome

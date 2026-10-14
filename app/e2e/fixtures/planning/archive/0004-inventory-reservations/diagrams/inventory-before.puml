@@ -1,0 +1,32 @@
+@startuml
+title Inventory · captured before reservations
+' atlas capture {"capturedAt":"2026-09-09T12:40:00.000Z","adapter":{"id":"atlas-sqlite","version":"1.0.0"},"source":{"kind":"sqlite","identity":"northwind-inventory","scope":["main"]},"coverage":{"status":"complete","diagnostics":[]},"limitations":["Declared metadata only; no application rows or runtime invariants were inspected."]}
+' atlas fingerprint 3008670e1b56a5e0fee81280c4dd0bb51ad49e22a37dcb440a3fc6dbdc582a68
+
+entity product {
+  *sku : TEXT <<PK>>
+  --
+  *name : TEXT
+  *unit_price_minor : INTEGER
+  *currency : TEXT
+}
+
+entity stock_level {
+  *warehouse_id : INTEGER <<PK>>
+  *sku : TEXT <<PK>>
+  --
+  *on_hand : INTEGER
+  *updated_at : TEXT
+}
+
+entity warehouse {
+  *id : INTEGER <<PK>>
+  --
+  *code : TEXT
+  *name : TEXT
+  *country : TEXT
+}
+
+product ||--o{ stock_level : sku
+warehouse ||--o{ stock_level : warehouse_id
+@enduml

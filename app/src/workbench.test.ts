@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeTab, openTab, pinTab, retarget } from './tabs.ts';
-import { fileTarget, viewTarget, workTarget } from './targets.ts';
-import { buildIndex, diagramsId, folderId, revealIds, visibleRows } from './explorerModel.ts';
+import { documentTarget, fileTarget, viewTarget, workTarget } from './targets.ts';
+import { buildIndex, folderId, revealIds, visibleRows } from './explorerModel.ts';
 import { fuzzyScore, rankItems } from './quickMatch.ts';
 import type { Document, Work } from './types.ts';
 
@@ -30,23 +30,23 @@ test('a preview tab is replaced by the next preview; pinning keeps it', () => {
 
 test('a work item has one tab for its overview, sections and diagrams', () => {
   let tabs = openTab({ items: [], active: null }, workTarget('work-0001'), false);
-  tabs = openTab(tabs, workTarget('work-0001', 'diagrams', { diagram: 'm-024410515ef6611f71e02bdc' }), false);
+  tabs = openTab(tabs, workTarget('work-0001', 'diagrams', { diagram: 'diagrams/checkout.puml' }), false);
   assert.equal(tabs.items.length, 1);
-  assert.equal(tabs.items[0].target.kind === 'work' && tabs.items[0].target.diagram, 'm-024410515ef6611f71e02bdc');
+  assert.equal(tabs.items[0].target.kind === 'work' && tabs.items[0].target.diagram, 'diagrams/checkout.puml');
 });
 
 const document = (path: string, workId: string | null = null) => ({ path, name: path.split('/').at(-1)!, title: path, workId }) as Document;
 const work = { id: 'work-0001', path: 'active/0001-x', diagrams: 2, title: 'X' } as Work;
 
-test('the explorer shows folders before files, real names, and a Diagrams entry for work with models', () => {
-  const index = buildIndex({ folders: ['active', 'active/0001-x', 'active/0001-x/docs', 'empty'], documents: [document('README.md'), document('active/0001-x/plan.md', 'work-0001'), document('active/0001-x/docs/adr.md', 'work-0001')], work: [work] });
-  assert.deepEqual(visibleRows(index, new Set(), new Map()).map(row => row.id), ['d:active', 'd:empty', 'f:README.md']);
-  const open = new Set([folderId('active'), folderId('active/0001-x'), diagramsId('work-0001')]);
-  const rows = visibleRows(index, open, new Map([['work-0001', { models: [{ handle: 'm-1', title: 'Model' } as never] }]]));
-  assert.deepEqual(rows.map(row => [row.id, row.depth]), [['d:active', 0], ['d:active/0001-x', 1], ['g:work-0001', 2], ['m:work-0001:m-1', 3], ['d:active/0001-x/docs', 2], ['f:active/0001-x/plan.md', 2], ['d:empty', 0], ['f:README.md', 0]]);
+test('the explorer shows folders before files and real names, and a diagram file opens as a diagram of its work item', () => {
+  const index = buildIndex({ folders: ['active', 'active/0001-x', 'active/0001-x/docs', 'empty'], documents: [document('README.md'), document('active/0001-x/plan.md', 'work-0001'), document('active/0001-x/docs/adr.md', 'work-0001'), document('active/0001-x/order.puml', 'work-0001')], work: [work] });
+  assert.deepEqual(visibleRows(index, new Set()).map(row => row.id), ['d:active', 'd:empty', 'f:README.md']);
+  const rows = visibleRows(index, new Set([folderId('active'), folderId('active/0001-x')]));
+  assert.deepEqual(rows.map(row => [row.id, row.depth]), [['d:active', 0], ['d:active/0001-x', 1], ['d:active/0001-x/docs', 2], ['f:active/0001-x/order.puml', 2], ['f:active/0001-x/plan.md', 2], ['d:empty', 0], ['f:README.md', 0]]);
   assert.equal(rows[1].kind, 'work');
   assert.deepEqual(revealIds('active/0001-x/docs/adr.md'), ['d:active/0001-x/docs', 'd:active/0001-x', 'd:active']);
-  assert.deepEqual(revealIds('active/0001-x', 'work-0001', true), ['d:active', 'd:active/0001-x', 'g:work-0001']);
+  assert.deepEqual(documentTarget(document('active/0001-x/order.puml', 'work-0001'), work, 'Order'), workTarget('work-0001', 'diagrams', { diagram: 'order.puml', element: 'Order' }));
+  assert.deepEqual(documentTarget(document('active/0001-x/order.puml', 'work-0001'), undefined), fileTarget('active/0001-x/order.puml'));
 });
 
 test('quick open matches characters in order and ranks names first', () => {
