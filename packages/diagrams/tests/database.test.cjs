@@ -251,6 +251,36 @@ test("SQLite 200-table capture is bounded and selected scope excludes unrelated 
     1,
   );
 });
+test("a key to a table outside the selection keeps the columns it refers to", async (t) => {
+  const root = fixture(t),
+    file = path.join(root, "keys.sqlite"),
+    db = new DatabaseSync(file);
+  db.exec(`CREATE TABLE accounts(id INTEGER PRIMARY KEY, legacy_id INTEGER UNIQUE);
+    CREATE TABLE orders(id INTEGER PRIMARY KEY,
+      account_id INTEGER REFERENCES accounts(id),
+      legacy_account INTEGER REFERENCES accounts(legacy_id),
+      owner INTEGER REFERENCES accounts);`);
+  db.close();
+  const { model } = await captureSQLite({
+    file,
+    identity: "keys",
+    tables: ["orders"],
+  });
+  const keys = model.nodes[0].foreignKeys.map((k) => [
+    k.columns,
+    k.target,
+    k.targetColumns,
+  ]);
+  assert.deepEqual(
+    keys.sort((a, b) => a[0][0].localeCompare(b[0][0])),
+    [
+      [["account_id"], "accounts", ["id"]],
+      [["legacy_account"], "accounts", ["legacy_id"]],
+      // Without the table, its primary key is unknown.
+      [["owner"], "accounts", [null]],
+    ],
+  );
+});
 test(
   "D1 actual local Wrangler path is separately exercised and explicitly weaker than a transaction",
   { timeout: 120000 },

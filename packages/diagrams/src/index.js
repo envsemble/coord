@@ -4,6 +4,7 @@ export { AtlasMark } from "./ui/AtlasMark";
 export { describeProvenance, formatCaptureDate } from "./viewer/provenance";
 export { ProvenanceBadge, ProvenanceLabel } from "./viewer/ProvenanceBadge";
 export { ViewerErrorBoundary } from "./viewer/ViewerErrorBoundary";
+export { changeCount } from "./review/changes";
 export { DiagramCanvas } from "./visualization/DiagramCanvas";
 export { UMLDiagram } from "./visualization/UMLDiagram";
 export { UMLNode } from "./visualization/UMLNode";

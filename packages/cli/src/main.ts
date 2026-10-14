@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { PlanExportError, exportPlan, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
+import { PlanExportError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -21,7 +21,7 @@ Usage:
   atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
   atlas plan import <file> [--planning-dir <dir>] [--dry-run]
   atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
-  atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]
+  atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
   atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]
   atlas --version
   atlas help
@@ -36,10 +36,12 @@ planning folder given by --planning-dir, else the current folder, and exit 0 on 
 1 for an invalid export or a refused folder and 2 on usage errors.
 usage log exits 0 even when it cannot record, so a logging problem never fails the task (2 only for
 usage errors); it reports gaps on stderr.
-work report records an agent's report at a ledger transition: its model, the tokens used so far
-in its session when known, and the step. It appends one line to <work>/.atlas/statistics.jsonl,
-which the app summarizes. Values are self-reported and approximate. It always exits 0, except
-for usage errors (2), so reporting never fails the task.
+work report records a ledger transition: its time, the model and the step, as one line in
+<work>/.atlas/statistics.jsonl, which the app summarizes. Inside Claude Code or Codex it reads the
+session, the model, and the agent's working time and tokens since the session's previous report
+from the session's own log on this computer; elsewhere give --model, and --session and --tokens
+(the tokens used so far in the session) when known. It always exits 0, except for usage errors
+(2), so reporting never fails the task.
 serve runs the Atlas host without the desktop app, so paired devices can browse this computer
 and open any planning folder on it; --folder puts folders on its folder list from the start. It
 listens on this computer's Tailscale address unless --address names another (default port
@@ -59,7 +61,7 @@ const checkUsage = 'Usage: atlas planning check <planning-root>';
 const exportUsage = 'Usage: atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]';
 const importUsage = 'Usage: atlas plan import <file> [--planning-dir <dir>] [--dry-run]';
 const logUsage = 'Usage: atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]';
-const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> --model <model> [--tokens <n>] [--session <id>] [--step <title>]';
+const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]';
 const serveUsage = 'Usage: atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]';
 
 /** Parse `--name value`, `--name=value` and the variadic `--files a b c`, like the former argparse helpers. */
@@ -119,13 +121,16 @@ async function workReport(args: string[], out: Output) {
   if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(reportUsage); return 0; }
   const { positional, values } = parseOptions(args, { values: ['work', 'model', 'tokens', 'session', 'step'] }, reportUsage);
   if (positional.length > 1) throw new UsageError('unrecognized arguments: ' + positional.slice(1).join(' '), reportUsage);
-  const missing = [positional.length ? '' : 'planning-root', values.work ? '' : '--work', values.model ? '' : '--model'].filter(Boolean);
+  // A session's log may name the model: inside a harness, or for a given session.
+  const logged = harnessSessions(process.env).length > 0 || values.session !== undefined;
+  const missing = [positional.length ? '' : 'planning-root', values.work ? '' : '--work', values.model || logged ? '' : '--model'].filter(Boolean);
   if (missing.length) throw new UsageError('the following arguments are required: ' + missing.join(', '), reportUsage);
   if (values.tokens !== undefined && !/^[0-9]+$/.test(values.tokens)) throw new UsageError('argument --tokens: expected a whole number of tokens', reportUsage);
   try {
-    const result = await recordWorkReport(positional[0], values.work, { model: values.model, tokens: values.tokens === undefined ? null : Number(values.tokens), session: values.session ?? null, step: values.step ?? null });
+    const result = await recordWorkReport(positional[0], values.work, { model: values.model ?? null, tokens: values.tokens === undefined ? null : Number(values.tokens), session: values.session ?? null, step: values.step ?? null });
     for (const warning of result.warnings) out.stderr('WARNING: ' + warning);
-    out.stdout(JSON.stringify({ recorded: true, file: result.file, at: result.report.at }));
+    const { report } = result, measured = report.measured;
+    out.stdout(JSON.stringify({ recorded: true, file: result.file, at: report.at, model: report.model, ...measured && { since: measured.since, agentMs: measured.agentMs, tokens: measured.models.reduce((sum, item) => sum + item.input + item.cacheRead + item.cacheWrite + item.output, 0) } }));
   } catch (error) {
     out.stderr('Work statistics were not recorded (' + (error instanceof Error ? error.message : String(error)).replace(/\.$/, '') + '); continue the task.');
   }

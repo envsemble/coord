@@ -4,7 +4,7 @@
 // utility process (main/localHost.ts), or a paired computer's.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { app, dialog, Menu, powerMonitor, protocol, shell } from 'electron';
+import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
 import { atlasDataDirectory } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
@@ -17,7 +17,8 @@ import { buildMenu } from './menu.ts';
 import { refusalMessage, startupRefusal, type Refusal } from './refusal.ts';
 import { scheme } from './protocol.ts';
 import { StateStore } from './state.ts';
-import { WindowManager, type AtlasWindow } from './windows.ts';
+import { WindowManager } from './windows.ts';
+import type { AboutInfo } from '../shared/contract.ts';
 
 const dataDirectory = atlasDataDirectory();
 // Electron's per-user folder is the Atlas data folder shared with the `atlas` command; Chromium's
@@ -75,27 +76,19 @@ function refuse(found: Refusal) {
 function start() {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
   const state = new StateStore(path.join(dataDirectory, 'desktop-state.json'), error => log.warn('Desktop state not saved', error));
+  // The chosen theme reaches every window as prefers-color-scheme, and themes Atlas's own menus and dialogs.
+  nativeTheme.themeSource = state.theme;
   const devTools = !app.isPackaged;
   let manager: WindowManager;
 
   const openLogs = () => { void shell.openPath(log.directory); };
-  const about = (window?: AtlasWindow) => {
-    const options = {
-      type: 'info' as const, title: 'About Atlas', message: 'Atlas ' + app.getVersion(),
-      detail: [
-        'Plans, models and shared understanding for agents and the people they work with.',
-        '',
-        `Electron ${process.versions.electron} · Chromium ${process.versions.chrome} · Node.js ${process.versions.node}`,
-        'Data folder: ' + dataDirectory,
-        '',
-        'Atlas works offline. Plans, models, statistics and logs stay on this computer, unless you turn on remote access (File › Remote Access…) so your paired devices can use its planning folders.',
-      ].join('\n'),
-      buttons: ['OK'],
-    };
-    const target = window ?? manager.focused();
-    void (target ? dialog.showMessageBox(target.win, options) : dialog.showMessageBox(options));
-  };
-  const refreshMenu = () => { void manager.localFolders().then(list => buildMenu(manager, list, { openLogs, about: () => about(), devTools })); };
+  // Help › About Atlas is a dialog in the window; these are its facts.
+  const systems: Record<string, string> = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+  const about = (): AboutInfo => ({
+    version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node,
+    system: `${systems[process.platform] ?? process.platform} ${process.getSystemVersion()} (${process.arch})`, dataFolder: dataDirectory,
+  });
+  const refreshMenu = () => { void manager.localFolders().then(list => buildMenu(manager, list, { openLogs, devTools })); };
 
   const localHost = new LocalHost({
     entry: path.join(import.meta.dirname, 'host.js'), dataDirectory, version: app.getVersion(), log,
@@ -186,6 +179,8 @@ function start() {
       await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading planning folders.', detail: (error as Error).message + '\n\nDetails are in the log (Help › Open Logs).', buttons: ['OK'] });
     }
     connections.local.start();
+    // The window buttons in each title bar follow the theme.
+    nativeTheme.on('updated', () => { for (const window of manager.all()) window.updateTitleBar(); });
     // After sleep, connections may be dead without either side knowing: try them all again now.
     powerMonitor.on('resume', () => connections.wakeAll());
     const requested = folderArguments(launch.argv, launch.cwd, unpackaged);

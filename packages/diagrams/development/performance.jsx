@@ -5,6 +5,8 @@ import { useInspection } from "../src/viewer/useInspection";
 import { UMLDiagram } from "../src/visualization/UMLDiagram";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useSVGExport } from "../src/visualization/useSVGExport";
+import { Theme } from "@envsemble/envui";
+import "@envsemble/envui/styles.css";
 import "../src/ui/styles.css";
 import "../src/visualization/styles.css";
 
@@ -179,4 +181,8 @@ function Benchmark() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<Benchmark />);
+createRoot(document.getElementById("root")).render(
+  <Theme theme="dark">
+    <Benchmark />
+  </Theme>,
+);

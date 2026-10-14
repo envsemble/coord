@@ -1,9 +1,10 @@
 // A time scatter: one dot per item at its date, coloured by series, with a legend, hairline
 // grid, a hover and keyboard tooltip (the nearest dot within 24 px), and Enter to open the item.
 // Hand-built SVG: the window's content security policy allows no chart library code from elsewhere.
-import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+// Series colours may be CSS custom properties, so they are applied as styles, not attributes.
+import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
-export interface ChartSeries { key: string; label: string; color: string }
+export interface ChartSeries { key: string; label: ReactNode; color: string }
 export interface ChartPoint { id: string; x: number; y: number; series: string; title: string; detail: string }
 
 const height = 260;
@@ -115,7 +116,7 @@ export function ScatterChart({ label, points, series, formatValue, valueKind = '
         <line className="chart-axis" x1={margin.left} x2={width - margin.right} y1={y(0)} y2={y(0)} />
         {timeTicks(start, end, Math.floor(plotWidth / 90)).map(tick => <text key={'x' + tick} className="chart-tick" x={x(tick)} y={height - 8} textAnchor="middle">{dateLabel.format(tick)}</text>)}
         {ordered.map(point => <circle key={point.id} cx={x(point.x)} cy={y(point.y)} r={point.id === active ? 6 : 5}
-          className={'chart-dot' + (point.id === active ? ' active' : '')} fill={colors.get(point.series)?.color ?? 'var(--fgColor-muted)'} />)}
+          className={'chart-dot' + (point.id === active ? ' active' : '')} style={{ fill: colors.get(point.series)?.color ?? 'var(--atlas-chart-other)' }} />)}
       </svg>
       {shown && <div className="chart-tooltip" role="status" style={{ left: Math.min(x(shown.x) + 12, width - 220), top: Math.max(0, y(shown.y) - 64) }}>
         <strong>{formatValue(shown.y)}</strong>

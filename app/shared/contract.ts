@@ -18,7 +18,7 @@ export const invokeChannels = [
   'window:info',
   'planning:snapshot', 'planning:document', 'planning:models', 'planning:model', 'planning:references', 'planning:diagrams',
   'usage:view', 'ui:load', 'ui:save',
-  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command',
+  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch',
   'folders:list', 'folders:open', 'folders:choose', 'folders:browse', 'folders:remove',
@@ -30,12 +30,26 @@ export type InvokeChannel = typeof invokeChannels[number];
 export const eventChannels = ['planning:changed', 'menu:command', 'access:changed', 'folders:changed'] as const;
 export type EventChannel = typeof eventChannels[number];
 
-/** Commands the renderer may ask main to run; each one acts on the calling window only. */
-export const appCommands = ['newWindow', 'locate', 'closeWindow', 'openLogs', 'about'] as const;
+/** Light, dark, or the operating system's choice: kept by main for every window and applied as Electron's native theme. */
+export const themePreferences = ['system', 'light', 'dark'] as const;
+export type ThemePreference = typeof themePreferences[number];
+
+/**
+ * Commands the renderer may ask main to run, from the title bar's menus among others; each one acts
+ * on the calling window only (New Window and Exit act on the app).
+ */
+export const appCommands = [
+  'newWindow', 'locate', 'closeFolder', 'closeWindow', 'quit', 'openLogs',
+  'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
+  'zoomIn', 'zoomOut', 'resetZoom', 'toggleFullScreen', 'reload', 'toggleDevTools',
+] as const;
 export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, tabs, dialogs drawn in the window). */
-export const menuCommands = ['toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess', 'browseFolder'] as const;
+export const menuCommands = [
+  'toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess', 'browseFolder', 'manageFolders', 'closeFolder',
+  'goBack', 'goForward', 'about',
+] as const;
 export type MenuCommand = typeof menuCommands[number];
 
 export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unauthorized' | 'unavailable' | 'no-folder' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
@@ -71,6 +85,8 @@ export interface WindowInfo {
   computer: ComputerRef;
   /** Set when the folder is on another computer. */
   remote: { hostId: string; hostName: string } | null;
+  /** Whether View offers Reload and the developer tools (unpackaged builds). */
+  devTools: boolean;
 }
 /** `notice`: the folder is readable but cannot be watched, or its computer is not reachable right now. */
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
@@ -89,12 +105,32 @@ export type Target =
   | { kind: 'work'; work: string; section?: WorkSection | null; diagram?: string | null; element?: string | null; anchor?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
 export interface TabState { id: string; target: Target; preview: boolean }
+/**
+ * A window's layout for its folder. Tabs hold documents (work items and files); the views (Work,
+ * Activity and Statistics) are pages of their own, and `page` shows while no tab is active.
+ */
 export interface UiState {
   sidebar: { visible: boolean; width: number; expanded: string[] };
   tabs: { items: TabState[]; active: string | null };
+  page: ViewName;
+  /** The width the reader gave a diagram's details, in pixels; absent for the default. */
+  inspectorWidth?: number;
 }
-export const defaultUiState: UiState = { sidebar: { visible: true, width: 280, expanded: [] }, tabs: { items: [], active: null } };
-export const limits = { path: 2048, tabs: 40, expanded: 2000, sidebarMin: 170, sidebarMax: 640 } as const;
+export const viewNames = ['work', 'activity', 'statistics'] as const satisfies readonly ViewName[];
+export const defaultUiState: UiState = { sidebar: { visible: true, width: 280, expanded: [] }, tabs: { items: [], active: null }, page: 'work' };
+export const limits = { path: 2048, tabs: 40, expanded: 2000, sidebarMin: 170, sidebarMax: 640, inspectorMin: 240, inspectorMax: 1200 } as const;
+
+/** What Help › About Atlas shows. */
+export interface AboutInfo {
+  version: string;
+  electron: string;
+  chromium: string;
+  node: string;
+  /** The operating system, its version and the processor architecture, such as Windows 10.0.26200 (x64). */
+  system: string;
+  /** The per-user Atlas data folder. */
+  dataFolder: string;
+}
 
 export interface ExportResult { path: string; bytes: number; warnings: string[] }
 export interface ImportPreview {
@@ -135,6 +171,11 @@ export interface AtlasBridge {
   openExternal(url: string): Promise<Result<void>>;
   copy(text: string): Promise<Result<void>>;
   command(command: AppCommand): Promise<Result<void>>;
+  /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
+  theme(): Promise<Result<ThemePreference>>;
+  setTheme(preference: ThemePreference): Promise<Result<void>>;
+  /** The versions and the data folder Help › About Atlas shows. */
+  about(): Promise<Result<AboutInfo>>;
   exportPlan(work: string): Promise<Result<ExportResult | null>>;
   chooseImport(): Promise<Result<ImportPreview | null>>;
   confirmImport(token: string): Promise<Result<ImportResult>>;

@@ -1,12 +1,13 @@
 // Plan export and import: lossless round trips, identity rewrites, registry formatting and
 // rejection of malformed exports before anything is written.
+import { createHash } from 'node:crypto';
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname, release, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import atlas, { type AtlasDocument } from '@envsemble/atlas-diagrams';
+import atlas, { type AtlasDocument, type ViewerPayload } from '@envsemble/atlas-diagrams';
 import { parse } from 'parse5';
 import { validatePlanning, parseFrontmatter } from './check.ts';
 import { loadPlanning } from './planning.ts';
@@ -289,7 +290,8 @@ test('the exported HTML is self-contained, inert and safe to open', async t => {
   const { html } = await exportPlan(source, 'work-0001', { now });
   const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html)?.[1] ?? '';
   for (const directive of ["default-src 'none'", "connect-src 'none'", "object-src 'none'", "frame-src 'none'", "base-uri 'none'", "form-action 'none'"]) assert.ok(policy.includes(directive), directive);
-  assert.match(policy, /script-src 'sha256-[A-Za-z0-9+/=]+'/);
+  // Two scripts run: envUI's theme startup script in the head, and the viewer.
+  assert.match(policy, /script-src 'sha256-[A-Za-z0-9+/=]+' 'sha256-[A-Za-z0-9+/=]+'/);
   assert.ok(!policy.includes("'unsafe-eval'") && !/script-src[^;]*'unsafe-inline'/.test(policy));
   assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('<style>'), 'the policy precedes all content');
   type Element = { tagName?: string; attrs?: { name: string; value: string }[]; childNodes?: Element[] };
@@ -297,11 +299,13 @@ test('the exported HTML is self-contained, inert and safe to open', async t => {
   const pending: Element[] = [parse(html) as unknown as Element];
   while (pending.length) { const node = pending.shift()!; if (node.tagName) elements.push(node); pending.push(...node.childNodes ?? []); }
   const scripts = elements.filter(node => node.tagName === 'script').map(node => Object.fromEntries((node.attrs ?? []).map(attribute => [attribute.name, attribute.value])));
-  assert.deepEqual(scripts, [{ id: 'atlas-plan-export', type: 'application/json' }, { id: 'atlas-plan-view', type: 'application/json' }, {}], 'only the viewer runs; payloads are inert');
+  assert.deepEqual(scripts, [{}, { id: 'atlas-plan-export', type: 'application/json' }, { id: 'atlas-plan-view', type: 'application/json' }, {}], 'only the theme startup script and the viewer run; payloads are inert');
+  const themeScript = /<head>[\s\S]*?<script>([\s\S]*?)<\/script>/.exec(html)![1];
+  assert.ok(policy.includes(`'sha256-${createHash('sha256').update(themeScript).digest('base64')}'`), 'the theme startup script runs by its hash');
   assert.deepEqual(elements.filter(node => ['iframe', 'object', 'embed', 'base', 'form'].includes(node.tagName!)), []);
   assert.ok(!/<script\b[^>]*\bsrc\s*=/i.test(html) && !/<link\b(?![^>]*rel="icon" href="data:)[^>]*>/i.test(html), 'no external scripts or resources');
   assert.ok(!/url\(\s*['"]?(?:https?:)?\/\//i.test(html) && !/@import/i.test(html), 'no remote styles');
-  assert.equal(html.match(/<\/script>/g)!.length, 3, 'embedded text cannot close a script element');
+  assert.equal(html.match(/<\/script>/g)!.length, 4, 'embedded text cannot close a script element');
   assert.match(html, /<title>Checkout &lt;\/script&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt; \| Atlas plan<\/title>/);
 });
 
@@ -462,4 +466,59 @@ test('refuses an export too large for an import to read', async t => {
   await assert.rejects(exportPlan(source, 'work-0001', { now }), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
   assert.throws(() => readPlanExport(html), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
   assert.throws(() => readPlanExport(Buffer.from(html)), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
+});
+
+test('names the exported diagram chips as the app does', async t => {
+  const source = temporary(t);
+  const work = fixture(source);
+  const model = { type: 'StructuralModel', nodes: [{ id: 'checkout', name: 'CheckoutService', attributes: [] }, { id: 'vault', name: 'PaymentMethodVault', attributes: [] }], relations: [{ id: 'uses', name: 'declared type use', stereotype: 'dependency', sourceId: 'checkout', targetId: 'vault', sourceMultiplicity: '?', targetMultiplicity: '?' }, { id: 'stores', name: 'stores cards in', sourceId: 'checkout', targetId: 'vault', sourceMultiplicity: '1', targetMultiplicity: '0..*' }], generalizations: [], generalizationSets: [] };
+  atlas.createWorkspace(work).save(atlas.createDocument({ id: 'atlas-uses', profile: 'code', title: 'Uses', model: model as never, workId: 'work-0001', context: { records: [record('flow', 'plan.md', 'Data model')], links: [{ elementId: 'uses', recordId: 'flow' }, { elementId: 'stores', recordId: 'flow' }] } }));
+  const { html } = await exportPlan(source, 'work-0001', { now });
+  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { title: string; references: { elementName: string | null }[] }[] };
+  // A relation whose name says nothing more reads as its ends; a named one keeps its name.
+  assert.deepEqual(view.diagrams.find(diagram => diagram.title === 'Uses')!.references.map(item => item.elementName), ['CheckoutService → PaymentMethodVault', 'stores cards in']);
+});
+
+/**
+ * OntoUML proposals over one authored model: two add a class each, and the last a three-way
+ * relation, which the viewer cannot draw. One project grows, so its stages share their IDs.
+ */
+function conceptualProposals(workId: string) {
+  const project = new atlas.Project(), root = project.packageBuilder().root().name('Orders').build();
+  const stage = () => JSON.parse(JSON.stringify(project));
+  const add = (name: string) => root.classBuilder().kind().name(name).build();
+  const [order, line, product] = ['Order', 'Line', 'Product'].map(add);
+  const base = stage();
+  add('Refund');
+  const refunds = stage();
+  add('Credit');
+  const credits = stage();
+  root.naryRelationBuilder().members(order, line, product).name('Three way').build();
+  const threeWay = stage();
+  const authored = atlas.createDocument({ id: 'conceptual', title: 'Orders', profile: 'ontouml', model: base, workId });
+  const proposal = (id: string, title: string, model: unknown) => atlas.reviseDocument(atlas.createProposal(authored, { id, title }), { model: model as AtlasDocument['model'] });
+  return [proposal('refunds', 'Refunds', refunds), proposal('credits', 'Credits', credits), proposal('three-way', 'Three-way', threeWay)];
+}
+
+test('lays a family out together, and exports a member it cannot draw undrawn', async t => {
+  const source = temporary(t);
+  const work = fixture(source);
+  const proposals = conceptualProposals('work-0001');
+  const workspace = atlas.createWorkspace(work);
+  for (const document of proposals) workspace.save(document);
+  const { html, warnings } = await exportPlan(source, 'work-0001', { now });
+  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { title: string; file: string; payload: ViewerPayload | null; error: string | null }[] };
+  const [refunds, credits, threeWay] = proposals.map(document => view.diagrams.find(diagram => diagram.title === document.title)!);
+  // The two it can draw share one layout, so the viewer switches between them in place.
+  assert.equal(refunds.payload!.family, proposals[0].baselineId);
+  assert.equal(credits.payload!.family, proposals[0].baselineId);
+  const place = (payload: ViewerPayload, name: string) => {
+    const node = payload.comparison!.changeView!.views[0].diagram.nodes.find(item => item.name === name)!;
+    return [node.x, node.y];
+  };
+  for (const name of ['Order', 'Refund']) assert.deepEqual(place(credits.payload!, name), place(refunds.payload!, name));
+  // The third is exported, but not drawn.
+  assert.equal(threeWay.payload, null);
+  assert.match(threeWay.error!, /cannot be drawn: This renderer supports binary class relations/);
+  assert(warnings.includes(`The model ${threeWay.file} is exported but cannot be drawn in the viewer.`));
 });

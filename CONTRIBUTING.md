@@ -6,9 +6,16 @@ Keep plans, lifecycle decisions and reported outcomes in the associated planning
 
 ## Set up and run
 
-Use Node 24, npm and Java 21. Run `npm ci`, then:
+Use Node 24, npm and Java 21. The interface comes from envUI (`@envsemble/envui`), Envsemble's private package on GitHub Packages, so `npm ci` needs a GitHub token with `read:packages` in `NODE_AUTH_TOKEN` and this line in your user `.npmrc` (never in the repository's):
+
+```ini
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+With the GitHub CLI, `NODE_AUTH_TOKEN=$(gh auth token)` works once its token has the `read:packages` scope. CI uses the workflow's `GITHUB_TOKEN`, which needs read access to the envUI package (Envsemble's package settings). Run `npm ci`, then:
 
 - `npm run dev` starts the desktop app with hot reload (`npm run dev -- /path/to/planning` opens a folder);
+- `npm run dev:envui` does the same against a local envUI checkout beside this one (`../envUI`, or `ENVUI_PATH`), with live reload for envUI's components too; it links that checkout into the app, the plan viewer and the diagram viewer without changing `package.json` or the lockfile. `npm run envui:unlink` returns to the published version, and `node scripts/dev-envui.mjs --link` links again after an `npm install` replaced the link;
 - `npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates;
 - `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module. The HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service.
 

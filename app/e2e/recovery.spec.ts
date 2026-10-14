@@ -12,24 +12,24 @@ test('a crashed window reloads with its tabs', async () => {
   launched = await launch({ folder });
   const { app, window } = launched;
   await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
-  await window.locator('.tab.preview').dblclick();
-  await window.locator('.tree-row[data-id="d:knowledge"]').click();
-  await window.locator('.tree-row[data-id="d:knowledge/shop"]').click();
-  await window.locator('.tree-row[data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
-  await expect(window.locator('.tab')).toHaveCount(3);
+  await window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][data-preview="true"]').dblclick();
+  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(2);
   await window.waitForTimeout(600);
   // End the renderer process as a crash would. (forcefullyCrashRenderer() on Linux leaves a sandboxed
   // renderer stuck in its crash handler, so the process never ends.)
   await app.evaluate(({ BrowserWindow }) => { process.kill(BrowserWindow.getAllWindows()[0].webContents.getOSProcessId(), 'SIGKILL'); });
   // Playwright's page object ends with the crashed renderer, so read the reloaded page from main.
   const tabs = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(
-    "[...document.querySelectorAll('.tab')].map(tab => (tab.classList.contains('active') ? '*' : '') + tab.textContent).join('|')").catch(() => ''));
+    "[...document.querySelectorAll('[role=tablist][aria-label=\"Open tabs\"] [role=tab]')].map(tab => (tab.getAttribute('aria-selected') === 'true' ? '*' : '') + tab.textContent).join('|')").catch(() => ''));
   let restored = '';
-  for (let attempt = 0; attempt < 40 && restored !== 'Work|Saved payment methods|*inventory-schema.md'; attempt++) {
+  for (let attempt = 0; attempt < 40 && restored !== 'Saved payment methods|*inventory-schema.md'; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 500));
     restored = await tabs();
   }
-  expect(restored).toBe('Work|Saved payment methods|*inventory-schema.md');
+  expect(restored).toBe('Saved payment methods|*inventory-schema.md');
   const log = readFileSync(path.join(launched.dataDirectory, 'logs', 'atlas.log'), 'utf8');
   expect(log).toContain('Window renderer gone');
 });
@@ -68,7 +68,8 @@ test('a moved planning folder shows Locate… and Close, and returns when it com
   renameSync(folder, moved);
   await expect(window.getByRole('heading', { name: 'This planning folder was moved or deleted' })).toBeVisible();
   await expect(window.getByRole('button', { name: 'Locate…' })).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Close' })).toBeVisible();
+  await expect(window.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+  await expect(window.getByRole('button', { name: 'Close Folder' })).toBeVisible();
   renameSync(moved, folder);
   await expect(window.locator('.work-row')).toHaveCount(3, { timeout: 20_000 });
 });
@@ -76,18 +77,18 @@ test('a moved planning folder shows Locate… and Close, and returns when it com
 test('Locate… points the window at the folder’s new location and keeps its tabs', async () => {
   launched = await launch({ folder });
   const { app, window } = launched;
-  await window.locator('.tree-row[data-id="d:knowledge"]').click();
-  await window.locator('.tree-row[data-id="d:knowledge/shop"]').click();
-  await window.locator('.tree-row[data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
-  await expect(window.locator('.tab')).toHaveCount(2);
+  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(1);
   await window.waitForTimeout(600);
   const moved = path.join(path.dirname(folder), 'relocated');
   renameSync(folder, moved);
   await expect(window.getByRole('button', { name: 'Locate…' })).toBeVisible();
   await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as typeof dialog.showOpenDialog; }, moved);
   await window.getByRole('button', { name: 'Locate…' }).click();
-  await expect(window.locator('.tab')).toHaveCount(2);
-  await expect(window.locator('.tab.active')).toContainText('inventory-schema.md');
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(1);
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]')).toContainText('inventory-schema.md');
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()))).toEqual(['relocated — Atlas']);
   folder = moved;
 });
@@ -99,7 +100,7 @@ test('a folder that cannot be read at all explains why, and Close closes the win
   await expect(window.getByRole('heading', { name: 'This planning folder can’t be read' })).toBeVisible();
   await expect(window.locator('.folder-problem-error')).toContainText('planning.json');
   const closed = app.waitForEvent('close');
-  await window.getByRole('button', { name: 'Close' }).click();
+  await window.getByRole('button', { name: 'Close', exact: true }).click();
   await closed;
   // afterEach still runs close(), which removes the data folder of the exited app.
 });

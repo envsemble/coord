@@ -50,9 +50,10 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
   await page.waitFor(`document.querySelector('.work-header h1')`);
   assert.equal(await page.evaluate('document.querySelector(".work-header h1").textContent'), hostileTitle);
   await page.waitFor(`document.querySelector('.diagram-card')`);
-  assert.equal(await page.evaluate('document.querySelectorAll("script").length'), 3);
+  // envUI's theme startup script, the two inert payloads and the viewer: nothing the content adds.
+  assert.equal(await page.evaluate('document.querySelectorAll("script").length'), 4);
 
-  // Hostile Markdown is shown as text: no elements, handlers or remote images.
+  // Hostile Markdown renders no elements, handlers or remote images: envUI's Markdown ignores raw HTML.
   await page.evaluate(`location.hash = 'tab=files&file=evidence%2Fhostile.md'`);
   await page.waitFor(`document.querySelector('.reader-name strong')?.textContent === 'hostile.md'`);
   const prose = await page.evaluate<{ text: string; images: string[]; frames: number; links: string[]; handlers: number }>(`(() => {
@@ -61,7 +62,8 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
       frames: document.querySelectorAll('iframe, object, embed').length, links: [...prose.querySelectorAll('a')].map(a => a.getAttribute('href')),
       handlers: document.querySelectorAll('[onerror], [onload], [onclick]').length };
   })()`);
-  assert.match(prose.text, /<script>window.__pwned = "markdown script"<\/script>/);
+  assert.doesNotMatch(prose.text, /window\.__pwned/, 'raw HTML is ignored, not rendered or shown');
+  assert.match(prose.text, /Hostile notes/);
   assert.equal(prose.frames, 0);
   assert.equal(prose.handlers, 0);
   assert.ok(prose.images.every(src => src.startsWith('blob:')), 'only exported images are shown: ' + prose.images.join(', '));

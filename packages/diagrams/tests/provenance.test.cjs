@@ -2,27 +2,8 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const { buildSync } = require("esbuild");
 const atlas = require("../lib/index.cjs");
-
-function components() {
-  const code = buildSync({
-    entryPoints: ["src/index.js"],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    packages: "external",
-    jsx: "automatic",
-    write: false,
-  }).outputFiles[0].text;
-  const compiled = { exports: {} };
-  new Function("require", "module", "exports", code)(
-    require,
-    compiled,
-    compiled.exports,
-  );
-  return compiled.exports;
-}
+const { loadComponents: components } = require("./load-components.cjs");
 const react = components();
 const capture = (kind, identity, capturedAt, status = "complete") => ({
   id: `capture-${identity}`,
@@ -135,7 +116,7 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
   assert.equal(formatCaptureDate("not a date"), "");
 });
 
-test("embedded panel floats its controls and shows readable provenance", async () => {
+test("embedded panel floats its controls, below the host's sections, and leaves provenance to its host", async () => {
   const { AtlasPanel } = react;
   const document = atlas.createDocument({
     title: "Enrollment",
@@ -154,11 +135,14 @@ test("embedded panel floats its controls and shows readable provenance", async (
     }),
   );
   assert(html.includes('id="host-picker"'));
-  assert(html.includes("Agent-authored"));
-  assert(html.includes("Structural model"));
-  assert(html.includes('aria-label="Open model report"'));
-  // A single view needs no view tabs.
-  assert(!html.includes('class="tabs"'));
+  // The host's picker names the model's origin; the panel draws no chip.
+  assert(!html.includes("Agent-authored"));
+  assert(!html.includes("atlas-provenance"));
+  // The model report is gone; a code model has no guide to open either.
+  assert(!html.includes("report"));
+  assert(!html.includes("Understand the model"));
+  // A single view needs no view switcher.
+  assert(!html.includes('aria-label="Diagram view"'));
   assert(!html.includes("fullscreen"));
   assert(!ISO.test(html), "raw ISO timestamps stay out of the UI");
   const fullscreen = renderToStaticMarkup(
@@ -169,9 +153,23 @@ test("embedded panel floats its controls and shows readable provenance", async (
     }),
   );
   assert(fullscreen.includes('aria-label="Exit fullscreen"'));
+  // The host's sections come first, at the top left with the tools; the
+  // diagram's navigation takes the row below.
+  const stacked = renderToStaticMarkup(
+    createElement(AtlasPanel, {
+      payload,
+      sections: createElement("span", { id: "host-sections" }, "Sections"),
+      leading: createElement("span", { id: "host-picker" }, "Model picker"),
+    }),
+  );
+  assert(stacked.includes('class="atlas-overlay-top stacked"'));
+  assert(
+    stacked.indexOf('id="host-sections"') < stacked.indexOf('id="host-picker"'),
+  );
+  assert(stacked.includes('class="atlas-overlay-sections"'));
 });
 
-test("proposals compare Baseline and Changes with a readable change list", async () => {
+test("proposals open in their change view with a readable list of changes", async () => {
   const { AtlasPanel } = react;
   const base = atlas.createDocument({
     id: "enrollment",
@@ -201,20 +199,40 @@ test("proposals compare Baseline and Changes with a readable change list", async
     includeArtifacts: false,
   });
   const html = renderToStaticMarkup(createElement(AtlasPanel, { payload }));
-  assert(html.includes(">Baseline<") && html.includes(">Changes<"));
-  assert(!html.includes("Proposed"));
-  assert(html.includes('data-mode="changes" aria-current="true"'));
-  assert(html.includes("Agent proposal"));
-  assert(/Changes to source captured [A-Z][a-z]{2} \d{1,2}, \d{4}/.test(html));
-  assert(html.includes('class="count-added">+1<'));
-  // Renamed types plus the model's node list.
-  assert(html.includes('class="count-modified">~3<'));
-  assert(html.includes('title="Learner, Pupil, Term"'));
-  assert(html.includes(">Added<") && html.includes(">Modified<"));
-  assert(html.includes("Term"));
-  assert(html.includes('class="change-value before"'));
-  assert(html.includes(">Student<") && html.includes(">Pupil<"));
-  assert(html.includes("Learners replace students."));
-  assert(html.includes('aria-label="Inspect Term"'));
+  // One way to choose what is shown: no Baseline/Changes control, no popover.
+  assert(!html.includes(">Baseline<"));
+  assert(!html.includes('aria-label="Comparison"'));
+  assert(!html.includes("Semantic changes"));
+  assert(html.includes('aria-label="Changes, 3"'));
+  assert(!html.includes("Agent proposal"), "the host names the origin");
+  // The change view marks what changed on the canvas.
+  assert(html.includes('data-change="added"'));
+  assert(html.includes(">New<") && html.includes(">Changed<"));
   assert(!ISO.test(html), "raw ISO timestamps stay out of the UI");
+  const { ChangesOverview } = components("src/review/ChangesOverview.jsx");
+  const { rollupChanges } = components("src/review/changes.js");
+  const rollup = rollupChanges(
+    payload.comparison,
+    payload.comparison.changeView.model,
+  );
+  const list = renderToStaticMarkup(
+    createElement(ChangesOverview, {
+      rollup,
+      baselineDate: "Oct 8, 2026",
+      profile: "code",
+      onSelect() {},
+    }),
+  );
+  assert(list.includes(">New<") && list.includes(">Changed<"));
+  assert(list.includes(">Term<"));
+  // Renamed types appear once each, under their new names.
+  assert(list.includes(">Pupil<") && list.includes(">Learner<"));
+  // A rename reads as the old name and the new one.
+  assert(list.includes("name: Student → Pupil"));
+  assert(
+    !list.includes("Learners replace students."),
+    "no rationale in the list",
+  );
+  assert(list.includes("Compared with the code captured Oct 8, 2026."));
+  assert(!ISO.test(list), "raw ISO timestamps stay out of the UI");
 });

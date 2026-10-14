@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ComputerRef, Snapshot, UiState, WindowInfo } from './types';
+import type { ComputerFolder, ComputerRef, Snapshot, UiState, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
-import { Blankslate, Spinner } from './ui';
+import { EmptyState, Spinner, useToast, WindowFrame } from '@envsemble/envui';
+import { ErrorIcon } from './icons';
 import { FolderProblem, Welcome } from './Welcome';
 import { Workbench } from './Workbench';
 import { ConnectDialog } from './ConnectDialog';
 import { RemoteAccessDialog } from './RemoteAccessDialog';
 import { FolderBrowser } from './FolderBrowser';
-import { AppActionsContext, type AppActions } from './Computers';
+import { AppActionsContext, ComputersDialog, currentFolder, FoldersDialog, type AppActions } from './Computers';
+import { WindowTitleBar } from './AppMenu';
+import { AboutDialog } from './AboutDialog';
 
-type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
+type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'about' } | { kind: 'folders'; computer: ComputerRef; isCurrent?: (folder: ComputerFolder) => boolean }
+  | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
 
 /**
  * One window shows one planning folder, on this computer or another one. The folder is read in
@@ -23,21 +27,31 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [ui, setUi] = useState<UiState | null>(null);
   const [failure, setFailure] = useState('');
-  // Pairing, remote access and the folder browser work in every window.
+  // Pairing, remote access, the folder browser and About work in every window.
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  const toast = useToast();
+  const warn = useCallback((message: string) => { toast.show({ message, variant: 'info' }); }, [toast]);
   const computer = info?.computer ?? null;
   const actions = useMemo<AppActions>(() => ({
     connect: () => setDialog({ kind: 'connect' }),
     remoteAccess: () => setDialog({ kind: 'access' }),
     browse: (target, near = null) => { if (target.hostId !== null) setDialog({ kind: 'browse', computer: { hostId: target.hostId, name: target.name }, near }); },
+    manageComputers: () => setDialog({ kind: 'computers' }),
+    manageFolders: (target, isCurrent) => setDialog({ kind: 'folders', computer: target, isCurrent }),
+    about: () => setDialog({ kind: 'about' }),
   }), []);
   // File › Open Folder… in a window on another computer browses it, beside the folder the window shows.
   const near = snapshot && info?.folder ? snapshot.root : null;
+  const showsWorkbench = Boolean(info?.folder && snapshot && info.status !== 'missing');
   useEffect(() => api.onMenu(command => {
     if (command === 'connectRemote') actions.connect();
     else if (command === 'remoteAccess') actions.remoteAccess();
     else if (command === 'browseFolder' && computer) actions.browse(computer, near);
-  }), [actions, computer, near]);
+    else if (command === 'manageFolders' && info) actions.manageFolders(info.computer, info.folder ? currentFolder(info, info.folder.root) : undefined);
+    else if (command === 'about') actions.about();
+    // The workbench saves its layout before it closes its folder; other pages close it at once.
+    else if (command === 'closeFolder' && info?.folder && !showsWorkbench) void api.command('closeFolder').catch(() => undefined);
+  }), [actions, computer, near, info, showsWorkbench]);
   const latest = useRef(0);
 
   const refresh = useCallback(async (revision: number) => {
@@ -63,7 +77,6 @@ export default function App() {
     return off;
   }, [refresh]);
 
-  const showsWorkbench = Boolean(info?.folder && snapshot && info.status !== 'missing');
   useEffect(() => {
     if (!showsWorkbench || ui) return;
     api.loadUi().then(setUi).catch(() => setUi(defaultUiState));
@@ -78,12 +91,18 @@ export default function App() {
     {dialog?.kind === 'connect' && <ConnectDialog onClose={close} onBrowse={target => setDialog({ kind: 'browse', computer: target, near: null })} />}
     {dialog?.kind === 'access' && computer && <RemoteAccessDialog onClose={close} computer={computer} />}
     {dialog?.kind === 'browse' && <FolderBrowser computer={dialog.computer} near={dialog.near} onClose={close} />}
+    {dialog?.kind === 'computers' && computer && <ComputersDialog current={computer} onClose={close} />}
+    {dialog?.kind === 'folders' && <FoldersDialog computer={dialog.computer} isCurrent={dialog.isCurrent} onClose={close} />}
+    {dialog?.kind === 'about' && <AboutDialog onClose={close} onError={warn} />}
   </>;
   let content;
-  if (!info) content = failure ? <main className="page-state"><Blankslate title="Atlas could not start this window">{failure}</Blankslate></main> : <main className="page-state"><Spinner size={24} /></main>;
+  if (!info) content = failure ? <main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main> : <main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>;
   else if (!info.folder) content = <Welcome info={info} />;
   else if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) content = <FolderProblem info={info} />;
-  else if (!snapshot || !ui) content = <main className="page-state" aria-busy="true"><Spinner size={24} /><span className="muted">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
+  else if (!snapshot || !ui) content = <main className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + info.folder.name + (info.remote ? ' on ' + info.remote.hostName : '')} /><span className="page-state-label">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
   else content = <Workbench info={info} snapshot={snapshot} initialUi={ui} />;
-  return <AppActionsContext.Provider value={actions}>{content}{dialogs}</AppActionsContext.Provider>;
+  // The window draws its own title bar: the workbench's shell has one; every other page gets this one,
+  // with the page scrolling below it.
+  const framed = content.type === Workbench ? content : <WindowFrame titleBar={<WindowTitleBar info={info} onError={warn} />}>{content}</WindowFrame>;
+  return <AppActionsContext.Provider value={actions}>{framed}{dialogs}</AppActionsContext.Provider>;
 }

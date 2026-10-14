@@ -362,9 +362,11 @@ function sqliteModel(engine, options, batches) {
         ),
         to = parts.map((p, i) =>
           p.to
-            ? target?.attributes.find(
-                (a) => sqliteName(a.name) === sqliteName(p.to),
-              )?.name || null
+            ? target
+              ? target.attributes.find(
+                  (a) => sqliteName(a.name) === sqliteName(p.to),
+                )?.name || null
+              : p.to
             : target?.keys.find((k) => k.primary)?.columns[i] || null,
         );
       const foreignKey = {

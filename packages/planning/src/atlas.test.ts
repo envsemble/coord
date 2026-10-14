@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync, existsSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync, realpathSync, existsSync, symlinkSync, utimesSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import atlas, { type AtlasDocument } from '@envsemble/atlas-diagrams';
 const { createWorkspace } = atlas;
-import { AtlasCatalog } from './atlas.ts';
+import { AtlasCatalog, elementNames } from './atlas.ts';
 import { createScopeCache } from './atlasScope.ts';
 import { describeProvenance } from './provenance.ts';
 import { resolveRecordPath } from './paths.ts';
@@ -213,4 +213,216 @@ test('record paths resolve against the work folder only and never escape the pla
   assert.equal(resolveRecordPath('plan.md', null, documents), undefined, 'a record without a work folder does not resolve');
   assert.equal(resolveRecordPath('../../knowledge/a.md', 'active/1', documents)?.path, 'knowledge/a.md');
   for (const escape of ['../../../a.md', '/etc/passwd', 'C:/x.md', 'https://example.com/plan.md', '', 7]) assert.equal(resolveRecordPath(escape, 'active/1', documents), undefined);
+});
+
+test('element chips name relations by their ends when their own name says nothing more', () => {
+  const structural = {
+    type: 'StructuralModel',
+    nodes: [
+      { id: 'checkout', name: 'CheckoutService', attributes: [{ id: 'vault-field', name: 'vault', type: 'PaymentMethodVault' }] },
+      { id: 'vault', name: 'PaymentMethodVault', attributes: [] },
+      { id: 'level', name: 'stock_level', attributes: [] },
+      { id: 'product', name: 'product', attributes: [] },
+    ],
+    relations: [
+      { id: 'uses', name: 'declared type use', stereotype: 'dependency', sourceId: 'checkout', targetId: 'vault' },
+      { id: 'fk', name: 'sku → sku', stereotype: 'foreign key', sourceId: 'level', targetId: 'product' },
+      { id: 'created', name: 'orders_created_by_fkey', stereotype: 'foreign key', sourceId: 'level', targetId: 'product' },
+      { id: 'updated', name: 'orders_updated_by_fkey', stereotype: 'foreign key', sourceId: 'level', targetId: 'product' },
+      { id: 'named', name: 'stores cards in', sourceId: 'checkout', targetId: 'vault' },
+      { id: 'unnamed', sourceId: 'vault', targetId: 'checkout' },
+    ],
+    generalizations: [{ id: 'implements', specificId: 'checkout', generalId: 'vault', realization: true }],
+  };
+  const names = elementNames(structural);
+  assert.equal(names.get('uses'), 'CheckoutService → PaymentMethodVault');
+  // A foreign key's name tells it from others between the same tables, as on the diagram.
+  assert.equal(names.get('fk'), 'sku → sku');
+  assert.equal(names.get('created'), 'orders_created_by_fkey');
+  assert.equal(names.get('updated'), 'orders_updated_by_fkey');
+  assert.equal(names.get('named'), 'stores cards in');
+  assert.equal(names.get('unnamed'), 'PaymentMethodVault → CheckoutService');
+  assert.equal(names.get('implements'), 'CheckoutService implements PaymentMethodVault');
+  assert.equal(names.get('vault-field'), 'vault', 'members keep their own names');
+  const ontouml = {
+    type: 'Project',
+    elements: [
+      { id: 'order', type: 'Class', name: { en: 'Order' } },
+      { id: 'customer', type: 'Class', name: { en: 'Customer' } },
+      { id: 'person', type: 'Class', name: { en: 'Person' } },
+      { id: 'placed-by', type: 'BinaryRelation', name: { en: 'placed by' }, properties: ['a', 'b'] },
+      { id: 'anonymous', type: 'BinaryRelation', name: null, properties: [{ id: 'c' }, { id: 'd' }] },
+      { id: 'default', type: 'BinaryRelation', name: { en: 'Association' }, properties: ['b', 'a'] },
+      { id: 'a', type: 'Property', propertyType: 'order' },
+      { id: 'b', type: 'Property', propertyType: 'customer' },
+      { id: 'c', type: 'Property', propertyType: { id: 'customer', type: 'Class' } },
+      { id: 'd', type: 'Property', propertyType: 'order' },
+      { id: 'is-person', type: 'Generalization', name: null, specific: 'customer', general: 'person' },
+    ],
+  };
+  const conceptual = elementNames(ontouml);
+  assert.equal(conceptual.get('placed-by'), 'placed by');
+  assert.equal(conceptual.get('anonymous'), 'Customer → Order');
+  assert.equal(conceptual.get('default'), 'Customer → Order');
+  assert.equal(conceptual.get('is-person'), 'Customer inherits Person');
+});
+
+test('a capture and its proposals are served together, laid out once, and stand alone otherwise', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'atlas-family-'));
+  try {
+    const folder = path.join(root, 'active/0001-orders');
+    mkdirSync(folder, { recursive: true });
+    const snapshot = { work: [{ id: 'work-1', path: 'active/0001-orders' }], documents: [{ path: 'active/0001-orders/plan.md', workId: 'work-1', category: 'plan' }] } as unknown as Snapshot;
+    const workspace = createWorkspace(folder);
+    const model = { type: 'StructuralModel' as const, nodes: [{ id: 'order', name: 'Order', attributes: [] }, { id: 'line', name: 'Line', attributes: [] }], relations: [], generalizations: [], generalizationSets: [] };
+    const captured = atlas.createSnapshot({ profile: 'code', model, capture: { capturedAt: '2026-09-14T08:00:00.000Z', adapter: { id: 'test', version: '1' }, source: { kind: 'typescript', identity: 'shop', scope: ['src'] }, coverage: { status: 'complete', diagnostics: [] }, limitations: [] } });
+    const capture = await workspace.execute('atlas_create', { input: { id: 'orders-capture', title: 'Orders', profile: 'code', state: 'snapshot', workId: 'work-1', model, snapshots: [captured], baselineId: captured.id } } as never) as { handle: string };
+    // Two alternatives over the capture.
+    const alternative = async (title: string, node: { id: string; name: string }) => {
+      const branched = await workspace.execute('atlas_proposal', { handle: capture.handle, title }) as { handle: string; revision: string };
+      return await workspace.execute('atlas_revise', { handle: branched.handle, expectedRevision: branched.revision, changes: { model: { ...model, nodes: [...model.nodes, { ...node, attributes: [] }] } } } as never) as { handle: string; revision: string };
+    };
+    const first = await alternative('Option A', { id: 'refund', name: 'Refund' });
+    const second = await alternative('Option B', { id: 'credit', name: 'Credit' });
+    const lone = await workspace.execute('atlas_create', { input: { id: 'sketch', title: 'Sketch', profile: 'code', workId: 'work-1', model } } as never) as { handle: string };
+    const catalog = new AtlasCatalog(root);
+    const families = new Map(catalog.list(snapshot, 'work-1').models.map(entry => [entry.handle, entry.family]));
+    assert.equal(families.get(capture.handle), captured.id);
+    assert.equal(families.get(first.handle), captured.id);
+    assert.equal(families.get(second.handle), captured.id);
+    assert.equal(families.get(lone.handle), null);
+
+    // Asking for one member brings every member's payload, from one layout.
+    const answer = await catalog.prepared(snapshot, 'work-1', first.handle);
+    assert.equal(answer.family, captured.id);
+    assert.deepEqual(answer.siblings!.map(item => item.handle).sort(), [capture.handle, second.handle].sort());
+    const position = (payload: typeof answer, id: string) => {
+      const scene = (payload.comparison?.changeView ?? payload).views[0].diagram;
+      const node = scene.nodes.find(item => item.id === id)!;
+      return [node.x, node.y];
+    };
+    for (const sibling of answer.siblings!) {
+      assert.equal(sibling.payload.family, captured.id);
+      assert.deepEqual(position(sibling.payload, 'order'), position(answer, 'order'));
+    }
+    // Another member comes from the same preparation.
+    const again = await catalog.prepared(snapshot, 'work-1', capture.handle);
+    assert.equal(again.siblings!.find(item => item.handle === first.handle)!.payload.model, answer.model);
+    assert.equal((await catalog.prepared(snapshot, 'work-1', lone.handle)).siblings, undefined);
+
+    // A revised alternative lays the family out again.
+    const document = workspace.load(second.handle);
+    await workspace.execute('atlas_revise', { handle: second.handle, expectedRevision: second.revision, changes: { title: 'Option B, revised' } } as never);
+    const revised = await catalog.prepared(snapshot, 'work-1', first.handle);
+    assert.notEqual(revised.model, answer.model);
+    assert.equal(revised.siblings!.find(item => item.handle === second.handle)!.payload.model.title, 'Option B, revised');
+    assert.equal(document.title, 'Option B');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/**
+ * OntoUML proposals over one authored model: two add a class each, and the last a three-way
+ * relation, which the viewer cannot draw. One project grows, so its stages share their IDs.
+ */
+function conceptualProposals(workId: string) {
+  const project = new atlas.Project(), root = project.packageBuilder().root().name('Orders').build();
+  const stage = () => JSON.parse(JSON.stringify(project));
+  const add = (name: string) => root.classBuilder().kind().name(name).build();
+  const [order, line, product] = ['Order', 'Line', 'Product'].map(add);
+  const base = stage();
+  add('Refund');
+  const refunds = stage();
+  add('Credit');
+  const credits = stage();
+  root.naryRelationBuilder().members(order, line, product).name('Three way').build();
+  const threeWay = stage();
+  const authored = atlas.createDocument({ id: 'conceptual', title: 'Orders', profile: 'ontouml', model: base, workId });
+  const proposal = (id: string, title: string, model: unknown) => atlas.reviseDocument(atlas.createProposal(authored, { id, title }), { model: model as AtlasDocument['model'] });
+  return [proposal('refunds', 'Refunds', refunds), proposal('credits', 'Credits', credits), proposal('three-way', 'Three-way', threeWay)];
+}
+function conceptualFolder(name: string) {
+  const root = mkdtempSync(path.join(os.tmpdir(), name));
+  const folder = path.join(root, 'active/0001-orders');
+  mkdirSync(folder, { recursive: true });
+  const snapshot = { work: [{ id: 'work-1', path: 'active/0001-orders' }], documents: [] } as unknown as Snapshot;
+  return { root, folder, snapshot, workspace: createWorkspace(folder) };
+}
+
+test('a member that cannot be drawn is served alone, and the rest of its family together', async () => {
+  const { root, snapshot, workspace } = conceptualFolder('atlas-apart-');
+  try {
+    const proposals = conceptualProposals('work-1');
+    for (const document of proposals) workspace.save(document);
+    const catalog = new AtlasCatalog(root);
+    const entries = catalog.list(snapshot, 'work-1').models;
+    const [refunds, credits, threeWay] = proposals.map(document => entries.find(entry => entry.title === document.title)!.handle);
+    // Listed as one family: only laying it out tells the member that cannot be drawn.
+    assert.equal(entries.length, 3);
+    assert(entries.every(entry => entry.family === proposals[0].baselineId));
+    const answer = await catalog.prepared(snapshot, 'work-1', refunds);
+    assert.equal(answer.family, proposals[0].baselineId);
+    assert.deepEqual(answer.siblings!.map(item => item.handle), [credits]);
+    assert.deepEqual(answer.apart, [{ handle: threeWay, revision: proposals[2].revision.id }]);
+    const place = (payload: typeof answer, name: string) => {
+      const node = payload.comparison!.changeView!.views[0].diagram.nodes.find(item => item.name === name)!;
+      return [node.x, node.y];
+    };
+    assert.deepEqual(place(answer.siblings![0].payload, 'Refund'), place(answer, 'Refund'));
+    await assert.rejects(catalog.prepared(snapshot, 'work-1', threeWay), /binary class relations/);
+    // The other comes from the same layout, which is not tried again.
+    const other = await catalog.prepared(snapshot, 'work-1', credits);
+    assert.equal(other.model, answer.siblings![0].payload.model);
+    assert.deepEqual(other.apart, answer.apart);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the catalog reads a model again only once its file or its revision\'s record changes', async () => {
+  const { root, folder, snapshot, workspace } = conceptualFolder('atlas-reads-');
+  const prototype = Object.getPrototypeOf(workspace) as { load: typeof workspace.load };
+  const originalLoad = prototype.load;
+  try {
+    const [refunds, credits] = conceptualProposals('work-1');
+    for (const document of [refunds, credits]) workspace.save(document);
+    // Files written a while ago, whose times tell any later write apart: the models and the records
+    // of their revisions.
+    const models = path.join(folder, '.atlas/models'), histories = path.join(folder, '.atlas/history');
+    const past = new Date(Date.now() - 60_000);
+    for (const name of readdirSync(models)) utimesSync(path.join(models, name), past, past);
+    for (const handle of readdirSync(histories)) for (const name of readdirSync(path.join(histories, handle))) utimesSync(path.join(histories, handle, name), past, past);
+    let reads = 0;
+    prototype.load = function(handle: string) { reads++; return originalLoad.call(this, handle); };
+    const catalog = new AtlasCatalog(root);
+    const entries = catalog.list(snapshot, 'work-1').models;
+    const [first, second] = entries.map(entry => entry.handle);
+    assert.equal(reads, 2);
+    const answer = await catalog.prepared(snapshot, 'work-1', first);
+    const other = await catalog.prepared(snapshot, 'work-1', second);
+    assert.equal(other.model, answer.siblings![0].payload.model);
+    assert.equal(reads, 2, 'opening and switching read no model again');
+    // A member changed on disk is read again, and the family laid out again.
+    const changed = [refunds, credits].find(document => document.title === entries[1].title)!;
+    workspace.save(atlas.reviseDocument(changed, { title: changed.title + ', revised' }), changed.revision.id);
+    reads = 0;
+    const revised = await catalog.prepared(snapshot, 'work-1', first);
+    assert.equal(reads, 1);
+    assert.equal(revised.siblings![0].payload.model.title, changed.title + ', revised');
+    // A model whose revision's record is gone is read again, and refused as loading refuses it.
+    for (const handle of readdirSync(models).map(name => name.replace(/\.json$/, ''))) {
+      for (const name of readdirSync(path.join(histories, handle))) utimesSync(path.join(histories, handle, name), past, past);
+      for (const name of readdirSync(models)) utimesSync(path.join(models, name), past, past);
+    }
+    catalog.list(snapshot, 'work-1');
+    reads = 0;
+    rmSync(path.join(histories, first), { recursive: true, force: true });
+    const listed = catalog.list(snapshot, 'work-1');
+    assert.ok(reads >= 1);
+    assert.ok(listed.invalidHandles.includes(first));
+  } finally {
+    prototype.load = originalLoad;
+    rmSync(root, { recursive: true, force: true });
+  }
 });

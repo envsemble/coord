@@ -7,11 +7,13 @@ import {
   useRef,
   useState,
 } from "react";
+import { Kbd, SearchField, Surface } from "@envsemble/envui";
 import { usePopupDismiss } from "./usePopupDismiss";
+import { ToolButton } from "./Button";
 import { SearchIcon } from "./Icons";
 
-// A compact search field for the floating toolbar. In narrow containers CSS
-// collapses it to a toggle button whose field opens as an anchored popover.
+// envUI's compact search field with a list of matching concepts. In a crowded
+// toolbar CSS collapses it to a button whose field opens below it.
 export const ConceptSearch = memo(function ConceptSearch({
   classes,
   onChoose,
@@ -75,25 +77,24 @@ export const ConceptSearch = memo(function ConceptSearch({
   const listOpen = showHits && hits.length > 0;
   return (
     <div ref={searchRef} className={`search${open ? " open" : ""}`}>
-      <button
-        type="button"
-        className="icon search-toggle"
-        aria-label="Open concept search"
+      <ToolButton
+        className="search-toggle"
+        label="Open concept search"
+        tooltip={
+          <>
+            Find concept <Kbd>/</Kbd>
+          </>
+        }
         aria-expanded={open}
         aria-controls={fieldId}
-        title="Find concept (/)"
+        icon={<SearchIcon />}
         onClick={() => setOpen(!open)}
-      >
-        <SearchIcon size={16} />
-      </button>
+      />
       <div className="search-field" id={fieldId}>
-        <SearchIcon size={14} className="search-icon" />
-        <input
+        <SearchField
           ref={inputRef}
-          id="search"
-          type="search"
-          placeholder="Find a concept"
-          aria-label="Find concept"
+          label="Find concept"
+          placeholder="Find a concept (/)"
           autoComplete="off"
           aria-keyshortcuts="/"
           role="combobox"
@@ -101,8 +102,8 @@ export const ConceptSearch = memo(function ConceptSearch({
           aria-controls={listId}
           aria-autocomplete="list"
           value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
+          onValueChange={(next) => {
+            setQuery(next);
             setShowHits(true);
           }}
           onKeyDown={(e) => {
@@ -115,18 +116,25 @@ export const ConceptSearch = memo(function ConceptSearch({
               e.preventDefault();
             }
             if (e.key === "Escape") {
+              // The panel's own Escape (clear selection) does not apply here.
               e.stopPropagation();
-              close();
-              inputRef.current.blur();
+              if (listOpen) {
+                // Close the list first and keep the query.
+                e.preventDefault();
+                setShowHits(false);
+              } else if (!query) {
+                close();
+                inputRef.current.blur();
+              }
             }
           }}
         />
-        <kbd className="search-shortcut" aria-hidden="true">
-          /
-        </kbd>
-        <div
+        <Surface
           ref={suggestionsRef}
           id={listId}
+          tone="pane"
+          padding={1}
+          corners="standard"
           className={`suggestions${listOpen ? " open" : ""}`}
           role="listbox"
           aria-label="Concepts"
@@ -141,6 +149,11 @@ export const ConceptSearch = memo(function ConceptSearch({
               if (next < 0) inputRef.current.focus();
               else items[Math.min(next, items.length - 1)]?.focus();
             }
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              setShowHits(false);
+              inputRef.current.focus();
+            }
           }}
         >
           {hits.map((c) => (
@@ -149,12 +162,16 @@ export const ConceptSearch = memo(function ConceptSearch({
               type="button"
               role="option"
               aria-selected="false"
+              className="suggestion"
               onClick={() => choose(c.id)}
             >
-              {c.name}
+              <span className="suggestion-name">{c.name}</span>
+              {c.stereotype && (
+                <span className="suggestion-detail">«{c.stereotype}»</span>
+              )}
             </button>
           ))}
-        </div>
+        </Surface>
       </div>
     </div>
   );

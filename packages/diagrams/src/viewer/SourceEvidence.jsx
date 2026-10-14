@@ -1,54 +1,52 @@
+import { Button, Card, DisclosureNote, Stack, Text } from "@envsemble/envui";
 import { CodeSnippet } from "../ui/CodeSnippet";
-import { FileCodeIcon, LinkExternalIcon, MarkGithubIcon } from "../ui/Icons";
+import { ExternalIcon } from "../ui/Icons";
 
 function SourceExcerpt({ source, snippet }) {
   if (!snippet)
     return (
-      <div className="source-excerpt">
-        <p>{source.claim}</p>
+      <Stack gap={2} align="start" className="source-excerpt">
+        <Text>{source.claim}</Text>
         {source.url && (
-          <a
-            className="source-github"
+          <Button
+            variant="text"
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
+            endIcon={<ExternalIcon />}
           >
-            View source ↗
-          </a>
+            View source
+          </Button>
         )}
-      </div>
+      </Stack>
     );
+  const github = snippet.url?.startsWith("https://github.com/");
   return (
-    <div className="source-excerpt source-file-card">
-      <div className="source-path" title={source.file}>
-        <FileCodeIcon size={16} />
-        <span className="source-filename">{source.file.split("/").pop()}</span>
-        <span className="source-language">{snippet.language}</span>
-      </div>
+    <Card
+      padding={3}
+      className="source-file-card"
+      heading={<span title={source.file}>{source.file.split("/").pop()}</span>}
+      meta={`${snippet.language} · lines ${snippet.startLine}–${snippet.endLine}`}
+      actions={
+        snippet.url ? (
+          <Button
+            variant="text"
+            href={snippet.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View ${source.title} on ${github ? "GitHub" : "its source"}`}
+            endIcon={<ExternalIcon />}
+          >
+            {github ? "View on GitHub" : "View source"}
+          </Button>
+        ) : undefined
+      }
+    >
       <CodeSnippet
         snippet={snippet}
         label={`${source.title}, lines ${snippet.startLine} to ${snippet.endLine}`}
       />
-      {snippet.url && (
-        <div className="source-footer">
-          <a
-            className="source-github"
-            href={snippet.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`View ${source.title} on GitHub`}
-          >
-            {snippet.url.startsWith("https://github.com/") && (
-              <MarkGithubIcon size={16} />
-            )}
-            {snippet.url.startsWith("https://github.com/")
-              ? "View on GitHub"
-              : "View source"}{" "}
-            <LinkExternalIcon size={12} />
-          </a>
-        </div>
-      )}
-    </div>
+    </Card>
   );
 }
 
@@ -65,8 +63,17 @@ export function SourceEvidence({
     .filter(Boolean);
   if (!records.length) return null;
   return (
-    <section className="source-evidence" aria-label={label}>
-      {label !== "Source" && <h2>{label}</h2>}
+    <Stack
+      as="section"
+      gap={2}
+      className="source-evidence detail-section"
+      aria-label={label}
+    >
+      {label !== "Source" && (
+        <Text as="h2" variant="caption" className="detail-section-title">
+          {label}
+        </Text>
+      )}
       {records.map((source, i) =>
         i === 0 ? (
           <SourceExcerpt
@@ -75,12 +82,15 @@ export function SourceEvidence({
             snippet={snippets[source.id]}
           />
         ) : (
-          <details className="additional-source" key={source.id}>
-            <summary>{source.title}</summary>
+          <DisclosureNote
+            key={source.id}
+            title={source.title}
+            className="additional-source"
+          >
             <SourceExcerpt source={source} snippet={snippets[source.id]} />
-          </details>
+          </DisclosureNote>
         ),
       )}
-    </section>
+    </Stack>
   );
 }

@@ -6,7 +6,7 @@ import type { DocumentContent, PlanImportResult, PlanningIndex, Usage } from '@e
 import type { Provenance } from '@envsemble/atlas-planning/provenance';
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 2;
+export const protocolVersion = 3;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -54,6 +54,13 @@ export interface ModelExplains { path: string | null; reference: string; section
 export interface CatalogEntry {
   handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
   provenance: Provenance; explains: ModelExplains[];
+  /**
+   * Models laid out together share it: a capture and the proposals over its snapshot. `folder.model`
+   * answers for one of them with the others' payloads too (as `siblings`), and names with their
+   * revisions those it serves alone, as they cannot be laid out with the others (as `apart`).
+   * Absent from older hosts.
+   */
+  family?: string | null;
 }
 export interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
 export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }

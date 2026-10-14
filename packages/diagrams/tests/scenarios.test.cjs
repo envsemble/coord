@@ -120,12 +120,50 @@ test("Unknown counts, dependency links and text invariants leave finite examples
   assert.equal(result.expectationMet, null);
   assert(result.unassessed.length);
 });
-test("Offline reports retain learning, scoped context, uncertainty and editable HTML", async () => {
+test("Viewers carry walkthroughs and assessed examples, with their scope, in editable HTML", async () => {
   const document = createEnrollmentDocument(),
     built = await atlas.buildViewer({ document });
-  assert.equal(built.payload.report.scenarios.length, 4);
-  assert.equal(built.payload.report.diagrams.length, 2);
-  assert(built.payload.report.diagrams.every((d) => d.svg.includes("<svg")));
+  // The model report is gone; its walkthroughs and examples guide the viewer.
+  assert.equal(built.payload.report, undefined);
+  assert(!built.html.includes("const REPORT="));
+  assert(built.html.includes("const LEARNING="));
+  const learning = built.payload.learning;
+  assert.deepEqual(learning.walkthroughs, document.learning.walkthroughs);
+  assert.equal(learning.scenarios.length, 4);
+  assert(learning.scenarios.every((s) => s.result.outcome));
+  assert.equal(learning.scope, document.reporting.scope);
+  const { createElement } = require("react"),
+    { renderToStaticMarkup } = require("react-dom/server");
+  const { loadComponents: load } = require("./load-components.cjs");
+  const guide = renderToStaticMarkup(
+    createElement(load("src/learning/LearningContent.jsx").LearningLibrary, {
+      model: built.model,
+      learning,
+      views: built.payload.views,
+      onInspect() {},
+      onView() {},
+    }),
+  );
+  assert(guide.includes(">Guide<"));
+  assert(guide.includes("Read an enrollment"));
+  assert(
+    guide.includes(
+      "From Glossary › Enrollment, Plan › State transition question",
+    ),
+  );
+  assert(guide.includes(">Examples<"));
+  assert(guide.includes(document.reporting.scope));
+  // Without lessons to offer, a structural model's guide needs no tabs.
+  const plain = renderToStaticMarkup(
+    createElement(load("src/learning/LearningContent.jsx").LearningLibrary, {
+      model: built.model,
+      learning,
+      conceptual: false,
+      onInspect() {},
+    }),
+  );
+  assert(!plain.includes('role="tablist"'));
+  assert(plain.includes("Read an enrollment"));
   const reopened = atlas.importDocument(built.html);
   assert.deepEqual(reopened.learning, document.learning);
   assert.deepEqual(reopened.reporting, document.reporting);
@@ -195,28 +233,10 @@ test("Abstract captured types require a concrete subtype, not an unrelated concr
     assert.equal(atlas.checkScenario(document, "concrete").outcome, "valid");
   }
 });
-test("Report text safely retains structured diagnostic metadata and navigation resolves sets/members", async () => {
-  const { buildSync } = require("esbuild"),
-    { createElement } = require("react"),
+test("Details show structured rationale safely, leave capture diagnostics out, and navigation resolves sets/members", async () => {
+  const { createElement } = require("react"),
     { renderToStaticMarkup } = require("react-dom/server");
-  const load = (file) => {
-    const output = { exports: {} };
-    const code = buildSync({
-      entryPoints: [file],
-      bundle: true,
-      format: "cjs",
-      platform: "node",
-      packages: "external",
-      jsx: "automatic",
-      write: false,
-    }).outputFiles[0].text;
-    new Function("require", "module", "exports", code)(
-      require,
-      output,
-      output.exports,
-    );
-    return output.exports;
-  };
+  const { loadComponents: load } = require("./load-components.cjs");
   const doc = createEnrollmentDocument(),
     snapshot = atlas.createSnapshot({
       profile: doc.profile,
@@ -248,32 +268,25 @@ test("Report text safely retains structured diagnostic metadata and navigation r
     document: captured,
     includeArtifacts: false,
   });
-  const html = renderToStaticMarkup(
-    createElement(load("src/learning/ModelReport.jsx").ModelReport, {
-      report: prepared.payload.report,
-      model: prepared.model,
-      snippets: prepared.payload.snippets,
-      onInspect: () => {},
-    }),
-  );
-  assert(html.includes("structured diagnostic"));
-  assert(html.includes("structured limitation"));
   const extended = structuredClone(prepared.model);
   extended.classes[0].rationale = { claim: "retained extension" };
   extended.classes[0].questions = {
     question: { text: "structured question" },
     why: { reason: "structured reason" },
   };
-  const extendedHtml = renderToStaticMarkup(
-    createElement(load("src/learning/ModelReport.jsx").ModelReport, {
-      report: prepared.payload.report,
+  const details = renderToStaticMarkup(
+    createElement(load("src/viewer/DetailsContent.jsx").ConceptDetails, {
+      concept: extended.classes[0],
       model: extended,
       snippets: prepared.payload.snippets,
-      onInspect: () => {},
     }),
   );
-  assert(extendedHtml.includes("retained extension"));
-  assert(extendedHtml.includes("structured question"));
+  assert(details.includes("retained extension"));
+  assert(details.includes("structured question"));
+  assert(details.includes("structured reason"));
+  // Capture metadata is provenance, not something to review per element.
+  assert(!details.includes("structured diagnostic"));
+  assert(!details.includes("structured limitation"));
   const { inspectionTarget } = load("src/model/inspectionTarget.js"),
     { indexViewerModel } = load("src/model/domainModel.js");
   const index = indexViewerModel(

@@ -3,7 +3,7 @@ import { useCallback, useLayoutEffect } from "react";
 const GAP = 8;
 
 // Floating toolbars cover parts of the full-bleed canvas. This hook keeps a
-// CSS variable for panels placed under the top toolbar row and reports the
+// CSS variable for panels placed under the top toolbar rows and reports the
 // covered edges so camera fit and reveal use the visible area.
 export function useOverlayInsets(viewerRef, topRef) {
   useLayoutEffect(() => {
@@ -30,11 +30,10 @@ export function useOverlayInsets(viewerRef, topRef) {
       const edge = (selector) =>
         viewer.querySelector(selector)?.getBoundingClientRect();
       const top = edge(":scope > .atlas-overlay-top");
-      const badge = edge(":scope > .atlas-provenance");
       const inspector = edge(":scope > .inspector.open");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
-        bottom: badge ? Math.max(0, box.bottom - badge.top) : 0,
+        bottom: 0,
         left: 0,
         // A full-width inspector on narrow panels covers the diagram anyway.
         right:

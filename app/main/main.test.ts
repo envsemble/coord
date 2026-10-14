@@ -60,6 +60,15 @@ test('desktop state survives damage and keeps folders apart', () => {
     assert.deepEqual(reread.windows, ['/p']);
     assert.equal(reread.folder('/p')?.maximized, true);
     assert.deepEqual(reread.ui('/other').tabs.items, []);
+    // The theme preference is kept for every window; the system's is the default and is not stored.
+    assert.equal(reread.theme, 'system');
+    reread.setTheme('dark');
+    reread.flush();
+    assert.equal(new StateStore(file).theme, 'dark');
+    reread.setTheme('system');
+    reread.flush();
+    assert.equal(new StateStore(file).theme, 'system');
+    assert.equal(parseState({ version: 1, theme: 'sepia' }).theme, undefined, 'an unknown theme is dropped');
     // Forgetting another computer drops what was saved for its folders, and only that.
     const remote = 'atlas-remote:host-one/f-' + 'a'.repeat(32);
     reread.updateFolder(remote, { maximized: true });

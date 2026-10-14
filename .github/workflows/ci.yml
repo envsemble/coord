@@ -9,6 +9,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
+  packages: read
 jobs:
   node:
     name: Node (${{ matrix.os }})
@@ -30,6 +32,8 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -56,6 +60,8 @@ jobs:
         if: runner.os != 'Linux'
         run: echo "::notice title=PostgreSQL fixture skipped::The PostgreSQL 17 capture test runs on Linux only; GitHub service containers are unavailable on ${{ runner.os }}."
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run format:check && npm run check:types
       # Workspace tests: diagrams, planning (reader and ported helpers), the atlas command and the app.
       - run: npm test
@@ -93,7 +99,11 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Node skill tests (skills/tests/*.test.mjs); the skills need only Node and the atlas command.
       - run: npm run test:skills
   desktop:
@@ -113,7 +123,11 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, which Chromium's
       # sandbox needs. Allow them (see the app README) rather than running without the sandbox.
       - name: Allow the Chromium sandbox

@@ -3,8 +3,8 @@
 ## Using Atlas
 
 - [App guide](../app/README.md): install the desktop app, windows and folders, the layout, records and progress, statistics, diagrams, security and diagnostics.
-- [Progress and statistics](progress-and-statistics.md): the ledger's steps, what agents report, and how Atlas counts tokens, active time and plan revisions.
-- [Remote access](remote-access.md): work on another computer's planning folders; pairing, the computer and folder menus, `atlas serve`, security and privacy.
+- [Progress and statistics](progress-and-statistics.md): the ledger's steps, what agents report, and how Atlas measures agent time and tokens and counts plan revisions.
+- [Remote access](remote-access.md): work on another computer's planning folders; pairing, the computer menu and File › Open Recent, `atlas serve`, security and privacy.
 - [Plan export](plan-export.md): share a whole work item as one offline HTML file, and import it elsewhere.
 
 ## For agents
@@ -19,7 +19,7 @@
 - [Architecture](architecture.md): the document contracts, profiles and the Atlas host.
 - [Database capture](database-capture.md) and [code capture](code-capture.md): the capture adapters and their limits.
 - [Comparison](comparison.md): proposals, baselines, merges and cross-layer mappings.
-- [Learning reports](learning-reports.md): walkthroughs, scenario checks and printing.
+- [Learning guide](learning-reports.md): walkthroughs and finite scenario checks in the viewer's **Understand the model** guide.
 - [Portable documents](portable-documents.md): exporting and reopening a single model.
 - [Viewer](viewer.md) and [embedding](embedding.md): the viewer's behavior, and using the diagram package and its React panel elsewhere.
 - [PR/MR review](review-ci.md): offline architecture reviews of model changes.

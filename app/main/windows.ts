@@ -6,7 +6,7 @@
 // in-memory session, so its `atlas:` file protocol can only ever see that window's folder.
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { BrowserWindow, dialog, screen, session as electronSession, shell, type Session } from 'electron';
+import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import { inspectPlanningRoot, samePlatformPath } from '@envsemble/atlas-planning';
 import type { AccessState, BrowseResult, ComputerFolder, EventChannel, FolderChange, MenuCommand, WindowInfo } from '../shared/contract.ts';
 import { AtlasError } from './errors.ts';
@@ -21,6 +21,34 @@ import { computerKey, type Bounds, type StateStore } from './state.ts';
 export type Reuse = 'always' | 'empty' | 'never';
 /** The last part of a path from any computer (another computer's paths may use the other separator). */
 export const baseName = (folder: string) => folder.split(/[\\/]/).filter(Boolean).at(-1) ?? folder;
+
+/** envUI's canvas colour in the window's theme, shown until the page paints. */
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
+
+/** The height of the title bar the window draws itself, with its line, at 100% zoom. */
+export const titleBarHeight = 40;
+/**
+ * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
+ * colour, and as tall as the bar above its line. envUI's title bar takes their height (the window
+ * controls overlay's environment variables) and draws its line below them, so the line runs under
+ * them too; scaled by 150%, the system's buttons reach one device pixel lower, which an odd height
+ * leaves clear. Zoomed in, they grow with the bar; zoomed out, the bar keeps its height and so do
+ * they.
+ */
+export const titleBarOverlay = (zoom = 1) => {
+  const height = Math.round((titleBarHeight - 1) * Math.max(1, zoom));
+  return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
+};
+/**
+ * Where a person's press starts, which a page cannot fake: a mouse button, a key (one raw or cooked
+ * key-down per press; not its repeats) or a touch. Releases and the characters a key types do not
+ * count, so each press allows one command.
+ */
+const pressStarts = new Set(['mouseDown', 'rawKeyDown', 'keyDown', 'touchStart']);
+/** macOS keeps its traffic lights, centred in the title bar; elsewhere the overlay draws minimize, maximize and close. */
+const titleBar = () => process.platform === 'darwin'
+  ? { titleBarStyle: 'hidden' as const, titleBarOverlay: true, trafficLightPosition: { x: 14, y: 13 } }
+  : { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() };
 
 export interface WindowContext {
   state: StateStore;
@@ -66,6 +94,12 @@ export class AtlasWindow {
   private readonly manager: WindowManager;
   private crashes: number[] = [];
   private boundsTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When the person last pressed, typed or tapped in this window. */
+  private lastActivation = 0;
+  /** A question or dialog a page's command opened in this window: one at a time. */
+  private asking = false;
+  /** Set as the window starts closing, before it leaves the window list. */
+  closing = false;
 
   constructor(manager: WindowManager, bounds: Partial<Bounds> | undefined, maximized: boolean) {
     this.manager = manager;
@@ -74,8 +108,8 @@ export class AtlasWindow {
     this.harden();
     this.win = new BrowserWindow({
       ...defaultSize, ...visibleBounds(bounds),
-      minWidth: 640, minHeight: 420, show: false, backgroundColor: '#22272e', title: 'Atlas',
-      icon: context.icon, autoHideMenuBar: false,
+      minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Atlas',
+      icon: context.icon, ...titleBar(),
       webPreferences: {
         preload: context.preload, session: this.session,
         contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInWorker: false, nodeIntegrationInSubFrames: false,
@@ -90,8 +124,17 @@ export class AtlasWindow {
     this.win.on('move', () => this.scheduleBounds());
     this.guardNavigation();
     this.win.webContents.on('render-process-gone', (_event, details) => this.recover(details.reason));
+    this.win.webContents.on('input-event', (_event, input) => {
+      if (pressStarts.has(input.type) && !input.modifiers?.includes('isautorepeat')) this.lastActivation = performance.now();
+    });
     this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.root }));
-    this.win.on('close', () => { this.saveBounds(); });
+    // The mouse's back and forward buttons over the title bar's empty space reach only the window
+    // (Windows and Linux); the page, which also gets them elsewhere, ignores the repeat.
+    this.win.on('app-command', (_event, command) => {
+      if (command === 'browser-backward') this.send('menu:command', 'goBack');
+      else if (command === 'browser-forward') this.send('menu:command', 'goForward');
+    });
+    this.win.on('close', () => { this.closing = true; this.saveBounds(); });
     this.win.on('closed', () => manager.closed(this));
   }
 
@@ -134,13 +177,13 @@ export class AtlasWindow {
       if (own(url)) return;
       event.preventDefault();
       const external = externalUrl(url);
-      if (external) void shell.openExternal(external);
+      if (external) void this.openExternal(external).catch(() => undefined);
     });
     contents.on('will-redirect', (event, url) => { if (!own(url)) event.preventDefault(); });
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(({ url }) => {
       const external = externalUrl(url);
-      if (external) void shell.openExternal(external);
+      if (external) void this.openExternal(external).catch(() => undefined);
       return { action: 'deny' };
     });
   }
@@ -225,6 +268,72 @@ export class AtlasWindow {
     this.load();
   }
 
+  /** File › Close Folder: back to the welcome page of the computer the folder is on. */
+  closeFolder() {
+    if (!this.target) return;
+    this.saveBounds();
+    this.showWelcome(this.computer);
+  }
+
+  /** The window buttons follow the theme and the page zoom (macOS keeps its own traffic lights). */
+  updateTitleBar() {
+    if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
+  }
+
+  /** View › Zoom: half a zoom level a step, as Chromium's own, from 25% to 471%; the title bar keeps up. */
+  zoom(change: 'in' | 'out' | 'reset') {
+    if (this.win.isDestroyed()) return;
+    const contents = this.win.webContents;
+    contents.setZoomLevel(change === 'reset' ? 0 : Math.min(8.5, Math.max(-7.5, contents.getZoomLevel() + (change === 'in' ? 0.5 : -0.5))));
+    this.updateTitleBar();
+  }
+
+  /**
+   * Whether the person pressed, typed or tapped in the window just now, using that press up: each
+   * press allows one command. Paste, which reads the clipboard, needs one.
+   */
+  takeActivation(within = 2000) {
+    const fresh = this.lastActivation > 0 && performance.now() - this.lastActivation <= within;
+    if (fresh) this.lastActivation = 0;
+    return fresh;
+  }
+
+  /**
+   * Commands a page could misuse (quitting, opening windows, remote access, leaving for the browser)
+   * run at once right after a person's press. Without one (a compromised page, but also a screen
+   * reader's click, which makes no input event), Atlas asks in a system dialog the page cannot
+   * answer. One question or dialog at a time.
+   */
+  async confirm(message: string, action: string, detail?: string): Promise<boolean> {
+    return this.takeActivation() || this.ask(message, action, detail);
+  }
+
+  /**
+   * Asks in a system dialog the page cannot answer, press or not. Creating a pairing link, which hands
+   * the computer to whoever uses it, always asks. One question or dialog at a time.
+   */
+  async ask(message: string, action: string, detail?: string): Promise<boolean> {
+    if (this.win.isDestroyed()) return false;
+    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    this.asking = true;
+    try {
+      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Atlas', message, detail, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
+      return response === 0 && !this.win.isDestroyed();
+    } finally { this.asking = false; }
+  }
+
+  /** Opens a web or mail address in the system's browser, after a person's press or their answer. */
+  async openExternal(address: string) {
+    if (await this.confirm('Open this address in your browser?', 'Open', address)) await shell.openExternal(address);
+  }
+
+  /** Dialogs a page opens (choosing a file or folder) come one at a time, so a page cannot pile them up. */
+  async oneDialog<T>(open: () => Promise<T>): Promise<T> {
+    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    this.asking = true;
+    try { return await open(); } finally { this.asking = false; }
+  }
+
   /** Point the window at a folder before the host opened it: the renderer shows it loading. */
   private prepare(root: string, name: string, remote: FolderView['remote']) {
     const { context } = this.manager;
@@ -253,7 +362,7 @@ export class AtlasWindow {
     const target = this.target;
     const name = this.folder?.name ?? target?.name;
     this.win.setTitle(target ? name + (target.remote ? ' — ' + target.remote.hostName : '') + ' — Atlas' : 'Atlas');
-    if (target && !target.remote) this.win.setRepresentedFilename?.(target.root);
+    if (process.platform === 'darwin') this.win.setRepresentedFilename(target && !target.remote ? target.root : '');
   }
 
   info(): WindowInfo {
@@ -265,7 +374,7 @@ export class AtlasWindow {
       folder: target ? { root: target.root, name: folder?.name ?? target.name } : null,
       // Until the host opened the folder, the window shows it loading.
       status: folder?.status ?? (target ? 'loading' : null), error: folder?.error ?? null, notice: folder?.notice ?? null, revision: folder?.revision ?? this.revisionFloor,
-      version: this.manager.context.version, platform: process.platform, remote: target?.remote ?? null,
+      version: this.manager.context.version, platform: process.platform, remote: target?.remote ?? null, devTools: this.manager.context.devTools,
       computer: { hostId, name: hostId === null ? connections.localName : connections.name(hostId) },
     };
   }
@@ -484,7 +593,14 @@ export class WindowManager {
     return target;
   }
 
-  /** A computer's folder list changed: every window may show it (the explorer's folder menu, the welcome page). */
+  /** File › Close Folder: the window lets its folder go and shows its computer's welcome page. */
+  closeFolder(window: AtlasWindow) {
+    if (!window.root) return;
+    window.closeFolder();
+    this.rememberOpen();
+  }
+
+  /** A computer's folder list changed: every window may show it (the title bar's Open Recent, the welcome page). */
   foldersChanged(hostId: string | null, folders: ComputerFolder[]) {
     for (const window of this.all()) window.send('folders:changed', { hostId, folders });
     if (hostId === null) this.context.onFoldersChanged();
@@ -524,7 +640,7 @@ export class WindowManager {
   /** Point a window whose folder moved at its new location. */
   async locate(window: AtlasWindow) {
     if (window.remote) throw new AtlasError('forbidden', 'A folder on another computer cannot be located here.');
-    const choice = await dialog.showOpenDialog(window.win, { title: 'Locate the planning folder', properties: ['openDirectory'] });
+    const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Locate the planning folder', properties: ['openDirectory'] }));
     if (choice.canceled || !choice.filePaths[0]) return;
     let root: string;
     try { root = (await inspectPlanningRoot(choice.filePaths[0])).path; } catch (error) {
@@ -544,14 +660,18 @@ export class WindowManager {
   /** Choose a folder on this computer with the system's dialog, and open it (as `reuse` allows). */
   async chooseFolder(from: AtlasWindow | undefined, reuse: Reuse = 'empty') {
     const options = { title: 'Open a planning folder', properties: ['openDirectory' as const] };
-    const choice = from ? await dialog.showOpenDialog(from.win, options) : await dialog.showOpenDialog(options);
+    const choice = from ? await from.oneDialog(() => dialog.showOpenDialog(from.win, options)) : await dialog.showOpenDialog(options);
     if (choice.canceled || !choice.filePaths[0]) return null;
     return this.open(choice.filePaths[0], { from, mode: 'picker', reuse });
   }
   /** File › Open Folder…: the system's dialog on this computer; the in-app browser in a window on another one. */
   openFolderCommand(from: AtlasWindow | undefined) {
     if (from && from.computer !== null) { from.focus(); from.send('menu:command', 'browseFolder'); return; }
-    void this.chooseFolder(from);
+    // A dialog already open in the window comes forward instead.
+    void this.chooseFolder(from).catch(error => {
+      if ((error as { code?: string }).code !== 'unavailable') this.context.log.warn('Folder not opened', { error: (error as Error).message });
+      from?.focus();
+    });
   }
 
   /** This computer's folder list (File › Open Recent); empty while its host is not reachable. */
@@ -563,8 +683,9 @@ export class WindowManager {
     await this.open(root, { from, mode: 'picker' });
   }
 
-  sendMenu(command: MenuCommand) {
-    const window = this.focused();
+  sendMenu(command: MenuCommand, focusedOnly = false) {
+    const focused = BrowserWindow.getFocusedWindow();
+    const window = focusedOnly ? (focused ? this.windows.get(focused.id) : undefined) : this.focused();
     if (window) { window.focus(); window.send('menu:command', command); }
   }
 

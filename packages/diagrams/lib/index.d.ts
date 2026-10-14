@@ -66,11 +66,16 @@ export interface ValidationReport {
   modelCounts?: { classes: number; relations: number; generalizations: number };
   diagrams?: Record<string, unknown>[];
 }
+export type ChangeStatus = "added" | "removed" | "modified" | "unchanged";
 export interface Attribute {
   id?: string;
   name: string;
   type: string;
   multiplicity?: string | null;
+  /** Where a captured member is declared. */
+  location?: { file: string; startLine: number; endLine: number };
+  /** In a proposal's change view, each member of a changed class. */
+  changeStatus?: ChangeStatus;
 }
 export interface ViewerClass extends ElementEvidence {
   id: string;
@@ -82,6 +87,10 @@ export interface ViewerClass extends ElementEvidence {
   evidence: string[];
   attributes: Attribute[];
   methods?: Attribute[];
+  /** Where a captured declaration is. */
+  location?: { file: string; startLine: number; endLine: number };
+  /** In a proposal's change view. */
+  changeStatus?: ChangeStatus;
 }
 export interface ViewerAssociation extends ElementEvidence {
   id: string;
@@ -95,12 +104,17 @@ export interface ViewerAssociation extends ElementEvidence {
   targetAggregation?: string;
   description: string;
   evidence: string[];
+  /** In a proposal's change view; a retained route of a removed or rerouted relation keeps its identity in `originalId`. */
+  changeStatus?: ChangeStatus;
+  originalId?: string;
 }
 export interface ViewerGeneralization extends ElementEvidence {
   id: string;
   specificId: string;
   generalId: string;
   evidence: string[];
+  changeStatus?: ChangeStatus;
+  originalId?: string;
 }
 export interface ViewerGeneralizationSet extends ElementEvidence {
   id: string;
@@ -161,7 +175,7 @@ export interface DiagramNode {
   isAbstract?: boolean;
   attributes: Attribute[];
   methods?: Attribute[];
-  changeStatus?: "added" | "removed" | "modified" | "unchanged";
+  changeStatus?: ChangeStatus;
 }
 export interface DiagramLabel {
   id: string;
@@ -190,7 +204,7 @@ export interface DiagramEdge {
   paths: string[];
   branchPaths?: string[];
   labels: DiagramLabel[];
-  changeStatus?: "added" | "removed" | "modified" | "unchanged";
+  changeStatus?: ChangeStatus;
 }
 export interface DiagramGeneralizationGroup {
   id: string;
@@ -250,7 +264,8 @@ export interface ExportData {
   bundle: string;
 }
 export interface ViewerPayload {
-  report?: ModelReport | null;
+  /** A document's walkthroughs and assessed examples, when it has any. */
+  learning?: ModelLearning | null;
   model: ViewerModel & { validation: ValidationReport };
   views: Pick<
     PreparedView,
@@ -267,6 +282,18 @@ export interface ViewerPayload {
     changes: SemanticComparison;
     conflicts: MergeConflict[];
   } | null;
+  /**
+   * Set on the payloads `prepareFamily` lays out together: the baseline
+   * snapshot a capture and its proposals share. Viewers switch among the
+   * payloads of one family in place, keeping the camera and the selection.
+   */
+  family?: string;
+}
+/** A capture and its proposals, laid out once: each document's prepared viewer, in the order given. */
+export interface PreparedFamily {
+  /** The baseline snapshot the members share; each payload's `family`. */
+  key: string;
+  members: PreparedViewer[];
 }
 export interface PreparedViewer {
   artifacts: Map<string, string | Uint8Array>;
@@ -642,28 +669,23 @@ export interface ScenarioResult {
   unassessed: { elementId: string | null; message: string }[];
   limitations: string[];
 }
-export interface ModelReport {
-  title: string;
-  profile: ModelProfile;
-  state: AtlasDocument["state"];
-  revision: AtlasDocument["revision"] | null;
-  scope: string;
-  author: string | null;
-  imported: boolean;
-  snapshots: Omit<SourceSnapshot, "model">[];
-  baselineId: string | null;
-  context: PlanningContext;
+/** The viewer's guide to a model: its walkthroughs and assessed examples. */
+export interface ModelLearning {
   walkthroughs: LearningContent["walkthroughs"];
   scenarios: (Scenario & { result: ScenarioResult })[];
-  explanations: { elementId: string; text: string; assessed: boolean }[];
-  limitations: string[];
-  diagrams: { key: string; title: string; svg: string }[];
+  /** The document's stated scope (`reporting.scope`), when it has one. */
+  scope?: string;
+}
+export interface ModelExplanation {
+  elementId: string;
+  text: string;
+  assessed: boolean;
 }
 export function checkScenario(
   document: AtlasDocument,
   scenarioId: string,
 ): ScenarioResult;
-export function explainModel(model: ViewerModel): ModelReport["explanations"];
+export function explainModel(model: ViewerModel): ModelExplanation[];
 export interface SemanticChange {
   id: string;
   elementId: string | null;
@@ -793,6 +815,19 @@ export const toolDefinitions: {
   inputSchema: Record<string, unknown>;
 }[];
 export function prepareViewer(input: ViewerBuildInput): Promise<PreparedViewer>;
+/**
+ * Lays out a capture and the proposals over its snapshot (`familyKey`) once,
+ * so each member's classes and routes keep their places from one member to
+ * the next. At least one document must be a proposal; all must share the
+ * baseline snapshot and profile.
+ */
+export function prepareFamily(input: {
+  documents: AtlasDocument[];
+  slug?: string;
+  includeArtifacts?: boolean;
+}): Promise<PreparedFamily>;
+/** The baseline snapshot a capture or a proposal shares with its family; null for other documents. */
+export function familyKey(document: AtlasDocument): string | null;
 export function buildViewer(input: ViewerBuildInput): Promise<BuildResult>;
 export function writeViewer(result: BuildResult, outputPath: string): void;
 export type ReviewRevision =

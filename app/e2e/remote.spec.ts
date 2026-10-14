@@ -6,9 +6,12 @@
 import { cpSync, existsSync, readFileSync, renameSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import type { AtlasBridge } from '../shared/contract.ts';
 import { close, launch, planningFixture, removeDirectory, temporaryDirectory, windowTitles, type Launched } from './app';
+
+// The dialog's access line: the device list's confirm buttons announce through live regions of their own.
+const accessStatus = (dialog: Locator) => dialog.getByRole('status').and(dialog.locator('.access-status'));
 
 let sharing: Launched | undefined;
 let reading: Launched | undefined;
@@ -36,16 +39,22 @@ async function fileMenu(app: ElectronApplication, label: string) {
 /** Turn remote access on for 127.0.0.1 in the open Remote Access dialog; returns the port. */
 async function listen(owner: Page) {
   const access = owner.getByRole('dialog', { name: 'Remote access' });
-  await expect(access.getByRole('status')).toHaveText('Remote access is off.');
-  await access.getByLabel('Reach this computer via').selectOption('127.0.0.1');
+  await expect(accessStatus(access)).toHaveText('Remote access is off.');
+  await access.getByLabel('Reach this computer via').click();
+  await owner.getByRole('option', { name: /127\.0\.0\.1/ }).click();
   const port = await freePort();
   await access.getByLabel('Port').fill(String(port));
   await access.getByLabel('Port').press('Enter');
   await expect(access.getByLabel('Allow paired devices to connect to this computer')).toBeEnabled();
   await access.getByLabel('Allow paired devices to connect to this computer').click();
-  await expect(access.getByRole('status')).toHaveText(`Listening on 127.0.0.1:${port}.`);
+  await expect(accessStatus(access)).toHaveText(`Listening on 127.0.0.1:${port}.`);
   return { access, port };
 }
+
+/** The person answers yes to Atlas's questions, such as the one before a pairing link is created. */
+const agree = (app: ElectronApplication) => app.evaluate(({ dialog }) => {
+  dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as unknown as typeof dialog.showMessageBox;
+});
 
 test('another Atlas pairs with a one-time link and works on that computer: its folders, the folder browser, import, switching computers', async () => {
   test.setTimeout(300_000);
@@ -57,6 +66,7 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   sharing = await launch({ folder });
   const owner = sharing.window;
   await expect(owner.locator('.work-row')).toHaveCount(3);
+  await agree(sharing.app);
   const name = await owner.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.info(); return result.ok ? result.value.computer.name : ''; });
 
   // Remote access: no folders to share any more; the pairing step names the device and grants Manage access only when asked.
@@ -89,10 +99,11 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect.poll(() => windowTitles(reading!.app)).toEqual([`planning — ${name} — Atlas`]);
   // A paired device sees real paths: it is the same person's computer.
   expect(await viewer.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.snapshot(); return result.ok ? result.value.root : result.error.message; })).toBe(folder);
-  await expect(viewer.getByRole('button', { name: 'Computer' })).toContainText(name);
+  await expect(viewer.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   // Only revealing a file in a file explorer stays on that computer.
   expect(await viewer.evaluate(async () => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.reveal('README.md'); return result.ok ? 'revealed' : result.error.code; })).toBe('forbidden');
-  // The link worked once.
+  // The link worked once (pairing through the bridge without a press asks first; the person agrees).
+  await agree(reading.app);
   expect(await viewer.evaluate(async target => { const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.pairRemote(target, null); return result.ok ? 'paired' : result.error.code; }, link)).not.toBe('paired');
   await expect(access.locator('.device-list li')).toHaveCount(1);
   await expect(access.locator('.device-list li')).toContainText('Reading laptop');
@@ -115,23 +126,28 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect(viewer.locator('.work-row')).toHaveCount(4);
 
   // The folder list is the computer's: a folder opened over there appears here at once.
-  await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  const menu = viewer.getByRole('dialog', { name: 'Planning folder' });
-  await expect(menu.getByRole('button', { name: /^planning/ })).toHaveAttribute('aria-current', 'true');
+  // File › Open Recent lists that computer's folders, this window's checked.
+  const fileMenuButton = viewer.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'File' });
+  await fileMenuButton.click();
+  await viewer.getByRole('menuitem', { name: 'Open Recent' }).hover();
+  const recent = viewer.getByRole('menu', { name: 'Open Recent' });
+  await expect(recent.getByRole('menuitemradio').filter({ hasText: /^planning/ })).toHaveAttribute('aria-checked', 'true');
+  await recent.getByRole('menuitem', { name: 'Manage Folders…' }).click();
+  const list = viewer.getByRole('dialog', { name: `Planning folders on ${name}` });
   const demo = path.join(path.dirname(planningFixture()), 'demo');
   folders.push(path.dirname(demo));
   renameSync(path.join(path.dirname(demo), 'planning'), demo);
   await sharing.app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as unknown as typeof dialog.showOpenDialog; }, demo);
   await fileMenu(sharing.app, '&Open Folder…');
-  await expect(menu.getByRole('button', { name: /^demo/ })).toBeVisible();
+  await expect(list.getByRole('button', { name: /^demo/ })).toBeVisible();
   // Its new-window button opens it beside this window.
-  await menu.getByRole('button', { name: 'Open demo in a new window' }).click();
+  await list.getByRole('button', { name: 'Open demo in a new window' }).click();
   await expect.poll(() => windowTitles(reading!.app).then(titles => titles.sort())).toEqual([`demo — ${name} — Atlas`, `planning — ${name} — Atlas`].sort());
 
   // Open Folder… on that computer browses it in Atlas, beside the folder this window shows.
   await viewer.bringToFront();
-  await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('button', { name: 'Open Folder…' }).click();
+  await fileMenuButton.click();
+  await viewer.getByRole('menuitem', { name: 'Open Folder…' }).click();
   const browser = viewer.getByRole('dialog', { name: `Open a folder on ${name}` });
   await expect(browser.locator('.folder-browser-path')).toHaveText(path.dirname(folder));
   await expect(browser.getByRole('button', { name: /^third/ })).toContainText('Planning folder');
@@ -139,16 +155,17 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await expect(browser).toHaveCount(0);
   await expect.poll(() => windowTitles(reading!.app).then(titles => titles.sort())).toEqual([`demo — ${name} — Atlas`, `third — ${name} — Atlas`].sort());
   // Browsing starts over at the home folder and the drives (or the root).
-  await viewer.getByRole('button', { name: 'Planning folder' }).click();
-  await viewer.getByRole('dialog', { name: 'Planning folder' }).getByRole('button', { name: 'Open Folder…' }).click();
+  await fileMenuButton.click();
+  await viewer.getByRole('menuitem', { name: 'Open Folder…' }).click();
   await browser.getByRole('button', { name: 'Home folder and drives' }).click();
   await expect(browser.getByRole('list', { name: 'Places' })).toContainText('Home');
   await browser.getByRole('button', { name: 'Cancel' }).click();
 
   // With Manage access, this Atlas pairs and revokes devices of that computer, but cannot change how it is reached.
+  await viewer.bringToFront();
   await fileMenu(reading.app, 'Re&mote Access…');
   const remoteAccess = viewer.getByRole('dialog', { name: `Remote access to ${name}` });
-  await expect(remoteAccess.getByRole('status')).toHaveText(`${name} listens on 127.0.0.1:${port}.`);
+  await expect(accessStatus(remoteAccess)).toHaveText(`${name} listens on 127.0.0.1:${port}.`);
   await expect(remoteAccess.getByLabel('Allow paired devices to connect to this computer')).toHaveCount(0);
   await expect(remoteAccess.locator('.device-list li')).toContainText('Manage access');
   await remoteAccess.getByRole('button', { name: 'Create pairing link' }).click();
@@ -157,12 +174,12 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   await remoteAccess.getByRole('button', { name: 'Done' }).click();
 
   // Switching to this computer, which has no folders yet, shows its welcome page; switching back from there shows the other computer's folders.
-  await viewer.getByRole('button', { name: 'Computer' }).click();
-  await viewer.getByRole('dialog', { name: /^Computer/ }).getByRole('button', { name: /This computer/ }).click();
+  await viewer.getByRole('button', { name: /^Computer:/ }).click();
+  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: 'This computer' }).click();
   await expect(viewer.getByRole('heading', { name: 'Recent' })).toBeVisible();
   await expect(viewer.getByText('No recent folders.')).toBeVisible();
-  await viewer.getByRole('button', { name: 'Computer' }).click();
-  await viewer.getByRole('dialog', { name: /^Computer/ }).getByRole('button', { name: /127\.0\.0\.1/ }).click();
+  await viewer.getByRole('button', { name: /^Computer:/ }).click();
+  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: /127\.0\.0\.1/ }).click();
   await expect(viewer.getByRole('heading', { name: `Planning folders on ${name}` })).toBeVisible();
   await expect(viewer.getByRole('list', { name: `Planning folders on ${name}` }).getByRole('listitem')).toHaveCount(3);
 
@@ -174,6 +191,8 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
 
   // Revoking the device ends its access at once; the window keeps the last view and says why.
   await access.getByRole('button', { name: 'Revoke…' }).click();
+  // envUI's confirm button ignores a second press that comes as fast as a double click.
+  await sharing.window.waitForTimeout(600);
   await access.getByRole('button', { name: 'Revoke access' }).click();
   await expect(access.getByText('No paired devices.')).toBeVisible();
   await expect(reading.window.getByRole('alert')).toContainText('was revoked');
@@ -182,9 +201,13 @@ test('another Atlas pairs with a one-time link and works on that computer: its f
   // Forgetting the computer from a window on it closes its other windows; this one shows this computer
   // instead (so Atlas stays open), and nothing about the other computer is kept.
   const last = reading.window;
-  await last.getByRole('button', { name: 'Computer' }).click();
-  await last.getByRole('button', { name: `Forget ${name}` }).click();
-  await last.getByRole('group', { name: `Forget ${name}` }).getByRole('button', { name: 'Forget', exact: true }).click();
+  await last.getByRole('button', { name: /^Computer:/ }).click();
+  await last.getByRole('menu', { name: /^Computer/ }).getByRole('menuitem', { name: 'Manage Computers…' }).click();
+  const computers = last.getByRole('dialog', { name: 'Computers' });
+  // Only paired computers can be forgotten; this one was revoked and says so instead of its address.
+  await computers.getByRole('button', { name: 'Forget', exact: true }).click();
+  await last.waitForTimeout(600);
+  await computers.getByRole('button', { name: `Forget ${name}` }).click();
   await expect(last.getByRole('heading', { name: 'Recent' })).toBeVisible();
   await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);
   const saved = (file: string) => { try { return readFileSync(path.join(readerData, file), 'utf8'); } catch { return ''; } };
@@ -198,13 +221,14 @@ test('turning remote access off closes the listener and expires an open pairing 
   sharing = await launch({ folder });
   const owner = sharing.window;
   await expect(owner.locator('.work-row')).toHaveCount(3);
+  await agree(sharing.app);
   await fileMenu(sharing.app, 'Re&mote Access…');
   const { access, port } = await listen(owner);
   await access.getByRole('button', { name: 'Create pairing link' }).click();
   await expect(access.locator('.pairing-link')).toBeVisible();
 
   await access.getByLabel('Allow paired devices to connect to this computer').click();
-  await expect(access.getByRole('status')).toHaveText('Remote access is off.');
+  await expect(accessStatus(access)).toHaveText('Remote access is off.');
   await expect(access.locator('.pairing-link')).toHaveCount(0);
   const reachable = await fetch(`http://127.0.0.1:${port}/api/host`).then(() => true, () => false);
   expect(reachable).toBe(false);

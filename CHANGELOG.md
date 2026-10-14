@@ -2,8 +2,47 @@
 
 ## Unreleased
 
+- The whole interface is built on [envUI](https://github.com/envsemble/envUI), Envsemble's component library, in its light and dark themes:
+  - **The window** is envUI's application shell and draws its own title bar: the Atlas mark, the **File**, **Edit**, **View** and **Help** menus (compact, with their shortcuts and an **Open Recent** submenu; Alt opens them from the keyboard), back and forward arrows, the computer menu, **Search**, record health, the theme menu and the system's window buttons. The title bar's line runs under the window buttons too, and its icons are as quiet as they are. On macOS the menus stay in the system's menu bar. **Work**, **Activity** and **Statistics** are pages of their own beside the explorer in one sidebar, which collapses to its icons (Ctrl+B) and resizes from its edge; the open documents are tabs that stay under the title bar, and closing the last one shows the page again. Welcome pages and folder problems have the same title bar.
+  - **File › Close Folder** takes a window back to its computer's welcome page.
+  - **A work item** has its sections (Plan, Ledger, Diagrams) in one compact switcher at the top left of its page, in the same spot for every section: it floats over a plan or ledger as they scroll and starts the diagram's toolbar, so the diagrams take the whole area below the tabs. The work number moved beside the item's status. The diagrams' full view keeps the title bar.
+  - **The theme** matches the system, or is light or dark, for every window; Atlas's own menus and dialogs follow it.
+  - **Views and dialogs** use envUI's rows, tables, tabs, segmented controls, menus, notices, dialogs and toasts, Material Symbols icons and the Inter font. Quick open is envUI's command palette; the explorer is its tree, with a compact context menu.
+  - **Lists of folders and computers:** **File › Open Recent › Manage Folders…** (on macOS **File › Manage Folders…**) and the computer menu's **Manage Computers…** open a folder or a computer in a new window, remove a folder from the list, or forget a computer. The menus themselves open in this window.
+  - **Scrolling:** the area below the title bar scrolls, not the window, so the window buttons never cover a scrollbar and nothing shifts when a page starts or stops scrolling. Zooming keeps the window buttons as tall as the title bar above its line.
+  - **A folder that is missing or unreadable** also offers **Close Folder**, back to the start page.
+  - **Commands a page could misuse** wait for the person: Paste, which reads the clipboard, follows a click, key press or tap in the window. These follow one too, or else Atlas asks first in a system dialog:
+    - exiting, and closing the last window;
+    - opening windows or the logs;
+    - turning remote access on or moving it to another address, and pairing;
+    - opening web addresses.
+
+    Creating a pairing link always asks first. A page's dialogs come one at a time.
+
+  - **The diagram viewer and plan exports** use the same components; the diagram viewer follows the app's theme, and a standalone model file follows the system's.
+  - `npm run dev:envui` runs the app against a local envUI checkout with live reload.
+
+- Back and forward, as in a browser: each window keeps what it showed (its pages, each work item at its section, diagram or heading, and each file) while it shows its folder. The title bar's arrows, Alt+← and Alt+→ (⌘[ and ⌘] on macOS), a keyboard's or mouse's back and forward buttons and **View › Back** and **Forward** step through it. A closed tab opens again as a preview, where it was, and a document left for one of its headings is where it was before the jump. With a menu or dialog open, the mouse's buttons only close it; fields keep Alt+← and Alt+→.
+- **Help › About Atlas** is a dialog in the window, also on the welcome page, instead of a system message box: the version, what stays on this computer, the Electron, Chromium and Node.js versions, the system and the data folder, with **Open Logs** and **Copy Details** for bug reports.
+- A work item's row in the Work list opens it from anywhere on the row, highlighting as you point at it or tab to it; its diagram count still opens its diagrams. Folder rows on the welcome page and in the folder lists open the same way.
+- Reviewing a proposal: a proposal opens in one change view, and the model picker is the only chooser (the Baseline/Changes control is gone).
+  - **A capture and its proposals are laid out together**, also several proposals over one capture, such as alternatives an agent offers. Switching among them in the picker is instant: nothing moves, and the zoom, the view and an element's details stay. The picker lists the alternatives by title, each with how many changes it makes. Plan exports behave the same. The library's `prepareFamily` lays out such a family, and the `atlas-model` skill says when to offer alternatives.
+  - **The details beside the diagram resize** from their inner edge, by pointer or keyboard; the app keeps the width with each folder's layout, the offline viewer in the browser.
+  - **The provenance chip at the bottom of the diagram is gone**: the picker names where a model came from, and the offline viewer shows it beside the model's title.
+  - **On the canvas** new, changed and removed classes, members and relations are marked green, amber and red, relations also with a +, ~ or −, and unchanged elements fade until **Fade unchanged elements** is turned off. Unknown counts (`?`) and names that only repeat a relation's kind, such as `declared type use`, are no longer drawn.
+  - **The Changes list** beside the diagram has a row per changed element with its members summarized, relations by their ends, changes to the model itself under **Model**, and unresolved merge conflicts first. Values read by name, before → after, and a member or class that moves is listed where it left and where it went. Choosing a row opens its element, whose details step to the previous or next change; a change no view draws is listed and counted but not opened.
+  - **An element's details** say what changes, where it is in code (or where a new class is proposed to live), why it exists and what it holds, without capture noise.
+  - **Database captures** keep the columns a foreign key refers to when its table is outside the capture. A document captured earlier shows each such key as replaced once, when it adopts a newer capture.
+  - **The model report is gone.** **Understand the model** holds the walkthroughs and checked examples; each element's details hold its rationale and linked planning passages.
+  - Diagram cards in plans and plan exports name relations as the diagram labels them: by their ends when their own name says nothing more.
 - Ledger status version 2: the ledger header lists the agreed steps of the work, each `todo`, `doing` or `done`, and replaces `current` and `next`. The app and plan exports show a progress bar, the steps done and left, and each step; the work list shows progress per work item. `atlas planning check` validates the steps. Version-1 headers stay valid and readable. The planning contract (`PLANS.md`), the governance template and the `atlas-implement` and `atlas-record` skills describe the new header.
-- Work statistics: `atlas work report` records an agent's model, the tokens used so far in its session, and the ledger step at each ledger transition, in `<work>/.atlas/statistics.jsonl`. The Statistics view gains a **Work** tab (model, tokens, active time, plan revisions and steps per work item) and a **Models over time** tab (a chart and medians of completed work by implementing model); the About sidebar shows a work item's statistics. Plan revisions come from Git and follow archive moves. `atlas planning check` warns about invalid report lines. Plan exports leave statistics out.
+- Work statistics: `atlas work report` records each ledger transition in `<work>/.atlas/statistics.jsonl`.
+  - **Measured from the agent's own session.** Inside Claude Code or Codex, the command finds the session the harness names and reads its log on that computer: the model, and since the session's previous report the agent's working time and tokens. Agent time runs from each prompt to the end of that turn's work, without the time the agent waited for a person, with helpers' work at the same time counted once; tokens come per model, by kind. The log is only read, and a report holds only numbers and model identifiers. Elsewhere the agent gives `--model`, `--session` and `--tokens`, and agent time is estimated from the time between reports.
+  - **The Statistics view** has a **Work** tab (model, agent time, tokens, plan revisions and steps per work item) and a **Models over time** tab (a chart and medians of completed work by implementing model, the one that did most of the work). Models read by name with their provider's mark, such as Claude Opus 5.5 or GPT-6.1 Sol.
+  - **A work item's About sidebar** sums up its statistics: the model and any others, the agent time (how much was measured, and since when, on hover or focus), the tokens (by kind on hover or focus) and the plan revisions. It no longer shows the work folder's path.
+
+  Plan revisions come from Git and follow archive moves. `atlas planning check` warns about invalid report lines. Plan exports leave statistics out.
+
 - Remote access: work on another computer's planning folders as if they were local.
   - **File › Remote Access…** turns it on for a chosen address (Tailscale, a local network or this machine) and port. It creates pairing links (five minutes, one use, with a QR code, **Copy link** and **Copy code only**) and lists and revokes paired devices.
   - **Pairing:** the pairing step names the device and may grant **Manage access**, so it can pair and revoke devices itself.
@@ -16,11 +55,12 @@
 
     Only Reveal in File Explorer stays local.
 
-  - **The computer and folder menus:** the explorer's header holds a computer menu (this computer and the paired ones) and a folder menu (the computer's folder list). Each opens in this window, or in a new one with the button beside an entry or Ctrl+Enter. Another computer's folders open through an in-app folder browser.
+  - **The computer menu and Open Recent:** the title bar holds a computer menu (this computer and the paired ones), and **File › Open Recent** lists the computer's folders. Each opens in this window; their **Manage** lists also open in a new one. Another computer's folders open through an in-app folder browser.
   - **The folder list:** each computer keeps one, which every device sees live.
   - **Collapse All Folders** moves to the explorer's right-click menu.
   - **`atlas serve`** runs the host without the app; devices open folders there themselves.
   - **The Atlas host:** planning folders are now read by the Atlas host (`packages/host`, TypeScript with Hono), which the app runs in a utility process. Devices hold revocable tokens.
+  - **Protocol version 3:** work statistics changed shape, so a computer on an earlier build is asked to update Atlas on both computers rather than showing broken statistics.
 
   See [remote access](docs/remote-access.md).
 

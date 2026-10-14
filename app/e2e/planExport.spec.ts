@@ -38,8 +38,8 @@ test('the export and import entries are in the File menu and on a work folder’
   const { app, window } = launched!;
   const file = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.map(item => item.label));
   expect(file).toEqual(expect.arrayContaining(['&Import Plan…', '&Export Plan…']));
-  await window.locator('.tree-row[data-id="d:active"]').click();
-  await window.locator('.tree-row[data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
+  await window.locator('[role="treeitem"][data-id="d:active"]').click();
+  await window.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
   await expect(window.getByRole('menu')).toContainText('Export Plan…');
   await window.keyboard.press('Escape');
 });
@@ -51,15 +51,15 @@ test('Export Plan… from the File menu and the explorer writes one HTML file pe
   await stubDialogs(app, { save: fromMenu });
   await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
   await clickMenu(app, '&Export Plan…');
-  await expect(window.locator('.toast')).toContainText('Exported #0001 to ' + fromMenu);
+  await expect(window.getByText('Exported #0001 to ' + fromMenu)).toBeVisible();
   expect(readFileSync(fromMenu, 'utf8')).toMatch(/^<!doctype html>/i);
 
   // The explorer's context menu exports the folder it was opened on.
   const fromExplorer = path.join(scratch, 'from-explorer.html');
   await stubDialogs(app, { save: fromExplorer });
-  await window.locator('.tree-row[data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
+  await window.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
   await window.getByRole('menuitem', { name: 'Export Plan…' }).click();
-  await expect(window.locator('.toast').last()).toContainText('Exported #0002 to ' + fromExplorer);
+  await expect(window.getByText('Exported #0002 to ' + fromExplorer)).toBeVisible();
   const html = readFileSync(fromExplorer, 'utf8');
   expect(html).toMatch(/^<!doctype html>/i);
   expect(html).toContain('Order fulfilment model');
@@ -71,28 +71,28 @@ test('Import Plan… previews the file, then adds it as new work under the next 
   const { app, window } = launched!;
   const exported = path.join(scratch, 'fulfilment.html');
   await stubDialogs(app, { save: exported });
-  await window.locator('.tree-row[data-id="d:active"]').click();
-  await window.locator('.tree-row[data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
+  await window.locator('[role="treeitem"][data-id="d:active"]').click();
+  await window.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
   await window.getByRole('menuitem', { name: 'Export Plan…' }).click();
-  await expect(window.locator('.toast')).toContainText('Exported #0002');
+  await expect(window.getByText(/^Exported #0002/)).toBeVisible();
 
   await stubDialogs(app, { open: exported });
   const commits = git('rev-list', '--count', 'HEAD');
   await clickMenu(app, '&Import Plan…');
-  const preview = window.getByRole('dialog', { name: 'Import plan' });
+  const preview = window.getByRole('dialog', { name: /^Import “/ });
   await expect(preview).toContainText('Import “Order fulfilment model”');
   await expect(preview).toContainText('#0002 from planning');
   await expect(preview).toContainText(/#0005 in active\/0005-/);
   await expect(preview).toContainText(/\d+ files, /);
   await expect(preview).toContainText('Fulfilment · conceptual model');
   await preview.getByRole('button', { name: 'Import' }).click();
-  await expect(window.locator('.toast').last()).toContainText('Imported as #0005');
+  await expect(window.getByText(/^Imported as #0005/)).toBeVisible();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-  await expect(window.locator('.breadcrumb')).toContainText('#0005');
-  const imported = window.locator('.tree-row[data-id^="d:active/0005-"]');
+  await expect(window.locator('.work-header .work-number')).toHaveText('#0005');
+  const imported = window.locator('[role="treeitem"][data-id^="d:active/0005-"]');
   await expect(imported).toBeVisible();
-  await expect(imported.locator('.tree-secondary')).toHaveText('#0005 Order fulfilment model');
-  await window.getByRole('button', { name: 'Work', exact: true }).click();
+  await expect(imported).toContainText('Order fulfilment model');
+  await window.getByRole('navigation', { name: 'Atlas' }).getByRole('button', { name: /^Work/ }).click();
   await expect(window.locator('.work-row')).toHaveCount(4);
   // New files only, nothing committed, and no import lock left behind.
   expect(git('rev-list', '--count', 'HEAD')).toBe(commits);
@@ -114,8 +114,8 @@ test('an invalid export is refused in an error dialog and nothing is written', a
   const [message] = await shownMessages(app);
   expect(message.message).toBe('This file cannot be imported.');
   expect(message.detail).toContain('Nothing was written.');
-  await expect(window.getByRole('dialog', { name: 'Import plan' })).toHaveCount(0);
-  await expect(window.locator('.toast')).toHaveCount(0);
+  await expect(window.getByRole('dialog', { name: /^Import “/ })).toHaveCount(0);
+  await expect(window.getByText(/^(Exported|Imported) /)).toHaveCount(0);
   expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toBe(registry);
   expect(git('status', '--porcelain', '--untracked-files=all')).toBe('');
 });

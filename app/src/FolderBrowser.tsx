@@ -3,11 +3,11 @@
 // open here or in a new window. Browsing starts beside the folder the window shows on that
 // computer, or else at its home folder and drives.
 import { useEffect, useState } from 'react';
-import { ArrowUpIcon, FileDirectoryIcon, HomeIcon, LinkExternalIcon, ServerIcon } from './icons';
+import { Badge, Button, Dialog, IconButton, NavigationItem, Notice, Spinner, Text, Tooltip } from '@envsemble/envui';
+import { Code } from '@envsemble/envui/content';
+import { ArrowUpIcon, FolderIcon, HomeIcon, NewWindowIcon, ServerIcon } from './icons';
 import type { BrowseResult, ComputerRef } from './types';
 import { api } from './api';
-import { Dialog } from './components/Dialog';
-import { Label, Spinner } from './ui';
 
 export function FolderBrowser({ computer, near, onClose }: { computer: ComputerRef & { hostId: string }; near: string | null; onClose(): void }) {
   // Undefined while the starting place (the folder beside `near`) is worked out.
@@ -29,41 +29,39 @@ export function FolderBrowser({ computer, near, onClose }: { computer: ComputerR
   const open = async (folder: string, newWindow: boolean) => {
     setBusy(true); setError('');
     try { await api.openFolder(computer.hostId, folder, newWindow); onClose(); }
-    catch (failure) { setError((failure as Error).message); setBusy(false); }
+    catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); setBusy(false); }
   };
   const up = () => setPlace(listing?.parent ?? null);
-  return <Dialog label={'Open a folder on ' + computer.name} onClose={busy ? () => undefined : onClose} className="folder-browser" placement="top">
-    <h2 className="dialog-title">Open a folder on {computer.name}</h2>
+  return <Dialog open onOpenChange={value => { if (!value && !busy) onClose(); }} pending={busy} size="wide" placement="top" className="folder-browser"
+    title={'Open a folder on ' + computer.name}
+    closeLabel="Cancel">
     <div className="folder-browser-bar">
-      <button type="button" className="btn btn-sm" onClick={() => setPlace(null)} disabled={busy || !place} aria-label="Home folder and drives" title="Home folder and drives"><HomeIcon size={16} /></button>
-      <button type="button" className="btn btn-sm" onClick={up} disabled={busy || !place} aria-label="Up" title="Up one folder"><ArrowUpIcon size={16} /></button>
-      <code className="folder-browser-path" title={place ?? undefined}><bdi>{place === undefined ? '' : place ?? 'Home folder and drives'}</bdi></code>
+      <Tooltip content="Home folder and drives"><IconButton icon={<HomeIcon />} aria-label="Home folder and drives" onClick={() => setPlace(null)} disabled={busy || !place} /></Tooltip>
+      <Tooltip content="Up one folder"><IconButton icon={<ArrowUpIcon />} aria-label="Up" onClick={up} disabled={busy || !place} /></Tooltip>
+      <Code appearance="subtle" className="folder-browser-path" title={place ?? undefined}><bdi>{place === undefined ? '' : place ?? 'Home folder and drives'}</bdi></Code>
     </div>
-    {listing?.planning && listing.path && <div className="folder-browser-current">
-      <span><strong>This is a planning folder.</strong></span>
-      <span className="access-actions">
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void open(listing.path!, false)}>Open</button>
-        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void open(listing.path!, true)}>Open in New Window</button>
-      </span>
-    </div>}
+    {listing?.planning && listing.path && <Notice tone="success" className="folder-browser-current" title="This is a planning folder."
+      action={<span className="row-actions">
+        <Button variant="primary" disabled={busy} onClick={() => void open(listing.path!, false)}>Open</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => void open(listing.path!, true)}>Open in New Window</Button>
+      </span>} />}
     <div className="folder-browser-list" aria-busy={listing === null}>
-      {listing === null ? <div className="menu-loading"><Spinner />Loading…</div>
-        : listing.folders.length ? <ul className="folder-list" aria-label={place ? 'Folders in ' + place : 'Places'}>{listing.folders.map(folder => <li key={folder.path} className="menu-row">
-          <button type="button" className="menu-item" disabled={busy} title={folder.path} onClick={() => setPlace(folder.path)}
-            onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && folder.planning) { event.preventDefault(); void open(folder.path, true); } }}>
-            <span className="menu-check">{place === null && folder.name !== 'Home' ? <ServerIcon size={16} /> : place === null ? <HomeIcon size={16} /> : <FileDirectoryIcon size={16} />}</span>
-            <span className="menu-text"><span className="menu-item-heading"><strong>{folder.name}</strong>{folder.planning && <Label tone="accent">Planning folder</Label>}</span>
-              {place === null && <span className="menu-description path"><bdi>{folder.path}</bdi></span>}</span>
-          </button>
-          {folder.planning && <>
-            <button type="button" className="btn btn-sm menu-row-open" disabled={busy} onClick={() => void open(folder.path, false)} aria-label={'Open ' + folder.name}>Open</button>
-            <button type="button" className="btn-octicon menu-row-action" disabled={busy} onClick={() => void open(folder.path, true)} aria-label={'Open ' + folder.name + ' in a new window'} title="Open in a new window (Ctrl+Enter)"><LinkExternalIcon size={16} /></button>
-          </>}
+      {listing === null ? <Spinner label="Loading folders" />
+        : listing.folders.length ? <ul className="browser-list" aria-label={place ? 'Folders in ' + place : 'Places'}>{listing.folders.map(folder => <li key={folder.path} className="browser-row">
+          <NavigationItem size="compact" disabled={busy} title={folder.path} onClick={() => setPlace(folder.path)}
+            icon={place === null && folder.name !== 'Home' ? <ServerIcon /> : place === null ? <HomeIcon /> : <FolderIcon />}
+            onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && folder.planning) { event.preventDefault(); void open(folder.path, true); } }}
+            trailing={folder.planning ? <Badge tone="accent">Planning folder</Badge> : undefined}>
+            {folder.name}{place === null && <span className="browser-row-path"> <bdi>{folder.path}</bdi></span>}
+          </NavigationItem>
+          {folder.planning && <span className="row-actions">
+            <Button variant="secondary" disabled={busy} onClick={() => void open(folder.path, false)} aria-label={'Open ' + folder.name}>Open</Button>
+            <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} disabled={busy} onClick={() => void open(folder.path, true)} aria-label={'Open ' + folder.name + ' in a new window'} /></Tooltip>
+          </span>}
         </li>)}</ul>
-        : !error && <p className="muted folder-browser-empty">No folders here.</p>}
-      {listing?.truncated && <p className="muted field-note">Showing the first {listing.folders.length} folders.</p>}
+        : !error && <Text tone="muted" className="folder-browser-empty">No folders here.</Text>}
+      {listing?.truncated && <Text variant="caption" tone="muted">Showing the first {listing.folders.length} folders.</Text>}
     </div>
-    {error && <div className="flash flash-danger" role="alert">{error}</div>}
-    <div className="dialog-actions"><button type="button" className="btn" onClick={onClose} disabled={busy}>Cancel</button></div>
+    {error && <Notice tone="error" announce>{error}</Notice>}
   </Dialog>;
 }

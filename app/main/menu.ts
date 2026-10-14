@@ -2,12 +2,17 @@ import { Menu, type MenuItemConstructorOptions } from 'electron';
 import type { ComputerFolder } from '../shared/contract.ts';
 import type { WindowManager } from './windows.ts';
 
-/** How many of this computer's folders File › Open Recent lists; the explorer's folder menu has them all. */
+/** How many of this computer's folders File › Open Recent lists; Manage Folders… has them all. */
 const recentLimit = 10;
 
-export function buildMenu(manager: WindowManager, folders: ComputerFolder[], actions: { openLogs(): void; about(): void; devTools: boolean }) {
+/**
+ * The application menu. On macOS it is the system's menu bar; elsewhere windows draw the same menus
+ * in their title bar, and this menu stays hidden, keeping its shortcuts.
+ */
+export function buildMenu(manager: WindowManager, folders: ComputerFolder[], actions: { openLogs(): void; devTools: boolean }) {
   const window = () => manager.focused();
-  // This computer's folder list, which its other devices see too; a folder leaves it from the explorer's folder menu.
+  const mac = process.platform === 'darwin';
+  // This computer's folder list, which its other devices see too; a folder leaves it from Manage Folders…
   const recentItems: MenuItemConstructorOptions[] = folders.length
     ? folders.slice(0, recentLimit).map((item): MenuItemConstructorOptions => ({
       label: item.path.replaceAll('&', '&&'),
@@ -24,6 +29,10 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
         { type: 'separator' },
         { label: '&Open Folder…', accelerator: 'CmdOrCtrl+O', click: () => manager.openFolderCommand(window()) },
         { label: 'Open &Recent', id: 'open-recent', submenu: recentItems },
+        // The window's computer's whole list (macOS has no Open Recent of that computer in the window).
+        { label: 'Manage &Folders…', click: () => manager.sendMenu('manageFolders') },
+        // Through the window, which saves its layout first; only the window in front closes its folder.
+        { label: 'Close &Folder', click: () => manager.sendMenu('closeFolder', true) },
         { type: 'separator' },
         { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },
         { label: 'Re&mote Access…', click: () => manager.sendMenu('remoteAccess') },
@@ -41,7 +50,11 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
     {
       label: '&View',
       submenu: [
-        { label: '&Quick Open…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
+        // The window takes these keys itself, except in a field, where they reach this menu and the window ignores them.
+        { label: '&Back', accelerator: mac ? 'Cmd+[' : 'Alt+Left', click: () => manager.sendMenu('goBack') },
+        { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
+        { type: 'separator' },
+        { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
         { type: 'separator' },
         { label: '&Explorer', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('showExplorer') },
         { label: 'Toggle &Sidebar', accelerator: 'CmdOrCtrl+B', click: () => manager.sendMenu('toggleSidebar') },
@@ -50,7 +63,10 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
         { label: '&Activity', click: () => manager.sendMenu('openActivity') },
         { label: 'S&tatistics', click: () => manager.sendMenu('openStatistics') },
         { type: 'separator' },
-        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        // Zoom keeps the title bar's window buttons as tall as the bar above its line.
+        { label: '&Actual Size', accelerator: 'CmdOrCtrl+0', click: () => window()?.zoom('reset') },
+        { label: 'Zoom &In', accelerator: 'CmdOrCtrl+Plus', click: () => window()?.zoom('in') },
+        { label: 'Zoom &Out', accelerator: 'CmdOrCtrl+-', click: () => window()?.zoom('out') },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(actions.devTools ? [{ type: 'separator' } as const, { role: 'reload' } as const, { role: 'toggleDevTools' } as const] : []),
@@ -61,7 +77,7 @@ export function buildMenu(manager: WindowManager, folders: ComputerFolder[], act
       submenu: [
         { label: 'Open &Logs', click: actions.openLogs },
         { type: 'separator' },
-        { label: '&About Atlas', click: actions.about },
+        { label: '&About Atlas', click: () => manager.sendMenu('about') },
       ],
     },
   ];

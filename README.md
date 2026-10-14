@@ -28,6 +28,8 @@ Atlas keeps plans, decisions and models in a place both a coding agent and its h
 
 Use **Node 24**, npm and Git. Java extraction also needs **JDK 21**, and PostgreSQL capture needs a supported PostgreSQL 17 schema.
 
+Installing from a clone needs a GitHub token for Envsemble's private envUI package; [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run) shows how.
+
 1. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from a clone of this repository:
 
    ```sh
@@ -55,7 +57,7 @@ Plans, models and statistics stay on your computer unless you turn on remote acc
 1. **Plan.** With `atlas-grill`, the agent interviews you about a change and records the plan, its glossary and its decisions as they settle. You accept the plan.
 2. **Implement.** With `atlas-implement`, the agent breaks the accepted plan into steps in the work's ledger and marks each one `todo`, `doing` or `done` as it goes. It reports its model and tokens at each step, and delivers through pull requests with review and CI.
 3. **Follow along.** Atlas shows every work item's progress and the steps left, its plan, ledger and decisions, recent commits, and the diagrams that explain it, updating as files change.
-4. **Learn from it.** With `atlas-record`, the agent keeps the decisions and lessons worth reusing. The Statistics view compares tokens, active time and plan revisions by model over time, so you can see how a new model does on your work.
+4. **Learn from it.** With `atlas-record`, the agent keeps the decisions and lessons worth reusing. The Statistics view compares agent time, tokens and plan revisions by model over time, so you can see how a new model does on your work.
 
 [Progress and statistics](docs/progress-and-statistics.md) explains the ledger's steps, what agents report and how Atlas counts it.
 
@@ -64,7 +66,7 @@ Plans, models and statistics stay on your computer unless you turn on remote acc
 - **Share a plan.** `atlas plan export <work-id>` (or **File › Export Plan…**) writes the whole work item to one `.atlas-plan.html` file: plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history. Anyone can open it in a browser to read the plan offline; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds it to another planning folder as new work. See [plan export](docs/plan-export.md).
 - **Work on another computer.** **File › Remote Access…** lets your other devices work on this computer's planning folders as if they were local: turn it on, choose the Tailscale address and create a pairing link.
   - On the other device, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes).
-  - The computer menu at the top of the explorer then switches between computers, and the folder menu opens any planning folder there.
+  - The computer menu in the title bar then switches between computers, and **File › Open Recent** and **Open Folder…** open any planning folder there.
   - `atlas serve` does the same without the app.
 
   See [remote access](docs/remote-access.md).
@@ -89,7 +91,7 @@ The [Atlas skills](skills/README.md) work in Codex and Claude Code and name no m
 
 Capture declared database or class structure as a dated baseline, author a conceptual proposal over it, inspect the semantic changes and export a reopenable offline HTML document of the model. Each work item keeps its models in its own folder (`<work>/.atlas/`), so a plan, its ledger and its diagrams move together. Plans show a card under every heading a diagram explains, and each diagram is labelled **Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**. The viewer is read-only; the agent edits through the library, the command or MCP.
 
-![Atlas viewer with colored entities, named generalization sets and a focused inspector](assets/viewer-dark.jpg)
+![The Atlas viewer with an agent-authored conceptual model: kinds, roles and relators in their colours, and the inspector explaining a concept from its plan and glossary](assets/viewer-dark.jpg)
 
 | Adapter                                | Supported input                                                               | Fidelity / limits                                                                                                       |
 | -------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -103,13 +105,13 @@ Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight project
 
 - Standard [OntoUML exchange JSON](https://github.com/OntoUML/ontouml-schema) and versioned [Atlas documents](docs/architecture.md) keep model semantics separate from scenes and UI.
 - The [atlas command and stdio MCP server](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results.
-- [Proposals](docs/comparison.md) retain frozen baselines. Baseline/Changes share positions; three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
+- [Proposals](docs/comparison.md) retain frozen baselines and open in one change view: the proposal with what it removes kept in place, every change marked, and a list of the changes to step through. Three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
 - In the app, elements link to the plan passages, glossary entries, decisions and code evidence they explain, and plans link back to them.
-- [Learning reports](docs/learning-reports.md) include walkthroughs, finite scenario checks, glossary, source dates, coverage, SVG diagrams and printing. Exported HTML can be imported and revised later.
+- The viewer's **Understand the model** guide holds [walkthroughs and finite scenario checks](docs/learning-reports.md); each element's details hold its rationale, open questions and linked planning passages. Exported HTML can be imported and revised later.
 - The validator combines the official schema with reference, ownership and count checks and a documented subset of OntoUML rules. It does not establish domain accuracy or full ontology model checking; [rule coverage](docs/architecture.md) and [finite-example limits](docs/learning-reports.md) remain visible. Guidance paraphrases the [OntoUML specification](https://ontouml.readthedocs.io/en/latest/).
 - The diagram package works outside Atlas too, as a Node library and a React panel: see [embedding](docs/embedding.md).
 
-![Agent proposal compared with its captured baseline: Baseline and Changes modes, and a change list grouping added and modified elements with before and after values and linked rationale](assets/comparison-dark.jpg)
+![An agent proposal in its change view: new and changed classes and relations marked on the canvas, unchanged ones faded, and the Changes list beside it with each changed type's members summarized](assets/comparison-dark.jpg)
 
 ## Develop
 
