@@ -1,0 +1,47 @@
+@startuml
+title Fulfilment · conceptual model
+
+abstract class Person
+abstract class Organisation
+class Customer
+class Seller
+class Carrier
+class Warehouse {
+  code : string
+}
+class Parcel {
+  trackingNumber : string
+}
+abstract class Order {
+  number : string
+}
+abstract class Shipment
+class Open
+class "Partially shipped" as PartiallyShipped
+class Fulfilled
+class Cancelled
+class Allocated
+class Packed
+class "In transit" as InTransit
+class Delivered
+class "Delivery failed" as DeliveryFailed
+
+Customer --|> Person
+Seller --|> Organisation
+Carrier --|> Organisation
+Open --|> Order
+PartiallyShipped --|> Order
+Fulfilled --|> Order
+Cancelled --|> Order
+Allocated --|> Shipment
+Packed --|> Shipment
+InTransit --|> Shipment
+Delivered --|> Shipment
+DeliveryFailed --|> Shipment
+Order "0..*" --> "1" Customer : placed by
+Order "0..*" --> "1" Seller : placed with
+Shipment "0..*" --> "1" Order : fulfils
+Shipment "0..*" --> "1" Warehouse : ships from
+Shipment "0..*" --> "0..1" Carrier : carried by
+Shipment "1" *-- "0..*" Parcel : consists of
+@enduml

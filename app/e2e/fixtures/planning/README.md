@@ -32,4 +32,4 @@ Numbers show registration order, not priority. Current code, tests and the shop'
 
 ## Diagrams
 
-Each work folder keeps its Atlas diagrams in its own `.atlas/` folder, so archiving a folder carries its diagrams with it. Diagrams generated from code or a database are dated snapshots of the source; proposals and conceptual models are authored during planning and linked to the plan sections they explain.
+Each work folder keeps its diagrams as PlantUML files beside its plan, so archiving a folder carries its diagrams with it. Diagrams captured from code or a database are dated snapshots of the source; proposals and class diagrams are written during planning, and the plan links each one under the section it explains.

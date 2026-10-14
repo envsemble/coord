@@ -1,0 +1,31 @@
+@startuml
+title Order 1042 split across Berlin and Leeds
+' atlas scenario fulfilment.puml expected valid
+
+object "order1042 : PartiallyShipped" as order1042 {
+  number = "1042"
+}
+object "ana : Customer" as ana
+object "northwind : Seller" as northwind
+object "parcelco : Carrier" as parcelco
+object "berlin : Warehouse" as berlin {
+  code = "BER"
+}
+object "leeds : Warehouse" as leeds {
+  code = "LDS"
+}
+object "shipmentA : InTransit" as shipmentA
+object "shipmentB : Allocated" as shipmentB
+object "parcel1 : Parcel" as parcel1 {
+  trackingNumber = "PC-77"
+}
+
+order1042 -- ana : placed by
+order1042 -- northwind : placed with
+shipmentA -- order1042 : fulfils
+shipmentB -- order1042 : fulfils
+shipmentA -- berlin : ships from
+shipmentB -- leeds : ships from
+shipmentA -- parcelco : carried by
+shipmentA -- parcel1 : consists of
+@enduml
