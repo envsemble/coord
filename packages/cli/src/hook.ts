@@ -7,10 +7,10 @@
 // session to the work item it edits or calls an Atlas tool on, and records the planning files it
 // reads as document use. Stop and SubagentStop record the
 // work statistics of each linked work item from the session's log.
-import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { atlasHome, checkPaths, findPlanning, homePlanningDirectory, logConsultation, parseFrontmatter, recordWorkReport, resolvePlanningFolder, type Whereabouts } from '@envsemble/atlas-planning';
+import { acquireFileLock, atlasHome, checkPaths, findPlanning, homePlanningDirectory, logConsultation, parseFrontmatter, recordWorkReport, resolvePlanningFolder, type Whereabouts } from '@envsemble/atlas-planning';
 import type { Output } from './args.ts';
 
 export interface HookInput {
@@ -18,8 +18,11 @@ export interface HookInput {
   tool_name?: string; tool_input?: unknown; tool_response?: unknown;
   agent_id?: string; agent_type?: string; agent_transcript_path?: string;
 }
-/** A work item the session touched; `linked` is when, so the session's first report measures from then. */
-interface Link { planningFolder: string; workId: string; amending: boolean; linked?: string }
+/**
+ * A work item the session touched; `linked` is when, so the session's first report measures from
+ * then, and `amended` when it last edited the accepted plan, so a report clears only what it counted.
+ */
+interface Link { planningFolder: string; workId: string; amending: boolean; linked?: string; amended?: string }
 interface SessionLinks { session: string; transcriptPath: string | null; updated: string; work: Link[] }
 
 const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -66,38 +69,30 @@ function readLinks(home: string, session: string, transcriptPath: string | null)
 }
 /**
  * Change the session's links as they are on disk now, holding a lock file, so hooks of the same
- * session running at once (a slow Stop and a PostToolUse) never undo each other's changes.
- * `change` returns whether it changed anything.
+ * session running at once (a slow Stop and a PostToolUse) never undo each other's changes. A lock
+ * whose hook died is taken over at once (it names its process), one that cannot be judged after ten
+ * seconds. `change` returns whether it changed anything.
  */
 async function updateLinks(home: string, session: string, transcriptPath: string | null, change: (links: SessionLinks) => boolean) {
-  const file = linksFile(home, session), lock = file + '.lock';
+  const file = linksFile(home, session);
   mkdirSync(path.dirname(file), { recursive: true });
-  for (let attempt = 0; ; attempt++) {
-    try { closeSync(openSync(lock, 'wx')); break; }
-    catch (error) {
-      // Windows refuses to create a file while another hook's lock is still being deleted.
-      if (!['EEXIST', 'EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
-      // A hook that died holding the lock leaves it behind; after ten seconds it is stale.
-      const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now());
-      if (age > 10000) rmSync(lock, { force: true });
-      else if (attempt >= 250) throw new Error('the session links stayed locked');
-      else await new Promise(resolve => setTimeout(resolve, 20));
-    }
-  }
+  const release = await acquireFileLock(file + '.lock', { waitMs: 5000, staleAfterMs: 10000 });
   try {
     const links = readLinks(home, session, transcriptPath);
     if (!change(links)) return;
     const temporary = file + '.' + process.pid + '.tmp';
     writeFileSync(temporary, JSON.stringify({ ...links, updated: new Date().toISOString() }, null, 2) + '\n');
     retrying(() => renameSync(temporary, file));
-  } finally { rmSync(lock, { force: true }); }
+  } finally { await release(); }
 }
 /** Link the session to a work item (amending, when it edits an accepted plan); whether that changed anything. */
 function link(links: SessionLinks, planningFolder: string, workId: string, amending: boolean) {
+  const now = new Date().toISOString();
   const found = links.work.find(item => item.workId === workId && key(item.planningFolder) === key(planningFolder));
-  if (!found) { links.work.push({ planningFolder, workId, amending, linked: new Date().toISOString() }); return true; }
-  if (!amending || found.amending) return false;
+  if (!found) { links.work.push({ planningFolder, workId, amending, linked: now, ...amending && { amended: now } }); return true; }
+  if (!amending) return false;
   found.amending = true;
+  found.amended = now;
   return true;
 }
 
@@ -261,9 +256,14 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     }
     if (event === 'Stop' || event === 'SubagentStop') {
       if (!links.work.length) return '';
+      const began = new Date().toISOString();
       const amended = await recordLinked(home, links, event);
+      // An amending edit made while the report was being recorded is counted by the next one.
       await updateLinks(home, session, transcriptPath, now => {
-        for (const item of now.work) if (amended.some(done => done.workId === item.workId && key(done.planningFolder) === key(item.planningFolder))) item.amending = false;
+        for (const item of now.work) {
+          if (item.amended && item.amended >= began) continue;
+          if (amended.some(done => done.workId === item.workId && key(done.planningFolder) === key(item.planningFolder))) item.amending = false;
+        }
         return true;
       });
     }
