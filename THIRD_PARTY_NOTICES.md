@@ -10,7 +10,7 @@ The plan export viewer (`packages/planning/dist/plan-viewer.html`) bundles React
 
 The interface is built on envUI (`@envsemble/envui`), Envsemble's own private component library. It brings [Base UI](https://github.com/mui/base-ui) and Floating UI (MIT), Google's [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0) and the [Inter](https://github.com/rsms/inter) font (SIL Open Font License 1.1); their notices ship in envUI's package, and the offline diagram and plan files embed them.
 
-The `atlas-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's work and keep their [attribution](skills/atlas-grill/references/ATTRIBUTION.md) and [MIT license](skills/atlas-grill/references/LICENSE).
+The `atlas` skill's interview and domain-modeling methods are adapted from Matt Pocock's work and keep their [attribution](plugin/skills/atlas/references/ATTRIBUTION.md) and [MIT license](plugin/skills/atlas/references/LICENSE).
 
 The interface icons are envUI's Material Symbols. The reusable viewer imports them from envUI; the offline build bundles the icons it uses. No icon or font service or CDN is required.
 

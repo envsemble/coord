@@ -2,7 +2,7 @@
 
 ## Principles
 
-Keep plans, lifecycle decisions and reported outcomes in the associated planning repository, never in this one; the skills assist that workflow, and the desktop app writes to a planning folder only through an explicit user action (importing a plan). Keep semantic documents separate from capture adapters, validation, layout and React rendering. The viewer inspects models; agents/library calls author them. Stable semantic IDs survive renames. Evidence-backed snapshots remain immutable and visibly scoped. Unsupported facts use uncertainty/coverage findings rather than guessed relations or counts.
+Keep plans, lifecycle decisions and reported outcomes in the associated planning repository, never in this one; the plugin's skills and tools assist that workflow, and the desktop app writes to a planning folder only through an explicit user action (importing a plan). Keep semantic documents separate from capture adapters, validation, layout and React rendering. The viewer inspects models; agents/library calls author them. Stable semantic IDs survive renames. Evidence-backed snapshots remain immutable and visibly scoped. Unsupported facts use uncertainty/coverage findings rather than guessed relations or counts.
 
 ## Set up and run
 
@@ -27,14 +27,15 @@ node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --repor
 
 ## Layout
 
-| Path                | What it is                                                                                                                                                                                                                              |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/`              | The Electron desktop app: its main process in `app/main`, the window in `app/src` ([app guide](app/README.md)). electron-vite builds its main process, preload script and window, and electron-builder packages it (`npm run package`). |
-| `packages/host`     | The Atlas host: reads and watches planning folders for the app and serves them to paired computers ([remote access](docs/remote-access.md)).                                                                                            |
-| `packages/planning` | The planning-folder reader shared by the app, the host and the `atlas` command, plan export and import, and the plan export viewer (`packages/planning/viewer`).                                                                        |
-| `packages/cli`      | The `atlas` command ([command reference](docs/command.md)).                                                                                                                                                                             |
-| `packages/diagrams` | The diagram package: source and UI in `lib/`, `src/` and `development/`, and the R5 model under `examples/r5`.                                                                                                                          |
-| `skills/`           | The agent skills ([skills](skills/README.md)).                                                                                                                                                                                          |
+| Path                | What it is                                                                                                                                                                                                                                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/`              | The Electron desktop app: its main process in `app/main`, the window in `app/src` ([app guide](app/README.md)). electron-vite builds its main process, preload script and window, and electron-builder packages it (`npm run package`).                                                                                                                 |
+| `packages/host`     | The Atlas host: reads and watches planning folders for the app and serves them to paired computers ([remote access](docs/remote-access.md)).                                                                                                                                                                                                            |
+| `packages/planning` | The planning-folder reader shared by the app, the host and the `atlas` command, plan export and import, and the plan export viewer (`packages/planning/viewer`).                                                                                                                                                                                        |
+| `packages/cli`      | The `atlas` command ([command reference](docs/command.md)).                                                                                                                                                                                                                                                                                             |
+| `packages/diagrams` | The diagram package: source and UI in `lib/`, `src/` and `development/`, and the R5 model under `examples/r5`.                                                                                                                                                                                                                                          |
+| `plugin/`           | The Atlas plugin for Claude Code and Codex: its manifests, MCP server configuration, hooks and the `atlas` and `atlas-implement` skills, with their packaging test in `plugin/tests` ([agent interface](docs/agent-interface.md)). The marketplace manifests that name it are `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`. |
+| `extras/`           | Skills that are not part of the plugin, installed separately: `babysit-pr`.                                                                                                                                                                                                                                                                             |
 
 The [architecture](docs/architecture.md), [agent](docs/agent-interface.md) and adapter guides own their contracts. The host, the planning reader and the command are TypeScript that Node 24 runs directly without a build step, so they use only erasable syntax (no enums, namespaces or parameter properties; their `erasableSyntaxOnly` setting enforces this) and `.ts` import extensions. The plan export viewer reuses the app's styles and the diagram package's React viewer; `npm run build --workspace @envsemble/atlas-planning` rebuilds its committed bundle, `packages/planning/dist/plan-viewer.html`, and CI fails when the committed bundle is stale.
 
@@ -65,7 +66,7 @@ PR/MR descriptions should identify the behavior change, supported scope, evidenc
 CI runs only for `main`, on pushes to it and on pull requests into it. There, `CI` and `Betterleaks` are required checks; the scanner is version- and hash-pinned and scans the retained Git history. Pull requests into `dev` get no CI for now, so before asking for review:
 
 - run the checks above locally, including the end-to-end suite;
-- run the Node and skills suites on Linux too where you can, for example in a container;
+- run the Node and plugin suites on Linux too where you can, for example in a container;
 - scan the branch's history with the same Betterleaks version (`betterleaks git . --redact`);
 - say in the PR what ran.
 

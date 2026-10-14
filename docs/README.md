@@ -3,16 +3,16 @@
 ## Using Atlas
 
 - [App guide](../app/README.md): install the desktop app, windows and folders, the layout, records and progress, statistics, diagrams, security and diagnostics.
-- [Progress and statistics](progress-and-statistics.md): the ledger's steps, what agents report, and how Atlas measures agent time and tokens and counts plan revisions.
+- [Progress and statistics](progress-and-statistics.md): the ledger's steps, what the hooks measure, and how Atlas counts agent time, tokens, subagents and plan revisions for planning and implementation.
 - [Remote access](remote-access.md): work on another computer's planning folders; pairing, the computer menu and File › Open Recent, `atlas serve`, security and privacy.
 - [Plan export](plan-export.md): share a whole work item as one offline HTML file, and import it elsewhere.
 
 ## For agents
 
-- [Skills](../skills/README.md): the seven `atlas-*` skills and how to install them.
-- [The atlas command](command.md): every command, its exit codes, and the Atlas data folder.
-- [Agent interface](agent-interface.md): model operations through the command, the MCP server and the library.
-- [Planning contract](../skills/atlas-bootstrap/assets/planning/PLANS.md): plan and ledger headers, work statistics, and the planning folder's layout.
+- [Agent interface](agent-interface.md): the Atlas plugin, its MCP tools, skills and hooks, the Atlas home, and how a checkout finds its planning folder.
+- [The atlas command](command.md): every command, its exit codes, `atlas setup` and the Atlas home.
+- [The atlas skill](../plugin/skills/atlas/SKILL.md) and [atlas-implement](../plugin/skills/atlas-implement/SKILL.md): planning and implementing with Atlas.
+- [Planning contract](../plugin/skills/atlas/assets/planning/PLANS.md): plan and ledger headers, work statistics, diagrams and the planning folder's layout.
 
 ## Models
 
