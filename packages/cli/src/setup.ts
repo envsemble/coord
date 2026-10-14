@@ -118,6 +118,7 @@ function tomlStringAt(text: string, index: number): { end: number; value: string
 const tomlEscapes: Record<string, string> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', e: '\x1b', '"': '"', '\\': '\\' };
 /** A basic string's text, its escapes decoded as TOML defines them. */
 function tomlBasic(body: string) {
+  if (/[\u0000-\u0008\u000A-\u001F\u007F]/.test(body)) throw new Error('a string holds a control character');
   return body.replace(/\\(?:u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|x([0-9A-Fa-f]{2})|(.))/g, (_, short: string, long: string, byte: string, other: string) => {
     if (short || long || byte) return String.fromCodePoint(parseInt(short ?? long ?? byte, 16));
     if (other in tomlEscapes) return tomlEscapes[other];
@@ -267,7 +268,7 @@ export function grantCodexRoot(text: string | null, directory: string): string |
     // have a header: add the key as one more dotted key, before the first.
     const dotted = full.find(key => !key.table.length && key.path[0] === name);
     if (dotted) {
-      const at = source.lastIndexOf('\n', dotted.start - 1) + 1;
+      const at = Math.max(source.lastIndexOf('\n', dotted.start - 1) + 1, source.startsWith('﻿') ? 1 : 0);
       return source.slice(0, at) + name + '.writable_roots = [' + entry + ']' + eol + source.slice(at);
     }
     const table = '[' + name + ']' + eol + 'writable_roots = [' + entry + ']' + eol;

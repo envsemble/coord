@@ -74,6 +74,8 @@ test('quoted keys are the keys they name, and nothing inside a string or comment
   // TOML's own escapes, literal tabs in strings and a byte order mark are ordinary TOML.
   const escapes = '\uFEFFpath = "C:\\\\x\\U0001F600\\e"\nnotify = ["a\tb"]\n';
   assert.equal(grantCodexRoot(escapes, home), escapes + `\n[sandbox_workspace_write]\nwritable_roots = [${literal}]\n`);
+  // The byte order mark stays first when the key goes before the first line.
+  assert.equal(grantCodexRoot('﻿sandbox_workspace_write.network_access = true\n', home), `﻿sandbox_workspace_write.writable_roots = [${literal}]\nsandbox_workspace_write.network_access = true\n`);
   // Unsure: the file stays as it is, and the message says what to add by hand.
   const refused = (config: string, reason: RegExp) => assert.throws(() => grantCodexRoot(config, home), (error: Error) => reason.test(error.message) && error.message.endsWith(`add ${literal} to [sandbox_workspace_write] writable_roots by hand`));
   refused('"sandbox_workspace_write" = { network_access = true }\n', /inline table/);
@@ -82,6 +84,7 @@ test('quoted keys are the keys they name, and nothing inside a string or comment
   refused('notes = """\nnever closed\n', /multi-line string does not end/);
   refused('[sandbox_workspace_write\n', /table header/);
   refused('key = "a" "b"\n', /more than one/);
+  refused('key = "x\\\ny"\n', /control character/);
   refused('this is not toml\n', /neither a table header nor a key|key could not be read/);
 });
 

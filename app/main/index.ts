@@ -71,7 +71,9 @@ async function moveLegacyData(): Promise<string | null> {
   if (await hostRunning(electronData)) return `An older atlas serve is using Atlas's settings in ${electronData}. Stop it, then start Atlas again to move them into ${dataDirectory}.`;
   const migration = await migrateLegacyData(dataDirectory, electronData);
   log.info('Moved the old data folder into the home', { from: electronData, ...migration });
-  return null;
+  // What could not move (a file held open elsewhere) would otherwise be shadowed by the home's new settings.
+  const left = await legacyData(electronData);
+  return left.length ? `Some of Atlas's settings could not be moved from ${electronData} into ${dataDirectory} (${migration.failed.join('; ') || left.join(', ')}). Close any other program using them, then start Atlas again.` : null;
 }
 
 /** Leave without touching the home while the old data folder's files wait to be moved. */
