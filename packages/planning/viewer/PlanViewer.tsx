@@ -19,7 +19,7 @@ import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDi
 import { Markdown, scrollToHeading } from './Markdown.tsx';
 import { markdownBody } from '../src/headings.ts';
 import { LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
-import { modelSummary, type ProvenanceKind } from '../src/provenance.ts';
+import { elementId, modelSummary, type ProvenanceKind } from '../src/provenance.ts';
 
 type Tab = 'plan' | 'ledger' | 'diagrams' | 'files';
 interface Route { tab: Tab | null; file: string | null; anchor: string | null; diagram: string | null; element: string | null }
@@ -242,7 +242,7 @@ function Diagrams({ data, route, navigate, sections }: { data: PlanData; route: 
   return <section ref={section} className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={selected}>
-        <AtlasPanel payload={payload} theme={theme} focus={route.element ? { kind: 'node', id: route.element } : undefined}
+        <AtlasPanel payload={payload} theme={theme} focus={route.element ? { kind: 'node', id: elementId(payload.model, route.element) } : undefined}
           leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>

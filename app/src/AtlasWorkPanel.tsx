@@ -6,7 +6,7 @@ import type { DiagramEntry, Target, Work } from './types';
 import { api } from './api';
 import { workTarget } from './targets';
 import { selectDiagram } from './diagramSelection';
-import { modelSummary } from '@envsemble/atlas-planning/provenance';
+import { elementId, modelSummary } from '@envsemble/atlas-planning/provenance';
 import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { DiagramIcon } from './icons';
@@ -148,7 +148,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
   return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: target.element } : null}
+        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: elementId(payload.model, target.element) } : null}
           leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>

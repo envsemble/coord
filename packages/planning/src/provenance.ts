@@ -71,3 +71,16 @@ export function modelSummary(model: ModelSummarySource, changes?: number | null)
   } else line = parts.join(' · ');
   return line.charAt(0).toUpperCase() + line.slice(1);
 }
+
+/** What naming an element needs of a diagram's model. */
+export interface ElementSource { classes: { id: string; name: string }[] }
+
+/**
+ * The element a link's fragment names: an id (a class's PlantUML name or alias, a member or a
+ * relation) as it is, otherwise the class with that display name, so `#Order%20Item` reaches
+ * `class "Order Item" as OrderItem`.
+ */
+export function elementId(model: ElementSource, element: string): string {
+  if (model.classes.some(item => item.id === element)) return element;
+  return model.classes.find(item => item.name === element)?.id ?? element;
+}
