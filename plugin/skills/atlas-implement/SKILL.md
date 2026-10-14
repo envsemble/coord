@@ -20,9 +20,7 @@ Find the planning folder as the atlas skill says (the session-start context, els
 
 An explicit request to implement a draft establishes present acceptance: record it with `work_accept`, never as a past date. Commit the plan, then call `work_start` with the agreed steps, one per meaningful deliverable or milestone. It sets the implementation in progress and writes the ledger with its steps and a Selection naming the plan and the planning Git revision; add the starting product revisions to the ledger. When resuming, compare the selection with the plan as it is now: later edits must not silently redefine the task, and accepted amendments are recorded with their revision.
 
-When the work has diagrams captured from code or databases, capture again with Atlas's capture command before implementation starts and once more at the end, so the app can show the system before and after.
-
-<!-- TODO(diagram lane): name the capture command and its arguments here. -->
+When the work has diagrams captured from code or databases, capture again before implementation starts (`atlas capture <source.json> --work <work-id> --name before`) and once more at the end (`… --name after --compares before.puml`), so the app shows the system before and after; [diagrams](../atlas/references/diagrams.md) describes the source configuration.
 
 ## Execute and keep the ledger current
 

@@ -57,7 +57,7 @@ npm run check:release
 
 ## Pull requests
 
-PR/MR descriptions should identify the behavior change, supported scope, evidence and validation. Use [revision review artifacts](docs/review-ci.md) for architecture changes, retain merge conflicts explicitly and link consequential decisions to their planning context. Human acceptance and merge stay separate from generated findings. Versioned artifacts can be checked with [release assembly](docs/releases.md); no publishing/deployment is implied.
+PR/MR descriptions should identify the behavior change, supported scope, evidence and validation. Link consequential decisions to their planning context, and for design changes link the diagrams that show them. Human acceptance and merge stay separate from generated findings. Versioned artifacts can be checked with [release assembly](docs/releases.md); no publishing/deployment is implied.
 
 CI runs only for `main`, on pushes to it and on pull requests into it. There, `CI` and `Betterleaks` are required checks; the scanner is version- and hash-pinned and scans the retained Git history. Pull requests into `dev` get no CI for now, so before asking for review:
 
