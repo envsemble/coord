@@ -49,7 +49,7 @@ export interface ReportInput { model: string; session?: string | null; tokens?: 
 /** Model identifiers as harnesses show them, including bracketed variants such as `name[1m]`. */
 export const modelPattern = /^[A-Za-z0-9][A-Za-z0-9._:/@+\-[\]]{0,99}$/;
 const sessionPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const subagentPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
+const subagentPattern = /^[A-Za-z0-9_-][A-Za-z0-9._:-]{0,63}$/;
 /** Control characters, line separators and bidirectional overrides never appear in a step. */
 const unprintable = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 const timestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;

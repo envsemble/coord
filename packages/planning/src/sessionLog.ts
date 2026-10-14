@@ -87,7 +87,7 @@ async function claudeFiles(folder: string, session: string): Promise<LogFile[]> 
     else if (entry.isDirectory() && entry.name === session) {
       const subagents = path.join(folder, entry.name, 'subagents');
       for (const helper of await entries(subagents)) {
-        const agent = helper.isFile() ? /^agent-([A-Za-z0-9_-]{1,64})\.jsonl$/.exec(helper.name)?.[1] : undefined;
+        const agent = helper.isFile() ? /^agent-([A-Za-z0-9_-]+)\.jsonl$/.exec(helper.name)?.[1].slice(0, 64) : undefined;
         if (agent) found.push(logFile(path.join(subagents, helper.name), agent));
       }
     }
