@@ -66,7 +66,6 @@ body { margin: 0; }
 .explorer-tree { flex: 1; min-block-size: 0; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
 .explorer-diagram { color: var(--color-tone-accent); }
-.explorer-note { color: var(--color-text-muted); font-style: italic; }
 
 /* Pages in tabs */
 .page { display: grid; gap: var(--space-5); align-content: start; max-inline-size: 76rem; margin-inline: auto; }
@@ -179,6 +178,7 @@ body { margin: 0; }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--space-6); background: var(--color-canvas); }
 .diagrams-state > * { max-inline-size: 30rem; }
+.diagram-problems { margin: var(--space-3) 0 0; padding-inline-start: 1.25rem; text-align: start; }
 /* While a diagram loads, the switcher and the picker are where the diagram's overlay puts them. */
 .diagrams-islands { position: absolute; inset-block-start: var(--atlas-gutter); inset-inline-start: var(--atlas-gutter); z-index: 5; display: grid; justify-items: start; gap: var(--space-2); }
 @container (max-width: 40rem) {

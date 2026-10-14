@@ -22,7 +22,7 @@ export function QuickOpen({ snapshot, mode = 'all', placeholder, onPick, onClose
   useEffect(() => {
     if (mode !== 'all') return;
     let current = true;
-    api.diagrams().then(items => { if (current) setDiagrams(items); }).catch(() => undefined);
+    api.diagramIndex().then(items => { if (current) setDiagrams(items); }).catch(() => undefined);
     return () => { current = false; };
   }, [mode]);
 
@@ -33,13 +33,15 @@ export function QuickOpen({ snapshot, mode = 'all', placeholder, onPick, onClose
       icon: <StatusIcon status={workStatus(item)} decorative />,
     }));
     if (mode === 'work') return work;
-    const files: Entry[] = snapshot.documents.map(file => ({ id: 'file:' + file.path, kind: 'file', label: file.name, detail: file.path, target: fileTarget(file.path), icon: <FileIcon /> }));
-    const models: Entry[] = diagrams.map(item => ({
-      id: 'diagram:' + item.workId + ':' + item.handle, kind: 'diagram', label: item.title,
+    // A diagram is listed once, by its title; its file is not listed again.
+    const paths = new Set(diagrams.map(item => snapshot.work.find(work => work.id === item.workId)?.path + '/' + item.path));
+    const files: Entry[] = snapshot.documents.filter(file => !paths.has(file.path)).map(file => ({ id: 'file:' + file.path, kind: 'file', label: file.name, detail: file.path, target: fileTarget(file.path), icon: <FileIcon /> }));
+    const listed: Entry[] = diagrams.map(item => ({
+      id: 'diagram:' + item.workId + ':' + item.path, kind: 'diagram', label: item.title,
       detail: [workNumber(item.workId) + ' ' + (titles.get(item.workId) ?? ''), item.provenance.label].filter(Boolean).join(' · '),
-      target: workTarget(item.workId, 'diagrams', { diagram: item.handle }), icon: <DiagramIcon />,
+      target: workTarget(item.workId, 'diagrams', { diagram: item.path }), icon: <DiagramIcon />,
     }));
-    return [...work, ...models, ...files];
+    return [...work, ...listed, ...files];
   }, [snapshot, diagrams, mode]);
   const results = useMemo(() => rankItems(entries, query), [entries, query]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);

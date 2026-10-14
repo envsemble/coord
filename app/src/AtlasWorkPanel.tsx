@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AtlasPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
-import type { PlanningContext, ViewerPayload } from '@envsemble/atlas-diagrams';
+import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
-import type { Catalog, CatalogEntry, Snapshot, Target, Work } from './types';
+import type { DiagramEntry, Target, Work } from './types';
 import { api } from './api';
-import { documentTarget, workTarget } from './targets';
-import { samePath } from './links';
-import { selectModelHandle } from './modelSelection';
-import { resolveRecordPath } from '@envsemble/atlas-planning/paths';
-import { modelSummary, type ProvenanceKind } from '@envsemble/atlas-planning/provenance';
+import { workTarget } from './targets';
+import { selectDiagram } from './diagramSelection';
+import { modelSummary } from '@envsemble/atlas-planning/provenance';
 import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { DiagramIcon } from './icons';
@@ -17,99 +15,121 @@ import { useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
 
-const groups: { kind: ProvenanceKind; title: string }[] = [
-  { kind: 'generated', title: 'From code and databases' },
-  { kind: 'proposal', title: 'Proposals' },
-  { kind: 'authored', title: 'Authored' },
-  { kind: 'unknown', title: 'Other' },
-];
-const byTitle = (a: CatalogEntry, b: CatalogEntry) => a.title.localeCompare(b.title, undefined, { numeric: true });
+const byTitle = (a: DiagramEntry, b: DiagramEntry) => a.title.localeCompare(b.title, undefined, { numeric: true });
+const problemCount = (diagram: DiagramEntry) => diagram.problems.filter(problem => problem.severity === 'error').length;
 /**
- * The one chooser of what the Diagrams section shows: a compact menu of the work item's models, by
- * origin and title. A proposal says how many changes it makes once it is here, so alternatives over
- * one capture read apart.
+ * The picker's groups: each family (a capture, the later captures compared with it and the
+ * proposals over them) under its first capture's title; the other diagrams, each class diagram with
+ * the scenarios that exemplify it after it; and the diagrams that have problems.
  */
-function ModelPicker({ models, handle, payloads, onSelect }: { models: CatalogEntry[]; handle: string; payloads: Map<string, ViewerPayload>; onSelect(handle: string): void }) {
-  const current = models.find(model => model.handle === handle);
+function pickerGroups(diagrams: DiagramEntry[]): { key: string; title: string; items: DiagramEntry[] }[] {
+  const valid = diagrams.filter(diagram => diagram.valid);
+  const groups: { key: string; title: string; items: DiagramEntry[] }[] = [];
+  const roots = [...new Set(valid.flatMap(diagram => diagram.family ? [diagram.family] : []))];
+  for (const root of roots) {
+    const members = valid.filter(diagram => diagram.family === root);
+    const order = (diagram: DiagramEntry) => diagram.path === root ? 0 : diagram.role === 'capture' ? 1 : 2;
+    members.sort((a, b) => order(a) - order(b) || (a.capturedAt ?? '').localeCompare(b.capturedAt ?? '') || byTitle(a, b));
+    groups.push({ key: 'family:' + root, title: members[0].title, items: members });
+  }
+  const alone = valid.filter(diagram => !diagram.family);
+  const scenarios = alone.filter(diagram => diagram.role === 'scenario' && alone.some(other => other.path === diagram.scenarioOf));
+  const others = alone.filter(diagram => !scenarios.includes(diagram)).sort(byTitle)
+    .flatMap(diagram => [diagram, ...scenarios.filter(scenario => scenario.scenarioOf === diagram.path).sort(byTitle)]);
+  if (others.length) groups.push({ key: 'diagrams', title: 'Diagrams', items: others });
+  const invalid = diagrams.filter(diagram => !diagram.valid).sort(byTitle);
+  if (invalid.length) groups.push({ key: 'problems', title: 'With problems', items: invalid });
+  return groups;
+}
+function describe(diagram: DiagramEntry, diagrams: DiagramEntry[], payload: ViewerPayload | undefined) {
+  if (!diagram.valid) { const count = problemCount(diagram); return count === 1 ? '1 problem' : count + ' problems'; }
+  if (diagram.role === 'scenario') return 'Scenario of ' + (diagrams.find(other => other.path === diagram.scenarioOf)?.title ?? diagram.scenarioOf);
+  return modelSummary(diagram, changeCount(payload));
+}
+/**
+ * The one chooser of what the Diagrams section shows: a compact menu of the work item's diagrams, by
+ * family. A proposal says how many changes it makes once it is here, so alternatives read apart.
+ */
+function DiagramPicker({ diagrams, selected, payloads, onSelect }: { diagrams: DiagramEntry[]; selected: string; payloads: Map<string, ViewerPayload>; onSelect(path: string): void }) {
+  const current = diagrams.find(diagram => diagram.path === selected);
   return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu"
     trigger={<Button variant="secondary" className="model-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
-      <span className="model-picker-title">{current?.title ?? (handle ? 'Unavailable model' : 'Choose a diagram')}</span>
+      <span className="model-picker-title">{current?.title ?? (selected ? 'Unavailable diagram' : 'Choose a diagram')}</span>
       {current && <ProvenanceBadge provenance={current.provenance} />}
     </Button>}>
-    <MenuRadioGroup value={handle} onValueChange={onSelect}>
-      {groups.map(group => {
-        const items = models.filter(model => model.provenance.kind === group.kind).sort(byTitle);
-        if (!items.length) return null;
-        return <MenuGroup key={group.kind} label={group.title}>
-          {items.map(model => <MenuRadioItem key={model.handle} value={model.handle} description={modelSummary(model, changeCount(payloads.get(model.handle))) || undefined}>{model.title}</MenuRadioItem>)}
-        </MenuGroup>;
-      })}
+    <MenuRadioGroup value={selected} onValueChange={onSelect}>
+      {pickerGroups(diagrams).map(group => <MenuGroup key={group.key} label={group.title}>
+        {group.items.map(diagram => <MenuRadioItem key={diagram.path} value={diagram.path} description={describe(diagram, diagrams, payloads.get(diagram.path)) || undefined}>{diagram.title}</MenuRadioItem>)}
+      </MenuGroup>)}
     </MenuRadioGroup>
   </Menu>;
 }
 
-/**
- * A model's payload as the host answers: with the payloads of the models laid out with it, and the
- * rest of its family, which the host serves alone.
- */
-type Answer = ViewerPayload & { siblings?: { handle: string; payload: ViewerPayload }[]; apart?: { handle: string; revision: string }[] };
-/** Payloads that arrived together, by handle, and the revisions they (and the family's members served apart) were read at. */
+/** A diagram's payload as the host answers: with the payloads of the rest of its family, laid out together. */
+type Answer = ViewerPayload & { siblings?: { path: string; payload: ViewerPayload }[] };
+/** Payloads that arrived together, by path, and the revisions they were read at. */
 interface Loaded { payloads: Map<string, ViewerPayload>; revisions: string }
-const revisionsOf = (entries: [string, string][]) => entries.map(([handle, revision]) => handle + '@' + revision).sort().join(' ');
-function loadedFrom(handle: string, answer: Answer): Loaded {
-  const { siblings = [], apart = [], ...payload } = answer;
-  const payloads = new Map<string, ViewerPayload>([[handle, payload], ...siblings.map(item => [item.handle, item.payload] as [string, ViewerPayload])]);
-  const read: [string, string][] = [...payloads].map(([key, value]) => [key, value.model.document?.revision.id ?? '']);
-  return { payloads, revisions: revisionsOf([...read, ...apart.map(item => [item.handle, item.revision] as [string, string])]) };
+const revisionsOf = (entries: [string, string][]) => entries.map(([path, revision]) => path + '@' + revision).sort().join(' ');
+function loadedFrom(path: string, answer: Answer): Loaded {
+  const { siblings = [], ...payload } = answer;
+  const payloads = new Map<string, ViewerPayload>([[path, payload], ...siblings.map(item => [item.path, item.payload] as [string, ViewerPayload])]);
+  return { payloads, revisions: revisionsOf([...payloads].map(([key, value]) => [key, value.model.document?.revision.id ?? ''])) };
+}
+
+/** What is wrong with a diagram that cannot be drawn, line by line. */
+function Problems({ diagram }: { diagram: DiagramEntry }) {
+  return <EmptyState icon={<DiagramIcon />} title="This diagram has problems" description={<>
+    <span>{diagram.path} cannot be drawn until they are fixed. <code>atlas check</code> reports them too.</span>
+    <ul className="diagram-problems">{diagram.problems.slice(0, 8).map((problem, index) => <li key={index}>Line {problem.line}, column {problem.column}: {problem.message}</li>)}</ul>
+  </>} />;
 }
 
 /**
- * A work item's diagrams. A capture and the proposals over it arrive together, laid out once, so
- * choosing another of them shows it at once in the same panel, with nothing moving; another model
- * loads. `sections` (the work page's switcher) comes first, at the top left, as it does elsewhere.
+ * A work item's diagrams: its `.puml` files. A capture and the proposals over it arrive together, laid
+ * out once, so choosing another of them shows it at once in the same panel, with nothing moving;
+ * another diagram loads. `sections` (the work page's switcher) comes first, at the top left, as it
+ * does elsewhere.
  */
-export function AtlasWorkPanel({ work, snapshot, target, sections }: { work: Work; snapshot: Snapshot; target: WorkTarget; sections?: ReactNode }) {
-  const { open, retarget, revision, inspectorWidth, setInspectorWidth } = useWorkbench();
+export function AtlasWorkPanel({ work, target, sections }: { work: Work; target: WorkTarget; sections?: ReactNode }) {
+  const { retarget, revision, inspectorWidth, setInspectorWidth } = useWorkbench();
   const { theme } = useThemePreference();
-  const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [catalogError, setCatalogError] = useState('');
-  const [modelError, setModelError] = useState<{ handle: string; message: string } | null>(null);
+  const [diagrams, setDiagrams] = useState<DiagramEntry[] | null>(null);
+  const [listError, setListError] = useState('');
+  const [diagramError, setDiagramError] = useState<{ path: string; message: string } | null>(null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [referenceError, setReferenceError] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
-  const [defaultHandle, setDefaultHandle] = useState('');
-  const models = catalog?.models ?? [];
-  const handle = selectModelHandle(models, defaultHandle, target.diagram || '', catalog?.invalidHandles ?? []);
-  const entry = models.find(model => model.handle === handle);
-  // The models laid out with this one, at the revisions the catalog lists now.
-  const family = entry?.family ? models.filter(model => model.family === entry.family) : entry ? [entry] : [];
-  const expected = revisionsOf(family.map(model => [model.handle, model.revision]));
-  const invalid = catalog?.invalidHandles.includes(handle) ?? false;
+  const [shown, setShown] = useState('');
+  const listed = diagrams ?? [];
+  const selected = selectDiagram(listed, shown, target.diagram || '');
+  const entry = listed.find(diagram => diagram.path === selected);
+  // The diagrams laid out with this one, at the revisions listed now.
+  const family = entry?.family ? listed.filter(diagram => diagram.family === entry.family) : entry ? [entry] : [];
+  const expected = revisionsOf(family.map(diagram => [diagram.path, diagram.revision]));
 
-  // The catalog is read again whenever the folder changes on disk.
+  // The list is read again whenever the folder changes on disk.
   useEffect(() => {
     let current = true;
-    api.models(work.id).then(next => {
+    api.diagrams(work.id).then(next => {
       if (!current) return;
-      setCatalog(next); setDefaultHandle(previous => selectModelHandle(next.models, previous, '', next.invalidHandles)); setCatalogError('');
+      setDiagrams(next); setShown(previous => selectDiagram(next, previous)); setListError('');
     }).catch(error => {
       if (!current) return;
-      setCatalogError((error as Error).message); setCatalog(previous => previous ?? { models: [], issues: [], invalidHandles: [] });
+      setListError((error as Error).message); setDiagrams(previous => previous ?? []);
     });
     return () => { current = false; };
   }, [work.id, revision]);
   useEffect(() => {
-    if (!handle) { setLoaded(null); setModelError(null); return; }
-    // A model that arrived with the one shown, at the revisions listed, needs no request.
-    if (loaded?.payloads.has(handle) && loaded.revisions === expected) return;
+    // A diagram with problems is not drawn; its problems are shown instead.
+    if (!selected || !diagrams || entry?.valid === false) { if (!selected) setLoaded(null); setDiagramError(null); return; }
+    // A diagram that arrived with the one shown, at the revisions listed, needs no request.
+    if (loaded?.payloads.has(selected) && loaded.revisions === expected) return;
     let current = true;
-    api.model(work.id, handle).then(answer => {
+    api.diagram(work.id, selected).then(answer => {
       if (!current) return;
-      setLoaded(loadedFrom(handle, answer as Answer)); setReferenceError(''); setModelError(null);
-    }).catch(error => { if (current) setModelError({ handle, message: (error as Error).message }); });
+      setLoaded(loadedFrom(selected, answer as Answer)); setDiagramError(null);
+    }).catch(error => { if (current) setDiagramError({ path: selected, message: (error as Error).message }); });
     return () => { current = false; };
-    // A model whose file is invalid keeps its last valid view; a folder change retries it.
-  }, [handle, expected, work.id, invalid ? revision : 0]);
+  }, [selected, expected, work.id, diagrams, entry?.valid]);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -119,26 +139,17 @@ export function AtlasWorkPanel({ work, snapshot, target, sections }: { work: Wor
     return () => { window.removeEventListener('keydown', key); document.body.classList.remove('has-fullscreen'); };
   }, [fullscreen]);
 
-  const onReference = useCallback((record: PlanningContext['records'][number]) => {
-    const same = (a: string, b: string) => samePath(a, b, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths);
-    const file = resolveRecordPath(record.path, work.path, snapshot.documents.filter(item => item.workId === work.id || item.category === 'knowledge'), same);
-    if (!file) { setReferenceError('This passage is not in the open planning folder.'); return; }
-    setFullscreen(false);
-    const owner = snapshot.work.find(item => item.id === file.workId);
-    open(documentTarget(file, owner, typeof record.section === 'string' ? record.section : null), { pin: true });
-  }, [snapshot, work.id, work.path, open]);
-
   const select = (next: string) => retarget(workTarget(work.id, 'diagrams', { diagram: next }));
-  const picker = models.length > 0 || handle ? <ModelPicker models={models} handle={handle} payloads={loaded?.payloads ?? new Map()} onSelect={select} /> : null;
-  const error = modelError?.handle === handle ? modelError.message : '';
-  const notices = [catalogError, error, referenceError, ...(catalog?.issues ?? [])].filter(Boolean);
-  const payload = loaded?.payloads.get(handle);
-  const empty = catalog && !models.length && !handle;
+  const picker = listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={loaded?.payloads ?? new Map()} onSelect={select} /> : null;
+  const error = diagramError?.path === selected ? diagramError.message : '';
+  const notices = [listError, error].filter(Boolean);
+  const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
+  const empty = diagrams && !listed.length && !selected;
 
   return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
-      {payload ? <ViewerErrorBoundary key={payload.family ?? handle} resetKey={payload.model.document?.revision.id}>
-        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: target.element } : null} onReference={onReference}
+      {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
+        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: target.element } : null}
           leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>
@@ -147,8 +158,9 @@ export function AtlasWorkPanel({ work, snapshot, target, sections }: { work: Wor
           {sections}
           {picker && <Surface tone="pane" corners="pill" padding={1} density="compact" className="diagrams-island">{picker}</Surface>}
         </div>}
-        {!catalog ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
-          : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Ask your agent to model this plan with the atlas-model skill. Diagrams are saved in this work folder." /></div>
+        {!diagrams ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
+          : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Diagrams appear here when your agent writes PlantUML (.puml) files into this work folder; the atlas skill tells it how." /></div>
+          : entry && !entry.valid ? <div className="diagrams-state"><Problems diagram={entry} /></div>
           : <div className="diagrams-state">{error ? null : <Spinner label="Loading the diagram" />}</div>}
       </>}
       {notices.length > 0 && <div className="diagrams-notices" role="status">{notices.map((message, index) => <Notice tone="warning" key={index}>{message}</Notice>)}</div>}

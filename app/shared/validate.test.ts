@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argumentsOf, command, modelHandle, relativePath, uiState, ValidationError, viewEvent, workId } from './validate.ts';
+import { argumentsOf, command, diagramPath, relativePath, uiState, ValidationError, viewEvent, workId } from './validate.ts';
 import { defaultUiState } from './contract.ts';
 
 test('planning paths must be relative and stay inside the folder', () => {
@@ -14,8 +14,8 @@ test('identifiers, commands and view events have exact shapes', () => {
   assert.equal(workId('work-0011'), 'work-0011');
   assert.throws(() => workId('work-11'));
   assert.throws(() => workId('../work-0011'));
-  assert.equal(modelHandle('m-024410515ef6611f71e02bdc'), 'm-024410515ef6611f71e02bdc');
-  assert.throws(() => modelHandle('m-../../planning.json'));
+  assert.equal(diagramPath('diagrams/checkout-capture.puml'), 'diagrams/checkout-capture.puml');
+  for (const bad of ['../../planning.json.puml', 'diagrams/../../x.puml', '/x.puml', 'C:/x.puml', 'plan.md']) assert.throws(() => diagramPath(bad), bad);
   assert.equal(command('newWindow'), 'newWindow');
   assert.equal(command('closeFolder'), 'closeFolder');
   assert.throws(() => command('openFolder'), /must be one of/, 'folders open through their own channels');
@@ -37,6 +37,11 @@ test('window state is checked deeply and repaired where it is safe', () => {
     tabs: { items: [{ id: 'work:work-0001', target: { kind: 'work', work: 'work-0001', section: 'diagrams', diagram: null }, preview: true }], active: 'gone' },
   });
   assert.equal(state.tabs.active, 'work:work-0001', 'a dangling active tab falls back to the first');
+  // A tab keeps its diagram file; one saved by name of a retired model shows the work item's first diagram.
+  const diagramTab = (diagram: string) => uiState({ ...defaultUiState, tabs: { items: [{ id: 'work:work-0001', target: { kind: 'work', work: 'work-0001', section: 'diagrams', diagram }, preview: false }], active: null } }).tabs.items[0].target;
+  assert.equal((diagramTab('diagrams/order.puml') as { diagram?: string | null }).diagram, 'diagrams/order.puml');
+  assert.equal((diagramTab('m-024410515ef6611f71e02bdc') as { diagram?: string | null }).diagram, null);
+  assert.equal((diagramTab('../../planning.json') as { diagram?: string | null }).diagram, null);
   assert.throws(() => uiState({ ...defaultUiState, sidebar: { visible: true, width: 5, expanded: [] } }), /sidebar.width/);
   assert.throws(() => uiState({ ...defaultUiState, tabs: { items: [{ id: 'x', target: { kind: 'file', path: '../secret' }, preview: false }], active: null } }), /path/);
   assert.throws(() => uiState({ ...defaultUiState, tabs: { items: Array.from({ length: 41 }, () => ({ id: 'x', target: { kind: 'view', view: 'work' }, preview: false })), active: null } }), /at most 40/);

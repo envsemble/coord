@@ -2,7 +2,7 @@ import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } f
 import { Button, Card, EmptyState, Spinner } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
 import { DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
-import type { Document, DocumentContent, ModelReference, Snapshot, Target } from './types';
+import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from './types';
 import { api, fileUrl } from './api';
 import { resolveLink } from './links';
 import { findHeadingId, headingSlug, rehypeHeadingIds } from './headings';
@@ -11,10 +11,10 @@ import { bytes, workNumber } from './format';
 import { ProvenanceBadge } from './ui';
 import { useWorkbench } from './workbenchContext';
 
-/** Diagrams that reference a document, refetched when the folder changes. */
+/** The diagrams a document links to, refetched when the folder changes. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
   const { revision } = useWorkbench();
-  const [links, setLinks] = useState<ModelReference[]>([]);
+  const [links, setLinks] = useState<DiagramReference[]>([]);
   useEffect(() => {
     if (!file || !enabled || (!workId && file.category !== 'knowledge')) { setLinks([]); return; }
     let current = true;
@@ -26,26 +26,26 @@ export function useReferences(file: Document | undefined, workId: string | null 
   return links;
 }
 
-interface DiagramCard { key: string; handle: string; workId: string; title: string; provenance: ModelReference['provenance']; elements: { id: string; name: string }[] }
-function cards(references: ModelReference[]): DiagramCard[] {
-  const byModel = new Map<string, DiagramCard>();
+interface DiagramCard { key: string; path: string; workId: string; title: string; provenance: DiagramReference['provenance']; elements: string[] }
+function cards(references: DiagramReference[]): DiagramCard[] {
+  const byDiagram = new Map<string, DiagramCard>();
   for (const reference of references) {
-    const key = reference.workId + ':' + reference.handle;
-    let card = byModel.get(key);
-    if (!card) { card = { key, handle: reference.handle, workId: reference.workId, title: reference.title, provenance: reference.provenance, elements: [] }; byModel.set(key, card); }
-    if (reference.elementId && !card.elements.some(element => element.id === reference.elementId)) card.elements.push({ id: reference.elementId, name: reference.elementName ?? reference.label });
+    const key = reference.workId + ':' + reference.path;
+    let card = byDiagram.get(key);
+    if (!card) { card = { key, path: reference.path, workId: reference.workId, title: reference.title, provenance: reference.provenance, elements: [] }; byDiagram.set(key, card); }
+    if (reference.element && !card.elements.includes(reference.element)) card.elements.push(reference.element);
   }
-  return [...byModel.values()];
+  return [...byDiagram.values()];
 }
-/** Diagrams that explain the passage above them, with the elements they name. */
+/** The diagrams the passage links to, under its heading, with the elements its links name. */
 function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boolean }) {
   const { open } = useWorkbench();
-  const show = (card: DiagramCard, element?: string) => open(workTarget(card.workId, 'diagrams', { diagram: card.handle, element: element ?? card.elements[0]?.id ?? null }), { pin: true });
+  const show = (card: DiagramCard, element?: string) => open(workTarget(card.workId, 'diagrams', { diagram: card.path, element: element ?? card.elements[0] ?? null }), { pin: true });
   return <div className="diagram-cards">{items.map(card => <Card key={card.key} className="diagram-card" tone="pane" padding={4}
     heading={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
     meta={showWork ? workNumber(card.workId) : undefined}
     actions={<Button variant="secondary" onClick={() => show(card)}>Open diagram</Button>}>
-    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => show(card, element.id)}>{element.name}</button>)}
+    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element} className="element-chip" title={'Open the diagram at ' + element} onClick={() => show(card, element)}>{element}</button>)}
       {card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</p>}
   </Card>)}</div>;
 }
@@ -80,7 +80,7 @@ function sessionId() {
 const rehypePlugins = [rehypeHeadingIds];
 
 export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle }: {
-  file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: ModelReference[]; showWork?: boolean;
+  file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: DiagramReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
 }) {
   const { open, notify, remote } = useWorkbench();
@@ -115,8 +115,8 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   const diagramCards = useMemo(() => {
     const sections = new Map<string, DiagramCard[]>();
     const lines = content?.format === 'markdown' ? headingLines(content.body) : new Map<string, number>();
-    const unplaced: ModelReference[] = [];
-    const bySection = new Map<string, ModelReference[]>();
+    const unplaced: DiagramReference[] = [];
+    const bySection = new Map<string, DiagramReference[]>();
     for (const reference of references) {
       const slug = reference.section ? headingSlug(reference.section) : '';
       if (!slug || !lines.has(slug)) { unplaced.push(reference); continue; }
