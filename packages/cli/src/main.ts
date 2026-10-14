@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, prepareHome, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
 import { parseOptions, UsageError, type Output } from './args.ts';
 import { check, home, planningUsage, where, work } from './planning.ts';
+import { capture, CaptureError } from './capture.ts';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -16,6 +17,7 @@ export const usage = `Atlas ${version}
 
 Usage:
 ${planningUsage}
+  atlas capture <source.json> (--work <work-id> | --out <file>) [--name <name>] [--compares <capture.puml>] [--force] [--planning-dir <dir>]
   atlas mcp
   atlas hook <SessionStart|PostToolUse|Stop|SubagentStop>
   atlas setup [--dry-run]
@@ -35,6 +37,11 @@ commands change a work item's planning state: each prints the work item's status
 They use the planning folder given by --planning-dir, else the one this checkout belongs to. They
 never commit. check checks plans, ledgers, the registry and statistics lines of the files or
 planning folders given (default: this checkout's) and exits 0 when valid, 1 on errors.
+capture captures code or a database as the source configuration file describes (paths in it are
+relative to it) and writes the diagram into the work item's diagrams/<name>.puml (default name
+<identity>-<date>), or to --out; an existing file needs --force. --compares names an earlier
+capture this one is compared with. It prints the capture's summary as JSON and exits 0, 1 when
+the capture fails or is refused, and 2 on usage errors.
 mcp serves the planning-state operations to an agent harness over stdio. hook runs one harness
 hook (Claude Code or Codex) on the JSON it reads from stdin; it always exits 0. setup creates the
 Atlas home, grants it to Claude Code and Codex, and installs the Atlas plugin into each harness on
@@ -226,6 +233,7 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'setup') { const { setup } = await import('./setup.ts'); return await setup(args.slice(1), out); }
     if (command === 'where') return await where(args.slice(1), out);
     if (command === 'check') return await check(args.slice(1), out);
+    if (command === 'capture') return await capture(args.slice(1), out);
     if (command === 'home') return await home(args.slice(1), out);
     if (command === 'planning' && subcommand === 'check') return planningCheck(rest, out);
     if (command === 'plan' && subcommand === 'export') return await planExport(rest, printableOutput(out));
@@ -237,13 +245,13 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'serve') return await serveCommand(args.slice(1), out);
     throw new UsageError(command === 'planning' || command === 'plan' || command === 'usage' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
-    if (error instanceof PlanExportError || error instanceof PlanningNotFoundError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
+    if (error instanceof PlanExportError || error instanceof PlanningNotFoundError || error instanceof CaptureError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
     if (error instanceof WorkError) {
       out.stderr('atlas: ' + printable(error.message));
       for (const problem of error.problems) out.stderr('  - ' + printable(problem));
       return 1;
     }
-    const failure = ['plan', 'work', 'home'].includes(command) ? systemFailure(error) : null;
+    const failure = ['plan', 'work', 'home', 'capture'].includes(command) ? systemFailure(error) : null;
     if (failure) { out.stderr('atlas: ' + printable(failure)); return 1; }
     if (!(error instanceof UsageError)) throw error;
     out.stderr(error.line || usage);
