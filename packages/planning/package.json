@@ -24,7 +24,7 @@
   },
   "scripts": {
     "build": "node scripts/build-viewer.mjs",
-    "test": "node --test \"src/*.test.ts\"",
+    "test": "node --import ../../scripts/test-home.mjs --test \"src/*.test.ts\"",
     "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p viewer/tsconfig.json"
   },
   "dependencies": {

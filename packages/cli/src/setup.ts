@@ -1,5 +1,5 @@
 // `atlas setup`: make Atlas part of every agent session on this computer. It creates the Atlas home
-// (moving the old data folder's files into it), grants the home to Claude Code
+// (moving the old data folder's files into it, refused while an Atlas app uses them), grants the home to Claude Code
 // (permissions.additionalDirectories) and Codex ([sandbox_workspace_write] writable_roots) so agents
 // can edit planning prose from any checkout, and installs the Atlas plugin into each harness on PATH
 // through the harness's own commands. Running it again changes nothing. --dry-run only says what it
@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSyn
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { atlasHome, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
+import { atlasAppRunning, atlasHome, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
 import { parseOptions, positionals, wantsHelp, type Output } from './args.ts';
 
 const line = 'Usage: atlas setup [--dry-run]';
@@ -155,16 +155,34 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
   const dryRun = flags.has('dry-run');
   let failed = false;
 
-  const home = atlasHome(undefined, environment, userHome(environment));
-  if (dryRun) out.stdout(existsSync(home) ? `Atlas home: ${home}` : `Would create the Atlas home: ${home}`);
-  else {
-    const { moved } = await prepareHome({ environment, home: userHome(environment) });
+  const user = userHome(environment);
+  const home = atlasHome(undefined, environment, user);
+  // The old data folder's files move into the default home, but never while an Atlas app uses them.
+  const legacy = environment.ATLAS_HOME ? null : legacyDataDirectory(environment, process.platform, user);
+  if (legacy && atlasAppRunning(legacy) && (await legacyData(legacy)).length) {
+    out.stderr(`atlas: Atlas is running and uses ${legacy}. Quit it, then run atlas setup again: setup moves its settings and statistics from there into ${home}.`);
+    return 1;
+  }
+  if (dryRun) {
+    out.stdout(existsSync(home) ? `Atlas home: ${home}` : `Would create the Atlas home: ${home}`);
+    const pending = legacy ? await legacyData(legacy) : [];
+    if (pending.length) out.stdout(`Would move from ${legacy}: ${pending.join(', ')}`);
+  } else {
+    await prepareHome({ environment, home: user });
     out.stdout(`Atlas home: ${home}`);
-    if (moved.length) out.stdout('Moved from the old data folder: ' + moved.join(', '));
+    if (legacy) {
+      const migration = await migrateLegacyData(home, legacy);
+      if (migration.moved.length) out.stdout(`Moved from ${legacy}: ${migration.moved.join(', ')}`);
+      if (migration.merged.length) out.stdout(`Merged into the home's usage statistics (the old copies are in ${path.join(home, 'legacy')}): ${migration.merged.join(', ')}`);
+      if (migration.setAside.length) out.stdout(`The home had its own, so the old copies are in ${path.join(home, 'legacy')}: ${migration.setAside.join(', ')}`);
+      for (const item of migration.failed) { failed = true; out.stderr(`Not moved from ${legacy}: ${item}`); }
+    }
   }
 
-  const user = userHome(environment);
   const marketplace = (JSON.parse(readFileSync(path.join(repository, '.claude-plugin', 'marketplace.json'), 'utf8')) as { name: string }).name;
+  // Claude Code reads a plugin from a folder marketplace in place. Codex copies it when it is added,
+  // so adding it again refreshes the copy; and it keeps a marketplace's first source, so one added
+  // from another checkout is replaced.
   const harnesses = [
     {
       name: 'Claude Code', program: 'claude', config: environment.CLAUDE_CONFIG_DIR || path.join(user, '.claude'), file: 'settings.json', where: 'permissions.additionalDirectories', grant: grantClaudeDirectory,

@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, prepareHome, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
+import { PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
 import { parseOptions, UsageError, type Output } from './args.ts';
 import { check, home, planningUsage, where, work } from './planning.ts';
 import { capture, CaptureError } from './capture.ts';
@@ -227,8 +227,6 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (!command || ['help', '--help', '-h'].includes(command)) { out.stdout(usage); return 0; }
     // A hook never fails the session, whatever happens.
     if (command === 'hook') { const { hook } = await import('./hook.ts'); return await hook(args.slice(1), out); }
-    // The first time Atlas runs, the old data folder's files move into the home.
-    await prepareHome();
     if (command === 'mcp') { const { serveMcp } = await import('./mcp.ts'); return await serveMcp(args.slice(1), out); }
     if (command === 'setup') { const { setup } = await import('./setup.ts'); return await setup(args.slice(1), out); }
     if (command === 'where') return await where(args.slice(1), out);

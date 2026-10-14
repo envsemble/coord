@@ -1,10 +1,15 @@
 import path from 'node:path';
-import { cp, mkdir, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
+import { closeSync, openSync, readlinkSync } from 'node:fs';
+import { appendFile, cp, mkdir, readdir, readFile, realpath, rename, rm, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
+import { schema } from './telemetry.ts';
 
-const expand = (value: string, home: string) => path.resolve(value.replace(/^~(?=$|[\/])/, () => home));
+// `~/` and, on Windows, `~\` start a path in the user's home folder.
+const tilde = process.platform === 'win32' ? /^~(?=$|[\\/])/ : /^~(?=$|\/)/;
+const expand = (value: string, home: string) => path.resolve(value.replace(tilde, () => home));
 
 /**
  * The Atlas home: `~/.atlas`, or ATLAS_HOME; an explicit override (such as --home) takes precedence
@@ -34,8 +39,28 @@ export function legacyDataDirectory(environment: NodeJS.ProcessEnv = process.env
   return path.join(configured && path.isAbsolute(configured) ? configured : path.join(home, '.config'), 'Atlas');
 }
 
+/**
+ * Whether an Atlas app runs from `folder`, its Electron data folder: it holds Chromium's
+ * single-instance lock there. On Windows that is `lockfile`, open without write sharing and deleted
+ * when the app exits; elsewhere `SingletonLock`, a link to `<computer>-<process id>`.
+ */
+export function atlasAppRunning(folder: string, platform: NodeJS.Platform = process.platform): boolean {
+  if (platform === 'win32') {
+    try { closeSync(openSync(path.join(folder, 'lockfile'), 'r+')); return false; }
+    catch (error) { return (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
+  }
+  try {
+    const [, computer, pid] = /^(.*)-([0-9]+)$/.exec(readlinkSync(path.join(folder, 'SingletonLock'))) ?? [];
+    if (!pid) return false;
+    // Another computer's lock (a shared home folder) cannot be checked: it counts as running.
+    if (computer !== hostname()) return true;
+    process.kill(Number(pid), 0);
+    return true;
+  } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; }
+}
+
 /** What Atlas itself kept in the old data folder; everything else there (Chromium's caches, Electron's files) stays. */
-const legacyEntries = ['usage', 'host', 'planning-roots.json', 'connections.json', 'desktop-state.json'];
+const legacyEntries = ['host', 'planning-roots.json', 'connections.json', 'desktop-state.json'];
 const legacyLog = /^(?:atlas|host)(?:\.\d+)?\.log$/;
 
 async function moveEntry(from: string, to: string) {
@@ -49,38 +74,88 @@ async function moveEntry(from: string, to: string) {
   }
 }
 const exists = (target: string) => stat(target).then(() => true, () => false);
+const childNames = (folder: string, keep: (entry: { name: string; isDirectory(): boolean }) => boolean) =>
+  readdir(folder, { withFileTypes: true }).then(entries => entries.filter(keep).map(entry => entry.name).sort(), () => [] as string[]);
 
 /**
- * Move Atlas's own files from the old data folder into the home, leaving Electron's caches where they
- * are. An entry the home already has is left in the old folder, so nothing is overwritten; once moved,
- * there is nothing left to move, so this runs once in effect. Returns the entries moved.
+ * Add one planning folder's usage statistics (`from`, a usage/<hash> folder) to another's (`to`):
+ * the events it lacks (each has its own ID), recorded failures, collection gaps, and the earlier of
+ * each "since" date.
  */
-export async function migrateLegacyData(home: string, legacy: string): Promise<string[]> {
-  if (path.resolve(home) === path.resolve(legacy) || !await exists(legacy)) return [];
-  const moved: string[] = [];
-  const names = [...legacyEntries.map(name => [name]), ...(await readdir(path.join(legacy, 'logs')).catch(() => [] as string[])).filter(name => legacyLog.test(name)).map(name => ['logs', name])];
-  for (const parts of names) {
-    const from = path.join(legacy, ...parts), to = path.join(home, ...parts);
-    if (!await exists(from) || await exists(to)) continue;
-    try { await moveEntry(from, to); moved.push(parts.join('/')); } catch { /* Left for the next start. */ }
+export async function mergeUsage(from: string, to: string) {
+  await mkdir(to, { recursive: true });
+  const source = path.join(from, 'usage.sqlite');
+  if (await exists(source)) {
+    const store = new DatabaseSync(path.join(to, 'usage.sqlite'));
+    try {
+      store.exec('PRAGMA busy_timeout = 2000;' + schema);
+      store.prepare('ATTACH DATABASE ? AS old').run(source);
+      store.exec(`BEGIN;
+        INSERT OR IGNORE INTO events (id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash)
+          SELECT id, source, document_key, path, task_id, session_id, timestamp, revision, content_hash FROM old.events ORDER BY sequence;
+        INSERT INTO failures (timestamp, detail) SELECT timestamp, detail FROM old.failures;
+        INSERT INTO metadata (key, value) SELECT key, value FROM old.metadata WHERE true ON CONFLICT (key) DO UPDATE SET value = min(value, excluded.value);
+        COMMIT;
+        DETACH DATABASE old;`);
+    } finally { store.close(); }
   }
-  return moved;
+  const gaps = await readFile(path.join(from, 'collection-gaps.jsonl'), 'utf8').catch(() => '');
+  if (gaps) await appendFile(path.join(to, 'collection-gaps.jsonl'), gaps);
+}
+
+/** Atlas's own files in the old data folder, as paths relative to it: what migrateLegacyData moves. */
+export async function legacyData(legacy: string): Promise<string[]> {
+  const units = [
+    ...legacyEntries,
+    ...(await childNames(path.join(legacy, 'logs'), entry => legacyLog.test(entry.name))).map(name => 'logs/' + name),
+    ...(await childNames(path.join(legacy, 'usage'), entry => entry.isDirectory())).map(name => 'usage/' + name),
+  ];
+  const present = await Promise.all(units.map(name => exists(path.join(legacy, ...name.split('/')))));
+  return units.filter((_, index) => present[index]);
+}
+
+/** What a move of the old data folder did, as paths relative to it. */
+export interface LegacyMigration {
+  /** Moved into the home. */
+  moved: string[];
+  /** A planning folder's usage statistics the home had too: added to the home's, the old copy set aside. */
+  merged: string[];
+  /** The home had its own: the old copy is in <home>/legacy/ instead. */
+  setAside: string[];
+  /** Left where it was, with the reason; the next migration tries again. */
+  failed: string[];
 }
 
 /**
- * Create the home and its planning folder, and, for the default home, move the old data folder's
- * Atlas files into it. A home chosen with ATLAS_HOME or an override (a test, another instance) never
- * takes the user's data. Never throws: Atlas works without the move.
+ * Move Atlas's own files from the old data folder into the home, leaving Electron's caches where they
+ * are. Run it only while no Atlas app uses that folder: from the desktop app once it holds the
+ * single-instance lock it shares with older versions, or from `atlas setup` after checking
+ * atlasAppRunning. Usage statistics move per planning folder (usage/<hash>), merged into the home's
+ * when it has that folder's too. Nothing the home has is overwritten: the old copy goes to
+ * <home>/legacy/. What moved is gone from the old folder, so running it again does nothing. Never throws.
  */
-export async function prepareHome(options: { override?: string; environment?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; home?: string } = {}) {
-  const environment = options.environment ?? process.env;
-  const home = atlasHome(options.override, environment, options.home);
-  let moved: string[] = [];
-  try {
-    await mkdir(homePlanningDirectory(home), { recursive: true });
-    if (!options.override && !environment.ATLAS_HOME) moved = await migrateLegacyData(home, legacyDataDirectory(environment, options.platform, options.home));
-  } catch { /* An unwritable home shows up where it is used. */ }
-  return { home, moved };
+export async function migrateLegacyData(home: string, legacy: string): Promise<LegacyMigration> {
+  const result: LegacyMigration = { moved: [], merged: [], setAside: [], failed: [] };
+  if (path.resolve(home) === path.resolve(legacy)) return result;
+  for (const name of await legacyData(legacy)) {
+    const parts = name.split('/'), from = path.join(legacy, ...parts), to = path.join(home, ...parts);
+    try {
+      if (!await exists(to)) { await moveEntry(from, to); result.moved.push(name); continue; }
+      const aside = path.join(home, 'legacy', ...parts);
+      if (await exists(aside)) throw new Error('legacy/' + name + ' is in the home already');
+      if (parts[0] === 'usage') await mergeUsage(from, to);
+      await moveEntry(from, aside);
+      result[parts[0] === 'usage' ? 'merged' : 'setAside'].push(name);
+    } catch (error) { result.failed.push(name + ': ' + (error as Error).message); }
+  }
+  return result;
+}
+
+/** Create the home and its planning folder. Never throws: an unwritable home shows up where it is used. */
+export async function prepareHome(options: { override?: string; environment?: NodeJS.ProcessEnv; home?: string } = {}) {
+  const home = atlasHome(options.override, options.environment ?? process.env, options.home);
+  await mkdir(homePlanningDirectory(home), { recursive: true }).catch(() => undefined);
+  return { home };
 }
 
 /** The planning folders in the home: each folder of `<home>/planning` with a planning.json. */

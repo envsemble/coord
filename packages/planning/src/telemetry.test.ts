@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, writeFile, rm, realpath, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, realpath, mkdir, symlink } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir, homedir, hostname } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { Telemetry } from './telemetry.ts';
-import { atlasHome, homePlanningFolders, legacyDataDirectory, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
+import { atlasAppRunning, atlasHome, homePlanningFolders, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { logConsultation, reportConsultation } from './consultation.ts';
 
@@ -53,13 +53,16 @@ test('the Atlas home is ~/.atlas unless overridden, and the old data folder foll
   assert.equal(recentRootsFile(), path.join(atlasHome(), 'planning-roots.json'));
 });
 
-test("the old data folder moves into the home once, leaving Electron's caches and anything the home has", async () => {
+test("the old data folder moves into the home once, merging usage per planning folder and setting aside what the home has", async () => {
   const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'atlas-home-migration-')));
   try {
     const user = path.join(temporary, 'user'), appData = path.join(temporary, 'roaming');
     const legacy = legacyDataDirectory({ APPDATA: appData, XDG_CONFIG_HOME: path.join(temporary, 'config') }, process.platform, user);
     const write = async (file: string, text: string) => { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, text); };
-    await write(path.join(legacy, 'usage', 'abc', 'usage.sqlite'), 'usage');
+    const view = (file: string, key: string) => { const store = new Telemetry(file); try { store.recordView({ id: randomUUID(), path: key, key, session: randomUUID(), revision: null, contentHash: null }); } finally { store.close(); } };
+    await write(path.join(legacy, 'usage', 'def', 'usage.sqlite'), 'usage');
+    view(path.join(legacy, 'usage', 'abc', 'usage.sqlite'), 'old.md');
+    await write(path.join(legacy, 'usage', 'abc', 'collection-gaps.jsonl'), '{"source":"agent_report"}\n');
     await write(path.join(legacy, 'host', 'access.json'), 'access');
     await write(path.join(legacy, 'planning-roots.json'), 'recent');
     await write(path.join(legacy, 'connections.json'), 'connections');
@@ -70,24 +73,56 @@ test("the old data folder moves into the home once, leaving Electron's caches an
     const home = path.join(user, '.atlas');
     await write(path.join(home, 'desktop-state.json'), 'kept');
     await write(path.join(legacy, 'desktop-state.json'), 'older');
+    // A hook recorded document use for the same planning folder before the move.
+    view(path.join(home, 'usage', 'abc', 'usage.sqlite'), 'new.md');
     const environment = { APPDATA: appData, XDG_CONFIG_HOME: path.join(temporary, 'config') };
-    // A home chosen with ATLAS_HOME never takes the user's data.
-    const other = await prepareHome({ environment: { ...environment, ATLAS_HOME: path.join(temporary, 'other') }, home: user });
-    assert.deepEqual(other.moved, []);
-    assert.ok(existsSync(path.join(temporary, 'other', 'planning')), 'the home and its planning folder are created');
-    const first = await prepareHome({ environment, home: user });
-    assert.equal(first.home, home);
-    assert.deepEqual(first.moved.sort(), ['connections.json', 'host', 'logs/atlas.log', 'logs/host.1.log', 'planning-roots.json', 'usage']);
-    assert.equal(readFileSync(path.join(home, 'usage', 'abc', 'usage.sqlite'), 'utf8'), 'usage');
+    // Preparing a home never takes the user's data.
+    assert.equal((await prepareHome({ environment, home: user })).home, home);
+    assert.ok(existsSync(path.join(home, 'planning')), 'the home and its planning folder are created');
+    assert.deepEqual(await legacyData(legacy), ['host', 'planning-roots.json', 'connections.json', 'desktop-state.json', 'logs/atlas.log', 'logs/host.1.log', 'usage/abc', 'usage/def']);
+    const first = await migrateLegacyData(home, legacy);
+    assert.deepEqual(first, { moved: ['host', 'planning-roots.json', 'connections.json', 'logs/atlas.log', 'logs/host.1.log', 'usage/def'], merged: ['usage/abc'], setAside: ['desktop-state.json'], failed: [] });
+    assert.equal(readFileSync(path.join(home, 'usage', 'def', 'usage.sqlite'), 'utf8'), 'usage');
+    const merged = new Telemetry(path.join(home, 'usage', 'abc', 'usage.sqlite'));
+    try {
+      assert.deepEqual(merged.summary().documents.map(item => item.key).sort(), ['new.md', 'old.md'], 'both stores\' events are kept');
+      assert.equal(merged.summary().failures, 1, 'collection gaps are kept');
+    } finally { merged.close(); }
     assert.equal(readFileSync(path.join(home, 'desktop-state.json'), 'utf8'), 'kept', 'nothing in the home is overwritten');
-    assert.ok(existsSync(path.join(legacy, 'desktop-state.json')));
+    assert.equal(readFileSync(path.join(home, 'legacy', 'desktop-state.json'), 'utf8'), 'older', 'the old copy is set aside in the home');
+    assert.ok(existsSync(path.join(home, 'legacy', 'usage', 'abc', 'usage.sqlite')), 'a merged store is set aside too');
     assert.ok(existsSync(path.join(legacy, 'chromium', 'Cache', 'data')) && existsSync(path.join(legacy, 'Preferences')), "Electron's files stay");
-    assert.deepEqual((await prepareHome({ environment, home: user })).moved, [], 'a second start has nothing to move');
+    assert.deepEqual(await legacyData(legacy), []);
+    assert.deepEqual(await migrateLegacyData(home, legacy), { moved: [], merged: [], setAside: [], failed: [] }, 'a second run has nothing to move');
     await mkdir(path.join(home, 'planning', 'one'), { recursive: true });
     await writeFile(path.join(home, 'planning', 'one', 'planning.json'), '{}');
     await mkdir(path.join(home, 'planning', 'not-planning'), { recursive: true });
     assert.deepEqual(await homePlanningFolders(home), [path.join(home, 'planning', 'one')]);
   } finally { await rm(temporary, { recursive: true }); }
+});
+
+test('a running Atlas app is recognized by the single-instance lock it holds in its data folder', async () => {
+  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'atlas-app-lock-')));
+  try {
+    assert.equal(atlasAppRunning(path.join(temporary, 'missing'), 'win32'), false);
+    // Windows: Chromium deletes lockfile when the app exits; one that opens for writing is stale.
+    await writeFile(path.join(temporary, 'lockfile'), '');
+    assert.equal(atlasAppRunning(temporary, 'win32'), false);
+    if (process.platform !== 'win32') {
+      // Elsewhere: SingletonLock names the computer and the process holding it.
+      await symlink(`${hostname()}-${process.pid}`, path.join(temporary, 'SingletonLock'));
+      assert.equal(atlasAppRunning(temporary, process.platform), true);
+      await rm(path.join(temporary, 'SingletonLock'));
+      await symlink(`${hostname()}-99999999`, path.join(temporary, 'SingletonLock'));
+      assert.equal(atlasAppRunning(temporary, process.platform), false, 'the process is gone');
+    }
+  } finally { await rm(temporary, { recursive: true }); }
+});
+
+test('~\\ starts a home path on Windows, as ~/ does everywhere', { skip: process.platform !== 'win32' }, () => {
+  const home = path.resolve('/home/someone');
+  assert.equal(atlasHome(undefined, { ATLAS_HOME: '~\\atlas' }, home), path.join(home, 'atlas'));
+  assert.equal(atlasHome(undefined, { ATLAS_HOME: '~/atlas' }, home), path.join(home, 'atlas'));
 });
 
 test('data folder overrides resolve home shorthand identically for every caller', async () => {
