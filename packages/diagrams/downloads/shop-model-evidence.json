@@ -335,7 +335,7 @@
       "id": "Vault",
       "name": "Vault",
       "stereotype": "interface",
-      "description": "",
+      "description": "Keeps the payment methods customers save.",
       "evidence": [
         "source:Vault"
       ],
@@ -359,7 +359,7 @@
       "id": "SavedMethod",
       "name": "SavedMethod",
       "stereotype": "class",
-      "description": "",
+      "description": "A card a customer saved, kept as a token.",
       "evidence": [],
       "namespace": "src",
       "attributes": [
@@ -569,7 +569,7 @@
     "profile": "code",
     "state": "proposal",
     "revision": {
-      "id": "a8c852a4b643a1de",
+      "id": "7b11c892f1ed08d2",
       "parentId": null,
       "createdAt": "",
       "reason": ""
@@ -865,6 +865,7 @@
                   "$element": "SavedMethod.token"
                 }
               ],
+              "description": "A card a customer saved, kept as a token.",
               "id": "SavedMethod",
               "name": "SavedMethod",
               "namespace": "src",
@@ -930,6 +931,7 @@
             "properties": [],
             "after": {
               "attributes": [],
+              "description": "Keeps the payment methods customers save.",
               "id": "Vault",
               "methods": [
                 {
@@ -1223,7 +1225,7 @@
           "Stable identities only; no inference of cross-layer meaning. Layout and source locations are excluded."
         ],
         "baseRevision": "1c65d31e127eae52",
-        "proposedRevision": "a8c852a4b643a1de",
+        "proposedRevision": "7b11c892f1ed08d2",
         "missingRationale": [
           "Checkout",
           "Checkout.card",

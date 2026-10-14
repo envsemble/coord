@@ -527,6 +527,7 @@ async function layoutDiagram(
           id: c.id,
           name: c.name,
           stereotype: c.stereotype,
+          ...(c.description ? { description: c.description } : {}),
           isAbstract: c.isAbstract ?? c.abstract,
           x: round(n.x),
           y: round(n.y),
