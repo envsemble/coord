@@ -50,21 +50,21 @@ Order ..> OrderState
 - Names are identities and unique across packages. Use `class "Display name" as Name` for names with spaces.
 - Attributes `name : Type [0..1]`; operations `name(params) : Type`; visibility `+ - # ~`.
 - Relations between declared elements, spaces around the arrow: `--` association, `-->` navigable, `--|>` inherits (classes from classes, interfaces from interfaces), `..|>` implements an interface, `o--` aggregation and `*--` composition (whole on the left), `..>` dependency. Quoted multiplicities at either end, label after `:`. Inheritance takes neither.
-- Entities: `*name : type <<PK>>` above one `--` line, other columns below, `<<FK>>` on foreign keys; crow's-foot relations `customer ||--o{ orders : customer_id` whose label lists the FK columns. Feet: `|o`/`o|` 0..1, `||` 1, `}o`/`o{` 0.._, `}|`/`|{` 1.._.
+- Entities: the `*name : type <<PK>>` columns above one `--` line and all other columns below it (no `--` without a key), `<<FK>>` on foreign keys; crow's-foot relations `customer ||--o{ orders : customer_id` whose label lists the FK columns as named. Feet: `|o`/`o|` `0..1`, `||` `1`, `}o`/`o{` `0..*`, `}|`/`|{` `1..*`.
 - Objects: `object "ada : Person" as ada {`, then slots such as `name = "Ada"` each on its own line, then `}`; links `e1 -- ada : learner` labelled with the relation's name.
 - A body's `{` ends the declaration line and its `}` stands on a line of its own.
 
-Rejected, with the reason in the error: arrow directions and lengths (`-up->`, `--->`), `left to right direction`, `[hidden]`, colours, `skinparam`, `<style>`, `!theme`, `hide`/`show`/`together`, notes, legends, headers, footers, stereotypes other than `<<PK>>`/`<<FK>>`, `{static}`, Creole or HTML formatting, the preprocessor (`!include`, `!define`), and every other diagram type. Atlas lays out and styles diagrams itself.
+Rejected, with the reason in the error: arrow directions and lengths (`-up->`, `--->`), `left to right direction`, `[hidden]`, colours, `skinparam`, `<style>`, `!theme`, `hide`/`show`/`together`, notes, legends, headers, footers, stereotypes other than `<<PK>>`/`<<FK>>` (also in members, labels and titles), member modifiers such as `{static}` anywhere in a member, Creole or HTML formatting, the preprocessor (`!include`, `!define`), and every other diagram type. Atlas lays out and styles diagrams itself. Also rejected because PlantUML would misread them: a line ending in `\` (it joins the next line), a title of symbols only, a name with an emoji or another character beyond the Basic Multilingual Plane (use a display name), and an enum literal that starts and ends with `__` (a separator).
 
 ## `' atlas` lines
 
 At the top of the file:
 
-- `' atlas proposal <path>`: this file is a proposal of the diagram at `path` (relative to this file).
+- `' atlas proposal <path>`: this file is a proposal of the diagram at `path` (relative to this file), never itself or a diagram whose baselines lead back to it.
 - `' atlas scenario <path> expected valid` (or `invalid`): this object diagram exemplifies the class diagram at `path`.
 - `' atlas capture {json}`, `' atlas fingerprint …` and `' atlas compares <path>`: written by `atlas capture`; never write or edit them.
 
-Directly above an element, member or relation: `' atlas evidence {"file": "src/x.ts", "line": 12}` (where it is declared) and `' atlas snippet {"language": "typescript", "code": "…"}` (at most twelve lines). Other `' atlas` words are errors; use plain `'` comments for remarks.
+Directly above an element, member or relation: `' atlas evidence {"file": "src/x.ts", "line": 12}` (where it is declared; a `url` starts with `http://` or `https://`) and `' atlas snippet {"language": "typescript", "code": "…"}` (at most twelve lines). Other `' atlas` words are errors; use plain `'` comments for remarks.
 
 ## Captures
 
@@ -94,4 +94,4 @@ Copy the capture to a new file, replace its `' atlas capture` and `' atlas finge
 
 ## Scenarios
 
-Write an object diagram with `' atlas scenario ../model.puml expected valid` (or `invalid`) to check an example against a class diagram. Objects name their classes, slots must be attributes of those classes, links carry the relation's name. The check covers inherited classes, abstract classes (an object needs a concrete subclass) and multiplicities at both ends of every relation; an example Atlas cannot fully assess is a warning.
+Write an object diagram with `' atlas scenario ../model.puml expected valid` (or `invalid`) to check an example against a class diagram. Objects name their classes, slots must be attributes of those classes, links carry the relation's name. The check covers inherited classes and implemented interfaces, abstract classes and interfaces (an object needs a concrete class) and multiplicities at both ends of every relation; an example Atlas cannot fully assess is a warning.
