@@ -20,7 +20,7 @@ export {
   type PlanExportPreview, type PlanExportResult, type PlanImportResult, type PlanImportTarget, type PlanExportErrorCode,
 } from './planExport.ts';
 export { runProgram, ProgramError, type RunOptions } from './run.ts';
-export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, closeWork, archiveWork, reopenWork, repairLinks, localDate, type WorkResult, type WorkStatus, type OperationOptions } from './work.ts';
+export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, closeWork, archiveWork, reopenWork, repairLinks, localDate, type ArchiveRequest, type WorkResult, type WorkStatus, type OperationOptions } from './work.ts';
 export { findPlanning, resolvePlanningFolder, normalizeRemote, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type Whereabouts } from './resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './checkPaths.ts';
 export { adoptPlanningFolder, type Adopted } from './adopt.ts';

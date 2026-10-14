@@ -43,7 +43,7 @@ Legacy records may remain in retained locations outside `active/` and `archive/`
 
 ## Plan frontmatter version 1
 
-A current plan uses a YAML frontmatter block delimited by `---`, with the following fields. [plan-frontmatter.md](plan-frontmatter.md) is a standalone minimal example, not a work item. The Atlas tools write the header of new work and change the statuses and dates as the work is accepted, started, closed, archived, or reopened, updating `updated` each time; set by hand only what no tool sets, such as a `superseded` or `abandoned` disposition and its `supersedes`/`superseded_by` links.
+A current plan uses a YAML frontmatter block delimited by `---`, with the following fields. [plan-frontmatter.md](plan-frontmatter.md) is a standalone minimal example, not a work item. The Atlas tools write the header of new work and change the statuses and dates as the work is accepted, started, closed, archived, or reopened, updating `updated` each time; set by hand only what no tool sets, such as the replacing plan's `supersedes` list.
 
 | Field | Type and meaning |
 |---|---|
@@ -75,7 +75,7 @@ Keep the root lean: `plan.md`, `ledger.md` when needed, and a useful glossary. U
 
 Use the user's selected plan or the registry's explicit `current_plan`. If they conflict or the pointer is null, resolve the actual selection before plan implementation. Starting implementation (`work_start`) records its path and the planning Git revision in the ledger, so commit the plan first. Current code and canonical documentation establish present reality; an old or superseded plan is historical context, not current authority.
 
-`active/` holds work expected to continue. `archive/` holds completed or deliberately closed work, including abandonment and supersession. Close after verified agreed completion and outcome recording; PR-delivered work defaults to required PRs merged unless agreed criteria differ. Readiness, merge, release, and pending external actions remain explicit ledger milestones. `work_close` refuses while steps are open or the work is blocked, then marks the implementation complete and archives the folder; `work_archive` archives abandoned or superseded work without completing it, and `work_reopen` brings archived work back with new steps. Each move updates the registry path, current-plan pointer, and links, while preserving the ID, body, and supporting files. Scope left unfinished must remain active or be accounted for as transferred, superseded, or deliberately dropped.
+`active/` holds work expected to continue. `archive/` holds completed or deliberately closed work, including abandonment and supersession. Close after verified agreed completion and outcome recording; PR-delivered work defaults to required PRs merged unless agreed criteria differ. Readiness, merge, release, and pending external actions remain explicit ledger milestones. `work_close` refuses while steps are open or the work is blocked, then marks the implementation complete and archives the folder; `work_archive` archives work that is not complete only as `superseded` (naming the work that replaces it) or `abandoned` (with the reason), setting that disposition and recording the reason, and `work_reopen` brings archived work back with new steps. Each move updates the registry path, current-plan pointer, and links, while preserving the ID, body, and supporting files. Scope left unfinished must remain active or be accounted for as transferred, superseded, or deliberately dropped.
 
 ## Ledger status version 2
 

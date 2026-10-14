@@ -13,14 +13,14 @@ export const planningUsage = `  atlas where [--cwd <dir>]
   atlas work status <work-id> [--planning-dir <dir>]
   atlas work create --title <title> [--repo <id>...] [--slug <slug>] [--planning-dir <dir>]
   atlas work accept <work-id> [--planning-dir <dir>]
-  atlas work start <work-id> [--step <title>...] [--planning-dir <dir>]
+  atlas work start <work-id> --step <title>... [--planning-dir <dir>]
   atlas work step add <work-id> <title>... [--planning-dir <dir>]
   atlas work step set <work-id> <title> <todo|doing|done> [--planning-dir <dir>]
   atlas work step rename <work-id> <title> <new-title> [--planning-dir <dir>]
   atlas work step remove <work-id> <title> --reason <why> [--planning-dir <dir>]
   atlas work block <work-id> (<reason> | --clear) [--planning-dir <dir>]
   atlas work close <work-id> [--planning-dir <dir>]
-  atlas work archive <work-id> [--planning-dir <dir>]
+  atlas work archive <work-id> [--superseded-by <work-id> | --abandoned] [--reason <why>] [--planning-dir <dir>]
   atlas work reopen <work-id> --step <title>... [--planning-dir <dir>]
   atlas check [<path>...]
   atlas home [list]
@@ -46,11 +46,20 @@ export async function work(operation: string | undefined, args: string[], out: O
   const line = usageOf(operation === 'step' ? `atlas work step ${steps.includes(args[0]) ? args[0] : ''}`.trim() : 'atlas work ' + operation);
   if (wantsHelp(args)) { out.stdout(line); return 0; }
   switch (operation) {
-    case 'status': case 'accept': case 'close': case 'archive': {
+    case 'status': case 'accept': case 'close': {
       const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
       const [id] = positionals(positional, ['work-id'], line);
       const root = await planningDir(values, id);
-      print(out, operation === 'status' ? await workStatus(root, id) : operation === 'accept' ? await acceptWork(root, id) : operation === 'close' ? await closeWork(root, id) : await archiveWork(root, id));
+      print(out, operation === 'status' ? await workStatus(root, id) : operation === 'accept' ? await acceptWork(root, id) : await closeWork(root, id));
+      return 0;
+    }
+    case 'archive': {
+      const { positional, values, flags } = parseOptions(args, { values: ['planning-dir', 'superseded-by', 'reason'], flags: ['abandoned'] }, line);
+      const [id] = positionals(positional, ['work-id'], line);
+      if (flags.has('abandoned') && values['superseded-by']) throw new UsageError('give --superseded-by or --abandoned, not both', line);
+      if (flags.has('abandoned') && !values.reason) throw new UsageError('the following arguments are required: --reason (abandoned work says why)', line);
+      const disposition = flags.has('abandoned') ? 'abandoned' : values['superseded-by'] ? 'superseded' : null;
+      print(out, await archiveWork(await planningDir(values, id), id, { disposition, supersededBy: values['superseded-by'] ?? null, reason: values.reason ?? null }));
       return 0;
     }
     case 'create': {
@@ -70,9 +79,9 @@ export async function work(operation: string | undefined, args: string[], out: O
     case 'start': case 'reopen': {
       const { positional, values, lists } = parseOptions(args, { values: ['planning-dir'], lists: ['step'] }, line);
       const [id] = positionals(positional, ['work-id'], line);
-      if (operation === 'reopen' && !lists.step) throw new UsageError('the following arguments are required: --step', line);
+      if (!lists.step) throw new UsageError('the following arguments are required: --step', line);
       const root = await planningDir(values, id);
-      print(out, operation === 'start' ? await startWork(root, id, { steps: lists.step ?? [] }) : await reopenWork(root, id, { steps: lists.step! }));
+      print(out, operation === 'start' ? await startWork(root, id, { steps: lists.step }) : await reopenWork(root, id, { steps: lists.step }));
       return 0;
     }
     case 'block': {

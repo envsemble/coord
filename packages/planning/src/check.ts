@@ -334,7 +334,9 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   });
 
   const workIds = new Set<string>(), locations = new Set<string>();
-  const plans: { pointer: string; metadata: Metadata; workId: unknown; workScope: Set<string> }[] = [];
+  const plans: { pointer: string; metadata: Metadata; workId: unknown; workScope: Set<string>; location: unknown }[] = [];
+  /** Per work ID, the ledger's open items: steps not done, and blocked. */
+  const openItems = new Map<string, number>();
   workItems.forEach((entry, index) => {
     const label = `work_items[${index}]`;
     if (!isObject(entry)) { errors.push(label + ' must be an object'); return; }
@@ -363,7 +365,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     try { metadata = parseFrontmatter(readText(planPath, true)); }
     catch (error) { errors.push(String(pointer) + ': ' + (error as Error).message); return; }
     if (metadata === null) { warnings.push(String(pointer) + ': legacy plan has no frontmatter; metadata not validated'); return; }
-    plans.push({ pointer: String(pointer), metadata, workId, workScope });
+    plans.push({ pointer: String(pointer), metadata, workId, workScope, location: entry.path });
   });
 
   for (const { pointer, metadata, workId, workScope } of plans) {
@@ -413,10 +415,20 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
       const invalidDate = typeof updated === 'string' && isoDate.test(updated) ? calendarError(updated) : null;
       if (invalidDate) throw new FrontmatterError(invalidDate);
       if (typeof entry.id !== 'string') continue;
-      try { ledgerStatus(metadata, entry.id); }
+      let status;
+      try { status = ledgerStatus(metadata, entry.id); }
       catch (error) { throw new FrontmatterError('invalid ledger status metadata: ' + (error as Error).message); }
+      openItems.set(entry.id, (status.steps ?? []).filter(step => step.status !== 'done').length + (status.blocked ? 1 : 0));
     } catch (error) {
       errors.push(path.relative(root, ledger) + ': ' + (error as Error).message);
+    }
+  }
+  // Archived work is complete, superseded or abandoned: archiving never hides work still open.
+  for (const { pointer, metadata, workId, location } of plans) {
+    if (typeof location !== 'string' || !location.startsWith('archive/') || metadata.design_status === 'superseded' || metadata.design_status === 'abandoned') continue;
+    const open = openItems.get(String(workId)) ?? 0;
+    if (open || metadata.implementation_status === 'in_progress') {
+      errors.push(pointer + ': archived ' + (open ? `with ${open} open ledger ${open === 1 ? 'item' : 'items'}` : 'while its implementation is in_progress') + ' but neither superseded nor abandoned; reopen it, close it, or give it that disposition');
     }
   }
   // Agent-reported statistics (atlas work report) are telemetry: problems are warnings, never errors.
