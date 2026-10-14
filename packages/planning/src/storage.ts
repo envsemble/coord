@@ -120,6 +120,14 @@ export async function legacyData(legacy: string): Promise<string[]> {
   return units.filter((_, index) => present[index]);
 }
 
+/**
+ * The old data folder's settings that have not moved into the home: what a home's own fresh settings
+ * would shadow. Logs and usage statistics are left out, as the move merges or sets them aside safely.
+ */
+export async function legacySettings(legacy: string): Promise<string[]> {
+  return (await legacyData(legacy)).filter(name => legacyEntries.includes(name));
+}
+
 /** What a move of the old data folder did, as paths relative to it. */
 export interface LegacyMigration {
   /** Moved into the home. */
@@ -147,8 +155,9 @@ export async function migrateLegacyData(home: string, legacy: string): Promise<L
     const parts = name.split('/'), from = path.join(legacy, ...parts), to = path.join(home, ...parts);
     try {
       if (!await exists(to)) { await moveEntry(from, to); result.moved.push(name); continue; }
-      const aside = path.join(home, 'legacy', ...parts);
-      if (await exists(aside)) throw new Error('legacy/' + name + ' is in the home already');
+      // An earlier move may have set aside a copy of the same name: number this one.
+      let aside = path.join(home, 'legacy', ...parts);
+      for (let copy = 2; await exists(aside); copy++) aside = path.join(home, 'legacy', ...parts.slice(0, -1), parts.at(-1) + '.' + copy);
       if (parts[0] === 'usage') await mergeUsage(from, to);
       await moveEntry(from, aside);
       result[parts[0] === 'usage' ? 'merged' : 'setAside'].push(name);

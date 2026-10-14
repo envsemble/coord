@@ -3,7 +3,7 @@
 // diagrams out and are imported separately; checking a diagram loads only the diagram parser.
 export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './planning.ts';
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
-export { atlasAppRunning, atlasHome, cacheOutsidePlanning, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory, type LegacyMigration } from './storage.ts';
+export { atlasAppRunning, atlasHome, cacheOutsidePlanning, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory, type LegacyMigration } from './storage.ts';
 export { Telemetry, recordCollectionGap, schema, type ViewEvent } from './telemetry.ts';
 export { RecentPlanningRoots, inspectPlanningRoot, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';

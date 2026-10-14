@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { Telemetry } from './telemetry.ts';
-import { atlasAppRunning, atlasHome, homePlanningFolders, legacyData, legacyDataDirectory, mergeUsage, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
+import { atlasAppRunning, atlasHome, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, mergeUsage, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { logConsultation, reportConsultation } from './consultation.ts';
 
@@ -119,6 +119,12 @@ test("the old data folder moves into the home once, merging usage per planning f
     assert.ok(existsSync(path.join(legacy, 'chromium', 'Cache', 'data')) && existsSync(path.join(legacy, 'Preferences')), "Electron's files stay");
     assert.deepEqual(await legacyData(legacy), []);
     assert.deepEqual(await migrateLegacyData(home, legacy), { moved: [], merged: [], setAside: [], failed: [] }, 'a second run has nothing to move');
+    // An older Atlas writing the old folder again: a later move numbers what it sets aside, so it never sticks.
+    await write(path.join(legacy, 'desktop-state.json'), 'older again');
+    assert.deepEqual(await legacySettings(legacy), ['desktop-state.json']);
+    assert.deepEqual((await migrateLegacyData(home, legacy)).setAside, ['desktop-state.json']);
+    assert.equal(readFileSync(path.join(home, 'legacy', 'desktop-state.json.2'), 'utf8'), 'older again');
+    assert.deepEqual(await legacySettings(legacy), []);
     await mkdir(path.join(home, 'planning', 'one'), { recursive: true });
     await writeFile(path.join(home, 'planning', 'one', 'planning.json'), '{}');
     await mkdir(path.join(home, 'planning', 'not-planning'), { recursive: true });

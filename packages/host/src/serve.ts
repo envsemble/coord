@@ -6,7 +6,7 @@
 import { Worker } from 'node:worker_threads';
 import { createInterface } from 'node:readline';
 import QRCode from 'qrcode';
-import { legacyData, legacyDataDirectory, prepareHome } from '@envsemble/atlas-planning';
+import { legacyDataDirectory, legacySettings, prepareHome } from '@envsemble/atlas-planning';
 import { hostAddresses } from './addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
 import { impostorHolder } from './access.ts';
@@ -30,7 +30,7 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   };
   // Serving from the default home before the old data folder moved into it would give the home fresh
   // settings, and the move would then set the user's own aside.
-  if (!options.home && !process.env.ATLAS_HOME && (await legacyData(legacyDataDirectory())).length) {
+  if (!options.home && !process.env.ATLAS_HOME && (await legacySettings(legacyDataDirectory())).length) {
     throw new Error(`Atlas's settings are still in ${legacyDataDirectory()}. Run atlas setup to move them into the Atlas home first, or give --home.`);
   }
   const { home } = await prepareHome({ override: options.home ?? undefined });

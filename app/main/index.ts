@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
 import { hostRunning } from '@envsemble/atlas-host';
-import { atlasHome, legacyData, legacyDataDirectory, migrateLegacyData, prepareHome } from '@envsemble/atlas-planning';
+import { atlasHome, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
 import { Connections } from './connections.ts';
@@ -67,12 +67,12 @@ if (refusal) {
  */
 async function moveLegacyData(): Promise<string | null> {
   if (!(await legacyData(electronData)).length) return null;
-  if (!app.isPackaged) return `Atlas's settings are still in ${electronData}. A development run does not move them: run atlas setup to move them into ${dataDirectory}, or set ATLAS_HOME to develop with a separate home.`;
+  if (!app.isPackaged) return !(await legacySettings(electronData)).length ? null : `Atlas's settings are still in ${electronData}. A development run does not move them: run atlas setup to move them into ${dataDirectory}, or set ATLAS_HOME to develop with a separate home.`;
   if (await hostRunning(electronData)) return `An older atlas serve is using Atlas's settings in ${electronData}. Stop it, then start Atlas again to move them into ${dataDirectory}.`;
   const migration = await migrateLegacyData(dataDirectory, electronData);
   log.info('Moved the old data folder into the home', { from: electronData, ...migration });
   // What could not move (a file held open elsewhere) would otherwise be shadowed by the home's new settings.
-  const left = await legacyData(electronData);
+  const left = await legacySettings(electronData);
   return left.length ? `Some of Atlas's settings could not be moved from ${electronData} into ${dataDirectory} (${migration.failed.join('; ') || left.join(', ')}). Close any other program using them, then start Atlas again.` : null;
 }
 
