@@ -6,7 +6,7 @@
 import { Worker } from 'node:worker_threads';
 import { createInterface } from 'node:readline';
 import QRCode from 'qrcode';
-import { atlasDataDirectory } from '@envsemble/atlas-planning';
+import { prepareHome } from '@envsemble/atlas-planning';
 import { hostAddresses } from './addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
 import { impostorHolder } from './access.ts';
@@ -14,7 +14,7 @@ import { Host } from './host.ts';
 import type { WorkerLike } from './planWorkerClient.ts';
 import { listenAddress } from './validate.ts';
 
-export interface ServeOptions { folders: string[]; address: string | null; port: number | null; dataDir: string | null; version: string; interactive: boolean }
+export interface ServeOptions { folders: string[]; address: string | null; port: number | null; home: string | null; version: string; interactive: boolean }
 export interface ServeOutput { stdout(text: string): void; stderr(text: string): void }
 
 /** Start serving; resolves with a stop function once the host listens, or throws a message for the user. */
@@ -28,8 +28,9 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
     warn: (message: string, detail?: unknown) => out.stderr('Warning: ' + message + (detail && typeof detail === 'object' && 'message' in detail ? ': ' + String((detail as { message: unknown }).message) : '')),
     error: (message: string, detail?: unknown) => out.stderr('Error: ' + message + (detail instanceof Error ? ': ' + detail.message : '')),
   };
+  const { home } = await prepareHome({ override: options.home ?? undefined });
   const host = new Host({
-    dataDirectory: atlasDataDirectory(options.dataDir ?? undefined), version: options.version, log, owner: '`atlas serve`',
+    home, version: options.version, log, owner: '`atlas serve`',
     createPlanWorker: () => new Worker(new URL('./planWorker.ts', import.meta.url)) as unknown as WorkerLike,
     folders: options.folders, networkOverride: { address, port: options.port ?? defaultPort },
   });

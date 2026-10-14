@@ -54,7 +54,6 @@ export interface WindowContext {
   state: StateStore;
   log: RotatingLog;
   connections: Connections;
-  dataBase?: string;
   version: string;
   preload: string;
   icon?: string;

@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
-import { atlasDataDirectory } from '@envsemble/atlas-planning';
+import { legacyDataDirectory, prepareHome } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
 import { Connections } from './connections.ts';
@@ -20,12 +20,14 @@ import { StateStore } from './state.ts';
 import { WindowManager } from './windows.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 
-const dataDirectory = atlasDataDirectory();
-// Electron's per-user folder is the Atlas data folder shared with the `atlas` command; Chromium's
-// own caches stay in one subfolder of it. Setting this before the lock scopes the single
-// instance to the data folder.
-app.setPath('userData', dataDirectory);
-app.setPath('sessionData', path.join(dataDirectory, 'chromium'));
+// Atlas keeps its state in the Atlas home (~/.atlas, shared with the `atlas` command), moving the
+// old data folder's files there the first time. Electron's own files and Chromium's caches stay in
+// Electron's per-user folder, except for a home chosen with ATLAS_HOME (tests, a separate
+// instance), which keeps them too. Setting this before the lock scopes the single instance to it.
+const { home: dataDirectory } = await prepareHome();
+const electronData = process.env.ATLAS_HOME ? path.join(dataDirectory, 'electron') : legacyDataDirectory();
+app.setPath('userData', electronData);
+app.setPath('sessionData', path.join(electronData, 'chromium'));
 app.setAppUserModelId('dev.envsemble.atlas');
 // Atlas never runs without Chromium's sandbox (some AppImage launchers add --no-sandbox when the
 // system lacks unprivileged user namespaces), and a released build never runs with a debugger.

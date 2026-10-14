@@ -73,7 +73,7 @@ export class LocalHost {
           }, 500 * this.restarts.length);
         });
       });
-      const start: HostStartMessage = { type: 'start', dataDirectory: this.options.dataDirectory, version: this.options.version, loopbackPort: this.port };
+      const start: HostStartMessage = { type: 'start', home: this.options.dataDirectory, version: this.options.version, loopbackPort: this.port };
       child.postMessage(start);
     });
     return this.starting;
