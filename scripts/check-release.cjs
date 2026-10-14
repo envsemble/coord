@@ -36,12 +36,10 @@ async function check() {
       assert.equal(hash(files[file.name]), file.sha256, file.name);
     assert.equal(first.manifest.format, "atlas/release");
     // Atlas is the only product name. Old names may appear only in the history
-    // maps, historical changelog entries and the skills' backup instructions.
+    // maps and historical changelog entries.
     const oldName = /work[t]rail|ontouml[- ]atla[s]/i;
     const mayNameOld = (name) =>
-      name.startsWith("docs/history/") ||
-      name === "CHANGELOG.md" ||
-      name === "skills/README.md";
+      name.startsWith("docs/history/") || name === "CHANGELOG.md";
     for (const [name, bytes] of Object.entries(files))
       if (
         /\.(?:[cm]?js|jsx|tsx?|json|md|html|css|svg|ya?ml|txt)$/.test(name) &&
@@ -101,7 +99,12 @@ async function check() {
       !Object.keys(files).some((name) => name.startsWith("app/vendor/")),
       "The app uses the workspace diagram package",
     );
-    assert(files["skills/atlas-model/SKILL.md"]);
+    assert(files["plugin/skills/atlas/SKILL.md"]);
+    assert(files["plugin/skills/atlas-implement/SKILL.md"]);
+    assert(files["plugin/.claude-plugin/plugin.json"]);
+    assert(files[".claude-plugin/marketplace.json"]);
+    assert(files[".agents/plugins/marketplace.json"]);
+    assert(files["extras/babysit-pr/SKILL.md"]);
     assert(files["assets/atlas-banner-dark.svg"]);
     assert(files["docs/history/skills-commit-map.txt"]);
     assert(files["docs/history/atlas-import-commit-map.txt"]);
@@ -116,7 +119,7 @@ async function check() {
       "Installed dependencies leaked into the release",
     );
     console.log(
-      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, skills, branding/docs/schemas and reopenable report; no local model data.",
+      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, plugin and skills, branding/docs/schemas and reopenable report; no local model data.",
     );
   } finally {
     if (!path.resolve(stage).startsWith(path.resolve(os.tmpdir()) + path.sep))

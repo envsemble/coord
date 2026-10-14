@@ -6,7 +6,16 @@ const { createHash } = require("node:crypto");
 const { zipSync, unzipSync } = require("fflate");
 const hash = (data) => createHash("sha256").update(data).digest("hex");
 // Committed folders and root files copied into the release as source.
-const SOURCE_FOLDERS = ["app", "packages", "skills", "assets", "docs"];
+const SOURCE_FOLDERS = [
+  "app",
+  "packages",
+  "plugin",
+  "extras",
+  ".claude-plugin",
+  ".agents",
+  "assets",
+  "docs",
+];
 const SOURCE_FILES = [
   "README.md",
   "CHANGELOG.md",

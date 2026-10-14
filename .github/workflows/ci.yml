@@ -104,7 +104,7 @@ jobs:
       - run: npm ci
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Node skill tests (skills/tests/*.test.mjs); the skills need only Node and the atlas command.
+      # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks need only Node.
       - run: npm run test:skills
   desktop:
     name: Desktop (${{ matrix.os }})

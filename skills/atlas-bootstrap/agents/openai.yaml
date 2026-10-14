@@ -1,4 +1,0 @@
-interface:
-  display_name: "Atlas Bootstrap"
-  short_description: "Create or adopt a versioned planning workspace"
-  default_prompt: "Use $atlas-bootstrap to set up or adopt this planning workspace."
