@@ -7,7 +7,6 @@ import { readFile, stat } from 'node:fs/promises';
 import atlas, { type DiagramFile, type DiagramProblem, type DiagramSummary, type ViewerPayload } from '@envsemble/atlas-diagrams';
 import { PlanningError, readDocument, resolveDocument } from './planning.ts';
 import { describeProvenance, type CaptureSource, type Provenance } from './provenance.ts';
-import { diagramLinks } from './diagramLinks.ts';
 import { samePath, workRelative } from './paths.ts';
 import type { Document, PlanningIndex as LoadedIndex } from './types.ts';
 
@@ -166,6 +165,8 @@ export class DiagramCatalog {
     }
     if (!/\.md$/i.test(document.path)) return [];
     const content = await readDocument(this.planningRoot, document.path);
+    // The Markdown parser loads when first needed: this module comes with plan export, which every command loads.
+    const { diagramLinks } = await import('./diagramLinks.ts');
     const listed = new Map<string, Promise<DiagramEntry[]>>();
     const results: DiagramReference[] = [];
     for (const link of diagramLinks(content.body, document.path)) {
