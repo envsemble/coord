@@ -544,12 +544,12 @@ interface TargetState { root: string; registryText: string; registry: Registry; 
 
 async function planningRoot(input: string) {
   try { return await realpath(input); }
-  catch { throw new PlanExportError('TARGET', `${input} does not exist. Choose a planning folder, or create one with the atlas-bootstrap skill.`); }
+  catch { throw new PlanExportError('TARGET', `${input} does not exist. Choose a planning folder, or create one with the atlas skill.`); }
 }
 async function targetState(root: string): Promise<TargetState> {
   const { errors } = validatePlanning(root);
   if (errors.length) {
-    throw new PlanExportError('TARGET', `${root} is not a valid planning repository, so nothing was imported. Create one with the atlas-bootstrap skill, or fix what atlas planning check reports:\n` + errors.slice(0, 10).map(error => '  ' + error).join('\n'));
+    throw new PlanExportError('TARGET', `${root} is not a valid planning repository, so nothing was imported. Create one with the atlas skill, or fix what atlas check reports:\n` + errors.slice(0, 10).map(error => '  ' + error).join('\n'));
   }
   const registryText = await readFile(path.join(root, 'planning.json'), 'utf8');
   return { root, registryText, registry: JSON.parse(registryText.startsWith(BOM) ? registryText.slice(1) : registryText), errors };

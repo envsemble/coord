@@ -28,7 +28,7 @@
     "build": "npm run build --workspaces --if-present",
     "package": "npm run package --workspace @envsemble/atlas-app",
     "test": "npm test --workspaces --if-present",
-    "test:skills": "node --test \"skills/tests/*.test.mjs\"",
+    "test:skills": "node --test \"plugin/tests/*.test.mjs\"",
     "test:e2e": "npm run test:e2e --workspace @envsemble/atlas-app",
     "format": "npm run format --workspace @envsemble/atlas-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "npm run format:check --workspace @envsemble/atlas-diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",

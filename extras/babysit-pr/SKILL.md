@@ -1,14 +1,14 @@
 ---
-name: atlas-babysit-pr
-description: Guide existing GitHub PRs through review, fixes, CI, and conflicts until ready for human review. Use only when explicitly invoked by name (for example $atlas-babysit-pr or /atlas-babysit-pr) or directed by another explicitly invoked skill; no planning repository is required.
+name: babysit-pr
+description: Guide existing GitHub PRs through review, fixes, CI, and conflicts until ready for human review. Use only when explicitly invoked by name (for example $babysit-pr or /babysit-pr).
 disable-model-invocation: true
 ---
 
-# Atlas Babysit PR
+# Babysit PR
 
 Guide one or more existing PRs, across repositories if needed, until the current head passes validation and the repository's review gate covers it with no valid unresolved findings. Relevant issue links and metadata polish happen alongside this loop, preferably during waits.
 
-Ground scope in the user's request, PR context, and repository instructions. Preserve explicit decisions and other contributors' changes. This skill is independently usable without a planning repository. The PR itself is the progress record: use its description, review threads, checks, and reviews. Create no separate ledger, checklist, or progress file. A calling implementation workflow may update relevant milestones in its own existing ledger.
+Ground scope in the user's request, PR context, and repository instructions. Preserve explicit decisions and other contributors' changes. The PR itself is the progress record: use its description, review threads, checks, and reviews. Create no separate ledger, checklist, or progress file.
 
 Invocation authorizes in-scope fixes and pushes, PR updates and metadata, issue linking, review requests to the repository's configured reviewers, and replies to findings, subject to the user's current scope and higher-priority permissions. Creating issues or additional PRs requires user agreement. Do not merge, enable auto-merge, deploy, change protections, or send unrelated messages. Historical permissions do not authorize new actions.
 
@@ -21,7 +21,7 @@ The readiness gate for each PR is one of:
 - **Configured review:** every configured automated reviewer completed a review covering the current head.
 - **Independent review:** when no automated reviewer is configured or available, an independent adversarial review of the PR's full changes at the current head, by you or a delegated reviewer, with every later commit reviewed before it is pushed. A reviewer is unavailable when it cannot be used here (no access, no subscription, or the user says so), not when it is merely slow.
 
-Both gates also require passing CI on the current head. Findings from human reviewers get the same dispositions, but their approval is not part of readiness and stays with the user. Report which gate applied and why; a calling implementation workflow records it in its ledger.
+Both gates also require passing CI on the current head. Findings from human reviewers get the same dispositions, but their approval is not part of readiness and stays with the user. Report which gate applied and why.
 
 ## Review loop
 
@@ -49,7 +49,7 @@ Delegate only when it saves meaningful work and tools/instructions allow it. Bat
 
 Check for a related issue when the PR, task, or repository context points to one, or a likely match is easy to identify. Read plausible matches and link genuine issues without duplicates. Avoid broad searches solely to fill PR metadata. Use closing references only for fully resolved issues; use ordinary links for partial work and qualified references across repositories.
 
-Do not create an issue as part of routine PR babysitting. If one would materially help and the user has not authorized it, present a concise proposal and ask once while continuing independent review work; never treat silence as approval. Recheck duplicates before approved creation, then link it. Use an available `issue-writing` skill for the proposal if useful; it is optional and separate from this suite.
+Do not create an issue as part of routine PR babysitting. If one would materially help and the user has not authorized it, present a concise proposal and ask once while continuing independent review work; never treat silence as approval. Recheck duplicates before approved creation, then link it. Use an available `issue-writing` skill for the proposal if useful; it is optional.
 
 Apply clearly relevant existing labels, projects, milestones, and assignees when supported by repository conventions and task context. Preserve intentional metadata; do not invent release commitments or assume participants are owners. Distinguish assignees from reviewers. Leave ambiguous or optional fields unchanged. Verify any changes made; optional metadata access failures do not block review convergence.
 

@@ -267,7 +267,7 @@ test('refuses a target that is not a valid planning repository', async t => {
   fixture(source);
   const { html } = await exportPlan(source, 'work-0001', { now });
   const empty = temporary(t, 'plan-import-empty-');
-  await assert.rejects(importPlan(empty, html), (error: unknown) => error instanceof PlanExportError && error.code === 'TARGET' && /atlas-bootstrap/.test(error.message));
+  await assert.rejects(importPlan(empty, html), (error: unknown) => error instanceof PlanExportError && error.code === 'TARGET' && /the atlas skill/.test(error.message));
   assert.deepEqual(readdirSync(empty), []);
   const broken = temporary(t, 'plan-import-broken-');
   writeFileSync(path.join(broken, 'planning.json'), '{"schema_version": 2}');

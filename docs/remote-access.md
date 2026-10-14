@@ -90,11 +90,11 @@ Windows showing another computer's folders reopen on the next start while the co
 
 ### The folder list
 
-Each computer keeps one **folder list**, in `host/folders.json` in its Atlas data folder.
+Each computer keeps one **folder list**, in `host/folders.json` in its [Atlas home](command.md#the-atlas-home), and lists every planning folder in the home after it.
 
 - **Joining:** a planning folder joins the list when it is opened there from any device, from the command line, or with `atlas serve --folder`.
 - **Everyone sees the same list:** File › Open Recent and the welcome page, on this computer and on every paired device. A folder opened on one device appears on the others at once.
-- **Leaving:** a folder stays until someone removes it with **×** in a folder list, which removes it for every device.
+- **Leaving:** a folder stays until someone removes it with **×** in a folder list, which removes it for every device. Planning folders in the Atlas home are always listed.
 - **Missing folders:** a folder that was moved or deleted is marked **Missing**.
 - **The first list** starts from the folders this Atlas recently opened and, from the first version of remote access, the folders it shared.
 
@@ -123,12 +123,12 @@ atlas serve
 
   Ctrl+C also stops it. Pair your main device with `manage`, and you can pair the others from it.
 
-- **Data folder:** `--data-dir` uses another Atlas data folder.
+- **Home:** `--home` uses another Atlas home.
 - **Output:** it prints warnings and errors to the terminal and keeps no log file.
 
-One process per Atlas data folder manages remote access.
+One process per Atlas home manages remote access.
 
-- **The lock:** the managing process holds a lock that the system releases when the process ends, however it ends (a named pipe on Windows, an abstract socket on Linux). The lock is named after a secret in the data folder, so every path to the same folder finds it, and other users cannot predict its name. A program that takes the name anyway cannot prove it read the secret: Atlas then says that a program that is not Atlas holds the lock, and remote access stays off.
+- **The lock:** the managing process holds a lock that the system releases when the process ends, however it ends (a named pipe on Windows, an abstract socket on Linux). The lock is named after a secret in the home, so every path to the same home finds it, and other users cannot predict its name. A program that takes the name anyway cannot prove it read the secret: Atlas then says that a program that is not Atlas holds the lock, and remote access stays off.
 - **Unreadable settings:** if `host/access.json` cannot be read, because it is damaged or a newer Atlas wrote it, Atlas leaves the file as it is, keeps remote access off and says why in **Remote Access**. To start over, remove the file and start Atlas again; paired devices then pair again.
 - **The app and `atlas serve` together:**
   - while `atlas serve` runs, the app's **Remote Access** dialog shows remote access as managed by it and changes nothing;
@@ -172,9 +172,9 @@ The loopback listener accepts only the owner credential, and only from this comp
   - At most 20 links can be open at once.
   - After 20 wrong codes from one address within five minutes, or 200 from all addresses together, the host refuses pairing until the window passes.
 - **Device tokens** are 32 random bytes.
-  - The host stores only their SHA-256 hash, with what the device may do, in `<Atlas data folder>/host/access.json`, and compares hashes in constant time.
-  - The connecting device stores its token in `connections.json` in its data folder, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted.
-  - Both files are written with owner-only permissions on Linux; on Windows, the data folder is in your user profile.
+  - The host stores only their SHA-256 hash, with what the device may do, in `<Atlas home>/host/access.json`, and compares hashes in constant time.
+  - The connecting device stores its token in `connections.json` in its Atlas home, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted.
+  - Both files are written with owner-only permissions on Linux; on Windows, the home is in your user profile.
 - **What a device can reach** is what Atlas reaches on that computer, as the user who runs it:
   - the names of folders it may list;
   - the files inside planning folders;
