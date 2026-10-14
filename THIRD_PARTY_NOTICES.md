@@ -1,8 +1,6 @@
 # Third-party sources
 
-The unmodified OntoUML exchange schema v1.0.2 comes from [OntoUML/ontouml-schema](https://github.com/OntoUML/ontouml-schema/tree/v1.0.2). Its Apache 2.0 license is preserved in packages/diagrams/schemas/LICENSE. The application evidence schema is separate.
-
-The [ontouml-js](https://github.com/OntoUML/ontouml-js) dependency supplies standard model builders and serialization. Its Apache 2.0 license is also preserved in packages/diagrams/licenses/ontouml-js-LICENSE. ELK supplies build-time routing under its upstream EPL 2.0 license, distributed with the npm dependency.
+Atlas's grammar for its subset of PlantUML (`packages/diagrams/lib/plantuml/plantuml.peggy`) is derived from the PlantUML grammar of [plantuml-parser](https://github.com/Enteee/plantuml-parser) 0.4.0 by Ente and its contributors, under the Apache License 2.0; the grammar keeps its notice, and the license text is in packages/diagrams/licenses/plantuml-parser-LICENSE. [Peggy](https://github.com/peggyjs/peggy) 5.1.0 (MIT) generates the committed parser from it during development and is not needed at runtime. PlantUML itself is neither bundled nor required; an optional test checks diagrams with a PlantUML jar the developer supplies. ELK supplies build-time routing under its upstream EPL 2.0 license, distributed with the npm dependency.
 
 React and React DOM 19.3.0 are bundled into offline HTML under their MIT licenses. Full license text remains embedded in the HTML, with copies in packages/diagrams/licenses/. The reusable React module uses peer dependencies instead of bundling another React runtime.
 
@@ -19,8 +17,6 @@ The AI providers' marks beside model names in the app's statistics (Claude's spa
 Vite 8.3.3 and its React plugin 6.1.2 provide the development server and Fast Refresh under their upstream MIT licenses, distributed with the npm dependencies. They are not bundled into offline HTML or required by the library at runtime.
 
 fflate 0.8.3 supplies the compressed export archive and offline decompression. Its MIT license is in packages/diagrams/licenses/fflate-LICENSE and retained in bundled code notices. Shiki 4.5.0 highlights snippets at build time; its MIT license is in packages/diagrams/licenses/shiki-LICENSE. Shiki's runtime, WebAssembly and grammars are not shipped as browser runtime dependencies.
-
-Learning guidance paraphrases the community [OntoUML specification](https://ontouml.readthedocs.io/en/latest/) and links to individual pages. The upstream documentation repository [OntoUML/OntoUML](https://github.com/OntoUML/OntoUML) is CC0-1.0. No documentation images or diagrams were copied.
 
 The R5 SDK and Flowstate repositories are evidence for the separate example at pinned commits. Short, unmodified excerpts remain in packages/diagrams/examples/r5/source-snippets.json and its generated HTML with repository, commit, file and line attribution. Copyright in those excerpts remains with their upstream authors. The core library package excludes the example and its excerpts. Complete repositories and game binaries are not bundled.
 
