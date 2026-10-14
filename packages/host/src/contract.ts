@@ -3,10 +3,12 @@
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
 import type { DocumentContent, PlanImportResult, PlanningIndex, Usage } from '@envsemble/atlas-planning';
-import type { Provenance } from '@envsemble/atlas-planning/provenance';
+import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '@envsemble/atlas-planning/diagrams';
+
+export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 3;
+export const protocolVersion = 4;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -50,21 +52,6 @@ export interface Snapshot extends PlanningIndex {
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
 }
-export interface ModelExplains { path: string | null; reference: string; section: string | null; title: string | null }
-export interface CatalogEntry {
-  handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  provenance: Provenance; explains: ModelExplains[];
-  /**
-   * Models laid out together share it: a capture and the proposals over its snapshot. `folder.model`
-   * answers for one of them with the others' payloads too (as `siblings`), and names with their
-   * revisions those it serves alone, as they cannot be laid out with the others (as `apart`).
-   * Absent from older hosts.
-   */
-  family?: string | null;
-}
-export interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
-export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }
-export interface DiagramIndexEntry { workId: string; handle: string; title: string; provenance: Provenance }
 export interface ViewEventInput { id: string; path: string; session: string; contentHash: string | null }
 
 export interface PreparedExport { token: string; bytes: number; warnings: string[]; fileName: string }
@@ -108,10 +95,14 @@ export interface Methods {
   'folders.unsubscribe': { params: { folderId: string }; result: null };
   'folder.snapshot': { params: { folderId: string }; result: Snapshot };
   'folder.document': { params: { folderId: string; path: string }; result: DocumentContent };
-  'folder.models': { params: { folderId: string; work: string }; result: Catalog };
-  'folder.model': { params: { folderId: string; work: string; handle: string }; result: unknown };
-  'folder.references': { params: { folderId: string; work: string | null; path: string }; result: ModelReference[] };
-  'folder.diagrams': { params: { folderId: string }; result: DiagramIndexEntry[] };
+  /** A work item's diagrams: its `.puml` files, by their paths in the work folder. */
+  'folder.diagrams': { params: { folderId: string; work: string }; result: DiagramEntry[] };
+  /** A diagram's viewer payload, with the payloads of the rest of its family (`siblings`), laid out together. */
+  'folder.diagram': { params: { folderId: string; work: string; path: string }; result: unknown };
+  /** The diagrams a document links to, under the headings the links sit under. */
+  'folder.references': { params: { folderId: string; work: string | null; path: string }; result: DiagramReference[] };
+  /** Every diagram of the folder, for quick open. */
+  'folder.diagramIndex': { params: { folderId: string }; result: DiagramIndexEntry[] };
   'folder.recordView': { params: { folderId: string; event: ViewEventInput }; result: null };
   'plan.exportPrepare': { params: { folderId: string; work: string }; result: PreparedExport };
   'plan.exportDrop': { params: { token: string }; result: null };
@@ -137,10 +128,10 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'folders.unsubscribe': 'computer',
   'folder.snapshot': 'computer',
   'folder.document': 'computer',
-  'folder.models': 'computer',
-  'folder.model': 'computer',
-  'folder.references': 'computer',
   'folder.diagrams': 'computer',
+  'folder.diagram': 'computer',
+  'folder.references': 'computer',
+  'folder.diagramIndex': 'computer',
   'folder.recordView': 'computer',
   'plan.exportPrepare': 'computer',
   'plan.exportDrop': 'computer',

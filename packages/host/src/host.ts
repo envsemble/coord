@@ -644,10 +644,10 @@ export class Host {
       }
       case 'folder.snapshot': return this.subscribed(connection, (p as { folderId: string }).folderId).snapshot() as never;
       case 'folder.document': { const { folderId, path: file } = p as { folderId: string; path: string }; return this.subscribed(connection, folderId).document(file) as never; }
-      case 'folder.models': { const { folderId, work } = p as { folderId: string; work: string }; return this.subscribed(connection, folderId).models(work) as never; }
-      case 'folder.model': { const { folderId, work, handle } = p as { folderId: string; work: string; handle: string }; return this.subscribed(connection, folderId).model(work, handle) as never; }
+      case 'folder.diagrams': { const { folderId, work } = p as { folderId: string; work: string }; return this.subscribed(connection, folderId).diagrams(work) as never; }
+      case 'folder.diagram': { const { folderId, work, path: file } = p as { folderId: string; work: string; path: string }; return this.subscribed(connection, folderId).diagram(work, file) as never; }
       case 'folder.references': { const { folderId, work, path: file } = p as { folderId: string; work: string | null; path: string }; return this.subscribed(connection, folderId).references(work, file) as never; }
-      case 'folder.diagrams': return this.subscribed(connection, (p as { folderId: string }).folderId).diagrams() as never;
+      case 'folder.diagramIndex': return this.subscribed(connection, (p as { folderId: string }).folderId).diagramIndex() as never;
       case 'folder.recordView': { const { folderId, event } = p as unknown as Methods['folder.recordView']['params']; await this.subscribed(connection, folderId).recordView(event); return null as never; }
       case 'plan.exportPrepare': {
         const { folderId, work } = p as { folderId: string; work: string };

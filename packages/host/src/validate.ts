@@ -75,7 +75,8 @@ export function argumentsOf(validators: Validator<unknown>[], values: unknown[])
 export const relativePath = string({ min: 1, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+$/ });
 export const absolutePath = string({ min: 1, max: pathLimit });
 export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
-export const modelHandle = string({ min: 26, max: 26, pattern: /^m-[a-f0-9]{24}$/ });
+/** A diagram file's path in its work folder, relative and inside it. */
+export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
 export const folderId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
 export const token = string({ min: 16, max: 80, pattern: /^[a-zA-Z0-9-]+$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
@@ -138,10 +139,10 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'folders.unsubscribe': object({ folderId }),
   'folder.snapshot': object({ folderId }),
   'folder.document': object({ folderId, path: relativePath }),
-  'folder.models': object({ folderId, work: workId }),
-  'folder.model': object({ folderId, work: workId, handle: modelHandle }),
+  'folder.diagrams': object({ folderId, work: workId }),
+  'folder.diagram': object({ folderId, work: workId, path: diagramPath }),
   'folder.references': object({ folderId, work: nullable(workId), path: relativePath }),
-  'folder.diagrams': object({ folderId }),
+  'folder.diagramIndex': object({ folderId }),
   'folder.recordView': object({ folderId, event: viewEvent }),
   'plan.exportPrepare': object({ folderId, work: workId }),
   'plan.exportDrop': object({ token }),
