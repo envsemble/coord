@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agentTimeNote, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, timeSource, tokenRows, tokenText, workRows } from './workStatistics.ts';
+import { agentTimeNote, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, shownStages, stageShare, stageUsage, subagentShare, timeSource, tokenRows, tokenText, workRows } from './workStatistics.ts';
 import { absoluteDate, compactNumber, duration, median } from './format.ts';
 import { timeTicks, valueTicks } from './components/ScatterChart.tsx';
 import type { Snapshot, Work, WorkStatistics } from './types.ts';
@@ -8,7 +8,9 @@ import type { Snapshot, Work, WorkStatistics } from './types.ts';
 const statistics = (model: string | null, tokens: number | null, agentMs: number, planRevisions: number | null, lastReport: string | null = null): WorkStatistics => ({
   reports: model ? 2 : 0, invalid: 0, models: model ? [{ model, reports: 2, sessions: 1, agentMs, tokens, tokenKinds: null }] : [], primaryModel: model, tokens, tokenKinds: null,
   agentMs, measuredMs: 0, estimatedMs: agentMs, measuredReports: 0, firstReport: lastReport, lastReport, planRevisions,
+  stages: { planning: none, implementation: none, unknown: { reports: model ? 2 : 0, agentMs, tokens, tokenKinds: null } }, subagents: { count: 0, agentMs: 0 },
 });
+const none = { reports: 0, agentMs: 0, tokens: null, tokenKinds: null };
 const work = (id: string, values: Partial<Work>): Work => ({
   id, path: 'archive/' + id, repositories: ['shop'], currentPlan: null, title: id, location: 'archived', design: 'accepted', implementation: 'complete',
   created: null, updated: '2026-10-01', accepted: null, completed: '2026-10-01', durationDays: null, documents: [], ...values,
@@ -83,6 +85,23 @@ test('the other models are those that did something besides the primary one', ()
   assert.deepEqual(otherModels({ models, primaryModel: 'claude-opus-5-5' }).map(model => model.model), ['claude-sonnet-4-5', 'claude-haiku-5-5']);
   assert.equal(modelShare(models[2]), '18 min, ' + compactNumber(451650) + ' tokens');
   assert.equal(modelShare(usage('model-a', 0, null, 1)), '', 'a model that only reported did nothing to show');
+});
+
+test('planning and implementation show apart once reports record a stage, with reports from before stages beside them', () => {
+  const older = statistics('model-a', 3000, 1800000, 0);
+  assert.deepEqual(shownStages(older), [], 'only reports from before stages: no split to show');
+  assert.equal(stageUsage(older, 'planning'), null);
+  assert.equal(stageUsage(older, 'unknown')?.agentMs, 1800000);
+  const planned = { ...older, stages: { ...older.stages, planning: { reports: 2, agentMs: 5400000, tokens: 120000, tokenKinds: null } } };
+  assert.deepEqual(shownStages(planned), ['planning', 'unknown']);
+  const staged = { ...planned, stages: { ...planned.stages, implementation: { reports: 3, agentMs: 9480000, tokens: null, tokenKinds: null }, unknown: none } };
+  assert.deepEqual(shownStages(staged), ['planning', 'implementation']);
+  assert.equal(stageShare(staged.stages.planning), '1 h 30 min, ' + compactNumber(120000) + ' tokens');
+  assert.equal(stageShare(staged.stages.implementation), '2 h 38 min', 'tokens unknown');
+  assert.deepEqual(shownStages(null), []);
+  assert.equal(subagentShare(staged), null, 'no subagent measured');
+  assert.equal(subagentShare({ subagents: { count: 1, agentMs: 1080000 } }), '1 subagent, 18 min');
+  assert.equal(subagentShare({ subagents: { count: 3, agentMs: 5400000 } }), '3 subagents, 1 h 30 min');
 });
 
 test('formats and chart ticks', () => {

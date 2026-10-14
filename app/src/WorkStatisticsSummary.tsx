@@ -1,9 +1,14 @@
 // A work item's statistics as its About sidebar shows them, and the parts the Statistics page shares:
 // the implementing model with its provider's mark and the other models quietly below it, agent
-// time and tokens with what they stand for on hover and focus, and plan revisions.
+// time and tokens with what they stand for on hover and focus, the time and tokens of planning and
+// implementation, the subagents that worked, and plan revisions.
 import { Fragment, useId, type ReactNode } from 'react';
 import { Tooltip } from '@envsemble/envui';
+import { Build } from '@envsemble/envui/icons/Build';
+import { EditNote } from '@envsemble/envui/icons/EditNote';
+import { Help } from '@envsemble/envui/icons/Help';
 import { Schedule } from '@envsemble/envui/icons/Schedule';
+import { SmartToy } from '@envsemble/envui/icons/SmartToy';
 import { Token } from '@envsemble/envui/icons/Token';
 import type { ModelUsage, TokenKinds } from '@envsemble/atlas-planning/types';
 import { CommitIcon } from './icons';
@@ -11,7 +16,9 @@ import type { Work, WorkStatistics } from './types';
 import { aiModel, providerNames } from './aiModels';
 import { ProviderMark } from './AiModel';
 import { absoluteDate, compactNumber, duration } from './format';
-import { agentTimeNote, modelShare, otherModels, timeSource, tokenRows, tokenText } from './workStatistics';
+import { agentTimeNote, modelShare, otherModels, shownStages, stageLabels, stageUsage, timeSource, tokenRows, tokenText, type StageKey } from './workStatistics';
+
+const stageIcons: Record<StageKey, typeof Build> = { planning: EditNote, implementation: Build, unknown: Help };
 
 /** A value with more to say: shown on hover and focus, and read as the value's description. */
 export function Detailed({ children, detail, description }: { children: ReactNode; detail: ReactNode; description: string }) {
@@ -72,6 +79,11 @@ export function WorkStatisticsSummary({ work, statistics }: { work: Work; statis
     <ul className="work-statistics-facts">
       {statistics.reports > 0 && <li><Schedule className="work-statistics-icon" /><Detailed detail={<AgentTimeBreakdown statistics={statistics} />} description={agentTimeNote(statistics)}><strong>{duration(statistics.agentMs)}</strong></Detailed><span className="muted">of agent time</span></li>}
       {statistics.tokens !== null && <li><Token className="work-statistics-icon" /><Detailed detail={<TokenBreakdown usage={statistics} />} description={tokenText(statistics)}><strong>{compactNumber(statistics.tokens)}</strong></Detailed><span className="muted">tokens</span></li>}
+      {shownStages(statistics).map(stage => {
+        const usage = stageUsage(statistics, stage)!, Icon = stageIcons[stage];
+        return <li key={stage} className="work-statistics-stage" title={usage.tokens !== null ? tokenText(usage) : undefined}><Icon className="work-statistics-icon" /><strong>{duration(usage.agentMs)}</strong><span className="muted">{stageLabels[stage].toLowerCase()}{usage.tokens !== null ? ' · ' + compactNumber(usage.tokens) + ' tokens' : ''}</span></li>;
+      })}
+      {statistics.subagents?.count ? <li title="Subagents, and their working time: each one's own, added up"><SmartToy className="work-statistics-icon" /><strong>{statistics.subagents.count}</strong><span className="muted">{statistics.subagents.count === 1 ? 'subagent' : 'subagents'} · {duration(statistics.subagents.agentMs)}</span></li> : null}
       {statistics.planRevisions !== null && <li title={work.completed ? 'Commits that changed the plan before completion' : 'Commits that changed the plan so far'}><CommitIcon className="work-statistics-icon" /><strong>{statistics.planRevisions}</strong><span className="muted">{statistics.planRevisions === 1 ? 'plan revision' : 'plan revisions'}</span></li>}
     </ul>
   </div>;
