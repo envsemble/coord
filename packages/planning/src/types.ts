@@ -27,6 +27,18 @@ export interface ModelUsage {
   tokenKinds: TokenKinds | null;
 }
 /**
+ * A work item's stage when a report was made: planning until its plan's design is accepted, and
+ * again while a session amends an accepted plan; implementation otherwise.
+ */
+export type WorkStage = 'planning' | 'implementation';
+/** The agent time and tokens of the reports of one stage, measured and estimated as for the work item. */
+export interface StageUsage {
+  reports: number; agentMs: number;
+  tokens: number | null;
+  /** Its measured tokens by kind; null when no report of the stage was measured. */
+  tokenKinds: TokenKinds | null;
+}
+/**
  * What agents reported with `atlas work report` and how often the main plan changed. Agent time and
  * tokens are measured from the agent's session log where the report could read it; otherwise agent
  * time is estimated from the time between a session's reports, and tokens are self-reported.
@@ -50,6 +62,10 @@ export interface WorkStatistics {
   estimatedMs: number;
   /** Reports whose interval was measured from the session log. */
   measuredReports: number;
+  /** Agent time and tokens by stage; reports from before stages were recorded are unknown. */
+  stages: Record<WorkStage | 'unknown', StageUsage>;
+  /** Subagents measured at work: how many (each once), and their busy time added up, each its own. */
+  subagents: { count: number; agentMs: number };
   firstReport: string | null;
   lastReport: string | null;
   /** Commits that changed the main plan after it was added, up to completion or now; null without Git history. */

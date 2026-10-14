@@ -1,11 +1,16 @@
-// Work statistics. Agents report each ledger transition with `atlas work report`, which appends one
-// JSON line to <work>/.atlas/statistics.jsonl: the time, the model and the step, and, when it could
-// read the agent's session log, the agent time and tokens measured since the session's previous
-// report. Without a measurement, agent time is estimated from the time between reports and tokens
-// are self-reported. Plan revisions come from the planning folder's Git history.
+// Work statistics. Agents report each ledger transition with `atlas work report` (and hooks report
+// when a session stops), which appends one JSON line to <work>/.atlas/statistics.jsonl: the time, the
+// model, the step and the work item's stage, and, when it could read the agent's session log, the
+// agent time and tokens measured since the session's previous report, with the subagents that worked.
+// Without a measurement, agent time is estimated from the time between reports and tokens are
+// self-reported. Plan revisions come from the planning folder's Git history.
+//
+// The line format stays version 1: every field added since (`measured`, then `stage` and
+// `measured.subagents`) is optional, and versions that do not know a field read the rest. A line
+// without a stage is from before stages were recorded: its stage is unknown.
 import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import type { ModelUsage, TokenKinds, Work, WorkStatistics } from './types.ts';
+import type { ModelUsage, StageUsage, TokenKinds, Work, WorkStage, WorkStatistics } from './types.ts';
 import { runProgram as execute } from './run.ts';
 
 
@@ -22,18 +27,29 @@ const historyLimit = 20000;
 export const stepLimit = 200;
 /** A measurement names at most this many models, so a report stays one short line. */
 export const measuredModelLimit = 8;
+/** And lists at most this many subagents, the busiest; it counts them all. */
+export const measuredSubagentLimit = 4;
+export const workStages: readonly WorkStage[] = ['planning', 'implementation'];
 
 /** One model's share of a measured interval. */
 export interface MeasuredModel extends TokenKinds { model: string; agentMs: number }
-/** What the session log showed for (since, at]: the agent's working time and each model's share. */
-export interface Measured { since: string; agentMs: number; models: MeasuredModel[] }
-/** Version 1 throughout: `measured` is optional, and versions that do not know it read the rest. */
-export interface StatisticsReport { version: 1; at: string; model: string; session: string | null; tokens: number | null; step: string | null; measured?: Measured }
-export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; at?: Date; measured?: Measured | null }
+/** One subagent's share of a measured interval: the model it worked with longest, its own busy time and its tokens. */
+export interface MeasuredSubagent { id: string; model: string | null; agentMs: number; tokens: number }
+/** The subagents that worked in a measured interval: how many, their busy time added up (each its own), their tokens, and the busiest. */
+export interface MeasuredSubagents { count: number; agentMs: number; tokens: number; agents: MeasuredSubagent[] }
+/**
+ * What the session log showed for (since, at]: the agent's working time (its subagents' included,
+ * parallel work once) and each model's share; and, when subagents worked, each subagent's own share.
+ */
+export interface Measured { since: string; agentMs: number; models: MeasuredModel[]; subagents?: MeasuredSubagents }
+/** Version 1 throughout: `stage` and `measured` are optional, and versions that do not know them read the rest. */
+export interface StatisticsReport { version: 1; at: string; model: string; session: string | null; tokens: number | null; step: string | null; stage?: WorkStage; measured?: Measured }
+export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; stage?: WorkStage | null; at?: Date; measured?: Measured | null }
 
 /** Model identifiers as harnesses show them, including bracketed variants such as `name[1m]`. */
 export const modelPattern = /^[A-Za-z0-9][A-Za-z0-9._:/@+\-[\]]{0,99}$/;
 const sessionPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const subagentPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
 /** Control characters, line separators and bidirectional overrides never appear in a step. */
 const unprintable = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 const timestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
@@ -47,6 +63,11 @@ function checkedTokens(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0 || value > 1e12) throw new StatisticsReportError('Tokens must be a whole number from 0 to 1,000,000,000,000.');
   return value;
+}
+function checkedStage(value: unknown): WorkStage | null {
+  if (value === null || value === undefined) return null;
+  if (!workStages.includes(value as WorkStage)) throw new StatisticsReportError('The stage must be planning or implementation.');
+  return value as WorkStage;
 }
 function checkedStep(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -97,7 +118,30 @@ function checkedMeasured(value: unknown, at: string, modelLimit: number): Measur
     return { model: model.model, agentMs: model.agentMs, input: model.input as number, cacheRead: model.cacheRead as number, cacheWrite: model.cacheWrite as number, output: model.output as number };
   });
   if (new Set(models.map(item => item.model)).size !== models.length) throw invalid('a model is listed twice');
-  return { since, agentMs: total, models };
+  const subagents = checkedSubagents(entry.subagents, Date.parse(at) - Date.parse(since), Number.isFinite(modelLimit) ? measuredSubagentLimit : modelLimit, invalid);
+  return subagents ? { since, agentMs: total, models, subagents } : { since, agentMs: total, models };
+}
+
+/** Subagents as a measurement records them: each within the interval, listed once, no more than counted. */
+function checkedSubagents(value: unknown, interval: number, limit: number, invalid: (detail: string) => StatisticsReportError): MeasuredSubagents | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) throw invalid('subagents is not an object');
+  const entry = value as Record<string, unknown>;
+  if (!whole(entry.count, 1e6)) throw invalid('subagents must be counted');
+  const count = entry.count;
+  if (!whole(entry.agentMs, count * interval)) throw invalid('the subagents\' agentMs must be whole milliseconds within the interval for each');
+  if (!whole(entry.tokens, 1e12)) throw invalid('the subagents\' tokens must be a whole number');
+  if (!Array.isArray(entry.agents) || entry.agents.length > Math.min(limit, count)) throw invalid(`subagents must list at most ${measuredSubagentLimit} of those counted`);
+  const agents = entry.agents.map((item: unknown): MeasuredSubagent => {
+    const agent = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+    if (typeof agent.id !== 'string' || !subagentPattern.test(agent.id)) throw invalid('each subagent needs its identifier');
+    if (agent.model !== null && (typeof agent.model !== 'string' || !modelPattern.test(agent.model))) throw invalid('a subagent\'s model must be its identifier or null');
+    if (!whole(agent.agentMs, interval)) throw invalid('a subagent\'s agentMs must be within the interval');
+    if (!whole(agent.tokens, 1e12)) throw invalid('a subagent\'s tokens must be a whole number');
+    return { id: agent.id, model: agent.model, agentMs: agent.agentMs, tokens: agent.tokens };
+  });
+  if (new Set(agents.map(item => item.id)).size !== agents.length) throw invalid('a subagent is listed twice');
+  return { count, agentMs: entry.agentMs, tokens: entry.tokens, agents };
 }
 
 /** Build a valid report line, or throw StatisticsReportError. */
@@ -107,14 +151,17 @@ export function createReport(input: ReportInput, modelLimit = measuredModelLimit
   if (session !== null && (typeof session !== 'string' || !sessionPattern.test(session))) throw new StatisticsReportError('The session must be an identifier: letters, digits and . _ : -, at most 128 characters.');
   const at = (input.at ?? new Date()).toISOString();
   const report: StatisticsReport = { version: 1, at, model: input.model, session, tokens: checkedTokens(input.tokens), step: checkedStep(input.step) };
+  const stage = checkedStage(input.stage);
+  if (stage) report.stage = stage;
   const measured = checkedMeasured(input.measured, at, modelLimit);
   if (measured) report.measured = measured;
   return report;
 }
 
 /**
- * Read one line; null when it is not a valid report (counted, never fatal). A measurement this
- * version cannot read is left out, and the rest of the report stays, as older versions read it.
+ * Read one line; null when it is not a valid report (counted, never fatal). A stage, subagents or
+ * measurement this version cannot read is left out, and the rest of the report stays, as older
+ * versions read it.
  */
 export function parseReport(line: string): StatisticsReport | null {
   if (line.length > lineLimit) return null;
@@ -124,15 +171,20 @@ export function parseReport(line: string): StatisticsReport | null {
   const entry = value as Record<string, unknown>;
   const at = utcTime(entry.at);
   if (entry.version !== 1 || !at) return null;
-  const fields: ReportInput = { model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, at: new Date(at) };
-  try { return createReport({ ...fields, measured: entry.measured as Measured | undefined }, Number.POSITIVE_INFINITY); }
-  catch {
-    if (entry.measured === undefined) return null;
-    try { return createReport(fields); } catch { return null; }
+  const stage = workStages.includes(entry.stage as WorkStage) ? entry.stage as WorkStage : null;
+  const fields: ReportInput = { model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, stage, at: new Date(at) };
+  const measured = entry.measured as Measured | undefined;
+  const attempts = measured === undefined ? [undefined] : [measured, typeof measured === 'object' && measured?.subagents !== undefined ? { ...measured, subagents: undefined } : null, undefined];
+  for (const attempt of attempts) {
+    if (attempt === null) continue;
+    try { return createReport({ ...fields, measured: attempt }, Number.POSITIVE_INFINITY); } catch { /* Read with less. */ }
   }
+  return null;
 }
 
 const sum = (kinds: TokenKinds) => kinds.input + kinds.cacheRead + kinds.cacheWrite + kinds.output;
+const noTokens = (): TokenKinds => ({ input: 0, cacheRead: 0, cacheWrite: 0, output: 0 });
+const noUsage = (): StageUsage => ({ reports: 0, agentMs: 0, tokens: null, tokenKinds: null });
 const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ input: (into?.input ?? 0) + kinds.input, cacheRead: (into?.cacheRead ?? 0) + kinds.cacheRead, cacheWrite: (into?.cacheWrite ?? 0) + kinds.cacheWrite, output: (into?.output ?? 0) + kinds.output });
 
 /**
@@ -147,6 +199,9 @@ const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ inp
  *   two hours passed, which is a break; and a session's self-reported token count is cumulative, so
  *   a report adds its increase over the previous one (a lower count means a new conversation under
  *   the same session and counts in full).
+ * What a report covers counts toward its stage (unknown for reports from before stages). Subagents
+ * are counted once per session however many reports list them; those a report counts without
+ * listing them (beyond the busiest four) are counted as new. Their time is each one's own, added up.
  */
 export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit<WorkStatistics, 'planRevisions'> {
   const sorted = [...reports].sort((a, b) => a.at.localeCompare(b.at));
@@ -157,9 +212,13 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     return entry;
   };
   const runs = new Map<string, { last: number; tokens: number | null; id: string }>();
-  let anonymous = 0, measuredMs = 0, estimatedMs = 0, measuredReports = 0;
+  const stages: Record<WorkStage | 'unknown', StageUsage> = { planning: noUsage(), implementation: noUsage(), unknown: noUsage() };
+  const subagents = new Set<string>();
+  let anonymous = 0, measuredMs = 0, estimatedMs = 0, measuredReports = 0, unlisted = 0, subagentMs = 0;
   let kinds: TokenKinds | null = null;
   for (const report of sorted) {
+    const stage = stages[report.stage ?? 'unknown'];
+    stage.reports++;
     const time = Date.parse(report.at);
     const key = report.session ? 'session:' + report.session : 'model:' + report.model;
     let run = runs.get(key);
@@ -179,8 +238,11 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
       const part = (value: number) => Math.round(value * share);
       measuredReports++;
       measuredMs += part(report.measured.agentMs);
+      stage.agentMs += part(report.measured.agentMs);
       // A measurement of no tokens is a known zero.
-      kinds ??= { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
+      kinds ??= noTokens();
+      stage.tokens ??= 0;
+      stage.tokenKinds ??= noTokens();
       for (const item of report.measured.models) {
         const counted = { input: part(item.input), cacheRead: part(item.cacheRead), cacheWrite: part(item.cacheWrite), output: part(item.output) };
         const used = model(item.model);
@@ -190,15 +252,28 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
         used.tokenKinds = added(used.tokenKinds, counted);
         used.sessions.add(run.id);
         kinds = added(kinds, counted);
+        stage.tokens += sum(counted);
+        stage.tokenKinds = added(stage.tokenKinds, counted);
+      }
+      const helpers = report.measured.subagents;
+      if (helpers && share > 0) {
+        subagentMs += part(helpers.agentMs);
+        for (const agent of helpers.agents) subagents.add(run.id + '\0' + agent.id);
+        unlisted += helpers.count - helpers.agents.length;
       }
     } else if (previous !== null && time - previous <= sessionGap) {
       estimatedMs += time - previous;
       entry.agentMs += time - previous;
+      stage.agentMs += time - previous;
     }
     if (report.tokens !== null) {
       // Self-reported tokens are known once a report has a starting point to measure from; a lone
       // report is not a cost. A measured report's own measurement counts instead.
-      if (run.tokens !== null && !report.measured) { entry.tokens += report.tokens < run.tokens ? report.tokens : report.tokens - run.tokens; entry.tokensKnown = true; }
+      if (run.tokens !== null && !report.measured) {
+        const increase = report.tokens < run.tokens ? report.tokens : report.tokens - run.tokens;
+        entry.tokens += increase; entry.tokensKnown = true;
+        stage.tokens = (stage.tokens ?? 0) + increase;
+      }
       run.tokens = report.tokens;
     }
     run.last = time;
@@ -209,6 +284,7 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
   return {
     reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, tokens, tokenKinds: kinds,
     agentMs: measuredMs + estimatedMs, measuredMs, estimatedMs, measuredReports,
+    stages, subagents: { count: subagents.size + unlisted, agentMs: subagentMs },
     firstReport: sorted[0]?.at ?? null, lastReport: sorted.at(-1)?.at ?? null,
   };
 }

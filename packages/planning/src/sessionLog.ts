@@ -1,19 +1,21 @@
 // Agent time and tokens from the agent's own session log. `atlas work report` runs inside the agent's
 // harness, which names its session in the environment and keeps a log of it on this computer:
 // - Claude Code: <config>/projects/<project>/<session>.jsonl, its subagents' logs in
-//   <project>/<session>/subagents/agent-*.jsonl (<config> is CLAUDE_CONFIG_DIR, else ~/.claude);
+//   <project>/<session>/subagents/agent-<id>.jsonl (<config> is CLAUDE_CONFIG_DIR, else ~/.claude);
 // - Codex: <home>/sessions/YYYY/MM/DD/rollout-<local time>-<thread>[_<part>].jsonl, or
 //   <home>/archived_sessions/ (<home> is CODEX_HOME, else ~/.codex); its subagents are threads of
 //   their own whose first line names it.
+// A hook names the log itself (its transcript path), which is read with the logs beside it.
 // The agent works from each prompt until the last activity of that turn (its output, tool calls and
 // their results), not while it waits for the person. Helpers' busy time merges with the main agent's,
-// so parallel work counts once. Logs are only read, line by line; nothing but numbers and model
-// identifiers leaves them, and a line that is not understood is skipped, never fatal.
+// so parallel work counts once; each subagent is also measured on its own. Logs are only read, line
+// by line; nothing but numbers and model and agent identifiers leaves them, and a line that is not
+// understood is skipped, never fatal.
 import { createReadStream, type Dirent } from 'node:fs';
 import { open, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { modelPattern } from './statistics.ts';
+import { modelPattern, type MeasuredSubagent } from './statistics.ts';
 import type { TokenKinds } from './types.ts';
 
 export type Harness = 'claude-code' | 'codex';
@@ -27,6 +29,8 @@ export interface SessionMeasure {
   models: ModelMeasure[];
   /** The model that did most of the main agent's work in the interval, else the latest it used. */
   mainModel: string | null;
+  /** Each subagent that worked or spent tokens in the interval, most working time first. */
+  subagents: MeasuredSubagent[];
 }
 /** A session to measure; without a harness, both harnesses' logs are searched. */
 export interface SessionCandidate { harness: Harness | null; session: string }
@@ -36,7 +40,8 @@ export interface LogOptions {
   /** The home folder holding ~/.claude and ~/.codex when those are not set. */
   home?: string;
 }
-interface LogFile { file: string; modified: number; main: boolean }
+/** A log of the session: its own (agent null) or a subagent's, named by the subagent's identifier. */
+interface LogFile { file: string; modified: number; agent: string | null }
 export interface SessionLogs {
   /** The session measured: for a Codex subagent's thread, the root session it belongs to. */
   harness: Harness; session: string; files: LogFile[];
@@ -68,29 +73,35 @@ export function harnessSessions(environment: NodeJS.ProcessEnv = process.env): S
 }
 
 const entries = (folder: string): Promise<Dirent[]> => readdir(folder, { withFileTypes: true }).catch(() => []);
-async function logFile(file: string, main: boolean): Promise<LogFile | null> {
+async function logFile(file: string, agent: string | null): Promise<LogFile | null> {
   const info = await stat(file).catch(() => null);
-  return info?.isFile() ? { file, modified: info.mtimeMs, main } : null;
+  return info?.isFile() ? { file, modified: info.mtimeMs, agent } : null;
 }
 const present = <T>(values: (T | null)[]) => values.filter((value): value is T => value !== null);
 
-/** Claude Code: the session's log in any project folder, and its subagents' logs. Names match exactly. */
-async function claudeLogs(session: string, config: string): Promise<SessionLogs | null> {
-  const projects = path.join(config, 'projects');
+/** Claude Code: a project folder's log of the session and its subagents' logs. Names match exactly. */
+async function claudeFiles(folder: string, session: string): Promise<LogFile[]> {
   const found: Promise<LogFile | null>[] = [];
-  for (const project of await entries(projects)) {
-    if (!project.isDirectory()) continue;
-    const folder = path.join(projects, project.name);
-    for (const entry of await entries(folder)) {
-      if (entry.isFile() && entry.name === session + '.jsonl') found.push(logFile(path.join(folder, entry.name), true));
-      else if (entry.isDirectory() && entry.name === session) {
-        const subagents = path.join(folder, entry.name, 'subagents');
-        for (const helper of await entries(subagents)) if (helper.isFile() && /^agent-[A-Za-z0-9_-]+\.jsonl$/.test(helper.name)) found.push(logFile(path.join(subagents, helper.name), false));
+  for (const entry of await entries(folder)) {
+    if (entry.isFile() && entry.name === session + '.jsonl') found.push(logFile(path.join(folder, entry.name), null));
+    else if (entry.isDirectory() && entry.name === session) {
+      const subagents = path.join(folder, entry.name, 'subagents');
+      for (const helper of await entries(subagents)) {
+        const agent = helper.isFile() ? /^agent-([A-Za-z0-9_-]{1,64})\.jsonl$/.exec(helper.name)?.[1] : undefined;
+        if (agent) found.push(logFile(path.join(subagents, helper.name), agent));
       }
     }
   }
-  const files = present(await Promise.all(found));
-  return files.some(file => file.main) ? { harness: 'claude-code', session, files, others: [], requested: session } : null;
+  return present(await Promise.all(found));
+}
+const claudeSession = (session: string, files: LogFile[]): SessionLogs | null => files.some(file => file.agent === null) ? { harness: 'claude-code', session, files, others: [], requested: session } : null;
+
+/** Claude Code: the session's log in any project folder, and its subagents' logs. */
+async function claudeLogs(session: string, config: string): Promise<SessionLogs | null> {
+  const projects = path.join(config, 'projects');
+  const files: LogFile[] = [];
+  for (const project of await entries(projects)) if (project.isDirectory()) files.push(...await claudeFiles(path.join(projects, project.name), session));
+  return claudeSession(session, files);
 }
 
 /** rollout-<local time>-<thread>[_<part>].jsonl; a thread's later parts continue it. */
@@ -115,7 +126,7 @@ async function codexLogs(thread: string, home: string, resolve = true): Promise<
       if (!match) continue;
       const file = path.join(folder, entry.name);
       if (match[3] !== thread) { others.push({ file, day: match[2] }); continue; }
-      main.push(logFile(file, true));
+      main.push(logFile(file, null));
       if (match[2] < first) first = match[2];
       if (!earliest || match[1] < earliest.time) earliest = { file, time: match[1] };
     }
@@ -149,6 +160,29 @@ export async function sessionLogs(candidates: SessionCandidate[], options: LogOp
   return found.sort((a, b) => newest(b) - newest(a))[0] ?? null;
 }
 
+/**
+ * The logs of the session whose log a hook names (its transcript path), with the logs beside it: a
+ * Claude Code session's subagents (also when the path is a subagent's own log), or a Codex thread's
+ * other parts and helpers in the folders above it. Null when the file is neither harness's log.
+ */
+export async function transcriptLogs(transcript: string): Promise<SessionLogs | null> {
+  const file = path.resolve(transcript), name = path.basename(file);
+  let folder = path.dirname(file);
+  const rollout = rolloutName.exec(name);
+  if (rollout) {
+    // <home>/sessions/YYYY/MM/DD/ or <home>/archived_sessions/; elsewhere, the rollout alone.
+    const dated = folder.split(path.sep).slice(-4).join('/');
+    const home = path.basename(folder) === 'archived_sessions' ? path.dirname(folder) : /^sessions\/\d{4}\/\d{2}\/\d{2}$/.test(dated) ? path.resolve(folder, '..', '..', '..', '..') : null;
+    const logs = home && await codexLogs(rollout[3], home);
+    if (logs) return logs;
+    const own = await logFile(file, null);
+    return own && { harness: 'codex', session: rollout[3], files: [own], others: [], requested: rollout[3] };
+  }
+  let session = /^(.+)\.jsonl$/.exec(name)?.[1] ?? '';
+  if (path.basename(folder) === 'subagents' && session.startsWith('agent-')) { session = path.basename(path.dirname(folder)); folder = path.dirname(path.dirname(folder)); }
+  return sessionName.test(session) ? claudeSession(session, await claudeFiles(folder, session)) : null;
+}
+
 /** The start of a file: its first line, up to a limit (a Codex rollout's first line is ~25 KB). */
 async function firstLine(file: string, limit = 1 << 20): Promise<string | null> {
   const handle = await open(file, 'r').catch(() => null);
@@ -172,7 +206,7 @@ interface SessionMeta { type?: unknown; payload?: { id?: unknown; session_id?: u
 
 /** Codex subagents written to since `since`: threads whose first line names this one as their root or parent, at any depth. */
 async function codexHelpers(logs: SessionLogs, since: number): Promise<LogFile[]> {
-  const recent = present(await Promise.all(logs.others.map(file => logFile(file, false)))).filter(file => file.modified >= since);
+  const recent = present(await Promise.all(logs.others.map(file => logFile(file, null)))).filter(file => file.modified >= since);
   const threads = await Promise.all(recent.map(async file => {
     let meta: SessionMeta['payload'];
     try { const value = JSON.parse(await firstLine(file.file) ?? 'null') as SessionMeta | null; if (value?.type === 'session_meta') meta = value.payload; } catch { /* Not a rollout Atlas can read. */ }
@@ -185,7 +219,7 @@ async function codexHelpers(logs: SessionLogs, since: number): Promise<LogFile[]
     for (const thread of threads) {
       if (typeof thread.id !== 'string' || family.has(thread.id) || !(thread.root === logs.session || family.has(thread.parent))) continue;
       family.add(thread.id);
-      helpers.push(thread.file);
+      helpers.push({ ...thread.file, agent: thread.id });
       grown = true;
     }
   }
@@ -208,10 +242,10 @@ async function* lines(file: string): AsyncGenerator<string> {
   if (pending.length) yield Buffer.concat(pending).toString('utf8');
 }
 
-/** A busy stretch, credited to the model at work (null when unknown). */
-interface Segment { start: number; end: number; model: string | null; main: boolean }
+/** A busy stretch, credited to the model at work (null when unknown) and its agent (null for the session's own). */
+interface Segment { start: number; end: number; model: string | null; agent: string | null }
 /** Tokens spent at a moment: one response (Claude Code) or one increase of the running count (Codex). */
-interface Spend { at: number; model: string | null; tokens: TokenKinds }
+interface Spend { at: number; model: string | null; agent: string | null; tokens: TokenKinds }
 interface Timeline { segments: Segment[]; spends: Spend[]; latest: { at: number; model: string } | null; events: number }
 
 const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
@@ -291,7 +325,7 @@ async function claudeTimeline(files: LogFile[], at: number, live: boolean): Prom
       const usage = line.message?.usage, model = modelOf(line.message?.model);
       if (line.type !== 'assistant' || !model || !usage || typeof usage !== 'object') continue;
       const id = line.message?.id, key = typeof id === 'string' ? id : log.file + '#' + number;
-      responses.set(key, { at: Math.min(responses.get(key)?.at ?? event.at, event.at), model, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
+      responses.set(key, { at: Math.min(responses.get(key)?.at ?? event.at, event.at), model, agent: log.agent, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
     }
     timeline.events += events.length;
     events.sort((a, b) => a.at - b.at);
@@ -299,18 +333,18 @@ async function claudeTimeline(files: LogFile[], at: number, live: boolean): Prom
     let current: string | null = null;
     for (const event of events) {
       if (event.kind === 'prompt') { turn = { last: event.at, model: current }; continue; }
-      if (event.kind === 'compaction') { timeline.segments.push({ start: event.at - event.durationMs, end: event.at, model: turn?.model ?? current, main: log.main }); continue; }
+      if (event.kind === 'compaction') { timeline.segments.push({ start: event.at - event.durationMs, end: event.at, model: turn?.model ?? current, agent: log.agent }); continue; }
       turn ??= { last: event.at, model: current };
-      if (event.at > turn.last && !event.person) timeline.segments.push({ start: turn.last, end: event.at, model: event.model ?? turn.model, main: log.main });
+      if (event.at > turn.last && !event.person) timeline.segments.push({ start: turn.last, end: event.at, model: event.model ?? turn.model, agent: log.agent });
       turn.last = Math.max(turn.last, event.at);
       if (event.model) {
         turn.model = current = event.model;
-        if (log.main && event.at <= at && (!timeline.latest || event.at >= timeline.latest.at)) timeline.latest = { at: event.at, model: event.model };
+        if (log.agent === null && event.at <= at && (!timeline.latest || event.at >= timeline.latest.at)) timeline.latest = { at: event.at, model: event.model };
       }
       if (event.closes) turn = null;
     }
     const end = events.at(-1);
-    if (live && turn && end && at > turn.last && at - turn.last <= runOnLimit && !(end.kind === 'activity' && end.asks)) timeline.segments.push({ start: turn.last, end: at, model: turn.model, main: log.main });
+    if (live && turn && end && at > turn.last && at - turn.last <= runOnLimit && !(end.kind === 'activity' && end.asks)) timeline.segments.push({ start: turn.last, end: at, model: turn.model, agent: log.agent });
   }
   timeline.spends = [...responses.values()];
   return timeline;
@@ -344,7 +378,7 @@ const codexKinds = (step: CodexCount): TokenKinds => ({ input: Math.max(0, step.
  */
 async function codexTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
-  const newest = files.filter(file => file.main).sort((a, b) => b.modified - a.modified)[0];
+  const newest = files.filter(file => file.agent === null).sort((a, b) => b.modified - a.modified)[0];
   for (const log of files) {
     const models = new Map<string, string>();
     const asked = new Map<string, number>();
@@ -352,7 +386,7 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
     let current: string | null = null, last = Number.NaN, total: CodexCount | null = null, start = Number.NaN;
     let own = true;
     const finish = (turn: { turn: string; start: number }, end: number) => {
-      if (end > turn.start) timeline.segments.push({ start: turn.start, end, model: models.get(turn.turn) ?? current, main: log.main });
+      if (end > turn.start) timeline.segments.push({ start: turn.start, end, model: models.get(turn.turn) ?? current, agent: log.agent });
       return null;
     };
     for await (const text of lines(log.file)) {
@@ -382,7 +416,7 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
         if (!model) continue;
         if (typeof payload.turn_id === 'string') models.set(payload.turn_id, model);
         current = model;
-        if (log.main && moment <= at && (!timeline.latest || moment >= timeline.latest.at)) timeline.latest = { at: moment, model };
+        if (log.agent === null && moment <= at && (!timeline.latest || moment >= timeline.latest.at)) timeline.latest = { at: moment, model };
       } else if (payload.type === 'task_started' && typeof payload.turn_id === 'string') {
         if (typeof payload.started_at === 'number' && payload.started_at * 1000 < moment - replayed) continue;
         if (open) open = finish(open, last);
@@ -401,12 +435,12 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
         const step = total === null || running.input < total.input || running.output < total.output ? codexCount(payload.info?.last_token_usage)
           : { input: running.input - total.input, cached: Math.max(0, running.cached - total.cached), written: Math.max(0, running.written - total.written), output: running.output - total.output };
         total = running;
-        if (step && step.input + step.output > 0) timeline.spends.push({ at: moment, model: (open && models.get(open.turn)) ?? current, tokens: codexKinds(step) });
+        if (step && step.input + step.output > 0) timeline.spends.push({ at: moment, model: (open && models.get(open.turn)) ?? current, agent: log.agent, tokens: codexKinds(step) });
       }
       last = moment;
     }
     // A thread's earlier parts were left behind; a subagent's thread has one.
-    if (open) finish(open, live && (log === newest || !log.main) && at - last <= runOnLimit ? Math.max(at, last) : last);
+    if (open) finish(open, live && (log === newest || log.agent !== null) && at - last <= runOnLimit ? Math.max(at, last) : last);
   }
   return timeline;
 }
@@ -430,7 +464,7 @@ function covered(segments: Segment[], from: number, to: number) {
 export async function measureSession(logs: SessionLogs, interval: { since: number | null; at: number; live?: boolean }): Promise<SessionMeasure> {
   const { since, at } = interval;
   // Logs last written before the interval add nothing to it; the main log still names the model.
-  const files = logs.files.filter(file => file.main || (since !== null && file.modified >= since));
+  const files = logs.files.filter(file => file.agent === null || (since !== null && file.modified >= since));
   if (logs.harness === 'codex' && since !== null) files.push(...await codexHelpers(logs, since));
   const live = interval.live ?? false;
   const timeline = logs.harness === 'claude-code' ? await claudeTimeline(files, at, live) : await codexTimeline(files, at, live);
@@ -439,15 +473,23 @@ export async function measureSession(logs: SessionLogs, interval: { since: numbe
   const usage = new Map<string, ModelMeasure>();
   const entry = (model: string) => { let found = usage.get(model); if (!found) usage.set(model, found = { model, agentMs: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 }); return found; };
   const named = [...new Set(timeline.segments.map(segment => segment.model))].filter((model): model is string => model !== null);
-  const time = (model: string, main: boolean) => covered(timeline.segments.filter(segment => segment.model === model && (!main || segment.main)), from, at);
-  for (const model of named) { const agentMs = time(model, false); if (agentMs) entry(model).agentMs = agentMs; }
-  for (const spend of timeline.spends) {
-    if (spend.at <= from || spend.at > at || !spend.model) continue;
+  /** A model's busy time in the interval: all agents' (undefined), or one agent's (null for the session's own). */
+  const time = (model: string, agent?: string | null) => covered(timeline.segments.filter(segment => segment.model === model && (agent === undefined || segment.agent === agent)), from, at);
+  for (const model of named) { const agentMs = time(model); if (agentMs) entry(model).agentMs = agentMs; }
+  const tokens = (item: TokenKinds) => item.input + item.cacheRead + item.cacheWrite + item.output;
+  const spent = timeline.spends.filter(spend => spend.at > from && spend.at <= at);
+  for (const spend of spent) {
+    if (!spend.model) continue;
     const used = entry(spend.model);
     used.input += spend.tokens.input; used.cacheRead += spend.tokens.cacheRead; used.cacheWrite += spend.tokens.cacheWrite; used.output += spend.tokens.output;
   }
-  const tokens = (item: TokenKinds) => item.input + item.cacheRead + item.cacheWrite + item.output;
   const models = [...usage.values()].sort((a, b) => b.agentMs - a.agentMs || tokens(b) - tokens(a) || a.model.localeCompare(b.model));
-  const main = named.map(model => ({ model, agentMs: time(model, true) })).filter(item => item.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs)[0];
-  return { harness: logs.harness, session: logs.session, agentMs: covered(timeline.segments, from, at), models, mainModel: main?.model ?? timeline.latest?.model ?? null };
+  /** An agent's model: the one it worked with longest, else the one that spent its tokens. */
+  const busiest = (agent: string | null) => named.map(model => ({ model, agentMs: time(model, agent) })).filter(item => item.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs)[0]?.model;
+  const agents = new Set([...timeline.segments, ...spent].map(item => item.agent).filter((agent): agent is string => agent !== null));
+  const subagents = [...agents].map((id): MeasuredSubagent => {
+    const own = spent.filter(spend => spend.agent === id);
+    return { id, model: busiest(id) ?? own.find(spend => spend.model)?.model ?? null, agentMs: covered(timeline.segments.filter(segment => segment.agent === id), from, at), tokens: own.reduce((total, spend) => total + tokens(spend.tokens), 0) };
+  }).filter(agent => agent.agentMs > 0 || agent.tokens > 0).sort((a, b) => b.agentMs - a.agentMs || b.tokens - a.tokens || a.id.localeCompare(b.id));
+  return { harness: logs.harness, session: logs.session, agentMs: covered(timeline.segments, from, at), models, mainModel: busiest(null) ?? timeline.latest?.model ?? null, subagents };
 }
