@@ -1,12 +1,10 @@
-const { clone, documentViewerModel } = require("../document/document.cjs");
-const {
-  semantic,
-  baselineDocument,
-  compareDocuments,
-} = require("../document/comparison.cjs");
-const { prepareModel, assertRenderableProject } = require("./buildViewer.cjs");
+// Families: models laid out once together, each shown alone or compared with
+// its baseline. A family's members are entries (see prepareEntry): a model with
+// its views, snippets and semantic content, and a proposal's baseline entry.
+const { clone, fingerprint } = require("../document/document.cjs");
+const { semantic, compareModels } = require("../document/comparison.cjs");
+const { prepareModel } = require("./buildViewer.cjs");
 const { defaultNodeIds } = require("../layout/prepareViews.cjs");
-const { fingerprint } = require("../document/document.cjs");
 const { relationLabel, labelSize } = require("../layout/layoutDiagram.cjs");
 const { knownMultiplicity } = require("../layout/multiplicity.cjs");
 const keyOf = (e) => {
@@ -44,35 +42,55 @@ function changedMembers(before = [], after = [], statuses) {
   }
   return out;
 }
-// OntoUML keeps every element in one flat list, so each change's owner is the
-// project. For review, a property or literal belongs to the class or relation
-// that lists it: an attribute to its class, an association end to its relation.
-const refId = (value) =>
-  typeof value === "string" ? value : value?.id || null;
-// An association end also says which end it is: a relation lists its source
-// end first.
-function assignOwners(diff, ...projects) {
-  const owners = new Map();
-  for (const project of projects)
-    for (const element of project.elements || []) {
-      if (!["Class", "BinaryRelation"].includes(element.type)) continue;
-      const relation = element.type === "BinaryRelation";
-      for (const [i, item] of [
-        ...(element.properties || []),
-        ...(element.literals || []),
-      ].entries())
-        if (refId(item))
-          owners.set(refId(item), {
-            id: element.id,
-            ...(relation ? { end: i === 0 ? "source" : "target" } : {}),
-          });
-    }
-  for (const change of diff.changes) {
-    const owner = owners.get(change.elementId);
-    if (!owner) continue;
-    change.ownerId = owner.id;
-    if (owner.end) change.end = owner.end;
+// What a proposal changes against its baseline, element by element, with the
+// planning records its context links to each change.
+function compareEntries(baseline, entry) {
+  const result = compareModels(baseline.semantic, entry.semantic);
+  const context = entry.model.document?.context || { records: [], links: [] };
+  const records = new Map(context.records.map((r) => [r.id, r]));
+  const elements = new Map(
+    [
+      ...entry.model.classes,
+      ...entry.model.relations,
+      ...entry.model.generalizations,
+    ].map((e) => [e.id, e]),
+  );
+  const evidenceOf = (id) => {
+    const element = elements.get(id);
+    return element?.evidence?.length
+      ? {
+          evidence: element.evidence,
+          ...(element.primarySource
+            ? { primarySource: element.primarySource }
+            : {}),
+          ...(element.status ? { status: element.status } : {}),
+        }
+      : null;
+  };
+  for (const change of result.changes) {
+    // An element and its owner may link the same record; list it once.
+    change.rationale = [
+      ...new Set(
+        context.links
+          .filter((l) =>
+            [change.elementId, change.ownerId].includes(l.elementId),
+          )
+          .map((l) => l.recordId),
+      ),
+    ]
+      .map((id) => records.get(id))
+      .filter(Boolean);
+    change.evidence =
+      evidenceOf(change.elementId) || evidenceOf(change.ownerId) || null;
   }
+  return {
+    ...result,
+    baseRevision: baseline.revision,
+    proposedRevision: entry.revision,
+    missingRationale: result.changes
+      .filter((c) => c.elementId && !c.rationale.length)
+      .map((c) => c.elementId),
+  };
 }
 // A table lists its foreign keys (SQLite as `foreignKeys`, PostgreSQL as
 // constraints of type "f"), and those whose target was captured are its
@@ -211,16 +229,16 @@ function relabel(edge, relation) {
 // Classes outside every authored view appear in an extra all-elements view.
 // `classIds` are the baseline's and the proposal's classes; `routes` the laid
 // out routes they draw.
-function comparisonViews(document, baseline, classIds, before, after, routes) {
+function comparisonViews(entry, baseline, classIds, before, after, routes) {
   const ids = new Set(classIds);
   const all = {
     key: "comparison",
     label: "Model",
-    title: document.title,
+    title: entry.model.title,
     nodeIds: [...ids],
     mergeGeneralizations: false,
   };
-  const authored = document.views.length ? document.views : baseline.views;
+  const authored = entry.views.length ? entry.views : baseline.views;
   if (!authored?.length) return [all];
   const afterIds = new Set(after.classes.map((c) => c.id));
   const removed = before.classes
@@ -265,7 +283,7 @@ function comparisonViews(document, baseline, classIds, before, after, routes) {
     return {
       key: view.key,
       label: view.label,
-      title: view.title || document.title,
+      title: view.title || entry.model.title,
       nodeIds,
       ...(columns?.length
         ? { columns: unplaced.length ? [...columns, unplaced] : columns }
@@ -295,16 +313,16 @@ function comparisonViews(document, baseline, classIds, before, after, routes) {
 // its inheritance is drawn as separate arrows rather than joined: the shared
 // layout routes each member's generalizations alike.
 // `laidKey` names the laid out route a relation of the capture is drawn on.
-function captureViews(document, model, laidKey) {
+function captureViews(entry, model, laidKey) {
   const ids = new Set(model.classes.map((c) => c.id));
-  const views = document.views
+  const views = entry.views
     .map((view) => {
       const nodeIds = view.nodeIds.filter((id) => ids.has(id));
       const shown = new Set(nodeIds);
       return {
         key: view.key,
         label: view.label,
-        title: view.title || document.title,
+        title: view.title || entry.model.title,
         nodeIds,
         ...(view.columns ? { columns: view.columns } : {}),
         ...(view.focusIds?.length ? { focusIds: view.focusIds } : {}),
@@ -335,7 +353,7 @@ function captureViews(document, model, laidKey) {
         {
           key: "comparison",
           label: "Model",
-          title: document.title,
+          title: entry.model.title,
           nodeIds: defaultNodeIds(model),
           mergeGeneralizations: false,
         },
@@ -395,62 +413,58 @@ function mergeViews(lists, routes) {
     };
   });
 }
-// A family: a capture and the proposals over its snapshot. Its documents share
-// a baseline snapshot and a profile, and at least one of them is a proposal.
-// They take part by identity, so any order lays the family out alike.
-function familyMembers(documents) {
-  const sorted = [...documents].sort((a, b) =>
-    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+// A family: models laid out together, at least one of them compared with a
+// baseline. Its members are of one profile. They take part by key, so any
+// order lays the family out alike.
+function familyMembers(entries) {
+  const sorted = [...entries].sort((a, b) =>
+    a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
   );
-  const proposals = sorted.filter((d) => d.state === "proposal");
-  const captures = sorted.filter((d) => d.state !== "proposal");
-  const key = proposals[0]?.baselineId;
+  const proposals = sorted.filter((e) => e.baseline);
+  const captures = sorted.filter((e) => !e.baseline);
+  const profile = (e) => e.model.document?.profile;
   if (
-    !key ||
-    documents.some(
-      (d) =>
-        d.baselineId !== key ||
-        !["snapshot", "proposal"].includes(d.state) ||
-        d.profile !== proposals[0].profile,
+    !proposals.length ||
+    sorted.some(
+      (e) =>
+        profile(e) !== profile(proposals[0]) ||
+        (e.baseline && profile(e.baseline) !== profile(e)),
     )
   )
     throw new Error(
-      "FAMILY_INPUT: a family is a capture and the proposals over its snapshot",
+      "FAMILY_INPUT: a family is models of one kind, at least one compared with its baseline",
     );
-  return { key, proposals, captures };
+  return { proposals, captures };
 }
-async function layoutFamily({ documents, slug, includeArtifacts }) {
-  const { key, proposals, captures } = familyMembers(documents);
-  const reviews = proposals.map((document) => {
-    const baseline = baselineDocument(document),
-      before = documentViewerModel(baseline),
-      after = documentViewerModel(document);
-    if (document.profile === "ontouml") {
-      assertRenderableProject(baseline.model);
-      assertRenderableProject(document.model);
-    }
-    const diff = compareDocuments(baseline, document);
-    if (document.profile === "ontouml")
-      assignOwners(diff, baseline.model, document.model);
-    if (document.profile === "database") keepUnshownKeys(diff, before, after);
+async function layoutFamily({ entries, slug, includeArtifacts }) {
+  const { proposals, captures } = familyMembers(entries);
+  const profile = proposals[0].model.document?.profile;
+  const reviews = proposals.map((entry) => {
+    const baseline = entry.baseline,
+      before = clone(baseline.model),
+      after = clone(entry.model);
+    const diff = compareEntries(baseline, entry);
+    if (profile === "database") keepUnshownKeys(diff, before, after);
     for (const model of [before, after])
-      model.document.comparison = {
-        ...(model.document.comparison || {}),
-        changes: diff,
+      model.document = {
+        ...(model.document || {}),
+        comparison: { ...(model.document?.comparison || {}), changes: diff },
       };
     const statuses = new Map(diff.changes.map((c) => [c.elementId, c.kind]));
     for (const c of diff.changes)
       if (c.ownerId && c.ownerId !== "$model" && !statuses.has(c.ownerId))
         statuses.set(c.ownerId, "modified");
-    return { document, baseline, before, after, diff, statuses };
+    return { entry, baseline, before, after, diff, statuses };
   });
-  const captured = captures.map((document) => ({
-    document,
-    model: documentViewerModel(document),
-  }));
-  // Every member shares the baseline's model: its capture's, or else the copy
-  // its proposals retain.
-  const before = captured[0]?.model || reviews[0].before;
+  const captured = captures.map((entry) => ({ entry, model: entry.model }));
+  // The models members are compared with, and the members' own: the layout
+  // holds every version of each class and route.
+  const befores = [
+    ...captured.map((c) => c.model),
+    ...reviews
+      .filter((r) => !captures.includes(r.baseline))
+      .map((r) => r.before),
+  ];
   const afters = reviews.map((r) => r.after);
   // A relation is laid out once for every version that keeps its ends (a
   // proposal changed its name or a count in place): on the first proposal's
@@ -460,20 +474,20 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
   const groupOf = (e) =>
     JSON.stringify([e.originalId || e.id, "specificId" in e, ...ends(e)]);
   const representative = new Map();
-  for (const model of [...afters, before])
+  for (const model of [...afters, ...befores])
     for (const e of [...model.relations, ...model.generalizations])
       if (!representative.has(groupOf(e)))
         representative.set(groupOf(e), keyOf(e));
   const laidKey = (e) => representative.get(groupOf(e)) ?? keyOf(e);
   const routes = new Map();
   for (const e of [
-    ...before.relations,
+    ...befores.flatMap((before) => before.relations),
     ...afters.flatMap((after) => after.relations),
-    ...before.generalizations,
+    ...befores.flatMap((before) => before.generalizations),
     ...afters.flatMap((after) => after.generalizations),
   ])
     if (laidKey(e) === keyOf(e)) routes.set(keyOf(e), e);
-  const versions = [before, ...afters];
+  const versions = [...befores, ...afters];
   const union = {
     ...clone(afters[0]),
     classes: members(...versions.map((m) => m.classes)).map((c) => {
@@ -513,7 +527,7 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
       ].map(laidKey),
     );
     r.views = comparisonViews(
-      r.document,
+      r.entry,
       r.baseline,
       members(r.before.classes, r.after.classes).map((c) => c.id),
       r.before,
@@ -521,54 +535,45 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
       new Map([...routes].filter(([key]) => own.has(key))),
     );
   }
-  for (const c of captured)
-    c.views = captureViews(c.document, c.model, laidKey);
+  for (const c of captured) c.views = captureViews(c.entry, c.model, laidKey);
   const prepared = new Map();
   if (!union.classes.length) {
     for (const r of reviews) {
       const p = await prepareModel({
         model: r.after,
-        report: r.after.validation,
-        evidence: r.document.evidence,
-        project: r.document.model,
-        settings: undefined,
-        excerpts: r.document.snippets,
+        excerpts: r.entry.snippets,
+        learning: r.entry.learning,
+        source: r.entry.source,
         slug,
         includeArtifacts,
-        document: r.document,
       });
       p.payload.comparison = {
         baseline: { model: r.before, views: [], snippets: {} },
         changes: r.diff,
-        conflicts: r.document.comparison?.conflicts || [],
+        conflicts: [],
       };
-      prepared.set(r.document, p);
+      prepared.set(r.entry, p);
     }
     for (const c of captured)
       prepared.set(
-        c.document,
+        c.entry,
         await prepareModel({
           model: c.model,
-          report: c.model.validation,
-          evidence: c.document.evidence,
-          project: c.document.model,
-          settings: undefined,
-          excerpts: c.document.snippets,
+          excerpts: c.entry.snippets,
+          learning: c.entry.learning,
+          source: c.entry.source,
           slug,
           includeArtifacts,
-          document: c.document,
         }),
       );
-    return { key, members: documents.map((d) => prepared.get(d)) };
+    return { members: entries.map((e) => prepared.get(e)) };
   }
   // Shared union positions avoid camera/layout jumps. Relations remain separate
   // during comparison so changed endpoints and overlapping set membership are
   // unambiguous. Only the views' scenes are kept, so no excerpt is highlighted.
+  union.validation = clone(afters[0].validation);
   const shared = await prepareModel({
     model: union,
-    report: clone(afters[0].validation),
-    evidence: proposals[0].evidence,
-    project: proposals[0].model,
     settings: mergeViews(
       [...reviews.map((r) => r.views), ...captured.map((c) => c.views)],
       routes,
@@ -579,7 +584,7 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
   });
   // A member's state shows its own views of the shared layout, restricted to
   // its classes and routes; `statuses` marks a proposal's change view.
-  async function state(model, doc, views, statuses = null) {
+  async function state(model, entry, views, statuses = null) {
     const ownClasses = new Map(model.classes.map((c) => [c.id, c]));
     const ownRoutes = new Map(
       [...model.relations, ...model.generalizations].map((e) => [keyOf(e), e]),
@@ -637,6 +642,7 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
             sourceAggregation: own.sourceAggregation,
             targetAggregation: own.targetAggregation,
             targetMultiplicity: own.targetMultiplicity,
+            navigable: own.navigable,
             labels: relabel({ ...match, id: key }, own),
           });
       }
@@ -693,21 +699,19 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
       })
       .filter((view) => view.nodeIds.length);
     return prepareModel({
-      model,
-      report: clone(model.validation),
-      evidence: doc.evidence,
-      project: doc.model,
+      model: { ...model, validation: clone(model.validation) },
       settings: stateSettings.length ? stateSettings : undefined,
-      excerpts: doc.snippets,
+      excerpts: entry.snippets,
+      learning: entry.learning,
+      source: entry.source,
       slug,
       includeArtifacts,
-      document: doc,
       diagramProvider: provider,
     });
   }
   for (const r of reviews) {
-    const { document, before, after, diff, statuses } = r;
-    const proposed = await state(after, document, r.views),
+    const { entry, before, after, diff, statuses } = r;
+    const proposed = await state(after, entry, r.views),
       base = await state(before, r.baseline, r.views);
     const memberStatuses = new Map(
       diff.changes
@@ -796,7 +800,7 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
             changeStatus: "removed",
           });
         }
-    const changes = await state(changedModel, document, r.views, statuses);
+    const changes = await state(changedModel, entry, r.views, statuses);
     proposed.payload.comparison = {
       baseline: {
         model: base.model,
@@ -811,7 +815,7 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
         exports: changes.payload.exports,
       },
       changes: diff,
-      conflicts: document.comparison?.conflicts || [],
+      conflicts: [],
     };
     if (includeArtifacts) {
       for (const [name, content] of base.artifacts)
@@ -827,45 +831,68 @@ async function layoutFamily({ documents, slug, includeArtifacts }) {
             content,
           );
     }
-    prepared.set(document, proposed);
+    prepared.set(entry, proposed);
   }
   for (const c of captured)
-    prepared.set(c.document, await state(c.model, c.document, c.views));
-  return { key, members: documents.map((d) => prepared.get(d)) };
+    prepared.set(c.entry, await state(c.model, c.entry, c.views));
+  return { members: entries.map((e) => prepared.get(e)) };
 }
-async function prepareComparison({ document, slug, includeArtifacts }) {
+async function prepareComparison({ entry, slug, includeArtifacts }) {
   const { members } = await layoutFamily({
-    documents: [document],
+    entries: [entry],
     slug,
     includeArtifacts,
   });
   return members[0];
 }
 /**
- * Lays a family out once: a capture and every proposal over its snapshot (or
- * proposals alone, over the baseline they retain). Each member's state comes
- * from that one layout, so classes and routes keep their places from one
- * member to the next. Returns each document's prepared viewer in the order
- * given, with `payload.family` set to the baseline snapshot they share.
+ * Lays a family out once: models of one kind, each shown alone or compared
+ * with its baseline. Each member's state comes from that one layout, so
+ * classes and routes keep their places from one member to the next. Returns
+ * each entry's prepared viewer in the order given, with `payload.family` set
+ * to `key`.
+ */
+async function prepareEntries({
+  entries,
+  key,
+  slug = "model",
+  includeArtifacts = false,
+}) {
+  if (!/^[A-Za-z0-9_-]+$/.test(slug)) throw new Error("Invalid artifact slug");
+  const family = await layoutFamily({ entries, slug, includeArtifacts });
+  for (const member of family.members) member.payload.family = key;
+  return { key, members: family.members };
+}
+/**
+ * The legacy documents' family: a capture and the proposals over its
+ * snapshot, keyed by that snapshot.
  */
 async function prepareFamily({
   documents,
   slug = "model",
   includeArtifacts = false,
 } = {}) {
-  if (!/^[\w-]+$/.test(slug)) throw new Error("Invalid artifact slug");
-  const family = await layoutFamily({
-    documents: documents || [],
-    slug,
-    includeArtifacts,
-  });
-  for (const member of family.members) member.payload.family = family.key;
-  return family;
+  const { documentEntry } = require("../document/document.cjs");
+  const key = documents?.find((d) => d.state === "proposal")?.baselineId;
+  if (!key || documents.some((d) => familyKey(d) !== key))
+    throw new Error(
+      "FAMILY_INPUT: a family is a capture and the proposals over its snapshot",
+    );
+  const entries = documents.map(documentEntry);
+  // A capture in the family is the baseline its proposals compare with.
+  const capture = entries.find((e, i) => documents[i].state === "snapshot");
+  if (capture) for (const e of entries) if (e.baseline) e.baseline = capture;
+  return prepareEntries({ entries, key, slug, includeArtifacts });
 }
-/** The baseline snapshot a capture or a proposal shares with its family, or null. */
+/** The baseline snapshot a legacy capture or proposal shares with its family, or null. */
 function familyKey(document) {
   return ["snapshot", "proposal"].includes(document?.state)
     ? document.baselineId || null
     : null;
 }
-module.exports = { prepareComparison, prepareFamily, familyKey };
+module.exports = {
+  prepareComparison,
+  prepareEntries,
+  prepareFamily,
+  familyKey,
+};

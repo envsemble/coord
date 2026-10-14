@@ -185,7 +185,7 @@ function projectEvidence(
       line: startLine,
       title: `${node.name} declaration`,
       claim:
-        "Observed compiler declaration in captured source; no runtime or OntoUML interpretation.",
+        "Observed compiler declaration in captured source; no runtime interpretation.",
       ...(url ? { url } : {}),
     });
     evidence.elements[node.id] = {

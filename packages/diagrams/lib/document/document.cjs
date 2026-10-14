@@ -1,6 +1,5 @@
 const { createHash, randomUUID } = require("node:crypto");
 const Ajv = require("ajv/dist/2020");
-const { validateModel, toViewerModel } = require("../index.cjs");
 const schema = require("../../schemas/document-schema.json");
 const validator = new Ajv({ strict: false, allErrors: true }).compile(schema);
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -139,53 +138,23 @@ function validateDocument(document) {
       ),
     );
   let ids;
-  if (document.profile === "ontouml") {
-    if (
-      !Array.isArray(document.model.elements) ||
-      document.model.elements.some(
-        (e) => !e || typeof e !== "object" || Array.isArray(e),
-      )
-    )
-      return report([
-        issue(
-          "DOCUMENT_SCHEMA",
-          "OntoUML elements must be objects",
-          null,
-          "schema",
-        ),
-      ]);
-    const result = validateModel(document.model, document.evidence);
+  if (document.model.type !== "StructuralModel")
+    add(
+      "PROFILE_MODEL",
+      "Database/code profiles require StructuralModel",
+      null,
+      "schema",
+    );
+  else {
+    const result = graphIssues(document.model);
     issues.push(...result.issues);
-    if (
-      result.issues.some((i) => i.severity === "error" && i.layer === "schema")
-    )
-      return report(issues);
-    ids = new Set([
-      document.model.id,
-      ...(Array.isArray(document.model.elements)
-        ? document.model.elements
-        : []
-      ).map((e) => e.id),
-    ]);
-  } else {
-    if (document.model.type !== "StructuralModel")
-      add(
-        "PROFILE_MODEL",
-        "Database/code profiles require StructuralModel",
-        null,
-        "schema",
-      );
-    else {
-      const result = graphIssues(document.model);
-      issues.push(...result.issues);
-      ids = result.ids;
-      issues.push(
-        ...require("../validation/validateEvidence.cjs").validateEvidence(
-          { elements: [...ids].map((id) => ({ id })) },
-          document.evidence,
-        ),
-      );
-    }
+    ids = result.ids;
+    issues.push(
+      ...require("../validation/validateEvidence.cjs").validateEvidence(
+        { elements: [...ids].map((id) => ({ id })) },
+        document.evidence,
+      ),
+    );
   }
   for (const snapshot of document.snapshots) {
     if (
@@ -245,42 +214,17 @@ function validateDocument(document) {
         "integrity",
       );
   }
-  const nodeIds = new Set(
-    document.profile === "ontouml"
-      ? document.model.elements
-          .filter((e) => e.type === "Class")
-          .map((e) => e.id)
-      : document.model.nodes.map((n) => n.id),
-  );
-  const exchangeElements = new Map(
-    (document.profile === "ontouml" ? document.model.elements : []).map((e) => [
-      e.id,
-      e,
-    ]),
-  );
-  const edges =
-    document.profile === "ontouml"
-      ? document.model.elements
-          .filter((e) => ["BinaryRelation", "Generalization"].includes(e.type))
-          .map((e) => ({
-            id: e.id,
-            ends:
-              e.type === "Generalization"
-                ? [e.specific, e.general]
-                : (e.properties || []).map(
-                    (id) => exchangeElements.get(id)?.propertyType,
-                  ),
-          }))
-      : [
-          ...document.model.relations.map((e) => ({
-            id: e.id,
-            ends: [e.sourceId, e.targetId],
-          })),
-          ...document.model.generalizations.map((g) => ({
-            id: g.id,
-            ends: [g.specificId, g.generalId],
-          })),
-        ];
+  const nodeIds = new Set(document.model.nodes.map((n) => n.id));
+  const edges = [
+    ...document.model.relations.map((e) => ({
+      id: e.id,
+      ends: [e.sourceId, e.targetId],
+    })),
+    ...document.model.generalizations.map((g) => ({
+      id: g.id,
+      ends: [g.specificId, g.generalId],
+    })),
+  ];
   if (new Set(document.views.map((v) => v.key)).size !== document.views.length)
     add("VIEW_ID", "Repeated view key");
   for (const view of document.views) {
@@ -339,13 +283,7 @@ function validateDocument(document) {
       );
       continue;
     }
-    const targetIds =
-      snapshot.profile === "ontouml"
-        ? new Set([
-            snapshot.model.id,
-            ...snapshot.model.elements.map((e) => e.id),
-          ])
-        : graphIssues(snapshot.model).ids;
+    const targetIds = graphIssues(snapshot.model).ids;
     const recordIds = new Set(context.context.records.map((r) => r.id));
     if (
       recordIds.size !== context.context.records.length ||
@@ -374,12 +312,7 @@ function validateDocument(document) {
     const snapshot = document.snapshots.find(
       (s) => s.id === mapping.snapshotId,
     );
-    const targetIds =
-      snapshot?.profile === "ontouml"
-        ? new Set(snapshot.model.elements.map((e) => e.id))
-        : snapshot
-          ? graphIssues(snapshot.model).ids
-          : new Set();
+    const targetIds = snapshot ? graphIssues(snapshot.model).ids : new Set();
     if (!ids?.has(mapping.elementId) || !targetIds.has(mapping.targetElementId))
       add(
         "MAPPING_REFERENCE",
@@ -408,24 +341,22 @@ function report(issues) {
 }
 function assertDocument(document) {
   const result = validateDocument(document);
-  const blocking = result.issues.filter(
-    (i) => i.severity === "error" && i.layer !== "ontology",
-  );
+  const blocking = result.issues.filter((i) => i.severity === "error");
   if (blocking.length)
     throw new Error(blocking.map((i) => `${i.code}: ${i.message}`).join("\n"));
   return result;
 }
 function createDocument(input) {
-  if (!input || !(input.model || input.project))
-    throw new Error("DOCUMENT_INPUT: provide a model or OntoUML project");
-  const model = clone(input.model || input.project);
+  if (!input || !input.model)
+    throw new Error("DOCUMENT_INPUT: provide a structural model");
+  const model = clone(input.model);
   const document = {
     ...clone(input),
     format: "atlas/document",
     formatVersion: 1,
     id: input.id || `atlas-${randomUUID()}`,
     title: input.title || input.evidence?.title || "Atlas model",
-    profile: input.profile || "ontouml",
+    profile: input.profile,
     state: input.state || "authored",
     model,
     evidence: clone(input.evidence || {}),
@@ -442,7 +373,7 @@ function createDocument(input) {
       reason: input.reason || "Created model",
     },
   };
-  for (const field of ["project", "parentId", "createdAt", "reason"])
+  for (const field of ["parentId", "createdAt", "reason"])
     delete document[field];
   document.revision.id = fingerprint({
     ...document,
@@ -571,39 +502,35 @@ function createSnapshot({ profile, model, capture, id }) {
 }
 function documentViewerModel(document) {
   const validation = assertDocument(document);
-  let model;
-  if (document.profile === "ontouml")
-    model = toViewerModel(document.model, document.evidence);
-  else
-    model = {
-      id: document.id,
-      title: document.title,
-      version: document.revision.id.slice(0, 8),
-      date: document.revision.createdAt.slice(0, 10),
-      status: `${document.profile} ${document.state}`,
-      repositories: document.evidence.repositories || [],
-      sources: document.evidence.sources || [],
-      unknowns: document.evidence.unknowns || [],
-      constraints: document.model.constraints || [],
-      classes: document.model.nodes.map((n) => ({
-        description: "",
-        evidence: [],
-        ...n,
-        stereotype:
-          n.kind || (document.profile === "database" ? "table" : "class"),
-        attributes: n.attributes || [],
-        ...(document.evidence.elements?.[n.id] || {}),
-      })),
-      relations: document.model.relations.map((r) => ({
-        description: "",
-        evidence: [],
-        stereotype: "",
-        ...r,
-        ...(document.evidence.elements?.[r.id] || {}),
-      })),
-      generalizations: document.model.generalizations,
-      partitions: document.model.generalizationSets,
-    };
+  const model = {
+    id: document.id,
+    title: document.title,
+    version: document.revision.id.slice(0, 8),
+    date: document.revision.createdAt.slice(0, 10),
+    status: `${document.profile} ${document.state}`,
+    repositories: document.evidence.repositories || [],
+    sources: document.evidence.sources || [],
+    unknowns: document.evidence.unknowns || [],
+    constraints: document.model.constraints || [],
+    classes: document.model.nodes.map((n) => ({
+      description: "",
+      evidence: [],
+      ...n,
+      stereotype:
+        n.kind || (document.profile === "database" ? "table" : "class"),
+      attributes: n.attributes || [],
+      ...(document.evidence.elements?.[n.id] || {}),
+    })),
+    relations: document.model.relations.map((r) => ({
+      description: "",
+      evidence: [],
+      stereotype: "",
+      ...r,
+      ...(document.evidence.elements?.[r.id] || {}),
+    })),
+    generalizations: document.model.generalizations,
+    partitions: document.model.generalizationSets,
+  };
   model.title = document.title;
   model.validation = validation;
   model.document = {
@@ -620,8 +547,36 @@ function documentViewerModel(document) {
   };
   return model;
 }
+// What a document brings to the viewer, as a diagram file does (see
+// lib/plantuml/prepare.cjs): its model, views and snippets, and for a proposal
+// the baseline it compares with.
+function documentEntry(document) {
+  const model = documentViewerModel(document);
+  return {
+    key: document.id,
+    // A retained baseline is the revision it was copied from.
+    revision: document.sourceRevision || document.revision.id,
+    model,
+    semantic: document.model,
+    views: document.views,
+    snippets: document.snippets,
+    learning: require("../learning/scenarios.cjs").prepareLearning(
+      document,
+      model,
+    ),
+    source: {
+      suffix: "-structural.json",
+      text: JSON.stringify(document.model, null, 2),
+    },
+    baseline:
+      document.state === "proposal" && document.baselineId
+        ? documentEntry(require("./comparison.cjs").baselineDocument(document))
+        : null,
+  };
+}
 module.exports = {
   createDocument,
+  documentEntry,
   reviseDocument,
   relocateDocument,
   validateDocument,

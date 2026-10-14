@@ -1,19 +1,218 @@
-export { Project, serializationUtils } from "ontouml-js";
-export type LocalizedText = Record<string, string> | null;
-export interface ExchangeElement {
-  id: string;
+/**
+ * Diagrams are files in Atlas's subset of PlantUML: class, object and entity
+ * diagrams that PlantUML itself also renders. Anything outside the subset is a
+ * problem with its line and column, never skipped. Atlas lays diagrams out and
+ * styles them itself, so the subset has no layout or appearance syntax.
+ *
+ * Facts PlantUML cannot carry are `' atlas` comments, which PlantUML ignores:
+ *
+ * - `' atlas capture {json}`: the file is a capture, written by Atlas from
+ *   code or a database. The JSON is its {@link CaptureMetadata}: `capturedAt`,
+ *   `adapter` (id, version), `source` (kind, identity, scope), `coverage`
+ *   (status, diagnostics) and `limitations`.
+ * - `' atlas fingerprint <sha256>`: a capture's fingerprint, the SHA-256 of the
+ *   file without this line (LF line endings, no trailing newlines). A capture
+ *   is frozen: a capture whose text no longer matches it is reported as
+ *   edited. {@link formatDiagram} writes it.
+ * - `' atlas proposal <path>`: the file is a proposal starting from the
+ *   diagram at `path` (relative to this file), usually a capture. Several
+ *   proposals of one diagram are alternatives.
+ * - `' atlas compares <path>`: a capture that compares with an earlier
+ *   capture, to show a system before and after a plan's implementation.
+ * - `' atlas scenario <path> expected valid|invalid`: an object diagram of
+ *   example instances of the class diagram at `path`, assessed against it.
+ * - `' atlas evidence {json}` and `' atlas snippet {json}` directly above an
+ *   element, member or relation: where it is declared ({@link DiagramEvidence})
+ *   and a short excerpt of its source ({@link DiagramSnippet}).
+ *
+ * Identities come from names, so a proposal copied from a capture compares
+ * with it: an element is its PlantUML name (an alias for a quoted display
+ * name), a member `Element.name` (an operation `Element.name(parameters)`), a
+ * relation `relation:source:target[:label]` and inheritance
+ * `generalization:specific:general`.
+ */
+export interface Diagram {
+  kind: "class" | "object" | "entity";
+  title: string | null;
+  capture: CaptureMetadata | null;
+  fingerprint: string | null;
+  /** The baseline a proposal starts from, as written. */
+  proposal: string | null;
+  /** The earlier capture a capture compares with, as written. */
+  compares: string | null;
+  /** An object diagram's class diagram, as written, and its expected outcome. */
+  scenario: { of: string; expected: "valid" | "invalid" } | null;
+  elements: DiagramElement[];
+  relations: DiagramRelation[];
+}
+/** Where an element, member or relation is declared. */
+export interface DiagramEvidence {
+  file: string;
+  line?: number;
+  endLine?: number;
+  repo?: string;
+  commit?: string;
+  url?: string;
+  title?: string;
+  claim?: string;
+}
+/** A short excerpt of an element's source. */
+export interface DiagramSnippet {
+  language: string;
+  code: string;
+  startLine?: number;
+  file?: string;
+}
+interface DiagramAnnotated {
+  evidence?: DiagramEvidence;
+  snippet?: DiagramSnippet;
+  /** The line it was read from. */
+  line?: number;
+}
+export interface DiagramAttribute extends DiagramAnnotated {
+  name: string;
   type: string;
-  [field: string]: unknown;
+  /** A class attribute's `[0..1]`; null for none and for entity columns. */
+  multiplicity: string | null;
+  visibility: "+" | "-" | "#" | "~" | null;
+  /** An entity column's `*`. */
+  mandatory?: boolean;
+  /** An entity column's `<<PK>>` or `<<FK>>`. */
+  key?: "PK" | "FK" | null;
 }
-export interface ExchangeProject {
+export interface DiagramOperation extends DiagramAnnotated {
+  name: string;
+  /** The parameters as written between the parentheses. */
+  parameters: string;
+  returns: string | null;
+  visibility: "+" | "-" | "#" | "~" | null;
+}
+export interface DiagramElement extends DiagramAnnotated {
+  /** Its PlantUML name: the identity relations use. */
   id: string;
-  type: "Project";
-  root: string | null;
-  elements: ExchangeElement[];
-  name?: LocalizedText;
-  created?: string | null;
-  [field: string]: unknown;
+  /** Its display name, with type parameters (`Repository<T>`). An object's is `name : Class`. */
+  name: string;
+  kind: "class" | "abstract class" | "interface" | "enum" | "entity" | "object";
+  /** Its package's dotted name, or null. */
+  package: string | null;
+  attributes: DiagramAttribute[];
+  operations: DiagramOperation[];
+  /** An enum's literals. */
+  literals: ({ name: string } & DiagramAnnotated)[];
+  /** An object's slot values, as written. */
+  slots: { name: string; value: string; line?: number }[];
+  /** An object's classes, from its `name : Class` display name. */
+  classes?: string[];
 }
+/**
+ * A relation from its source to its target: the specific element to the
+ * general one for inheritance, the whole to the part for aggregation and
+ * composition, and as written otherwise. A crow's-foot `relationship` joins
+ * entities with counts at each end.
+ */
+export interface DiagramRelation extends DiagramAnnotated {
+  kind:
+    | "association"
+    | "aggregation"
+    | "composition"
+    | "dependency"
+    | "inheritance"
+    | "implementation"
+    | "link"
+    | "relationship";
+  source: string;
+  target: string;
+  sourceMultiplicity: string | null;
+  targetMultiplicity: string | null;
+  label: string | null;
+  /** An association or link drawn with an arrowhead at its target. */
+  navigable?: boolean;
+}
+/** A problem in a diagram file, at a line and column (1-based). */
+export interface DiagramProblem {
+  line: number;
+  column: number;
+  code: string;
+  message: string;
+  severity: "error" | "warning";
+  path?: string;
+}
+export interface DiagramFile {
+  /** Its path in the work folder, which references resolve against. */
+  path: string;
+  text: string;
+}
+/** A diagram file of a work folder, described without laying it out. */
+export interface DiagramSummary {
+  path: string;
+  title: string;
+  kind: Diagram["kind"] | null;
+  role: "diagram" | "capture" | "proposal" | "scenario";
+  profile: ModelProfile;
+  /** The diagram a proposal starts from, or the earlier capture a capture compares with, as a path in the folder. */
+  baseline: string | null;
+  /** The path of the diagram its family is laid out around (its first baseline); null for a diagram laid out alone. */
+  family: string | null;
+  capture: CaptureMetadata | null;
+  /** A scenario's class diagram, as a path in the folder. */
+  scenario: { of: string; expected: "valid" | "invalid" } | null;
+  problems: DiagramProblem[];
+  /** It has no errors, so it can be drawn. */
+  valid: boolean;
+}
+/**
+ * Reads a diagram. `problems` are the lines outside the subset and the
+ * `' atlas` comments it cannot read; `diagram` is null only when the file
+ * cannot be read at all.
+ */
+export function parseDiagram(
+  text: string,
+  options?: { path?: string },
+): { diagram: Diagram | null; problems: DiagramProblem[] };
+/**
+ * Every problem of a diagram: its syntax, its model rules (names resolve, no
+ * duplicates, valid multiplicities, no inheritance cycles, foreign keys name
+ * their tables) and its headers (a proposal's baseline exists and reads, a
+ * capture is not edited, a scenario holds against its class diagram).
+ * `read(reference)` returns the text of a file a header names, as the header
+ * writes it (relative to this file), or null when there is none.
+ */
+export function checkDiagram(
+  text: string,
+  options?: { path?: string; read?(reference: string): string | null },
+): DiagramProblem[];
+/** Writes a diagram in Atlas's canonical form; a capture gets its fingerprint. */
+export function formatDiagram(diagram: Diagram): string;
+/** A capture's fingerprint over its text. */
+export function diagramFingerprint(text: string): string;
+/** The viewer's model of a diagram, without layout. */
+export function diagramViewerModel(
+  diagram: Diagram,
+  options?: { id?: string; title?: string },
+): ViewerModel;
+/** Describes a work folder's diagrams: each file's role, problems, baseline and family. */
+export function describeDiagrams(files: DiagramFile[]): DiagramSummary[];
+/**
+ * Prepares a work folder's diagrams for the viewer: `paths` (by default every
+ * diagram without errors), each laid out with the rest of its family. A
+ * family is a diagram and everything compared with it, directly or through
+ * another member: its proposals, and a later capture with its own proposals.
+ * Members' payloads share `family` (the root's path) and switch in place in
+ * `AtlasPanel`. A proposal's or a comparing capture's payload carries
+ * `comparison`; a class diagram's carries the scenarios that exemplify it as
+ * `learning`. Families lay out together, so ask for every path that is shown.
+ */
+export function prepareDiagrams(input: {
+  files: DiagramFile[];
+  paths?: string[];
+  slug?: string;
+  includeArtifacts?: boolean;
+}): Promise<{
+  diagrams: DiagramSummary[];
+  prepared: Map<string, PreparedViewer>;
+}>;
+/** The folder path a reference written in the diagram at `from` names. */
+export function resolveReference(from: string, reference: string): string;
 export interface SourceRecord {
   id: string;
   file: string;
@@ -102,6 +301,8 @@ export interface ViewerAssociation extends ElementEvidence {
   targetMultiplicity: string;
   sourceAggregation?: string;
   targetAggregation?: string;
+  /** Drawn with an open arrowhead at its target. */
+  navigable?: boolean;
   description: string;
   evidence: string[];
   /** In a proposal's change view; a retained route of a removed or rerouted relation keeps its identity in `originalId`. */
@@ -140,17 +341,23 @@ export interface ViewerModel {
   constraints: string[][];
   unknowns: string[];
   validation?: ValidationReport;
+  /** Where the model comes from: a diagram file (`id` and `path` its path) or a legacy document. */
   document?: {
     id: string;
+    path?: string;
     profile: ModelProfile;
-    state: AtlasDocument["state"];
+    state: "authored" | "snapshot" | "proposal";
     revision: AtlasDocument["revision"];
+    /** What it is compared with: a proposal's baseline, a comparing capture's earlier capture, or its own capture. */
     baselineId: string | null;
-    snapshots: Omit<SourceSnapshot, "model">[];
+    /** A capture's own snapshot. */
+    captureId?: string;
+    snapshots: Omit<SourceSnapshot, "model" | "integrity" | "profile">[];
     context: PlanningContext;
     imported?: boolean;
-    comparison?: AtlasDocument["comparison"] & { changes?: SemanticComparison };
-    mappings?: AuthoredMapping[];
+    comparison?:
+      | (AtlasDocument["comparison"] & { changes?: SemanticComparison })
+      | null;
   };
 }
 export interface ViewSettings {
@@ -201,6 +408,7 @@ export interface DiagramEdge {
   targetMultiplicity?: string;
   sourceAggregation?: string;
   targetAggregation?: string;
+  navigable?: boolean;
   paths: string[];
   branchPaths?: string[];
   labels: DiagramLabel[];
@@ -280,16 +488,17 @@ export interface ViewerPayload {
       "model" | "views" | "snippets" | "exports"
     >;
     changes: SemanticComparison;
-    conflicts: MergeConflict[];
+    /** Always empty: merging went with the model tools. */
+    conflicts: never[];
   } | null;
   /**
-   * Set on the payloads `prepareFamily` lays out together: the baseline
-   * snapshot a capture and its proposals share. Viewers switch among the
-   * payloads of one family in place, keeping the camera and the selection.
+   * Set on the payloads laid out together (`prepareDiagrams`, or
+   * `prepareFamily` for legacy documents). Viewers switch among the payloads
+   * of one family in place, keeping the camera and the selection.
    */
   family?: string;
 }
-/** A capture and its proposals, laid out once: each document's prepared viewer, in the order given. */
+/** A legacy capture and its proposals, laid out once: each document's prepared viewer, in the order given. */
 export interface PreparedFamily {
   /** The baseline snapshot the members share; each payload's `family`. */
   key: string;
@@ -305,36 +514,8 @@ export interface PreparedViewer {
 export interface BuildResult extends PreparedViewer {
   html: string;
 }
-export function validateProject(project: unknown): ValidationReport;
-export function validateEvidence(
-  project: ExchangeProject,
-  evidence?: ModelEvidence,
-): ValidationIssue[];
-export function validateModel(
-  project: unknown,
-  evidence?: ModelEvidence,
-): ValidationReport;
-export function toViewerModel(
-  project: ExchangeProject,
-  evidence?: ModelEvidence,
-): ViewerModel;
-export function mergeProjects(
-  inputs: { key: string; project: ExchangeProject }[],
-  options?: { id?: string; name?: string },
-): ExchangeProject;
-export interface ViewerBuildOptions {
-  includeArtifacts?: boolean;
-  evidence?: ModelEvidence;
-  views?: ViewSettings[];
-  snippets?: Record<string, SourceExcerpt>;
-  slug?: string;
-}
-export type ViewerBuildInput = ViewerBuildOptions &
-  (
-    | { project: ExchangeProject; document?: AtlasDocument }
-    | { document: AtlasDocument; project?: ExchangeProject }
-  );
-export type ModelProfile = "ontouml" | "database" | "code";
+/** What a model is: a class diagram, a capture of code (and its proposals), an entity diagram or an object diagram. */
+export type ModelProfile = "class" | "code" | "database" | "object";
 export interface StructuralNode {
   id: string;
   name: string;
@@ -386,8 +567,8 @@ export interface CaptureMetadata {
 }
 export interface SourceSnapshot {
   id: string;
-  profile: ModelProfile;
-  model: ExchangeProject | StructuralModel;
+  profile: AtlasDocument["profile"];
+  model: StructuralModel;
   capture: CaptureMetadata;
   integrity: string;
 }
@@ -407,9 +588,9 @@ export interface AtlasDocument {
   formatVersion: 1;
   id: string;
   title: string;
-  profile: ModelProfile;
+  profile: "database" | "code";
   state: "authored" | "snapshot" | "proposal";
-  model: ExchangeProject | StructuralModel;
+  model: StructuralModel;
   evidence: ModelEvidence;
   views: ViewSettings[];
   snippets: Record<string, SourceExcerpt>;
@@ -417,13 +598,10 @@ export interface AtlasDocument {
   snapshots: SourceSnapshot[];
   baselineId: string | null;
   imported?: boolean;
-  mappings?: AuthoredMapping[];
   comparison?: {
     originDocumentId?: string;
     ancestorRevision?: string;
     ancestorRevisions?: string[];
-    parents?: string[];
-    conflicts?: MergeConflict[];
     [key: string]: unknown;
   };
   workId?: string;
@@ -440,10 +618,9 @@ export type CreateDocumentInput = Partial<
   parentId?: string;
   createdAt?: string;
   reason?: string;
-} & (
-    | { model: ExchangeProject | StructuralModel; project?: ExchangeProject }
-    | { project: ExchangeProject; model?: ExchangeProject | StructuralModel }
-  );
+  model: StructuralModel;
+  profile: AtlasDocument["profile"];
+};
 export function createDocument(input: CreateDocumentInput): AtlasDocument;
 export function reviseDocument(
   document: AtlasDocument,
@@ -478,8 +655,8 @@ export function relocateDocument(
 ): AtlasDocument;
 export function validateDocument(document: unknown): ValidationReport;
 export function createSnapshot(input: {
-  profile: ModelProfile;
-  model: ExchangeProject | StructuralModel;
+  profile: AtlasDocument["profile"];
+  model: StructuralModel;
   capture: CaptureMetadata;
   id?: string;
 }): SourceSnapshot;
@@ -487,36 +664,12 @@ export function documentViewerModel(document: AtlasDocument): ViewerModel;
 export function importDocument(input: string | Uint8Array): AtlasDocument;
 export interface AtlasToolArguments {
   atlas_scenarios: { handle: string; offset?: number; limit?: number };
-  atlas_map: {
-    handle: string;
-    targetHandle: string;
-    expectedRevision: string;
-    id: string;
-    elementId: string;
-    targetElementId: string;
-    reason: string;
-  };
   atlas_proposal: { handle: string; title?: string };
   atlas_compare: {
     handle: string;
     baseHandle?: string;
     offset?: number;
     limit?: number;
-  };
-  atlas_merge: {
-    ancestorHandle: string;
-    leftHandle: string;
-    rightHandle: string;
-  };
-  atlas_resolve_merge: {
-    handle: string;
-    expectedRevision: string;
-    choices: { conflictId: string; choice: "left" | "right" | "base" }[];
-  };
-  atlas_adopt_snapshot: {
-    handle: string;
-    capturedHandle: string;
-    expectedRevision: string;
   };
   atlas_capture_code: { file: string; workId?: string };
   atlas_capture_database: { file: string; workId?: string };
@@ -596,12 +749,8 @@ export interface AtlasToolResults {
       expected: Scenario["expected"];
     })[];
   };
-  atlas_map: AtlasModelSummary;
   atlas_proposal: AtlasModelSummary;
   atlas_compare: SemanticComparison & { total: number; offset: number };
-  atlas_merge: AtlasModelSummary;
-  atlas_resolve_merge: AtlasModelSummary;
-  atlas_adopt_snapshot: AtlasModelSummary;
   atlas_capture_code: AtlasModelSummary;
   atlas_capture_database: AtlasModelSummary;
   atlas_create: AtlasModelSummary;
@@ -704,25 +853,6 @@ export interface SemanticComparison {
   proposedRevision?: string;
   missingRationale?: string[];
 }
-export interface MergeConflict {
-  id: string;
-  path: string[];
-  base: ValueCell;
-  left: ValueCell;
-  right: ValueCell;
-  reason: string;
-}
-export interface AuthoredMapping {
-  id: string;
-  kind: "authored";
-  elementId: string;
-  snapshotId: string;
-  targetElementId: string;
-  reason: string;
-  targetProfile?: ModelProfile;
-  targetTitle?: string;
-  sourceRevision?: string;
-}
 export function compareModels(
   base: unknown,
   proposed: unknown,
@@ -734,33 +864,6 @@ export function compareDocuments(
 export function createProposal(
   base: AtlasDocument,
   options?: { id?: string; title?: string; reason?: string },
-): AtlasDocument;
-export function mergeDocuments(
-  ancestor: AtlasDocument,
-  left: AtlasDocument,
-  right: AtlasDocument,
-  options?: { id?: string; reason?: string },
-): AtlasDocument;
-export function resolveMerge(
-  document: AtlasDocument,
-  choices: { conflictId: string; choice: "left" | "right" | "base" }[],
-  expectedRevision?: string,
-): AtlasDocument;
-export function adoptSnapshot(
-  document: AtlasDocument,
-  captured: AtlasDocument,
-  expectedRevision?: string,
-): AtlasDocument;
-export function linkMapping(
-  document: AtlasDocument,
-  target: AtlasDocument,
-  mapping: {
-    id: string;
-    elementId: string;
-    targetElementId: string;
-    reason: string;
-  },
-  expectedRevision?: string,
 ): AtlasDocument;
 export interface CodeCaptureProject {
   identity: string;
@@ -814,7 +917,12 @@ export const toolDefinitions: {
   description: string;
   inputSchema: Record<string, unknown>;
 }[];
-export function prepareViewer(input: ViewerBuildInput): Promise<PreparedViewer>;
+/** A legacy document's viewer. Diagram files are prepared by {@link prepareDiagrams}. */
+export function prepareViewer(input: {
+  document: AtlasDocument;
+  includeArtifacts?: boolean;
+  slug?: string;
+}): Promise<PreparedViewer>;
 /**
  * Lays out a capture and the proposals over its snapshot (`familyKey`) once,
  * so each member's classes and routes keep their places from one member to
@@ -828,7 +936,16 @@ export function prepareFamily(input: {
 }): Promise<PreparedFamily>;
 /** The baseline snapshot a capture or a proposal shares with its family; null for other documents. */
 export function familyKey(document: AtlasDocument): string | null;
-export function buildViewer(input: ViewerBuildInput): Promise<BuildResult>;
+/**
+ * An offline viewer in one HTML file: a viewer `prepared` with its artifacts
+ * by {@link prepareDiagrams}, carrying the diagram `file` it shows; or a
+ * legacy document.
+ */
+export function buildViewer(
+  input:
+    | { prepared: PreparedViewer; file?: DiagramFile }
+    | { document: AtlasDocument; slug?: string },
+): Promise<BuildResult>;
 export function writeViewer(result: BuildResult, outputPath: string): void;
 export type ReviewRevision =
   | { file: string }
@@ -904,24 +1021,3 @@ export function writeReview(
   outputDirectory: string;
   files: string[];
 }>;
-export interface ModelingJob {
-  formatVersion: 1;
-  title: string;
-  question: string;
-  projects: { path: string; commit: string | null }[];
-  model: string;
-  evidence: string;
-  views: string;
-  snippets: string;
-  slug?: string;
-}
-export function createModelingJob(input: {
-  projects: string[];
-  question: string;
-  title?: string;
-  outputPath: string;
-}): { job: ModelingJob; path: string; prompt: string };
-export function buildModelingJob(
-  jobPath: string,
-  outputPath: string,
-): Promise<BuildResult>;
