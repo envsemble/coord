@@ -33,7 +33,7 @@ import { overviewByDefault, useChangeReview } from "../review/useChangeReview";
 
 // A proposal shows its change view, its review data travelling as an extra
 // prop, and the provenance of the proposal itself.
-export function OntoUMLViewer(props) {
+export function DiagramViewer(props) {
   const { payload, review, provenanceDocument } = reviewedPayload(props);
   if (!payload.views.length)
     return (
@@ -104,8 +104,7 @@ function ViewerContent({
   const theme = preference?.theme || ambientTheme;
   const [selected, setSelected] = useState(null);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [learningOpen, setLearningOpen] = useState(false),
-    [learningTab, setLearningTab] = useState(null);
+  const [learningOpen, setLearningOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [overview, setOverview] = useState(overviewByDefault);
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
@@ -250,7 +249,6 @@ function ViewerContent({
     if (sidebarOpen && selected?.kind === "node")
       cameraRef.current?.revealNode(selected.id);
   }, [sidebarOpen, settledWidth]);
-  const conceptual = !model.document || model.document.profile === "ontouml";
   // Learning findings can point at relations and sets as well as classes.
   const inspectLearning = (id) => {
     if (index.nodes.has(id)) return choose(id);
@@ -275,7 +273,7 @@ function ViewerContent({
         density={density}
         reviewControls={changes?.controls(sidebarOpen && showOverview)}
         provenance={provenanceDocument}
-        guided={conceptual || !!guide}
+        guided={!!guide}
         {...{
           model,
           views,
@@ -373,17 +371,10 @@ function ViewerContent({
             views={views}
             snippets={snippets}
             guide={guide}
-            conceptual={conceptual}
             changes={changes}
             showOverview={showOverview}
-            learningTab={learningTab}
-            onLearningTab={setLearningTab}
             onChoose={choose}
             onInspectLearning={inspectLearning}
-            onView={(key) => {
-              setViewKey(key);
-              setFocusRequest(null);
-            }}
           />
         )}
       </Panel>

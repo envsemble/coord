@@ -1,5 +1,5 @@
 import { forwardRef, useMemo } from "react";
-import { Button, Counter, Text, ThemeToggle, Tooltip } from "@envsemble/envui";
+import { Text, ThemeToggle } from "@envsemble/envui";
 import { ToolButton } from "../ui/Button";
 import { CameraControls } from "../ui/CameraControls";
 import { ConceptSearch } from "../ui/ConceptSearch";
@@ -28,10 +28,12 @@ export function exportChoices({
   fields,
   theme,
   diagramURL,
-  conceptual,
+  diagram = true,
 }) {
-  const modelFile = `${exports.slug}-${conceptual ? "ontouml" : "structural"}.json`;
-  const plantUML = `${exports.slug}-${viewKey}.puml`;
+  // A diagram file's PlantUML, or a legacy document's structural JSON.
+  const sourceFile = diagram
+    ? `${exports.slug}.puml`
+    : `${exports.slug}-structural.json`;
   return [
     {
       key: "svg-download",
@@ -45,25 +47,27 @@ export function exportChoices({
           `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
         ),
     },
-    {
-      key: "puml-download",
-      label: "PlantUML",
-      description: "This view as PlantUML source",
-      icon: <CodeIcon />,
-      onSelect: () => downloadData(exports.readText(plantUML), plantUML),
-    },
-    {
-      key: "model-download",
-      label: conceptual ? "OntoUML JSON" : "Structural JSON",
-      description: "The whole model",
-      icon: <JSONIcon />,
-      onSelect: () =>
-        downloadData(
-          exports.readText(modelFile),
-          modelFile,
-          "application/json",
-        ),
-    },
+    diagram
+      ? {
+          key: "source-download",
+          label: "PlantUML",
+          description: "The diagram's source",
+          icon: <CodeIcon />,
+          onSelect: () =>
+            downloadData(exports.readText(sourceFile), sourceFile),
+        }
+      : {
+          key: "source-download",
+          label: "Structural JSON",
+          description: "The whole model",
+          icon: <JSONIcon />,
+          onSelect: () =>
+            downloadData(
+              exports.readText(sourceFile),
+              sourceFile,
+              "application/json",
+            ),
+        },
     {
       key: "bundle-download",
       label: "Models ZIP",
@@ -99,7 +103,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     aboutOpen,
     reviewControls,
     provenance,
-    guided = true,
+    guided = false,
     density = 0,
     themeToggle = false,
     onSidebar,
@@ -114,12 +118,10 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
   },
   ref,
 ) {
-  const conceptual = !model.document || model.document.profile === "ontouml";
   const searchClasses = useMemo(() => {
     const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
     return model.classes.filter((concept) => visibleIds.has(concept.id));
   }, [model.classes, views]);
-  const findings = model.validation.counts.error;
   const origin = describeProvenance(provenance);
   return (
     <header
@@ -173,33 +175,15 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
           compact={density > 2}
         />
         <IslandDivider />
-        {guided &&
-          (conceptual && findings > 0 ? (
-            <Tooltip content="Understand the model" side="bottom">
-              <Button
-                id="learn-toggle"
-                variant={learningOpen && sidebarOpen ? "primary" : "secondary"}
-                className="learn-toggle"
-                aria-pressed={learningOpen && sidebarOpen}
-                aria-label={`Understand the model; ${findings} ${findings === 1 ? "finding" : "findings"}`}
-                startIcon={<LearnIcon />}
-                onClick={onLearn}
-              >
-                <Counter
-                  value={findings}
-                  tone={learningOpen && sidebarOpen ? "accent" : "neutral"}
-                />
-              </Button>
-            </Tooltip>
-          ) : (
-            <ToolButton
-              id="learn-toggle"
-              label="Understand the model"
-              pressed={learningOpen && sidebarOpen}
-              icon={<LearnIcon />}
-              onClick={onLearn}
-            />
-          ))}
+        {guided && (
+          <ToolButton
+            id="learn-toggle"
+            label="Understand the model"
+            pressed={learningOpen && sidebarOpen}
+            icon={<LearnIcon />}
+            onClick={onLearn}
+          />
+        )}
         <ToolButton
           id="sidebar-toggle"
           label={sidebarHidden ? "Show details" : "Hide details"}
@@ -217,7 +201,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
             fields,
             theme,
             diagramURL,
-            conceptual,
+            diagram: !!model.document?.path,
           })}
         />
         <ToolButton

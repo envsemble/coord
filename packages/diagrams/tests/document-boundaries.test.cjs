@@ -5,7 +5,6 @@ const {
   reviseDocument,
   validateDocument,
   prepareViewer,
-  Project,
 } = require("../lib/index.cjs");
 const model = () => ({
   type: "StructuralModel",
@@ -21,13 +20,11 @@ const model = () => ({
   generalizationSets: [],
 });
 const copy = (v) => JSON.parse(JSON.stringify(v));
-test("malformed OntoUML input becomes a finding instead of crashing", () => {
-  const document = createDocument({
-    project: JSON.parse(JSON.stringify(new Project())),
-  });
-  for (const elements of [[null], {}, null, ["invalid"]]) {
+test("malformed structural input becomes a finding instead of crashing", () => {
+  const document = createDocument({ profile: "code", model: model() });
+  for (const nodes of [[null], {}, null, ["invalid"]]) {
     const invalid = copy(document);
-    invalid.model.elements = elements;
+    invalid.model.nodes = nodes;
     assert.equal(validateDocument(invalid).valid, false);
   }
 });

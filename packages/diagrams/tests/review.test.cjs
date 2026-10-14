@@ -5,8 +5,51 @@ const fs = require("node:fs"),
   os = require("node:os"),
   { execFileSync, spawnSync } = require("node:child_process");
 const atlas = require("../lib/index.cjs"),
-  { createEnrollmentDocument } = require("../examples/enrollment/learning.cjs"),
   { hash } = require("../lib/review/review.cjs");
+// An enrollment needs its learner; the example without one is expected to be
+// invalid.
+function createEnrollmentDocument() {
+  return atlas.createDocument({
+    id: "enrollment-learning",
+    title: "Enrollment",
+    profile: "code",
+    createdAt: "2026-10-08T00:00:00.000Z",
+    model: {
+      type: "StructuralModel",
+      nodes: [
+        { id: "person", name: "Person", kind: "class", attributes: [] },
+        { id: "enrollment", name: "Enrollment", kind: "class", attributes: [] },
+        { id: "active", name: "Active", kind: "class", attributes: [] },
+      ],
+      relations: [
+        {
+          id: "learner",
+          name: "learner",
+          sourceId: "enrollment",
+          targetId: "person",
+          sourceMultiplicity: "0..*",
+          targetMultiplicity: "1",
+        },
+      ],
+      generalizations: [
+        { id: "g-active", specificId: "active", generalId: "enrollment" },
+      ],
+      generalizationSets: [],
+    },
+    learning: {
+      walkthroughs: [],
+      scenarios: [
+        {
+          id: "orphan",
+          title: "An enrollment without a learner",
+          expected: "invalid",
+          instances: [{ id: "e1", classIds: ["active"] }],
+          links: [],
+        },
+      ],
+    },
+  });
+}
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-review-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -28,7 +71,7 @@ test("Explicit Git model revisions produce reproducible labelled review artifact
   git("commit", "-qm", "Base");
   const baseRef = git("rev-parse", "HEAD").trim(),
     model = structuredClone(base.model);
-  model.elements.find((e) => e.id === "active").name = "In progress";
+  model.nodes.find((e) => e.id === "active").name = "In progress";
   const head = atlas.reviseDocument(base, { model });
   fs.writeFileSync(path.join(root, "model.json"), JSON.stringify(head));
   git("add", ".");
@@ -44,10 +87,10 @@ test("Explicit Git model revisions produce reproducible labelled review artifact
   assert.deepEqual(first.files, second.files);
   assert.equal(first.report.base.commit, baseRef);
   assert.deepEqual(
-    JSON.parse(first.files.get("base.atlas.json")).model.elements.find(
+    JSON.parse(first.files.get("base.atlas.json")).model.nodes.find(
       (e) => e.id === "active",
     ).name,
-    base.model.elements.find((e) => e.id === "active").name,
+    base.model.nodes.find((e) => e.id === "active").name,
   );
   assert.equal(first.report.head.commit, headRef);
   assert.equal(first.report.changes.counts.modified, 1);
@@ -72,7 +115,7 @@ test("Explicit Git model revisions produce reproducible labelled review artifact
     /REVIEW_PATH/,
   );
 });
-test("Evidence review detects changed, missing and stale pins without changing conceptual content", async (t) => {
+test("Evidence review detects changed, missing and stale pins without changing the model", async (t) => {
   const { root, git } = fixture(t);
   fs.writeFileSync(path.join(root, "class.ts"), "export class Student {}\n");
   fs.writeFileSync(path.join(root, "gone.ts"), "old\n");
@@ -141,7 +184,7 @@ test("Evidence review detects changed, missing and stale pins without changing c
   assert.equal(stale.evidence.checks[0].status, "stale");
   assert.equal(JSON.stringify(withEvidence), original);
 });
-test("Review CLI distinguishes malformed input from valid ontology/scenario findings", async (t) => {
+test("Review CLI distinguishes malformed input from valid scenario findings", async (t) => {
   const { root } = fixture(t),
     base = createEnrollmentDocument(),
     input = path.join(root, "request.json"),

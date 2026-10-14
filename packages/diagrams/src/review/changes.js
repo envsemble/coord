@@ -20,7 +20,7 @@ const MAX_VALUE = 160;
 const MAX_INLINE = 40;
 
 // Names that only repeat what a relation is: every captured type use has the
-// first, and OntoUML gives the second to relations without a name.
+// first, and some relations are named only the second.
 const GENERIC_RELATION_NAMES = new Set(["declared type use", "association"]);
 
 /** Whether a relation's name says more than its kind. */
@@ -72,13 +72,7 @@ export function nameIndex(...models) {
   return names;
 }
 
-/** A text: a string, or the first text of a multilingual OntoUML value. */
-const textOf = (value) =>
-  typeof value === "string"
-    ? value
-    : value && typeof value === "object" && !Array.isArray(value)
-      ? (Object.values(value).find((v) => typeof v === "string") ?? null)
-      : null;
+const textOf = (value) => (typeof value === "string" ? value : null);
 
 // A part of a table: a key, an index, a constraint or trigger (each named),
 // or a foreign key (its columns and the table they refer to).
@@ -208,9 +202,6 @@ export function readable(value, names = new Map()) {
   if (typeof value === "object") {
     // A part of a table (a key, an index, a trigger), with what it holds.
     if (isPart(value)) return describePart(value);
-    // Multilingual OntoUML names and descriptions.
-    const text = Object.values(value).find((v) => typeof v === "string");
-    if (text !== undefined && Object.keys(value).length <= 3) return text;
   }
   const text = JSON.stringify(value, (key, v) =>
     v && typeof v === "object" && typeof v.$element === "string"
@@ -225,9 +216,6 @@ export const shorten = (text, limit = MAX_VALUE) =>
   text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 
 // Lists that hold elements: each element's own change tells what changed.
-// Structural models and OntoUML's project list nested elements; OntoUML's
-// packages, classes and relations list their contents, attributes, literals
-// and ends by identity.
 const CONTAINER_KEYS = new Set(["contents", "properties", "literals"]);
 // Member lists and package contents: an item that moves between two of them
 // keeps its identity and may change nothing of its own, so only the lists
@@ -460,21 +448,10 @@ function drawn(views) {
   return { nodes, edges };
 }
 
-// OntoUML attributes and literals: `type` names the element's own type, and
-// an attribute's type is the class its `propertyType` refers to ("?" without
-// one, as the diagram shows it).
-const ONTOUML_MEMBERS = new Set(["Property", "Literal"]);
-function typeOf(data, names) {
-  if (data.type === "Literal") return undefined;
-  if (data.type === "Property")
-    return data.propertyType ? readable(data.propertyType, names) : "?";
-  return typeof data.type === "string" ? data.type : undefined;
-}
 function memberFromChange(change, names) {
   const data = change.after || change.before || {};
-  const type = typeOf(data, names);
+  const type = typeof data.type === "string" ? data.type : undefined;
   const method =
-    !ONTOUML_MEMBERS.has(data.type) &&
     typeof type === "string" &&
     (/^[^:]*\(/.test(type) || /:method%3A/.test(change.elementId || ""));
   return {
@@ -484,16 +461,9 @@ function memberFromChange(change, names) {
   };
 }
 
-// The model's own record (a structural model's root, an OntoUML project) and
-// OntoUML packages: what they list is told by each element, but their other
-// properties (constraints, a name) are changes of their own.
-const modelLevelType = (change, ontouml) => {
-  if (!change.elementId) return "model";
-  const type = (change.after || change.before || {}).type;
-  return ontouml && (type === "Project" || type === "Package")
-    ? type.toLowerCase()
-    : null;
-};
+// The model's own record: what it lists is told by each element, but its
+// other properties (constraints) are changes of its own.
+const modelLevelType = (change) => (change.elementId ? null : "model");
 
 /**
  * A list's change as tokens: what it gains, loses and changes, each by name
@@ -528,7 +498,6 @@ export function rollupChanges(comparison, model, views) {
   const names = nameIndex(model, comparison.baseline?.model);
   const canvas = drawn(views);
   const profile = model.document?.profile;
-  const ontouml = profile === "ontouml";
   const changes = comparison.changes.changes || [];
   const recorded = new Map(
     changes.filter((c) => c.elementId).map((c) => [c.elementId, c]),
@@ -595,7 +564,6 @@ export function rollupChanges(comparison, model, views) {
     before: p.before,
     after: p.after,
   });
-  const text = (value) => ({ present: true, value });
   // A database capture also lists each table's definition and constraints at
   // the model's level; the table's own record tells them.
   const scoped = (cell) =>
@@ -652,33 +620,8 @@ export function rollupChanges(comparison, model, views) {
   for (const change of changes) {
     const id = change.elementId;
     const properties = meaningfulProperties(change);
-    const level = modelLevelType(change, ontouml);
-    if (level) {
-      const notes = properties
-        .filter(fromModel)
-        .map((p) => note(p, level === "package" ? `package ${p.key}` : p.key));
-      if (level === "package" && change.kind !== "modified")
-        notes.push({
-          key: `${placeName(id)} package`,
-          property: "presence",
-          status: change.kind,
-        });
-      // What moved into this package, from where.
-      if (level === "package")
-        for (const { key, joined } of listChanges(change))
-          if (key === "contents")
-            for (const item of joined)
-              if (moves.has(item))
-                notes.push({
-                  key: placeName(item),
-                  property: "moved",
-                  before: text(
-                    moves.get(item).from
-                      ? placeName(moves.get(item).from)
-                      : "none",
-                  ),
-                  after: text(placeName(id)),
-                });
+    if (modelLevelType(change)) {
+      const notes = properties.filter(fromModel).map((p) => note(p));
       if (!notes.length) continue; // Only its element lists changed.
       const entry = modelRow();
       entry.changes.push(change);
@@ -745,24 +688,6 @@ export function rollupChanges(comparison, model, views) {
         label: memberLabel(member, member.method),
         member,
       });
-      continue;
-    }
-    if (owner && edges.has(owner)) {
-      // An association end: OntoUML keeps ends as elements of their own,
-      // named by their role, or by the class at that end (and which end, when
-      // a relation joins a class to itself).
-      const edge = edges.get(owner);
-      const entry = edgeRow(edge, "modified");
-      entry.changes.push(change);
-      const data = change.after || change.before || {};
-      const [source, target] = edgeEnds(edge);
-      const at = readable(data.propertyType, names);
-      const end =
-        textOf(data.name) ||
-        (source === target && change.end
-          ? `${at} ${change.end} end`
-          : `${at} end`);
-      for (const p of properties) entry.notes.push(note(p, `${end} ${p.key}`));
       continue;
     }
     if (!properties.length && change.kind === "modified") continue;
@@ -1090,16 +1015,11 @@ export function describeClassChange(rollup, element, profile) {
 
 // The name and type a member had before the proposal, in the terms the
 // change view shows it now.
-function previousMember(before, member, names) {
-  const conceptual = ONTOUML_MEMBERS.has(before.type);
+function previousMember(before, member) {
   return {
     ...member,
     name: textOf(before.name) ?? member.name,
-    type: conceptual
-      ? (typeOf(before, names) ?? member.type)
-      : typeof before.type === "string"
-        ? before.type
-        : member.type,
+    type: typeof before.type === "string" ? before.type : member.type,
   };
 }
 
@@ -1125,11 +1045,7 @@ function memberChange(member, method, change, profile, names, moved) {
     // A member that moved in may also have changed on the way.
     previous:
       (status === "modified" || moved?.from) && before
-        ? memberSignature(
-            previousMember(before, member, names),
-            method,
-            profile,
-          )
+        ? memberSignature(previousMember(before, member), method, profile)
         : null,
     properties,
     moved: moved || null,

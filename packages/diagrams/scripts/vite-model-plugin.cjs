@@ -88,7 +88,7 @@ function modelPlugin({ root, buildPayload } = {}) {
       server.ws.send({ type: "update", updates: [] });
       server.ws.send({
         type: "custom",
-        event: "ontouml:model-update",
+        event: "atlas:model-update",
         data: payload,
       });
     } catch (error) {

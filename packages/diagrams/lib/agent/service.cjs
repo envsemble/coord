@@ -30,28 +30,6 @@ const definitions = [
     ["handle"],
   ],
   [
-    "map",
-    "Link an existing element to an explicit frozen cross-layer element; retain the target capture.",
-    {
-      handle: handleSchema,
-      targetHandle: handleSchema,
-      expectedRevision: string,
-      id: string,
-      elementId: string,
-      targetElementId: string,
-      reason: { type: "string", minLength: 1, maxLength: 2000 },
-    },
-    [
-      "handle",
-      "targetHandle",
-      "expectedRevision",
-      "id",
-      "elementId",
-      "targetElementId",
-      "reason",
-    ],
-  ],
-  [
     "proposal",
     "Branch an editable proposal retaining a frozen baseline and ancestry.",
     { handle: handleSchema, title: string },
@@ -62,48 +40,6 @@ const definitions = [
     "Compare stable semantic identities; omit layout/source-location changes.",
     { handle: handleSchema, baseHandle: handleSchema, ...page },
     ["handle"],
-  ],
-  [
-    "merge",
-    "Merge two proposals from an explicit ancestor; retain unresolved conflicts.",
-    {
-      ancestorHandle: handleSchema,
-      leftHandle: handleSchema,
-      rightHandle: handleSchema,
-    },
-    ["ancestorHandle", "leftHandle", "rightHandle"],
-  ],
-  [
-    "resolve_merge",
-    "Resolve explicit merge conflicts with optimistic revision checking.",
-    {
-      handle: handleSchema,
-      expectedRevision: string,
-      choices: {
-        type: "array",
-        maxItems: 1000,
-        items: {
-          type: "object",
-          required: ["conflictId", "choice"],
-          properties: {
-            conflictId: string,
-            choice: { enum: ["left", "right", "base"] },
-          },
-          additionalProperties: false,
-        },
-      },
-    },
-    ["handle", "expectedRevision", "choices"],
-  ],
-  [
-    "adopt_snapshot",
-    "Append a newer frozen capture and select it as baseline; retain the proposal and older captures.",
-    {
-      handle: handleSchema,
-      capturedHandle: handleSchema,
-      expectedRevision: string,
-    },
-    ["handle", "capturedHandle", "expectedRevision"],
   ],
   [
     "capture_code",
@@ -231,13 +167,7 @@ const definitions = [
       "compare",
       "scenarios",
     ].includes(name),
-    destructiveHint: [
-      "revise",
-      "map",
-      "resolve_merge",
-      "adopt_snapshot",
-      "export",
-    ].includes(name),
+    destructiveHint: ["revise", "export"].includes(name),
     openWorldHint: name === "capture_database",
   },
 }));
@@ -262,16 +192,14 @@ function compact(value, depth = 0) {
   return value;
 }
 function collection(document) {
-  return document.profile === "ontouml"
-    ? document.model.elements
-    : [
-        ...document.model.nodes,
-        ...document.model.relations,
-        ...document.model.generalizations,
-        ...document.model.generalizationSets,
-        ...document.model.nodes.flatMap((n) => n.attributes),
-        ...document.model.nodes.flatMap((n) => n.methods || []),
-      ];
+  return [
+    ...document.model.nodes,
+    ...document.model.relations,
+    ...document.model.generalizations,
+    ...document.model.generalizationSets,
+    ...document.model.nodes.flatMap((n) => n.attributes),
+    ...document.model.nodes.flatMap((n) => n.methods || []),
+  ];
 }
 function modelSummary(document, handle) {
   const elements = collection(document);
@@ -315,10 +243,12 @@ function boundedError(error, workspace) {
 function batchModel(document, operations) {
   const model = clone(document.model);
   for (const operation of operations) {
-    const allowed =
-      document.profile === "ontouml"
-        ? ["elements"]
-        : ["nodes", "relations", "generalizations", "generalizationSets"];
+    const allowed = [
+      "nodes",
+      "relations",
+      "generalizations",
+      "generalizationSets",
+    ];
     if (!allowed.includes(operation.collection))
       throw new Error(
         "BATCH_PROFILE: collection does not belong to this profile",
@@ -522,25 +452,7 @@ class AtlasWorkspace {
     const offset = args.offset || 0,
       limit = args.limit || 25;
     if (name === "atlas_create") return this.save(createDocument(args.input));
-    if (name === "atlas_map")
-      return this.save(
-        require("../document/comparison.cjs").linkMapping(
-          this.load(args.handle),
-          this.load(args.targetHandle),
-          args,
-          args.expectedRevision,
-        ),
-        args.expectedRevision,
-      );
-    if (
-      [
-        "atlas_proposal",
-        "atlas_compare",
-        "atlas_merge",
-        "atlas_resolve_merge",
-        "atlas_adopt_snapshot",
-      ].includes(name)
-    ) {
+    if (["atlas_proposal", "atlas_compare"].includes(name)) {
       const comparison = require("../document/comparison.cjs");
       if (name === "atlas_proposal")
         return this.save(
@@ -563,28 +475,6 @@ class AtlasWorkspace {
           offset,
         };
       }
-      if (name === "atlas_merge")
-        return this.save(
-          comparison.mergeDocuments(
-            this.load(args.ancestorHandle),
-            this.load(args.leftHandle),
-            this.load(args.rightHandle),
-          ),
-        );
-      const document = this.load(args.handle);
-      const next =
-        name === "atlas_resolve_merge"
-          ? comparison.resolveMerge(
-              document,
-              args.choices,
-              args.expectedRevision,
-            )
-          : comparison.adoptSnapshot(
-              document,
-              this.load(args.capturedHandle),
-              args.expectedRevision,
-            );
-      return this.save(next, args.expectedRevision);
     }
     if (name === "atlas_capture_code")
       return this.save(

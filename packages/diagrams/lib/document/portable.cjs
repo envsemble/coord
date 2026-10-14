@@ -16,24 +16,6 @@ function parseData(text) {
     throw new Error("IMPORT_JSON: malformed model data");
   }
 }
-function documentFromInput(input) {
-  if (!input?.project || typeof input.project !== "object")
-    throw new Error("VIEWER_INPUT: provide a project or Atlas document");
-  const name = input.project.name;
-  return createDocument({
-    id: `atlas-${input.project.id}`,
-    title:
-      input.evidence?.title ||
-      (typeof name === "string"
-        ? name
-        : name?.en || Object.values(name || {})[0] || "OntoUML"),
-    project: input.project,
-    evidence: input.evidence,
-    views: input.views,
-    snippets: input.snippets,
-    createdAt: input.project.created || "2000-01-01T00:00:00.000Z",
-  });
-}
 function importDocument(input) {
   if (input instanceof Uint8Array) input = Buffer.from(input);
   if (typeof input !== "string" && !Buffer.isBuffer(input))
@@ -87,4 +69,4 @@ function importDocument(input) {
     throw new Error("IMPORT_LIMIT: imported document exceeds 32 MiB");
   return revised;
 }
-module.exports = { importDocument, documentFromInput, MAX_INPUT, MAX_DATA };
+module.exports = { importDocument, MAX_INPUT, MAX_DATA };

@@ -1,4 +1,4 @@
-export { OntoUMLViewer } from "./viewer/OntoUMLViewer";
+export { DiagramViewer } from "./viewer/DiagramViewer";
 export { AtlasPanel } from "./viewer/AtlasPanel";
 export { AtlasMark } from "./ui/AtlasMark";
 export { describeProvenance, formatCaptureDate } from "./viewer/provenance";
@@ -9,9 +9,5 @@ export { DiagramCanvas } from "./visualization/DiagramCanvas";
 export { UMLDiagram } from "./visualization/UMLDiagram";
 export { UMLNode } from "./visualization/UMLNode";
 export { UMLRelation } from "./visualization/UMLRelation";
-export {
-  Lesson,
-  ElementLearning,
-  LearningLibrary,
-} from "./learning/LearningContent";
+export { LearningLibrary } from "./learning/LearningContent";
 export { UMLGeneralizationGroup } from "./visualization/UMLGeneralizationGroup";

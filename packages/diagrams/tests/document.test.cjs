@@ -8,7 +8,6 @@ const {
   createSnapshot,
   prepareViewer,
 } = require("../lib/index.cjs");
-const { createProject } = require("../examples/r5/create-project.cjs");
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const graph = () => ({
   type: "StructuralModel",
@@ -39,14 +38,11 @@ test("Document creation rejects a missing source with a useful input error", () 
 });
 
 test("all profiles retain semantic data across serialization and share generic layout", async () => {
-  for (const profile of ["ontouml", "database", "code"]) {
-    const document = createDocument({
-      profile,
-      model: profile === "ontouml" ? createProject() : graph(),
-    });
+  for (const profile of ["database", "code"]) {
+    const document = createDocument({ profile, model: graph() });
     assert.equal(
       validateDocument(clone(document)).issues.filter(
-        (i) => i.layer !== "ontology" && i.severity === "error",
+        (i) => i.severity === "error",
       ).length,
       0,
     );

@@ -88,7 +88,7 @@ test("empty captures prepare and export a readable portable document", async () 
 });
 
 test("A proposal opens its change view in both viewers, with the focus and the review it was given", () => {
-  const { OntoUMLViewer, AtlasPanel } = components();
+  const { DiagramViewer, AtlasPanel } = components();
   const { reviewedPayload } = components("src/viewer/reviewedPayload.js");
   const target = { kind: "node", id: "course" };
   const changeView = { model: { id: "changes" }, views: [{ key: "all" }] };
@@ -123,8 +123,8 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   assert.equal(reviewedPayload(payload).review, shown.review);
   assert.equal(reviewedPayload({ ...payload }).review, shown.review);
   assert.equal(
-    OntoUMLViewer({ ...payload }).props.review,
-    OntoUMLViewer({ ...payload }).props.review,
+    DiagramViewer({ ...payload }).props.review,
+    DiagramViewer({ ...payload }).props.review,
   );
   // Both viewers render it directly, with no wrapper to remount when a host
   // switches between a capture and its proposals.
@@ -132,7 +132,7 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   assert.equal(panel.props.payload.model, changeView.model);
   assert.equal(panel.props.review.comparison, comparison);
   assert.equal(panel.props.focus, target);
-  const viewer = OntoUMLViewer({ ...payload, focus: target });
+  const viewer = DiagramViewer({ ...payload, focus: target });
   assert.equal(viewer.props.model, changeView.model);
   assert.equal(viewer.props.review.comparison, comparison);
   assert.equal(viewer.props.focus, target);
@@ -215,22 +215,26 @@ test("standalone structural documents render their profile-specific exports and 
     },
   });
   const prepared = await prepareViewer({ document });
-  const { OntoUMLViewer } = components();
+  const { DiagramViewer } = components();
   const html = renderToStaticMarkup(
-    createElement(OntoUMLViewer, prepared.payload),
+    createElement(DiagramViewer, prepared.payload),
   );
   assert(html.includes('aria-label="Export"'));
-  assert(!html.includes("Learn OntoUML"));
+  assert(!html.includes("OntoUML"));
   const { exportChoices } = components("src/viewer/ViewerToolbar.jsx");
-  const choices = exportChoices({
-    exports: prepared.payload.exports,
-    viewKey: prepared.payload.views[0].key,
-    fields: false,
-    theme: "light",
-    conceptual: false,
-  });
-  assert.deepEqual(
-    choices.map((choice) => choice.label),
-    ["SVG image", "PlantUML", "Structural JSON", "Models ZIP"],
-  );
+  const labels = (diagram) =>
+    exportChoices({
+      exports: prepared.payload.exports,
+      viewKey: prepared.payload.views[0].key,
+      fields: false,
+      theme: "light",
+      diagram,
+    }).map((choice) => choice.label);
+  assert.deepEqual(labels(false), [
+    "SVG image",
+    "Structural JSON",
+    "Models ZIP",
+  ]);
+  // A diagram file offers its own PlantUML.
+  assert.deepEqual(labels(true), ["SVG image", "PlantUML", "Models ZIP"]);
 });

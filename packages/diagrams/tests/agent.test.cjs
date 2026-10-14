@@ -8,12 +8,7 @@ const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
 const {
   StdioClientTransport,
 } = require("@modelcontextprotocol/sdk/client/stdio.js");
-const {
-  createWorkspace,
-  importDocument,
-  Project,
-} = require("../lib/index.cjs");
-const { createProject } = require("../examples/r5/create-project.cjs");
+const { createWorkspace, importDocument } = require("../lib/index.cjs");
 function workspace(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-agent-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -37,20 +32,13 @@ test("MCP annotations distinguish observation, additive creation and destructive
     assert.equal(definitions.get(`atlas_${name}`).readOnlyHint, true);
     assert.equal(definitions.get(`atlas_${name}`).destructiveHint, false);
   }
-  for (const name of [
-    "revise",
-    "map",
-    "resolve_merge",
-    "adopt_snapshot",
-    "export",
-  ]) {
+  for (const name of ["revise", "export"]) {
     assert.equal(definitions.get(`atlas_${name}`).readOnlyHint, false);
     assert.equal(definitions.get(`atlas_${name}`).destructiveHint, true);
   }
   for (const name of [
     "create",
     "proposal",
-    "merge",
     "load",
     "import",
     "capture_code",
@@ -144,7 +132,7 @@ test("atomic batches, optimistic conflicts, restart, scoped paths and paginated 
     await restarted.execute("atlas_inspect", { handle: created.handle });
   assert(performance.now() - start < 1000);
 });
-test("real SDK client and JSON CLI share conceptual create/revise/validate/export/reopen behavior", async (t) => {
+test("real SDK client and JSON CLI share create/revise/validate/export/reopen behavior", async (t) => {
   const { root } = workspace(t);
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -168,15 +156,15 @@ test("real SDK client and JSON CLI share conceptual create/revise/validate/expor
     return result.structuredContent;
   };
   const created = await call("atlas_create", {
-    input: { project: createProject(), title: "Conceptual plan" },
+    input: { profile: "code", model: structural(), title: "Code plan" },
   });
   const revised = await call("atlas_revise", {
     handle: created.handle,
     expectedRevision: created.revision,
-    changes: { title: "Conceptual proposal", reason: "Clarify planned scope" },
+    changes: { title: "Code proposal", reason: "Clarify planned scope" },
   });
   const inspected = await call("atlas_inspect", { handle: created.handle });
-  assert.equal(inspected.title, "Conceptual proposal");
+  assert.equal(inspected.title, "Code proposal");
   const findings = await call("atlas_validate", { handle: created.handle });
   assert(findings.limitations.length);
   const invalid = await client.callTool({
@@ -313,32 +301,11 @@ test("100-node warm inspection/validation meet the budget and direct file edits 
     /REVISION_INTEGRITY/,
   );
 });
-test("validation pagination retains requested pages and root-contained storage aliases remain protected", async (t) => {
+test("root-contained storage aliases remain protected", async (t) => {
   const { root, workspace: w } = workspace(t);
-  const project = new Project(),
-    model = project.packageBuilder().root().name("Roles").build();
-  for (let i = 0; i < 70; i++)
-    model.classBuilder().role().name(`Role ${i}`).build();
-  const created = await w.execute("atlas_create", {
-    input: { project: JSON.parse(JSON.stringify(project)) },
+  await w.execute("atlas_create", {
+    input: { profile: "code", model: structural() },
   });
-  const first = await w.execute("atlas_validate", {
-    handle: created.handle,
-    limit: 100,
-  });
-  const page = first.resultFile
-    ? JSON.parse(fs.readFileSync(path.join(root, first.resultFile)))
-    : first;
-  assert.equal(page.issues.length, 100);
-  const remaining = await w.execute("atlas_validate", {
-    handle: created.handle,
-    offset: 100,
-    limit: 100,
-  });
-  const rest = remaining.resultFile
-    ? JSON.parse(fs.readFileSync(path.join(root, remaining.resultFile)))
-    : remaining;
-  assert.equal(page.issues.length + rest.issues.length, page.total);
   fs.symlinkSync(
     path.join(root, ".atlas/models"),
     path.join(root, "storage-alias"),

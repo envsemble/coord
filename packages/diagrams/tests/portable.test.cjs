@@ -8,7 +8,26 @@ const {
   buildViewer,
   importDocument,
 } = require("../lib/index.cjs");
-const { createProject } = require("../examples/r5/create-project.cjs");
+// A small code model, as captures and agents wrote documents.
+const structural = () => ({
+  type: "StructuralModel",
+  nodes: [
+    { id: "user", name: "User", attributes: [] },
+    { id: "account", name: "Account", attributes: [] },
+  ],
+  relations: [
+    {
+      id: "owns",
+      name: "owns",
+      sourceId: "user",
+      targetId: "account",
+      sourceMultiplicity: "1",
+      targetMultiplicity: "0..*",
+    },
+  ],
+  generalizations: [],
+  generalizationSets: [],
+});
 test("portable export reopens without workspace, retains baselines/context and can be revised and exported", async () => {
   const graph = {
     type: "StructuralModel",
@@ -97,19 +116,19 @@ test("portable export reopens without workspace, retains baselines/context and c
   assert.equal(final.model.generalizationSets[0].name, "Species");
   const zip = unzipSync(second.artifacts.get("animals-models.zip"));
   assert.deepEqual(
-    JSON.parse(Buffer.from(zip["animals-atlas-document.json"])),
-    changed,
+    JSON.parse(Buffer.from(zip["animals-structural.json"])),
+    changed.model,
   );
   assert.equal(second.artifacts.has("animals-structural.json"), true);
 });
 test("import validates inert data and never runs surrounding scripts", async () => {
-  const project = createProject();
-  const exported = await buildViewer({ project });
+  const document = createDocument({ profile: "code", model: structural() });
+  const exported = await buildViewer({ document });
   const hostile = exported.html.replace(
     "<body>",
     '<body><script>globalThis.ATLAS_EXECUTED=true;throw new Error("executed")</script>',
   );
-  assert.equal(importDocument(hostile).model.id, project.id);
+  assert.deepEqual(importDocument(hostile).model, document.model);
   assert.equal(globalThis.ATLAS_EXECUTED, undefined);
   const payload = exported.html.match(
     /<script id="atlas-document" type="application\/json">[\s\S]*?<\/script>/,
@@ -183,17 +202,22 @@ test("import validates inert data and never runs surrounding scripts", async () 
     /IMPORT_LIMIT/,
   );
   const malicious = createDocument({
-    project,
+    profile: "code",
+    model: structural(),
     title: "</script><script>injected()</script>",
   });
   const safe = await buildViewer({ document: malicious });
   assert(!safe.html.includes("<script>injected()"));
   assert.equal(importDocument(safe.html).title, malicious.title);
 });
-test("project title survives export and reopening without evidence", async () => {
-  const project = createProject();
-  project.name = { en: "Named conceptual model" };
-  const first = await buildViewer({ project });
+test("a document's title survives export and reopening without evidence", async () => {
+  const first = await buildViewer({
+    document: createDocument({
+      profile: "code",
+      model: structural(),
+      title: "Named code model",
+    }),
+  });
   const reopened = importDocument(first.html);
   assert.equal(reopened.title, first.model.title);
   assert.equal(

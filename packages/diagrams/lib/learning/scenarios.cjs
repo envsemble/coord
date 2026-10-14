@@ -1,6 +1,6 @@
 const LIMITATIONS = [
   "Finite closed-world examples check only declared memberships, binary links, numeric multiplicities and complete/disjoint sets.",
-  "Unknown counts, type-use dependencies, temporal identity/rigidity, arbitrary OCL/SQL and full ontology/domain accuracy are not established.",
+  "Unknown counts, type-use dependencies, arbitrary OCL/SQL and domain accuracy are not established.",
 ];
 function learningIssues(document, ids, nodeIds) {
   const issues = [],
@@ -36,13 +36,7 @@ function learningIssues(document, ids, nodeIds) {
         );
     }
   for (const scenario of learning.scenarios) {
-    const relationIds = new Set(
-      document.profile === "ontouml"
-        ? document.model.elements
-            .filter((e) => e.type === "BinaryRelation")
-            .map((e) => e.id)
-        : document.model.relations.map((e) => e.id),
-    );
+    const relationIds = new Set(document.model.relations.map((e) => e.id));
     const instances = new Set(scenario.instances.map((i) => i.id));
     if (instances.size !== scenario.instances.length)
       add("Scenario instance identities must be unique", scenario.id);

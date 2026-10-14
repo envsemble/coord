@@ -89,16 +89,16 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
     },
   );
   assert.equal(
-    describeProvenance({ state: "proposal", profile: "ontouml", snapshots: [] })
+    describeProvenance({ state: "proposal", profile: "class", snapshots: [] })
       .detail,
     "",
   );
   assert.deepEqual(
-    describeProvenance({ state: "authored", profile: "ontouml" }),
+    describeProvenance({ state: "authored", profile: "class" }),
     {
       kind: "authored",
       label: "Agent-authored",
-      detail: "Conceptual model",
+      detail: "Class diagram",
       tone: "success",
     },
   );
@@ -108,7 +108,7 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
       profile: "database",
       imported: true,
     }).detail,
-    "Structural model · Imported",
+    "Entity diagram · Imported",
   );
   assert.equal(describeProvenance(undefined).kind, "unknown");
   assert.equal(describeProvenance({}).kind, "unknown");
