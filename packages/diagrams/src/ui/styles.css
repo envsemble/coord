@@ -341,13 +341,6 @@ body {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.stereotype-swatch {
-  display: inline-block;
-  width: 0.75rem;
-  height: 0.75rem;
-  border: 0.0625rem solid;
-  border-radius: 0.1875rem;
-}
 .detail-owner {
   color: var(--color-text-muted);
   font-weight: 400;

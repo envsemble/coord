@@ -15,17 +15,12 @@ export function InspectorContent({
   inspected,
   member = null,
   model,
-  views,
   snippets,
   guide,
-  conceptual,
   changes,
   showOverview,
-  learningTab,
-  onLearningTab,
   onChoose,
   onInspectLearning = onChoose,
-  onView,
   onReference,
 }) {
   if (learning)
@@ -33,12 +28,7 @@ export function InspectorContent({
       <LearningLibrary
         model={model}
         learning={guide}
-        views={views}
-        conceptual={conceptual}
         onInspect={onInspectLearning}
-        onView={onView}
-        tab={learningTab}
-        onTabChange={onLearningTab}
       />
     );
   const review = changes?.details ?? null;

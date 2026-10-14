@@ -1,5 +1,4 @@
 import { Badge, Text } from "@envsemble/envui";
-import { stereotypeFamily } from "../visualization/UMLNode";
 import { ChangeBadge } from "../review/ChangeMark";
 import { ConceptIcon } from "./Icons";
 
@@ -18,30 +17,6 @@ const STATUSES = {
   },
 };
 
-// Stereotype families with their own node colours in the diagram.
-const COLOURED = new Set(["kind", "role", "relator", "phase", "event", "mode"]);
-
-const colouredFamily = (stereotype) => {
-  const family = stereotype && stereotypeFamily(stereotype);
-  return COLOURED.has(family) ? family : null;
-};
-
-/** The stereotype's diagram colours, as a small swatch beside its name. */
-export function StereotypeSwatch({ stereotype }) {
-  const family = colouredFamily(stereotype);
-  if (!family) return null;
-  return (
-    <span
-      className="stereotype-swatch"
-      aria-hidden="true"
-      style={{
-        background: `var(--node-${family}, var(--color-fill))`,
-        borderColor: `var(--type-${family}, var(--color-border-strong))`,
-      }}
-    />
-  );
-}
-
 export function DetailHeader({
   title,
   owner,
@@ -49,7 +24,6 @@ export function DetailHeader({
   status,
   change,
   description,
-  stereotype,
   icon: Icon = ConceptIcon,
 }) {
   const evidence = change !== "added" && STATUSES[status];
@@ -66,18 +40,7 @@ export function DetailHeader({
       </div>
       {(tag || change || evidence) && (
         <div className="detail-tags">
-          {tag && (
-            <Badge
-              variant="outline"
-              icon={
-                colouredFamily(stereotype) ? (
-                  <StereotypeSwatch stereotype={stereotype} />
-                ) : undefined
-              }
-            >
-              {tag}
-            </Badge>
-          )}
+          {tag && <Badge variant="outline">{tag}</Badge>}
           <ChangeBadge status={change} />
           {evidence && (
             <Badge tone={evidence.tone} title={evidence.title}>

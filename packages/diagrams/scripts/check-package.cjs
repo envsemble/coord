@@ -87,7 +87,7 @@ try {
       const java=await captureJava({identity:'consumer',projects:[{identity:'java',path:process.cwd(),files:['Consumer.java']}]});
       assert.equal(java.model.nodes[0].name,'Consumer');
       const react=await import('@envsemble/atlas-diagrams/react');
-      assert.equal(typeof react.OntoUMLViewer,'function');
+      assert.equal(typeof react.DiagramViewer,'function');
       assert.equal(typeof react.AtlasPanel,'function');
       assert(require('node:fs').existsSync(require.resolve('@envsemble/atlas-diagrams/embedded.css')));
       const built=await buildViewer({project});

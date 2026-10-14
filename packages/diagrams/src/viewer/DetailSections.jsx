@@ -193,8 +193,7 @@ function contents(element, profile, except = new Set()) {
     .join(" and ");
 }
 
-// A member's type: its own, or the class an OntoUML attribute refers to.
-const TYPE_KEYS = ["type", "propertyType"];
+const TYPE_KEYS = ["type"];
 // What a member's signature already shows.
 const SIGNATURE_KEYS = [...TYPE_KEYS, "name"];
 const typeChange = (member) =>

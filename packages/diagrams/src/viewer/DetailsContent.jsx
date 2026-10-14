@@ -10,7 +10,6 @@ import {
 import { DownloadLink } from "../ui/DownloadLink";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { SourceEvidence } from "./SourceEvidence";
-import { ElementLearning } from "../learning/LearningContent";
 import { DetailHeader } from "../ui/DetailHeader";
 import { GeneralizationIcon, RelationIcon } from "../ui/Icons";
 import { ChangeMark } from "../review/ChangeMark";
@@ -35,7 +34,7 @@ import {
   memberSignature,
 } from "./DetailSections";
 
-const profileOf = (model) => model.document?.profile || "ontouml";
+const profileOf = (model) => model.document?.profile || "class";
 const changeOf = (review, element) =>
   review && element.changeStatus && element.changeStatus !== "unchanged"
     ? element.changeStatus
@@ -55,7 +54,6 @@ export const ConceptDetails = memo(function ConceptDetails({
   onReference,
 }) {
   const profile = profileOf(model);
-  const conceptual = profile === "ontouml";
   const change = changeOf(review, concept);
   const described = change
     ? describeClassChange(review.rollup, concept, profile)
@@ -69,15 +67,12 @@ export const ConceptDetails = memo(function ConceptDetails({
     <>
       <DetailHeader
         title={concept.name}
+        owner={concept.namespace}
         tag={`«${concept.stereotype || "unspecified"}»`}
-        stereotype={concept.stereotype}
         status={concept.status}
         change={change}
         description={concept.description}
       />
-      {conceptual && (
-        <ElementLearning element={concept} model={model} parts="issues" />
-      )}
       <WhatChanges
         change={described}
         element={concept}
@@ -122,9 +117,6 @@ export const ConceptDetails = memo(function ConceptDetails({
           snippets={snippets}
           label="Sources"
         />
-      )}
-      {conceptual && (
-        <ElementLearning element={concept} model={model} parts="lesson" />
       )}
     </>
   );
@@ -243,7 +235,6 @@ export const RelationDetails = memo(function RelationDetails({
   onReference,
 }) {
   const profile = profileOf(model);
-  const conceptual = profile === "ontouml";
   const generalization = relation.type === "generalization";
   const change = changeOf(review, relation);
   const entry = change
@@ -256,7 +247,6 @@ export const RelationDetails = memo(function RelationDetails({
         title={relationTitle(relation)}
         icon={generalization ? GeneralizationIcon : RelationIcon}
         tag={relationTag(relation)}
-        stereotype={relation.stereotype}
         change={change}
         description={relation.description}
       />
@@ -318,14 +308,6 @@ export const RelationDetails = memo(function RelationDetails({
         records={linkedRecords(model, [semanticId])}
         onReference={onReference}
       />
-      {conceptual && (
-        <ElementLearning
-          element={relation}
-          model={model}
-          relation
-          parts="all-but-why"
-        />
-      )}
       {generalization &&
         (model.partitions || [])
           .filter((set) => set.generalizations.includes(semanticId))
@@ -337,16 +319,12 @@ export const RelationDetails = memo(function RelationDetails({
               <Text tone="muted">{setConstraints(set)}</Text>
             </Stack>
           ))}
-      {conceptual && (
+      {profile !== "code" && relation.evidence?.length > 0 && (
         <SourceEvidence
-          evidence={
-            relation.evidence?.length
-              ? relation.evidence
-              : [...relation.source.evidence, ...relation.target.evidence]
-          }
+          evidence={relation.evidence}
           sources={model.sources}
           snippets={snippets}
-          label={relation.evidence?.length ? "Sources" : "Endpoint evidence"}
+          label="Sources"
         />
       )}
     </>
@@ -404,7 +382,6 @@ export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
             records={linkedRecords(model, [group.id])}
             onReference={onReference}
           />
-          <ElementLearning element={group} model={model} relation />
         </>
       ) : (
         <DisclosureNote title="Read joined inheritance">

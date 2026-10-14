@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import initialPayload from "virtual:atlas/model";
-import { OntoUMLViewer } from "../src/viewer/OntoUMLViewer";
+import { DiagramViewer } from "../src/viewer/DiagramViewer";
 import { ViewerErrorBoundary } from "../src/viewer/ViewerErrorBoundary";
 
 export function DevelopmentApp() {
@@ -11,12 +11,12 @@ export function DevelopmentApp() {
   useEffect(() => {
     if (!import.meta.hot) return;
     const update = (next) => setPayload(next);
-    import.meta.hot.on("ontouml:model-update", update);
-    return () => import.meta.hot.off("ontouml:model-update", update);
+    import.meta.hot.on("atlas:model-update", update);
+    return () => import.meta.hot.off("atlas:model-update", update);
   }, []);
   return (
     <ViewerErrorBoundary>
-      <OntoUMLViewer {...payload} />
+      <DiagramViewer {...payload} />
     </ViewerErrorBoundary>
   );
 }

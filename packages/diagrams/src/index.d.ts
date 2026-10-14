@@ -16,12 +16,13 @@ export type InspectionTarget = {
   kind: "node" | "edge" | "group";
   id: string;
 } | null;
-export const OntoUMLViewer: ComponentType<ViewerPayload>;
+/** The standalone viewer of one payload, as the offline HTML file shows it. */
+export const DiagramViewer: ComponentType<ViewerPayload>;
 /**
  * The embeddable viewer. Its root is an envUI `Theme` driven by `theme`
  * (default "dark"); hosts load `@envsemble/envui/styles.css` and
  * `@envsemble/atlas-diagrams/embedded.css`. Giving it another payload of the
- * same `family` (a capture and its proposals, from `prepareFamily`) switches
+ * same `family` (members laid out together by `prepareDiagrams`) switches
  * in place: the camera, the view, the selection and the details stay.
  */
 export const AtlasPanel: ComponentType<{
@@ -57,7 +58,10 @@ export function changeCount(
 export const AtlasMark: ComponentType<{ size?: number; label?: string }>;
 /** Document fields that determine where a model came from. */
 export type ProvenanceSource = Partial<
-  Pick<AtlasDocument, "profile" | "state" | "baselineId" | "imported">
+  Pick<
+    NonNullable<ViewerModel["document"]>,
+    "profile" | "state" | "baselineId" | "captureId" | "imported"
+  >
 > & {
   snapshots?: {
     id: string;
@@ -130,30 +134,12 @@ export const UMLDiagram: ComponentType<{
 export const UMLNode: ComponentType<Record<string, unknown>>;
 export const UMLRelation: ComponentType<Record<string, unknown>>;
 export const UMLGeneralizationGroup: ComponentType<Record<string, unknown>>;
-export const Lesson: ComponentType<{
-  stereotype: string;
-  children?: ReactNode;
-}>;
-export const ElementLearning: ComponentType<{
-  element: Record<string, unknown>;
-  model: ViewerModel;
-  relation?: boolean;
-  /** "issues" or "lesson" alone, everything but rationale and questions ("all-but-why"), or "all" (the default). */
-  parts?: "all" | "issues" | "lesson" | "all-but-why";
-}>;
 /**
- * Understanding a model: its walkthroughs and examples (`learning`, from the
- * payload) and, for conceptual models, the OntoUML lessons, checks and open
- * questions.
+ * Understanding a model through its examples (`learning`, from the payload):
+ * the scenarios that exemplify it, each assessed. Renders nothing without any.
  */
 export const LearningLibrary: ComponentType<{
   model: ViewerModel;
   learning?: ModelLearning | null;
-  views?: ViewerPayload["views"] | null;
-  conceptual?: boolean;
   onInspect(id: string): void;
-  /** Shows a walkthrough step's view. */
-  onView?(key: string): void;
-  tab?: string | null;
-  onTabChange?(tab: string): void;
 }>;
