@@ -57,7 +57,7 @@ const tools: Tool[] = [
   {
     name: 'work_start',
     description: 'Start implementing an accepted plan: implementation in progress, and a ledger with these steps (one per meaningful deliverable or milestone, all todo) and the plan\'s Git revision. Commit the plan first.',
-    inputSchema: object({ work, steps: titles('The agreed steps, in order.') }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
+    inputSchema: object({ work, steps: { ...titles('The agreed steps, in order.'), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
   },
   {
     name: 'step_add', description: 'Add steps (todo) to the end of the ledger, when agreed scope gains them.',
@@ -84,12 +84,17 @@ const tools: Tool[] = [
     run: (root, input) => setBlocked(root, input.work!, (input.reason as string | undefined) || null),
   },
   {
-    name: 'work_close', description: 'Close finished work: refused with the open items unless every step is done and nothing is blocked; then implementation complete, completed_at today, and the folder moves to archive/.',
+    name: 'work_close', description: 'Close finished work: refused with the open items unless its ledger has steps, every one done, and nothing is blocked; then implementation complete, completed_at today, and the folder moves to archive/.',
     inputSchema: object({ work }, ['work']), run: (root, input) => closeWork(root, input.work!),
   },
   {
-    name: 'work_archive', description: 'Move a work folder from active/ to archive/ without completing it (abandoned or superseded work), repairing links.',
-    inputSchema: object({ work }, ['work']), run: (root, input) => archiveWork(root, input.work!),
+    name: 'work_archive',
+    description: 'Move a work folder from active/ to archive/ without closing it, repairing links. Work that is not complete needs a disposition: superseded (name the work that replaces it) or abandoned (give the reason); it becomes the plan\'s design_status, and the reason goes into the ledger. Finished work is closed with work_close instead.',
+    inputSchema: object({
+      work, disposition: { type: 'string', enum: ['superseded', 'abandoned'], description: 'Why the work stops: replaced by other work, or dropped.' },
+      supersededBy: { ...work, description: 'For superseded work: the work item that replaces it.' }, reason: { type: 'string', description: 'Why; required for abandoned work.' },
+    }, ['work']),
+    run: (root, input) => archiveWork(root, input.work!, { disposition: (input.disposition as 'superseded' | 'abandoned' | undefined) ?? null, supersededBy: (input.supersededBy as string | undefined) ?? null, reason: (input.reason as string | undefined) ?? null }),
   },
   {
     name: 'work_reopen', description: 'Reopen archived work: back to active/, implementation in progress, with the new steps as todo.',

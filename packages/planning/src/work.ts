@@ -130,7 +130,9 @@ async function load(input: string, workId: string): Promise<Loaded> {
   if (!entry) throw new WorkError(`${workId} is not registered in ${root}.`);
   if (typeof entry.path !== 'string' || !entry.path || entry.path.includes('\\') || entry.path.split('/').includes('..')) throw new WorkError(`${workId} has an invalid path in planning.json.`);
   if (typeof entry.current_plan !== 'string') throw new WorkError(`${workId} has no main plan (current_plan is null).`);
-  const plan = entry.current_plan;
+  const plan = entry.current_plan, folder = entry.path.replace(/\/+$/, '');
+  // The plan is written: it must be in the work folder, as `atlas check` requires.
+  if (plan.includes('\\') || plan.split('/').includes('..') || (plan !== folder && !plan.startsWith(folder + '/'))) throw new WorkError(`${workId}'s current_plan ${plan} is outside its work folder ${folder}; fix planning.json first.`);
   let planText: string;
   try { planText = await readFile(file(root, plan), 'utf8'); } catch { throw new WorkError(`The plan ${plan} cannot be read.`); }
   let planMetadata: Metadata | null;
@@ -279,6 +281,7 @@ function newLedger(loaded: Loaded, titles: string[], today: string, revision: st
 export async function startWork(root: string, workId: string, request: { steps: string[] }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
   const titles = stepTitles(request.steps);
+  if (!titles.length) throw new WorkError('Give the agreed steps: implementation starts with at least one.');
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; accept it before implementation starts.`);
   if (loaded.planMetadata.implementation_status === 'complete') throw new WorkError('The implementation is already complete; reopen the work instead.');
@@ -446,24 +449,53 @@ export async function repairLinks(root: string, from: string, to: string): Promi
   return changed;
 }
 
-/** Archive the work: move its folder from active/ to archive/. */
-export async function archiveWork(root: string, workId: string, options: OperationOptions = {}): Promise<WorkResult> {
+/** Why work is archived without completing it: replaced by other work, or dropped for a reason. */
+export interface ArchiveRequest { disposition?: 'superseded' | 'abandoned' | null; supersededBy?: string | null; reason?: string | null }
+
+/**
+ * Archive the work: move its folder from active/ to archive/. Work that is not complete needs a
+ * disposition: `superseded` by another registered work item, or `abandoned` with the reason. It
+ * becomes the plan's design_status (and superseded_by), and the reason goes into the ledger, or the
+ * plan without one, so archiving never hides open work.
+ */
+export async function archiveWork(root: string, workId: string, request: ArchiveRequest = {}, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
+  const { disposition = null, supersededBy = null } = request;
+  if (disposition !== null && disposition !== 'superseded' && disposition !== 'abandoned') throw new WorkError('The disposition is superseded or abandoned.');
+  const reason = request.reason ? oneLine(request.reason, 'The reason', 1000) : null;
   const loaded = await load(root, workId);
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
+  const complete = loaded.planMetadata.implementation_status === 'complete' && !openItems(loaded).length;
+  if (!disposition && !complete) throw new WorkError(`${workId} is not complete: archive it as superseded (by the work that replaces it) or abandoned (with the reason), or close it once its items are done.`, openItems(loaded));
+  if (disposition === 'superseded') {
+    if (typeof supersededBy !== 'string' || !workIdentity.test(supersededBy) || supersededBy === workId) throw new WorkError('Name the work item that supersedes it, such as work-0012.');
+    const registry = await registryOf(loaded.root);
+    if (!registry.workItems.some(item => item?.id === supersededBy)) throw new WorkError(`${supersededBy} is not registered in ${loaded.root}.`);
+  } else if (supersededBy) throw new WorkError('Only superseded work names the work that supersedes it.');
+  if (disposition === 'abandoned' && !reason) throw new WorkError('Give the reason the work is abandoned.');
   const moved = await move(loaded, 'archive');
-  return result(loaded.root, workId, [...moved, await writePlan(loaded, {}, today)]);
+  const changed = [...moved];
+  if (disposition) {
+    const note = `archived as ${disposition}${supersededBy ? ' by ' + supersededBy : ''}${reason ? ': ' + reason.replace(/\.$/, '') : ''}.`;
+    if (loaded.ledgerText !== null) changed.push(await writeLedger(loaded, appendToSection(setFields(loaded.ledgerText, { updated: today }), `- ${today}: ${note}`)));
+    else loaded.planText = appendToSection(loaded.planText, `- ${today}: ${note[0].toUpperCase() + note.slice(1)}`, '## Outcome');
+  }
+  changed.push(await writePlan(loaded, disposition ? { design_status: disposition, ...supersededBy && { superseded_by: supersededBy } } : {}, today));
+  return result(loaded.root, workId, [...new Set(changed)]);
 }
 
 /**
- * Close the work: refused, with the list of open items, unless every step is done and nothing is
- * blocked; then `implementation_status: complete`, `completed_at` today, and the folder is archived.
+ * Close the work: refused, with the list of open items, unless its ledger has steps, every one done,
+ * and nothing is blocked; then `implementation_status: complete`, `completed_at` today, and the
+ * folder is archived.
  */
 export async function closeWork(root: string, workId: string, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; only accepted work is closed as complete. Archive it instead.`);
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
+  if (loaded.ledgerSteps === null) throw new WorkError(`${workId} has no ledger: its implementation never started. Start it with its steps, or archive it as superseded or abandoned.`);
+  if (!loaded.ledgerSteps.length) throw new WorkError(`${workId}'s ledger has no steps: add the agreed steps and finish them before closing.`);
   const open = openItems(loaded);
   if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or record in the ledger why one is dropped and remove it.`, open);
   const moved = await move(loaded, 'archive');
@@ -477,7 +509,9 @@ export async function reopenWork(root: string, workId: string, request: { steps:
   if (!titles.length) throw new WorkError('Give the steps that reopen the work.');
   const loaded = await load(root, workId);
   if (locationOf(loaded.entry.path) !== 'archive') throw new WorkError(`${workId} is not archived (${loaded.entry.path}).`);
-  if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; accept it before reopening its implementation.`);
+  // Superseded or abandoned work that had been accepted is accepted again once reopened.
+  const design = loaded.planMetadata.design_status, disposed = design === 'superseded' || design === 'abandoned';
+  if (design !== 'accepted' && !(disposed && loaded.planMetadata.accepted_at)) throw new WorkError(`The design is ${String(design)}; accept it before reopening its implementation.`);
   const taken = titles.filter(title => loaded.ledgerSteps?.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   const changed = await move(loaded, 'active');
@@ -490,6 +524,6 @@ export async function reopenWork(root: string, workId: string, request: { steps:
     next = appendToSection(next, `- ${today}: reopened with ${titles.length === 1 ? 'the step' : 'the steps'} ${titles.map(title => '"' + title + '"').join(', ')}.`);
     changed.push(await writeLedger(loaded, next));
   }
-  changed.push(await writePlan(loaded, { implementation_status: 'in_progress', completed_at: null }, today));
+  changed.push(await writePlan(loaded, { implementation_status: 'in_progress', completed_at: null, ...disposed && { design_status: 'accepted', superseded_by: null } }, today));
   return result(loaded.root, workId, changed);
 }

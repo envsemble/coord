@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
-import { atlas, homeWithPlanning, planText, temporary } from './testing.ts';
+import { spawn } from 'node:child_process';
+import { atlas, command, homeWithPlanning, planText, temporary, write } from './testing.ts';
 
 const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
 /** A synthetic Claude Code session log that started ten minutes ago, as the harness keeps it. */
@@ -31,7 +32,7 @@ test('hooks give the session its planning context, check and link planning edits
     assert.equal(result.stderr, '');
     return result.stdout ? JSON.parse(result.stdout) : null;
   };
-  const links = () => JSON.parse(readFileSync(path.join(base.ATLAS_HOME!, 'sessions', session + '.json'), 'utf8')).work as { workId: string; amending: boolean; planningFolder: string }[];
+  const links = () => JSON.parse(readFileSync(path.join(base.ATLAS_HOME!, 'sessions', session + '.json'), 'utf8')).work as { workId: string; amending: boolean; planningFolder: string; linked: string }[];
 
   // SessionStart: the planning folder, its active work, and how to plan; nothing outside a registered checkout.
   const started = hook('SessionStart', { source: 'startup' });
@@ -45,7 +46,9 @@ test('hooks give the session its planning context, check and link planning edits
   // PostToolUse: a valid edit of a draft plan links the session, without amending.
   const plan = path.join(root, 'active', '0001-cart', 'plan.md');
   assert.equal(hook('PostToolUse', { tool_name: 'Edit', tool_input: { file_path: plan, old_string: 'a', new_string: 'b' }, tool_response: { success: true } }), null);
-  assert.deepEqual(links(), [{ planningFolder: root, workId: 'work-0001', amending: false }]);
+  const [first] = links();
+  assert.deepEqual(first, { planningFolder: root, workId: 'work-0001', amending: false, linked: first.linked });
+  assert.ok(Date.parse(first.linked) > Date.now() - 60000, 'when the session started on the work');
   // Editing the plan of an accepted design amends it.
   writeFileSync(plan, planText('work-0001', 'Cart', 'accepted'));
   hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: plan, content: '' } });
@@ -57,8 +60,14 @@ test('hooks give the session its planning context, check and link planning edits
   assert.match(blocked.reason, /shop-planning: active\/0001-cart\/plan\.md: ambiguous implicit YAML scalar/);
   assert.equal(blocked.hookSpecificOutput.additionalContext, blocked.reason);
   writeFileSync(plan, planText('work-0001', 'Cart', 'accepted'));
-  // Files outside the home are not Atlas's business.
+  // Files outside the home are not Atlas's business, nor are files in the home outside a planning
+  // folder: notes beside them, or a folder being set up before it has its planning.json.
   assert.equal(hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(checkout, 'src.ts') } }), null);
+  const notes = path.join(path.dirname(root), 'notes.md'), setUp = path.join(path.dirname(root), 'new-planning', 'README.md');
+  write(notes, '# Notes\n');
+  write(setUp, '# Planning\n');
+  assert.equal(hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: notes } }), null);
+  assert.equal(hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: setUp } }), null);
   // Reading a planning file records it as document use, for the work item the session is linked to.
   assert.equal(hook('PostToolUse', { tool_name: 'Read', tool_input: { file_path: plan } }), null);
   const usage = path.join(base.ATLAS_HOME!, 'usage');
@@ -77,16 +86,35 @@ test('hooks give the session its planning context, check and link planning edits
   hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__work_status', tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003']);
 
-  // Stop records a report for each linked work item, measured from the session's log, and clears amending.
+  // Stop records a report for each linked work item, measured from the session's log since the
+  // session started on it, and clears amending.
+  const spent = { input_tokens: 1, cache_creation_input_tokens: 2, cache_read_input_tokens: 3, output_tokens: 4 };
+  appendFileSync(transcript, JSON.stringify({ type: 'assistant', message: { id: 'msg_2', model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: 'end_turn', usage: spent }, timestamp: new Date().toISOString() }) + '\n');
   assert.equal(hook('Stop', { stop_hook_active: false }), null);
   for (const folder of ['0001-cart', '0002-payments', '0003-refunds']) {
     const reports = readFileSync(path.join(root, 'active', folder, '.atlas', 'statistics.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.deepEqual(reports.map(report => [report.session, report.model]), [[session, 'claude-opus-5-5']], folder);
+    const linked = links().find(item => folder.startsWith(item.workId.slice(5)))!.linked;
+    assert.equal(reports[0].measured?.since, linked, folder + ': the first stop measures from the link');
+    assert.deepEqual(reports[0].measured.models.map((item: { output: number }) => item.output), [4], folder + ': only what came after the link');
   }
   assert.deepEqual(links().map(item => item.amending), [false, false, false]);
   hook('SubagentStop', { agent_id: 'a1', agent_type: 'Explore', agent_transcript_path: transcript });
   assert.equal(readFileSync(path.join(root, 'active', '0001-cart', '.atlas', 'statistics.jsonl'), 'utf8').trim().split('\n').length, 2);
   assert.equal(atlas(['planning', 'check', root], { env }).status, 0);
+});
+
+test('hooks of one session running at once keep each other\'s links', async t => {
+  const { root, checkout, env } = homeWithPlanning(t);
+  const ids = Array.from({ length: 8 }, (_, index) => 'work-01' + String(index).padStart(2, '0'));
+  await Promise.all(ids.map(work => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [command, 'hook', 'PostToolUse'], { env, windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
+    child.on('error', reject).on('exit', resolve);
+    child.stdin.end(JSON.stringify({ session_id: session, cwd: checkout, tool_name: 'mcp__atlas__work_status', tool_input: { work, planningFolder: root } }));
+  })));
+  const linked = JSON.parse(readFileSync(path.join(env.ATLAS_HOME!, 'sessions', session + '.json'), 'utf8')).work.map((item: { workId: string }) => item.workId);
+  assert.deepEqual(linked.sort(), ids);
+  assert.deepEqual(readdirSync(path.join(env.ATLAS_HOME!, 'sessions')), [session + '.json'], 'no lock is left behind');
 });
 
 test('a hook never breaks the session: bad input prints nothing, exits 0 and is logged', t => {

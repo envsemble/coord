@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
-import { legacyDataDirectory, prepareHome } from '@envsemble/atlas-planning';
+import { atlasHome, legacyDataDirectory, migrateLegacyData, prepareHome } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { folderArguments } from './args.ts';
 import { Connections } from './connections.ts';
@@ -20,11 +20,11 @@ import { StateStore } from './state.ts';
 import { WindowManager } from './windows.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 
-// Atlas keeps its state in the Atlas home (~/.atlas, shared with the `atlas` command), moving the
-// old data folder's files there the first time. Electron's own files and Chromium's caches stay in
-// Electron's per-user folder, except for a home chosen with ATLAS_HOME (tests, a separate
-// instance), which keeps them too. Setting this before the lock scopes the single instance to it.
-const { home: dataDirectory } = await prepareHome();
+// Atlas keeps its state in the Atlas home (~/.atlas, shared with the `atlas` command). Electron's
+// own files and Chromium's caches stay in Electron's per-user folder, except for a home chosen with
+// ATLAS_HOME (tests, a separate instance), which keeps them too. Setting this before the lock scopes
+// the single instance to it; older versions kept all their files there and share that lock.
+const dataDirectory = atlasHome();
 const electronData = process.env.ATLAS_HOME ? path.join(dataDirectory, 'electron') : legacyDataDirectory();
 app.setPath('userData', electronData);
 app.setPath('sessionData', path.join(electronData, 'chromium'));
@@ -52,6 +52,12 @@ if (refusal) {
 } else if (!app.requestSingleInstanceLock(launch)) {
   app.quit();
 } else {
+  await prepareHome();
+  // Holding the lock means no older Atlas uses the old data folder: its files move into the home now.
+  if (!process.env.ATLAS_HOME) {
+    const migration = await migrateLegacyData(dataDirectory, electronData);
+    if (Object.values(migration).some(list => list.length)) log.info('Moved the old data folder into the home', { from: electronData, ...migration });
+  }
   start();
 }
 

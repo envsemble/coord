@@ -54,12 +54,17 @@ async function git(cwd: string, args: string[]) {
   try { return (await runProgram('git', ['-C', cwd, ...args], { timeout: 15000 })).stdout; } catch { return null; }
 }
 
-/** The checkout's top folder and its remotes' URLs, or null outside a Git checkout. */
+/** A remote URL without its user information (`https://user:token@host/…`), which can hold a credential. */
+export function remoteWithoutCredentials(url: string) {
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/]*@/i, '$1');
+}
+
+/** The checkout's top folder and its remotes' URLs (without credentials), or null outside a Git checkout. */
 export async function checkoutOf(cwd: string): Promise<{ checkout: string; remotes: string[] } | null> {
   const top = await git(cwd, ['rev-parse', '--show-toplevel']);
   if (top === null || !top.trim()) return null;
   const listed = await git(cwd, ['remote', '-v']) ?? '';
-  const remotes = [...new Set(listed.split(/\r?\n/).map(line => line.split(/\s+/)[1]).filter((value): value is string => Boolean(value)))];
+  const remotes = [...new Set(listed.split(/\r?\n/).map(line => line.split(/\s+/)[1]).filter((value): value is string => Boolean(value)).map(remoteWithoutCredentials))];
   return { checkout: path.resolve(top.trim()), remotes };
 }
 

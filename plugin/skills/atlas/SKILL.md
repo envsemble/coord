@@ -37,18 +37,18 @@ When the user agrees to the plan, record it with `work_accept`. Before handing o
 
 The Atlas tools are the reliable way to change planning state; each validates, refuses with the reason, and never commits. The `atlas work …` commands are the same operations.
 
-| Tool                                                 | Use it to                                                                         |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `where`, `work_status`                               | find the planning folder and active work; read a work item's state and statistics |
-| `work_create`                                        | open a work item, once the user agreed                                            |
-| `work_accept`                                        | record that the user accepted the design                                          |
-| `work_start`                                         | start implementation with the agreed steps                                        |
-| `step_add`, `step_set`, `step_rename`, `step_remove` | keep the ledger's steps current; a step is removed only with a reason             |
-| `work_block`                                         | set or clear what blocks the work                                                 |
-| `work_close`                                         | close verified work; refused while items are open                                 |
-| `work_archive`, `work_reopen`                        | archive abandoned or superseded work; bring archived work back                    |
+| Tool                                                 | Use it to                                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `where`, `work_status`                               | find the planning folder and active work; read a work item's state and statistics    |
+| `work_create`                                        | open a work item, once the user agreed                                               |
+| `work_accept`                                        | record that the user accepted the design                                             |
+| `work_start`                                         | start implementation with the agreed steps                                           |
+| `step_add`, `step_set`, `step_rename`, `step_remove` | keep the ledger's steps current; a step is removed only with a reason                |
+| `work_block`                                         | set or clear what blocks the work                                                    |
+| `work_close`                                         | close verified work; refused while items are open                                    |
+| `work_archive`, `work_reopen`                        | archive superseded (by which work) or abandoned (why) work; bring archived work back |
 
-Do not hand-edit what the tools own: work-item registrations, the statuses and dates they set, the ledger header and moves between `active/` and `archive/`. A disposition no tool sets, such as `superseded` or `abandoned`, goes into the plan header as `PLANS.md` defines.
+Do not hand-edit what the tools own: work-item registrations, the statuses and dates they set, the `superseded`/`abandoned` disposition `work_archive` sets, the ledger header and moves between `active/` and `archive/`.
 
 Everything else is an ordinary file: plan bodies, ledger notes, glossaries, ADRs, knowledge and diagrams. Edit them directly at their absolute paths in the planning folder, from any checkout. After each edit there, Atlas checks the file and hands back any problems to fix.
 
@@ -60,7 +60,7 @@ Hooks run them: after each edit in the home, Atlas checks the planning files you
 
 ## Set up a planning folder
 
-With the user's agreement, create `<home>/planning/<name>` (`atlas home` prints the home), run `git init` there and copy in the bundled templates: [AGENTS.md](assets/planning/AGENTS.md), [PLANS.md](assets/planning/PLANS.md), [README.md](assets/planning/README.md), [planning.json](assets/planning/planning.json), [plan-frontmatter.md](assets/planning/plan-frontmatter.md) and, when no attributes policy exists, [.gitattributes](assets/planning/.gitattributes). Register each participating repository in `planning.json` with a stable `id`, a `name` and its `remote`, which is how checkouts find the folder. Run `atlas check <folder>` and commit the baseline. A planning folder elsewhere moves into the home with `atlas home adopt <folder>`.
+With the user's agreement, create `<home>/planning/<name>` (`atlas home` prints the home), run `git init` there and copy in the bundled templates (Atlas checks edits there once `planning.json` is in place): [AGENTS.md](assets/planning/AGENTS.md), [PLANS.md](assets/planning/PLANS.md), [README.md](assets/planning/README.md), [planning.json](assets/planning/planning.json), [plan-frontmatter.md](assets/planning/plan-frontmatter.md) and, when no attributes policy exists, [.gitattributes](assets/planning/.gitattributes). Register each participating repository in `planning.json` with a stable `id`, a `name` and its `remote`, which is how checkouts find the folder. Run `atlas check <folder>` and commit the baseline. A planning folder elsewhere moves into the home with `atlas home adopt <folder>`.
 
 ## Organize legacy material
 

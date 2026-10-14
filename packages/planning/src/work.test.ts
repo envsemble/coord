@@ -1,12 +1,13 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { validatePlanning } from './check.ts';
 import { checkPaths, fileCheckers } from './checkPaths.ts';
 import { adoptPlanningFolder } from './adopt.ts';
+import { statisticsDirectory } from './storage.ts';
 import { findPlanning, normalizeRemote, resolvePlanningFolder } from './resolve.ts';
 import { acceptWork, addSteps, archiveWork, closeWork, createWork, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 
@@ -84,10 +85,11 @@ test('the design is accepted, then implementation starts with a ledger that reco
   assert.ok(ledger.includes(`- **Selected plan:** \`active/0001-existing/plan.md\` at planning revision \`${revision}\`.`));
   assert.ok(ledger.includes('[plan](plan.md), accepted on 2026-10-14'));
   assert.deepEqual(errorsOf(root), []);
-  await assert.rejects(startWork(root, 'work-0001', { steps: [] }, today), /already has a ledger/);
+  await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /already has a ledger/);
   await assert.rejects(startWork(root, 'work-0002', { steps: ['A', 'A'] }, today), /unique/);
-  await assert.rejects(startWork(root, 'work-0009', { steps: [] }, today), /work-0009 is not registered/);
-  await assert.rejects(startWork(root, 'nonsense', { steps: [] }, today), /such as work-0001/);
+  await assert.rejects(startWork(root, 'work-0002', { steps: [] }, today), /at least one/);
+  await assert.rejects(startWork(root, 'work-0009', { steps: ['A'] }, today), /work-0009 is not registered/);
+  await assert.rejects(startWork(root, 'nonsense', { steps: ['A'] }, today), /such as work-0001/);
 });
 
 test('steps are added, set, renamed and removed with a reason, and blocked is set and cleared', async t => {
@@ -126,6 +128,12 @@ test('closing refuses while items are open, then completes and archives, repairi
     return /cannot close while items are open/.test(error.message);
   });
   await assert.rejects(closeWork(root, 'work-0002', today), /only accepted work is closed/);
+  // Work that never started, or whose ledger has no steps, has nothing to show as done.
+  await acceptWork(root, 'work-0002', today);
+  await assert.rejects(closeWork(root, 'work-0002', today), /no ledger: its implementation never started/);
+  write(path.join(root, 'active/0002-other/ledger.md'), '---\nschema_version: 2\nkind: ledger\nwork_id: work-0002\nupdated: "2026-10-14"\nblocked: null\nsteps: []\n---\n\n# Ledger\n');
+  await assert.rejects(closeWork(root, 'work-0002', today), /ledger has no steps/);
+  rmSync(path.join(root, 'active/0002-other/ledger.md'));
   await setStepStatus(root, 'work-0001', 'Review', 'done', today);
   await setBlocked(root, 'work-0001', null, today);
   const closed = await closeWork(root, 'work-0001', { today: '2026-10-16' });
@@ -139,7 +147,7 @@ test('closing refuses while items are open, then completes and archives, repairi
   assert.ok(read(root, 'archive/0001-existing/ledger.md').includes('[plan](plan.md)'));
   assert.ok(closed.changed.includes('README.md') && closed.changed.includes('active/0002-other/plan.md'));
   assert.deepEqual(errorsOf(root), []);
-  await assert.rejects(archiveWork(root, 'work-0001', today), /not in active/);
+  await assert.rejects(archiveWork(root, 'work-0001', {}, today), /not in active/);
   await assert.rejects(reopenWork(root, 'work-0001', { steps: [] }, today), /Give the steps/);
   await assert.rejects(reopenWork(root, 'work-0001', { steps: ['Review'] }, today), /already has these steps: Review/);
   const reopened = await reopenWork(root, 'work-0001', { steps: ['Fix the follow-up'] }, { today: '2026-10-17' });
@@ -148,12 +156,52 @@ test('closing refuses while items are open, then completes and archives, repairi
   assert.match(read(root, 'active/0001-existing/ledger.md'), /- 2026-10-17: reopened with the step "Fix the follow-up"\./);
   assert.ok(read(root, 'README.md').includes('[Existing](active/0001-existing/plan.md)'));
   assert.deepEqual(errorsOf(root), []);
-  const archived = await archiveWork(root, 'work-0002', today);
-  assert.equal(archived.path, 'archive/0002-other');
+  // Work that is not complete is archived only as superseded or abandoned, with the reason recorded.
+  await assert.rejects(archiveWork(root, 'work-0002', {}, today), /not complete: archive it as superseded/);
+  await assert.rejects(archiveWork(root, 'work-0002', { disposition: 'abandoned' }, today), /reason/);
+  await assert.rejects(archiveWork(root, 'work-0002', { disposition: 'superseded', supersededBy: 'work-0009' }, today), /work-0009 is not registered/);
+  const archived = await archiveWork(root, 'work-0002', { disposition: 'abandoned', reason: 'The tools moved elsewhere.' }, today);
+  assert.deepEqual([archived.path, archived.designStatus], ['archive/0002-other', 'abandoned']);
+  assert.match(read(root, 'archive/0002-other/plan.md'), /## Outcome\n\n- 2026-10-14: Archived as abandoned: The tools moved elsewhere\.\n$/);
   assert.ok(read(root, 'active/0001-existing/plan.md').includes('[the other work](../../archive/0002-other/plan.md)'));
   assert.deepEqual(errorsOf(root), []);
   const status = await workStatus(root, 'work-0001');
   assert.deepEqual(status.statistics, { reports: 0, agentMinutes: 0, tokens: null, primaryModel: null });
+  // Superseded work with open steps: the ledger says by what, and reopening accepts it again.
+  await assert.rejects(archiveWork(root, 'work-0001', {}, today), (error: WorkError) => error.problems.includes('Step "Fix the follow-up" is todo.'));
+  const superseded = await archiveWork(root, 'work-0001', { disposition: 'superseded', supersededBy: 'work-0002', reason: 'Folded into the tools work' }, today);
+  assert.deepEqual([superseded.location, superseded.designStatus], ['archive', 'superseded']);
+  assert.match(read(root, 'archive/0001-existing/plan.md'), /^superseded_by: "work-0002"$/m);
+  assert.match(read(root, 'archive/0001-existing/ledger.md'), /- 2026-10-14: archived as superseded by work-0002: Folded into the tools work\.\n$/);
+  assert.deepEqual(errorsOf(root), []);
+  const again = await reopenWork(root, 'work-0001', { steps: ['Pick it up again'] }, today);
+  assert.deepEqual([again.designStatus, again.location], ['accepted', 'active']);
+  assert.match(read(root, 'active/0001-existing/plan.md'), /^superseded_by: null$/m);
+});
+
+test('atlas check flags archived work left open without a disposition', async t => {
+  const root = planningFolder(temporary(t));
+  await acceptWork(root, 'work-0001', today);
+  await startWork(root, 'work-0001', { steps: ['Build'] }, today);
+  // Moved by hand, as the archive tool would refuse.
+  mkdirSync(path.join(root, 'archive'));
+  renameSync(path.join(root, 'active/0001-existing'), path.join(root, 'archive/0001-existing'));
+  writeFileSync(path.join(root, 'planning.json'), read(root, 'planning.json').replaceAll('active/0001-existing', 'archive/0001-existing'));
+  assert.deepEqual(errorsOf(root), ['archive/0001-existing/plan.md: archived with 1 open ledger item but neither superseded nor abandoned; reopen it, close it, or give it that disposition']);
+  writeFileSync(path.join(root, 'archive/0001-existing/plan.md'), read(root, 'archive/0001-existing/plan.md').replace('design_status: accepted', 'design_status: abandoned'));
+  assert.deepEqual(errorsOf(root), []);
+});
+
+test('a current_plan outside its work folder is refused before anything is written', async t => {
+  const root = planningFolder(temporary(t));
+  const registry = JSON.parse(read(root, 'planning.json'));
+  const before = read(root, 'active/0002-other/plan.md');
+  for (const pointer of ['active/0002-other/plan.md', 'active/0001-existing/../0002-other/plan.md']) {
+    registry.work_items[0].current_plan = pointer;
+    writeFileSync(path.join(root, 'planning.json'), JSON.stringify(registry, null, 2) + '\n');
+    await assert.rejects(acceptWork(root, 'work-0001', today), new RegExp('current_plan .* is outside its work folder active/0001-existing'));
+  }
+  assert.equal(read(root, 'active/0002-other/plan.md'), before);
 });
 
 test('remotes are compared in one spelling', () => {
@@ -173,12 +221,13 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   const shop = path.join(directory, 'shop');
   mkdirSync(shop);
   git(shop, 'init', '-q');
-  git(shop, 'remote', 'add', 'origin', 'https://github.com/example/shop.git');
+  git(shop, 'remote', 'add', 'origin', 'https://someone:secret-token@github.com/example/shop.git');
   mkdirSync(path.join(shop, 'src'));
   await acceptWork(root, 'work-0001', today);
   await startWork(root, 'work-0001', { steps: ['Build'] }, today);
   const where = await findPlanning(path.join(shop, 'src'), { home });
   assert.equal(where.checkout, realpathSync(shop));
+  assert.deepEqual(where.remotes, ['https://github.com/example/shop.git'], 'credentials in a remote are never shown');
   assert.deepEqual(where.matches.map(match => [match.planningFolder, match.via, match.repositories]), [[root, ['remote'], ['shop']]]);
   assert.deepEqual(where.matches[0].work.map(item => [item.workId, item.title, item.designStatus, item.progress]), [['work-0001', 'Existing work', 'accepted', '0 of 1 step done · 1 left']]);
   // A repository without a remote matches by its absolute path hint.
@@ -234,7 +283,11 @@ test('a planning folder is adopted into the home with its path hints made absolu
   const root = planningFolder(directory);
   const home = path.join(directory, 'home');
   await assert.rejects(adoptPlanningFolder(path.join(root, 'active'), { home }), /no planning\.json/);
+  const usage = await statisticsDirectory(root, home);
+  write(path.join(usage, 'usage.sqlite'), 'statistics');
   const adopted = await adoptPlanningFolder(root, { home, name: 'shop-planning' });
+  assert.equal(read(await statisticsDirectory(adopted.to, home), 'usage.sqlite'), 'statistics', 'document use follows the folder');
+  assert.ok(!existsSync(usage));
   assert.equal(adopted.to, path.join(home, 'planning', 'shop-planning'));
   assert.ok(!existsSync(root) && existsSync(path.join(adopted.to, '.git')));
   assert.deepEqual(adopted.rewritten, [{ id: 'shop', from: '../shop', to: path.join(directory, 'shop') }]);
