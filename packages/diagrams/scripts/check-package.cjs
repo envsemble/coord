@@ -71,12 +71,9 @@ try {
     const assert = require('node:assert/strict');
     const path = require('node:path');
     assert(require.resolve('@envsemble/atlas-diagrams').startsWith(path.join(process.cwd(), 'node_modules') + path.sep), 'Resolved an installation outside the clean stage');
-    const {Project,validateModel,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@envsemble/atlas-diagrams');
-    const p=new Project(); p.name.add('Installed package test');
-    const root=p.packageBuilder().root().name('Orders').build();
-    root.classBuilder().kind().name('Order').build();
-    const project=JSON.parse(JSON.stringify(p));
-    assert(validateModel(project).valid);
+    const {checkDiagram,prepareDiagrams,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@envsemble/atlas-diagrams');
+    const file={path:'orders.puml',text:['@startuml','title Installed package test','class Order','@enduml',''].join(String.fromCharCode(10))};
+    assert.deepEqual(checkDiagram(file.text),[]);
     (async()=>{
       const fs=require('node:fs');
       fs.writeFileSync('tsconfig.json',JSON.stringify({files:['consumer.ts'],compilerOptions:{target:'ES2022',skipLibCheck:true}}));
@@ -90,7 +87,8 @@ try {
       assert.equal(typeof react.DiagramViewer,'function');
       assert.equal(typeof react.AtlasPanel,'function');
       assert(require('node:fs').existsSync(require.resolve('@envsemble/atlas-diagrams/embedded.css')));
-      const built=await buildViewer({project});
+      const {prepared}=await prepareDiagrams({files:[file],includeArtifacts:true});
+      const built=await buildViewer({prepared:prepared.get(file.path),file});
       assert(built.html.includes('Installed package test'));
       assert(built.payload.views.length===1);
       writeViewer(built,'site');
