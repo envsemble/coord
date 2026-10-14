@@ -727,10 +727,8 @@ async function captureJava(options) {
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 5000,
     });
-  } catch (error) {
-    if (error.status !== undefined)
-      throw new Error("CAPTURE_PREREQUISITE: a Java 21 JDK is required");
-    throw new Error("CAPTURE_PREREQUISITE: a Java 21 JDK is required");
+  } catch {
+    throw new Error("CAPTURE_PREREQUISITE: a JDK 21 or newer is required");
   }
   const model = emptyModel(),
     diagnostics = [],
@@ -860,7 +858,7 @@ async function captureJava(options) {
     } catch (error) {
       if (error.message.startsWith("CAPTURE_")) throw error;
       throw new Error(
-        "CAPTURE_JAVA: compiler inspection failed; check JDK 21 and source/classpath configuration",
+        "CAPTURE_JAVA: compiler inspection failed; check the JDK (21 or newer) and source/classpath configuration",
       );
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });

@@ -380,9 +380,9 @@ public class AtlasJava {
   }
 
   public static void main(String[] args) throws Exception {
-    if (Runtime.version().feature() != 21) {
+    if (Runtime.version().feature() < 21) {
       System.out.println(
-        encode(map("error", "CAPTURE_VERSION: Java 21 JDK is required"))
+        encode(map("error", "CAPTURE_VERSION: a JDK 21 or newer is required"))
       );
       return;
     }
