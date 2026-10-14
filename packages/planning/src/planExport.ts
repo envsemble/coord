@@ -6,8 +6,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
+import { parse } from 'parse5';
 import { parseFrontmatter, validatePlanning } from './check.ts';
 import { PlanningError, loadPlanning } from './planning.ts';
 import { samePath, workRelative } from './paths.ts';
@@ -18,7 +18,6 @@ import { appendRegistryEntries, RegistryFormatError } from './registryText.ts';
 import { acquireImportLock, ImportLockBusyError } from './importLock.ts';
 import type { Work } from './types.ts';
 
-const require = createRequire(import.meta.url);
 const { version: atlasVersion } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 
 export const planExportFormat = 'atlas/plan-export';
@@ -174,7 +173,6 @@ function payloadText(input: string | Uint8Array): string {
       throw new PlanExportError('FORMAT', 'This file is not UTF-8 text, so it is not an Atlas plan export.');
     }
   } else throw new PlanExportError('FORMAT', 'Provide the plan export as HTML text or bytes.');
-  const { parse } = require('parse5') as typeof import('parse5');
   let tree: ParsedNode;
   try {
     tree = parse(html, { onParseError: error => { if (error.code === 'duplicate-attribute') throw new PlanExportError('FORMAT', 'The plan export repeats an HTML attribute, so its payload is ambiguous.'); } }) as unknown as ParsedNode;
