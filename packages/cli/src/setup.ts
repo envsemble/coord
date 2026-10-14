@@ -21,19 +21,74 @@ function userHome(environment: NodeJS.ProcessEnv) {
 }
 const same = (left: string, right: string) => samePlatformPath(path.resolve(left), path.resolve(right));
 
-/** Claude Code's settings with `directory` in permissions.additionalDirectories; null when it is there already. */
+// Where the members of a JSON object or the items of a list are in the text (of valid JSON).
+interface JsonContainer { close: number; items: { key: string | null; start: number; end: number }[] }
+const skipSpace = (text: string, index: number) => { while (/[ \t\r\n]/.test(text[index] ?? '')) index++; return index; };
+function stringEnd(text: string, index: number) {
+  index++;
+  while (text[index] !== '"') index += text[index] === '\\' ? 2 : 1;
+  return index + 1;
+}
+function valueEnd(text: string, index: number): number {
+  if (text[index] === '"') return stringEnd(text, index);
+  if (text[index] === '{' || text[index] === '[') return jsonContainer(text, index).close + 1;
+  while (index < text.length && !/[ \t\r\n,\]}]/.test(text[index])) index++;
+  return index;
+}
+function jsonContainer(text: string, open: number): JsonContainer {
+  const items: JsonContainer['items'] = [];
+  let index = skipSpace(text, open + 1);
+  while (text[index] !== '}' && text[index] !== ']') {
+    let key: string | null = null;
+    if (text[open] === '{') {
+      const end = stringEnd(text, index);
+      key = JSON.parse(text.slice(index, end)) as string;
+      index = skipSpace(text, skipSpace(text, end) + 1);
+    }
+    const end = valueEnd(text, index);
+    items.push({ key, start: index, end });
+    index = skipSpace(text, end);
+    if (text[index] === ',') index = skipSpace(text, index + 1);
+  }
+  return { close: index, items };
+}
+/** Insert a member (or, with a null key, a list item) after the container's last one, in the style of its lines. */
+function insertJson(text: string, container: JsonContainer, key: string | null, value: unknown, unit: string, eol: string) {
+  const last = container.items.at(-1);
+  const multiline = last !== undefined && /\n/.test(text.slice(last.end, container.close));
+  const indent = multiline ? /^[ \t]*/.exec(text.slice(text.lastIndexOf('\n', last.start) + 1))![0] : '';
+  const rendered = multiline ? JSON.stringify(value, null, unit).replace(/\n/g, eol + indent) : JSON.stringify(value, null, 1).replace(/\n\s*/g, ' ');
+  const item = (key === null ? '' : JSON.stringify(key) + ': ') + rendered;
+  if (!last) return text.slice(0, container.close) + item + text.slice(container.close);
+  return text.slice(0, last.end) + (multiline ? ',' + eol + indent : ', ') + item + text.slice(last.end);
+}
+
+/**
+ * Claude Code's settings with `directory` in permissions.additionalDirectories, changing only that
+ * list (or adding the key or `permissions`) and keeping the rest of the text as it is; null when it
+ * is there already.
+ */
 export function grantClaudeDirectory(text: string | null, directory: string): string | null {
   const settings = text === null || !text.trim() ? {} : JSON.parse(text.replace(/^﻿/, '')) as Record<string, unknown>;
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('the settings are not a JSON object');
-  const permissions = (settings.permissions ??= {}) as Record<string, unknown>;
-  if (typeof permissions !== 'object' || Array.isArray(permissions)) throw new Error('permissions is not an object');
-  const directories = (permissions.additionalDirectories ??= []) as unknown[];
+  const permissions = settings.permissions === undefined ? {} : settings.permissions;
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) throw new Error('permissions is not an object');
+  const listed = (permissions as Record<string, unknown>).additionalDirectories, directories = listed === undefined ? [] : listed;
   if (!Array.isArray(directories)) throw new Error('permissions.additionalDirectories is not a list');
   if (directories.some(item => typeof item === 'string' && same(item, directory))) return null;
-  directories.push(directory);
-  const indent = /^\{\r?\n([ \t]+)"/.exec(text ?? '')?.[1] ?? 2;
+  const unit = /^﻿?\{\r?\n([ \t]+)"/.exec(text ?? '')?.[1] ?? '  ';
   const eol = text?.includes('\r\n') ? '\r\n' : '\n';
-  return JSON.stringify(settings, null, indent).replace(/\n/g, eol) + eol;
+  if (text === null || !Object.keys(settings).length) {
+    return JSON.stringify({ ...settings, permissions: { additionalDirectories: [directory] } }, null, unit).replace(/\n/g, eol) + eol;
+  }
+  // Duplicate keys: JSON.parse keeps the last, and so does this.
+  const top = jsonContainer(text, text.indexOf('{'));
+  const member = top.items.findLast(item => item.key === 'permissions');
+  if (!member) return insertJson(text, top, 'permissions', { additionalDirectories: [directory] }, unit, eol);
+  const inner = jsonContainer(text, member.start);
+  const list = inner.items.findLast(item => item.key === 'additionalDirectories');
+  if (!list) return insertJson(text, inner, 'additionalDirectories', [directory], unit, eol);
+  return insertJson(text, jsonContainer(text, list.start), null, directory, unit, eol);
 }
 
 /** The strings of the TOML array starting at `start` (a `[`), and where it ends. */
@@ -67,7 +122,8 @@ const tomlString = (value: string) => value.includes("'") || /[\r\n]/.test(value
 
 /**
  * Codex's config.toml with `directory` in [sandbox_workspace_write] writable_roots, changing only
- * that list (or adding the key or the table); null when it is there already.
+ * that list (or adding the key, as a dotted key when the table is defined by dotted keys, or the
+ * table); null when it is there already.
  */
 export function grantCodexRoot(text: string | null, directory: string): string | null {
   const source = text ?? '';
@@ -115,6 +171,10 @@ export function grantCodexRoot(text: string | null, directory: string): string |
     const at = header.index + header[0].length;
     return source.slice(0, at) + eol + 'writable_roots = [' + entry + ']' + source.slice(at);
   }
+  // The table defined by dotted keys (`sandbox_workspace_write.network_access = true`) cannot also
+  // have a header: add the key as one more dotted key, before the first.
+  const dotted = /^[ \t]*sandbox_workspace_write[ \t]*\./m.exec(source.slice(section.start, section.end));
+  if (dotted) return source.slice(0, dotted.index) + 'sandbox_workspace_write.writable_roots = [' + entry + ']' + eol + source.slice(dotted.index);
   const table = '[sandbox_workspace_write]' + eol + 'writable_roots = [' + entry + ']' + eol;
   return !source ? table : source + (source.endsWith('\n') ? eol : eol + eol) + table;
 }
@@ -186,11 +246,11 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
   const harnesses = [
     {
       name: 'Claude Code', program: 'claude', config: environment.CLAUDE_CONFIG_DIR || path.join(user, '.claude'), file: 'settings.json', where: 'permissions.additionalDirectories', grant: grantClaudeDirectory,
-      install: [['plugin', 'marketplace', 'add', repository], ['plugin', 'install', 'atlas@' + marketplace]],
+      install: [['plugin', 'marketplace', 'add', repository], ['plugin', 'install', 'atlas@' + marketplace]], replace: null,
     },
     {
       name: 'Codex', program: 'codex', config: environment.CODEX_HOME || path.join(user, '.codex'), file: 'config.toml', where: '[sandbox_workspace_write] writable_roots', grant: grantCodexRoot,
-      install: [['plugin', 'marketplace', 'add', repository], ['plugin', 'add', 'atlas@' + marketplace]],
+      install: [['plugin', 'marketplace', 'add', repository], ['plugin', 'add', 'atlas@' + marketplace]], replace: ['plugin', 'marketplace', 'remove', marketplace],
     },
   ];
   for (const harness of harnesses) {
@@ -212,8 +272,13 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
     for (const command of harness.install) {
       const shown = [harness.program, ...command].join(' ');
       if (dryRun) { out.stdout('Would run: ' + shown); continue; }
-      const result = run(program, command, environment);
-      if (result.status === 0 || /already/i.test(result.output)) out.stdout('Ran: ' + shown + (result.status === 0 ? '' : ' (already done)'));
+      let result = run(program, command, environment);
+      if (result.status !== 0 && harness.replace && command === harness.install[0] && /different source/i.test(result.output)) {
+        const removed = run(program, harness.replace, environment);
+        out.stdout('Ran: ' + [harness.program, ...harness.replace].join(' ') + ' (it named another checkout)');
+        if (removed.status === 0) result = run(program, command, environment);
+      }
+      if (result.status === 0 || /already/i.test(result.output) && !/different source/i.test(result.output)) out.stdout('Ran: ' + shown + (result.status === 0 ? '' : ' (already done)'));
       else { failed = true; out.stderr(`${harness.name}: ${shown} failed (exit ${result.status}): ${result.output.split(/\r?\n/).slice(-3).join(' ')}`); }
     }
   }

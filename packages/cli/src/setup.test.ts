@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import path from 'node:path';
 import { grantClaudeDirectory, grantCodexRoot, repository } from './setup.ts';
 import { atlas, environment, temporary, write } from './testing.ts';
@@ -13,8 +14,18 @@ test('the home is added to Claude Code\'s additional directories, keeping the re
   const settings = '{\r\n    "model": "opus",\r\n    "permissions": {\r\n        "allow": ["Bash(git status)"],\r\n        "additionalDirectories": ["/elsewhere"]\r\n    },\r\n    "hooks": {}\r\n}\r\n';
   const granted = grantClaudeDirectory(settings, home)!;
   assert.deepEqual(JSON.parse(granted), { model: 'opus', permissions: { allow: ['Bash(git status)'], additionalDirectories: ['/elsewhere', home] }, hooks: {} });
-  assert.ok(granted.startsWith('{\r\n    "model"'), 'indentation and line endings stay');
+  assert.equal(granted, settings.replace('["/elsewhere"]', `["/elsewhere", ${JSON.stringify(home)}]`), 'only the list changes');
   assert.equal(grantClaudeDirectory(granted, home), null, 'granted once');
+  // A missing key or object is added in the style of its neighbours; everything else stays as written.
+  const bare = '{\n  "model": "opus",\n  "env": { "A": "1" }\n}\n';
+  assert.equal(grantClaudeDirectory(bare, home), `{\n  "model": "opus",\n  "env": { "A": "1" },\n  "permissions": {\n    "additionalDirectories": [\n      ${JSON.stringify(home)}\n    ]\n  }\n}\n`);
+  const noList = '{\n\t"permissions": {\n\t\t"allow": ["Read", "Edit"]\n\t}\n}';
+  assert.equal(grantClaudeDirectory(noList, home), `{\n\t"permissions": {\n\t\t"allow": ["Read", "Edit"],\n\t\t"additionalDirectories": [\n\t\t\t${JSON.stringify(home)}\n\t\t]\n\t}\n}`);
+  const listed = '{"permissions": {"additionalDirectories": [\n  "/a",\n  "/b"\n]}, "x": [1,2]}';
+  assert.equal(grantClaudeDirectory(listed, home), `{"permissions": {"additionalDirectories": [\n  "/a",\n  "/b",\n  ${JSON.stringify(home)}\n]}, "x": [1,2]}`);
+  assert.equal(grantClaudeDirectory('{"permissions": {}}', home), `{"permissions": {"additionalDirectories": [ ${JSON.stringify(home)} ]}}`);
+  assert.equal(grantClaudeDirectory('{}', home), JSON.stringify({ permissions: { additionalDirectories: [home] } }, null, 2) + '\n');
+  assert.throws(() => grantClaudeDirectory('{"permissions": null}', home), /not an object/);
   assert.throws(() => grantClaudeDirectory('{"permissions": []}', home), /not an object/);
   assert.throws(() => grantClaudeDirectory('{ broken', home));
 });
@@ -33,6 +44,11 @@ test('the home is added to Codex\'s writable roots with a text edit that keeps e
   assert.equal(grantCodexRoot(crlf, home), `[sandbox_workspace_write]\r\nwritable_roots = [${literal}]\r\n`);
   const dotted = 'sandbox_workspace_write.writable_roots = ["/tmp/a"]\n';
   assert.equal(grantCodexRoot(dotted, home), `sandbox_workspace_write.writable_roots = ["/tmp/a", ${literal}]\n`);
+  // A table defined by dotted keys cannot get a header too: the list is added as one more dotted key.
+  const dottedOther = 'model = "gpt-5.5"\nsandbox_workspace_write.network_access = true\n\n[other]\nx = 1\n';
+  assert.equal(grantCodexRoot(dottedOther, home), `model = "gpt-5.5"\nsandbox_workspace_write.writable_roots = [${literal}]\nsandbox_workspace_write.network_access = true\n\n[other]\nx = 1\n`);
+  const dottedBoth = 'sandbox_workspace_write.network_access = true\nsandbox_workspace_write.writable_roots = [\n  "/tmp/a",\n]\n';
+  assert.equal(grantCodexRoot(dottedBoth, home), `sandbox_workspace_write.network_access = true\nsandbox_workspace_write.writable_roots = [\n  "/tmp/a",\n  ${literal},\n]\n`);
   const escaped = `[sandbox_workspace_write]\nwritable_roots = [${JSON.stringify(home)}]\n`;
   assert.equal(grantCodexRoot(escaped, home), null, 'already granted, however it is quoted');
   assert.equal(grantCodexRoot(grantCodexRoot(config, home), home), null);
@@ -40,10 +56,22 @@ test('the home is added to Codex\'s writable roots with a text edit that keeps e
   assert.throws(() => grantCodexRoot('[sandbox_workspace_write]\nwritable_roots = "x"\n', home), /not a list/);
 });
 
-/** A stand-in for a harness's command that records how it was called. */
+/**
+ * A stand-in for a harness's command that records how it was called. Like Codex, it refuses to add
+ * a marketplace another source added already, until that is removed.
+ */
 function fakeProgram(folder: string, name: string, log: string) {
   const script = path.join(folder, 'fake.mjs');
-  writeFileSync(script, `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n');\n`);
+  writeFileSync(script, [
+    "import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';",
+    'const args = process.argv.slice(2), source = ' + JSON.stringify(log) + ' + "." + args[0] + ".source";',
+    `appendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + '\\n');`,
+    "if (args[2] === 'marketplace' && args[3] === 'remove') rmSync(source, { force: true });",
+    "if (args[2] === 'marketplace' && args[3] === 'add') {",
+    "  if (existsSync(source) && readFileSync(source, 'utf8') !== args[4]) { console.error(\"Error: marketplace 'atlas' is already added from a different source; remove it before adding this source\"); process.exit(1); }",
+    '  writeFileSync(source, args[4]);',
+    '}',
+  ].join('\n'));
   if (process.platform === 'win32') writeFileSync(path.join(folder, name + '.cmd'), `@"${process.execPath}" "${script}" ${name} %*\r\n`);
   else { writeFileSync(path.join(folder, name), `#!/bin/sh\nexec "${process.execPath}" "${script}" ${name} "$@"\n`); chmodSync(path.join(folder, name), 0o755); }
 }
@@ -73,15 +101,32 @@ test('atlas setup creates the home, moves the old data folder, grants the home a
   assert.equal(readFileSync(path.join(claude, 'settings.json'), 'utf8'), '{\n  "model": "opus"\n}\n', 'a dry run changes nothing');
   assert.ok(!existsSync(log));
 
+  assert.ok(dry.stdout.includes(`Would move from ${legacy}: planning-roots.json`), dry.stdout);
+
+  // While an Atlas app holds its single-instance lock in the old data folder, nothing moves.
+  const lock = path.join(legacy, process.platform === 'win32' ? 'lockfile' : 'SingletonLock');
+  // A read-only lockfile refuses to open for writing, as the one the app holds open does.
+  if (process.platform === 'win32') { writeFileSync(lock, ''); chmodSync(lock, 0o444); }
+  else symlinkSync(`${hostname()}-${process.pid}`, lock);
+  const running = atlas(['setup'], { env });
+  assert.equal(running.status, 1);
+  assert.match(running.stderr, /Atlas is running and uses .*\. Quit it, then run atlas setup again/);
+  assert.ok(existsSync(path.join(legacy, 'planning-roots.json')) && !existsSync(atlasHome) && !existsSync(log), 'nothing changed');
+  if (process.platform === 'win32') chmodSync(lock, 0o666);
+  rmSync(lock);
+
+  // Codex keeps a marketplace's first source: one added from another checkout is replaced.
+  writeFileSync(log + '.codex.source', path.join(directory, 'another-checkout'));
   const done = atlas(['setup'], { env });
   assert.equal(done.status, 0, done.stderr);
   assert.ok(existsSync(path.join(atlasHome, 'planning')));
   assert.ok(existsSync(path.join(atlasHome, 'planning-roots.json')) && !existsSync(path.join(legacy, 'planning-roots.json')), 'the old data folder moved into the home');
+  assert.match(done.stdout, /Moved from .*: planning-roots\.json/);
   assert.deepEqual(JSON.parse(readFileSync(path.join(claude, 'settings.json'), 'utf8')), { model: 'opus', permissions: { additionalDirectories: [atlasHome] } });
   assert.match(readFileSync(path.join(codex, 'config.toml'), 'utf8'), /^model = "gpt-5\.5"\n\n\[sandbox_workspace_write\]\nwritable_roots = \[.+\]\n$/);
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [
     ['claude', 'plugin', 'marketplace', 'add', repository], ['claude', 'plugin', 'install', 'atlas@' + marketplace],
-    ['codex', 'plugin', 'marketplace', 'add', repository], ['codex', 'plugin', 'add', 'atlas@' + marketplace],
+    ['codex', 'plugin', 'marketplace', 'add', repository], ['codex', 'plugin', 'marketplace', 'remove', marketplace], ['codex', 'plugin', 'marketplace', 'add', repository], ['codex', 'plugin', 'add', 'atlas@' + marketplace],
   ]);
   const settings = readFileSync(path.join(claude, 'settings.json'), 'utf8'), config = readFileSync(path.join(codex, 'config.toml'), 'utf8');
   const again = atlas(['setup'], { env });
