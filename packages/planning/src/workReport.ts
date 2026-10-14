@@ -12,7 +12,13 @@ import { appendReport, createReport, fitStep, measuredModelLimit, readReports, S
 
 export interface RecordedReport { file: string; report: StatisticsReport; warnings: string[] }
 /** What the caller gives: the model may come from the session log instead. */
-export type WorkReportInput = Omit<ReportInput, 'model' | 'measured'> & { model?: string | null };
+export type WorkReportInput = Omit<ReportInput, 'model' | 'measured'> & {
+  model?: string | null;
+  /** The session amends an accepted plan (its time counts as planning); set by the hooks. */
+  amending?: boolean;
+  /** The harness's transcript of the session, which the hooks name. */
+  transcriptPath?: string;
+};
 const harnessNames: Record<Harness, string> = { 'claude-code': 'Claude Code', codex: 'Codex' };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
