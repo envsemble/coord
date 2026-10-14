@@ -7,6 +7,7 @@ import path from 'node:path';
 import { validatePlanning } from './check.ts';
 import { checkPaths, fileCheckers } from './checkPaths.ts';
 import { adoptPlanningFolder } from './adopt.ts';
+import { statisticsDirectory } from './storage.ts';
 import { findPlanning, normalizeRemote, resolvePlanningFolder } from './resolve.ts';
 import { acceptWork, addSteps, archiveWork, closeWork, createWork, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 
@@ -234,7 +235,11 @@ test('a planning folder is adopted into the home with its path hints made absolu
   const root = planningFolder(directory);
   const home = path.join(directory, 'home');
   await assert.rejects(adoptPlanningFolder(path.join(root, 'active'), { home }), /no planning\.json/);
+  const usage = await statisticsDirectory(root, home);
+  write(path.join(usage, 'usage.sqlite'), 'statistics');
   const adopted = await adoptPlanningFolder(root, { home, name: 'shop-planning' });
+  assert.equal(read(await statisticsDirectory(adopted.to, home), 'usage.sqlite'), 'statistics', 'document use follows the folder');
+  assert.ok(!existsSync(usage));
   assert.equal(adopted.to, path.join(home, 'planning', 'shop-planning'));
   assert.ok(!existsSync(root) && existsSync(path.join(adopted.to, '.git')));
   assert.deepEqual(adopted.rewritten, [{ id: 'shop', from: '../shop', to: path.join(directory, 'shop') }]);
