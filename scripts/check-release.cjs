@@ -120,7 +120,7 @@ async function check() {
       "Installed dependencies leaked into the release",
     );
     console.log(
-      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, skills, branding/docs/schemas and reopenable report; no local model data.",
+      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, skills, branding/docs/schemas and the example viewers with their diagrams; no local planning data.",
     );
   } finally {
     if (!path.resolve(stage).startsWith(path.resolve(os.tmpdir()) + path.sep))
