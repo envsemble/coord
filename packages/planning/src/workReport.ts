@@ -1,7 +1,8 @@
 // `atlas work report`: record a ledger transition of one registered work item: its time, the model,
 // the step and the work item's stage, and, when the command runs inside the agent's harness (or is
 // given a session it keeps a log of, or the log itself, as hooks are), the agent time, tokens and
-// subagents that log shows since the session's previous report on this work item. The registry is
+// subagents that log shows since the session's previous report on this work item (or since the
+// session started on it, when the caller knows). The registry is
 // read directly, without indexing the whole planning folder, so reporting stays fast.
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -19,6 +20,8 @@ export interface WorkReportOptions extends LogOptions {
   amending?: boolean;
   /** The session's own log, as a hook names it (transcript_path): measured instead of searching by session. */
   transcriptPath?: string;
+  /** When the session started on this work item (ISO time), measured from when it has no earlier report here. */
+  since?: string;
 }
 const harnessNames: Record<Harness, string> = { 'claude-code': 'Claude Code', codex: 'Codex' };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -70,9 +73,12 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
       if (!logs && transcript) throw new Error(transcript + ' is not a Claude Code or Codex session log');
       if (!logs) throw new Error('no ' + (harnesses.size === 1 && !harnesses.has(null) ? harnessNames[candidates[0].harness!] : 'Claude Code or Codex') + ' log of session ' + session + ' was found on this computer');
       session = logs.session;
-      // The session's previous report here starts the interval; its first report is the starting point.
+      // The session's previous report here starts the interval; without one, when the session started
+      // on the work, if known; else this first report is the starting point.
       const previous = (await readReports(root, { path: location })).reports.filter(report => report.session === session && report.at <= at.toISOString()).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
-      since = previous?.at ?? null;
+      const startedAt = options.since ? Date.parse(options.since) : NaN;
+      const started = startedAt <= at.getTime() ? new Date(startedAt).toISOString() : null;
+      since = previous?.at ?? started;
       // A hook runs inside the session; so does a report naming the session the environment names.
       measure = await measureSession(logs, { since: since === null ? null : Date.parse(since), at: at.getTime(), live: transcript !== null || own.some(entry => entry.session === logs.requested) });
     } catch (error) {

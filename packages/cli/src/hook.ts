@@ -2,12 +2,12 @@
 // event as JSON on stdin and read JSON from stdout. A hook never breaks a session: on any failure it
 // prints nothing, exits 0 and notes the failure in the home's logs/hooks.log.
 //
-// SessionStart tells the agent its planning folder and active work. PostToolUse checks planning
-// files the agent edited in the home (blocking with the problems so it fixes them), links the
+// SessionStart tells the agent its planning folder and active work. PostToolUse checks the files
+// the agent edited in the home's planning folders (blocking with the problems so it fixes them), links the
 // session to the work item it edits or calls an Atlas tool on, and records the planning files it
 // reads as document use. Stop and SubagentStop record the
 // work statistics of each linked work item from the session's log.
-import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { atlasHome, checkPaths, findPlanning, homePlanningDirectory, logConsultation, parseFrontmatter, recordWorkReport, resolvePlanningFolder, type Whereabouts } from '@envsemble/atlas-planning';
@@ -18,7 +18,8 @@ export interface HookInput {
   tool_name?: string; tool_input?: unknown; tool_response?: unknown;
   agent_id?: string; agent_type?: string; agent_transcript_path?: string;
 }
-interface Link { planningFolder: string; workId: string; amending: boolean }
+/** A work item the session touched; `linked` is when, so the session's first report measures from then. */
+interface Link { planningFolder: string; workId: string; amending: boolean; linked?: string }
 interface SessionLinks { session: string; transcriptPath: string | null; updated: string; work: Link[] }
 
 const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -43,25 +44,58 @@ function logFailure(home: string, event: string, error: unknown) {
 
 // ---- Session links ------------------------------------------------------------------------------
 
+/** Run a file operation, retrying while Windows briefly refuses a file another hook is reading or replacing. */
+function retrying<T>(action: () => T): T {
+  for (let attempt = 0; ; attempt++) {
+    try { return action(); }
+    catch (error) {
+      if (attempt >= 40 || !['EPERM', 'EACCES', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+}
+
 function linksFile(home: string, session: string) { return path.join(home, 'sessions', session + '.json'); }
+/** The session's links; a new session's when there are none. A file that cannot be read is an error, so it is never overwritten. */
 function readLinks(home: string, session: string, transcriptPath: string | null): SessionLinks {
-  try {
-    const value = JSON.parse(readFileSync(linksFile(home, session), 'utf8')) as SessionLinks;
-    if (value.session === session && Array.isArray(value.work)) return { ...value, transcriptPath: transcriptPath ?? value.transcriptPath };
-  } catch { /* A new session. */ }
+  let value: SessionLinks | null = null;
+  try { value = JSON.parse(retrying(() => readFileSync(linksFile(home, session), 'utf8'))) as SessionLinks; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
+  if (value?.session === session && Array.isArray(value.work)) return { ...value, transcriptPath: transcriptPath ?? value.transcriptPath };
   return { session, transcriptPath, updated: new Date().toISOString(), work: [] };
 }
-function writeLinks(home: string, links: SessionLinks) {
-  const file = linksFile(home, links.session);
+/**
+ * Change the session's links as they are on disk now, holding a lock file, so hooks of the same
+ * session running at once (a slow Stop and a PostToolUse) never undo each other's changes.
+ * `change` returns whether it changed anything.
+ */
+async function updateLinks(home: string, session: string, transcriptPath: string | null, change: (links: SessionLinks) => boolean) {
+  const file = linksFile(home, session), lock = file + '.lock';
   mkdirSync(path.dirname(file), { recursive: true });
-  const temporary = file + '.' + process.pid + '.tmp';
-  writeFileSync(temporary, JSON.stringify({ ...links, updated: new Date().toISOString() }, null, 2) + '\n');
-  renameSync(temporary, file);
+  for (let attempt = 0; ; attempt++) {
+    try { closeSync(openSync(lock, 'wx')); break; }
+    catch (error) {
+      // Windows refuses to create a file while another hook's lock is still being deleted.
+      if (!['EEXIST', 'EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+      // A hook that died holding the lock leaves it behind; after ten seconds it is stale.
+      const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now());
+      if (age > 10000) rmSync(lock, { force: true });
+      else if (attempt >= 250) throw new Error('the session links stayed locked');
+      else await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
+  try {
+    const links = readLinks(home, session, transcriptPath);
+    if (!change(links)) return;
+    const temporary = file + '.' + process.pid + '.tmp';
+    writeFileSync(temporary, JSON.stringify({ ...links, updated: new Date().toISOString() }, null, 2) + '\n');
+    retrying(() => renameSync(temporary, file));
+  } finally { rmSync(lock, { force: true }); }
 }
 /** Link the session to a work item (amending, when it edits an accepted plan); whether that changed anything. */
 function link(links: SessionLinks, planningFolder: string, workId: string, amending: boolean) {
   const found = links.work.find(item => item.workId === workId && key(item.planningFolder) === key(planningFolder));
-  if (!found) { links.work.push({ planningFolder, workId, amending }); return true; }
+  if (!found) { links.work.push({ planningFolder, workId, amending, linked: new Date().toISOString() }); return true; }
   if (!amending || found.amending) return false;
   found.amending = true;
   return true;
@@ -135,20 +169,22 @@ async function registered(root: string): Promise<Registered[]> {
   return Array.isArray(registry.work_items) ? registry.work_items.filter(item => typeof item?.id === 'string' && typeof item.path === 'string') : [];
 }
 
-async function postToolUse(input: HookInput, home: string, links: SessionLinks): Promise<{ output: object | null; changed: boolean }> {
-  let changed = false;
+interface LinkRequest { planningFolder: string; workId: string; amending: boolean }
+
+async function postToolUse(input: HookInput, home: string, links: SessionLinks): Promise<{ output: object | null; requests: LinkRequest[] }> {
+  const requests: LinkRequest[] = [];
   if (/^mcp__.*atlas.*__(?:work|step)_/.test(input.tool_name ?? '')) {
     const about = toolWork(input);
     if (about) {
       const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
-      if (root) changed = link(links, root, about.workId, false) || changed;
+      if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }
   }
   const base = await realpath(homePlanningDirectory(home)).catch(() => null);
-  if (!base) return { output: null, changed };
+  if (!base) return { output: null, requests };
   if (input.tool_name === 'Read') {
     await recordRead(input, base, home, links);
-    return { output: null, changed };
+    return { output: null, requests };
   }
   const files: { root: string; relative: string; absolute: string }[] = [];
   for (const absolute of editedFiles(input)) {
@@ -156,9 +192,11 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
     if (!inside(base, resolved)) continue;
     const name = path.relative(base, resolved).split(path.sep)[0];
     const root = path.join(base, name);
+    // Only planning folders are checked: a folder being set up (no planning.json yet) or notes beside them are not.
+    if (!statSync(path.join(root, 'planning.json'), { throwIfNoEntry: false })?.isFile()) continue;
     files.push({ root, relative: path.relative(root, resolved).split(path.sep).join('/'), absolute: resolved });
   }
-  if (!files.length) return { output: null, changed };
+  if (!files.length) return { output: null, requests };
   const problems: string[] = [];
   for (const result of checkPaths(files.map(file => file.absolute))) problems.push(...result.errors.map(message => path.basename(result.planningFolder) + ': ' + message));
   for (const file of files) {
@@ -169,11 +207,11 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
     if (owner.current_plan === file.relative) {
       try { amending = parseFrontmatter(await readFile(file.absolute, 'utf8'))?.design_status === 'accepted'; } catch { /* An unreadable header is reported by the check. */ }
     }
-    changed = link(links, file.root, owner.id, amending) || changed;
+    requests.push({ planningFolder: file.root, workId: owner.id, amending });
   }
-  if (!problems.length) return { output: null, changed };
+  if (!problems.length) return { output: null, requests };
   const reason = 'Atlas found problems in the planning files you edited; fix them:\n' + problems.map(problem => '- ' + problem).join('\n');
-  return { output: { decision: 'block', reason, hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: reason } }, changed };
+  return { output: { decision: 'block', reason, hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: reason } }, requests };
 }
 
 /** Record a planning file the agent read as document use, for the work item the session is linked to there. */
@@ -190,14 +228,17 @@ async function recordRead(input: HookInput, base: string, home: string, links: S
 
 // ---- Stop and SubagentStop ----------------------------------------------------------------------
 
+/** Record a report for each linked work item; returns the amending ones recorded, which are planning no more. */
 async function recordLinked(home: string, links: SessionLinks, event: string) {
+  const amended: Link[] = [];
   for (const item of links.work) {
     try {
-      const recorded = await recordWorkReport(item.planningFolder, item.workId, { session: links.session }, { amending: item.amending, ...links.transcriptPath && { transcriptPath: links.transcriptPath } });
+      const recorded = await recordWorkReport(item.planningFolder, item.workId, { session: links.session }, { amending: item.amending, ...item.linked && { since: item.linked }, ...links.transcriptPath && { transcriptPath: links.transcriptPath } });
       if (recorded.warnings.length) logFailure(home, event, new Error(item.workId + ': ' + recorded.warnings.join(' ')));
-      item.amending = false;
+      if (item.amending) amended.push(item);
     } catch (error) { logFailure(home, event, error); }
   }
+  return amended;
 }
 
 /** Handle one hook event; returns what to print (nothing for most events). */
@@ -214,14 +255,17 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     if (!session) return '';
     const links = readLinks(home, session, transcriptPath);
     if (event === 'PostToolUse') {
-      const { output, changed } = await postToolUse(input, home, links);
-      if (changed) writeLinks(home, links);
+      const { output, requests } = await postToolUse(input, home, links);
+      if (requests.length) await updateLinks(home, session, transcriptPath, now => requests.reduce((changed, request) => link(now, request.planningFolder, request.workId, request.amending) || changed, false));
       return output ? JSON.stringify(output) : '';
     }
     if (event === 'Stop' || event === 'SubagentStop') {
       if (!links.work.length) return '';
-      await recordLinked(home, links, event);
-      writeLinks(home, links);
+      const amended = await recordLinked(home, links, event);
+      await updateLinks(home, session, transcriptPath, now => {
+        for (const item of now.work) if (amended.some(done => done.workId === item.workId && key(done.planningFolder) === key(item.planningFolder))) item.amending = false;
+        return true;
+      });
     }
     return '';
   } catch (error) {
