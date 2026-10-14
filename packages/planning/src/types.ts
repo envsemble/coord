@@ -1,5 +1,5 @@
 // Planning-folder records shared by the reader, the command and the app.
-export interface Repository { id: string; name: string; path?: string }
+export interface Repository { id: string; name: string; path?: string; remote?: string }
 export interface Document {
   path: string; name: string; title: string; size: number; modified: string;
   key: string; workId: string | null; repositories: string[]; category: string; format: string;

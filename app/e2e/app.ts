@@ -63,7 +63,7 @@ export function removeDirectory(directory: string) {
 export function environment(dataDirectory: string) {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE') env[key] = value;
-  env.ATLAS_DATA_DIR = dataDirectory;
+  env.ATLAS_HOME = dataDirectory;
   // The AppImage extracts itself instead of mounting through FUSE (not available on CI runners).
   env.APPIMAGE_EXTRACT_AND_RUN = '1';
   return env;

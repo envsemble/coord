@@ -3,7 +3,7 @@
 // package and are imported separately, so the command's planning checks stay light.
 export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './planning.ts';
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
-export { atlasDataDirectory, cacheOutsidePlanning, recentRootsFile, statisticsDirectory } from './storage.ts';
+export { atlasHome, cacheOutsidePlanning, homePlanningDirectory, homePlanningFolders, legacyDataDirectory, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
 export { Telemetry, recordCollectionGap, schema, type ViewEvent } from './telemetry.ts';
 export { RecentPlanningRoots, inspectPlanningRoot, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';
@@ -20,3 +20,7 @@ export {
   type PlanExportPreview, type PlanExportResult, type PlanImportResult, type PlanImportTarget, type PlanExportErrorCode,
 } from './planExport.ts';
 export { runProgram, ProgramError, type RunOptions } from './run.ts';
+export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, closeWork, archiveWork, reopenWork, repairLinks, localDate, type WorkResult, type WorkStatus, type OperationOptions } from './work.ts';
+export { findPlanning, resolvePlanningFolder, normalizeRemote, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type Whereabouts } from './resolve.ts';
+export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './checkPaths.ts';
+export { adoptPlanningFolder, type Adopted } from './adopt.ts';

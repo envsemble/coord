@@ -18,7 +18,7 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
-import { inspectPlanningRoot, RecentPlanningRoots, resolveDocument } from '@envsemble/atlas-planning';
+import { homePlanningFolders, inspectPlanningRoot, RecentPlanningRoots, resolveDocument } from '@envsemble/atlas-planning';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
 import { browse } from './browse.ts';
@@ -36,15 +36,16 @@ import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
 
 export interface HostOptions {
-  /** The Atlas data folder; the host keeps its identity and paired devices in its `host/` folder. */
-  dataDirectory: string;
+  /**
+   * The Atlas home: the host keeps its identity and paired devices in its `host/` folder, usage
+   * statistics in `usage/`, and lists the planning folders in its `planning/` folder.
+   */
+  home: string;
   version: string;
   log: Logger;
   createPlanWorker(): WorkerLike;
   /** Who runs this host, for messages such as "managed by the Atlas app (process 1234)". */
   owner: string;
-  /** Overrides where usage statistics are kept (tests). */
-  dataBase?: string;
   watchDelay?: { debounce: number; maxWait: number };
   idleClose?: number;
   /** Folders this process adds to the computer's folder list as it starts (`atlas serve --folder`). */
@@ -134,12 +135,12 @@ export class Host {
 
   constructor(options: HostOptions) {
     this.options = options;
-    this.access = new AccessStore(path.join(options.dataDirectory, 'host'), options.log, options.owner);
+    this.access = new AccessStore(path.join(options.home, 'host'), options.log, options.owner);
     this.exports = new PlanWorkerClient(options.createPlanWorker);
     // The list starts from the app's recent folders and the folders the first remote access shared.
-    const recents = new RecentPlanningRoots(path.join(options.dataDirectory, 'planning-roots.json'));
+    const recents = new RecentPlanningRoots(path.join(options.home, 'planning-roots.json'));
     this.folderList = new FolderList(this.access.directory, options.log, async () => [...await recents.list(), ...this.access.legacySharedFolders]);
-    this.folders = new FolderRegistry({ key: () => this.access.folderKey, dataBase: options.dataBase, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
+    this.folders = new FolderRegistry({ key: () => this.access.folderKey, dataBase: options.home, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
   }
 
   get descriptor(): HostDescriptor { return { protocol: protocolVersion, hostId: this.access.hostId, name: this.access.name, version: this.options.version }; }
@@ -524,9 +525,20 @@ export class Host {
 
   // ---- Folders and access ----------------------------------------------------------------------
 
+  /**
+   * The folder list and, after it, every planning folder in the home's `planning/` folder that the
+   * list does not have: those are always listed, whoever opened them.
+   */
+  private async listed() {
+    const entries = await this.folderList.entries();
+    const known = new Set(entries.map(entry => pathKey(entry.path)));
+    const home = (await homePlanningFolders(this.options.home)).filter(folder => !known.has(pathKey(folder)));
+    return [...entries, ...home.map(folder => ({ path: folder, openedAt: null }))];
+  }
+
   /** The computer's folder list, as clients see it: newest first, each with whether it is still there. */
   async computerFolders(): Promise<ComputerFolder[]> {
-    const entries = await this.folderList.entries();
+    const entries = await this.listed();
     return Promise.all(entries.map(async entry => {
       // A folder on a network drive that does not answer is shown as missing rather than holding the list up.
       const checked = await stalls((async () => {
@@ -546,7 +558,7 @@ export class Host {
   private async pathOf(folderId: string): Promise<string | null> {
     const known = this.folders.pathOf(folderId);
     if (known) return known;
-    const entries = await this.folderList.entries().catch(() => []);
+    const entries = await this.listed().catch(() => []);
     return entries.find(entry => this.folders.idOf(entry.path) === folderId)?.path ?? null;
   }
   /**
@@ -605,6 +617,9 @@ export class Host {
       }
       case 'folders.remove': {
         const root = await this.pathOf((p as { folderId: string }).folderId);
+        if (root && !(await this.folderList.entries()).some(entry => pathKey(entry.path) === pathKey(root)) && (await homePlanningFolders(this.options.home)).some(folder => pathKey(folder) === pathKey(root))) {
+          throw new HostError('not-found', 'Planning folders in the Atlas home are always listed; move the folder out of the home to remove it.');
+        }
         if (!root || !await this.folderList.remove(root)) throw new HostError('not-found', 'This folder is not on the folder list.');
         this.broadcastFolders();
         return null as never;
