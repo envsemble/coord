@@ -16,7 +16,7 @@ import { runProgram as execute } from './run.ts';
 const hiddenNames = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 const failureDetail = 'A requested consultation could not be recorded.';
 
-export interface ConsultationOptions { task?: string; session?: string; dataDir?: string }
+export interface ConsultationOptions { task?: string; session?: string; home?: string }
 interface Registration { id: string; path: string; current_plan?: string | null }
 
 /** A rejected registry or document; reported as a gap, never as a failure of the caller. */
@@ -75,9 +75,9 @@ export function documentIdentity(relative: string, workItems: Registration[], ca
 }
 
 /** Keep a coverage signal when the shared database cannot accept a write. */
-export async function recordAgentCollectionGap(root: string, dataDir?: string) {
+export async function recordAgentCollectionGap(root: string, home?: string) {
   try {
-    const destination = await cacheOutsidePlanning(root, await statisticsDirectory(expandHome(root), dataDir));
+    const destination = await cacheOutsidePlanning(root, await statisticsDirectory(expandHome(root), home));
     await mkdir(destination, { recursive: true });
     appendFileSync(path.join(destination, 'collection-gaps.jsonl'), JSON.stringify({ source: 'agent_report', timestamp: new Date().toISOString() }) + '\n');
   } catch { /* A wholly unavailable cache cannot retain its own failure; the caller still discloses it. */ }
@@ -121,7 +121,7 @@ export async function reportConsultation(inputRoot: string, files: string[], opt
     identities.add(work.id); locations.add(identity);
     registrations.push({ id: work.id, path: location, current_plan: currentPlan });
   }
-  const destination = await cacheOutsidePlanning(root, await statisticsDirectory(root, options.dataDir));
+  const destination = await cacheOutsidePlanning(root, await statisticsDirectory(root, options.home));
   await mkdir(destination, { recursive: true });
   let revision: string | null = null;
   try {
@@ -177,7 +177,7 @@ export async function logConsultation(root: string, files: string[], options: Co
   try {
     return { ...await reportConsultation(root, files, options), unavailable: null };
   } catch (error) {
-    await recordAgentCollectionGap(root, options.dataDir);
+    await recordAgentCollectionGap(root, options.home);
     const kind = (error as { code?: unknown } | null)?.code ?? (error as Error | null)?.name ?? 'Error';
     return { recorded: 0, failed: 0, unavailable: String(kind) };
   }

@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, rm, realpath, mkdir } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { Telemetry } from './telemetry.ts';
-import { atlasDataDirectory, recentRootsFile, statisticsDirectory } from './storage.ts';
+import { atlasHome, homePlanningFolders, legacyDataDirectory, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { logConsultation, reportConsultation } from './consultation.ts';
 
@@ -24,7 +25,7 @@ test('POSIX backslash planning roots remain separate from nested roots for the c
     const expected = await statisticsDirectory(root, metrics);
     assert.notEqual(await statisticsDirectory(nested, metrics), expected);
     await writeFile(path.join(root, 'foo\\bar.md'), '# Consulted original\n');
-    assert.deepEqual(await reportConsultation(root, ['foo\\bar.md'], { dataDir: metrics }), { recorded: 1, failed: 0 });
+    assert.deepEqual(await reportConsultation(root, ['foo\\bar.md'], { home: metrics }), { recorded: 1, failed: 0 });
     const store = new Telemetry(path.join(expected, 'usage.sqlite'));
     try {
       assert.equal(store.summary().reports, 1);
@@ -34,22 +35,59 @@ test('POSIX backslash planning roots remain separate from nested roots for the c
   } finally { await rm(temporary, { recursive: true }); }
 });
 
-test('the Atlas data folder follows the per-user convention and honours overrides', async () => {
+test('the Atlas home is ~/.atlas unless overridden, and the old data folder follows the per-user convention', async () => {
   const home = path.resolve('/home/someone');
-  assert.equal(atlasDataDirectory(undefined, { APPDATA: path.resolve('/roaming') }, 'win32', home), path.join(path.resolve('/roaming'), 'Atlas'));
-  assert.equal(atlasDataDirectory(undefined, {}, 'win32', home), path.join(home, 'AppData', 'Roaming', 'Atlas'));
-  assert.equal(atlasDataDirectory(undefined, {}, 'linux', home), path.join(home, '.config', 'Atlas'));
-  assert.equal(atlasDataDirectory(undefined, { XDG_CONFIG_HOME: path.resolve('/xdg') }, 'linux', home), path.join(path.resolve('/xdg'), 'Atlas'));
-  assert.equal(atlasDataDirectory(undefined, { XDG_CONFIG_HOME: 'relative/config' }, 'linux', home), path.join(home, '.config', 'Atlas'), 'a relative XDG_CONFIG_HOME is ignored');
-  assert.equal(atlasDataDirectory(undefined, {}, 'darwin', home), path.join(home, 'Library', 'Application Support', 'Atlas'));
-  assert.equal(atlasDataDirectory(undefined, { ATLAS_DATA_DIR: path.resolve('/data'), APPDATA: path.resolve('/roaming') }, 'win32', home), path.resolve('/data'));
-  assert.equal(atlasDataDirectory('~/explicit', { ATLAS_DATA_DIR: path.resolve('/data') }, 'linux', home), path.join(home, 'explicit'), 'an explicit --data-dir wins over ATLAS_DATA_DIR');
+  assert.equal(atlasHome(undefined, {}, home), path.join(home, '.atlas'));
+  assert.equal(atlasHome(undefined, { ATLAS_HOME: path.resolve('/elsewhere') }, home), path.resolve('/elsewhere'));
+  assert.equal(atlasHome('~/explicit', { ATLAS_HOME: path.resolve('/elsewhere') }, home), path.join(home, 'explicit'), 'an explicit --home wins over ATLAS_HOME');
+  assert.equal(legacyDataDirectory({ APPDATA: path.resolve('/roaming') }, 'win32', home), path.join(path.resolve('/roaming'), 'Atlas'));
+  assert.equal(legacyDataDirectory({}, 'win32', home), path.join(home, 'AppData', 'Roaming', 'Atlas'));
+  assert.equal(legacyDataDirectory({}, 'linux', home), path.join(home, '.config', 'Atlas'));
+  assert.equal(legacyDataDirectory({ XDG_CONFIG_HOME: path.resolve('/xdg') }, 'linux', home), path.join(path.resolve('/xdg'), 'Atlas'));
+  assert.equal(legacyDataDirectory({ XDG_CONFIG_HOME: 'relative/config' }, 'linux', home), path.join(home, '.config', 'Atlas'), 'a relative XDG_CONFIG_HOME is ignored');
+  assert.equal(legacyDataDirectory({}, 'darwin', home), path.join(home, 'Library', 'Application Support', 'Atlas'));
   const root = path.dirname(fileURLToPath(import.meta.url));
   const statistics = await statisticsDirectory(root);
-  assert.equal(path.dirname(statistics), path.join(atlasDataDirectory(), 'usage'));
+  assert.equal(path.dirname(statistics), path.join(atlasHome(), 'usage'));
   assert.match(path.basename(statistics), /^[a-f0-9]{16}$/);
-  assert.equal(recentRootsFile(), path.join(atlasDataDirectory(), 'planning-roots.json'));
-  assert.ok(!atlasDataDirectory().includes('planning-dashboard'), 'the retired dashboard cache is not used');
+  assert.equal(recentRootsFile(), path.join(atlasHome(), 'planning-roots.json'));
+});
+
+test("the old data folder moves into the home once, leaving Electron's caches and anything the home has", async () => {
+  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'atlas-home-migration-')));
+  try {
+    const user = path.join(temporary, 'user'), appData = path.join(temporary, 'roaming');
+    const legacy = legacyDataDirectory({ APPDATA: appData, XDG_CONFIG_HOME: path.join(temporary, 'config') }, process.platform, user);
+    const write = async (file: string, text: string) => { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, text); };
+    await write(path.join(legacy, 'usage', 'abc', 'usage.sqlite'), 'usage');
+    await write(path.join(legacy, 'host', 'access.json'), 'access');
+    await write(path.join(legacy, 'planning-roots.json'), 'recent');
+    await write(path.join(legacy, 'connections.json'), 'connections');
+    await write(path.join(legacy, 'logs', 'atlas.log'), 'log');
+    await write(path.join(legacy, 'logs', 'host.1.log'), 'host log');
+    await write(path.join(legacy, 'chromium', 'Cache', 'data'), 'cache');
+    await write(path.join(legacy, 'Preferences'), 'electron');
+    const home = path.join(user, '.atlas');
+    await write(path.join(home, 'desktop-state.json'), 'kept');
+    await write(path.join(legacy, 'desktop-state.json'), 'older');
+    const environment = { APPDATA: appData, XDG_CONFIG_HOME: path.join(temporary, 'config') };
+    // A home chosen with ATLAS_HOME never takes the user's data.
+    const other = await prepareHome({ environment: { ...environment, ATLAS_HOME: path.join(temporary, 'other') }, home: user });
+    assert.deepEqual(other.moved, []);
+    assert.ok(existsSync(path.join(temporary, 'other', 'planning')), 'the home and its planning folder are created');
+    const first = await prepareHome({ environment, home: user });
+    assert.equal(first.home, home);
+    assert.deepEqual(first.moved.sort(), ['connections.json', 'host', 'logs/atlas.log', 'logs/host.1.log', 'planning-roots.json', 'usage']);
+    assert.equal(readFileSync(path.join(home, 'usage', 'abc', 'usage.sqlite'), 'utf8'), 'usage');
+    assert.equal(readFileSync(path.join(home, 'desktop-state.json'), 'utf8'), 'kept', 'nothing in the home is overwritten');
+    assert.ok(existsSync(path.join(legacy, 'desktop-state.json')));
+    assert.ok(existsSync(path.join(legacy, 'chromium', 'Cache', 'data')) && existsSync(path.join(legacy, 'Preferences')), "Electron's files stay");
+    assert.deepEqual((await prepareHome({ environment, home: user })).moved, [], 'a second start has nothing to move');
+    await mkdir(path.join(home, 'planning', 'one'), { recursive: true });
+    await writeFile(path.join(home, 'planning', 'one', 'planning.json'), '{}');
+    await mkdir(path.join(home, 'planning', 'not-planning'), { recursive: true });
+    assert.deepEqual(await homePlanningFolders(home), [path.join(home, 'planning', 'one')]);
+  } finally { await rm(temporary, { recursive: true }); }
 });
 
 test('data folder overrides resolve home shorthand identically for every caller', async () => {
@@ -98,7 +136,7 @@ test('consultation written with no app running is readable by the app with sourc
     await writeFile(path.join(root, 'note.md'), 'A consulted record.\n');
     await writeFile(path.join(root, 'other.md'), 'Another scoped record.\n');
     const metrics = path.join(temporary, 'metrics');
-    const log = (folder: string, files: string[], task?: string) => logConsultation(folder, files, { dataDir: metrics, task });
+    const log = (folder: string, files: string[], task?: string) => logConsultation(folder, files, { home: metrics, task });
     assert.deepEqual(await log(root, ['note.md']), { recorded: 1, failed: 0, unavailable: null });
     assert.deepEqual(await log(root, ['note.md', '../not-a-document.md'], 'real-task'), { recorded: 1, failed: 1, unavailable: null });
     const filename = path.join(await statisticsDirectory(root, metrics), 'usage.sqlite');
