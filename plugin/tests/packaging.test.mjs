@@ -49,7 +49,7 @@ const USAGE = [read(path.join(CLI, "main.ts")), read(path.join(CLI, "planning.ts
   .flatMap((text) => [...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)$/gm)])
   .map((match) => match[1].split(" ").filter((word, index, words) => /^[a-z][a-z-]*$/.test(word) && words.slice(0, index).every((before) => /^[a-z][a-z-]*$/.test(before))))
   .filter((words) => words.length > 0);
-const TOOLS = [...read(path.join(CLI, "mcp.ts")).matchAll(/name: '([a-z_]+)'/g)].map((match) => match[1]);
+const TOOLS = [...(/const tools[\s\S]*?\n\];/.exec(read(path.join(CLI, "mcp.ts")))?.[0] ?? "").matchAll(/name: '([a-z_]+)'/g)].map((match) => match[1]);
 const TOOL_MENTION = /`(?!work_(?:items|id)`)((?:work|step)_[a-z_]+|where)`/g; // Registry and ledger fields are not tools.
 
 /** Whether `atlas <words>` names a command: it and a usage line agree for as long as both have words. */
