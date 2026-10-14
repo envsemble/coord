@@ -505,3 +505,38 @@ test(
     );
   },
 );
+
+// PlantUML itself accepts the captures. Opt in with the path of a PlantUML
+// jar: ATLAS_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
+test(
+  "PlantUML renders database captures",
+  {
+    skip:
+      !process.env.ATLAS_TEST_PLANTUML_JAR &&
+      "set ATLAS_TEST_PLANTUML_JAR to a PlantUML jar",
+  },
+  async (t) => {
+    const root = fixture(t),
+      file = path.join(root, "schema.sqlite"),
+      db = new DatabaseSync(file);
+    db.exec(sql);
+    db.close();
+    const diagram = path.join(root, "schema.puml");
+    fs.writeFileSync(
+      diagram,
+      await captureSQLite({ file, identity: "fixture" }),
+    );
+    const result = require("node:child_process").spawnSync(
+      "java",
+      [
+        "-Djava.awt.headless=true",
+        "-jar",
+        process.env.ATLAS_TEST_PLANTUML_JAR,
+        "-checkonly",
+        diagram,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  },
+);
