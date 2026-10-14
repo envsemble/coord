@@ -3,7 +3,7 @@
 // answers every request about that folder from it.
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { readDocument, recordCollectionGap } from '@envsemble/atlas-planning';
+import { readDocument, recordView, usageSummary, type HomeDatabase } from '@envsemble/atlas-planning';
 import { PlanningSession } from '@envsemble/atlas-planning/session';
 import type { Usage } from '@envsemble/atlas-planning/types';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference, FolderState, FolderStatus, Snapshot, ViewEventInput } from './contract.ts';
@@ -37,7 +37,7 @@ async function exists(directory: string) {
   try { return (await stat(directory)).isDirectory(); } catch { return false; }
 }
 
-export interface FolderOptions { folderId: string; dataBase?: string; log: Logger; onChange(state: FolderState): void; watchDelay?: { debounce: number; maxWait: number } }
+export interface FolderOptions { folderId: string; database: HomeDatabase | null; log: Logger; onChange(state: FolderState): void; watchDelay?: { debounce: number; maxWait: number } }
 
 export class FolderSession {
   readonly root: string;
@@ -70,7 +70,7 @@ export class FolderSession {
   }
 
   async start() {
-    this.planning = await PlanningSession.open(this.root, { dataBase: this.options.dataBase });
+    this.planning = await PlanningSession.open(this.root, { database: this.options.database });
     await this.reload();
     if (this.status !== 'missing') this.watch();
   }
@@ -94,9 +94,10 @@ export class FolderSession {
       const usageByRepository: Record<string, Usage> = Object.create(null);
       let collectionError = planning.collectionError;
       try {
-        if (planning.telemetry) {
-          usage = planning.telemetry.summary();
-          for (const repository of index.repositories) usageByRepository[repository.id] = planning.telemetry.summary(index.documents.filter(document => document.repositories.includes(repository.id)).map(document => document.key));
+        const { database, projectId } = planning;
+        if (database && projectId !== null) {
+          usage = usageSummary(database, projectId);
+          for (const repository of index.repositories) usageByRepository[repository.id] = usageSummary(database, projectId, index.documents.filter(document => document.repositories.includes(repository.id)).map(document => document.key));
         }
       } catch { collectionError = 'Local usage statistics could not be read. Document viewing still works; collection is incomplete.'; }
       let counts: Record<string, number> = {};
@@ -203,23 +204,17 @@ export class FolderSession {
     try { if (snapshot.gitAvailable) revision = (await run('git', ['-C', this.root, 'rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim(); } catch { /* Unknown revision remains null. */ }
     const content = await readDocument(this.root, event.path);
     if (event.contentHash && content.contentHash !== event.contentHash) return;
-    if (!planning.telemetry) {
-      if (planning.usageDirectory) recordCollectionGap(planning.usageDirectory, 'dashboard_view');
-      return;
-    }
-    planning.telemetry.recordView({ ...event, key: document.key, revision, contentHash: content.contentHash || null });
+    if (!planning.database || planning.projectId === null) return;
+    recordView(planning.database, planning.projectId, { ...event, key: document.key, revision, contentHash: content.contentHash || null });
   }
 
-  /** Stop watching; the usage store closes after in-flight requests, or at once when the host stops. */
-  close(immediately = false) {
+  /** Stop watching. */
+  close() {
     this.closed = true;
     this.stopWatching();
     if (this.rescanTimer) clearInterval(this.rescanTimer);
     this.rescanTimer = null;
     if (this.missingTimer) clearInterval(this.missingTimer);
     this.missingTimer = null;
-    const planning = this.planning;
-    if (immediately) planning?.close();
-    else setTimeout(() => planning?.close(), 2000).unref?.();
   }
 }

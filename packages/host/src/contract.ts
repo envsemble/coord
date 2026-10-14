@@ -8,13 +8,13 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '@envsemb
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 4;
+export const protocolVersion = 5;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
  * computer; only managing who else may pair is a separate grant.
- * - `computer`: what the Atlas app can do on this computer: browse its folders, open any planning
- *   folder, read it, import and export plans, and count document use. Every paired device has it.
+ * - `computer`: what the Atlas app can do on this computer: list, create and change its projects,
+ *   read them, import and export plans, and count document use. Every paired device has it.
  * - `access:manage`: create pairing links, list and revoke paired devices. A device has it when its
  *   pairing link granted it.
  * - `owner`: everything, including the remote-access settings. Only the desktop app on the same
@@ -30,24 +30,15 @@ export interface HostDescriptor { protocol: number; hostId: string; name: string
 
 export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
 export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number }
+export type ProjectState = 'active' | 'hidden' | 'archived';
 /**
- * One planning folder in the computer's folder list: every folder opened on this computer, from any
- * device or the command line, newest first. Every device sees the same list.
+ * A project of this computer: a planning folder in its Atlas home, with its name (from its
+ * planning.json, else the folder's), its place in the computer's order and its state. `folderId`
+ * identifies it in every request about its folder.
  */
-export interface ComputerFolder {
-  folderId: string; path: string; name: string;
-  /** When anyone last opened it; null for one carried over from before the list existed. */
-  openedAt: string | null;
-  /** False when the folder is gone (moved or deleted); it stays listed, marked missing, until removed. */
-  available: boolean;
-  workItems: number | null;
-  /** In the Atlas home's planning folder, so always listed: it cannot be removed from the list. */
-  inHome: boolean;
-}
-/** A folder on the computer, as the folder browser shows it. */
-export interface BrowseEntry { name: string; path: string; planning: boolean }
-/** A folder's subfolders, or, for a null path, where browsing starts (the home folder and the drives). */
-export interface BrowseResult { path: string | null; parent: string | null; planning: boolean; folders: BrowseEntry[]; truncated: boolean }
+export interface Project { folderId: string; name: string; path: string; position: number; state: ProjectState }
+/** A repository a new project covers: its ID in planning.json, its name and its Git remote. */
+export interface ProjectRepository { id: string; name: string; remote: string | null }
 
 export interface Snapshot extends PlanningIndex {
   usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
@@ -88,11 +79,12 @@ export interface SessionInfo { hostId: string; name: string; version: string; sc
 /** Every request: its parameters, its result, and the scope it needs. */
 export interface Methods {
   'host.session': { params: Record<string, never>; result: SessionInfo };
-  'folders.list': { params: Record<string, never>; result: ComputerFolder[] };
-  /** `remember: false` reopens a folder without moving it on the folder list (a reconnection, a restored window). */
-  'folders.open': { params: { path: string; remember?: boolean }; result: FolderState };
-  'folders.remove': { params: { folderId: string }; result: null };
-  'folders.browse': { params: { path: string | null }; result: BrowseResult };
+  /** The computer's projects (the planning folders in its home), in their order. */
+  'projects.list': { params: Record<string, never>; result: Project[] };
+  /** A new project: a planning folder in the home made from the templates, as its own Git repository. */
+  'projects.create': { params: { name: string; repositories: ProjectRepository[] }; result: Project };
+  /** Rename a project (its planning.json's name), hide, archive or show it, or move it in the order. */
+  'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number }; result: Project };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
   'folders.unsubscribe': { params: { folderId: string }; result: null };
   'folder.snapshot': { params: { folderId: string }; result: Snapshot };
@@ -122,10 +114,9 @@ export type MethodName = keyof Methods;
 
 export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'host.session': 'computer',
-  'folders.list': 'computer',
-  'folders.open': 'computer',
-  'folders.remove': 'computer',
-  'folders.browse': 'computer',
+  'projects.list': 'computer',
+  'projects.create': 'computer',
+  'projects.update': 'computer',
   'folders.subscribe': 'computer',
   'folders.unsubscribe': 'computer',
   'folder.snapshot': 'computer',
@@ -152,8 +143,8 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
 /** Events the host pushes to a connection. */
 export interface Events {
   'folder.changed': FolderState;
-  /** The computer's folder list changed (a folder was opened or removed). */
-  'folders.changed': { folders: ComputerFolder[] };
+  /** The computer's projects changed (one was added, renamed, hidden, archived or moved). */
+  'projects.changed': { projects: Project[] };
   /** Remote access changed: sent to connections that may manage access. */
   'access.changed': AccessState;
 }

@@ -4,7 +4,7 @@
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
-  acceptWork, addSteps, adoptPlanningFolder, archiveWork, atlasHome, checkPaths, closeWork, createWork, findPlanning, homePlanningFolders,
+  acceptWork, addSteps, adoptPlanningFolder, archiveWork, atlasHome, checkPaths, closeWork, createWork, findPlanning, homePlanningFolders, planningName,
   planningFolderOf, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, workStatus, type LedgerStepStatus,
 } from '@envsemble/atlas-planning';
 import { parseOptions, positionals, UsageError, wantsHelp, type Output } from './args.ts';
@@ -30,7 +30,7 @@ const usageOf = (command: string) => 'Usage: ' + planningUsage.split('\n').filte
 const print = (out: Output, value: unknown) => out.stdout(JSON.stringify(value));
 const planningDir = (values: Record<string, string>, work: string | null) => resolvePlanningFolder({ planningFolder: values['planning-dir'], cwd: process.cwd(), work });
 
-/** `atlas where`: the planning folders of the home this checkout belongs to, with their active work. */
+/** `atlas where`: the projects (planning folders of the home) this checkout belongs to, with their names and active work. */
 export async function where(args: string[], out: Output) {
   const line = usageOf('atlas where');
   if (wantsHelp(args)) { out.stdout(line); return 0; }
@@ -133,7 +133,7 @@ export async function check(args: string[], out: Output) {
     targets = here ? [here] : (await findPlanning(process.cwd())).matches.map(match => match.planningFolder);
     if (!targets.length) { out.stderr('atlas: no planning folder here: give the planning folder or files to check.'); return 1; }
   }
-  const results = checkPaths(targets);
+  const results = await checkPaths(targets);
   const prefix = (folder: string) => results.length > 1 ? folder + ': ' : '';
   for (const result of results) {
     for (const message of result.warnings) out.stdout('WARNING: ' + prefix(result.planningFolder) + message);
@@ -144,7 +144,10 @@ export async function check(args: string[], out: Output) {
   return failed ? 1 : 0;
 }
 
-/** `atlas home`: where the home is and its planning folders, or `adopt` a planning folder into it. */
+/**
+ * `atlas home`: where the home is and its projects (planning folders), or `adopt` a planning folder
+ * into it, importing its statistics files; their deletion is left for the user to commit.
+ */
 export async function home(args: string[], out: Output) {
   const line = usageOf('atlas home');
   if (wantsHelp(args)) { out.stdout(line); return 0; }
@@ -152,14 +155,18 @@ export async function home(args: string[], out: Output) {
   if (action === undefined || action === 'list') {
     positionals(rest, [], line);
     const folder = atlasHome();
-    print(out, { home: folder, planningFolders: await homePlanningFolders(folder) });
+    const folders = await homePlanningFolders(folder);
+    print(out, { home: folder, projects: await Promise.all(folders.map(async planningFolder => ({ name: await planningName(planningFolder), planningFolder }))) });
     return 0;
   }
   if (action === 'adopt') {
     const { positional, values } = parseOptions(rest, { values: ['name'] }, line);
     const [folder] = positionals(positional, ['folder'], line);
     if (!statSync(folder, { throwIfNoEntry: false })?.isDirectory()) throw new UsageError(folder + ' is not a folder', line);
-    print(out, await adoptPlanningFolder(folder, { name: values.name ?? null }));
+    const adopted = await adoptPlanningFolder(folder, { name: values.name ?? null });
+    print(out, adopted);
+    for (const problem of adopted.statistics.problems) out.stderr('WARNING: ' + problem);
+    if (adopted.statistics.files.length) out.stderr(`Imported ${adopted.statistics.reports} work ${adopted.statistics.reports === 1 ? 'report' : 'reports'} into the Atlas home database and deleted ${adopted.statistics.files.join(', ')} from ${adopted.to}. Atlas never commits: commit the removal in that planning folder.`);
     return 0;
   }
   throw new UsageError('unknown home command: ' + action, line);

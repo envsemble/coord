@@ -5,8 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DatabaseSync } from 'node:sqlite';
-import { Telemetry, statisticsDirectory } from '@envsemble/atlas-planning';
+import { reportsIn as reportsInHome, usageIn } from './testing.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const command = path.resolve(here, '../bin/atlas.js');
@@ -18,6 +17,7 @@ const noLogs = mkdtempSync(path.join(tmpdir(), 'atlas-cli-no-logs-'));
 test.after(() => rmSync(noLogs, { recursive: true, force: true }));
 const environment: NodeJS.ProcessEnv = { ...process.env, CLAUDE_CONFIG_DIR: path.join(noLogs, 'claude'), CODEX_HOME: path.join(noLogs, 'codex'), ATLAS_HOME: path.join(noLogs, 'home') };
 for (const name of ['CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CLAUDECODE']) delete environment[name];
+const reportsIn = (root: string, workId: string) => reportsInHome(root, workId, environment.ATLAS_HOME);
 
 function atlas(args: string[], options: { input?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {}) {
   const result = spawnSync(process.execPath, [command, ...args], { encoding: 'utf8', input: options.input, env: options.env ?? environment, cwd: options.cwd, windowsHide: true, timeout: 60000 });
@@ -97,35 +97,17 @@ test('atlas usage log writes what the app reads, deduplicates and never fails th
   assert.equal(logged.status, 0, logged.stderr);
   assert.equal(logged.stdout.trim(), '{"reported_documents": 2, "unrecorded_documents": 1}');
   assert.match(logged.stderr, /Some usage reports were not recorded; continue the task\./);
-  const statistics = await statisticsDirectory(root, data);
-  assert.equal(path.dirname(statistics), path.join(data, 'usage'), 'statistics live in the Atlas home, keyed by the planning folder');
-  const store = new Telemetry(path.join(statistics, 'usage.sqlite'));
-  try {
-    let summary = store.summary();
-    assert.equal(summary.reports, 2); assert.equal(summary.tasks, 1); assert.equal(summary.failures, 1);
-    assert.deepEqual(summary.documents.map(item => item.key).sort(), ['root:README.md', 'work-0001:plan.md']);
-    const explicit = path.join(directory, 'explicit');
-    assert.equal(atlas(['usage', 'log', root, '--home', explicit, '--files', 'README.md'], { env }).status, 0);
-    assert.ok(existsSync(path.join(await statisticsDirectory(root, explicit), 'usage.sqlite')), '--home overrides ATLAS_HOME');
-    // Concurrent writers (several agents at once) share the store; each report is recorded or leaves a gap.
-    const writers = await Promise.all(Array.from({ length: 6 }, (_, index) => atlasAsync(['usage', 'log', root, '--task', 'parallel-' + index, '--files', 'README.md'], env)));
-    assert.ok(writers.every(result => result.status === 0));
-    summary = store.summary();
-    const gaps = existsSync(path.join(statistics, 'collection-gaps.jsonl')) ? readFileSync(path.join(statistics, 'collection-gaps.jsonl'), 'utf8').trim().split('\n').length : 0;
-    assert.equal(summary.reports + gaps, 2 + 6);
-    assert.ok(summary.reports >= 3, 'concurrent writers wait for the lock instead of failing');
-    // A locked store leaves a lasting coverage signal and still exits 0.
-    const lock = new DatabaseSync(path.join(statistics, 'usage.sqlite'));
-    try {
-      lock.exec('BEGIN IMMEDIATE');
-      const locked = atlas(['usage', 'log', root, '--files', 'README.md'], { env });
-      assert.equal(locked.status, 0);
-      assert.equal(locked.stdout, '');
-      assert.match(locked.stderr, /^Planning usage logging unavailable \(.+\); continue the task\.$/m);
-      lock.exec('ROLLBACK');
-    } finally { lock.close(); }
-    assert.equal(store.summary().failures, summary.failures + 1);
-  } finally { store.close(); }
+  let summary = usageIn(root, data)!;
+  assert.equal(summary.reports, 2); assert.equal(summary.tasks, 1); assert.equal(summary.failures, 1);
+  assert.deepEqual(summary.documents.map(item => item.key).sort(), ['root:README.md', 'work-0001:plan.md']);
+  const explicit = path.join(directory, 'explicit');
+  assert.equal(atlas(['usage', 'log', root, '--home', explicit, '--files', 'README.md'], { env }).status, 0);
+  assert.equal(usageIn(root, explicit)?.reports, 1, '--home overrides ATLAS_HOME');
+  // Concurrent writers (several agents at once) share the database: each waits for the others.
+  const writers = await Promise.all(Array.from({ length: 6 }, (_, index) => atlasAsync(['usage', 'log', root, '--task', 'parallel-' + index, '--files', 'README.md'], env)));
+  assert.ok(writers.every(result => result.status === 0 && !result.stderr), JSON.stringify(writers));
+  summary = usageIn(root, data)!;
+  assert.equal(summary.reports, 2 + 6);
   const unreadable = atlas(['usage', 'log', path.join(directory, 'missing'), '--files', 'README.md'], { env });
   assert.equal(unreadable.status, 0, 'a missing planning folder never fails the caller');
   assert.match(unreadable.stderr, /Planning usage logging unavailable/);
@@ -136,20 +118,18 @@ test('atlas usage log writes what the app reads, deduplicates and never fails th
   assert.equal(atlas(['usage', 'log', root, '--files', 'README.md', '--tsk', 'x'], { env }).status, 2);
 });
 
-test('atlas work report appends one line per report, even from concurrent agents, and never fails the caller', async t => {
+test('atlas work report records each report in the home database, even from concurrent agents, and never fails the caller', async t => {
   const directory = temporary(t);
   const root = planningFolder(directory);
-  const file = path.join(root, 'active/0001-example/.atlas/statistics.jsonl');
   const reported = atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--tokens', '1200', '--session', 'chat-1', '--step', 'Build it']);
   assert.equal(reported.status, 0, reported.stderr);
-  assert.match(reported.stdout, /^\{"recorded":true,"file":"active\/0001-example\/\.atlas\/statistics\.jsonl","at":"[^"]+","model":"model-a"\}\n$/);
-  assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, 'utf8'))), ['version', 'at', 'model', 'session', 'tokens', 'step', 'stage']);
-  // Several agents at once: every report is one whole line.
+  assert.match(reported.stdout, /^\{"recorded":true,"project":"planning","at":"[^"]+","model":"model-a"\}\n$/);
+  assert.deepEqual(reportsIn(root, 'work-0001').map(report => [report.model, report.tokens, report.session, report.step, report.stage]), [['model-a', 1200, 'chat-1', 'Build it', 'implementation']]);
+  assert.ok(!existsSync(path.join(root, 'active/0001-example/.atlas')), 'nothing is written into the planning folder');
+  // Several agents at once: each waits for the others.
   const writers = await Promise.all(Array.from({ length: 8 }, (_, index) => atlasAsync(['work', 'report', root, '--work', 'work-0001', '--model', 'model-b', '--tokens', String(index * 1000), '--session', 'parallel-' + index])));
   assert.ok(writers.every(result => result.status === 0 && result.stdout.includes('"recorded":true')), JSON.stringify(writers));
-  const lines = readFileSync(file, 'utf8').trim().split('\n');
-  assert.equal(lines.length, 9);
-  assert.ok(lines.every(line => JSON.parse(line).version === 1));
+  assert.equal(reportsIn(root, 'work-0001').length, 9);
   // Problems are reported on stderr with exit 0, so a report never fails the task.
   for (const args of [['--work', 'work-0009', '--model', 'model-a'], ['--work', 'work-0001', '--model', 'not a model id'], ['--work', 'work-0001', '--model', 'model-a', '--session', 'has space']]) {
     const refused = atlas(['work', 'report', root, ...args]);
@@ -158,7 +138,7 @@ test('atlas work report appends one line per report, even from concurrent agents
     assert.match(refused.stderr, /^Work statistics were not recorded \(.+[^.]\); continue the task\.\n$/);
   }
   assert.equal(atlas(['work', 'report', path.join(directory, 'missing'), '--work', 'work-0001', '--model', 'model-a']).status, 0);
-  assert.equal(readFileSync(file, 'utf8').trim().split('\n').length, 9, 'refused reports write nothing');
+  assert.equal(reportsIn(root, 'work-0001').length, 9, 'refused reports record nothing');
   // Usage errors exit 2.
   assert.equal(atlas(['work', 'report', root, '--model', 'model-a']).status, 2, '--work is required');
   assert.equal(atlas(['work', 'report', root, '--work', 'work-0001']).status, 2, '--model is required outside a harness');
@@ -195,8 +175,7 @@ test('inside a harness, atlas work report needs only the work and the step: the 
   assert.equal(second.status, 0, second.stderr);
   const shown = JSON.parse(second.stdout);
   assert.deepEqual([shown.model, shown.since, shown.agentMs, shown.tokens], ['claude-opus-5-5', start.at, 60, 3610], 'the turn under way since the first report, and the response in it');
-  const lines = readFileSync(path.join(root, 'active/0001-example/.atlas/statistics.jsonl'), 'utf8').trim().split('\n').map(text => JSON.parse(text));
-  assert.deepEqual(lines.map(report => [report.session, report.model, Boolean(report.measured)]), [[session, 'claude-opus-5-5', false], [session, 'claude-opus-5-5', true]]);
+  assert.deepEqual(reportsIn(root, 'work-0001').map(report => [report.session, report.model, Boolean(report.measured)]), [[session, 'claude-opus-5-5', false], [session, 'claude-opus-5-5', true]]);
   // A session without a log: recorded with --model and a warning, or not recorded without one.
   const elsewhere = { ...env, CLAUDE_CODE_SESSION_ID: '11111111-2222-4333-8444-555555555555' };
   const unmeasured = atlas(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a'], { env: elsewhere });

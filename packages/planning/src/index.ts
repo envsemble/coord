@@ -27,3 +27,5 @@ export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, set
 export { findPlanning, resolvePlanningFolder, normalizeRemote, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type Whereabouts } from './resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './checkPaths.ts';
 export { adoptPlanningFolder, type Adopted } from './adopt.ts';
+export { checkedProject, createProject, readTemplates, type ProjectRepository, type ProjectTemplates } from './project.ts';
+export { setRegistryName } from './registryText.ts';

@@ -3,6 +3,7 @@
 import { createHmac } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
+import type { HomeDatabase } from '@envsemble/atlas-planning';
 import type { FolderState } from './contract.ts';
 import { HostError, type Logger } from './errors.ts';
 import { FolderSession } from './folder.ts';
@@ -26,7 +27,8 @@ export async function canonicalFolder(input: string) {
 export interface FolderRegistryOptions {
   /** The host's folder-ID key (AccessStore.folderKey), read when an ID is needed. */
   key(): string;
-  dataBase?: string;
+  /** The home database, where document use is recorded. */
+  database: HomeDatabase | null;
   log: Logger;
   onChange(state: FolderState): void;
   /** How long a folder stays open after its last user leaves. */
@@ -37,7 +39,6 @@ interface Entry { session: FolderSession; users: number; started: Promise<void>;
 
 export class FolderRegistry {
   private readonly entries = new Map<string, Entry>();
-  private readonly closing = new Set<FolderSession>();
   /** Every folder opened by path in this process, so its ID can open it again after it closed. */
   private readonly known = new Map<string, string>();
   private readonly options: FolderRegistryOptions;
@@ -50,7 +51,7 @@ export class FolderRegistry {
     this.known.set(folderId, root);
     let entry = this.entries.get(folderId);
     if (!entry) {
-      const session = new FolderSession(root, { folderId, dataBase: this.options.dataBase, log: this.options.log, watchDelay: this.options.watchDelay, onChange: state => this.options.onChange(state) });
+      const session = new FolderSession(root, { folderId, database: this.options.database, log: this.options.log, watchDelay: this.options.watchDelay, onChange: state => this.options.onChange(state) });
       const created: Entry = { session, users: 0, timer: null, started: Promise.resolve() };
       // The idle timer starts once the first read is done, so a slow start cannot close the folder under its first user.
       created.started = session.start().catch(error => this.options.log.error('Folder could not start', error)).then(() => this.scheduleClose(folderId, created));
@@ -95,9 +96,6 @@ export class FolderRegistry {
       if (entry.users) return;
       this.entries.delete(folderId);
       entry.session.close();
-      // Its usage store closes a moment later; a stopping host closes it at once.
-      this.closing.add(entry.session);
-      setTimeout(() => this.closing.delete(entry.session), 2500).unref?.();
       this.options.log.info('Planning folder closed', { root: entry.session.root });
     }, this.options.idleClose ?? 30000);
     entry.timer.unref?.();
@@ -107,10 +105,8 @@ export class FolderRegistry {
   closeAll() {
     for (const entry of this.entries.values()) {
       if (entry.timer) clearTimeout(entry.timer);
-      entry.session.close(true);
+      entry.session.close();
     }
-    for (const session of this.closing) session.close(true);
     this.entries.clear();
-    this.closing.clear();
   }
 }

@@ -1,5 +1,7 @@
 // `atlas setup`: make Atlas part of every agent session on this computer. It creates the Atlas home
-// (moving the old data folder's files into it, refused while an older Atlas uses them), grants the home to Claude Code
+// and its database (moving the old data folder's files into it, refused while an older Atlas uses
+// them; then importing the files Atlas kept in the home before the database, and the work statistics
+// files of the home's planning folders, which it deletes there), grants the home to Claude Code
 // (permissions.additionalDirectories) and Codex ([sandbox_workspace_write] writable_roots) so agents
 // can edit planning prose from any checkout, and installs the Atlas plugin into each harness on PATH
 // through the harness's own commands. Running it again changes nothing. --dry-run only says what it
@@ -9,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSyn
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { atlasAppRunning, atlasHome, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
+import { atlasAppRunning, atlasHome, HomeDatabase, homePlanningFolders, importStatisticsFiles, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
 import { hostRunning } from '@envsemble/atlas-host';
 import { parseOptions, positionals, wantsHelp, type Output } from './args.ts';
 
@@ -307,6 +309,29 @@ function writeAtomically(file: string, text: string) {
   renameSync(temporary, file);
 }
 
+/**
+ * Import the home's files into its database and the planning folders' statistics files, saying what
+ * moved; false when something could not be imported.
+ */
+async function migrateHome(home: string, out: Output) {
+  let complete = true;
+  let database: HomeDatabase;
+  try { database = HomeDatabase.open(home); }
+  catch (error) { out.stderr(`atlas: the Atlas home's database could not be opened: ${(error as Error).message}`); return false; }
+  try {
+    const migration = await migrateHomeFiles(database);
+    if (migration.imported.length) out.stdout(`Imported into the Atlas home's database (the files are set aside in ${path.join(home, 'legacy')}): ${migration.imported.join(', ')}`);
+    for (const item of migration.failed) { complete = false; out.stderr(`Not imported: ${item}`); }
+    if (migration.unmatched.length) out.stdout(`Left for later, as no project has their planning folder: ${migration.unmatched.join(', ')}`);
+    for (const folder of await homePlanningFolders(home)) {
+      const imported = await importStatisticsFiles(database, folder).catch(error => ({ files: [], reports: 0, invalid: 0, problems: [(error as Error).message] }));
+      for (const problem of imported.problems) out.stderr(`${folder}: ${problem}`);
+      if (imported.files.length) out.stdout(`Imported ${imported.reports} work ${imported.reports === 1 ? 'report' : 'reports'} from ${folder} and deleted ${imported.files.join(', ')} there. Atlas never commits: commit the removal in that planning folder.`);
+    }
+  } finally { database.close(); }
+  return complete;
+}
+
 export async function setup(args: string[], out: Output, environment: NodeJS.ProcessEnv = process.env) {
   if (wantsHelp(args)) { out.stdout(line); return 0; }
   const { positional, flags } = parseOptions(args, { values: [], flags: ['dry-run'] }, line);
@@ -329,10 +354,17 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
     out.stdout(`Atlas is running, so the logs and statistics left in ${legacy} move on a later run of atlas setup.`);
     legacy = null;
   }
+  // The home's own files go into its database, but not while an older `atlas serve` (or app) uses them.
+  if ((await pendingHomeFiles(home)).some(name => !name.startsWith('usage/')) && (atlasAppRunning(legacyDataDirectory(environment, process.platform, user)) || await hostRunning(home))) {
+    out.stderr(`atlas: Atlas is running and uses the settings in ${home}. Quit it (the app or atlas serve), then run atlas setup again: setup moves them into the Atlas home's database.`);
+    return 1;
+  }
   if (dryRun) {
     out.stdout(existsSync(home) ? `Atlas home: ${home}` : `Would create the Atlas home: ${home}`);
     const pending = legacy ? await legacyData(legacy) : [];
     if (pending.length) out.stdout(`Would move from ${legacy}: ${pending.join(', ')}`);
+    const waiting = await pendingHomeFiles(home);
+    if (waiting.length) out.stdout(`Would import into ${path.join(home, 'atlas.db')}: ${waiting.join(', ')}`);
   } else {
     await prepareHome({ environment, home: user });
     out.stdout(`Atlas home: ${home}`);
@@ -348,6 +380,7 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
         out.stderr(`Not moved from ${legacy}: ${item}`);
       }
     }
+    failed = !await migrateHome(home, out) || failed;
   }
 
   const marketplace = (JSON.parse(readFileSync(path.join(repository, '.claude-plugin', 'marketplace.json'), 'utf8')) as { name: string }).name;

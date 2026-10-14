@@ -15,11 +15,12 @@ import { parseOptions, UsageError, wantsHelp, type Output } from './args.ts';
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
 
-const instructions = 'Atlas keeps plans in planning folders in the Atlas home (~/.atlas/planning). Find the planning folder and active work for your checkout with where. '
+const instructions = 'Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). Find the projects and active work for your checkout with where; '
+  + 'when several projects register its repository, ask the user which one to plan in and pass its planningFolder. '
   + 'Change planning state only through these tools: create a work item (ask the user first, and only for work big enough to plan), accept its design, start implementation with its steps, '
   + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, ledger notes, glossaries and diagrams directly as files in the planning folder. The tools never commit; commit planning changes yourself.';
 
-const planningFolder = { type: 'string', description: 'Absolute path of the planning folder. Omit it to use the one your checkout belongs to.' };
+const planningFolder = { type: 'string', description: "Absolute path of the project's planning folder. Omit it to use the one your checkout belongs to; give it when several projects register the checkout's repository." };
 const cwd = { type: 'string', description: 'Absolute path of the checkout you work in, to find its planning folder. Defaults to the folder the session started in.' };
 const work = { type: 'string', description: 'The work item ID, such as work-0012.', pattern: '^work-[0-9]{4,}$' };
 const title = { type: 'string', description: 'A step title, exactly as the ledger has it.' };
@@ -32,7 +33,7 @@ interface Tool { name: string; description: string; inputSchema: Record<string, 
 const tools: Tool[] = [
   {
     name: 'where',
-    description: 'Find the planning folder (an absolute path in the Atlas home) for a checkout, by its Git remotes, and the active work for its repositories with their steps and blocked. Call it first when you need the plan or ledger of your work.',
+    description: "Find the projects (planning folders: absolute paths in the Atlas home, with their names) that register a checkout's repository, by its Git remotes, and the active work for its repositories with their steps and blocked. Call it first when you need the plan or ledger of your work; when it lists several projects, ask the user which one to plan in.",
     inputSchema: { type: 'object', properties: { cwd }, additionalProperties: false },
     run: (_, input) => findPlanning(input.cwd!),
   },

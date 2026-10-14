@@ -76,8 +76,6 @@ export async function pairWithHost(origin: string, code: string, device: { name:
 }
 
 interface Pending { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
-/** Opens a folder again on a host that restarted and no longer knows it (the owner opens by path). */
-export type Reopen = () => Promise<unknown>;
 
 const errorCodes = new Set(['invalid-argument', 'not-found', 'forbidden', 'unauthorized', 'unavailable', 'folder-missing', 'folder-invalid', 'cancelled', 'internal']);
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -91,7 +89,7 @@ export class HostClient {
   private sequence = 0;
   private readonly pending = new Map<number, Pending>();
   private readonly waiting = new Set<() => void>();
-  private readonly folders = new Map<string, Reopen | null>();
+  private readonly folders = new Set<string>();
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   /** A connection attempt is under way (it may be waiting for the token or the descriptor). */
   private attempting = false;
@@ -245,9 +243,9 @@ export class HostClient {
     if (!isRecord(parsed)) return;
     if ('event' in parsed) {
       const { event, data } = parsed as unknown as EventMessage;
-      if ((event !== 'folder.changed' && event !== 'folders.changed' && event !== 'access.changed') || !isRecord(data)) return;
+      if ((event !== 'folder.changed' && event !== 'projects.changed' && event !== 'access.changed') || !isRecord(data)) return;
       if (event === 'folder.changed' && (typeof (data as Record<string, unknown>).folderId !== 'string' || typeof (data as Record<string, unknown>).status !== 'string')) return;
-      if (event === 'folders.changed' && !Array.isArray((data as Record<string, unknown>).folders)) return;
+      if (event === 'projects.changed' && !Array.isArray((data as Record<string, unknown>).projects)) return;
       try { this.options.onEvent?.(event, data as never); } catch { /* A listener's failure is its own. */ }
       return;
     }
@@ -291,12 +289,9 @@ export class HostClient {
     });
   }
 
-  /**
-   * Follow a folder: subscribe now and again after every reconnection. `reopen` opens it again first
-   * when the host may have restarted without it (the owner's folders, opened by path).
-   */
-  async follow(folderId: string, reopen: Reopen | null = null): Promise<FolderState> {
-    this.folders.set(folderId, reopen);
+  /** Follow a project's folder: subscribe now and again after every reconnection (also to a host that restarted). */
+  async follow(folderId: string): Promise<FolderState> {
+    this.folders.add(folderId);
     return this.request('folders.subscribe', { folderId });
   }
   /** Whether this client follows a folder (it subscribes again after reconnecting). */
@@ -307,9 +302,8 @@ export class HostClient {
   }
   /** After reconnecting, subscribe to every followed folder again, all at once. */
   private async resubscribe() {
-    await Promise.all([...this.folders].map(async ([folderId, reopen]) => {
+    await Promise.all([...this.folders].map(async folderId => {
       try {
-        if (reopen) await reopen();
         this.options.onEvent?.('folder.changed', await this.request('folders.subscribe', { folderId }));
       } catch (error) {
         if (!this.folders.has(folderId)) return;

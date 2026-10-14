@@ -1,30 +1,27 @@
-// Who may connect to this host, and how it can be reached. Kept in <Atlas data folder>/host/:
-// access.json holds the host's identity, a secret for folder IDs, its settings and its paired
-// devices (each device's token only as a SHA-256 hash). A paired device gets the whole computer;
-// a pairing link may also grant it Manage access (pair and revoke devices). One process on this computer manages
-// remote access for a data folder (the desktop app or `atlas serve`): it holds a local lock socket
-// that the system releases when the process ends, however it ends. The socket is named after the
-// data folder's secret, so every spelling of the folder (a link, a short name) finds the same lock
-// and other users, who cannot read the secret, cannot take its name. Pairing codes live in memory
-// only: they expire after five minutes, are used once, and a restart forgets them.
+// Who may connect to this host, and how it can be reached. Kept in the home database: the host's
+// identity (host.id, host.name), a secret for folder IDs (host.secret) and its remote-access settings
+// (host.network) as settings, and its paired devices (each device's token only as a SHA-256 hash). A
+// paired device gets the whole computer; a pairing link may also grant it Manage access (pair and
+// revoke devices). One process on this computer manages remote access for a home (the desktop app or
+// `atlas serve`): it holds a local lock socket that the system releases when the process ends,
+// however it ends. The socket is named after the home's secret, so every spelling of the home (a
+// link, a short name) finds the same lock and other users, who cannot read the secret, cannot take
+// its name. Pairing codes live in memory only: they expire after five minutes, are used once, and a
+// restart forgets them.
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { createConnection, createServer, type Server } from 'node:net';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
+import type { HomeDatabase } from '@envsemble/atlas-planning';
 import { defaultPort, pairingLifetime, type AccessSettings, type PairedDevice, type PairingGrant, type Scope } from './contract.ts';
 import type { Logger } from './errors.ts';
 import { HostError } from './errors.ts';
-import { array, deviceId, integer, legacyAccessSettings, object, oneOf, string, nullable, type Validator } from './validate.ts';
+import { accessSettings } from './validate.ts';
 
 /** A paired device's scopes: always `computer`, and `access:manage` when its pairing link granted it. */
 export type DeviceScope = Exclude<Scope, 'owner'>;
 export interface DeviceRecord { deviceId: string; name: string; platform: string; tokenHash: string; scopes: DeviceScope[]; pairedAt: string; lastSeenAt: string | null }
-/**
- * Version 2: devices get the whole computer. Version 1 (the first remote access) let devices read
- * only shared folders; it is still read, and its devices and shared folders are carried over.
- */
-interface AccessFile { version: 2; hostId: string; name: string; secret: string; settings: AccessSettings; devices: DeviceRecord[] }
 export interface PendingPairing extends PairingGrant { code: string; expiresAt: number; address: string | null }
 
 const defaultSettings: AccessSettings = { network: { enabled: false, address: null, port: defaultPort } };
@@ -103,9 +100,9 @@ function lockHolder(address: string, secret: string): Promise<{ owner: string; p
 }
 
 /**
- * Whether a host runs from the data folder `directory`: something answers at the remote-access lock
- * named after the secret in its host/access.json. A host started while another process held that
- * lock (and one whose settings are unreadable) holds none, so it is not seen.
+ * Whether a host from before the home database runs from the folder `directory` (the old data
+ * folder, or a home whose files wait to be imported): something answers at the remote-access lock
+ * named after the secret in its host/access.json.
  */
 export async function hostRunning(directory: string): Promise<boolean> {
   let secret: unknown;
@@ -115,145 +112,54 @@ export async function hostRunning(directory: string): Promise<boolean> {
   return await lockHolder(lockAddress(secret).address, secret) !== null;
 }
 
-/** A device's scopes as stored; `planning:read` (version 1, shared folders only) becomes the whole computer. */
-const scopes: Validator<DeviceScope[]> = (value, at) => {
-  const stored = array(oneOf(['planning:read', 'computer', 'access:manage'] as const), 3)(value, at);
-  return stored.includes('access:manage') ? ['computer', 'access:manage'] : ['computer'];
-};
-const deviceRecord = object<DeviceRecord>({
-  deviceId, name: string({ min: 1, max: 80 }), platform: string({ min: 1, max: 40 }), tokenHash: string({ min: 64, max: 64, pattern: /^[a-f0-9]{64}$/ }),
-  scopes, pairedAt: string({ min: 1, max: 40 }), lastSeenAt: nullable(string({ max: 40 })),
-});
-/** Everything but the devices, which are checked one by one so one bad record cannot cost the others. */
-const accessHeader = object<Omit<AccessFile, 'devices' | 'version' | 'settings'> & { version: 1 | 2; settings: AccessSettings & { sharedFolders?: string[] }; devices: unknown[] }>({
-  version: integer(1, 2) as unknown as Validator<1 | 2>,
-  hostId: string({ min: 8, max: 64, pattern: /^[a-zA-Z0-9-]+$/ }), name: string({ min: 1, max: 80 }),
-  secret: string({ min: 32, max: 64, pattern: /^[a-zA-Z0-9_-]+$/ }),
-  settings: legacyAccessSettings, devices: array((value: unknown) => value, 1000),
+type Row = Record<string, unknown>;
+const deviceRecord = (row: Row): DeviceRecord => ({
+  deviceId: String(row.id), name: String(row.name), platform: String(row.platform), tokenHash: String(row.secret_hash),
+  scopes: row.manage_access ? ['computer', 'access:manage'] : ['computer'], pairedAt: String(row.paired_at), lastSeenAt: (row.last_seen_at as string | null) ?? null,
 });
 
 export class AccessStore {
-  readonly directory: string;
-  private readonly file: string;
+  readonly database: HomeDatabase;
   private readonly log: Logger;
   private readonly owner: string;
-  private state: AccessFile;
   private readonly pairings = new Map<string, PendingPairing>();
   private readonly failures = new Map<string, number[]>();
   private lastSeenWrites = new Map<string, number>();
   private lockServer: Server | null = null;
   /** Whether this process manages remote access: null when it does, else who does. Nobody until lock(). */
   managedBy: string | null = 'nobody yet (the host has not started)';
-  /** Why access.json could not be read the last time it was read. */
-  private loadProblem: string | null = null;
   /** The settings changed under this process (another identity or secret): only a restart can use them. */
   private restartNeeded: string | null = null;
   /** Why remote access cannot be used at all; null when it can. */
-  get problem(): string | null { return this.restartNeeded ?? this.loadProblem; }
+  get problem(): string | null { return this.restartNeeded; }
   /** The secret this process read first: it names the lock and keys folder IDs, and never changes while the process runs. */
   private readonly secret: string;
-  /** Folders version 1 shared, when that is what was read: the folder list starts with them. */
-  legacySharedFolders: string[] = [];
 
-  constructor(directory: string, log: Logger, owner: string) {
-    this.directory = directory;
-    this.file = path.join(directory, 'access.json');
+  constructor(database: HomeDatabase, log: Logger, owner: string) {
+    this.database = database;
     this.log = log;
     this.owner = owner;
-    mkdirSync(directory, { recursive: true });
-    const loaded = this.load();
-    // An unreadable file is left alone: this process works on a placeholder that is never saved.
-    this.state = loaded ?? { version: 2, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
-    this.secret = this.state.secret;
+    // Processes starting together agree on one identity: the first to write it wins.
+    database.transaction(() => {
+      if (database.setting('host.secret') !== null) return;
+      database.setSetting('host.id', randomUUID());
+      database.setSetting('host.name', hostname().slice(0, 80) || 'Atlas');
+      database.setSetting('host.secret', randomBytes(32).toString('base64url'));
+    });
+    this.secret = database.setting('host.secret')!;
   }
 
-  /**
-   * Read access.json without changing it, or null (with `problem` set) when it cannot be read. A
-   * missing file is created atomically, so processes starting together agree on one identity and
-   * secret. A file this version cannot read (damaged, or written by a newer Atlas) is never
-   * replaced: remote access stays off until it can be read again.
-   */
-  private load(): AccessFile | null {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      let text: string;
-      try { text = readFileSync(this.file, 'utf8'); }
-      catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') { this.create(); continue; }
-        this.loadProblem = `Remote access settings in ${this.file} cannot be read (${(error as Error).message}). Remote access stays off until they can be read.`;
-        this.log.error('Access settings unreadable', error);
-        return null;
-      }
-      try {
-        const header = accessHeader(JSON.parse(text));
-        const devices: DeviceRecord[] = [];
-        for (const [index, value] of header.devices.entries()) {
-          try { devices.push(deviceRecord(value, 'devices[' + index + ']')); }
-          catch (error) { this.log.warn('A paired device record is unreadable and is ignored', { index, message: (error as Error).message }); }
-        }
-        this.loadProblem = null;
-        const { sharedFolders, ...settings } = header.settings;
-        if (header.version === 1) this.legacySharedFolders = sharedFolders ?? [];
-        // Saved as version 2 the next time the managing process writes it.
-        return { ...header, version: 2, settings, devices };
-      } catch (error) {
-        this.loadProblem = `Remote access settings in ${this.file} are not in a form this version of Atlas can read (${(error as Error).message}). A newer Atlas may have written them. Remote access stays off; to start over, remove the file (paired devices then pair again).`;
-        this.log.error('Access settings not readable by this version', { message: (error as Error).message });
-        return null;
-      }
-    }
-    this.loadProblem = `Remote access settings in ${this.file} could not be created.`;
-    return null;
-  }
-  /** Create access.json with a new identity, unless another process just did. */
-  private create() {
-    const created: AccessFile = { version: 2, hostId: randomUUID(), name: hostname().slice(0, 80) || 'Atlas', secret: randomBytes(32).toString('base64url'), settings: structuredClone(defaultSettings), devices: [] };
-    const temporary = this.file + '.' + process.pid + '.new';
-    writeFileSync(temporary, JSON.stringify(created, null, 2) + '\n', { mode: 0o600 });
-    try { linkSync(temporary, this.file); }
-    catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'EEXIST') return;
-      // A file system without hard links: create exclusively instead.
-      try { writeFileSync(this.file, JSON.stringify(created, null, 2) + '\n', { mode: 0o600, flag: 'wx' }); }
-      catch (fallback) { if ((fallback as NodeJS.ErrnoException).code !== 'EEXIST') throw fallback; }
-    } finally { rmSync(temporary, { force: true }); }
-  }
-  private replace(state: AccessFile) {
-    const temporary = this.file + '.' + process.pid + '.tmp';
-    writeFileSync(temporary, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
-    renameSync(temporary, this.file);
-  }
-  /** Save the state. Only the process that manages remote access writes access.json. */
-  private write() {
-    if (this.managedBy !== null) throw new HostError('unavailable', 'Remote access settings are saved only by the process that manages remote access.');
-    this.replace(this.state);
-  }
-  /** Read access.json again, to show what the managing process saved. Changes nothing. */
+  /** Read the settings again, to show what the managing process saved; a changed identity needs a restart. */
   reload() {
-    if (this.managedBy === null) return;
-    this.adopt(this.load());
-  }
-  /**
-   * Take what was read as this process's state, if it is the same identity this process started
-   * with; otherwise only a restart can use it (folder IDs and the lock name come from the secret).
-   */
-  private adopt(fresh: AccessFile | null): boolean {
-    if (!fresh) return false;
-    if (fresh.secret !== this.secret) {
-      this.restartNeeded = `Remote access settings in ${this.file} changed while Atlas was running. Quit and start Atlas again to use them.`;
-      return false;
-    }
-    this.state = fresh;
-    return true;
+    if (this.database.setting('host.secret') !== this.secret) this.restartNeeded = `Remote access settings in ${this.database.file} changed while Atlas was running. Quit and start Atlas again to use them.`;
   }
 
   /** Take the lock unless another live process holds it. Returns who manages remote access: null when this process does. */
   async lock(): Promise<string | null> {
     if (this.lockServer) return null;
-    // Settings that could not be read, or changed under this process, need a restart first. Read
-    // them again anyway, so the reason given is current (readable again means: restart Atlas).
+    // Settings that changed under this process need a restart first.
+    this.reload();
     if (this.problem) {
-      if (!this.restartNeeded) this.adopt(this.load());
       this.managedBy = 'nobody';
       return this.managedBy;
     }
@@ -279,12 +185,6 @@ export class AccessStore {
           server.listen(address, () => { server.off('error', reject); resolve(); });
         });
         server.unref();
-        // Start from what the previous manager saved (pairings, revocations), not from what this process read earlier.
-        if (!this.adopt(this.load())) {
-          server.close();
-          this.managedBy = 'nobody';
-          return this.managedBy;
-        }
         this.lockServer = server;
         this.managedBy = null;
         return null;
@@ -313,11 +213,14 @@ export class AccessStore {
     server.close();
   }
 
-  get hostId() { return this.state.hostId; }
-  get name() { return this.state.name; }
+  get hostId() { return this.database.setting('host.id')!; }
+  get name() { return this.database.setting('host.name') ?? 'Atlas'; }
   /** The key that turns a folder's path into its ID, so IDs cannot be guessed from paths. Fixed for the process's life. */
   get folderKey() { return this.secret; }
-  get settings(): AccessSettings { return structuredClone(this.state.settings); }
+  get settings(): AccessSettings {
+    try { return accessSettings({ network: JSON.parse(this.database.setting('host.network') ?? 'null') }); }
+    catch { return structuredClone(defaultSettings); }
+  }
   /** Remote access is configurable here only in the process that manages it. */
   private manage() {
     if (this.problem) throw new HostError('unavailable', this.problem);
@@ -326,37 +229,35 @@ export class AccessStore {
 
   updateSettings(settings: AccessSettings) {
     this.manage();
-    this.state.settings = structuredClone(settings);
-    this.write();
+    this.database.setSetting('host.network', JSON.stringify(settings.network));
   }
 
   /** A device by its ID. */
-  device(id: string): DeviceRecord | null { return this.state.devices.find(device => device.deviceId === id) ?? null; }
+  device(id: string): DeviceRecord | null {
+    const row = this.database.db.prepare('SELECT * FROM device WHERE id = ?').get(id) as Row | undefined;
+    return row ? deviceRecord(row) : null;
+  }
+  private allDevices(): DeviceRecord[] { return (this.database.db.prepare('SELECT * FROM device ORDER BY paired_at, id').all() as Row[]).map(deviceRecord); }
   devices(connected: Set<string>): PairedDevice[] {
-    return this.state.devices.map(device => ({ deviceId: device.deviceId, name: device.name, platform: device.platform, scopes: [...device.scopes], pairedAt: device.pairedAt, lastSeenAt: device.lastSeenAt, connected: connected.has(device.deviceId) }));
+    return this.allDevices().map(device => ({ deviceId: device.deviceId, name: device.name, platform: device.platform, scopes: [...device.scopes], pairedAt: device.pairedAt, lastSeenAt: device.lastSeenAt, connected: connected.has(device.deviceId) }));
   }
   /** The device a token belongs to, or null. Compares hashes in constant time. */
   deviceForToken(token: string): DeviceRecord | null {
     if (!token.startsWith('atl_') || token.length > 100) return null;
     const presented = Buffer.from(hash(token), 'hex');
-    return this.state.devices.find(device => timingSafeEqual(Buffer.from(device.tokenHash, 'hex'), presented)) ?? null;
+    return this.allDevices().find(device => timingSafeEqual(Buffer.from(device.tokenHash, 'hex'), presented)) ?? null;
   }
-  /** Record that a device connected; written at most once a minute per device. */
+  /** Record that a device connected; written at most once a minute per device, by the managing process. */
   seen(deviceId: string) {
-    const device = this.state.devices.find(entry => entry.deviceId === deviceId);
-    if (!device) return;
-    device.lastSeenAt = new Date().toISOString();
     const last = this.lastSeenWrites.get(deviceId) ?? 0;
     if (Date.now() - last < 60000 || this.managedBy !== null) return;
     this.lastSeenWrites.set(deviceId, Date.now());
-    try { this.write(); } catch (error) { this.log.warn('Device activity not saved', error); }
+    try { this.database.db.prepare('UPDATE device SET last_seen_at = ? WHERE id = ?').run(new Date().toISOString(), deviceId); }
+    catch (error) { this.log.warn('Device activity not saved', error); }
   }
   revokeDevice(id: string) {
     this.manage();
-    const before = this.state.devices.length;
-    this.state.devices = this.state.devices.filter(device => device.deviceId !== id);
-    if (this.state.devices.length === before) throw new HostError('not-found', 'This device is not paired.');
-    this.write();
+    if (!this.database.db.prepare('DELETE FROM device WHERE id = ?').run(id).changes) throw new HostError('not-found', 'This device is not paired.');
   }
 
   /** A one-time pairing link for one device: the whole computer, and Manage access if granted. */
@@ -408,8 +309,8 @@ export class AccessStore {
       deviceId: 'd-' + randomBytes(16).toString('hex'), name: pending.label ?? device.name, platform: device.platform, tokenHash: hash(token),
       scopes: pending.manageAccess ? ['computer', 'access:manage'] : ['computer'], pairedAt: new Date().toISOString(), lastSeenAt: null,
     };
-    this.state.devices.push(record);
-    this.write();
+    this.database.db.prepare('INSERT INTO device (id, name, secret_hash, paired_at, last_seen_at, platform, manage_access) VALUES (?, ?, ?, ?, NULL, ?, ?)')
+      .run(record.deviceId, record.name, record.tokenHash, record.pairedAt, record.platform, pending.manageAccess ? 1 : 0);
     this.log.info('Device paired', { deviceId: record.deviceId, name: record.name, platform: record.platform, manageAccess: pending.manageAccess });
     return { device: record, token };
   }

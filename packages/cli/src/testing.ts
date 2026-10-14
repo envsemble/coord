@@ -6,6 +6,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { storedReports, usageSummary, withDatabase } from '@envsemble/atlas-planning';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const command = path.resolve(here, '../bin/atlas.js');
@@ -53,4 +54,19 @@ export function homeWithPlanning(t: TestContext) {
   git(checkout, 'init', '-q');
   git(checkout, 'remote', 'add', 'origin', 'https://github.com/example/shop.git');
   return { directory, home, root, checkout, env: { ...environment, ATLAS_HOME: home } };
+}
+
+/** A work item's reports in a home's database (the test environment's home unless given). */
+export function reportsIn(root: string, workId: string, home = environment.ATLAS_HOME!) {
+  return withDatabase(home, database => {
+    const project = database.projectByFolder(realpathSync.native(root));
+    return project ? storedReports(database, project.id, [workId]).get(workId) ?? [] : [];
+  });
+}
+/** A planning folder's document use in a home's database. */
+export function usageIn(root: string, home = environment.ATLAS_HOME!) {
+  return withDatabase(home, database => {
+    const project = database.projectByFolder(realpathSync.native(root));
+    return project ? usageSummary(database, project.id) : null;
+  });
 }
