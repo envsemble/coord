@@ -84,6 +84,8 @@ test('a work item\'s About sidebar sums up its statistics, with what agent time 
   // As shown: each value's description is for assistive technology.
   await expect(facts).toHaveText(['4 h 8 min of agent time', (await compact(window, 13815500)) + ' tokens', '0 plan revisions'], { useInnerText: true });
   await expect(window.locator('.about')).not.toContainText('active/0001-saved-payment-methods', { timeout: 1000 });
+  // Where the About sidebar sits below the ledger, the ledger arriving moves it: hover once it has.
+  await expect(window.getByRole('heading', { name: 'Saved payment methods: ledger' })).toBeVisible();
   await facts.nth(0).locator('.detailed').hover();
   await expect(window.locator('.env-tooltip')).toContainText('Measured from logs2 h 38 min');
   await expect(window.locator('.env-tooltip')).toContainText('Estimated from reports1 h 30 min');
