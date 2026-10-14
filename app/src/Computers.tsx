@@ -167,7 +167,7 @@ export function FolderRows({ computer, folders, current, onError, onOpened }: {
       detail={<><bdi className="folder-row-path">{folder.path}</bdi>{facts && <span className="folder-row-facts">{facts}</span>}</>}
       action={<span className="row-actions">
         <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + folder.name + ' in a new window'} disabled={!folder.available} onClick={() => openFolder(computer, folder, true, onError, onOpened)} /></Tooltip>
-        <Tooltip content="Remove from the list on every device"><IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder.name + ' from the list'} onClick={() => remove(folder)} /></Tooltip>
+        <Tooltip content={folder.inHome ? 'Folders in the Atlas home are always listed' : 'Remove from the list on every device'}><IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder.name + ' from the list'} disabled={folder.inHome} onClick={() => remove(folder)} /></Tooltip>
       </span>} />;
   })}</GroupedRows>;
 }

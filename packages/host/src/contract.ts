@@ -41,6 +41,8 @@ export interface ComputerFolder {
   /** False when the folder is gone (moved or deleted); it stays listed, marked missing, until removed. */
   available: boolean;
   workItems: number | null;
+  /** In the Atlas home's planning folder, so always listed: it cannot be removed from the list. */
+  inHome: boolean;
 }
 /** A folder on the computer, as the folder browser shows it. */
 export interface BrowseEntry { name: string; path: string; planning: boolean }
