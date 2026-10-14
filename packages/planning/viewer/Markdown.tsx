@@ -1,6 +1,6 @@
 // Markdown in envUI's style, as the app's reader shows it. Raw HTML is ignored, never rendered,
 // and only files inside the export (or explicit web links) become links or images.
-import { createElement, useMemo, type ReactNode } from 'react';
+import { createElement, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { slug } from 'github-slugger';
 import { Button, Card } from '@envsemble/envui';
 import { Markdown as EnvMarkdown } from '@envsemble/envui/content';
@@ -10,7 +10,8 @@ import { headingAnchors, sectionAnchors } from '../src/headings.ts';
 import { blobURL, imageType, type ExportFile, type ViewDiagram } from './data.ts';
 import { ProvenanceBadge } from './ui.tsx';
 
-// Heading identities mirror the app (app/src/headings.ts), so anchors match between them.
+// Heading identities mirror the app (app/src/headings.ts), so anchors match between them; ids the
+// document already has (footnotes) stay.
 export const headingPrefix = 'planning-heading-';
 interface HastNode { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] }
 function visit(node: HastNode, action: (node: HastNode) => void) { action(node); for (const child of node.children ?? []) visit(child, action); }
@@ -19,7 +20,7 @@ function rehypeHeadingIds() {
   return (tree: HastNode) => {
     const anchor = headingAnchors();
     visit(tree, node => {
-      if (node.type !== 'element' || !/^h[1-6]$/.test(node.tagName ?? '')) return;
+      if (node.type !== 'element' || !/^h[1-6]$/.test(node.tagName ?? '') || node.properties?.id) return;
       node.properties = { ...node.properties, id: headingPrefix + anchor(hastText(node)) };
     });
   };
@@ -70,8 +71,11 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
   path: string; body: string; files: Map<string, ExportFile>; diagrams: ViewDiagram[]; hideTitle?: string;
   onFile(file: string, anchor?: string): void; onAnchor(anchor: string): void; onDiagram(path: string, element?: string): void;
 }) {
+  const prose = useRef<HTMLDivElement>(null);
+  // The headings the page actually drew, once it has drawn them; until then the document's own.
+  const [drawn, setDrawn] = useState<{ body: string; anchors: Set<string> } | null>(null);
   const cards = useMemo(() => {
-    const anchors = sectionAnchors(body);
+    const anchors = drawn?.body === body ? drawn.anchors : sectionAnchors(body);
     const bySection = new Map<string, Map<string, DiagramCard>>();
     const top = new Map<string, DiagramCard>();
     for (const diagram of diagrams) {
@@ -85,14 +89,20 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
       }
     }
     return { sections: new Map([...bySection].map(([key, group]) => [key, [...group.values()]])), top: [...top.values()] };
-  }, [body, path, diagrams]);
+  }, [body, path, diagrams, drawn]);
+  // A card under a heading the page did not draw (its text reads differently there) moves to the top.
+  useLayoutEffect(() => {
+    const ids = Array.from(prose.current?.querySelectorAll<HTMLElement>('[id^="' + headingPrefix + '"]') ?? [], node => node.id.slice(headingPrefix.length));
+    const anchors = new Set(ids);
+    if (drawn?.body !== body || anchors.size !== drawn.anchors.size || ids.some(id => !drawn.anchors.has(id))) setDrawn({ body, anchors });
+  });
   const heading = (level: number) => function Heading({ node, children, id }: { node?: unknown; children?: ReactNode; id?: string }) {
     const attached = id?.startsWith(headingPrefix) ? cards.sections.get(id.slice(headingPrefix.length)) : undefined;
     const repeated = level === 1 && hideTitle !== undefined && nodeText(node).trim() === hideTitle.trim();
     return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && <DiagramCards items={attached} onOpen={onDiagram} />}</>;
   };
   const headings = useMemo(() => Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])), [cards, hideTitle]);
-  return <div className="prose">
+  return <div className="prose" ref={prose}>
     {cards.top.length > 0 && <DiagramCards items={cards.top} onOpen={onDiagram} />}
     <EnvMarkdown inlineCode="subtle" rehypePlugins={headingPlugins} components={{
       ...headings,

@@ -1,4 +1,4 @@
-import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createElement, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, EmptyState, Spinner } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
 import { DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
@@ -96,9 +96,11 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
     if (content && anchor) requestAnimationFrame(() => scrollToHeading(anchor));
   }, [content, anchor, cardCount]);
 
+  // The headings the page actually drew, once it has drawn them; until then the document's own.
+  const [drawn, setDrawn] = useState<{ body: string; anchors: Set<string> } | null>(null);
   const diagramCards = useMemo(() => {
     const sections = new Map<string, DiagramCard[]>();
-    const anchors = content?.format === 'markdown' ? sectionAnchors(content.body) : new Set<string>();
+    const anchors = content?.format !== 'markdown' ? new Set<string>() : drawn?.body === content.body ? drawn.anchors : sectionAnchors(content.body);
     const unplaced: DiagramReference[] = [];
     const bySection = new Map<string, DiagramReference[]>();
     for (const reference of references) {
@@ -109,7 +111,14 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
     }
     for (const [anchor, items] of bySection) sections.set(anchor, cards(items));
     return { sections, top: cards(unplaced) };
-  }, [references, content]);
+  }, [references, content, drawn]);
+  // A card under a heading the page did not draw (its text reads differently there) moves to the top.
+  useLayoutEffect(() => {
+    if (content?.format !== 'markdown') return;
+    const ids = Array.from(article.current?.querySelectorAll<HTMLElement>('[id^="' + headingPrefix + '"]') ?? [], node => node.id.slice(headingPrefix.length));
+    const anchors = new Set(ids);
+    if (drawn?.body !== content.body || anchors.size !== drawn.anchors.size || ids.some(id => !drawn.anchors.has(id))) setDrawn({ body: content.body, anchors });
+  });
 
   function destination(href: string) {
     return resolveLink(href, file.path, snapshot.documents, snapshot.work, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths);

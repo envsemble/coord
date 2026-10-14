@@ -3,7 +3,7 @@
 // document before any heading. A fragment names an element: `diagrams/order.puml#Order`.
 import path from 'node:path';
 import type { Nodes } from 'mdast';
-import { headingAnchors, headingText, parseMarkdown } from './headings.ts';
+import { documentAnchors, parseMarkdown } from './headings.ts';
 
 export interface DiagramLink {
   /** The diagram file, as a path in the planning folder. */
@@ -32,7 +32,7 @@ export function diagramLinks(markdown: string, documentPath: string): DiagramLin
   const directory = path.posix.dirname(documentPath.replaceAll('\\', '/'));
   const tree = parseMarkdown(markdown);
   const definitions = new Map<string, string>();
-  const anchor = headingAnchors();
+  const anchors = documentAnchors(tree);
   let section: string | null = null;
   const add = (href: string) => {
     if (!href || href.startsWith('#') || href.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
@@ -54,7 +54,7 @@ export function diagramLinks(markdown: string, documentPath: string): DiagramLin
   // The first definition of a label wins, wherever it is.
   walk(tree, node => { if (node.type === 'definition' && !definitions.has(node.identifier)) definitions.set(node.identifier, node.url); });
   walk(tree, node => {
-    if (node.type === 'heading') section = anchor(headingText(node));
+    if (node.type === 'heading') section = anchors.get(node)!;
     else if (node.type === 'link' || node.type === 'image') add(node.url);
     else if (node.type === 'linkReference' || node.type === 'imageReference') add(definitions.get(node.identifier) ?? '');
   });
