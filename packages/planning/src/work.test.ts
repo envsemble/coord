@@ -159,6 +159,8 @@ test('closing refuses while items are open, then completes and archives, repairi
   // Work that is not complete is archived only as superseded or abandoned, with the reason recorded.
   await assert.rejects(archiveWork(root, 'work-0002', {}, today), /not complete: archive it as superseded/);
   await assert.rejects(archiveWork(root, 'work-0002', { disposition: 'abandoned' }, today), /reason/);
+  await assert.rejects(archiveWork(root, 'work-0002', { reason: 'Never recorded.' }, today), /only with a disposition/);
+  await assert.rejects(archiveWork(root, 'work-0002', { disposition: 'abandoned', supersededBy: 'work-0001', reason: 'x' }, today), /Only superseded work/);
   await assert.rejects(archiveWork(root, 'work-0002', { disposition: 'superseded', supersededBy: 'work-0009' }, today), /work-0009 is not registered/);
   const archived = await archiveWork(root, 'work-0002', { disposition: 'abandoned', reason: 'The tools moved elsewhere.' }, today);
   assert.deepEqual([archived.path, archived.designStatus], ['archive/0002-other', 'abandoned']);
@@ -169,7 +171,8 @@ test('closing refuses while items are open, then completes and archives, repairi
   assert.deepEqual(status.statistics, { reports: 0, agentMinutes: 0, tokens: null, primaryModel: null });
   // Superseded work with open steps: the ledger says by what, and reopening accepts it again.
   await assert.rejects(archiveWork(root, 'work-0001', {}, today), (error: WorkError) => error.problems.includes('Step "Fix the follow-up" is todo.'));
-  const superseded = await archiveWork(root, 'work-0001', { disposition: 'superseded', supersededBy: 'work-0002', reason: 'Folded into the tools work' }, today);
+  // Naming the work that supersedes it is enough.
+  const superseded = await archiveWork(root, 'work-0001', { supersededBy: 'work-0002', reason: 'Folded into the tools work' }, today);
   assert.deepEqual([superseded.location, superseded.designStatus], ['archive', 'superseded']);
   assert.match(read(root, 'archive/0001-existing/plan.md'), /^superseded_by: "work-0002"$/m);
   assert.match(read(root, 'archive/0001-existing/ledger.md'), /- 2026-10-14: archived as superseded by work-0002: Folded into the tools work\.\n$/);

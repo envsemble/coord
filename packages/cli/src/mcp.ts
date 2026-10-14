@@ -92,7 +92,7 @@ const tools: Tool[] = [
     description: 'Move a work folder from active/ to archive/ without closing it, repairing links. Work that is not complete needs a disposition: superseded (name the work that replaces it) or abandoned (give the reason); it becomes the plan\'s design_status, and the reason goes into the ledger. Finished work is closed with work_close instead.',
     inputSchema: object({
       work, disposition: { type: 'string', enum: ['superseded', 'abandoned'], description: 'Why the work stops: replaced by other work, or dropped.' },
-      supersededBy: { ...work, description: 'For superseded work: the work item that replaces it.' }, reason: { type: 'string', description: 'Why; required for abandoned work.' },
+      supersededBy: { ...work, description: 'For superseded work: the work item that replaces it. Naming it implies superseded.' }, reason: { type: 'string', description: 'Why; required for abandoned work, and only given with a disposition.' },
     }, ['work']),
     run: (root, input) => archiveWork(root, input.work!, { disposition: (input.disposition as 'superseded' | 'abandoned' | undefined) ?? null, supersededBy: (input.supersededBy as string | undefined) ?? null, reason: (input.reason as string | undefined) ?? null }),
   },

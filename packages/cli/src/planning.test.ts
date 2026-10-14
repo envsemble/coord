@@ -48,7 +48,7 @@ test('a checkout finds its planning folder in the home and drives a work item th
   // Refusals exit 1 with the reason; usage errors exit 2.
   assert.match(run('work', 'start', 'work-0001', '--step', 'X').stderr, /^atlas: The design is superseded; accept it/);
   assert.equal(run('work', 'status', 'work-0042').status, 1);
-  for (const args of [['work'], ['work', 'status'], ['work', 'status', 'a', 'b'], ['work', 'create'], ['work', 'step'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'step', 'remove', 'work-0002', 'Build'], ['work', 'block', 'work-0002'], ['work', 'reopen', 'work-0002'], ['work', 'start', 'work-0002'], ['work', 'archive', 'work-0002', '--abandoned'], ['work', 'archive', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
+  for (const args of [['work'], ['work', 'status'], ['work', 'status', 'a', 'b'], ['work', 'create'], ['work', 'step'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'step', 'remove', 'work-0002', 'Build'], ['work', 'block', 'work-0002'], ['work', 'reopen', 'work-0002'], ['work', 'start', 'work-0002'], ['work', 'archive', 'work-0002', '--abandoned'], ['work', 'archive', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'archive', 'work-0002', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
     assert.equal(run(...args).status, 2, args.join(' '));
   }
   // Outside any registered checkout, a planning folder must be given.

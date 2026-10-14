@@ -58,8 +58,9 @@ export async function work(operation: string | undefined, args: string[], out: O
       const [id] = positionals(positional, ['work-id'], line);
       if (flags.has('abandoned') && values['superseded-by']) throw new UsageError('give --superseded-by or --abandoned, not both', line);
       if (flags.has('abandoned') && !values.reason) throw new UsageError('the following arguments are required: --reason (abandoned work says why)', line);
-      const disposition = flags.has('abandoned') ? 'abandoned' : values['superseded-by'] ? 'superseded' : null;
-      print(out, await archiveWork(await planningDir(values, id), id, { disposition, supersededBy: values['superseded-by'] ?? null, reason: values.reason ?? null }));
+      if (values.reason !== undefined && !flags.has('abandoned') && !values['superseded-by']) throw new UsageError('--reason goes with --abandoned or --superseded-by', line);
+      // --superseded-by implies superseded.
+      print(out, await archiveWork(await planningDir(values, id), id, { disposition: flags.has('abandoned') ? 'abandoned' : null, supersededBy: values['superseded-by'] ?? null, reason: values.reason ?? null }));
       return 0;
     }
     case 'create': {
