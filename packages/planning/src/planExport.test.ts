@@ -449,7 +449,7 @@ test('carries the diagrams with the links to them, drawn as the app draws them',
   const orders = view.diagrams.find(diagram => diagram.path === 'diagrams/orders.puml')!;
   assert.equal(orders.title, 'Orders');
   assert.equal(orders.payload!.model.document?.path, 'diagrams/orders.puml');
-  assert.deepEqual(orders.references, [{ path: 'CONTEXT.md', section: 'Orders', element: 'OrderLine' }, { path: 'plan.md', section: 'Data model', element: 'Order' }]);
+  assert.deepEqual(orders.references, [{ path: 'CONTEXT.md', section: 'orders', element: 'OrderLine' }, { path: 'plan.md', section: 'data-model', element: 'Order' }]);
 });
 
 test('lays a family out together, and exports a diagram it cannot draw undrawn', async t => {
@@ -468,5 +468,4 @@ test('lays a family out together, and exports a diagram it cannot draw undrawn',
   assert.equal(diagram('broken.puml').payload, null);
   assert.match(diagram('broken.puml').error!, /^Line 4: .*direction/);
   assert(warnings.includes('The diagram diagrams/broken.puml is exported but cannot be drawn in the viewer.'));
-
 });

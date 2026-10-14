@@ -16,7 +16,8 @@ import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { Folder } from '@envsemble/envui/icons/Folder';
 import { FolderOpen } from '@envsemble/envui/icons/FolderOpen';
 import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDiagram } from './data.ts';
-import { Markdown, markdownBody, scrollToHeading } from './Markdown.tsx';
+import { Markdown, scrollToHeading } from './Markdown.tsx';
+import { markdownBody } from '../src/headings.ts';
 import { LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
 import { modelSummary, type ProvenanceKind } from '../src/provenance.ts';
 

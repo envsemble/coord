@@ -1,8 +1,8 @@
 // Portable plan export: one self-contained HTML file carrying a whole work folder
 // losslessly, and its import into a planning folder as new work.
 //
-// The diagram layout and the HTML parser load lazily, so the command's planning
-// checks stay light when they import the package entry.
+// The diagram layout loads lazily, so the command's planning checks stay light
+// when they import the package entry.
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
@@ -14,6 +14,7 @@ import { samePath, workRelative } from './paths.ts';
 import type { Provenance } from './provenance.ts';
 import { describeFiles, isDiagram } from './diagrams.ts';
 import { diagramLinks } from './diagramLinks.ts';
+import { markdownBody } from './headings.ts';
 import { appendRegistryEntries, RegistryFormatError } from './registryText.ts';
 import { acquireImportLock, ImportLockBusyError } from './importLock.ts';
 import type { Work } from './types.ts';
@@ -401,7 +402,7 @@ async function diagramsFor(files: { path: string; data: string }[], warnings: st
   const references = new Map<string, ViewReference[]>();
   for (const file of files) {
     if (!isMarkdown(file.path)) continue;
-    for (const link of diagramLinks(text(file), file.path)) references.set(link.target, [...references.get(link.target) ?? [], { path: file.path, section: link.section, element: link.element }]);
+    for (const link of diagramLinks(markdownBody(text(file)), file.path)) references.set(link.target, [...references.get(link.target) ?? [], { path: file.path, section: link.section, element: link.element }]);
   }
   return described.map(diagram => {
     const payload = prepared.get(diagram.path) ?? null;

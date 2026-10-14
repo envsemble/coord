@@ -124,7 +124,7 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   assert.equal(payload.family, 'diagrams/checkout-capture.puml');
   assert.equal(payload.siblings?.length, 2);
   const references = await connection.request('folder.references', { folderId: opened.folderId, work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md' });
-  assert.deepEqual(references.find(reference => reference.element === 'CardSession'), { workId: 'work-0001', path: 'diagrams/checkout-capture.puml', title: 'Checkout · captured TypeScript', provenance: diagrams[1].provenance, section: 'Current checkout', element: 'CardSession' });
+  assert.deepEqual(references.find(reference => reference.element === 'CardSession'), { workId: 'work-0001', path: 'diagrams/checkout-capture.puml', title: 'Checkout · captured TypeScript', provenance: diagrams[1].provenance, section: 'current-checkout', element: 'CardSession' });
   assert.equal((await connection.request('folder.diagramIndex', { folderId: opened.folderId })).length, 8);
   for (const path of ['../planning.json', 'plan.md', '/etc/x.puml'])
     await assert.rejects(connection.request('folder.diagram', { folderId: opened.folderId, work: 'work-0001', path }), (error: HostRequestError) => error.code === 'invalid-argument', path);

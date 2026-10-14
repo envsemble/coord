@@ -6,6 +6,7 @@ import { Button, Card } from '@envsemble/envui';
 import { Markdown as EnvMarkdown } from '@envsemble/envui/content';
 import { AccountTree } from '@envsemble/envui/icons/AccountTree';
 import { OpenInNew } from '@envsemble/envui/icons/OpenInNew';
+import { headingAnchors, sectionAnchors } from '../src/headings.ts';
 import { blobURL, imageType, type ExportFile, type ViewDiagram } from './data.ts';
 import { ProvenanceBadge } from './ui.tsx';
 
@@ -16,14 +17,10 @@ function visit(node: HastNode, action: (node: HastNode) => void) { action(node);
 function hastText(node: HastNode): string { return node.type === 'text' ? node.value ?? '' : (node.children ?? []).map(hastText).join(''); }
 function rehypeHeadingIds() {
   return (tree: HastNode) => {
-    const used = new Set<string>();
+    const anchor = headingAnchors();
     visit(tree, node => {
       if (node.type !== 'element' || !/^h[1-6]$/.test(node.tagName ?? '')) return;
-      const base = headingPrefix + (slug(hastText(node)) || 'section');
-      let id = base; let suffix = 0;
-      while (used.has(id)) id = base + '-' + ++suffix;
-      used.add(id);
-      node.properties = { ...node.properties, id };
+      node.properties = { ...node.properties, id: headingPrefix + anchor(hastText(node)) };
     });
   };
 }
@@ -33,12 +30,6 @@ export function scrollToHeading(container: HTMLElement | null, anchor: string) {
   const normalized = slug(anchor);
   const target = [anchor, normalized, headingPrefix + normalized].map(id => ids.find(node => node.id === id)).find(Boolean);
   target?.scrollIntoView();
-}
-
-/** Strip a leading metadata header, as the app's reader does. */
-export function markdownBody(source: string) {
-  const header = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
-  return header ? source.slice(header[0].length) : source;
 }
 
 /** Resolve a link from `source` to a file inside the export, keeping its anchor. */
@@ -60,21 +51,6 @@ export function resolveExportLink(href: string, source: string, files: Map<strin
 }
 
 interface DiagramCard { path: string; title: string; diagram: ViewDiagram; elements: string[] }
-function headingLines(body: string) {
-  const lines = new Map<string, number>();
-  let fence: string | null = null;
-  body.split(/\r?\n/).forEach((line, index) => {
-    const marker = /^\s{0,3}(```|~~~)/.exec(line)?.[1];
-    if (marker) { fence = fence === marker ? null : fence ?? marker; return; }
-    if (fence) return;
-    const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
-    if (heading) {
-      const key = slug(heading[1].replace(/\]\([^)]*\)/g, '').replace(/[*_`[\]]/g, ''));
-      if (!lines.has(key)) lines.set(key, index + 1);
-    }
-  });
-  return lines;
-}
 function DiagramCards({ items, onOpen }: { items: DiagramCard[]; onOpen(path: string, element?: string): void }) {
   return <div className="diagram-cards">{items.map(card => <Card key={card.path} className="diagram-card" tone="pane" padding={4}
     heading={<span className="diagram-card-title"><AccountTree className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.diagram.provenance} /></span>}
@@ -95,26 +71,25 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
   onFile(file: string, anchor?: string): void; onAnchor(anchor: string): void; onDiagram(path: string, element?: string): void;
 }) {
   const cards = useMemo(() => {
-    const lines = headingLines(body);
+    const anchors = sectionAnchors(body);
     const bySection = new Map<string, Map<string, DiagramCard>>();
     const top = new Map<string, DiagramCard>();
     for (const diagram of diagrams) {
       for (const reference of diagram.references) {
         if (reference.path !== path) continue;
-        const key = reference.section ? slug(reference.section) : '';
-        const group = key && lines.has(key) ? bySection.get(key) ?? bySection.set(key, new Map()).get(key)! : top;
+        // A link before any heading, or under one the document no longer has, shows at the top.
+        const key = reference.section;
+        const group = key && anchors.has(key) ? bySection.get(key) ?? bySection.set(key, new Map()).get(key)! : top;
         const card = group.get(diagram.path) ?? group.set(diagram.path, { path: diagram.path, title: diagram.title, diagram, elements: [] }).get(diagram.path)!;
         if (reference.element && !card.elements.includes(reference.element)) card.elements.push(reference.element);
       }
     }
-    return { lines, sections: new Map([...bySection].map(([key, group]) => [key, [...group.values()]])), top: [...top.values()] };
+    return { sections: new Map([...bySection].map(([key, group]) => [key, [...group.values()]])), top: [...top.values()] };
   }, [body, path, diagrams]);
   const heading = (level: number) => function Heading({ node, children, id }: { node?: unknown; children?: ReactNode; id?: string }) {
-    const key = slug(nodeText(node));
-    const line = (node as { position?: { start?: { line?: number } } } | undefined)?.position?.start?.line;
-    const attached = cards.sections.get(key);
+    const attached = id?.startsWith(headingPrefix) ? cards.sections.get(id.slice(headingPrefix.length)) : undefined;
     const repeated = level === 1 && hideTitle !== undefined && nodeText(node).trim() === hideTitle.trim();
-    return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && (line === undefined || line === cards.lines.get(key)) && <DiagramCards items={attached} onOpen={onDiagram} />}</>;
+    return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && <DiagramCards items={attached} onOpen={onDiagram} />}</>;
   };
   const headings = useMemo(() => Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])), [cards, hideTitle]);
   return <div className="prose">

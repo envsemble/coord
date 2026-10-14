@@ -5,7 +5,8 @@ import { DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from './types';
 import { api, fileUrl } from './api';
 import { resolveLink } from './links';
-import { findHeadingId, headingSlug, rehypeHeadingIds } from './headings';
+import { sectionAnchors } from '@envsemble/atlas-planning/headings';
+import { findHeadingId, headingPrefix, rehypeHeadingIds } from './headings';
 import { documentTarget, workTarget } from './targets';
 import { bytes, workNumber } from './format';
 import { ProvenanceBadge } from './ui';
@@ -55,23 +56,6 @@ function text(node: unknown): string {
   const value = node as { type?: string; value?: string; children?: unknown[] };
   return value.type === 'text' ? value.value ?? '' : (value.children ?? []).map(text).join('');
 }
-/** First line of each heading slug in the Markdown source, skipping fenced code. */
-function headingLines(body: string) {
-  const lines = new Map<string, number>();
-  let fence: string | null = null;
-  body.split(/\r?\n/).forEach((line, index) => {
-    const marker = /^\s{0,3}(```|~~~)/.exec(line)?.[1];
-    if (marker) { fence = fence === marker ? null : fence ?? marker; return; }
-    if (fence) return;
-    const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
-    if (heading) {
-      const slug = headingSlug(heading[1].replace(/\]\([^)]*\)/g, '').replace(/[*_`[\]]/g, ''));
-      if (!lines.has(slug)) lines.set(slug, index + 1);
-    }
-  });
-  return lines;
-}
-
 let viewSession = '';
 function sessionId() {
   if (!viewSession) viewSession = crypto.randomUUID();
@@ -114,16 +98,17 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
 
   const diagramCards = useMemo(() => {
     const sections = new Map<string, DiagramCard[]>();
-    const lines = content?.format === 'markdown' ? headingLines(content.body) : new Map<string, number>();
+    const anchors = content?.format === 'markdown' ? sectionAnchors(content.body) : new Set<string>();
     const unplaced: DiagramReference[] = [];
     const bySection = new Map<string, DiagramReference[]>();
     for (const reference of references) {
-      const slug = reference.section ? headingSlug(reference.section) : '';
-      if (!slug || !lines.has(slug)) { unplaced.push(reference); continue; }
-      bySection.set(slug, [...bySection.get(slug) ?? [], reference]);
+      // A link before any heading, or under one the document no longer has, shows at the top.
+      const anchor = reference.section;
+      if (!anchor || !anchors.has(anchor)) { unplaced.push(reference); continue; }
+      bySection.set(anchor, [...bySection.get(anchor) ?? [], reference]);
     }
-    for (const [slug, items] of bySection) sections.set(slug, cards(items));
-    return { lines, sections, top: cards(unplaced) };
+    for (const [anchor, items] of bySection) sections.set(anchor, cards(items));
+    return { sections, top: cards(unplaced) };
   }, [references, content]);
 
   function destination(href: string) {
@@ -131,11 +116,9 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   }
   const components = useMemo(() => {
     const heading = (level: number) => function Heading({ node, children, id }: { node?: unknown; children?: ReactNode; id?: string }) {
-      const slug = headingSlug(text(node));
-      const line = (node as { position?: { start?: { line?: number } } } | undefined)?.position?.start?.line;
-      const attached = diagramCards.sections.get(slug);
+      const attached = id?.startsWith(headingPrefix) ? diagramCards.sections.get(id.slice(headingPrefix.length)) : undefined;
       const repeated = level === 1 && hideTitle !== undefined && text(node).trim() === hideTitle.trim();
-      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && (line === undefined || line === diagramCards.lines.get(slug)) && <DiagramCards items={attached} showWork={showWork} />}</>;
+      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && <DiagramCards items={attached} showWork={showWork} />}</>;
     };
     return {
       ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])),
