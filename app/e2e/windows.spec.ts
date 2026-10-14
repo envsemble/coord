@@ -85,7 +85,7 @@ test('Help › About Atlas shows the version in the window, also on the welcome 
   const about = window.getByRole('dialog', { name: 'Atlas' });
   await expect(about).toContainText('Version ' + version);
   await expect(about).toContainText('Atlas works offline.');
-  await expect(about.locator('dt')).toHaveText(['Electron', 'Chromium', 'Node.js', 'System', 'Data folder']);
+  await expect(about.locator('dt')).toHaveText(['Electron', 'Chromium', 'Node.js', 'System', 'Atlas home']);
   await expect(about.locator('dd').last()).toHaveText(launched.dataDirectory);
   // The details a bug report needs, without the data folder's path.
   await about.getByRole('button', { name: 'Copy Details' }).click();

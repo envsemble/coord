@@ -507,7 +507,7 @@ export class WindowManager {
       } else root = await realpath(input).catch(() => path.resolve(input));
     } catch (error) {
       this.context.log.warn('Folder not opened', { input, error: (error as Error).message });
-      if (options.mode !== 'restore') await this.explain(options.from, 'This folder cannot be opened as a planning folder.', (error as Error).message + '\n\nA planning folder has a planning.json registry (schema version 1). Use the atlas-bootstrap skill to create one.');
+      if (options.mode !== 'restore') await this.explain(options.from, 'This folder cannot be opened as a planning folder.', (error as Error).message + '\n\nA planning folder has a planning.json registry (schema version 1). Ask your agent to create one with the atlas skill.');
       return null;
     }
     const existing = this.all().find(window => window.root && samePlatformPath(window.root, root));
