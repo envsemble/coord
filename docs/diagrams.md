@@ -15,7 +15,7 @@ Orders keep their lines and the address they ship to.
 [Order model](diagrams/orders.puml)
 ```
 
-A fragment names one element, which the card shows as a chip and the viewer focuses: `[the order](diagrams/orders.puml#Order)`. Any document of the work item can link its diagrams this way: the plan, the ledger, the glossary or a decision record. A diagram's history is its file's history in the planning folder's Git.
+A fragment names one element, which the card shows as a chip and the viewer focuses: `[the order](diagrams/orders.puml#Order)`. It is the element's PlantUML name, or a class's display name, URL-encoded (`#Order%20Item`). Any document of the work item can link its diagrams this way: the plan, the ledger, the glossary or a decision record. A diagram's history is its file's history in the planning folder's Git.
 
 ## The subset
 
