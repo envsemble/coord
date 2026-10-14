@@ -586,66 +586,12 @@ function memberSignature(member, method, profile) {
   if (!member.type) return member.name;
   return profile === "database" ? `${member.name} ${member.type}` : `${member.name}: ${member.type}`;
 }
-function decodeIdentity(id) {
-  if (typeof id !== "string") return null;
-  const parts = id.split(":");
-  try {
-    if (parts[0] === "code" && parts.length >= 5)
-      return {
-        source: "code",
-        language: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        file: decodeURIComponent(parts[3]),
-        name: decodeURIComponent(parts[4])
-      };
-    if (parts[0] === "code" && parts.length === 4)
-      return {
-        source: "code",
-        language: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        file: null,
-        name: decodeURIComponent(parts[3])
-      };
-    if (parts[0] === "db" && parts.length >= 5)
-      return {
-        source: "database",
-        engine: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        schema: decodeURIComponent(parts[3]),
-        name: decodeURIComponent(parts[4])
-      };
-  } catch {
-  }
-  return null;
-}
 function elementFile(element, model) {
   if (element?.location?.file) return element.location.file;
-  const identity = decodeIdentity(element?.id);
-  if (!identity || identity.source !== "code") return null;
-  if (identity.file) return identity.file;
-  return identity.language === "java" ? javaFile(identity, model) : null;
-}
-function javaFile({ name: qualified, repository }, model) {
-  const captured = (model?.classes || []).filter((c) => {
-    const identity = decodeIdentity(c.id);
-    return c.location?.file && identity?.language === "java" && identity.repository === repository;
-  });
-  const nameOf = (c) => decodeIdentity(c.id).name;
-  for (let end = qualified.lastIndexOf("."); end > 0; ) {
-    const outer = captured.find((c) => nameOf(c) === qualified.slice(0, end));
-    if (outer) return outer.location.file;
-    end = qualified.lastIndexOf(".", end - 1);
-  }
-  const parts = qualified.split(".");
-  const top = parts.findIndex((part) => /^[A-Z]/.test(part));
-  const relative = `${parts.slice(0, top < 0 ? parts.length : top + 1).join("/")}.java`;
-  for (const c of captured) {
-    const own = `${nameOf(c).replace(/\./g, "/")}.java`;
-    const file = c.location.file;
-    if (file === own || file.endsWith(`/${own}`))
-      return file.slice(0, file.length - own.length) + relative;
-  }
-  return null;
+  const source = (model?.sources || []).find(
+    (s) => s.id === element?.primarySource
+  );
+  return source?.file || null;
 }
 var PLAIN_KINDS = /* @__PURE__ */ new Set(["dependency", "foreign key"]);
 function edgeTag(edge) {
@@ -2534,7 +2480,6 @@ import { Close } from "@envsemble/envui/icons/Close";
 import { Code } from "@envsemble/envui/icons/Code";
 import { Contrast } from "@envsemble/envui/icons/Contrast";
 import { Database } from "@envsemble/envui/icons/Database";
-import { DataObject } from "@envsemble/envui/icons/DataObject";
 import { Description } from "@envsemble/envui/icons/Description";
 import { Difference } from "@envsemble/envui/icons/Difference";
 import { Download } from "@envsemble/envui/icons/Download";
@@ -3126,8 +3071,6 @@ function describeProvenance(document2) {
       tone: "success"
     };
   } else return { kind: "unknown", label: "", detail: "", tone: "neutral" };
-  if (document2.imported)
-    result.detail = result.detail ? `${result.detail} \xB7 Imported` : "Imported";
   return result;
 }
 
@@ -3174,15 +3117,8 @@ function ProvenanceBadge({ document: document2, className = "" }) {
 
 // src/viewer/ViewerToolbar.jsx
 import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
-function exportChoices({
-  exports,
-  viewKey,
-  fields,
-  theme,
-  diagramURL,
-  diagram = true
-}) {
-  const sourceFile = diagram ? `${exports.slug}.puml` : `${exports.slug}-structural.json`;
+function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
+  const sourceFile = `${exports.slug}.puml`;
   return [
     {
       key: "svg-download",
@@ -3194,22 +3130,12 @@ function exportChoices({
         `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`
       )
     },
-    diagram ? {
+    {
       key: "source-download",
       label: "PlantUML",
       description: "The diagram's source",
       icon: /* @__PURE__ */ jsx15(Code, {}),
       onSelect: () => downloadData(exports.readText(sourceFile), sourceFile)
-    } : {
-      key: "source-download",
-      label: "Structural JSON",
-      description: "The whole model",
-      icon: /* @__PURE__ */ jsx15(DataObject, {}),
-      onSelect: () => downloadData(
-        exports.readText(sourceFile),
-        sourceFile,
-        "application/json"
-      )
     },
     {
       key: "bundle-download",
@@ -3348,8 +3274,7 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
                 viewKey,
                 fields,
                 theme,
-                diagramURL,
-                diagram: !!model.document?.path
+                diagramURL
               })
             }
           ),
@@ -3730,7 +3655,6 @@ function WhatChanges({ change, element, model, profile }) {
   ).join("; ")}.` : "";
   if (change.status === "added") {
     const file = profile === "code" ? elementFile(element, model) : null;
-    const declared = profile === "code" && !file ? decodeIdentity(element.id)?.name : null;
     return /* @__PURE__ */ jsxs14(Section, { title: "What changes", children: [
       /* @__PURE__ */ jsxs14(Text6, { children: [
         "New ",
@@ -3739,13 +3663,10 @@ function WhatChanges({ change, element, model, profile }) {
         "."
       ] }),
       movedText && /* @__PURE__ */ jsx21(Text6, { children: movedText }),
-      file ? /* @__PURE__ */ jsxs14(Text6, { className: "proposed-location", children: [
+      file && /* @__PURE__ */ jsxs14(Text6, { className: "proposed-location", children: [
         "Proposed in ",
         /* @__PURE__ */ jsx21("code", { children: file }),
         fileExists(model, file) ? "" : " (a new file)"
-      ] }) : declared && declared !== element.name && /* @__PURE__ */ jsxs14(Text6, { className: "proposed-location", children: [
-        "Proposed as ",
-        /* @__PURE__ */ jsx21("code", { children: declared })
       ] })
     ] });
   }
