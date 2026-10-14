@@ -91,7 +91,9 @@ function finish(engine, options, model, diagnostics, source, consistency) {
   };
   const postgres = engine === "postgresql";
   const tables = model.nodes.map((node) => {
-    const name = postgres ? node.name.slice(node.namespace.length + 1) : node.name;
+    const name = postgres
+      ? node.name.slice(node.namespace.length + 1)
+      : node.name;
     const catalog = `${node.namespace}.${name}`;
     const primary = new Set(node.keys.find((k) => k.primary)?.columns || []);
     const reference = (options.references || []).find(
@@ -129,8 +131,12 @@ function finish(engine, options, model, diagnostics, source, consistency) {
             snippet: {
               language: "sql",
               file: catalog,
+              // As a code snippet, at most twelve lines.
               code: definitions
                 .map((d) => (/;\s*$/.test(d) ? d : `${d};`))
+                .join("\n")
+                .split("\n")
+                .slice(0, 12)
                 .join("\n"),
             },
           }

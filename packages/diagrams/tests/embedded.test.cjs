@@ -5,29 +5,23 @@ const postcss = require("postcss");
 const selectors = require("postcss-selector-parser");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const {
-  createDocument,
-  prepareViewer,
-  buildViewer,
-  importDocument,
-} = require("../lib/index.cjs");
+const { prepareDiagrams, buildViewer } = require("../lib/index.cjs");
 const {
   buildEmbeddedCSS,
   SCOPES,
 } = require("../scripts/build-embedded-css.cjs");
 const { loadComponents: components } = require("./load-components.cjs");
-test("native panel consumes lean payloads and CSS cannot restyle its host", async () => {
-  const document = createDocument({
-    profile: "code",
-    model: {
-      type: "StructuralModel",
-      nodes: [{ id: "account", name: "Account", attributes: [] }],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-    },
+// The viewer of one diagram, given its body.
+async function viewer(body, includeArtifacts = false) {
+  const file = { path: "d.puml", text: `@startuml\n${body}\n@enduml\n` };
+  const { prepared } = await prepareDiagrams({
+    files: [file],
+    includeArtifacts,
   });
-  const prepared = await prepareViewer({ document, includeArtifacts: false });
+  return { prepared: prepared.get("d.puml"), file };
+}
+test("native panel consumes lean payloads and CSS cannot restyle its host", async () => {
+  const { prepared } = await viewer("class Account");
   const { AtlasPanel } = components();
   const html = renderToStaticMarkup(
     createElement(AtlasPanel, { payload: prepared.payload, theme: "light" }),
@@ -64,18 +58,8 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
   });
   assert(rules > 50, "The embedded stylesheet holds the viewer's rules");
 });
-test("empty captures prepare and export a readable portable document", async () => {
-  const document = createDocument({
-    profile: "database",
-    model: {
-      type: "StructuralModel",
-      nodes: [],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-    },
-  });
-  const prepared = await prepareViewer({ document, includeArtifacts: false });
+test("an empty diagram prepares and exports a readable viewer", async () => {
+  const { prepared, file } = await viewer("", true);
   assert.deepEqual(prepared.payload.views, []);
   const { AtlasPanel } = components();
   assert(
@@ -83,8 +67,8 @@ test("empty captures prepare and export a readable portable document", async () 
       createElement(AtlasPanel, { payload: prepared.payload }),
     ).includes("No entities"),
   );
-  const exported = await buildViewer({ document });
-  assert.deepEqual(importDocument(exported.html).model.nodes, []);
+  const exported = await buildViewer({ prepared, file });
+  assert(exported.html.includes('<script id="atlas-diagram"'));
 });
 
 test("A proposal opens its change view in both viewers, with the focus and the review it was given", () => {
@@ -148,73 +132,50 @@ test("A proposal opens its change view in both viewers, with the focus and the r
 });
 
 test("Focus on a member or a removed element of a proposal resolves in its change view", async () => {
-  const document = createDocument({
-    id: "base",
-    profile: "code",
-    model: {
-      type: "StructuralModel",
-      nodes: [
-        {
-          id: "a",
-          name: "A",
-          attributes: [{ id: "a-x", name: "x", type: "string" }],
-        },
-        { id: "b", name: "B", attributes: [] },
-      ],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-    },
+  const { prepared } = await prepareDiagrams({
+    files: [
+      {
+        path: "base.puml",
+        text: "@startuml\nclass A {\n  x : string\n}\nclass B\n@enduml\n",
+      },
+      {
+        path: "proposal.puml",
+        text: "@startuml\n' atlas proposal base.puml\nclass A\n@enduml\n",
+      },
+    ],
   });
-  const atlas = require("../lib/index.cjs");
-  const proposal = atlas.createProposal(document);
-  const model = JSON.parse(JSON.stringify(proposal.model));
-  model.nodes = model.nodes.filter((n) => n.id !== "b");
-  model.nodes[0].attributes = [];
-  const changed = atlas.reviseDocument(proposal, { model });
-  const { payload } = await prepareViewer({
-    document: changed,
-    includeArtifacts: false,
-  });
+  const { payload } = prepared.get("proposal.puml");
   const { inspectionTarget } = components("src/model/inspectionTarget.js");
   const { indexViewerModel } = components("src/model/domainModel.js");
   const view = payload.comparison.changeView;
   const index = indexViewerModel(view.model);
   // The removed class and the removed member are both still there to inspect.
   assert.deepEqual(
-    inspectionTarget(view.model, index, view.views, view.views[0].key, "b")
+    inspectionTarget(view.model, index, view.views, view.views[0].key, "B")
       .target,
-    { kind: "node", id: "b" },
+    { kind: "node", id: "B" },
   );
   const member = inspectionTarget(
     view.model,
     index,
     view.views,
     view.views[0].key,
-    "a-x",
+    "A.x",
   );
-  assert.deepEqual(member.target, { kind: "node", id: "a" });
-  assert.equal(member.memberId, "a-x");
+  assert.deepEqual(member.target, { kind: "node", id: "A" });
+  assert.equal(member.memberId, "A.x");
 });
 
 test("Viewer input failures identify the missing source without a raw TypeError", async () => {
-  for (const build of [prepareViewer, buildViewer]) {
-    await assert.rejects(build({}), /VIEWER_INPUT/);
-    await assert.rejects(build(), /VIEWER_INPUT/);
-  }
+  await assert.rejects(buildViewer({}), /VIEWER_INPUT/);
+  await assert.rejects(buildViewer(), /VIEWER_INPUT/);
+  await assert.rejects(prepareDiagrams({}), /DIAGRAMS_INPUT/);
 });
-test("standalone structural documents render their profile-specific exports and capture inspector", async () => {
-  const document = createDocument({
-    profile: "database",
-    model: {
-      type: "StructuralModel",
-      nodes: [{ id: "table", name: "Table", attributes: [] }],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-    },
-  });
-  const prepared = await prepareViewer({ document });
+test("a standalone viewer offers its diagram's exports", async () => {
+  const { prepared } = await viewer(
+    "entity Table {\n  *id : integer <<PK>>\n}",
+    true,
+  );
   const { DiagramViewer } = components();
   const html = renderToStaticMarkup(
     createElement(DiagramViewer, prepared.payload),
@@ -222,19 +183,11 @@ test("standalone structural documents render their profile-specific exports and 
   assert(html.includes('aria-label="Export"'));
   assert(!html.includes("OntoUML"));
   const { exportChoices } = components("src/viewer/ViewerToolbar.jsx");
-  const labels = (diagram) =>
-    exportChoices({
-      exports: prepared.payload.exports,
-      viewKey: prepared.payload.views[0].key,
-      fields: false,
-      theme: "light",
-      diagram,
-    }).map((choice) => choice.label);
-  assert.deepEqual(labels(false), [
-    "SVG image",
-    "Structural JSON",
-    "Models ZIP",
-  ]);
-  // A diagram file offers its own PlantUML.
-  assert.deepEqual(labels(true), ["SVG image", "PlantUML", "Models ZIP"]);
+  const labels = exportChoices({
+    exports: prepared.payload.exports,
+    viewKey: prepared.payload.views[0].key,
+    fields: false,
+    theme: "light",
+  }).map((choice) => choice.label);
+  assert.deepEqual(labels, ["SVG image", "PlantUML", "Models ZIP"]);
 });

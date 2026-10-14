@@ -13,6 +13,7 @@ const {
   captureFromConfig,
   checkDiagram,
   parseDiagram,
+  prepareDiagrams,
 } = require("../lib/index.cjs");
 const { localD1Executor } = require("../lib/capture/database.cjs");
 const { execFileSync } = require("node:child_process");
@@ -178,8 +179,20 @@ test("SQLite captures write tables, keys and exact counts as an entity diagram, 
     undated(await captureSQLite({ file, identity: "fixture" })),
     undated(text),
   );
+  // The viewer draws it, its tables' SQL highlighted as their source.
+  const { prepared } = await prepareDiagrams({
+    files: [{ path: "schema.puml", text }],
+  });
+  const { payload } = prepared.get("schema.puml");
+  assert.equal(payload.model.document.profile, "database");
+  assert.equal(payload.snippets["source:badge"].language, "sql");
+  assert(payload.views[0].diagram.edges.length === 2);
   const scoped = read(
-    await captureSQLite({ file, identity: "fixture", tables: ["quote's table"] }),
+    await captureSQLite({
+      file,
+      identity: "fixture",
+      tables: ["quote's table"],
+    }),
   );
   assert.equal(scoped.elements.length, 1);
   const changed = new DatabaseSync(file);
@@ -226,7 +239,9 @@ test("SQLite comparison semantics, identifier case and subset keys cannot create
     ["pair", "subset", "a, b", "0..1", "0..1"],
   ]);
   assert.equal(d.capture.coverage.status, "partial");
-  assert(d.capture.coverage.diagnostics.some((x) => x.code === "FK_COMPARISON"));
+  assert(
+    d.capture.coverage.diagnostics.some((x) => x.code === "FK_COMPARISON"),
+  );
 });
 
 test("SQLite 200-table capture is bounded and selected scope excludes unrelated catalog size", async (t) => {
@@ -378,7 +393,9 @@ test(
     assert.equal(d.capture.source.kind, "d1");
     assert.equal(d.capture.consistency.transactional, false);
     assert.equal(d.capture.coverage.status, "partial");
-    assert(d.capture.limitations.some((l) => /Local D1 is a simulation/.test(l)));
+    assert(
+      d.capture.limitations.some((l) => /Local D1 is a simulation/.test(l)),
+    );
     // A configuration reaches the same database through Wrangler.
     fs.writeFileSync(
       path.join(root, "source.json"),

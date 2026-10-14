@@ -17,7 +17,7 @@ const KINDS = {
 async function captureFromConfig(file) {
   let config;
   try {
-    config = JSON.parse(fs.readFileSync(file, "utf8").replace(/^﻿/, ""));
+    config = JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
   } catch {
     throw new Error(
       `CAPTURE_CONFIG: ${file} cannot be read as a JSON source configuration`,

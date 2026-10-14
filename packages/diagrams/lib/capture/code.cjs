@@ -459,14 +459,20 @@ async function captureTypeScript(options) {
                   parameters: signature.parameters
                     .map((p) => {
                       const d = p.valueDeclaration;
-                      return `${d?.dotDotDotToken ? "..." : ""}${p.name}${d?.questionToken || d?.initializer ? "?" : ""}: ${checker.typeToString(checker.getTypeOfSymbolAtLocation(p, member))}`;
+                      const optional = !!(d?.questionToken || d?.initializer);
+                      const type = checker.typeToString(
+                        checker.getTypeOfSymbolAtLocation(p, member),
+                      );
+                      return `${d?.dotDotDotToken ? "..." : ""}${p.name}${optional ? "?" : ""}: ${optional ? type.replace(/ \| undefined$/, "") : type}`;
                     })
                     .join(", "),
                   returns: ts.isConstructorDeclaration(member)
                     ? null
                     : checker.typeToString(signature.getReturnType()),
                 }
-              : { type: checker.typeToString(checker.getTypeAtLocation(member)) }),
+              : {
+                  type: checker.typeToString(checker.getTypeAtLocation(member)),
+                }),
             modifiers: modifiers(member),
             optional: !!member.questionToken,
             location: {

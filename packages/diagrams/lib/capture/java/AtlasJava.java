@@ -173,8 +173,9 @@ public class AtlasJava {
               executable
                 .getParameters()
                 .stream()
-                .map(parameter ->
-                  parameter.getSimpleName() + ": " + parameter.asType()
+                .map(
+                  parameter ->
+                    parameter.getSimpleName() + ": " + parameter.asType()
                 )
                 .reduce((a, b) -> a + ", " + b)
                 .orElse(""),

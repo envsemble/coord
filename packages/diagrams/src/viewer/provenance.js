@@ -114,7 +114,5 @@ export function describeProvenance(document) {
       tone: "success",
     };
   } else return { kind: "unknown", label: "", detail: "", tone: "neutral" };
-  if (document.imported)
-    result.detail = result.detail ? `${result.detail} · Imported` : "Imported";
   return result;
 }

@@ -98,14 +98,14 @@ export type Choice = User | Base;`,
   assert.deepEqual(
     user.attributes.map((a) => [a.name, a.type, a.multiplicity, a.visibility]),
     [
-      ["friend", "User | undefined", "0..1", null],
+      ["friend", "User", "0..1", null],
       ["secret", "number", null, "-"],
     ],
   );
   assert.deepEqual(user.operations, [
     {
       name: "get",
-      parameters: "other: Base, limit?: number | undefined",
+      parameters: "other: Base, limit?: number",
       returns: "User",
       visibility: null,
       line: user.operations[0].line,
@@ -125,7 +125,10 @@ export type Choice = User | Base;`,
   assert.equal(d.capture.source.kind, "typescript");
   assert.deepEqual(d.capture.source.scope, ["fixture:model.ts"]);
   assert.equal(d.capture.source.projects[0].pinnedSelectedFiles, true);
-  assert.match(d.capture.source.projects[0].contentFingerprint, /^[0-9a-f]{64}$/);
+  assert.match(
+    d.capture.source.projects[0].contentFingerprint,
+    /^[0-9a-f]{64}$/,
+  );
   assert.equal(d.capture.coverage.status, "complete");
   // Captured again, it differs only in its date and fingerprint.
   assert.equal(undated(await captureTypeScript(options)), undated(text));
@@ -260,7 +263,9 @@ export const Anonymous = class {};
     d.capture.coverage.diagnostics.some((x) => x.code === "LOCAL_DECLARATION"),
   );
   const { prepared } = await prepareDiagrams({
-    files: [{ path: "c.puml", text: require("../lib/index.cjs").formatDiagram(d) }],
+    files: [
+      { path: "c.puml", text: require("../lib/index.cjs").formatDiagram(d) },
+    ],
   });
   const scene = prepared.get("c.puml").views[0].diagramFields;
   assert(scene.nodes.find((n) => n.id === "Base").isAbstract);
@@ -275,7 +280,9 @@ test("names that PlantUML would read as formatting or that are not PlantUML name
 export class Weird { 1st!: string; }
 `.replace("1st!", "'1st'!"),
     );
-  const d = read(await captureTypeScript({ identity: "odd", projects: [project] }));
+  const d = read(
+    await captureTypeScript({ identity: "odd", projects: [project] }),
+  );
   const meta = d.elements.find((e) => e.name === "_Meta_");
   assert.equal(meta.id, "_Meta_");
   assert.deepEqual(
@@ -368,9 +375,15 @@ test("a source configuration captures with its paths relative to it, and a wrong
     ["Item"],
   );
   write({ adapter: "typescript", identity: "shop", projects: [], extra: 1 });
-  await assert.rejects(captureFromConfig(file), /CAPTURE_CONFIG: .*code-source/);
+  await assert.rejects(
+    captureFromConfig(file),
+    /CAPTURE_CONFIG: .*code-source/,
+  );
   write({ adapter: "cobol", identity: "shop" });
-  await assert.rejects(captureFromConfig(file), /CAPTURE_CONFIG: name the adapter/);
+  await assert.rejects(
+    captureFromConfig(file),
+    /CAPTURE_CONFIG: name the adapter/,
+  );
   fs.writeFileSync(file, "{");
   await assert.rejects(captureFromConfig(file), /CAPTURE_CONFIG/);
 });
@@ -449,7 +462,9 @@ test("TypeScript missing dependencies are partial and syntax/scope failures writ
   );
   assert.equal(d.capture.coverage.status, "partial");
   assert(
-    d.capture.coverage.diagnostics.some((x) => x.code === "COMPILER_DIAGNOSTIC"),
+    d.capture.coverage.diagnostics.some(
+      (x) => x.code === "COMPILER_DIAGNOSTIC",
+    ),
   );
   fs.writeFileSync(path.join(root, "model.ts"), "export class { broken ?? }\n");
   await assert.rejects(
@@ -508,7 +523,8 @@ test(
     ]);
     assert.deepEqual(
       element(d, "Model").operations.map(
-        (o) => `${o.visibility}${o.name}(${o.parameters})${o.returns ? ` : ${o.returns}` : ""}`,
+        (o) =>
+          `${o.visibility}${o.name}(${o.parameters})${o.returns ? ` : ${o.returns}` : ""}`,
       ),
       [
         "~Model()",
@@ -518,7 +534,9 @@ test(
       ],
     );
     assert(
-      d.capture.coverage.diagnostics.some((x) => x.code === "LOCAL_DECLARATION"),
+      d.capture.coverage.diagnostics.some(
+        (x) => x.code === "LOCAL_DECLARATION",
+      ),
     );
     assert(
       d.capture.coverage.diagnostics.some(
@@ -549,16 +567,13 @@ enum State { Active, Suspended; int code; }
     };
     const text = await captureJava(options);
     const d = read(text);
-    assert.deepEqual(
-      d.elements.map((e) => [e.package, e.id, e.kind]).sort(),
-      [
-        ["fixture", "Base", "class"],
-        ["fixture", "Enrollment", "class"],
-        ["fixture", "HasId", "interface"],
-        ["fixture", "State", "enum"],
-        ["fixture", "User", "class"],
-      ],
-    );
+    assert.deepEqual(d.elements.map((e) => [e.package, e.id, e.kind]).sort(), [
+      ["fixture", "Base", "class"],
+      ["fixture", "Enrollment", "class"],
+      ["fixture", "HasId", "interface"],
+      ["fixture", "State", "enum"],
+      ["fixture", "User", "class"],
+    ]);
     assert.deepEqual(
       element(d, "State").literals.map((l) => l.name),
       ["Active", "Suspended"],
@@ -566,7 +581,9 @@ enum State { Active, Suspended; int code; }
     const user = element(d, "User");
     assert.equal(user.evidence.line, 4);
     assert.equal(user.snippet.language, "java");
-    assert(user.operations.some((o) => o.name === "id" && o.visibility === "+"));
+    assert(
+      user.operations.some((o) => o.name === "id" && o.visibility === "+"),
+    );
     assert.deepEqual(element(d, "HasId").operations[0].visibility, "+");
     assert(related(d, "inheritance", "User", "Base"));
     assert(related(d, "implementation", "User", "HasId"));

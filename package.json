@@ -36,8 +36,6 @@
     "check": "npm run check --workspace @envsemble/atlas-diagrams",
     "check:package": "npm run check:package --workspace @envsemble/atlas-diagrams",
     "check:performance": "npm run check:performance --workspace @envsemble/atlas-diagrams",
-    "check:review": "npm run check:review --workspace @envsemble/atlas-app",
-    "review:example": "node packages/diagrams/scripts/review-example.cjs",
     "release:assemble": "node scripts/release.cjs",
     "check:release": "node scripts/check-release.cjs"
   },

@@ -29,9 +29,9 @@ function plain(text, member = false) {
 // A PlantUML name for a source name. Outside members, PlantUML underlines
 // between two `__`, so an element name has single underscores.
 function plantName(text, member = false) {
-  let name = String(text).replace(/[^A-Za-z0-9_À-￯]+/g, "_");
+  let name = String(text).replace(/[^A-Za-z0-9_\u00C0-\uFFEF]+/g, "_");
   if (!member) name = name.replace(/_{2,}/g, "_");
-  if (!/^[A-Za-z_À-￯]/.test(name)) name = `_${name}`;
+  if (!/^[A-Za-z_\u00C0-\uFFEF]/.test(name)) name = `_${name}`;
   return name;
 }
 // A type as an attribute's line reads it: brackets at its end would be read
@@ -99,8 +99,7 @@ const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 function finish(diagram, capture) {
   diagram.elements.sort(
-    (a, b) =>
-      byText(a.package || "", b.package || "") || byText(a.id, b.id),
+    (a, b) => byText(a.package || "", b.package || "") || byText(a.id, b.id),
   );
   diagram.relations.sort(
     (a, b) =>
@@ -183,7 +182,10 @@ function codeDiagram({
       package: n.package ? plain(n.package.replace(/_{2,}/g, "_")) : null,
       attributes: attributes.map((a, i) => ({
         name: attributeNames[i],
-        type: typeText(a.type),
+        // An optional attribute says so by its multiplicity.
+        type: typeText(
+          a.optional ? a.type.replace(/ \| undefined$/, "") : a.type,
+        ),
         multiplicity: a.optional ? "0..1" : null,
         visibility: visibilityOf(a.modifiers, memberVisibility(n)),
         ...(a.evidence ? { evidence: a.evidence } : {}),
@@ -192,7 +194,9 @@ function codeDiagram({
       literals: memberNames(kind === "enum" ? n.literals || [] : []).map(
         (name, i) => ({
           name,
-          ...(n.literals[i].evidence ? { evidence: n.literals[i].evidence } : {}),
+          ...(n.literals[i].evidence
+            ? { evidence: n.literals[i].evidence }
+            : {}),
         }),
       ),
       slots: [],
@@ -238,7 +242,9 @@ function codeDiagram({
       );
   }
   for (const d of dependencies) {
-    const [source, target] = [d.sourceId, d.targetId].map((k) => elementOf.get(k));
+    const [source, target] = [d.sourceId, d.targetId].map((k) =>
+      elementOf.get(k),
+    );
     if (source && target && source !== target)
       relate("dependency", source, target);
   }
@@ -262,10 +268,7 @@ function entityDiagram({ title, capture, tables, foreignKeys }) {
   const columnNames = new Map();
   for (const t of tables) {
     const names = memberNames(t.columns);
-    columnNames.set(
-      t.id,
-      new Map(t.columns.map((c, i) => [c.name, names[i]])),
-    );
+    columnNames.set(t.id, new Map(t.columns.map((c, i) => [c.name, names[i]])));
   }
   // A column is a foreign key when a drawn relation names it.
   const keyed = new Set();
@@ -289,7 +292,9 @@ function entityDiagram({ title, capture, tables, foreignKeys }) {
       sourceMultiplicity: ["0..1", "1"].includes(fk.targetMultiplicity)
         ? fk.targetMultiplicity
         : "0..1",
-      targetMultiplicity: ["0..1", "1", "0..*", "1..*"].includes(fk.sourceMultiplicity)
+      targetMultiplicity: ["0..1", "1", "0..*", "1..*"].includes(
+        fk.sourceMultiplicity,
+      )
         ? fk.sourceMultiplicity
         : "0..*",
       label: plain(columns.filter(Boolean).join(", ")) || null,
@@ -299,7 +304,10 @@ function entityDiagram({ title, capture, tables, foreignKeys }) {
     const names = columnNames.get(t.id);
     return {
       id: ids.get(t),
-      name: t.name === ids.get(t) ? ids.get(t) : plain(t.name.replace(/_{2,}/g, "_")),
+      name:
+        t.name === ids.get(t)
+          ? ids.get(t)
+          : plain(t.name.replace(/_{2,}/g, "_")),
       kind: "entity",
       package: t.package ? plain(t.package.replace(/_{2,}/g, "_")) : null,
       attributes: t.columns.map((c) => ({

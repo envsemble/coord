@@ -5,12 +5,12 @@ import type {
   ReactNode,
 } from "react";
 import type {
-  AtlasDocument,
   DiagramScene,
   ModelLearning,
   ViewerPayload,
   ViewerModel,
   PlanningContext,
+  CaptureMetadata,
 } from "../lib/index";
 export type InspectionTarget = {
   kind: "node" | "edge" | "group";
@@ -56,17 +56,14 @@ export function changeCount(
 ): number | null;
 /** The Atlas mark: the connected A on its dark tile, in fixed colours. Pass `label=""` when adjacent text already names Atlas. */
 export const AtlasMark: ComponentType<{ size?: number; label?: string }>;
-/** Document fields that determine where a model came from. */
+/** The fields of a viewer model's `document` that tell where it came from. */
 export type ProvenanceSource = Partial<
   Pick<
     NonNullable<ViewerModel["document"]>,
-    "profile" | "state" | "baselineId" | "captureId" | "imported"
+    "profile" | "state" | "baselineId" | "captureId"
   >
 > & {
-  snapshots?: {
-    id: string;
-    capture: AtlasDocument["snapshots"][number]["capture"];
-  }[];
+  snapshots?: { id: string; capture: CaptureMetadata }[];
 };
 export interface Provenance {
   kind: "generated" | "proposal" | "authored" | "unknown";
@@ -77,7 +74,7 @@ export interface Provenance {
   /** envUI Badge tone: generated "accent", proposal "done", authored "success", unknown "neutral". */
   tone: "accent" | "done" | "success" | "neutral";
 }
-/** Accepts an Atlas document or a viewer model's `document` metadata. */
+/** Accepts a viewer model's `document` metadata. */
 export function describeProvenance(
   document: ProvenanceSource | null | undefined,
 ): Provenance;
