@@ -67,13 +67,11 @@ function DiagramPicker({ diagrams, selected, payloads, onSelect }: { diagrams: D
 
 /** A diagram's payload as the host answers: with the payloads of the rest of its family, laid out together. */
 type Answer = ViewerPayload & { siblings?: { path: string; payload: ViewerPayload }[] };
-/** Payloads that arrived together, by path, and the revisions they were read at. */
+/** Payloads that arrived together, by path, and the revisions of the files they were drawn from. */
 interface Loaded { payloads: Map<string, ViewerPayload>; revisions: string }
-const revisionsOf = (entries: [string, string][]) => entries.map(([path, revision]) => path + '@' + revision).sort().join(' ');
-function loadedFrom(path: string, answer: Answer): Loaded {
+function loadedFrom(path: string, answer: Answer, revisions: string): Loaded {
   const { siblings = [], ...payload } = answer;
-  const payloads = new Map<string, ViewerPayload>([[path, payload], ...siblings.map(item => [item.path, item.payload] as [string, ViewerPayload])]);
-  return { payloads, revisions: revisionsOf([...payloads].map(([key, value]) => [key, value.model.document?.revision.id ?? ''])) };
+  return { payloads: new Map<string, ViewerPayload>([[path, payload], ...siblings.map(item => [item.path, item.payload] as [string, ViewerPayload])]), revisions };
 }
 
 /** What is wrong with a diagram that cannot be drawn, line by line. */
@@ -102,9 +100,10 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
   const listed = diagrams ?? [];
   const selected = selectDiagram(listed, shown, target.diagram || '');
   const entry = listed.find(diagram => diagram.path === selected);
-  // The diagrams laid out with this one, at the revisions listed now.
+  // The files drawn with this one, at the revisions listed now: its family, and the scenarios a class diagram shows.
   const family = entry?.family ? listed.filter(diagram => diagram.family === entry.family) : entry ? [entry] : [];
-  const expected = revisionsOf(family.map(diagram => [diagram.path, diagram.revision]));
+  const drawn = [...family, ...listed.filter(diagram => family.some(member => member.path === diagram.scenarioOf))];
+  const expected = drawn.map(diagram => diagram.path + '@' + diagram.revision).sort().join(' ');
 
   // The list is read again whenever the folder changes on disk.
   useEffect(() => {
@@ -126,7 +125,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
     let current = true;
     api.diagram(work.id, selected).then(answer => {
       if (!current) return;
-      setLoaded(loadedFrom(selected, answer as Answer)); setDiagramError(null);
+      setLoaded(loadedFrom(selected, answer as Answer, expected)); setDiagramError(null);
     }).catch(error => { if (current) setDiagramError({ path: selected, message: (error as Error).message }); });
     return () => { current = false; };
   }, [selected, expected, work.id, diagrams, entry?.valid]);
