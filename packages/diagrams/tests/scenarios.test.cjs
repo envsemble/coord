@@ -214,6 +214,54 @@ object "i : ${classNames}" as i
     /expected to be valid/,
   );
 });
+test("An instance of a class that implements an interface is an instance of the interface", () => {
+  // The guide's own example: an order is payable.
+  const classes = `@startuml
+interface Payable
+class Customer {
+  name : String
+}
+class Order
+class Invoice
+Customer "1" -- "0..*" Order : places
+Order ..|> Payable
+Invoice "0..*" -- "1" Payable : bills
+@enduml
+`;
+  const scenario = (expected, ...lines) =>
+    atlas.checkDiagram(
+      [
+        "@startuml",
+        `' atlas scenario classes.puml expected ${expected}`,
+        ...lines,
+        "@enduml",
+        "",
+      ].join("\n"),
+      { read: () => classes },
+    );
+  const order = [
+    'object "c : Customer" as c',
+    'object "o : Order" as o',
+    "c -- o : places",
+  ];
+  assert.deepEqual(
+    scenario("valid", ...order, 'object "i : Invoice" as i', "i -- o : bills"),
+    [],
+  );
+  // Assessed, not left as a warning: without its customer the order is invalid.
+  assert.deepEqual(scenario("invalid", 'object "o : Order" as o'), []);
+  // An interface has no instances of its own.
+  assert.deepEqual(scenario("invalid", 'object "p : Payable" as p'), []);
+  assert.match(
+    scenario(
+      "valid",
+      ...order,
+      'object "i : Invoice" as i',
+      "i -- c : bills",
+    )[0].message,
+    /Linked instances must satisfy the declared relation ends/,
+  );
+});
 test("Details show structured rationale safely, leave capture diagnostics out, and navigation resolves members", async () => {
   const { diagram } = atlas.parseDiagram(`@startuml
 abstract class Enrollment
