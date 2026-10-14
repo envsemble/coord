@@ -1,6 +1,6 @@
-// The planning-folder reader shared by the atlas command and the app. Model discovery
-// (`@envsemble/atlas-planning/atlas`) and app sessions (`@envsemble/atlas-planning/session`) load the diagram
-// package and are imported separately, so the command's planning checks stay light.
+// The planning-folder reader shared by the atlas command and the app. The diagram catalog
+// (`@envsemble/atlas-planning/diagrams`) and app sessions (`@envsemble/atlas-planning/session`) lay
+// diagrams out and are imported separately; checking a diagram loads only the diagram parser.
 export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './planning.ts';
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 export { atlasHome, cacheOutsidePlanning, homePlanningDirectory, homePlanningFolders, legacyDataDirectory, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory } from './storage.ts';

@@ -59,7 +59,7 @@ export function resolveExportLink(href: string, source: string, files: Map<strin
   } catch { return {}; }
 }
 
-interface DiagramCard { handle: string; title: string; diagram: ViewDiagram; elements: { id: string; name: string }[] }
+interface DiagramCard { path: string; title: string; diagram: ViewDiagram; elements: string[] }
 function headingLines(body: string) {
   const lines = new Map<string, number>();
   let fence: string | null = null;
@@ -75,11 +75,11 @@ function headingLines(body: string) {
   });
   return lines;
 }
-function DiagramCards({ items, onOpen }: { items: DiagramCard[]; onOpen(handle: string, element?: string): void }) {
-  return <div className="diagram-cards">{items.map(card => <Card key={card.handle} className="diagram-card" tone="pane" padding={4}
+function DiagramCards({ items, onOpen }: { items: DiagramCard[]; onOpen(path: string, element?: string): void }) {
+  return <div className="diagram-cards">{items.map(card => <Card key={card.path} className="diagram-card" tone="pane" padding={4}
     heading={<span className="diagram-card-title"><AccountTree className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.diagram.provenance} /></span>}
-    actions={<Button variant="secondary" onClick={() => onOpen(card.handle)}>Open diagram</Button>}>
-    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element.id} className="element-chip" title={'Open the diagram at ' + element.name} onClick={() => onOpen(card.handle, element.id)}>{element.name}</button>)}
+    actions={<Button variant="secondary" onClick={() => onOpen(card.path, card.elements[0])}>Open diagram</Button>}>
+    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element} className="element-chip" title={'Open the diagram at ' + element} onClick={() => onOpen(card.path, element)}>{element}</button>)}
       {card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</p>}
   </Card>)}</div>;
 }
@@ -92,7 +92,7 @@ function nodeText(node: unknown): string {
 
 export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnchor, onDiagram }: {
   path: string; body: string; files: Map<string, ExportFile>; diagrams: ViewDiagram[]; hideTitle?: string;
-  onFile(file: string, anchor?: string): void; onAnchor(anchor: string): void; onDiagram(handle: string, element?: string): void;
+  onFile(file: string, anchor?: string): void; onAnchor(anchor: string): void; onDiagram(path: string, element?: string): void;
 }) {
   const cards = useMemo(() => {
     const lines = headingLines(body);
@@ -103,8 +103,8 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
         if (reference.path !== path) continue;
         const key = reference.section ? slug(reference.section) : '';
         const group = key && lines.has(key) ? bySection.get(key) ?? bySection.set(key, new Map()).get(key)! : top;
-        const card = group.get(diagram.handle) ?? group.set(diagram.handle, { handle: diagram.handle, title: diagram.title, diagram, elements: [] }).get(diagram.handle)!;
-        if (reference.elementId && reference.elementName && !card.elements.some(element => element.id === reference.elementId)) card.elements.push({ id: reference.elementId, name: reference.elementName });
+        const card = group.get(diagram.path) ?? group.set(diagram.path, { path: diagram.path, title: diagram.title, diagram, elements: [] }).get(diagram.path)!;
+        if (reference.element && !card.elements.includes(reference.element)) card.elements.push(reference.element);
       }
     }
     return { lines, sections: new Map([...bySection].map(([key, group]) => [key, [...group.values()]])), top: [...top.values()] };
@@ -124,6 +124,11 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
       a: ({ href = '', children, id }: { href?: string; children?: ReactNode; id?: string }) => {
         const target = resolveExportLink(href, path, files);
         if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer noopener">{children}<OpenInNew className="external-icon" /></a>;
+        // A link to a diagram opens it, at the element its fragment names.
+        if (target.file && diagrams.some(diagram => diagram.path === target.file)) return <a id={id} href={'#' + new URLSearchParams({ tab: 'diagrams', diagram: target.file, ...(target.anchor ? { element: target.anchor } : {}) })} onClick={event => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault(); onDiagram(target.file!, target.anchor);
+        }}>{children}</a>;
         if (target.file) return <a id={id} href={'#' + new URLSearchParams({ tab: 'files', file: target.file, ...(target.anchor ? { anchor: target.anchor } : {}) })} onClick={event => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault(); onFile(target.file!, target.anchor);

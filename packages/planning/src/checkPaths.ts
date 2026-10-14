@@ -1,8 +1,9 @@
 // `atlas check`: check files or whole planning folders. Plans, ledgers, the registry and statistics
 // lines go through the planning check (validatePlanning), whose findings are attributed to the file
 // they name; other kinds of file are checked by the checker registered for their extension.
-import { readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
+import atlas from '@envsemble/atlas-diagrams';
 import { validatePlanning } from './check.ts';
 
 export interface CheckResult {
@@ -16,11 +17,32 @@ export interface CheckResult {
 /** Checks one file of a planning folder (relative path, POSIX separators); findings name the file. */
 export type FileChecker = (planningFolder: string, file: string) => { errors: string[]; warnings: string[] };
 
-/**
- * Checkers for other kinds of file, by extension (such as `.puml`). Diagram files get theirs once
- * the diagram checker lands; until then they are not checked.
- */
+/** Checkers for other kinds of file, by extension. Diagram files (`.puml`) have theirs from the start. */
 export const fileCheckers = new Map<string, FileChecker>();
+
+function inside(parent: string, child: string) {
+  const relative = path.relative(parent, child);
+  return relative !== '' && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+}
+/**
+ * A diagram's problems, as `file:line:column: message`. The files its header names (a proposal's
+ * baseline, a scenario's class diagram) are read relative to it, and only inside the planning folder.
+ */
+export const checkDiagramFile: FileChecker = (planningFolder, file) => {
+  const root = realpathSync(planningFolder);
+  const filename = path.join(root, ...file.split('/'));
+  const read = (reference: string) => {
+    try {
+      const target = realpathSync(path.resolve(path.dirname(filename), reference));
+      return inside(root, target) ? readFileSync(target, 'utf8') : null;
+    } catch { return null; }
+  };
+  const errors: string[] = [], warnings: string[] = [];
+  for (const problem of atlas.checkDiagram(readFileSync(filename, 'utf8'), { path: file, read }))
+    (problem.severity === 'error' ? errors : warnings).push(`${file}:${problem.line}:${problem.column}: ${problem.message}`);
+  return { errors, warnings };
+};
+fileCheckers.set('.puml', checkDiagramFile);
 
 /** The planning folder a path is in: the nearest folder upward with a planning.json. */
 export function planningFolderOf(target: string): string | null {

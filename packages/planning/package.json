@@ -15,7 +15,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./atlas": "./src/atlas.ts",
+    "./diagrams": "./src/diagrams.ts",
     "./ledger": "./src/ledger.ts",
     "./session": "./src/session.ts",
     "./paths": "./src/paths.ts",
