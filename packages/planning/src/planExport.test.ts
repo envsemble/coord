@@ -35,7 +35,7 @@ function files(root: string, relative = ''): string[] {
 function snapshot(root: string) {
   return new Map(files(root).map(name => [name, readFileSync(path.join(root, name))]));
 }
-const plan = (id: string, title: string, extra = '') => ['---', 'schema_version: 1', 'kind: plan', `id: ${id}`, `title: "${title}"`, 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', `# ${title}`, '', extra].join('\n');
+const plan = (id: string, title: string, extra = '') => ['---', 'schema_version: 1', 'kind: plan', `id: ${id}`, `title: "${title}"`, `summary: "What ${title} is for."`, 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', `# ${title}`, '', extra].join('\n');
 const ORDERS = '@startuml\ntitle Orders\nclass Order {\n  id : integer\n}\nclass OrderLine\nOrder "1" *-- "0..*" OrderLine : lines\n@enduml\n';
 /** A database capture of the orders table, as Atlas writes one. */
 function captured() {

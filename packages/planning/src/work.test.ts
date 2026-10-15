@@ -62,6 +62,14 @@ test('a work item is created under the next unused number, registered, and valid
   assert.deepEqual(errorsOf(root), []);
   const slugged = await createWork(root, { title: 'Other', repositories: ['shop'], slug: 'custom-name' }, today);
   assert.equal(slugged.path, 'active/0005-custom-name');
+  // A summary goes into the header under the title; without one, the check asks for it.
+  const summarized = await createWork(root, { title: 'Refunds', repositories: ['shop'], summary: ' Refunds to the card: "partial" ones too. Not started. ' }, today);
+  assert.equal(summarized.summary, 'Refunds to the card: "partial" ones too. Not started.');
+  assert.match(read(root, summarized.plan), /^title: "Refunds"\nsummary: "Refunds to the card: \\"partial\\" ones too\. Not started\."\nrepositories: \["shop"\]$/m);
+  assert.equal(created.summary, null);
+  assert.deepEqual(validatePlanning(root).warnings.filter(warning => warning.includes('no summary')).map(warning => warning.split(':')[0]),
+    ['active/0001-existing/plan.md', 'active/0002-other/plan.md', 'active/0004-save-the-cart/plan.md', 'active/0005-custom-name/plan.md']);
+  await assert.rejects(createWork(root, { title: 'X', repositories: ['shop'], summary: 'One.\nTwo.' }, today), /The summary must be one line/);
   for (const [request, message] of [
     [{ title: '', repositories: ['shop'] }, /title must be nonempty/],
     [{ title: 'Two\nlines', repositories: ['shop'] }, /one line/],
@@ -291,6 +299,52 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   await assert.rejects(findPlanning(shop, { home }), /schema version 999, newer than this Atlas knows/);
 });
 
+test('a folder in a project\'s workspace folder belongs to that project alone, the deepest one winning', async t => {
+  const directory = temporary(t);
+  const home = path.join(directory, 'home'), base = path.join(home, 'planning');
+  const workspace = path.join(directory, 'workspace'), inner = path.join(workspace, 'inner');
+  mkdirSync(path.join(inner, 'notes'), { recursive: true });
+  // main registers the shop by its remote; Atlas covers the workspace, Inner a folder in it; each registers the shop too.
+  const root = planningFolder(base, 'main');
+  writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { summary: '"Carts that last. Planned, not started."' }));
+  const project = (name: string, workspaces: string[]) => {
+    const folder = path.join(base, name.toLowerCase());
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 1, name, workspaces, repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop.git' }], work_items: [] }));
+    return realpathSync(folder);
+  };
+  const caseless = process.platform === 'win32' || process.platform === 'darwin';
+  project('Atlas', [caseless ? workspace.toUpperCase() : workspace]);
+  project('Inner', [inner]);
+  const shop = path.join(workspace, 'shop');
+  mkdirSync(path.join(shop, 'src'), { recursive: true });
+  git(shop, 'init', '-q');
+  git(shop, 'remote', 'add', 'origin', 'git@github.com:example/shop.git');
+  const matched = (where: Awaited<ReturnType<typeof findPlanning>>) => where.matches.map(match => [match.project, match.via, match.repositories]);
+  // In the workspace: Atlas alone, though main and Inner register the checkout's remote too.
+  const inWorkspace = await findPlanning(path.join(shop, 'src'), { home });
+  assert.deepEqual(matched(inWorkspace), [['Atlas', ['workspace', 'remote'], ['shop']]]);
+  assert.deepEqual(inWorkspace.projects.map(item => [item.project, item.workspaces.length, item.match]), [['Atlas', 1, true], ['Inner', 1, false], ['main', 0, false]]);
+  assert.equal(await resolvePlanningFolder({ cwd: shop, home }), realpathSync(path.join(base, 'atlas')));
+  // The deepest workspace folder wins; outside any Git checkout too.
+  const deeper = await findPlanning(path.join(inner, 'notes'), { home });
+  assert.deepEqual([deeper.checkout, matched(deeper)], [null, [['Inner', ['workspace'], []]]]);
+  // Two projects covering the same folder both match, as remotes several projects register do.
+  project('Other', [workspace]);
+  assert.deepEqual(matched(await findPlanning(shop, { home })).map(([name]) => name), ['Atlas', 'Other']);
+  await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects/);
+  // Outside every workspace folder, matching is as before: by remote.
+  const elsewhere = path.join(directory, 'shop');
+  mkdirSync(elsewhere);
+  git(elsewhere, 'init', '-q');
+  git(elsewhere, 'remote', 'add', 'origin', 'https://github.com/example/shop');
+  const outside = await findPlanning(elsewhere, { home });
+  assert.deepEqual(matched(outside), [['Atlas', ['remote'], ['shop']], ['Inner', ['remote'], ['shop']], ['main', ['remote'], ['shop']], ['Other', ['remote'], ['shop']]]);
+  // where's briefs carry each plan's summary.
+  assert.deepEqual(outside.projects.find(item => item.project === 'main')!.work.map(item => [item.workId, item.summary]), [['work-0001', 'Carts that last. Planned, not started.'], ['work-0002', null]]);
+  assert.equal(outside.matches.find(item => item.project === 'main')!.work[0].summary, 'Carts that last. Planned, not started.');
+});
+
 test('atlas check attributes findings to the files asked about and runs registered checkers', async t => {
   const root = planningFolder(temporary(t));
   writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001').replace('title: "Existing work"', 'title: 1.5'));
@@ -344,6 +398,32 @@ test('atlas check warns about a diagram no document links, and checks the projec
   assert.deepEqual(validatePlanning(root).errors, []);
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, name: ' ' }));
   assert.deepEqual(validatePlanning(root).errors, ['name must be a nonempty string of at most 100 characters when supplied']);
+  // Workspace folders are absolute paths.
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, workspaces: [path.join(root, 'workspace')] }));
+  assert.deepEqual(validatePlanning(root).errors, []);
+  for (const workspaces of ['C:/x', ['relative/folder'], [''], [7]]) {
+    writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, workspaces }));
+    assert.deepEqual(validatePlanning(root).errors, ['workspaces must be an array of absolute folder paths when supplied'], JSON.stringify(workspaces));
+  }
+});
+
+test('atlas check warns about an active plan without a summary, and refuses one that is not text', async t => {
+  const root = planningFolder(temporary(t));
+  const warned = () => validatePlanning(root).warnings.filter(warning => warning.includes('summary'));
+  assert.deepEqual(warned(), [
+    'active/0001-existing/plan.md: no summary: add one to the header, two or three plain sentences on what the work is, why, and where it stands',
+    'active/0002-other/plan.md: no summary: add one to the header, two or three plain sentences on what the work is, why, and where it stands',
+  ]);
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/plan.md')]))[0].warnings.length, 1, 'only the plan asked about');
+  writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { summary: '"Saved carts. Planned."' }));
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { repositories: '[tools]', summary: '" "' }));
+  assert.deepEqual(warned().map(warning => warning.split(':')[0]), ['active/0002-other/plan.md'], 'a blank summary is none');
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { repositories: '[tools]', summary: '[one, two]' }));
+  assert.deepEqual(validatePlanning(root).errors, ['active/0002-other/plan.md: summary must be a string or null']);
+  // Archived work is not asked for one.
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { repositories: '[tools]' }));
+  await archiveWork(root, 'work-0002', { disposition: 'abandoned', supersededBy: null, reason: 'Not needed.' }, today);
+  assert.deepEqual(warned(), []);
 });
 
 test('a planning folder is adopted into the home with its path hints made absolute, its statistics imported', async t => {

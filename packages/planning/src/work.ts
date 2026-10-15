@@ -23,6 +23,8 @@ export class WorkError extends Error {
 
 export interface WorkStatus {
   planningFolder: string; workId: string; title: string; path: string;
+  /** The plan's `summary` header: a few plain sentences on what the work is, why, and where it stands. */
+  summary: string | null;
   location: 'active' | 'archive' | 'other';
   plan: string; repositories: string[];
   designStatus: string | null; implementationStatus: string | null;
@@ -160,7 +162,7 @@ async function describe(loaded: Loaded): Promise<WorkStatus> {
   const { entry, planMetadata: plan } = loaded;
   const statistics = (await workStatistics(loaded.root, [{ id: entry.id, path: entry.path, currentPlan: loaded.plan, completed: text(plan.completed_at) }]).catch(() => ({})) as Record<string, { reports: number; agentMs: number; tokens: number | null; primaryModel: string | null }>)[entry.id];
   return {
-    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), path: entry.path, location: locationOf(entry.path),
+    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, path: entry.path, location: locationOf(entry.path),
     plan: loaded.plan, repositories: entry.repositories,
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),
     created: text(plan.created), updated: text(plan.updated), acceptedAt: text(plan.accepted_at), completedAt: text(plan.completed_at),
@@ -203,13 +205,18 @@ export function slugOf(title: string) {
   return title.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50).replace(/-+$/, '') || 'work';
 }
 
+/** The longest plan summary: a few sentences, on one header line. */
+export const summaryLimit = 1000;
+
 /**
  * Create and register a work item: the next unused number across active, archived and registered
- * work, `active/NNNN-slug/plan.md` with a draft plan header, and its planning.json entry.
+ * work, `active/NNNN-slug/plan.md` with a draft plan header (with its summary, when given), and its
+ * planning.json entry.
  */
-export async function createWork(input: string, request: { title: string; repositories: string[]; slug?: string | null }, options: OperationOptions = {}): Promise<WorkResult> {
+export async function createWork(input: string, request: { title: string; repositories: string[]; slug?: string | null; summary?: string | null }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
   const title = oneLine(request.title, 'The title');
+  const summary = request.summary == null || String(request.summary).trim() === '' ? null : oneLine(request.summary, 'The summary', summaryLimit);
   const root = await planningRoot(input);
   const registry = await registryOf(root);
   const known = new Set(registry.repositories.map(item => item?.id).filter((id): id is string => typeof id === 'string'));
@@ -226,7 +233,7 @@ export async function createWork(input: string, request: { title: string; reposi
   let registryText: string;
   try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, repositories, current_plan: plan }]); }
   catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
-  const planText = ['---', 'schema_version: 1', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), 'repositories: ' + JSON.stringify(repositories).replaceAll('","', '", "'),
+  const planText = ['---', 'schema_version: 1', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [], 'repositories: ' + JSON.stringify(repositories).replaceAll('","', '", "'),
     `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# ' + title, ''].join('\n');
   await mkdir(file(root, location), { recursive: true });
   try {

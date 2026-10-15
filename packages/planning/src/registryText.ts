@@ -179,30 +179,34 @@ export function updateRegistryEntry(source: string, key: string, id: string, cha
 }
 
 /**
- * Return `source` with the registry's top-level `name` set: its value replaced where it is, or a
- * new member after `schema_version` (else first) in the style of its neighbours.
+ * Return `source` with the registry's top-level member `key` set to `value`: its value replaced
+ * where it is, or a new member after the first of `after` the registry has (else first), in the
+ * style of its neighbours.
  */
-export function setRegistryName(source: string, name: string): string {
+export function setRegistryMember(source: string, key: string, value: Json, after: string[] = ['schema_version']): string {
   const offset = source.startsWith(BOM) ? 1 : 0;
   const root = scan(source, offset);
   if (root.kind !== 'object') throw new RegistryFormatError('planning.json must be an object.');
-  const existing = root.members.find(member => member.key === 'name');
+  const style: Style = { eol: source.includes('\r\n') ? '\r\n' : '\n', unit: '  ' };
+  const existing = root.members.find(member => member.key === key);
   let result: string;
-  if (existing) result = source.slice(0, existing.value.start) + JSON.stringify(name) + source.slice(existing.value.end);
-  else if (!root.members.length) result = source.slice(0, root.start) + JSON.stringify({ name }) + source.slice(root.end);
+  if (existing) result = source.slice(0, existing.value.start) + format(value, existing.value, source, lineIndent(source, existing.keyStart), style) + source.slice(existing.value.end);
+  else if (!root.members.length) result = source.slice(0, root.start) + JSON.stringify({ [key]: value }) + source.slice(root.end);
   else {
-    const after = root.members.find(member => member.key === 'schema_version') ?? null;
+    const previous = after.map(name => root.members.find(member => member.key === name)).find(member => member !== undefined) ?? null;
     const first = root.members[0];
     const colon = source.slice(first.keyEnd, first.value.start);
-    if (after) {
-      const separator = root.members.length > 1 ? source.slice(root.members[0].value.end, root.members[1].keyStart) : ',' + (multiline(source, root) ? (source.includes('\r\n') ? '\r\n' : '\n') + lineIndent(source, first.keyStart) : ' ');
-      result = source.slice(0, after.value.end) + separator + JSON.stringify('name') + colon + JSON.stringify(name) + source.slice(after.value.end);
-    } else {
-      const separator = root.members.length > 1 ? source.slice(first.value.end, root.members[1].keyStart) : ', ';
-      result = source.slice(0, first.keyStart) + JSON.stringify('name') + colon + JSON.stringify(name) + separator + source.slice(first.keyStart);
-    }
+    const text = format(value, undefined, source, lineIndent(source, first.keyStart), style);
+    const separator = root.members.length > 1 ? source.slice(first.value.end, root.members[1].keyStart) : ',' + (multiline(source, root) ? style.eol + lineIndent(source, first.keyStart) : ' ');
+    if (previous) result = source.slice(0, previous.value.end) + separator + JSON.stringify(key) + colon + text + source.slice(previous.value.end);
+    else result = source.slice(0, first.keyStart) + JSON.stringify(key) + colon + text + separator + source.slice(first.keyStart);
   }
-  const parsed = JSON.parse(result.slice(offset)) as { name?: unknown };
-  if (parsed.name !== name || !isDeepStrictEqual({ ...parsed, name: undefined }, { ...JSON.parse(source.slice(offset)), name: undefined })) throw new RegistryFormatError('planning.json could not be changed safely.');
+  const parsed = JSON.parse(result.slice(offset)) as Record<string, Json>;
+  if (!isDeepStrictEqual(parsed[key], value) || !isDeepStrictEqual({ ...parsed, [key]: undefined }, { ...JSON.parse(source.slice(offset)), [key]: undefined })) throw new RegistryFormatError('planning.json could not be changed safely.');
   return result;
+}
+
+/** Return `source` with the registry's top-level `name` set, after `schema_version` when it is new. */
+export function setRegistryName(source: string, name: string): string {
+  return setRegistryMember(source, 'name', name);
 }

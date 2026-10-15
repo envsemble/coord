@@ -23,10 +23,11 @@ export {
 } from './planExport.ts';
 export { runProgram, ProgramError, type RunOptions } from './run.ts';
 export { acquireFileLock } from './importLock.ts';
-export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, closeWork, archiveWork, reopenWork, repairLinks, localDate, type ArchiveRequest, type WorkResult, type WorkStatus, type OperationOptions } from './work.ts';
-export { findPlanning, resolvePlanningFolder, normalizeRemote, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type ProjectBrief, type Whereabouts, type WorkBrief } from './resolve.ts';
+export { WorkError, summaryLimit, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, closeWork, archiveWork, reopenWork, repairLinks, localDate, type ArchiveRequest, type WorkResult, type WorkStatus, type OperationOptions } from './work.ts';
+export { findPlanning, insideFolder, readRegistry, resolvePlanningFolder, normalizeRemote, remoteWithoutCredentials, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type ProjectBrief, type Whereabouts, type WorkBrief } from './resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './checkPaths.ts';
 export { adoptPlanningFolder, type Adopted } from './adopt.ts';
-export { projectSummary, type ProjectSummary } from './projectSummary.ts';
-export { createProject, readTemplates, type ProjectRepository, type ProjectTemplates } from './project.ts';
-export { setRegistryName } from './registryText.ts';
+export { projectSummary, type ProjectSummary, type ProjectWork, type ProjectWorkState } from './projectSummary.ts';
+export { createProject, readTemplates, setProjectWorkspaces, type ProjectTemplates } from './project.ts';
+export { checkedWorkspaces, scanWorkspace, scanWorkspaces, workspaceLimit, type ProjectRepository, type WorkspaceScan } from './workspaces.ts';
+export { setRegistryMember, setRegistryName } from './registryText.ts';

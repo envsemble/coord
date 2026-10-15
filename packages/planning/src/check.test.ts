@@ -26,7 +26,7 @@ function fixture(t: TestContext) {
     root, work, plan,
     body: '# Useful plan\n\nPreserve this rationale and [evidence](evidence.txt).\n',
     header: {
-      schema_version: 1, kind: 'plan', id: 'work-0001', title: 'An example: preserves commas, quotes and detail',
+      schema_version: 1, kind: 'plan', id: 'work-0001', title: 'An example: preserves commas, quotes and detail', summary: 'An example plan. It validates.',
       repositories: ['example-app'], created: null, updated: '2026-10-06', design_status: 'accepted', implementation_status: 'unknown',
       accepted_at: null, completed_at: null, supersedes: [], superseded_by: null,
     } as Header,
