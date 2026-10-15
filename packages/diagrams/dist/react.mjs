@@ -5888,7 +5888,7 @@ function AtlasPanelContent({
 }) {
   const { model, views, snippets, learning: guide = null } = payload;
   const [viewKey, setViewKey] = useState13(views[0].key);
-  const [fields, setFields] = useState13(false), [selected, setSelected] = useState13(null);
+  const [fields, setFields] = useState13(true), [selected, setSelected] = useState13(null);
   const [hidden, setHidden] = useState13(false), [learning, setLearning] = useState13(false);
   const [focusRequest, setFocusRequest] = useState13(null);
   const [member, setMember] = useState13(null);

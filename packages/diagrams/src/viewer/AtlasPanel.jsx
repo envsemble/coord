@@ -104,7 +104,8 @@ function AtlasPanelContent({
 }) {
   const { model, views, snippets, learning: guide = null } = payload;
   const [viewKey, setViewKey] = useState(views[0].key);
-  const [fields, setFields] = useState(false),
+  // Attributes show by default; the toolbar hides them.
+  const [fields, setFields] = useState(true),
     [selected, setSelected] = useState(null);
   const [hidden, setHidden] = useState(false),
     [learning, setLearning] = useState(false);
