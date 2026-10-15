@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — Agent interface and projects — 2026-10-15
 
 - The agent interface: Atlas reaches agents through a plugin for Claude Code and Codex, and harnesses that run them, instead of skills they happen to load.
   - **The Atlas home** (`~/.atlas`, or `ATLAS_HOME`) holds every planning folder under `planning/<name>`, each its own Git repository, and Atlas's own state beside them. The desktop app, or `atlas setup` (refused while an Atlas app runs), moves its files there from the old data folder once, merging usage statistics and setting aside anything the home already has; `ATLAS_DATA_DIR` and `--data-dir` are gone (`--home` replaces them). `atlas home` lists the planning folders, and `atlas home adopt` moves an existing one in.
