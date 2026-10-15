@@ -102,7 +102,16 @@ class Connection {
   written = 0;
   /** The connection's socket, whose byte counts show whether a large answer is still moving. */
   raw: { bytesWritten?: number; writableLength?: number } | null = null;
+  /** Each folder's subscribe and unsubscribe requests, applied one after another in the order they came. */
+  private readonly queues = new Map<string, Promise<unknown>>();
   constructor(ws: WebSocket, credential: Credential, listener: Listener) { this.ws = ws; this.credential = credential; this.listener = listener; }
+  inOrder<T>(folderId: string, run: () => Promise<T>): Promise<T> {
+    const next = (this.queues.get(folderId) ?? Promise.resolve()).then(run);
+    const settled = next.catch(() => undefined);
+    this.queues.set(folderId, settled);
+    void settled.then(() => { if (this.queues.get(folderId) === settled) this.queues.delete(folderId); });
+    return next;
+  }
   get owner() { return this.credential.scopes.has('owner'); }
   can(scope: Scope) { return this.owner || this.credential.scopes.has(scope); }
   send(message: unknown) { if (this.ws.readyState === this.ws.OPEN) this.ws.send(JSON.stringify(message)); }
@@ -607,7 +616,8 @@ export class Host {
   /**
    * Move a project outside the home into it (as `atlas home adopt` does, with its statistics), under
    * its folder's name or the first free name after it. Its folder closes here first, as an open
-   * watcher would keep it from moving; clients follow it again under its new folder ID.
+   * watcher would keep it from moving; clients follow it again under its new folder ID, or keep
+   * following it when it could not move.
    */
   private async adoptProject(folderId: string): Promise<Project> {
     const row = await this.projectRow(folderId);
@@ -615,13 +625,23 @@ export class Host {
     const base = path.basename(row.folder).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[^A-Za-z0-9]+/, '').slice(0, 90) || 'project';
     let name = base;
     for (let number = 2; await stat(path.join(homePlanningDirectory(this.options.home), name)).then(() => true, () => false); number++) name = base + '-' + number;
-    for (const connection of this.connections) connection.subscriptions.delete(folderId);
+    const subscribers = [...this.connections].filter(connection => connection.subscriptions.delete(folderId));
     this.folders.forget(folderId);
     try {
       const adopted = await adoptPlanningFolder(row.folder, { home: this.options.home, name });
       this.options.log.info('Project moved into the home', { from: adopted.from, to: adopted.to, reports: adopted.statistics.reports });
-    } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
-    finally { this.projectsChanged(); }
+    } catch (error) {
+      // A folder that did not move opens again for the clients that followed it.
+      if (await stat(row.folder).then(() => true, () => false)) {
+        await this.folders.open(row.folder).catch(() => undefined);
+        for (const connection of subscribers) {
+          if (!this.connections.has(connection) || !this.folders.has(folderId) || connection.subscriptions.has(folderId)) continue;
+          this.folders.acquire(folderId);
+          connection.subscriptions.add(folderId);
+        }
+      }
+      throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error;
+    } finally { this.projectsChanged(); }
     const moved = (await this.projects()).find(project => this.database.projectByFolder(project.path)?.id === row.id);
     if (!moved) throw new HostError('not-found', 'The project moved, but is no longer listed.');
     return moved;
@@ -670,15 +690,18 @@ export class Host {
       case 'projects.adopt': return this.adoptProject((p as { folderId: string }).folderId) as never;
       case 'folders.subscribe': {
         const { folderId } = p as { folderId: string };
-        const folder = await this.accessibleFolder(connection.credential, folderId);
-        // Opening can take a while: the connection may have gone since.
-        if (!this.connections.has(connection)) throw new HostError('cancelled', 'The connection closed.');
-        if (!connection.subscriptions.has(folderId)) { this.folders.acquire(folderId); connection.subscriptions.add(folderId); }
-        return folder.state() as never;
+        return connection.inOrder(folderId, async () => {
+          const folder = await this.accessibleFolder(connection.credential, folderId);
+          // Opening can take a while: the connection may have gone since.
+          if (!this.connections.has(connection)) throw new HostError('cancelled', 'The connection closed.');
+          if (!connection.subscriptions.has(folderId)) { this.folders.acquire(folderId); connection.subscriptions.add(folderId); }
+          return folder.state();
+        }) as never;
       }
       case 'folders.unsubscribe': {
         const { folderId } = p as { folderId: string };
-        if (connection.subscriptions.delete(folderId)) this.folders.release(folderId);
+        // After a subscribe still opening the folder, which it undoes.
+        await connection.inOrder(folderId, async () => { if (connection.subscriptions.delete(folderId)) this.folders.release(folderId); });
         return null as never;
       }
       case 'folder.snapshot': return this.subscribed(connection, (p as { folderId: string }).folderId).snapshot() as never;

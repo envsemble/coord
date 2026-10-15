@@ -177,6 +177,16 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   assert.ok(events.some(event => event.folderId === opened.folderId && event.revision > state.revision));
 });
 
+test('an unsubscribe sent while the subscribe is still opening the folder undoes it', async t => {
+  const { host, origin } = await start(t);
+  const { connection } = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  const opened = await projectNamed(connection);
+  const subscribing = connection.request('folders.subscribe', { folderId: opened.folderId });
+  await connection.request('folders.unsubscribe', { folderId: opened.folderId });
+  assert.equal((await subscribing).folderId, opened.folderId);
+  await assert.rejects(connection.request('folder.snapshot', { folderId: opened.folderId }), (error: HostRequestError) => error.code === 'forbidden');
+});
+
 test('a device pairs once with a five-minute code, gets the whole computer, and is cut off when revoked', async t => {
   const { host, origin, planning } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
@@ -314,8 +324,6 @@ test('a project outside the home is listed, marked, until it moves into the home
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
   const outside = path.join(temporary(t, 'atlas-outside-'), 'Shop planning');
   cpSync(fixture, outside, { recursive: true });
-  const { execFileSync } = await import('node:child_process');
-  execFileSync('git', ['-C', outside, 'init', '-q']);
   mkdirSync(path.join(outside, 'active/0001-saved-payment-methods/.atlas'), { recursive: true });
   writeFileSync(path.join(outside, 'active/0001-saved-payment-methods/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T10:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
   // Read and written beside the host's own connection, and closed before its home is removed.
@@ -326,6 +334,11 @@ test('a project outside the home is listed, marked, until it moves into the home
     assert.deepEqual(projects.map(project => [project.path, project.outsideHome]), [[realpathSync.native(outside), true], [path.join(data, 'planning', 'planning'), false]]);
     const listed = projects[0];
     await owner.connection.follow(listed.folderId);
+    // A move that is refused (not a Git repository yet) leaves the folder followed where it is.
+    await assert.rejects(owner.connection.request('projects.adopt', { folderId: listed.folderId }), /not the top of a Git repository/);
+    assert.equal((await owner.connection.request('folder.snapshot', { folderId: listed.folderId })).work.length, 4);
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('git', ['-C', outside, 'init', '-q']);
     const moved = await owner.connection.request('projects.adopt', { folderId: listed.folderId });
     assert.deepEqual([moved.path, moved.outsideHome, moved.state], [path.join(data, 'planning', 'Shop-planning'), false, 'hidden']);
     assert.ok(!existsSync(outside) && !existsSync(path.join(moved.path, 'active/0001-saved-payment-methods/.atlas')));
