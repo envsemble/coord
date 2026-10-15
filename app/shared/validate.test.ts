@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argumentsOf, command, diagramPath, folderPath, place, relativePath, target, uiState, ValidationError, viewEvent, workId } from './validate.ts';
+import { argumentsOf, command, diagramPath, folderPath, isProjectListing, place, relativePath, target, uiState, ValidationError, viewEvent, workId } from './validate.ts';
 import { defaultUiState } from './contract.ts';
 
 const project = 'f-' + 'a'.repeat(32);
@@ -61,4 +61,13 @@ test('window state is checked deeply', () => {
 test('a workspace folder is a full path of the computer', () => {
   for (const good of ['C:\\Dev\\atlas-workspace', 'c:/dev/coord', '\\\\server\\share\\work', '/home/me/work']) assert.equal(folderPath(good), good);
   for (const bad of ['', 'relative/folder', 'C:relative', '..\\up', 'x'.repeat(5000), 'C:\\a\0b', 42, null]) assert.throws(() => folderPath(bad), ValidationError, String(bad));
+});
+
+test("a host's listing of its projects is taken only when it reads as one", () => {
+  const listed = { folderId: project, name: 'Northwind', path: '/home/me/.atlas/planning/northwind', position: 0, state: 'active', outsideHome: false, workspaces: ['/home/me/work'], summary: null };
+  assert.equal(isProjectListing([]), true);
+  assert.equal(isProjectListing([listed, { ...listed, summary: undefined }]), true);
+  for (const bad of [undefined, null, 'projects', { length: 1 }, [null], [{ ...listed, folderId: '../x' }], [{ ...listed, state: 'gone' }], [{ ...listed, workspaces: '/home/me/work' }], [{ ...listed, workspaces: [1] }], [{ ...listed, position: '0' }], [{ ...listed, summary: 'x' }]]) {
+    assert.equal(isProjectListing(bad), false, JSON.stringify(bad));
+  }
 });

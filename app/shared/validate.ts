@@ -1,7 +1,7 @@
 // Validators for the messages the window sends to the main process. The generic validators and the
 // planning shapes are the host's (packages/host/src/validate.ts); this module adds what only the
 // desktop window sends. Unknown object keys are dropped.
-import { appCommands, fullPath, limits, themePreferences, type PagePlace, type Place, type ProjectPlace, type Target, type UiState } from './contract.ts';
+import { appCommands, fullPath, limits, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type Target, type UiState } from './contract.ts';
 import { diagramPath, folderId, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas-host/validate';
 
 export {
@@ -34,3 +34,19 @@ export const uiState: Validator<UiState> = object<UiState>({
   place,
   inspectorWidth: optional(integer(limits.inspectorMin, limits.inspectorMax)),
 });
+
+/**
+ * Whether a host's own listing of its projects (with its projects.changed event) reads as one: a list
+ * of projects, each with its folder ID, name, path, place in the order, state and workspace folders.
+ * Anything else is not taken; the windows list the projects again instead.
+ */
+export function isProjectListing(value: unknown): value is Project[] {
+  const project = (item: unknown) => {
+    const entry = item as Partial<Record<keyof Project, unknown>> | null;
+    return Boolean(entry && typeof entry === 'object') && typeof entry!.folderId === 'string' && /^f-[a-f0-9]{32}$/.test(entry!.folderId) && typeof entry!.name === 'string'
+      && typeof entry!.path === 'string' && typeof entry!.position === 'number' && ['active', 'hidden', 'archived'].includes(entry!.state as string)
+      && typeof entry!.outsideHome === 'boolean' && Array.isArray(entry!.workspaces) && entry!.workspaces.every(folder => typeof folder === 'string')
+      && (entry!.summary === undefined || entry!.summary === null || typeof entry!.summary === 'object');
+  };
+  return Array.isArray(value) && value.every(project);
+}
