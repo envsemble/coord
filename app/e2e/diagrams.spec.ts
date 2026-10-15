@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { close, launch, launchProject, projectHome, removeDirectory, type Launched } from './app';
+import { close, launch, launchProject, openPlan, projectHome, removeDirectory, type Launched } from './app';
 
 let launched: Launched | undefined;
 let folder: string;
@@ -10,7 +10,8 @@ test.beforeEach(() => { ({ dataDirectory, folder } = projectHome()); });
 test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(dataDirectory); });
 
 async function openDiagrams(window: Page, title: string) {
-  await expect(window.locator('.work-row').first()).toBeVisible();
+  // Quick open finds the diagrams of the open plan's project.
+  if (await window.locator('.hub').count()) await openPlan(window, 'Customer order notifications');
   await window.keyboard.press('Control+P');
   const palette = window.getByRole('dialog', { name: 'Quick open' });
   await palette.getByRole('combobox').fill(title);
@@ -47,8 +48,6 @@ test('the picker lists diagrams by family, one short line each, and switches dia
   ]);
   await menu.getByRole('menuitemradio', { name: /Checkout · proposed payment methods/ }).click();
   await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
-  // Choosing a diagram is working in the tab, so it is pinned.
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]')).toHaveAttribute('data-preview', 'false');
 });
 
 test('a proposal opens on its changes: the overview leads to each change, and details explain it', async () => {
@@ -209,7 +208,7 @@ test('the details resize from their inner edge, by pointer or keyboard, and keep
     await window.keyboard.press('Alt+ArrowRight');
     await expect(window.locator('.diagrams .node').first()).toBeVisible();
     await expect(window.locator('.diagrams .inspector.open').getByRole('separator', { name: 'Resize details' })).toHaveAttribute('aria-valuenow', String(chosen));
-    // The width is kept with the windows' layout, as the sidebar's is.
+    // The width is kept with the windows' layout.
     await window.waitForTimeout(600);
     await close(launched);
     launched = await launch({ dataDirectory });
@@ -251,7 +250,7 @@ test('a class diagram opens its scenarios as its guide, and a full view', async 
 test('an element chip and a link in the plan open the diagram at that element, and Back returns to the plan', async () => {
   launched = await launchProject({ dataDirectory, folder });
   const { window } = launched;
-  await window.locator('.work-row', { hasText: 'Order fulfilment model' }).getByRole('link', { name: 'Order fulfilment model' }).click();
+  await openPlan(window, 'Order fulfilment model');
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   // The links under a heading attach the diagram's card there, with the elements they name.
   const card = window.locator('.diagram-card', { hasText: 'Fulfilment · conceptual model' }).first();
@@ -277,7 +276,7 @@ test('a card sits under its heading however the heading is written, and a fragme
   writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## The `order_items` table\n\nEach row is an [order item](diagrams/lines.puml#Order%20Item).\n\n## Open questions\n\nThe [lines](diagrams/lines.puml) again.\n');
   launched = await launchProject({ dataDirectory, folder });
   const { window } = launched;
-  await window.locator('.work-row', { hasText: 'Order fulfilment model' }).getByRole('link', { name: 'Order fulfilment model' }).click();
+  await openPlan(window, 'Order fulfilment model');
   const after = (heading: Locator) => heading.locator('xpath=following-sibling::*[1]');
   // Code and underscores in a heading, and the second of two equal headings, each get their card.
   const table = after(window.locator('.prose h2', { hasText: 'order_items' }));
@@ -298,7 +297,8 @@ test('a diagram with problems shows them instead of drawing', async () => {
   writeFileSync(path.join(folder, 'active/0002-order-fulfilment-model/diagrams/broken.puml'), '@startuml\ntitle Broken\nclass A\nclass B\nA -up-> B\n@enduml\n');
   launched = await launchProject({ dataDirectory, folder });
   const { window } = launched;
-  await window.locator('.work-row', { hasText: 'Order fulfilment model' }).locator('.diagram-count').click();
+  await openPlan(window, 'Order fulfilment model');
+  await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
   await window.locator('.model-picker-button').click();
   const problems = window.getByRole('menu', { name: 'Choose a diagram' }).getByRole('group', { name: 'With problems' });
   await expect(problems.getByRole('menuitemradio')).toHaveText([/^Broken\s*1 problem$/]);

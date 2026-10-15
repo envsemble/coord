@@ -27,6 +27,30 @@ export function rehypeHeadingIds() {
     });
   };
 }
+const headingLevel = (node: HeadingNode) => node.type === 'element' && /^h[1-6]$/.test(node.tagName ?? '') ? Number(node.tagName![1]) : 0;
+/** A heading over the user's own words in a plan: "Request", or "Request (…)" naming who asked and when. */
+export const isRequestHeading = (heading: string) => /^request(?:\s*\(.*\))?$/i.test(heading.trim());
+/**
+ * Fold the sections of a plan that record the request: each heading "Request" (at any level), with
+ * everything up to the next heading of its level or above, becomes a section marked `data-fold`, its
+ * heading marked `data-fold-toggle`, for the reader to show folded with the heading as its toggle.
+ */
+export function rehypeFoldRequests() {
+  return (tree: HeadingNode) => {
+    const children = tree.children ?? [];
+    const folded: HeadingNode[] = [];
+    for (let index = 0; index < children.length; index++) {
+      const heading = children[index];
+      const level = headingLevel(heading);
+      if (!level || !isRequestHeading(text(heading))) { folded.push(heading); continue; }
+      heading.properties = { ...heading.properties, dataFoldToggle: true };
+      const section = [heading];
+      while (index + 1 < children.length && !(headingLevel(children[index + 1]) && headingLevel(children[index + 1]) <= level)) section.push(children[++index]);
+      folded.push({ type: 'element', tagName: 'section', properties: { className: ['request-fold'], dataFold: 'request' }, children: section });
+    }
+    tree.children = folded;
+  };
+}
 export function findHeadingId(anchor: string, available: Iterable<string>) {
   const ids = new Set(available);
   const normalized = headingSlug(anchor);

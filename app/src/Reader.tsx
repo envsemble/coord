@@ -1,12 +1,12 @@
-import { createElement, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Button, Card, EmptyState, Spinner } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
-import { DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
+import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from './types';
 import { api, fileUrl } from './api';
 import { resolveLink, siblingReference } from './links';
 import { sectionAnchors } from '@envsemble/atlas-planning/headings';
-import { findHeadingId, headingPrefix, rehypeHeadingIds } from './headings';
+import { findHeadingId, headingPrefix, rehypeFoldRequests, rehypeHeadingIds } from './headings';
 import { diagramTarget, documentTarget, workTarget } from './targets';
 import { bytes, workNumber } from './format';
 import { ProvenanceBadge } from './ui';
@@ -41,7 +41,7 @@ function cards(references: DiagramReference[]): DiagramCard[] {
 /** The diagrams the passage links to, under its heading, with the elements its links name. */
 function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boolean }) {
   const { open } = useWorkbench();
-  const show = (card: DiagramCard, element?: string) => open(diagramTarget(card.workId, card.path, element ?? card.elements[0] ?? null), { pin: true });
+  const show = (card: DiagramCard, element?: string) => open(diagramTarget(card.workId, card.path, element ?? card.elements[0] ?? null));
   return <div className="diagram-cards">{items.map(card => <Card key={card.key} className="diagram-card" tone="pane" padding={4}
     heading={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
     meta={showWork ? workNumber(card.workId) : undefined}
@@ -62,10 +62,28 @@ function sessionId() {
   return viewSession;
 }
 const rehypePlugins = [rehypeHeadingIds];
+// A plan's request shows folded.
+const planPlugins = [rehypeHeadingIds, rehypeFoldRequests];
 
-export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle }: {
+/** A folded section's state, for the heading that toggles it. */
+const FoldContext = createContext<{ open: boolean; toggle(): void } | null>(null);
+/** A plan's request, folded until its heading is pressed. */
+function FoldedSection({ children }: { children?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const fold = useMemo(() => ({ open, toggle: () => setOpen(value => !value) }), [open]);
+  return <FoldContext.Provider value={fold}><section className="request-fold" data-open={open || undefined}>{children}</section></FoldContext.Provider>;
+}
+/** The heading of a folded section: one press opens or closes it. */
+function FoldToggle({ children }: { children?: ReactNode }) {
+  const fold = useContext(FoldContext);
+  if (!fold) return children;
+  return <button type="button" className="request-fold-toggle" aria-expanded={fold.open} onClick={fold.toggle}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
+}
+
+export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle, plan = false }: {
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: DiagramReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
+  /** A work item's plan: its request shows folded. */ plan?: boolean;
 }) {
   const { project, open, notify, remote, sibling, openPath } = useWorkbench();
   const article = useRef<HTMLElement>(null);
@@ -74,8 +92,16 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   function scrollToHeading(target: string) {
     const nodes = Array.from(article.current?.querySelectorAll<HTMLElement>('[id]') ?? []);
     const id = findHeadingId(target, nodes.map(node => node.id));
-    // The window scrolls under the sticky tabs; scroll-margin on headings keeps them in view.
-    nodes.find(node => node.id === id)?.scrollIntoView();
+    const heading = nodes.find(node => node.id === id);
+    // A heading inside a folded request opens it first.
+    const fold = heading?.closest('.request-fold:not([data-open])');
+    if (heading && fold && fold.firstElementChild !== heading) {
+      fold.querySelector<HTMLButtonElement>('.request-fold-toggle')?.click();
+      requestAnimationFrame(() => heading.scrollIntoView());
+      return;
+    }
+    // Scroll-margin on headings keeps them clear of the top of the page.
+    heading?.scrollIntoView();
   }
   useEffect(() => {
     let current = true;
@@ -127,10 +153,13 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
     const heading = (level: number) => function Heading({ node, children, id }: { node?: unknown; children?: ReactNode; id?: string }) {
       const attached = id?.startsWith(headingPrefix) ? diagramCards.sections.get(id.slice(headingPrefix.length)) : undefined;
       const repeated = level === 1 && hideTitle !== undefined && text(node).trim() === hideTitle.trim();
-      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, children)}{attached && <DiagramCards items={attached} showWork={showWork} />}</>;
+      const toggles = Boolean((node as { properties?: { dataFoldToggle?: unknown } } | undefined)?.properties?.dataFoldToggle);
+      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, toggles ? <FoldToggle>{children}</FoldToggle> : children)}{attached && <DiagramCards items={attached} showWork={showWork} />}</>;
     };
     return {
       ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])),
+      section: ({ node: _node, children, ...props }: ComponentProps<'section'> & { node?: unknown }) =>
+        (props as Record<string, unknown>)['data-fold'] ? <FoldedSection>{children}</FoldedSection> : <section {...props}>{children}</section>,
       a: ({ href = '', children, id }: { href?: string; children?: ReactNode; id?: string }) => {
         const target = destination(href);
         if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></a>;
@@ -141,12 +170,12 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
         if (route) return <a id={id} href="#" onClick={event => {
           event.preventDefault();
           if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
-          open(route, { pin: event.ctrlKey || event.metaKey });
+          open(route);
         }}>{children}</a>;
         // A link into a sibling project of the same computer opens there.
         const across = siblingReference(href, file.path);
         const other = across && sibling(across.folder);
-        if (across && other) return <a id={id} href="#" onClick={event => { event.preventDefault(); openPath(other, across.path, across.anchor, { pin: event.ctrlKey || event.metaKey }); }}>{children}</a>;
+        if (across && other) return <a id={id} href="#" onClick={event => { event.preventDefault(); openPath(other, across.path, across.anchor); }}>{children}</a>;
         return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
       },
       img: ({ src = '', alt = '' }: { src?: unknown; alt?: string }) => {
@@ -164,7 +193,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
-        <Markdown inlineCode="subtle" rehypePlugins={rehypePlugins} components={components}>{content.body}</Markdown>
+        <Markdown inlineCode="subtle" rehypePlugins={plan ? planPlugins : rehypePlugins} components={components}>{content.body}</Markdown>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
       : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(project, file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}

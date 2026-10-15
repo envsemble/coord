@@ -9,18 +9,16 @@ import { AddIcon, ComputerIcon, DevicesIcon, NewWindowIcon } from './icons';
 import type { Computer, ComputerRef } from './types';
 import { api } from './api';
 
-/** Window-wide actions the menus start: pairing, remote access, the computers, a new project and About. */
+/** Window-wide actions the menus start: pairing, remote access, the computers and About. */
 export interface AppActions {
   connect(): void;
   remoteAccess(): void;
   manageComputers(): void;
-  /** File › New Project…, on the window's computer. */
-  newProject(): void;
-  /** Help › About Atlas. */
+  /** The menu's About Atlas. */
   about(): void;
 }
 const nothing = () => undefined;
-export const AppActionsContext = createContext<AppActions>({ connect: nothing, remoteAccess: nothing, manageComputers: nothing, newProject: nothing, about: nothing });
+export const AppActionsContext = createContext<AppActions>({ connect: nothing, remoteAccess: nothing, manageComputers: nothing, about: nothing });
 export const useAppActions = () => useContext(AppActionsContext);
 
 const statusLabels: Record<Computer['status'], string | null> = { online: null, connecting: 'Connecting', offline: 'Offline', revoked: 'Not paired', mismatch: 'Not the same computer', incompatible: 'Needs an update' };

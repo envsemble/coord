@@ -14,7 +14,7 @@ import { aiModel } from './aiModels';
 import { ModelName } from './AiModel';
 import { ScatterChart, type ChartSeries } from './components/ScatterChart';
 import { TargetLink, useWorkbench } from './workbenchContext';
-import { Page } from './Pages';
+import { Page, RepositorySelect } from './Pages';
 import type { StageUsage } from '@envsemble/atlas-planning/types';
 import { colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, stageLabels, stageUsage, subagentShare, tokenRows, tokenText, trendMetrics, workRows, type StageKey, type TrendMetric, type WorkRow } from './workStatistics';
 
@@ -28,13 +28,20 @@ const reportHint = <>The Atlas plugin records them when an agent session that wo
 const formatMetric = (metric: TrendMetric, value: number | null) => value === null ? '—'
   : metric === 'tokens' ? compactNumber(value) : metric === 'agentMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
 
-export function Statistics({ snapshot, repository }: { snapshot: Snapshot; repository: string }) {
+/**
+ * The Statistics page, opened from the menu: one project's statistics, chosen with the project
+ * picker (`controls`, beside the heading), under one repository filter.
+ */
+export function Statistics({ snapshot, controls }: { snapshot: Snapshot; controls: ReactNode }) {
   const [tab, setTab] = useState<StatisticsTab>('work');
+  const [repository, setRepository] = useState('all');
+  // Another project's repositories are not this one's.
+  useEffect(() => { if (repository !== 'all' && !snapshot.repositories.some(item => item.id === repository)) setRepository('all'); }, [snapshot, repository]);
   const rows = useMemo(() => workRows(snapshot, repository), [snapshot, repository]);
   const usage = repository === 'all' ? snapshot.usage : snapshot.usageByRepository[repository];
   const body = tab === 'work' ? <WorkStatisticsTab rows={rows} /> : tab === 'models' ? <ModelsTab rows={rows} /> : <DocumentUse snapshot={snapshot} repository={repository} />;
-  return <Page section title="Statistics" className="statistics-page" heading={<div className="page-heading-row">
-    <Text as="h2" variant="section-heading">Statistics</Text>
+  return <Page title="Statistics" className="statistics-page" heading={<div className="page-heading-row">
+    <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
         <p>The model, agent time and tokens come from reports the Atlas plugin records when an agent session stops (or, without the plugin, <Code appearance="subtle">atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time the agent worked, from each prompt to the end of its turn, with its helpers' work at the same time counted once and the time it waited for a person left out. Tokens are then counted for each model, by kind.</p>
@@ -46,8 +53,10 @@ export function Statistics({ snapshot, repository }: { snapshot: Snapshot; repos
         {usage && <p className="muted">Collecting agent reports {usage.agentSince ? 'since ' + absoluteDate(usage.agentSince) : '— not yet'} · views since {absoluteDate(usage.dashboardSince) || '—'}</p>}
       </div>
     </Popover>
+    <span className="spacer" />
+    {controls}
+    <RepositorySelect snapshot={snapshot} repository={repository} setRepository={setRepository} />
   </div>}>
-    {/* The same control as the work list's filter above it on the project page. */}
     <SegmentedControl className="statistics-nav" aria-label="Statistics sections" value={tab} onValueChange={value => setTab(value as StatisticsTab)}
       options={tabs.map(item => ({ value: item.id, label: item.label }))} />
     <div className="statistics-body">{body}</div>
@@ -125,7 +134,7 @@ function ModelsTab({ rows }: { rows: WorkRow[] }) {
     </div>
     {points.length ? <Surface className="chart-box" padding={5}>
       <ScatterChart label={definition.label + ': ' + definition.unit + ', by completion date and implementing model'} points={points} series={series} formatValue={value => formatMetric(metric, value)}
-        valueKind={metric === 'agentMs' ? 'duration' : 'count'} onOpen={id => open(workTarget(id), { pin: true })} />
+        valueKind={metric === 'agentMs' ? 'duration' : 'count'} onOpen={id => open(workTarget(id))} />
       <Text variant="caption" tone="muted" className="chart-note">Each dot is a completed work item: its {definition.unit}, at its completion date, coloured by the model that did most of the work.{completed.length > points.length ? ` ${completed.length - points.length} completed ${completed.length - points.length === 1 ? 'item has' : 'items have'} no value and ${completed.length - points.length === 1 ? 'is' : 'are'} not shown.` : ''}</Text>
     </Surface> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title={completed.length ? 'No completed work has this value yet' : 'No completed work yet'} description={metric === 'tokens' || metric === 'agentMs' ? reportHint : 'Trends compare work items once they are complete.'} />}
     {summaries.length > 0 && <Table className="model-table" aria-label="Implementing models">

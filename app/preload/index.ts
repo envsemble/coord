@@ -22,7 +22,9 @@ const isProjects = (value: unknown): value is ProjectsChange => Boolean(value &&
 const api: AtlasBridge = {
   info: () => call('window:info'),
   projects: () => call('projects:list'),
-  createProject: (name, repositories) => call('projects:create', name, repositories),
+  createProject: (name, workspaces) => call('projects:create', name, workspaces),
+  scanFolder: folder => call('projects:scan', folder),
+  chooseFolder: () => call('projects:chooseFolder'),
   updateProject: (project, change) => call('projects:update', project, change),
   adoptProject: project => call('projects:adopt', project),
   openProject: project => call('project:open', project),

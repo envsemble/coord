@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type ElectronApplication } from '@playwright/test';
-import { addProject, close, launchProject, openProject, projectHome, removeDirectory, showFiles, temporaryDirectory, type Launched } from './app';
+import { addProject, chooseMenu, close, expectHub, goHome, hubRows, launchProject, openPlan, projectHome, removeDirectory, showFiles, temporaryDirectory, type Launched } from './app';
 
 let launched: Launched | undefined;
 let folder: string;
@@ -34,31 +34,37 @@ async function stubDialogs(app: ElectronApplication, answers: { save?: string; o
 const shownMessages = (app: ElectronApplication) => app.evaluate(() => (globalThis as { shownMessages?: { message: string; detail?: string }[] }).shownMessages ?? []);
 const git = (...args: string[]) => execFileSync('git', ['-C', folder, ...args], { encoding: 'utf8', windowsHide: true });
 
-test('the export and import entries are in the File menu and on a work folder’s context menu in the file panel', async () => {
+test('Import Plan… is in the menu; Export Plan… is on the plan page and on a work folder’s context menu in the file panel', async () => {
   const { app, window } = launched!;
   const file = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.map(item => item.label));
-  expect(file).toEqual(expect.arrayContaining(['&Import Plan…', '&Export Plan…']));
+  expect(file).toContain('&Import Plan…');
+  expect(file).not.toContain('&Export Plan…');
+  await window.locator('.env-title-bar').getByRole('button', { name: 'Menu', exact: true }).click();
+  await expect(window.getByRole('menu', { name: 'Menu' }).getByRole('menuitem', { name: 'Import Plan…' })).toBeVisible();
+  await expect(window.getByRole('menu', { name: 'Menu' }).getByRole('menuitem', { name: 'Export Plan…' })).toHaveCount(0);
+  await window.keyboard.press('Escape');
+  await openPlan(window, 'Customer order notifications');
+  await expect(window.locator('.work-header').getByRole('button', { name: 'Export Plan…' })).toBeVisible();
   const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:active"]').click();
   await files.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
   await expect(window.getByRole('menu')).toContainText('Export Plan…');
   await window.keyboard.press('Escape');
 });
 
-test('Export Plan… from the File menu and the file panel writes one HTML file per work item', async () => {
+test('Export Plan… on the plan page and in the file panel writes one HTML file per work item', async () => {
   const { app, window } = launched!;
-  // File › Export Plan… exports the work item in the active tab.
-  const fromMenu = path.join(scratch, 'from-menu.html');
-  await stubDialogs(app, { save: fromMenu });
-  await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
-  await clickMenu(app, '&Export Plan…');
-  await expect(window.getByText('Exported #0001 to ' + fromMenu)).toBeVisible();
-  expect(readFileSync(fromMenu, 'utf8')).toMatch(/^<!doctype html>/i);
+  // The plan page's Export Plan… exports its work item.
+  const fromPage = path.join(scratch, 'from-page.html');
+  await stubDialogs(app, { save: fromPage });
+  await openPlan(window, 'Saved payment methods');
+  await window.locator('.work-header').getByRole('button', { name: 'Export Plan…' }).click();
+  await expect(window.getByText('Exported #0001 to ' + fromPage)).toBeVisible();
+  expect(readFileSync(fromPage, 'utf8')).toMatch(/^<!doctype html>/i);
 
   // The file panel's context menu exports the folder it was opened on.
   const fromExplorer = path.join(scratch, 'from-explorer.html');
   await stubDialogs(app, { save: fromExplorer });
-  // The active tab's work folder is revealed in it.
+  // The open plan's work folder is revealed in it.
   const files = await showFiles(window);
   await files.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
   await window.getByRole('menuitem', { name: 'Export Plan…' }).click();
@@ -74,32 +80,31 @@ test('Import Plan… previews the file, then adds it as new work under the next 
   const { app, window } = launched!;
   const exported = path.join(scratch, 'fulfilment.html');
   await stubDialogs(app, { save: exported });
-  const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:active"]').click();
-  await files.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
-  await window.getByRole('menuitem', { name: 'Export Plan…' }).click();
+  await openPlan(window, 'Order fulfilment model');
+  await window.locator('.work-header').getByRole('button', { name: 'Export Plan…' }).click();
   await expect(window.getByText(/^Exported #0002/)).toBeVisible();
-  // The plan is imported into the project of the tab in front.
-  await window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab', { name: 'Northwind' }).click();
+  // The plan is imported into the project shown: from the hub, the only project.
+  await goHome(window);
 
   await stubDialogs(app, { open: exported });
   const commits = git('rev-list', '--count', 'HEAD');
-  await clickMenu(app, '&Import Plan…');
+  await chooseMenu(window, 'Import Plan…');
   const preview = window.getByRole('dialog', { name: /^Import “/ });
   await expect(preview).toContainText('Import “Order fulfilment model”');
   await expect(preview).toContainText('#0002 from northwind');
   await expect(preview).toContainText(/#0005 in active\/0005-/);
   await expect(preview).toContainText(/\d+ files, /);
   await expect(preview).toContainText('Fulfilment · conceptual model');
+  await expect(preview).toContainText('new work in Northwind');
   await preview.getByRole('button', { name: 'Import' }).click();
   await expect(window.getByText(/^Imported as #0005/)).toBeVisible();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   await expect(window.locator('.work-header .work-number')).toHaveText('#0005');
-  const imported = files.locator('[role="treeitem"][data-id^="d:active/0005-"]');
+  const imported = (await showFiles(window)).locator('[role="treeitem"][data-id^="d:active/0005-"]');
   await expect(imported).toBeVisible();
   await expect(imported).toContainText('Order fulfilment model');
-  await window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab', { name: 'Northwind' }).click();
-  await expect(window.locator('.work-row')).toHaveCount(4);
+  await goHome(window);
+  await expect(hubRows(window)).toHaveCount(4);
   // New files only, nothing committed, and no import lock left behind.
   expect(git('rev-list', '--count', 'HEAD')).toBe(commits);
   const changes = git('status', '--porcelain', '--untracked-files=all').trim().split('\n');
@@ -149,7 +154,7 @@ test('import previews in two windows do not replace each other', async () => {
     Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === 'New &Window')!.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
   });
   const other = await opened;
-  await openProject(other, 'Coord');
+  await expectHub(other);
   await stubDialogs(app, { open: exported });
   const first = await bridge(window, northwind).choose();
   const next = await bridge(other, await project(other, 'Coord')).choose();

@@ -6,18 +6,18 @@
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
-  ProjectState, ProjectWork, Snapshot, ViewEventInput,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, Snapshot, ViewEventInput, WorkspaceScan,
 } from '@envsemble/atlas-host/contract';
 import type { DocumentContent } from '@envsemble/atlas-planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
-  ProjectState, ProjectWork, Snapshot, ViewEventInput,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, Snapshot, ViewEventInput, WorkspaceScan,
 };
 
 export const invokeChannels = [
   'window:info',
-  'projects:list', 'projects:create', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
+  'projects:list', 'projects:create', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
   'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
@@ -36,7 +36,7 @@ export const themePreferences = ['system', 'light', 'dark'] as const;
 export type ThemePreference = typeof themePreferences[number];
 
 /**
- * Commands the renderer may ask main to run, from the title bar's menus among others; each one acts
+ * Commands the renderer may ask main to run, from the title bar's menu among others; each one acts
  * on the calling window only (New Window and Exit act on the app).
  */
 export const appCommands = [
@@ -46,10 +46,9 @@ export const appCommands = [
 ] as const;
 export type AppCommand = typeof appCommands[number];
 
-/** Menu items that need the renderer (focus, tabs, dialogs drawn in the window). */
+/** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleSidebar', 'toggleFiles', 'quickOpen', 'closeTab', 'closeAllTabs', 'newProject', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess',
-  'goBack', 'goForward', 'about',
+  'toggleFiles', 'quickOpen', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -78,7 +77,7 @@ export interface WindowInfo {
   computer: ComputerRef;
   version: string;
   platform: string;
-  /** Whether View offers Reload and the developer tools (unpackaged builds). */
+  /** Whether the menu offers Reload and the developer tools (unpackaged builds). */
   devTools: boolean;
 }
 /**
@@ -86,6 +85,8 @@ export interface WindowInfo {
  * or its computer is not reachable right now. `revision` counts up with every change.
  */
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
+/** What a window changes of a project: its name, its state, its place in the order or its workspace folders. */
+export interface ProjectChangeRequest { name?: string; state?: ProjectState; position?: number; workspaces?: string[] }
 /** A change of one project's folder, named by its folder ID. */
 export interface ProjectChange extends FolderChange { project: string }
 /** The projects of a computer changed; the window lists them again. `moved`: a project moved under a new folder ID. */
@@ -97,29 +98,34 @@ export interface AccessChange { hostId: string | null; state: AccessState }
 export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 /**
- * What a tab shows of its project: its page (the work list, statistics and activity), a work item's
- * plan or, in its place, its ledger (`view`), one of its diagrams (by its path in the work folder, null for its first; `element` names an
- * element of it), or a file.
+ * What a window shows of a project: a work item's plan or, in its place, its ledger (`view`), one of
+ * its diagrams (by its path in the work folder, null for its first; `element` names an element of
+ * it), or a file.
  */
 export type Target =
-  | { kind: 'project' }
   | { kind: 'work'; work: string; anchor?: string | null; view?: 'ledger' | null }
   | { kind: 'diagram'; work: string; path: string | null; element?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
-/** A tab: what it shows, of which project (by its folder ID). */
-export interface TabState { id: string; project: string; target: Target; preview: boolean }
-/** A window's layout: its sidebar and its tabs, and the width the reader gave a diagram's details (absent for the default). */
+/** Something of a project (by its folder ID): a plan, a diagram or a file. */
+export interface ProjectPlace { project: string; target: Target }
+/**
+ * The window's own pages: the hub, with the plans of every project or of one (`project`), the
+ * Projects page, and a project's statistics (no project only while the computer has none).
+ */
+export type PagePlace = { page: 'hub'; project: string | null } | { page: 'projects' } | { page: 'statistics'; project: string | null };
+/** What a window shows: one place at a time. */
+export type Place = ProjectPlace | PagePlace;
+/** A window's layout: the place it shows, and the width the reader gave a diagram's details (absent for the default). */
 export interface UiState {
-  sidebar: { visible: boolean; width: number };
-  tabs: { items: TabState[]; active: string | null };
+  place: Place;
   inspectorWidth?: number;
-  /** Loaded while the window's computer did not answer: tabs of projects not listed yet wait to be loaded again. */
+  /** Loaded while the window's computer did not answer: a place of a project not listed yet waits to be loaded again. */
   pending?: boolean;
 }
-export const defaultUiState: UiState = { sidebar: { visible: true, width: 280 }, tabs: { items: [], active: null } };
-export const limits = { path: 2048, tabs: 40, sidebarMin: 170, sidebarMax: 640, inspectorMin: 240, inspectorMax: 1200 } as const;
+export const defaultUiState: UiState = { place: { page: 'hub', project: null } };
+export const limits = { path: 2048, workspaces: 20, inspectorMin: 240, inspectorMax: 1200 } as const;
 
-/** What Help › About Atlas shows. */
+/** What the menu's About Atlas shows. */
 export interface AboutInfo {
   version: string;
   electron: string;
@@ -159,15 +165,19 @@ export interface AtlasBridge {
   info(): Promise<Result<WindowInfo>>;
   /** The projects of the window's computer, in their order. */
   projects(): Promise<Result<Project[]>>;
-  /** A new project on the window's computer, from the bundled templates. */
-  createProject(name: string, repositories: ProjectRepository[]): Promise<Result<Project>>;
-  /** Rename a project, hide, archive or show it, or move it in the order. */
-  updateProject(project: string, change: { name?: string; state?: ProjectState; position?: number }): Promise<Result<Project>>;
+  /** A new project on the window's computer, from the bundled templates, covering workspace folders there. */
+  createProject(name: string, workspaces: string[]): Promise<Result<Project>>;
+  /** The Git checkouts in a folder on this computer, as a new project would register them. */
+  scanFolder(folder: string): Promise<Result<WorkspaceScan>>;
+  /** A folder on this computer, chosen in the system's folder dialog; null when none was chosen. */
+  chooseFolder(): Promise<Result<string | null>>;
+  /** Rename a project, hide, archive or show it, move it in the order, or set its workspace folders. */
+  updateProject(project: string, change: ProjectChangeRequest): Promise<Result<Project>>;
   /** Move a project outside the computer's Atlas home into it; it comes back under its new folder ID. */
   adoptProject(project: string): Promise<Result<Project>>;
   /** Start following a project's folder; its state now, and changes as planning:changed. */
   openProject(project: string): Promise<Result<FolderChange>>;
-  /** Stop following a project's folder (no tab shows it, and quick open is closed). */
+  /** Stop following a project's folder (the window no longer shows it). */
   closeProject(project: string): Promise<Result<void>>;
   snapshot(project: string): Promise<Result<Snapshot>>;
   document(project: string, path: string): Promise<Result<DocumentContent>>;
@@ -189,7 +199,7 @@ export interface AtlasBridge {
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
   theme(): Promise<Result<ThemePreference>>;
   setTheme(preference: ThemePreference): Promise<Result<void>>;
-  /** The versions and the Atlas home Help › About Atlas shows. */
+  /** The versions and the Atlas home About Atlas shows. */
   about(): Promise<Result<AboutInfo>>;
   exportPlan(project: string, work: string): Promise<Result<ExportResult | null>>;
   chooseImport(project: string): Promise<Result<ImportPreview | null>>;

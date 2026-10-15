@@ -10,7 +10,7 @@ test.beforeEach(async () => {
     const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { folderId: string }[] }> } }).atlas.projects();
     return result.value[0].folderId;
   });
-  // Opening the project was a person's press; the commands below come without one.
+  // Any press before is long past; the commands below come without one.
   await launched.window.waitForTimeout(2100);
 });
 test.afterEach(async () => { await close(launched); launched = undefined; });
@@ -101,7 +101,7 @@ test('each press allows one command a page could misuse, and not its release or 
     dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { log.push('asked ' + (options.detail ?? '')); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
   const open = (name: string) => atlasWindow.evaluate(async url => { await (window as unknown as { atlas: { openExternal(url: string): Promise<unknown> } }).atlas.openExternal(url); }, `https://example.com/${name}`);
-  const title = (await atlasWindow.locator('.project-page h1').boundingBox())!;
+  const title = (await atlasWindow.locator('.hub h1').boundingBox())!;
   await atlasWindow.mouse.move(title.x + 4, title.y + title.height / 2);
   await atlasWindow.mouse.down();
   await open('press');

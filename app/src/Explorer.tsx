@@ -1,6 +1,5 @@
 // A project's files in the file panel: work folders with their status and plan title, and files; a
-// work item's diagram files open as its diagrams. A click previews an item in a tab; a double click
-// or Enter keeps it.
+// work item's diagram files open as its diagrams. A click, or Enter, opens an item in the window.
 import { useMemo } from 'react';
 import { IconButton, MenuItem, MenuSeparator, Tooltip, Tree, type TreeItem } from '@envsemble/envui';
 import { CollapseAllIcon, DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from './icons';
@@ -13,7 +12,7 @@ import { workNumber } from './format';
 import { StatusIcon } from './ui';
 import { useWorkbench } from './workbenchContext';
 
-/** The explorer node that shows what a tab shows. */
+/** The explorer node of what the window shows. */
 export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): { id: string; reveal: string[] } | null {
   if (!target) return null;
   if (target.kind === 'file') return { id: fileId(target.path), reveal: revealIds(target.path) };
@@ -41,12 +40,11 @@ export function Explorer({ snapshot, expanded, setExpanded, selected }: {
     if (value === expandedSet.has(id)) return;
     setExpanded(value ? [...expanded, id] : expanded.filter(item => item !== id));
   };
-  const activate = ({ row }: Row, preview: boolean) => {
-    const pin = !preview;
+  const activate = ({ row }: Row) => {
     switch (row.kind) {
       case 'folder': setOpen(row.id, !row.expanded); break;
-      case 'work': setOpen(row.id, true); open(workTarget(row.work!.id), { pin }); break;
-      case 'file': open(fileOpens(row.file!), { pin }); break;
+      case 'work': setOpen(row.id, true); open(workTarget(row.work!.id)); break;
+      case 'file': open(fileOpens(row.file!)); break;
     }
   };
   const reveal = (path: string) => { api.reveal(project, path).catch(error => notify((error as Error).message, 'warning')); };
@@ -57,16 +55,16 @@ export function Explorer({ snapshot, expanded, setExpanded, selected }: {
     const row = item?.row;
     const entries = !row ? null
       : row.kind === 'work' ? <>
-        <MenuItem onClick={() => open(workTarget(row.work!.id), { pin: true })}>Open Plan</MenuItem>
-        <MenuItem disabled={!row.work!.diagrams} onClick={() => open(diagramTarget(row.work!.id), { pin: true })}>Open Diagrams</MenuItem>
+        <MenuItem onClick={() => open(workTarget(row.work!.id))}>Open Plan</MenuItem>
+        <MenuItem disabled={!row.work!.diagrams} onClick={() => open(diagramTarget(row.work!.id))}>Open Diagrams</MenuItem>
         <MenuSeparator />
         <MenuItem onClick={() => exportPlan(row.work!.id)}>Export Plan…</MenuItem>
         {!remote && <><MenuSeparator />{revealItem(row.path!)}</>}
       </>
       : row.kind === 'folder' ? revealItem(row.path!)
       : row.kind === 'file' ? <>
-        <MenuItem onClick={() => open(fileOpens(row.file!), { pin: true })}>{isDiagramFile(row.path!) && row.file!.workId ? 'Open Diagram' : 'Open'}</MenuItem>
-        {isDiagramFile(row.path!) && <MenuItem onClick={() => open(fileTarget(row.path!), { pin: true })}>Open as Text</MenuItem>}
+        <MenuItem onClick={() => open(fileOpens(row.file!))}>{isDiagramFile(row.path!) && row.file!.workId ? 'Open Diagram' : 'Open'}</MenuItem>
+        {isDiagramFile(row.path!) && <MenuItem onClick={() => open(fileTarget(row.path!))}>Open as Text</MenuItem>}
         {revealItem(row.path!)}
       </>
       : null;
@@ -83,7 +81,7 @@ export function Explorer({ snapshot, expanded, setExpanded, selected }: {
       </Tooltip>
     </div>
     <Tree<Row> className="explorer-tree" items={rows} aria-label={'Files of ' + projectName} selectedId={selected} density="compact"
-      onOpen={(item, { preview }) => activate(item, preview)}
+      onOpen={item => activate(item)}
       onExpandedChange={(item, value) => setOpen(item.id, value)}
       contextMenu={menu} />
   </div>;

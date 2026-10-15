@@ -7,7 +7,7 @@ import path from 'node:path';
 import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, originOf } from './protocol.ts';
 import { HomeDatabase } from '@envsemble/atlas-planning';
-import { DesktopState } from './state.ts';
+import { DesktopState, placeRow, savedPlace } from './state.ts';
 import { target as tabTarget } from '../shared/validate.ts';
 import type { Target } from '../shared/contract.ts';
 
@@ -36,7 +36,7 @@ test('the log rotates and keeps a bounded number of files', () => {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('windows, their tabs per computer and the shared settings are kept in the home database', () => {
+test('windows, their places per computer and the shared settings are kept in the home database', () => {
   const directory = temporary();
   const database = HomeDatabase.open(directory);
   try {
@@ -47,9 +47,6 @@ test('windows, their tabs per computer and the shared settings are kept in the h
     assert.equal(new DesktopState(database).theme, 'dark');
     state.setTheme('system');
     assert.equal(database.setting('theme'), null);
-    assert.equal(state.sidebarVisible, true);
-    state.setSidebarVisible(false);
-    assert.equal(state.sidebarVisible, false);
     assert.equal(state.inspectorWidth, null);
     state.setInspectorWidth(480);
     assert.equal(state.inspectorWidth, 480);
@@ -58,8 +55,8 @@ test('windows, their tabs per computer and the shared settings are kept in the h
     database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
     const remote = database.addProject('/home/me/.atlas/planning/coord', 'Coord', 'c1');
     const window = state.addWindow(null, { x: 10, y: 20, width: 900, height: 700 });
-    state.updateWindow(window, { maximized: true, sidebarWidth: 5000 });
-    assert.deepEqual(state.windows(), [{ id: window, connectionId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true, sidebarWidth: 640 }], 'the sidebar keeps within its limits');
+    state.updateWindow(window, { maximized: true });
+    assert.deepEqual(state.windows(), [{ id: window, connectionId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true }]);
     state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: local.id, kind: 'work', target: '{"work":"work-0001"}', active: true }], []);
     state.saveTabs(window, 'c1', [{ projectId: remote.id, kind: 'project', target: null, active: true }], []);
     state.saveTabs(window, null, [{ projectId: local.id, kind: 'file', target: '{"path":"README.md"}', active: true }], [local.id]);
@@ -111,4 +108,21 @@ test('Atlas refuses to start without its sandbox, and a released build refuses d
   for (const name of ['remote-debugging-port', 'remote-debugging-pipe', 'inspect', 'inspect-brk']) assert.deepEqual(check([name]), { reason: 'debugging', switches: [name] }, name);
   assert.equal(check(['remote-debugging-port', 'inspect'], { endToEndBuild: true }), null, 'the end-to-end build lets Playwright attach');
   assert.equal(check(['remote-debugging-port'], { packaged: false }), null, 'development runs are not packaged');
+});
+
+test('a window saves the place it shows as a row of its project, and an older window loads its active tab', () => {
+  const project = 'f-' + 'a'.repeat(32);
+  const plan = { project, target: { kind: 'work' as const, work: 'work-0001', anchor: null, view: 'ledger' as const } };
+  assert.deepEqual(placeRow(plan), { project, kind: 'work', target: '{"work":"work-0001","anchor":null,"view":"ledger"}' });
+  assert.deepEqual(savedPlace(project, placeRow(plan)!), plan);
+  // The hub filtered to a project, and a project's statistics, are rows of that project.
+  for (const page of [{ page: 'hub' as const, project }, { page: 'statistics' as const, project }]) assert.deepEqual(savedPlace(project, placeRow(page)!), page);
+  // The hub of every project and the Projects page are no row: a window without one opens on the hub.
+  assert.equal(placeRow({ page: 'hub', project: null }), null);
+  assert.equal(placeRow({ page: 'projects' }), null);
+  // A project's page from before the hub opens as its plans in the hub; a row that cannot be read, as nothing.
+  assert.deepEqual(savedPlace(project, { kind: 'project', target: null }), { page: 'hub', project });
+  assert.deepEqual(savedPlace(project, { kind: 'file', target: '{"path":"README.md"}' }), { project, target: { kind: 'file', path: 'README.md' } });
+  assert.equal(savedPlace(project, { kind: 'file', target: '{"path":"../x"}' }), null);
+  assert.equal(savedPlace(project, { kind: 'work', target: 'not json' }), null);
 });

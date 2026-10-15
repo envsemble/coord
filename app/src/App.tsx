@@ -29,8 +29,6 @@ export default function App() {
     connect: () => setDialog({ kind: 'connect' }),
     remoteAccess: () => setDialog({ kind: 'access' }),
     manageComputers: () => setDialog({ kind: 'computers' }),
-    // The workbench, which shows the new project, opens its dialog.
-    newProject: () => undefined,
     about: () => setDialog({ kind: 'about' }),
   }), []);
   useEffect(() => api.onMenu(command => {
