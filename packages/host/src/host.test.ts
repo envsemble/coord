@@ -316,7 +316,7 @@ test('projects are the home\'s planning folders: created from the templates, ren
   await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
   // The lists clients are sent have the summaries too (a new project's folder has its first commit); a single project answered has none.
   const sent = owner.lists.find(list => list.length === 3)!.find(project => project.folderId === coord.folderId)!;
-  assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated }, { repositories: ['coord-web', 'platform'], active: [], updated: 'string', live: [] });
+  assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated }, { repositories: ['coord-web', 'platform'], active: [], closed: [], updated: 'string', live: [] });
   assert.equal('summary' in coord, false);
   // Renaming writes the name into its planning.json; hiding, archiving and moving change only the order and state.
   const renamed = await owner.connection.request('projects.update', { folderId: coord.folderId, name: 'Coord platform' });
