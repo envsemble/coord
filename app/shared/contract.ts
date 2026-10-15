@@ -40,8 +40,7 @@ export type ThemePreference = typeof themePreferences[number];
  * on the calling window only (New Window and Exit act on the app).
  */
 export const appCommands = [
-  'newWindow', 'closeWindow', 'quit', 'openLogs',
-  'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
+  'newWindow', 'quit', 'openLogs',
   'zoomIn', 'zoomOut', 'resetZoom', 'toggleFullScreen', 'reload', 'toggleDevTools',
 ] as const;
 export type AppCommand = typeof appCommands[number];
@@ -89,8 +88,11 @@ export interface FolderChange { revision: number; status: FolderStatus; error: s
 export interface ProjectChangeRequest { name?: string; state?: ProjectState; position?: number; workspaces?: string[] }
 /** A change of one project's folder, named by its folder ID. */
 export interface ProjectChange extends FolderChange { project: string }
-/** The projects of a computer changed; the window lists them again. `moved`: a project moved under a new folder ID. */
-export interface ProjectsChange { hostId: string | null; moved?: { from: string; to: string } }
+/**
+ * The projects of a computer changed: `projects` as its host listed them, else the window lists them
+ * again. `moved`: a project moved under a new folder ID.
+ */
+export interface ProjectsChange { hostId: string | null; projects?: Project[]; moved?: { from: string; to: string } }
 /** Remote access changed on a computer this app manages access for. */
 export interface AccessChange { hostId: string | null; state: AccessState }
 
@@ -124,6 +126,8 @@ export interface UiState {
 }
 export const defaultUiState: UiState = { place: { page: 'hub', project: null } };
 export const limits = { path: 2048, workspaces: 20, inspectorMin: 240, inspectorMax: 1200 } as const;
+/** A folder's full path: from a drive or a share on Windows, from the root elsewhere. */
+export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
 
 /** What the menu's About Atlas shows. */
 export interface AboutInfo {
