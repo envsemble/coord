@@ -4,7 +4,7 @@ Remote access lets you work on another computer's projects from Atlas on this on
 
 Pairing is for **your own devices**. A paired device can do what Atlas does on that computer:
 
-- see and open its projects (the planning folders in its Atlas home), rename them and create new ones;
+- see and open its projects (the planning folders in its Atlas home), rename them and create new ones (choosing the workspace folders a project covers, which are paths on that computer, stays with the Atlas app there);
 - import and export plans;
 - have its views counted in that computer's document use.
 

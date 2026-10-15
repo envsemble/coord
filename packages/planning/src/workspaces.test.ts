@@ -57,12 +57,19 @@ test('a workspace folder\'s checkouts are the folder and the folders directly in
       { id: 'scratch', name: 'scratch', remote: null, path: path.join(folder, 'scratch') },
       { id: 'shop-web', name: 'web', remote: 'git@github.com:example/Shop-Web.git' },
     ],
+    skipped: [],
   }, 'the remote origin names a repository, without credentials; a worktree and a second clone count as their repository; a checkout without a remote keeps its path; nothing deeper is found');
   // A checkout given itself is the one repository; a folder of plain folders has none.
   assert.deepEqual((await scanWorkspace(path.join(folder, 'api'))).repositories.map(item => item.id), ['api']);
   assert.deepEqual((await scanWorkspace(path.join(folder, 'notes'))).repositories.map(item => item.id), ['deep']);
   mkdirSync(path.join(directory, 'plain', 'folder'), { recursive: true });
-  assert.deepEqual(await scanWorkspace(path.join(directory, 'plain')), { folder: path.join(directory, 'plain'), repositories: [] });
+  assert.deepEqual(await scanWorkspace(path.join(directory, 'plain')), { folder: path.join(directory, 'plain'), repositories: [], skipped: [] });
+  // A folder Git does not answer for is skipped, and said so.
+  mkdirSync(path.join(directory, 'plain', 'broken'));
+  writeFileSync(path.join(directory, 'plain', 'broken', '.git'), 'gitdir: ' + path.join(directory, 'nowhere') + '\n');
+  const broken = await scanWorkspace(path.join(directory, 'plain'));
+  assert.deepEqual([broken.repositories, broken.skipped.map(item => item.folder)], [[], [path.join(directory, 'plain', 'broken')]]);
+  assert.match(broken.skipped[0].reason, /not a git repository/i);
   // Repositories of one name from different places get IDs of their own.
   const twins = path.join(directory, 'twins');
   checkout(path.join(twins, 'a'), [['origin', 'https://github.com/one/site.git']]);
@@ -99,16 +106,56 @@ test('a project made from workspace folders registers their checkouts; changing 
     const more = path.join(directory, 'more');
     checkout(path.join(more, 'mobile'), [['origin', 'https://github.com/example/mobile.git']]);
     checkout(path.join(more, 'api'), [['origin', 'git@gitlab.com:example/api.git']]);
-    assert.deepEqual(await setProjectWorkspaces(row.folder, [folder, more]), { workspaces: [folder, more], added: [{ id: 'mobile', name: 'mobile', remote: 'https://github.com/example/mobile.git' }] });
+    assert.deepEqual(await setProjectWorkspaces(row.folder, [folder, more]), { workspaces: [folder, more], added: [{ id: 'mobile', name: 'mobile', remote: 'https://github.com/example/mobile.git' }], skipped: [] });
     const changed = readFileSync(path.join(row.folder, 'planning.json'), 'utf8');
     assert.deepEqual(JSON.parse(changed).repositories.map((item: { id: string }) => item.id), ['api', 'scratch', 'shop-web', 'mobile']);
     assert.equal(changed, text.replace(JSON.stringify(folder) + '\n', JSON.stringify(folder) + ',\n    ' + JSON.stringify(more) + '\n')
       .replace('"git@github.com:example/Shop-Web.git"\n    }', '"git@github.com:example/Shop-Web.git"\n    },\n    {\n      "id": "mobile",\n      "name": "mobile",\n      "remote": "https://github.com/example/mobile.git"\n    }'));
     // Dropping a folder removes no repository; a folder covered before is not scanned again.
     rmSync(path.join(more, 'mobile'), { recursive: true, force: true });
-    assert.deepEqual(await setProjectWorkspaces(row.folder, [more]), { workspaces: [more], added: [] });
+    assert.deepEqual(await setProjectWorkspaces(row.folder, [more]), { workspaces: [more], added: [], skipped: [] });
     assert.deepEqual(JSON.parse(readFileSync(path.join(row.folder, 'planning.json'), 'utf8')).repositories.length, 4);
     await assert.rejects(setProjectWorkspaces(row.folder, ['relative']), /absolute path/);
+  } finally { database.close(); }
+});
+
+test('repositories sent back from previews keep their paths and get IDs of their own', async t => {
+  const directory = temporary(t);
+  const one = path.join(directory, 'one'), two = path.join(directory, 'two');
+  checkout(path.join(one, 'notes'));
+  checkout(path.join(one, 'site'), [['origin', 'https://github.com/one/site.git']]);
+  checkout(path.join(two, 'site'), [['origin', 'https://github.com/two/site.git']]);
+  const database = HomeDatabase.open(path.join(directory, 'home'));
+  try {
+    // As the app sends them: each folder's preview, without the paths the contract leaves out.
+    const previews = [...(await scanWorkspace(one)).repositories, ...(await scanWorkspace(two)).repositories].map(({ id, name, remote }) => ({ id, name, remote }));
+    assert.deepEqual(previews.map(item => item.id), ['notes', 'site', 'site']);
+    const row = await createProject(database, { name: 'Sites', workspaces: [one, two], repositories: previews }, await readTemplates(templates));
+    assert.deepEqual(JSON.parse(readFileSync(path.join(row.folder, 'planning.json'), 'utf8')).repositories, [
+      { id: 'notes', name: 'notes', path: path.join(one, 'notes') },
+      { id: 'site', name: 'site', remote: 'https://github.com/one/site.git' },
+      { id: 'site-2', name: 'site', remote: 'https://github.com/two/site.git' },
+    ]);
+    assert.deepEqual(row.skipped, []);
+  } finally { database.close(); }
+});
+
+test('setting workspace folders keeps work registered while the folders were scanned', async t => {
+  const directory = temporary(t);
+  const folder = workspace(directory);
+  const database = HomeDatabase.open(path.join(directory, 'home'));
+  try {
+    const row = await createProject(database, { name: 'Shop', workspaces: [], repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop.git' }] }, await readTemplates(templates));
+    const { createWork } = await import('./work.ts');
+    // Work registered while the folder is scanned (the scan runs Git for every checkout in it).
+    const [set, created] = await Promise.allSettled([setProjectWorkspaces(row.folder, [folder]), createWork(row.folder, { title: 'Meanwhile', repositories: ['shop'] })]);
+    const registry = JSON.parse(readFileSync(path.join(row.folder, 'planning.json'), 'utf8'));
+    // Neither undid the other; one that would have was refused instead.
+    if (set.status === 'fulfilled') assert.deepEqual(registry.workspaces, [folder]);
+    else assert.match(String(set.reason), /changed meanwhile/);
+    if (created.status === 'fulfilled') assert.deepEqual(registry.work_items.map((item: { id: string }) => item.id), ['work-0001']);
+    else assert.match(String(created.reason), /changed meanwhile/);
+    assert.ok(set.status === 'fulfilled' || created.status === 'fulfilled');
   } finally { database.close(); }
 });
 

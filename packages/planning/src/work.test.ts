@@ -103,7 +103,7 @@ test('new work has its planning steps from the start: added to while designing, 
   assert.deepEqual(started.steps.map(step => [step.title, step.status, step.phase]), [['Understand the request', 'done', 'planning'], ['Settle the refund rules', 'done', 'planning'], ['Accepted', 'done', 'planning'], ['Ask finance', 'done', 'planning'], ['Build', 'todo', undefined], ['Ship', 'todo', undefined]]);
   assert.deepEqual([started.implementationStatus, started.progress, started.warnings], ['in_progress', '4 of 6 steps done · 2 left', []]);
   assert.match(ledger(), /\n# Ledger: Refunds\n\n## Selection\n\n- \*\*Work item:\*\* work-0004, \[plan\]\(plan\.md\), accepted on 2026-10-14\.\n- \*\*Selected plan:\*\* `active\/0004-refunds\/plan\.md` at planning revision `[0-9a-f]{40}`\.\n\n## Progress\n\n- 2026-10-14: work created; planning started\.\n- 2026-10-14: removed the step "Write the plan" \(todo\): The rules are the plan\.\n- 2026-10-14: design accepted; planning done\.\n- 2026-10-14: implementation started\.\n$/);
-  await assert.rejects(startWork(root, 'work-0004', { steps: ['Again'] }, today), /already has implementation steps/);
+  await assert.rejects(startWork(root, 'work-0004', { steps: ['Again'] }, today), /implementation has started already; add steps with step_add/);
   // From then on, added steps are implementation steps; closing needs every step done.
   assert.deepEqual((await addSteps(root, 'work-0004', ['Announce'], today)).steps.at(-1), { title: 'Announce', status: 'todo' });
   await assert.rejects(closeWork(root, 'work-0004', today), /cannot close while items are open/);
@@ -117,6 +117,12 @@ test('a ledger whose steps have no phase reads as before, and a phase is plannin
   const header = (steps: string) => `---\nschema_version: 2\nkind: ledger\nwork_id: work-0001\nupdated: "2026-10-14"\nblocked: null\nsteps:\n${steps}---\n\n# Ledger\n`;
   write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Build"\n    status: doing\n'));
   assert.deepEqual([(await workStatus(root, 'work-0001')).steps, errorsOf(root)], [[{ title: 'Build', status: 'doing' }], []]);
+  // A step added to an older ledger is an implementation step, after the others: only work not
+  // started, with no implementation step yet, is being planned.
+  assert.deepEqual((await addSteps(root, 'work-0001', ['Ship'], today)).steps, [{ title: 'Build', status: 'doing' }, { title: 'Ship', status: 'todo' }]);
+  writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { implementation_status: 'unknown' }));
+  write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Plan"\n    status: done\n    phase: planning\n'));
+  assert.deepEqual((await addSteps(root, 'work-0001', ['Ship'], today)).steps.at(-1), { title: 'Ship', status: 'todo' }, 'implementation unknown is past planning');
   write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Build"\n    status: todo\n    phase: implementation\n'));
   assert.deepEqual([(await workStatus(root, 'work-0001')).steps, errorsOf(root)], [[{ title: 'Design', status: 'done', phase: 'planning' }, { title: 'Build', status: 'todo' }], []]);
   write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Build"\n    status: todo\n    phase: later\n'));
@@ -141,7 +147,7 @@ test('the design is accepted, then implementation starts with a ledger that reco
   assert.ok(ledger.includes(`- **Selected plan:** \`active/0001-existing/plan.md\` at planning revision \`${revision}\`.`));
   assert.ok(ledger.includes('[plan](plan.md), accepted on 2026-10-14'));
   assert.deepEqual(errorsOf(root), []);
-  await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /already has implementation steps/);
+  await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /implementation has started already/);
   await assert.rejects(startWork(root, 'work-0002', { steps: ['A', 'A'] }, today), /unique/);
   await assert.rejects(startWork(root, 'work-0002', { steps: [] }, today), /at least one/);
   await assert.rejects(startWork(root, 'work-0009', { steps: ['A'] }, today), /work-0009 is not registered/);
@@ -387,6 +393,10 @@ test('a folder in a project\'s workspace folder belongs to that project alone, t
   // where's briefs carry each plan's summary.
   assert.deepEqual(outside.projects.find(item => item.project === 'main')!.work.map(item => [item.workId, item.summary]), [['work-0001', 'Carts that last. Planned, not started.'], ['work-0002', null]]);
   assert.equal(outside.matches.find(item => item.project === 'main')!.work[0].summary, 'Carts that last. Planned, not started.');
+  // A broad workspace folder around the home does not take a session inside another project's planning folder.
+  project('Broad', [directory]);
+  assert.deepEqual(matched(await findPlanning(path.join(root, 'active'), { home })), [['main', ['inside'], ['planning']]]);
+  assert.deepEqual(matched(await findPlanning(path.join(directory, 'elsewhere-notes'), { home })).map(([name]) => name), ['Broad']);
 });
 
 test('atlas check attributes findings to the files asked about and runs registered checkers', async t => {
@@ -444,6 +454,9 @@ test('atlas check warns about a diagram no document links, and checks the projec
   assert.deepEqual(validatePlanning(root).errors, ['name must be a nonempty string of at most 100 characters when supplied']);
   // Workspace folders are absolute paths.
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, workspaces: [path.join(root, 'workspace')] }));
+  assert.deepEqual(validatePlanning(root).errors, []);
+  // Windows and POSIX paths alike: a planning folder may be read on another system.
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, workspaces: ['C:\\Dev\\shop', '/home/someone/shop', '\\\\server\\share\\shop'] }));
   assert.deepEqual(validatePlanning(root).errors, []);
   for (const workspaces of ['C:/x', ['relative/folder'], [''], [7]]) {
     writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, workspaces }));

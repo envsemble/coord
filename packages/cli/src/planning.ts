@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   acceptWork, addSteps, adoptPlanningFolder, archiveWork, atlasHome, checkPaths, closeWork, createProject, createWork, findPlanning, homePlanningFolders, planningName,
   planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, withDatabaseAsync, workStatus,
-  type LedgerStepStatus, type ProjectRepository,
+  type LedgerStepStatus, type ProjectRepository, type SkippedCheckout,
 } from '@envsemble/atlas-planning';
 import { parseOptions, positionals, UsageError, wantsHelp, type Output } from './args.ts';
 
@@ -44,8 +44,8 @@ export async function where(args: string[], out: Output) {
   return 0;
 }
 
-/** A project as `project create` and the Atlas tool `project_create` describe it. */
-export interface CreatedProject { name: string; planningFolder: string; workspaces: string[]; repositories: ProjectRepository[] }
+/** A project as `project create` and the Atlas tool `project_create` describe it, with the checkouts Git did not answer for. */
+export interface CreatedProject { name: string; planningFolder: string; workspaces: string[]; repositories: ProjectRepository[]; skipped: SkippedCheckout[] }
 
 /**
  * Create a project in the home as the app's host does: from the templates the atlas skill bundles in
@@ -58,7 +58,7 @@ export async function createHomeProject(request: { name: string; workspaces: str
   const repositories = registry.repositories.flatMap(item => typeof item?.id === 'string' ? [{
     id: item.id, name: typeof item.name === 'string' ? item.name : item.id, remote: typeof item.remote === 'string' ? item.remote : null, ...typeof item.path === 'string' && { path: item.path },
   }] : []);
-  return { name: row.name, planningFolder: row.folder, workspaces: registry.workspaces, repositories };
+  return { name: row.name, planningFolder: row.folder, workspaces: registry.workspaces, repositories, skipped: row.skipped };
 }
 
 /** `atlas project create`: a new project in the home, covering the workspace folders given and registering the Git checkouts in them. */
@@ -72,6 +72,7 @@ export async function project(args: string[], out: Output) {
   const missing = [values.name ? '' : '--name', lists.workspace ? '' : '--workspace'].filter(Boolean);
   if (missing.length) throw new UsageError('the following arguments are required: ' + missing.join(', '), line);
   const created = await createHomeProject({ name: values.name, workspaces: lists.workspace.map(folder => path.resolve(folder)) });
+  for (const item of created.skipped) out.stderr(`WARNING: ${item.folder} was skipped: ${item.reason}`);
   if (flags.has('json')) { print(out, created); return 0; }
   out.stdout(`Created the project ${created.name} in ${created.planningFolder}, covering ${created.workspaces.join(', ')}.`);
   out.stdout(created.repositories.length ? 'Repositories: ' + created.repositories.map(item => `${item.id} (${item.remote ?? item.path ?? 'no remote'})`).join(', ') + '.' : 'No Git checkouts were found in those folders; register repositories in its planning.json.');
