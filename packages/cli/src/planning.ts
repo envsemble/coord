@@ -30,7 +30,7 @@ const usageOf = (command: string) => 'Usage: ' + planningUsage.split('\n').filte
 const print = (out: Output, value: unknown) => out.stdout(JSON.stringify(value));
 const planningDir = (values: Record<string, string>, work: string | null) => resolvePlanningFolder({ planningFolder: values['planning-dir'], cwd: process.cwd(), work });
 
-/** `atlas where`: the projects (planning folders of the home) this checkout belongs to, with their names and active work. */
+/** `atlas where`: the projects (planning folders of the home) this checkout belongs to, with their names and active work, and every active project of the home in brief. */
 export async function where(args: string[], out: Output) {
   const line = usageOf('atlas where');
   if (wantsHelp(args)) { out.stdout(line); return 0; }

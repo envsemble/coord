@@ -81,7 +81,7 @@ A project's page shows them in its **Statistics** section, chosen with a segment
 - **Revisions need history.** Plan revisions count only committed changes, and need the planning folder's Git history.
 - **Not a productivity score.** The figures describe how work went. They do not measure the quality of the outcome.
 
-Before the home database, reports were lines of `<work>/.atlas/statistics.jsonl` in the planning folder. `atlas setup` and `atlas home adopt` import such files into the database, each report once, and delete them from the planning folder; Atlas never commits, so commit the removal there (Git keeps the files' history). Plan exports leave them out.
+Before the home database, reports were lines of `<work>/.atlas/statistics.jsonl` in the planning folder. `atlas setup` (for the planning folders in the home; it leaves folders outside the home alone) and `atlas home adopt` (as it moves a folder in) import such files into the database, each report once, and delete them from the planning folder; Atlas never commits, so commit the removal there (Git keeps the files' history). Plan exports leave them out.
 
 ## Document use
 

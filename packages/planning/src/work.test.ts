@@ -248,6 +248,22 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   assert.deepEqual(inside.matches.map(match => [match.via, match.repositories, match.work.map(item => item.workId)]), [[['inside'], ['planning'], []]]);
   const outside = await findPlanning(directory, { home });
   assert.deepEqual(outside.matches, []);
+  // Every active project is listed in brief, wherever where is asked: outside a Git checkout too.
+  assert.equal(outside.checkout, null);
+  const unrelated = path.join(home, 'planning', 'unrelated');
+  assert.deepEqual(outside.projects.map(project => [project.project, project.planningFolder, project.repositories, project.match, project.work.map(item => [item.workId, item.title, item.designStatus, item.implementationStatus, item.progress])]), [
+    ['main', root, ['planning', 'shop', 'tools'], false, [['work-0001', 'Existing work', 'accepted', 'in_progress', '0 of 1 step done · 1 left'], ['work-0002', 'Existing work', 'draft', 'not_started', null]]],
+    ['unrelated', unrelated, ['x'], false, []],
+  ]);
+  assert.ok(!('steps' in outside.projects[0].work[0]), 'the list stays compact: no steps');
+  // A checkout whose remote no project registers gets the same list; a matching one is marked.
+  const stranger = path.join(directory, 'stranger');
+  mkdirSync(stranger);
+  git(stranger, 'init', '-q');
+  git(stranger, 'remote', 'add', 'origin', 'https://github.com/example/nobody.git');
+  const unmatched = await findPlanning(stranger, { home });
+  assert.deepEqual([unmatched.checkout, unmatched.matches, unmatched.projects.map(project => [project.project, project.match])], [stranger, [], [['main', false], ['unrelated', false]]]);
+  assert.deepEqual(where.projects.map(project => [project.project, project.match]), [['main', true], ['unrelated', false]]);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
   assert.equal(await resolvePlanningFolder({ planningFolder: root, home }), root);
   await assert.rejects(resolvePlanningFolder({ cwd: directory, home }), /No planning folder in the Atlas home/);
@@ -264,8 +280,10 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
   withDatabase(home, database => database.updateProject(database.projectByFolder(coord)!.id, { state: 'hidden' }));
   assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['main']);
+  assert.deepEqual((await findPlanning(directory, { home })).projects.map(project => project.project), ['main'], 'hidden and archived projects are not listed');
   withDatabase(home, database => database.addProject(root, 'main', null, 'hidden'));
   assert.deepEqual((await findPlanning(shop, { home })).matches, []);
+  assert.deepEqual((await findPlanning(directory, { home })).projects, []);
   // A database this Atlas cannot read is an error, not a home where every project matches.
   const raw = new DatabaseSync(path.join(home, 'atlas.db'));
   raw.exec('PRAGMA user_version = 999');
