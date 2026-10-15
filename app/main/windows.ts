@@ -76,6 +76,8 @@ export class AtlasWindow {
   computer: string | null;
   /** The projects' folders the window follows, by folder ID. */
   readonly views = new Map<string, FolderView>();
+  /** Projects whose folder is still being followed: a request for one waits for it. */
+  private readonly opening = new Map<string, Promise<void>>();
   /** The projects of the window's computer as last listed, with their rows in the home database. */
   private listed = new Map<string, { project: Project; rowId: number }>();
   /** The highest revision this window has shown: a project followed again continues above it, so the window never ignores fresh data. */
@@ -272,14 +274,19 @@ export class AtlasWindow {
   /** A project's folder, followed from now on (its changes reach the window). */
   async open(folderId: string): Promise<FolderView> {
     const known = this.views.get(folderId);
-    if (known) return known;
+    // A request while the project is still opening waits for it, so it never asks before the host follows it.
+    if (known) { await this.opening.get(folderId); return known; }
     const view = new FolderView(this.client(), folderId, this.computer === null ? null : { hostId: this.computer, hostName: this.computerName }, this.revisionFloor);
     this.views.set(folderId, view);
-    try { view.update(await view.client.follow(folderId)); }
-    catch (error) {
-      this.manager.context.log.warn('Project could not open', { folderId, message: (error as Error).message });
-      view.failed((error as Error).message);
-    }
+    const ready = (async () => {
+      try { view.update(await view.client.follow(folderId)); }
+      catch (error) {
+        this.manager.context.log.warn('Project could not open', { folderId, message: (error as Error).message });
+        view.failed((error as Error).message);
+      }
+    })();
+    this.opening.set(folderId, ready);
+    try { await ready; } finally { if (this.opening.get(folderId) === ready) this.opening.delete(folderId); }
     return view;
   }
   /**
