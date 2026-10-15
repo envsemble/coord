@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Three skills, triggered by name:** `atlas` triggers on its own (the word Atlas, designing, work big enough to plan, recording or bringing projects up to date) and now covers work across projects; `atlas-grill` is back, the questioning workflow in rounds, used when the user says "atlas grill", "grill" or "grill me"; `atlas-implement` is used when the user says "atlas implement" and no longer needs its command. In Claude Code they are `/atlas:atlas`, `/atlas:atlas-grill` and `/atlas:atlas-implement`; in Codex `$atlas`, `$atlas-grill` and `$atlas-implement`.
+- **`where` works outside a project:** it lists every active project in the home (`projects`), with the ones registering the checkout marked, also outside any Git checkout; a session in a folder no project registers is told the home's projects and to ask which one the work belongs to.
+- **`atlas setup` leaves folders outside the home alone:** it imports statistics files only from planning folders in the home; a folder outside it gets them imported when it moves in.
+
 ## 0.7.0 — Agent interface and projects — 2026-10-15
 
 - The agent interface: Atlas reaches agents through a plugin for Claude Code and Codex, and harnesses that run them, instead of skills they happen to load.
