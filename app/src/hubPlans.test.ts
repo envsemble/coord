@@ -12,7 +12,7 @@ const project = (name: string, position: number, summary: Partial<ProjectSummary
 
 const atlas = project('Atlas', 1, {
   active: [
-    work('work-0021', 'implementing', { updated: '2026-10-10', steps: { done: 2, total: 5 } }),
+    work('work-0021', 'implementing', { updated: '2026-10-10', steps: { done: 2, total: 5, planning: { done: 2, total: 2 } } }),
     work('work-0022', 'draft', { summary: 'A hub for every plan, so a plan is one click away.' }),
     work('work-0023', 'blocked', { updated: '2026-10-01', blocked: 'Waiting for the host' }),
     work('work-0024', 'implementing', { updated: '2026-10-14' }),
