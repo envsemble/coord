@@ -133,7 +133,9 @@ function workFiles(folder: string, relative = ''): string[] {
 
 /**
  * Warnings for the diagrams given (relative to the planning folder) that sit in a registered work
- * folder and that no Markdown document of that work item links. The Markdown parser loads only here.
+ * folder and that no Markdown document in the planning folder links. The work item's own documents
+ * are read first; the rest of the folder only for a diagram they do not link. The Markdown parser
+ * loads only here.
  */
 async function unlinkedDiagrams(root: string, diagrams: string[]): Promise<string[]> {
   let items: { id?: unknown; path?: unknown }[];
@@ -141,19 +143,25 @@ async function unlinkedDiagrams(root: string, diagrams: string[]): Promise<strin
   if (!Array.isArray(items)) return [];
   const [{ diagramLinks }, { markdownBody }] = await Promise.all([import('./diagramLinks.ts'), import('./headings.ts')]);
   const key = (value: string) => process.platform === 'win32' || process.platform === 'darwin' ? value.toLowerCase() : value;
-  const warnings: string[] = [];
+  const linked = new Set<string>(), read = new Set<string>();
+  const readLinks = (documents: string[]) => {
+    for (const relative of documents) {
+      if (read.has(relative)) continue;
+      read.add(relative);
+      try { for (const link of diagramLinks(markdownBody(readFileSync(path.join(root, ...relative.split('/')), 'utf8')), relative)) linked.add(key(link.target)); }
+      catch { /* An unreadable document links nothing. */ }
+    }
+  };
+  const markdown = (files: string[]) => files.filter(name => /\.md$/i.test(name));
+  const unlinked: string[] = [];
   for (const item of items) {
     if (typeof item?.id !== 'string' || typeof item.path !== 'string') continue;
     const location = item.path.replace(/\/+$/, '');
     const asked = diagrams.filter(file => key(file).startsWith(key(location) + '/'));
     if (!asked.length) continue;
-    const linked = new Set<string>();
-    for (const file of workFiles(path.join(root, ...location.split('/'))).filter(name => /\.md$/i.test(name))) {
-      const relative = location + '/' + file;
-      try { for (const link of diagramLinks(markdownBody(readFileSync(path.join(root, ...relative.split('/')), 'utf8')), relative)) linked.add(key(link.target)); }
-      catch { /* An unreadable document links nothing. */ }
-    }
-    for (const file of asked) if (!linked.has(key(file))) warnings.push(`${file}: no document of ${item.id} links this diagram; link it from the plan under the heading it explains`);
+    readLinks(markdown(workFiles(path.join(root, ...location.split('/')))).map(file => location + '/' + file));
+    unlinked.push(...asked.filter(file => !linked.has(key(file))));
   }
-  return warnings;
+  if (unlinked.length) readLinks(markdown(workFiles(root)));
+  return unlinked.filter(file => !linked.has(key(file))).map(file => `${file}: no document links this diagram; link it from the plan under the heading it explains`);
 }

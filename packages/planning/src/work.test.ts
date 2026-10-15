@@ -300,12 +300,20 @@ test('atlas check attributes findings to the files asked about and runs register
   assert.ok((await checkPaths([path.join(root, 'active/0001-existing/notes.txt')]))[0].errors.includes('active/0001-existing/notes.txt: checked'));
 });
 
-test('atlas check warns about a diagram no document of its work item links, and checks the project name', async t => {
+test('atlas check warns about a diagram no document links, and checks the project name', async t => {
   const root = planningFolder(temporary(t));
   write(path.join(root, 'active/0001-existing/diagrams/model.puml'), '@startuml\nclass A\n@enduml\n');
   write(path.join(root, 'notes.puml'), '@startuml\nclass B\n@enduml\n');
   const unlinked = (await checkPaths([root]))[0].warnings.filter(warning => warning.includes('links this diagram'));
-  assert.deepEqual(unlinked, ['active/0001-existing/diagrams/model.puml: no document of work-0001 links this diagram; link it from the plan under the heading it explains'], 'a diagram outside every work folder is not a work item\'s');
+  assert.deepEqual(unlinked, ['active/0001-existing/diagrams/model.puml: no document links this diagram; link it from the plan under the heading it explains'], 'a diagram outside every work folder is not a work item\'s');
+  // A link from any document of the planning folder counts: another work item's plan, or a knowledge note.
+  const other = read(root, 'active/0002-other/plan.md');
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), other + '\n[Their model](../0001-existing/diagrams/model.puml)\n');
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/diagrams/model.puml')]))[0].warnings, []);
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), other);
+  writeFileSync(path.join(root, 'knowledge/glossary.md'), '# Glossary\n\n[Model](../active/0001-existing/diagrams/model.puml)\n');
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/diagrams/model.puml')]))[0].warnings, []);
+  writeFileSync(path.join(root, 'knowledge/glossary.md'), '# Glossary\n');
   writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001') + '\n## Model\n\n[The model](diagrams/model.puml)\n');
   assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/diagrams/model.puml')]))[0].warnings, []);
   const registry = JSON.parse(read(root, 'planning.json'));
