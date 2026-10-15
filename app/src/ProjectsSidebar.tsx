@@ -7,7 +7,7 @@
 // sidebar shows icons only, each project is an icon.
 import { useState, type ReactNode } from 'react';
 import { Button, Card, ContextMenu, Dialog, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, SearchField, Spinner, Text, Tooltip, useSidebarCompact } from '@envsemble/envui';
-import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, FolderIcon, InProgressIcon } from './icons';
+import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, FolderIcon, InProgressIcon, NewProjectIcon } from './icons';
 import { ProviderMark } from './AiModel';
 import { aiModel } from './aiModels';
 import { absoluteDate, plural, shortAge } from './format';
@@ -63,7 +63,7 @@ const projectAt = (projects: Project[], target: Element | null) => {
 };
 
 function ProjectMenu({ project, projects, actions }: { project: Project | null; projects: Project[]; actions: ProjectActions }) {
-  if (!project) return <MenuItem icon={<AddIcon />} onClick={actions.create}>New Project…</MenuItem>;
+  if (!project) return <MenuItem icon={<NewProjectIcon />} onClick={actions.create}>New Project…</MenuItem>;
   const peers = projects.filter(other => (other.state === 'active') === (project.state === 'active'));
   const index = peers.indexOf(project);
   // Moving within the group swaps with the neighbour there; positions are in the computer's whole order.
@@ -102,12 +102,12 @@ export function ProjectsNavigation({ projects, query, onQueryChange, selected, a
     <div className="project-icons" role="group" aria-label="Projects">
       {all.filter(project => project.state === 'active').map(project => <NavigationItem key={project.folderId} icon={projectIcon(project)} selected={selected === project.folderId}
         data-project={project.folderId} title={projectTitle(project)} onClick={() => actions.open(project)}>{project.name}</NavigationItem>)}
-      <NavigationItem icon={<AddIcon />} onClick={actions.create}>New Project…</NavigationItem>
+      <NavigationItem icon={<NewProjectIcon />} onClick={actions.create}>New Project…</NavigationItem>
     </div>
   </ContextMenu>;
   return <div className="project-strip">
     <SearchField variant="quiet" className="project-search" label="Search projects" placeholder="Search projects" value={query} onValueChange={onQueryChange} />
-    <Tooltip content="New project" side="bottom"><IconButton variant="quiet" icon={<AddIcon />} aria-label="New project" onClick={actions.create} /></Tooltip>
+    <Tooltip content="New project" side="bottom"><IconButton variant="quiet" icon={<NewProjectIcon />} aria-label="New project" onClick={actions.create} /></Tooltip>
   </div>;
 }
 
