@@ -9,8 +9,8 @@ import type { Project, ProjectRepository, ProjectState } from './types';
 import { api } from './api';
 
 export interface ProjectActions {
-  /** Show a project's page; `pin` keeps its tab. */
-  open(project: Project, pin: boolean): void;
+  /** Show a project's page. */
+  open(project: Project): void;
   update(project: Project, change: { name?: string; state?: ProjectState; position?: number }): void;
   rename(project: Project): void;
   create(): void;
@@ -21,7 +21,7 @@ const stateLabels: Record<ProjectState, string> = { active: 'Active', hidden: 'H
 /** One project in the sidebar: it opens its page; its context menu is the list's. */
 function ProjectItem({ project, selected, actions }: { project: Project; selected: boolean; actions: ProjectActions }) {
   return <NavigationItem icon={project.state === 'archived' ? <ArchiveIcon /> : <FolderIcon />} selected={selected} data-project={project.folderId}
-    title={project.path} onClick={event => actions.open(project, event.ctrlKey || event.metaKey)} onDoubleClick={() => actions.open(project, true)}
+    title={project.path} onClick={() => actions.open(project)}
     trailing={project.state === 'active' ? undefined : <span className="project-state">{stateLabels[project.state]}</span>}>{project.name}</NavigationItem>;
 }
 
@@ -38,7 +38,7 @@ function ProjectMenu({ project, projects, actions }: { project: Project | null; 
   // Moving within the group swaps with the neighbour there; positions are in the computer's whole order.
   const move = (by: -1 | 1) => { const neighbour = peers[index + by]; if (neighbour) actions.update(project, { position: neighbour.position }); };
   return <>
-    <MenuItem onClick={() => actions.open(project, true)}>Open</MenuItem>
+    <MenuItem onClick={() => actions.open(project)}>Open</MenuItem>
     <MenuItem onClick={() => actions.rename(project)}>Rename…</MenuItem>
     <MenuSeparator />
     <MenuItem disabled={index <= 0} onClick={() => move(-1)}>Move Up</MenuItem>

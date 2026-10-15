@@ -65,7 +65,7 @@ async function start(t: TestContext, options: { data?: string; loopbackPort?: nu
   return { host, planning, data, port, origin };
 }
 /** A project of the host by its name. */
-async function projectNamed(connection: HostClient, name = 'planning'): Promise<Project> {
+async function projectNamed(connection: HostClient, name = 'Northwind'): Promise<Project> {
   const project = (await connection.request('projects.list', {})).find(entry => entry.name === name);
   assert.ok(project, 'no project ' + name);
   return project;
@@ -206,7 +206,7 @@ test('a device pairs once with a five-minute code, gets the whole computer, and 
   const snapshot = await device.connection.request('folder.snapshot', { folderId: folder.folderId });
   assert.equal(snapshot.work.length, 4);
   assert.equal(snapshot.root, planning);
-  assert.equal(snapshot.name, 'planning', 'the project\'s name');
+  assert.equal(snapshot.name, 'Northwind', 'the project\'s name, from its planning.json');
   // A folder that is not a project's is out of reach.
   await assert.rejects(device.connection.request('folders.subscribe', { folderId: 'f-' + 'a'.repeat(32) }), (error: HostRequestError) => error.code === 'not-found');
   // Its views count in this computer's document use.
@@ -278,7 +278,7 @@ test('projects are the home\'s planning folders: created from the templates, ren
   const { host, origin, data } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
   const device = await pairDevice(t, host, owner.connection);
-  assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['planning']);
+  assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Northwind']);
   // A device creates one: a Git repository in the home with the templates, its name and its repositories.
   const coord = await device.connection.request('projects.create', { name: 'Coord', repositories: [{ id: 'coord-web', name: 'Coord web', remote: 'git@github.com:example/coord-web.git' }, { id: 'platform', name: 'Platform', remote: null }] });
   assert.deepEqual([coord.name, coord.path, coord.position, coord.state], ['Coord', path.join(data, 'planning', 'coord'), 1, 'active']);
@@ -299,13 +299,13 @@ test('projects are the home\'s planning folders: created from the templates, ren
   await owner.connection.request('projects.update', { folderId: second.folderId, state: 'archived' });
   const planningProject = await projectNamed(owner.connection);
   await owner.connection.request('projects.update', { folderId: planningProject.folderId, state: 'hidden' });
-  assert.deepEqual((await device.connection.request('projects.list', {})).map(project => [project.name, project.position, project.state]), [['Coord platform', 0, 'active'], ['planning', 1, 'hidden'], ['Coord', 2, 'archived']]);
+  assert.deepEqual((await device.connection.request('projects.list', {})).map(project => [project.name, project.position, project.state]), [['Coord platform', 0, 'active'], ['Northwind', 1, 'hidden'], ['Coord', 2, 'archived']]);
   // A planning folder that appears in the home becomes the last project; one that leaves it is no longer listed.
   cpSync(fixture, path.join(data, 'planning', 'later'), { recursive: true });
   await until(() => owner.lists.some(list => list.some(project => project.path === path.join(data, 'planning', 'later'))), 5000, () => owner.lists);
-  assert.equal((await projectNamed(owner.connection, 'later')).position, 3);
+  assert.equal((await owner.connection.request('projects.list', {})).find(project => project.path === path.join(data, 'planning', 'later'))?.position, 3);
   rmSync(path.join(data, 'planning', 'coord-2'), { recursive: true, force: true, maxRetries: 10 });
-  assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Coord platform', 'planning', 'later']);
+  assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Coord platform', 'Northwind', 'Northwind']);
   await assert.rejects(owner.connection.request('projects.update', { folderId: 'f-' + 'a'.repeat(32), state: 'active' }), (error: HostRequestError) => error.code === 'not-found');
 });
 

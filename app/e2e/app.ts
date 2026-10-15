@@ -5,13 +5,15 @@
 // ATLAS_E2E_EXECUTABLE to drive another build, or ATLAS_E2E_UNPACKAGED=1 to run out/ with Electron.
 import { execFileSync, spawnSync, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
 
 const appDirectory = path.resolve(import.meta.dirname, '..');
 const fixture = path.join(import.meta.dirname, 'fixtures', 'planning');
+/** This checkout's atlas command, which adopts the fixture into a home as a user would. */
+const command = path.resolve(appDirectory, '..', 'packages', 'cli', 'bin', 'atlas.js');
 
 /** The AppImage or Windows installer built by `npm run package`, when present. */
 export function packagedInstaller(): string | null {
@@ -42,10 +44,11 @@ export function temporaryDirectory(prefix: string) {
   return realpathSync.native(mkdtempSync(path.join(tmpdir(), prefix)));
 }
 
-/** A fresh copy of the committed fixture planning folder, as its own Git repository. */
-export function planningFixture(): string {
+/** A fresh copy of the committed fixture planning folder, as its own Git repository; `name` names its project. */
+export function planningFixture(name?: string): string {
   const root = path.join(temporaryDirectory('atlas-e2e-'), 'planning');
   cpSync(fixture, root, { recursive: true });
+  if (name) writeFileSync(path.join(root, 'planning.json'), readFileSync(path.join(root, 'planning.json'), 'utf8').replace('"name": "Northwind"', JSON.stringify('name') + ': ' + JSON.stringify(name)));
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { stdio: 'ignore', windowsHide: true });
   try {
     git('init', '-q', '-b', 'main');
@@ -54,6 +57,22 @@ export function planningFixture(): string {
   } catch { /* Activity is empty without Git; other tests still run. */ }
   return root;
 }
+
+/**
+ * An Atlas home with the fixture as a project in its planning folder (`<home>/planning/<slug>`),
+ * moved there with `atlas home adopt`, which also imports its work statistics into the home's
+ * database. `name` renames the project in its planning.json first. More projects join with
+ * addProject. The home is removed with the launched app, or with removeDirectory.
+ */
+export function projectHome(options: { slug?: string; name?: string; dataDirectory?: string } = {}) {
+  const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
+  const slug = options.slug ?? 'northwind';
+  const source = planningFixture(options.name);
+  execFileSync(process.execPath, [command, 'home', 'adopt', source, '--name', slug], { env: environment(dataDirectory), stdio: 'ignore', windowsHide: true });
+  removeDirectory(path.dirname(source));
+  return { dataDirectory, folder: path.join(dataDirectory, 'planning', slug) };
+}
+export const addProject = (dataDirectory: string, slug: string, name: string) => projectHome({ dataDirectory, slug, name }).folder;
 
 export function removeDirectory(directory: string) {
   // Windows releases a closed app's files a moment after its processes end.
@@ -69,7 +88,7 @@ export function environment(dataDirectory: string) {
   return env;
 }
 
-/** Start the app again, as a user opening a folder while Atlas runs; returns its exit code. */
+/** Start the app again, as a user does while Atlas runs; returns its exit code. */
 export function secondInstance(dataDirectory: string, args: string[]): number | null {
   const unpackaged = process.env.ATLAS_E2E_UNPACKAGED === '1';
   const command = unpackaged ? electronBinary() : packagedExecutable();
@@ -83,11 +102,11 @@ function electronBinary(): string {
 
 export interface Launched { app: ElectronApplication; window: Page; dataDirectory: string; ownsData: boolean; process: ChildProcess }
 
-export async function launch(options: { folder?: string; dataDirectory?: string; args?: string[]; executable?: string } = {}): Promise<Launched> {
-  const ownsData = !options.dataDirectory;
+export async function launch(options: { dataDirectory?: string; args?: string[]; executable?: string; ownsData?: boolean } = {}): Promise<Launched> {
+  const ownsData = options.ownsData ?? !options.dataDirectory;
   const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
   const env = environment(dataDirectory);
-  const extra = [...(options.folder ? [options.folder] : []), ...(options.args ?? [])];
+  const extra = options.args ?? [];
   // Playwright adds --no-sandbox on Linux unless told to keep the sandbox; Atlas refuses to run without it.
   const common = { args: extra, env, chromiumSandbox: true };
   const app = options.executable ? await electron.launch({ ...common, executablePath: options.executable })
@@ -129,7 +148,36 @@ export async function close(launched: Launched | undefined) {
   if (!stopped) throw new Error('The app did not quit within 15 seconds of being asked to.');
 }
 
-/** Every window currently open, with the folder name it shows. */
+/** The sidebar's project of that name. */
+export const sidebarProject = (window: Page, name = 'Northwind') => window.getByRole('group', { name: 'Projects' }).getByRole('button', { name, exact: true });
+
+/** Open a project's page from the sidebar and wait for its work list. */
+export async function openProject(window: Page, name = 'Northwind') {
+  await sidebarProject(window, name).click();
+  await expect(window.locator('.project-page h1')).toHaveText(name);
+  await expect(window.locator('.work-row').first()).toBeVisible();
+}
+
+/**
+ * Launch the app on a home with the fixture project (or the home given), and open the project's page.
+ * The home is the launch's own unless given, and goes with it.
+ */
+export async function launchProject(options: { dataDirectory?: string; folder?: string; open?: boolean } = {}) {
+  const home = options.dataDirectory ? { dataDirectory: options.dataDirectory, folder: options.folder ?? path.join(options.dataDirectory, 'planning', 'northwind') } : projectHome();
+  const launched = await launch({ dataDirectory: home.dataDirectory, ownsData: !options.dataDirectory });
+  if (options.open !== false) await openProject(launched.window);
+  return { ...launched, folder: home.folder };
+}
+
+/** Show the file panel, with the files of the active tab's project. */
+export async function showFiles(window: Page) {
+  const panel = window.getByRole('region', { name: 'Files' });
+  if (!await panel.isVisible()) await window.getByRole('button', { name: 'Files', exact: true }).click();
+  await expect(panel.getByRole('tree')).toBeVisible();
+  return panel;
+}
+
+/** Every window currently open, with the computer it shows. */
 export async function windowTitles(app: ElectronApplication) {
   return app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(window => window.getTitle()));
 }

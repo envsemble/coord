@@ -267,7 +267,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const updateProject = useCallback((project: Project, change: { name?: string; state?: ProjectState; position?: number }) =>
     api.updateProject(project.folderId, change).then(updated => setProjects(current => current?.map(item => item.folderId === updated.folderId ? updated : item) ?? current)), []);
   const projectActions = useMemo<ProjectActions>(() => ({
-    open: (project, pin) => openPlace({ project: project.folderId, target: projectTarget() }, pin),
+    // A project's page opens as a kept tab: it is where its work starts.
+    open: project => openPlace({ project: project.folderId, target: projectTarget() }, true),
     update: (project, change) => { updateProject(project, change).then(() => api.projects().then(setProjects), error => notify((error as Error).message, 'danger')); },
     rename: project => setRenaming(project),
     create: () => setNewProject(true),
