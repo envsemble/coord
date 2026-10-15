@@ -38,9 +38,9 @@ Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for E
 
    `atlas setup` creates the Atlas home (`~/.atlas`), lets Claude Code and Codex sessions edit planning files in it from any checkout, and installs the Atlas plugin into each of them. Start a new agent session afterwards. If you copied earlier Atlas skills (`atlas-*`) into `~/.claude/skills` or `~/.codex/skills`, remove them: the plugin replaces them. The [command reference](docs/command.md) covers every command and the home.
 
-2. **Get a planning folder.** Ask your agent to set up planning for your repository; the `atlas` skill creates a planning folder in the home and registers the repository's Git remote, which is how every checkout and worktree of it finds the folder. `atlas home adopt <folder>` moves a planning folder you already have into the home.
+2. **Create a project.** A project is a planning folder in the home, covering one repository or several. Create one in the app with **File › New Project…**, or ask your agent to set up planning for your repository with the `atlas` skill. Either registers the repository's Git remote, which is how every checkout and worktree of it finds the project. `atlas home adopt <folder>` moves a planning folder you already have into the home.
 3. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from the clone with `npm run dev`.
-4. **Open the planning folder.** The planning folders in the home are listed on the welcome page; **File › Open Folder…** opens any other. Each folder gets its own window, and Atlas follows changes as the agent writes them.
+4. **Open your projects.** The sidebar lists the projects in the home; each opens as a page with its work, statistics and activity, and its plans, diagrams and files open in tabs beside those of the other projects. Atlas follows changes as the agent writes them.
 
 Plans, diagrams and statistics stay on your computer unless you turn on remote access. No model service or API key is needed.
 
@@ -48,15 +48,15 @@ Plans, diagrams and statistics stay on your computer unless you turn on remote a
 
 The [plugin](docs/agent-interface.md) gives an agent everything Atlas needs from it:
 
-- **At session start**, the planning folder for its checkout and the active work there.
-- **MCP tools** for planning state: find the planning folder, create, accept, start, block, close, archive and reopen work, and keep the ledger's steps. Plan bodies, glossaries, decisions and diagrams are files the agent edits directly.
+- **At session start**, the project for its checkout, its planning folder and the active work there.
+- **MCP tools** for planning state: find the project, create, accept, start, block, close, archive and reopen work, and keep the ledger's steps. Plan bodies, glossaries, decisions and diagrams are files the agent edits directly.
 - **Checks** of every planning file it edits, with the problems handed back to fix.
 - **Statistics** measured from its session whenever it stops: time, tokens, models and subagents, as planning or implementation.
 
-| Skill                                                     | Purpose                                                                                                                                                                                                    |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [atlas](plugin/skills/atlas/SKILL.md)                     | Plan with the agent: it recognizes work big enough to plan, asks before opening a work item, interviews you, and records the plan, glossary and decisions. It also sets up and organizes planning folders. |
-| [atlas-implement](plugin/skills/atlas-implement/SKILL.md) | Implement a selected plan in full, through review and CI, and close the work. It runs only when invoked by name.                                                                                           |
+| Skill                                                     | Purpose                                                                                                                                                                                                             |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [atlas](plugin/skills/atlas/SKILL.md)                     | Plan with the agent: it recognizes work big enough to plan, asks before opening a work item, interviews you, and records the plan, glossary and decisions. It also sets up projects and organizes planning folders. |
+| [atlas-implement](plugin/skills/atlas-implement/SKILL.md) | Implement a selected plan in full, through review and CI, and close the work. It runs only when invoked by name.                                                                                                    |
 
 The skills work in Codex and Claude Code and name no model or provider. A standalone skill for carrying existing PRs through review and CI, [babysit-pr](extras/babysit-pr/SKILL.md), is not part of the plugin: copy `extras/babysit-pr` into `~/.claude/skills` or `~/.codex/skills` to use it.
 
@@ -65,16 +65,16 @@ The skills work in Codex and Claude Code and name no model or provider. A standa
 1. **Plan.** When you design something or ask for something large, the agent asks whether to open a work item, then interviews you and records the plan, its glossary and its decisions as they settle. You accept the plan.
 2. **Implement.** With `/atlas-implement` (`$atlas-implement` in Codex), the agent starts the accepted plan with its steps, marks each `doing` and `done` as it goes, and delivers through pull requests with review and CI. It closes the work once every step is done.
 3. **Follow along.** Atlas shows every work item's progress and the steps left, its plan, ledger and decisions, recent commits, and the diagrams that explain it, updating as files change.
-4. **Learn from it.** The agent keeps the decisions and lessons worth reusing. The Statistics view shows each work item's agent time, tokens and subagents for planning and for implementation, and compares completed work by model over time, so you can see how a new model does on your work.
+4. **Learn from it.** The agent keeps the decisions and lessons worth reusing. A project's statistics show each work item's agent time, tokens and subagents for planning and for implementation, and compares completed work by model over time, so you can see how a new model does on your work.
 
 [Progress and statistics](docs/progress-and-statistics.md) explains the ledger's steps, what the hooks measure and how Atlas counts it.
 
 ## Share and connect
 
 - **Share a plan.** `atlas plan export <work-id>` (or **File › Export Plan…**) writes the whole work item to one `.atlas-plan.html` file: plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history. Anyone can open it in a browser to read the plan offline; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds it to another planning folder as new work. See [plan export](docs/plan-export.md).
-- **Work on another computer.** **File › Remote Access…** lets your other devices work on this computer's planning folders as if they were local: turn it on, choose the Tailscale address and create a pairing link.
+- **Work on another computer.** **File › Remote Access…** lets your other devices work on this computer's projects as if they were local: turn it on, choose the Tailscale address and create a pairing link.
   - On the other device, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes).
-  - The computer menu in the title bar then switches between computers, and **File › Open Recent** and **Open Folder…** open any planning folder there.
+  - The computer menu in the title bar then switches between computers, each with its projects.
   - `atlas serve` does the same without the app.
 
   See [remote access](docs/remote-access.md).

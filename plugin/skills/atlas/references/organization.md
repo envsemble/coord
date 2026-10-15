@@ -4,7 +4,7 @@ Use this workflow adaptively for bootstrap and subsequent maintenance. A usable 
 
 ## Establish scope and recovery
 
-Read the planning repo's governance and repository associations, then inspect its current Git state. Preserve existing history, remotes, and user changes. Git must contain a recoverable baseline of original knowledge before restructuring; initialization alone is insufficient. If setup is incomplete, [set it up](../SKILL.md#set-up-a-planning-folder) first. Review what a planning commit will include rather than blindly staging unrelated changes. A planning repository outside the Atlas home moves into it with `atlas home adopt <folder>` once its baseline is committed, so checkouts find it by their remotes.
+Read the planning repo's governance and repository associations, then inspect its current Git state. Preserve existing history, remotes, and user changes. Git must contain a recoverable baseline of original knowledge before restructuring; initialization alone is insufficient. If setup is incomplete, [set it up](../SKILL.md#set-up-a-project) first. Review what a planning commit will include rather than blindly staging unrelated changes. A planning repository outside the Atlas home moves into it with `atlas home adopt <folder>` once its baseline is committed, so checkouts find it by their remotes.
 
 For selected external records, copy or otherwise capture their retained contents in planning history before removing or moving their originals. A planning baseline cannot recover files that were outside planning. Keep a source/destination mapping sufficient to verify meaningful moves; an exhaustive permanent catalogue of disposable logs is unnecessary.
 
