@@ -253,6 +253,9 @@ body { margin: 0; }
 .stat { display: grid; gap: var(--space-1); }
 .stat-label, .stat-note { color: var(--color-text-muted); font-size: var(--font-size-body-small); }
 .stat-value { font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The work column keeps room for a title: a narrow window scrolls the table sideways rather than squeezing it to a letter a line. */
+.work-statistics-table :is(td, th):first-child { min-inline-size: 16rem; }
+.work-statistics-table td:first-child a { overflow-wrap: normal; }
 .work-cell, .model-cell { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
 .cell-note { display: block; color: var(--color-text-muted); }
 .count-cell { display: inline-flex; align-items: center; gap: var(--space-2); }
