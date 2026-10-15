@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
+import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
 import { parseOptions, UsageError, type Output } from './args.ts';
 import { check, home, planningUsage, where, work } from './planning.ts';
 import { capture, CaptureError } from './capture.ts';
@@ -247,7 +247,7 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'serve') return await serveCommand(args.slice(1), out);
     throw new UsageError(command === 'planning' || command === 'plan' || command === 'usage' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
-    if (error instanceof PlanExportError || error instanceof PlanningNotFoundError || error instanceof CaptureError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
+    if (error instanceof PlanExportError || error instanceof PlanningNotFoundError || error instanceof CaptureError || error instanceof DatabaseVersionError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
     if (error instanceof WorkError) {
       out.stderr('atlas: ' + printable(error.message));
       for (const problem of error.problems) out.stderr('  - ' + printable(problem));

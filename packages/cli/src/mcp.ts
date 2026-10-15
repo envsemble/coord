@@ -7,7 +7,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, PlanningNotFoundError, removeStep, renameStep, reopenWork,
+  acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork,
   resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
 } from '@envsemble/atlas-planning';
 import { parseOptions, UsageError, wantsHelp, type Output } from './args.ts';
@@ -113,7 +113,7 @@ export async function callTool(name: string, input: Arguments) {
     const value = await tool.run(root, { ...input, cwd: base });
     return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value as Record<string, unknown> };
   } catch (error) {
-    if (!(error instanceof WorkError || error instanceof PlanningNotFoundError)) throw error;
+    if (!(error instanceof WorkError || error instanceof PlanningNotFoundError || error instanceof DatabaseVersionError)) throw error;
     const problems = error instanceof WorkError ? error.problems : [];
     return { isError: true, content: [{ type: 'text', text: [error.message, ...problems.map(item => '- ' + item)].join('\n') }] };
   }
