@@ -4,7 +4,7 @@ import { Markdown } from '@envsemble/envui/content';
 import { DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from './types';
 import { api, fileUrl } from './api';
-import { resolveLink } from './links';
+import { resolveLink, siblingReference } from './links';
 import { sectionAnchors } from '@envsemble/atlas-planning/headings';
 import { findHeadingId, headingPrefix, rehypeHeadingIds } from './headings';
 import { diagramTarget, documentTarget, workTarget } from './targets';
@@ -67,7 +67,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: DiagramReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
 }) {
-  const { project, open, notify, remote } = useWorkbench();
+  const { project, open, notify, remote, sibling, openPath } = useWorkbench();
   const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [error, setError] = useState('');
@@ -143,6 +143,10 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
           if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
           open(route, { pin: event.ctrlKey || event.metaKey });
         }}>{children}</a>;
+        // A link into a sibling project of the same computer opens there.
+        const across = siblingReference(href, file.path);
+        const other = across && sibling(across.folder);
+        if (across && other) return <a id={id} href="#" onClick={event => { event.preventDefault(); openPath(other, across.path, across.anchor, { pin: event.ctrlKey || event.metaKey }); }}>{children}</a>;
         return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
       },
       img: ({ src = '', alt = '' }: { src?: unknown; alt?: string }) => {
@@ -150,7 +154,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
         return target.file ? <img src={fileUrl(project, target.file.path)} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
       },
     };
-  }, [diagramCards, showWork, hideTitle, snapshot, file.path, open, project]);
+  }, [diagramCards, showWork, hideTitle, snapshot, file.path, open, project, sibling, openPath]);
   const reveal = () => { api.reveal(project, file.path).catch(failure => notify(failure.message, 'warning')); };
   const revealButton = remote ? null : <Button variant="text" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>;
 

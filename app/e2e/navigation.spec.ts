@@ -1,7 +1,7 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { close, launchProject, projectHome, removeDirectory, showFiles, type Launched } from './app';
+import { addProject, close, launchProject, projectHome, removeDirectory, showFiles, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 const homes: string[] = [];
@@ -153,6 +153,25 @@ test('going back reopens a closed tab as a preview at its place, and fields and 
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-row')).toHaveCount(3);
   await expect(files.locator('[role="treeitem"][data-id="d:knowledge/shop"]')).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('a link into a sibling project in the home opens there; one to a folder no project has is unavailable', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  const coord = addProject(home.dataDirectory, 'coord', 'Coord');
+  const plan = path.join(coord, 'active/0001-saved-payment-methods/plan.md');
+  writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## Elsewhere\n\nSee [the fulfilment model](../../../northwind/active/0002-order-fulfilment-model/plan.md) and [nothing](../../../nowhere/README.md).\n');
+  launched = await launchProject({ ...home, open: false });
+  const { window } = launched;
+  await window.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'Coord', exact: true }).click();
+  await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await expect(window.locator('.prose .outside-reference', { hasText: 'nothing' })).toBeVisible();
+  await window.locator('.prose').getByRole('link', { name: 'the fulfilment model' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  // In a tab of that project: the file panel shows its files.
+  await expect(tabs(window)).toHaveCount(3);
+  await expect(await showFiles(window)).toContainText('Northwind');
 });
 
 test('a work row opens from anywhere on it, and its diagram count opens its first diagram', async () => {

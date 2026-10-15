@@ -12,7 +12,8 @@ import { limits, type ImportPreview, type MenuCommand } from '../shared/contract
 import type { FolderChange, Issue, Project, ProjectState, Snapshot, Target, UiState, WindowInfo } from './types';
 import { api, AtlasError } from './api';
 import { activateTab, closeAllTabs, closeTab, keyTabs, openTab, pinTab, restoreTabs, retarget as retargetTab } from './tabs';
-import { projectTarget, scrollKey, workTarget, type Place } from './targets';
+import { documentTarget, projectTarget, scrollKey, workTarget, type Place } from './targets';
+import { samePath, siblingProject } from './links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, shownPlace, showPlace, startHistory, step } from './history';
 import { workStatus } from './status';
 import { workNumber } from './format';
@@ -310,14 +311,27 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   }, [ui.tabs.items, history.entries, history.ids]);
 
   const projectOf = (folderId: string) => projects?.find(project => project.folderId === folderId);
+  /** Open a path of a project (read first when the window does not have it yet) as a tab of what it is. */
+  const openPath = useCallback(async (project: string, path: string, anchor: string | null, options: OpenOptions = {}) => {
+    try {
+      const snapshot = snapshots[project] ?? await api.snapshot(project);
+      const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
+      const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
+      const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : work ? workTarget(work.id, anchor) : null;
+      if (!target) { notify('This document is not in ' + (projectOf(project)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
+      openPlace({ project, target }, options.pin ?? false);
+    } catch (error) { notify((error as Error).message, 'warning'); }
+  }, [snapshots, projects, openPlace, notify]);
   /** What a tab's content works with, for its project. */
   const scope = useCallback((project: string, snapshot: Snapshot, revision: number): WorkbenchApi => ({
     project, projectName: projects?.find(item => item.folderId === project)?.name ?? snapshot.name, snapshot, revision,
     open: (target: Target, options: OpenOptions = {}) => openPlace({ project: options.project ?? project, target }, options.pin ?? false),
+    sibling: folder => siblingProject(projects ?? [], project, folder),
+    openPath: (other, path, anchor, options) => { void openPath(other, path, anchor, options); },
     retarget: (target: Target) => setTabs(tabs => tabs.active ? retargetTab(tabs, tabs.active, project, target) : openTab(tabs, project, target, true)),
     notify, remote: info.computer.hostId === null ? null : { hostId: info.computer.hostId, hostName: info.computer.name },
     inspectorWidth: ui.inspectorWidth ?? null, setInspectorWidth, exportPlan: work => { void exportWork(project, work); },
-  }), [projects, openPlace, setTabs, notify, info.computer, ui.inspectorWidth, setInspectorWidth, exportWork]);
+  }), [projects, openPlace, openPath, setTabs, notify, info.computer, ui.inspectorWidth, setInspectorWidth, exportWork]);
   const activeFolder = activeProject ? folders[activeProject] : undefined;
   const activeScope = useMemo(() => activeProject && activeFolder?.snapshot ? scope(activeProject, activeFolder.snapshot, activeFolder.change?.revision ?? 0) : null, [activeProject, activeFolder, scope]);
 

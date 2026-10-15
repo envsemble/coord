@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLink } from './links.ts';
+import { resolveLink, siblingProject, siblingReference } from './links.ts';
 import type { Document, Work } from './types.ts';
 import { documentTarget, tabId } from './targets.ts';
 
@@ -71,4 +71,16 @@ test('Unicode aliases navigate with connected semantics without merging distinct
   const composed = 'active/caf\u00e9/plan.md';
   assert.equal(resolveLink(composed, 'README.md', [retained], [], false, true).file, retained);
   assert.equal(resolveLink(composed, 'README.md', [retained], [], false, false).file, undefined);
+});
+
+test('a link into a sibling project in the home names that folder and the path in it', () => {
+  const plan = 'active/0020-agent-interface/plan.md';
+  assert.deepEqual(siblingReference('../../../atlas/active/0013-x/plan.md#why', plan), { folder: 'atlas', path: 'active/0013-x/plan.md', anchor: 'why' });
+  assert.deepEqual(siblingReference('../../../envui/README.md', plan), { folder: 'envui', path: 'README.md', anchor: null });
+  // Inside the project itself, above the home's planning folder, absolute or external: none.
+  for (const href of ['../0019-x/plan.md', '../../../../elsewhere/plan.md', '/etc/passwd', 'https://example.com/a', '../../../atlas', '../../../.git/config']) assert.equal(siblingReference(href, plan), null, href);
+  const projects = [{ folderId: 'f-1', path: 'C:\\Users\\me\\.atlas\\planning\\coord' }, { folderId: 'f-2', path: 'C:\\Users\\me\\.atlas\\planning\\Atlas' }, { folderId: 'f-3', path: 'D:\\old\\atlas' }];
+  assert.equal(siblingProject(projects, 'f-1', 'atlas'), 'f-2', 'Windows paths compare without case');
+  assert.equal(siblingProject(projects, 'f-1', 'envui'), null);
+  assert.equal(siblingProject([{ folderId: 'a', path: '/home/me/.atlas/planning/coord' }, { folderId: 'b', path: '/home/me/.atlas/planning/Atlas' }], 'a', 'atlas'), null, 'POSIX paths keep their case');
 });
