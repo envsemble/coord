@@ -3,16 +3,13 @@ const { test } = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { transformSync, buildSync } = require("esbuild");
+const { transformSync } = require("esbuild");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { createElement } = require("react");
-const { createEnrollmentModel } = require("../examples/enrollment/model.cjs");
-const { toViewerModel } = require("../lib/model/project.cjs");
 const { prepareViews } = require("../lib/layout/prepareViews.cjs");
 const { layoutDiagram } = require("../lib/layout/layoutDiagram.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 const { renderSVG } = require("../lib/layout/renderSVG.cjs");
-const { validateProject } = require("../lib/validation/validateProject.cjs");
 
 const context = vm.createContext({ module: { exports: {} } });
 new vm.Script(
@@ -25,30 +22,108 @@ new vm.Script(
   ).code,
 ).runInContext(context);
 const { focusedElements } = context.module.exports;
-function loadComponent(file) {
-  const code = buildSync({
-    entryPoints: [path.join(__dirname, "..", file)],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    packages: "external",
-    jsx: "automatic",
-    write: false,
-  }).outputFiles[0].text;
-  const compiled = { exports: {} };
-  new Function("require", "module", "exports", code)(
-    require,
-    compiled,
-    compiled.exports,
-  );
-  return compiled.exports;
-}
+const { loadComponents: loadComponent } = require("./load-components.cjs");
 const { GeneralizationSetDetails } = loadComponent(
   "src/viewer/DetailsContent.jsx",
 );
 const { indexViewerModel } = loadComponent("src/model/domainModel.js");
-async function scene(project, settings, fields = false) {
-  const model = toViewerModel(project);
+// Enrollment and its two generalization sets, as the viewer's model: the
+// layout joins inheritance that shares a supertype, labelled by its set.
+function createEnrollmentModel() {
+  const node = (id, name) => ({
+    id,
+    name,
+    stereotype: "class",
+    description: "",
+    evidence: [],
+    attributes: [],
+  });
+  const inherits = (id) => ({
+    id: `inherits-${id}`,
+    specificId: id,
+    generalId: "enrollment",
+    evidence: [],
+  });
+  const set = (id, name, members) => ({
+    id,
+    name,
+    complete: true,
+    disjoint: true,
+    generalizations: members.map((m) => `inherits-${m}`),
+    evidence: [],
+  });
+  const mediates = (id) => ({
+    id: `mediates-${id}`,
+    name: "mediates",
+    stereotype: "",
+    sourceId: "enrollment",
+    targetId: id,
+    sourceMultiplicity: "0..*",
+    targetMultiplicity: "1",
+    description: "",
+    evidence: [],
+  });
+  const model = {
+    id: "enrollment",
+    title: "Enrollment inheritance",
+    version: "",
+    date: "2026-10-07",
+    status: "",
+    repositories: [],
+    sources: [],
+    classes: [
+      node("enrollment", "Enrollment"),
+      node("person", "Person"),
+      node("institution", "Institution"),
+      node("active", "Active"),
+      node("suspended", "Suspended"),
+      node("undergraduate", "Undergraduate Enrollment"),
+      node("graduate", "Graduate Enrollment"),
+    ],
+    relations: [mediates("person"), mediates("institution")],
+    generalizations: ["active", "suspended", "undergraduate", "graduate"].map(
+      inherits,
+    ),
+    partitions: [
+      set("enrollment-state", "Enrollment state", ["active", "suspended"]),
+      set("degree-level", "Degree level", ["undergraduate", "graduate"]),
+    ],
+    constraints: [],
+    unknowns: [],
+    validation: { valid: true, issues: [], counts: { error: 0 } },
+  };
+  return {
+    model,
+    views: [
+      {
+        key: "inheritance",
+        label: "Enrollment",
+        title: "Enrollment generalization sets",
+        direction: "DOWN",
+        nodeIds: [
+          "active",
+          "suspended",
+          "enrollment",
+          "undergraduate",
+          "graduate",
+        ],
+        columns: [
+          ["active", "suspended"],
+          ["enrollment"],
+          ["undergraduate", "graduate"],
+        ],
+        focusIds: [
+          "active",
+          "suspended",
+          "enrollment",
+          "undergraduate",
+          "graduate",
+        ],
+      },
+    ],
+  };
+}
+async function scene(model, settings, fields = false) {
   const [view] = prepareViews(model, settings);
   const { diagram } = await layoutDiagram(
     view,
@@ -67,9 +142,8 @@ const pathEnd = (path) =>
     .slice(-2);
 
 test("set inspection provides model-specific learning and keeps anonymous joins semantically neutral", async () => {
-  const { project, views } = createEnrollmentModel();
+  const { model: project, views } = createEnrollmentModel();
   const { model, diagram } = await scene(project, views);
-  model.validation = validateProject(project);
   const index = indexViewerModel(model, diagram.generalizationGroups);
   const group = index.getElement({ kind: "group", id: "enrollment-state" });
   const html = renderToStaticMarkup(
@@ -91,7 +165,6 @@ test("set inspection provides model-specific learning and keeps anonymous joins 
     ),
   );
   assert(html.includes("cannot belong to two subtypes"));
-  assert(html.includes("Understand generalization sets"));
   const neutral = renderToStaticMarkup(
     createElement(GeneralizationSetDetails, {
       group: { ...group, type: "generalizationJoin" },
@@ -106,24 +179,16 @@ test("set inspection provides model-specific learning and keeps anonymous joins 
     ),
   );
 });
-test("geometry validation rejects disconnected trunks, and the model validator rejects repeated set members", async () => {
-  const { project, views } = createEnrollmentModel();
+test("geometry validation rejects disconnected trunks", async () => {
+  const { model: project, views } = createEnrollmentModel();
   const { model, diagram } = await scene(project, views);
   diagram.generalizationGroups[0].paths[0] =
     diagram.generalizationGroups[0].paths[0].replace(/^M[^ ]+/, "M999");
   assert.throws(() => validateDiagram(diagram, model), /disconnected/);
-  const set = project.elements.find((e) => e.id === "enrollment-state");
-  set.generalizations.push(set.generalizations[0]);
-  assert(
-    validateProject(project).issues.some(
-      (i) => i.code === "GENERALIZATION_SET_MEMBERS",
-    ),
-  );
 });
 
 test("the enrollment pattern joins both sides of a supertype with one arrow per named set", async () => {
-  const { project, views } = createEnrollmentModel();
-  assert.equal(validateProject(project).valid, true);
+  const { model: project, views } = createEnrollmentModel();
   for (const fields of [false, true]) {
     const { diagram } = await scene(project, views, fields);
     assert.equal(
@@ -165,10 +230,10 @@ test("the enrollment pattern joins both sides of a supertype with one arrow per 
 test("set labels preserve every independent completeness and disjointness combination", async () => {
   for (const complete of [false, true])
     for (const disjoint of [false, true]) {
-      const { project, views } = createEnrollmentModel();
-      const set = project.elements.find((e) => e.id === "degree-level");
-      set.isComplete = complete;
-      set.isDisjoint = disjoint;
+      const { model: project, views } = createEnrollmentModel();
+      const set = project.partitions.find((e) => e.id === "degree-level");
+      set.complete = complete;
+      set.disjoint = disjoint;
       const { diagram } = await scene(project, views);
       const group = diagram.generalizationGroups.find((g) => g.id === set.id);
       assert.equal(group.complete, complete);
@@ -181,7 +246,7 @@ test("set labels preserve every independent completeness and disjointness combin
     }
 });
 test("group focus reveals all members while an individual inheritance still isolates two ends", async () => {
-  const { project, views } = createEnrollmentModel();
+  const { model: project, views } = createEnrollmentModel();
   const { diagram } = await scene(project, views);
   const setFocus = focusedElements(diagram, {
     kind: "group",
@@ -214,7 +279,7 @@ test("group focus reveals all members while an individual inheritance still isol
   );
 });
 test("a partial view identifies omitted members without asserting the visible subset is complete", async () => {
-  const { project, views } = createEnrollmentModel();
+  const { model: project, views } = createEnrollmentModel();
   views[0].nodeIds = ["active", "enrollment"];
   views[0].columns = [["active"], ["enrollment"]];
   views[0].focusIds = views[0].nodeIds;
@@ -226,10 +291,10 @@ test("a partial view identifies omitted members without asserting the visible su
   assert.match(group.labels[0].text, /1\/2 shown/);
 });
 test("sets can share an inheritance without losing either membership or route identity", async () => {
-  const { project, views } = createEnrollmentModel();
-  const set = project.elements.find((e) => e.id === "degree-level");
+  const { model: project, views } = createEnrollmentModel();
+  const set = project.partitions.find((e) => e.id === "degree-level");
   set.generalizations = ["inherits-active", "inherits-graduate"];
-  set.isDisjoint = false;
+  set.disjoint = false;
   const { diagram } = await scene(project, views);
   const active = diagram.edges.find((e) => e.id === "inherits-active");
   assert.equal(active.paths.length, 2);
@@ -242,16 +307,8 @@ test("sets can share an inheritance without losing either membership or route id
   );
 });
 test("unannotated joins make no semantic claims, and a view can keep separate arrows", async () => {
-  const { project, views } = createEnrollmentModel();
-  project.elements = project.elements.filter(
-    (e) => e.type !== "GeneralizationSet",
-  );
-  project.elements.find((e) => e.id === "enrollment-package").contents =
-    project.elements
-      .find((e) => e.id === "enrollment-package")
-      .contents.filter(
-        (id) => !["enrollment-state", "degree-level"].includes(id),
-      );
+  const { model: project, views } = createEnrollmentModel();
+  project.partitions = [];
   const joined = await scene(project, views);
   assert.equal(joined.diagram.generalizationGroups.length, 1);
   assert.equal(

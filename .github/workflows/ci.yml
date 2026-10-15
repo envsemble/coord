@@ -1,10 +1,16 @@
 name: CI
+# Runs for main only while the account has no Actions minutes to spare: PRs into dev are
+# validated locally (see CONTRIBUTING). Run it by hand on any branch with workflow_dispatch.
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
+  # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
+  packages: read
 jobs:
   node:
     name: Node (${{ matrix.os }})
@@ -26,6 +32,8 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -52,17 +60,17 @@ jobs:
         if: runner.os != 'Linux'
         run: echo "::notice title=PostgreSQL fixture skipped::The PostgreSQL 17 capture test runs on Linux only; GitHub service containers are unavailable on ${{ runner.os }}."
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run format:check && npm run check:types
       # Workspace tests: diagrams, planning (reader and ported helpers), the atlas command and the app.
       - run: npm test
       - run: npm run build --workspace @envsemble/atlas-app
       - run: npm run check && npm run check:package && npm run check:performance
-      - run: npm run check:review
       # The plan export viewer bundles the diagram viewer built above, so it is rebuilt after it.
       - run: npm run build --workspace @envsemble/atlas-planning
       - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist packages/planning/dist
       - run: npm run check:release
-      - run: npm run review:example -- artifacts/review --git
       - run: npm run release:assemble -- artifacts/release
       - uses: actions/upload-artifact@v4
         if: always()
@@ -89,8 +97,12 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
       - run: npm ci
-      # Node skill tests (skills/tests/*.test.mjs); the skills need only Node and the atlas command.
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks need only Node.
       - run: npm run test:skills
   desktop:
     name: Desktop (${{ matrix.os }})
@@ -109,7 +121,11 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, which Chromium's
       # sandbox needs. Allow them (see the app README) rather than running without the sandbox.
       - name: Allow the Chromium sandbox

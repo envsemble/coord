@@ -4,21 +4,14 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { folderArguments } from './args.ts';
 import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, originOf } from './protocol.ts';
-import { folderKey, parseState, StateStore } from './state.ts';
-import { createCoalescer, ignoredPath, relevantChange, watchFolder } from './watcher.ts';
-import { exportFileName } from './planExportName.ts';
+import { HomeDatabase } from '@envsemble/atlas-planning';
+import { DesktopState } from './state.ts';
+import { target as tabTarget } from '../shared/validate.ts';
+import type { Target } from '../shared/contract.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'atlas-main-'));
-
-test('command lines yield folders, skipping the app path and switches', () => {
-  const cwd = path.resolve('/work');
-  assert.deepEqual(folderArguments(['Atlas.exe', '--inspect=0', 'planning'], cwd, false), [path.resolve(cwd, 'planning')]);
-  assert.deepEqual(folderArguments(['electron', '.', '--remote-debugging-port=0', '"/x/plan ning"'], cwd, true), [path.resolve(cwd, '/x/plan ning')]);
-  assert.deepEqual(folderArguments(['Atlas.exe'], cwd, false), []);
-});
 
 test('the renderer and planning protocol never resolve outside their folder', () => {
   const base = path.resolve('/app/renderer');
@@ -43,75 +36,60 @@ test('the log rotates and keeps a bounded number of files', () => {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('desktop state survives damage and keeps folders apart', () => {
-  assert.deepEqual(parseState(null), { version: 1, windows: [], folders: {} });
-  assert.deepEqual(parseState({ version: 2 }), { version: 1, windows: [], folders: {} });
-  const state = parseState({ version: 1, windows: ['C:/a', 5], folders: { x: { root: 'C:/a', used: '2026', ui: { bad: true } }, y: { root: 'C:/b', used: '2026', bounds: { x: 1, y: 2, width: 800, height: 600 } } } });
-  assert.deepEqual(state.windows, [], 'an unreadable window list is dropped');
-  assert.deepEqual(Object.values(state.folders).map(item => item.root), ['C:/b'], 'a damaged folder entry is skipped');
-  assert.equal(folderKey('C:/Work', 'win32'), folderKey('c:/work', 'win32'));
-  assert.notEqual(folderKey('/Work', 'linux'), folderKey('/work', 'linux'));
+test('windows, their tabs per computer and the shared settings are kept in the home database', () => {
   const directory = temporary();
+  const database = HomeDatabase.open(directory);
   try {
-    const file = path.join(directory, 'desktop-state.json');
-    const store = new StateStore(file);
-    store.updateFolder('/p', { maximized: true });
-    store.setWindows(['/p']);
-    store.flush();
-    const reread = new StateStore(file);
-    assert.deepEqual(reread.windows, ['/p']);
-    assert.equal(reread.folder('/p')?.maximized, true);
-    assert.deepEqual(reread.ui('/other').tabs.items, []);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
-});
-
-test('folders that are never watched (they would exhaust inotify watches on Linux)', () => {
-  for (const ignored of ['.git/objects', '.git/objects/ab', 'node_modules', 'active/x/node_modules/y', '__pycache__', 'active/0001/.atlas/prepared', 'active/0001/.atlas/results/x.json', 'active/0001/.atlas/exports', '.atlas-import.lock', '.atlas-import.lock.takeover', '.atlas-import-1b2c', '.\\node_modules', 'knowledge\\node_modules\\x']) assert.ok(ignoredPath(ignored), ignored);
-  for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'active/0001/.atlas/models', 'active/0001/.atlas/history/m-1', 'knowledge/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
-});
-
-test('the export file name matches the command line', () => {
-  assert.equal(exportFileName('active/0002-order-fulfilment-model', 'work-0002'), 'order-fulfilment-model-work-0002.atlas-plan.html');
-  assert.equal(exportFileName('archive/0004-', 'work-0004'), 'plan-work-0004.atlas-plan.html');
-});
-
-test('only changes that can alter the view count, and bursts coalesce', async () => {
-  assert.ok(relevantChange('active/0001/plan.md'));
-  assert.ok(relevantChange('active/0001/.atlas/models/m-1.json'));
-  assert.ok(relevantChange('.git/HEAD'));
-  assert.ok(relevantChange('.git/refs/heads/main'));
-  assert.ok(!relevantChange('.git/objects/ab/cdef'));
-  assert.ok(!relevantChange('.git/index'));
-  assert.ok(!relevantChange('.git/refs/heads/main.lock'));
-  assert.ok(!relevantChange('node_modules/x/index.js'));
-  assert.ok(!relevantChange('.atlas-import.lock'));
-  assert.ok(!relevantChange('.atlas-import-0f3a/plan.md'));
-  assert.ok(!relevantChange('active/0001/.atlas/prepared/x.json'));
-  const batches: string[][] = [];
-  const coalescer = createCoalescer(paths => batches.push(paths), 30, 200);
-  for (let index = 0; index < 20; index++) coalescer.add('file-' + (index % 3));
-  await new Promise(resolve => setTimeout(resolve, 80));
-  assert.deepEqual(batches, [['file-0', 'file-1', 'file-2']]);
-});
-
-test('the folder watcher sees atomic saves and its own folder disappearing', async () => {
-  const directory = temporary();
-  const root = path.join(directory, 'planning');
-  mkdirSync(path.join(root, 'active'), { recursive: true });
-  let changes = 0;
-  const watcher = watchFolder(root, { debounce: 50, maxWait: 300, presenceInterval: 100, onChange: () => { changes++; }, onError: () => undefined });
-  try {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    writeFileSync(path.join(root, 'active', 'plan.md.tmp'), '# Plan');
-    renameSync(path.join(root, 'active', 'plan.md.tmp'), path.join(root, 'active', 'plan.md'));
-    await waitFor(() => changes > 0);
-    const before = changes;
-    renameSync(root, root + '-moved');
-    await waitFor(() => changes > before);
-  } finally {
-    watcher.close();
-    rmSync(directory, { recursive: true, force: true });
-  }
+    const state = new DesktopState(database);
+    // The theme preference is kept for every window; the system's is the default and is not stored.
+    assert.equal(state.theme, 'system');
+    state.setTheme('dark');
+    assert.equal(new DesktopState(database).theme, 'dark');
+    state.setTheme('system');
+    assert.equal(database.setting('theme'), null);
+    assert.equal(state.sidebarVisible, true);
+    state.setSidebarVisible(false);
+    assert.equal(state.sidebarVisible, false);
+    assert.equal(state.inspectorWidth, null);
+    state.setInspectorWidth(480);
+    assert.equal(state.inspectorWidth, 480);
+    // A window on this computer with tabs of a local project, and tabs of a paired computer's project it showed before.
+    const local = database.addProject(path.join(directory, 'planning', 'shop'), 'Shop');
+    database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
+    const remote = database.addProject('/home/me/.atlas/planning/coord', 'Coord', 'c1');
+    const window = state.addWindow(null, { x: 10, y: 20, width: 900, height: 700 });
+    state.updateWindow(window, { maximized: true, sidebarWidth: 5000 });
+    assert.deepEqual(state.windows(), [{ id: window, connectionId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true, sidebarWidth: 640 }], 'the sidebar keeps within its limits');
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: local.id, kind: 'work', target: '{"work":"work-0001"}', active: true }], []);
+    state.saveTabs(window, 'c1', [{ projectId: remote.id, kind: 'project', target: null, active: true }], []);
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'file', target: '{"path":"README.md"}', active: true }], [local.id]);
+    assert.deepEqual(state.tabs(window, null).map(tab => [tab.kind, tab.target, tab.active]), [['file', '{"path":"README.md"}', true]], 'saving replaces the computer\'s tabs');
+    assert.deepEqual(state.tabs(window, 'c1').map(tab => tab.projectId), [remote.id], 'and keeps the other computer\'s');
+    // A computer that did not answer at the start (nothing loaded), or a project whose folder was not
+    // a planning folder then: saving keeps the tabs it could not show, after the others.
+    const missing = database.addProject(path.join(directory, 'planning', 'gone'), 'Gone');
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: missing.id, kind: 'file', target: '{"path":"a.md"}', active: true }], [local.id, missing.id]);
+    state.saveTabs(window, 'c1', [], []);
+    assert.deepEqual(state.tabs(window, 'c1').map(tab => tab.projectId), [remote.id], 'the offline computer keeps its tabs');
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'work', target: '{"work":"work-0002"}', active: true }], [local.id]);
+    assert.deepEqual(state.tabs(window, null).map(tab => [tab.projectId, tab.kind, tab.active]), [[local.id, 'work', true], [missing.id, 'file', false]], 'the missing folder keeps its tab, no longer active');
+    state.saveTabs(window, null, [], [local.id, missing.id]);
+    assert.deepEqual(state.tabs(window, null), [], 'once loaded, closing them removes them');
+    // A work item's tab showing its ledger loads back showing it, saved and read as the window does.
+    const { kind, ...rest } = { kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' } satisfies Target;
+    state.saveTabs(window, null, [{ projectId: local.id, kind, target: JSON.stringify(rest), active: true }], [local.id]);
+    assert.deepEqual(state.tabs(window, null).map(saved => tabTarget({ kind: saved.kind, ...saved.target && JSON.parse(saved.target) })), [{ kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' }]);
+    // Twenty tabs kept for a folder not listed, then forty of another project: a window holds forty,
+    // its own first, so its saves keep passing once the folder is listed again.
+    const tab = (projectId: number, index: number) => ({ projectId, kind: 'file' as const, target: `{"path":"${index}.md"}`, active: false });
+    state.saveTabs(window, null, Array.from({ length: 20 }, (_, index) => tab(missing.id, index)), [missing.id]);
+    state.saveTabs(window, null, Array.from({ length: 40 }, (_, index) => tab(local.id, index)), [local.id]);
+    assert.deepEqual(state.tabs(window, null).map(tab => tab.projectId), Array(40).fill(local.id));
+    database.db.prepare('INSERT INTO tab (window_id, project_id, position, kind, target, active) VALUES (?, ?, 99, \'project\', NULL, 0)').run(window, missing.id);
+    assert.equal(state.tabs(window, null).length, 40, 'a window never loads more than it can save');
+    state.removeWindow(window);
+    assert.deepEqual([state.windows(), state.tabs(window, null)], [[], []], 'a closed window goes with its tabs');
+  } finally { database.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
 async function waitFor(condition: () => boolean, timeout = 5000) {

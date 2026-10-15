@@ -1,27 +1,67 @@
 import { forwardRef, useMemo } from "react";
-import { Tabs } from "../ui/Tabs";
-import { IconButton, ToggleButton } from "../ui/Button";
+import { Text, ThemeToggle } from "@envsemble/envui";
+import { ToolButton } from "../ui/Button";
 import { CameraControls } from "../ui/CameraControls";
 import { ConceptSearch } from "../ui/ConceptSearch";
-import { ExportMenu } from "../ui/ExportMenu";
-import { DownloadLink } from "../ui/DownloadLink";
+import { ExportMenu, downloadData, downloadURL } from "../ui/ExportMenu";
 import { Island, IslandDivider } from "../ui/Island";
+import { ViewSwitcher } from "../ui/ViewSwitcher";
 import { AtlasMark } from "../ui/AtlasMark";
+import { ProvenanceLabel } from "./ProvenanceBadge";
+import { describeProvenance } from "./provenance";
 import {
-  BookIcon,
-  SunIcon,
-  MoonIcon,
-  QuestionIcon,
-  TableIcon,
-  FileMediaIcon,
-  FileCodeIcon,
-  DownloadIcon,
-  SidebarCollapseIcon,
-  SidebarExpandIcon,
+  AboutIcon,
+  ArchiveIcon,
+  CodeIcon,
+  FieldsIcon,
+  HideDetailsIcon,
+  ImageIcon,
+  LearnIcon,
+  ShowDetailsIcon,
 } from "../ui/Icons";
 
+/** The standalone viewer's downloads, for its export menu. */
+export function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
+  const sourceFile = `${exports.slug}.puml`;
+  return [
+    {
+      key: "svg-download",
+      label: "SVG image",
+      description: `This view${fields ? " with attributes" : ""}, ${theme} theme`,
+      icon: <ImageIcon />,
+      onSelect: () =>
+        diagramURL &&
+        downloadURL(
+          diagramURL,
+          `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
+        ),
+    },
+    {
+      key: "source-download",
+      label: "PlantUML",
+      description: "The diagram's source",
+      icon: <CodeIcon />,
+      onSelect: () => downloadData(exports.readText(sourceFile), sourceFile),
+    },
+    {
+      key: "bundle-download",
+      label: "Models ZIP",
+      description: "Every export, with evidence and validation",
+      icon: <ArchiveIcon />,
+      onSelect: () =>
+        downloadData(
+          exports.bundle,
+          `${exports.slug}-models.zip`,
+          "application/zip",
+        ),
+    },
+  ];
+}
+
 // The standalone viewer uses the same floating islands as the embedded panel,
-// with offline-only controls (theme, exports, about) in the tools island.
+// with offline-only controls (theme, exports, about) in the tools island. With
+// no model picker, its navigation island names the model and where it came
+// from (the detail, such as the capture date, as the badge's tooltip).
 export const ViewerToolbar = forwardRef(function ViewerToolbar(
   {
     model,
@@ -36,13 +76,14 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     sidebarOpen,
     learningOpen,
     aboutOpen,
-    comparisonControls,
-    reportControl,
+    reviewControls,
+    provenance,
+    guided = false,
     density = 0,
+    themeToggle = false,
     onSidebar,
     onView,
     onFields,
-    onTheme,
     onChoose,
     onAbout,
     onLearn,
@@ -52,138 +93,99 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
   },
   ref,
 ) {
-  const themeLabel =
-    theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
-  const sidebarLabel = sidebarHidden ? "Show details" : "Hide details";
-  const conceptual = !model.document || model.document.profile === "ontouml";
-  const modelFile = `${exports.slug}-${conceptual ? "ontouml" : "structural"}.json`;
   const searchClasses = useMemo(() => {
     const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
     return model.classes.filter((concept) => visibleIds.has(concept.id));
   }, [model.classes, views]);
+  const origin = describeProvenance(provenance);
   return (
     <header
       className={`atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
       ref={ref}
     >
       <Island label="Diagram navigation" className="island-start">
-        <span className="brand-mark" title={model.title}>
-          <AtlasMark />
+        <span className="brand-mark">
+          <AtlasMark label="" />
         </span>
-        <span className="island-title" title={model.title}>
+        <Text
+          as="span"
+          variant="section-heading"
+          className="island-title"
+          title={model.title}
+        >
           {model.title}
-        </span>
-        {(views.length > 1 || comparisonControls) && <IslandDivider />}
+        </Text>
+        {origin.kind !== "unknown" && (
+          <span
+            className="island-provenance"
+            title={origin.detail || undefined}
+          >
+            <ProvenanceLabel document={provenance} />
+          </span>
+        )}
+        {(views.length > 1 || reviewControls) && <IslandDivider />}
         {views.length > 1 && (
-          <Tabs
+          <ViewSwitcher
             items={views}
             value={viewKey}
             onChange={onView}
             compact={density > 0}
           />
         )}
-        {views.length > 1 && comparisonControls && <IslandDivider />}
-        {comparisonControls}
+        {views.length > 1 && reviewControls && <IslandDivider />}
+        {reviewControls}
       </Island>
       <Island label="Diagram tools" className="island-end">
         <ConceptSearch classes={searchClasses} onChoose={onChoose} />
-        <IslandDivider />
-        <ToggleButton
+        <ToolButton
           id="fields"
-          className="icon fields"
+          label="Fields"
+          tooltip={fields ? "Hide attributes" : "Show attributes"}
           pressed={fields}
-          aria-label="Fields"
-          title="Show attributes in the diagram"
+          icon={<FieldsIcon />}
           onClick={onFields}
-        >
-          <TableIcon size={16} />
-        </ToggleButton>
-        <CameraControls {...{ zoomStore, onZoom, onReset, onFit }} />
+        />
+        <CameraControls
+          {...{ zoomStore, onZoom, onReset, onFit }}
+          compact={density > 2}
+        />
         <IslandDivider />
-        {conceptual && (
-          <button
+        {guided && (
+          <ToolButton
             id="learn-toggle"
-            type="button"
-            className="icon learn-toggle"
-            aria-pressed={learningOpen && sidebarOpen}
+            label="Understand the model"
+            pressed={learningOpen && sidebarOpen}
+            icon={<LearnIcon />}
             onClick={onLearn}
-            aria-label={`Learn OntoUML; ${model.validation.counts.error} findings`}
-            title="Learn OntoUML"
-          >
-            <BookIcon size={16} />
-            {model.validation.counts.error > 0 && (
-              <span className="validation-count">
-                {model.validation.counts.error}
-              </span>
-            )}
-          </button>
+          />
         )}
-        {reportControl}
-        <IconButton
+        <ToolButton
           id="sidebar-toggle"
-          label={sidebarLabel}
+          label={sidebarHidden ? "Show details" : "Hide details"}
           aria-controls="inspector"
           aria-expanded={sidebarOpen}
+          icon={sidebarHidden ? <ShowDetailsIcon /> : <HideDetailsIcon />}
           onClick={onSidebar}
-        >
-          {sidebarHidden ? (
-            <SidebarExpandIcon size={16} />
-          ) : (
-            <SidebarCollapseIcon size={16} />
-          )}
-        </IconButton>
+        />
         <IslandDivider />
-        <IconButton id="theme-toggle" label={themeLabel} onClick={onTheme}>
-          {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
-        </IconButton>
-        <ExportMenu>
-          <a
-            id="svg-download"
-            href={diagramURL}
-            download={`${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`}
-          >
-            <FileMediaIcon size={16} />
-            SVG
-          </a>
-          <DownloadLink
-            id="puml-download"
-            className=""
-            data={exports.readText(`${exports.slug}-${viewKey}.puml`)}
-            filename={`${exports.slug}-${viewKey}.puml`}
-          >
-            <FileCodeIcon size={16} />
-            PlantUML
-          </DownloadLink>
-          <DownloadLink
-            id="model-download"
-            className=""
-            data={exports.readText(modelFile)}
-            filename={modelFile}
-            type="application/json"
-          >
-            <FileCodeIcon size={16} />
-            {conceptual ? "OntoUML JSON" : "Structural JSON"}
-          </DownloadLink>
-          <DownloadLink
-            id="bundle-download"
-            className=""
-            data={exports.bundle}
-            filename={`${exports.slug}-models.zip`}
-            type="application/zip"
-          >
-            <DownloadIcon size={16} />
-            Models ZIP
-          </DownloadLink>
-        </ExportMenu>
-        <IconButton
+        {themeToggle && <ThemeToggle id="theme-toggle" />}
+        <ExportMenu
+          items={exportChoices({
+            exports,
+            viewKey,
+            fields,
+            theme,
+            diagramURL,
+          })}
+        />
+        <ToolButton
           id="info"
           label="About and controls"
-          onClick={onAbout}
-          aria-controls="about-panel"
+          aria-haspopup="dialog"
           aria-expanded={aboutOpen}
-        >
-          <QuestionIcon size={16} />
-        </IconButton>
+          icon={<AboutIcon />}
+          onClick={onAbout}
+        />
       </Island>
     </header>
   );

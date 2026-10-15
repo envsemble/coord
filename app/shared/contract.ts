@@ -1,78 +1,135 @@
-// The typed contract between the renderer and the main process. Every message the window
-// can send is on `invokeChannels`; every message main can push is on `eventChannels`.
-// Only types and constants live here, so the preload, main and renderer can all import it.
-import type { DocumentContent, PlanningIndex, Usage } from '@envsemble/atlas-planning/types';
-import type { Provenance } from '@envsemble/atlas-planning/provenance';
+// The typed contract between the renderer and the main process. Every message the window can send
+// is on `invokeChannels`; every message main can push is on `eventChannels`. Only types and
+// constants live here, so the preload, main and renderer can all import it.
+// A window shows the projects of one computer: this one, or another one this app paired with. The
+// planning data is the Atlas host's (packages/host/src/contract.ts): main forwards the window's
+// requests about a project to the host of its computer, naming the project by its folder ID.
+import type {
+  AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
+  ProjectState, ProjectWork, Snapshot, ViewEventInput,
+} from '@envsemble/atlas-host/contract';
+import type { DocumentContent } from '@envsemble/atlas-planning/types';
+
+export type {
+  AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
+  ProjectState, ProjectWork, Snapshot, ViewEventInput,
+};
 
 export const invokeChannels = [
-  'window:info', 'window:recents',
-  'planning:snapshot', 'planning:document', 'planning:models', 'planning:model', 'planning:references', 'planning:diagrams',
+  'window:info',
+  'projects:list', 'projects:create', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
+  'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
-  'shell:reveal', 'shell:openExternal', 'app:command',
+  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
+  'computers:list', 'computers:switch',
+  'remote:pair', 'remote:forget',
+  'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
-export const eventChannels = ['planning:changed', 'menu:command'] as const;
+export const eventChannels = ['planning:changed', 'projects:changed', 'menu:command', 'access:changed'] as const;
 export type EventChannel = typeof eventChannels[number];
 
-/** Commands the renderer may ask main to run; each one acts on the calling window only. */
-export const appCommands = ['openFolder', 'openRecent', 'newWindow', 'locate', 'closeWindow', 'openLogs', 'about'] as const;
+/** Light, dark, or the operating system's choice: kept by main for every window and applied as Electron's native theme. */
+export const themePreferences = ['system', 'light', 'dark'] as const;
+export type ThemePreference = typeof themePreferences[number];
+
+/**
+ * Commands the renderer may ask main to run, from the title bar's menus among others; each one acts
+ * on the calling window only (New Window and Exit act on the app).
+ */
+export const appCommands = [
+  'newWindow', 'closeWindow', 'quit', 'openLogs',
+  'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
+  'zoomIn', 'zoomOut', 'resetZoom', 'toggleFullScreen', 'reload', 'toggleDevTools',
+] as const;
 export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, tabs, dialogs drawn in the window). */
-export const menuCommands = ['toggleSidebar', 'showExplorer', 'quickOpen', 'closeTab', 'openWorkList', 'openActivity', 'openStatistics', 'importPlan', 'exportPlan'] as const;
+export const menuCommands = [
+  'toggleSidebar', 'toggleFiles', 'quickOpen', 'closeTab', 'closeAllTabs', 'newProject', 'importPlan', 'exportPlan', 'connectRemote', 'remoteAccess',
+  'goBack', 'goForward', 'about',
+] as const;
 export type MenuCommand = typeof menuCommands[number];
 
-export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unavailable' | 'no-folder' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
+export type ErrorCode = 'invalid-argument' | 'not-found' | 'forbidden' | 'unauthorized' | 'unavailable' | 'folder-missing' | 'folder-invalid' | 'cancelled' | 'internal';
 export interface AtlasErrorValue { code: ErrorCode; message: string }
 /** Errors cross the process boundary as values, never as thrown Error objects. */
 export type Result<T> = { ok: true; value: T } | { ok: false; error: AtlasErrorValue };
 
+/** A computer whose projects a window can show: this one (hostId null) or one this app paired with. */
+export interface ComputerRef { hostId: string | null; name: string }
+export type ComputerStatus = 'online' | 'connecting' | 'offline' | 'revoked' | 'mismatch' | 'incompatible';
+/** A computer as the computer menu lists it. */
+export interface Computer extends ComputerRef {
+  status: ComputerStatus;
+  /** Why it is not online, when it is not. */
+  detail: string | null;
+  /** Whether this app may pair and revoke devices there (always on this computer). */
+  manageAccess: boolean;
+  /** Where it was reached, for a paired computer (shown to tell computers apart). */
+  origin: string | null;
+}
+
 export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
 export interface WindowInfo {
-  folder: { root: string; name: string } | null;
-  status: FolderStatus | null;
-  /** Set when the folder became unreadable; a ready window then shows its last good view. */
-  error: string | null;
-  notice: string | null;
-  revision: number;
+  /** The computer whose projects the window shows. */
+  computer: ComputerRef;
   version: string;
   platform: string;
+  /** Whether View offers Reload and the developer tools (unpackaged builds). */
+  devTools: boolean;
 }
-/** `notice`: the folder is readable but cannot be watched, so changes show with a delay. */
+/**
+ * A project's folder as a window follows it. `notice`: the folder is readable but cannot be watched,
+ * or its computer is not reachable right now. `revision` counts up with every change.
+ */
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
-export interface RecentFolder { path: string; name: string; parent: string; workItems: number | null; available: boolean }
+/** A change of one project's folder, named by its folder ID. */
+export interface ProjectChange extends FolderChange { project: string }
+/** The projects of a computer changed; the window lists them again. `moved`: a project moved under a new folder ID. */
+export interface ProjectsChange { hostId: string | null; moved?: { from: string; to: string } }
+/** Remote access changed on a computer this app manages access for. */
+export interface AccessChange { hostId: string | null; state: AccessState }
 
-export interface Snapshot extends PlanningIndex {
-  usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
-  /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
-  folders: string[];
-}
+/** A pairing link as the window shows it: with its QR code (an SVG image). */
+export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
-export interface ModelExplains { path: string | null; reference: string; section: string | null; title: string | null }
-export interface CatalogEntry {
-  handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  provenance: Provenance; explains: ModelExplains[];
-}
-export interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
-export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }
-export interface DiagramIndexEntry { workId: string; handle: string; title: string; provenance: Provenance }
-export interface ViewEventInput { id: string; path: string; session: string; contentHash: string | null }
-
-export type WorkSection = 'plan' | 'ledger' | 'diagrams';
-export type ViewName = 'work' | 'activity' | 'statistics';
+/**
+ * What a tab shows of its project: its page (the work list, statistics and activity), a work item's
+ * plan or, in its place, its ledger (`view`), one of its diagrams (by its path in the work folder, null for its first; `element` names an
+ * element of it), or a file.
+ */
 export type Target =
-  | { kind: 'view'; view: ViewName }
-  | { kind: 'work'; work: string; section?: WorkSection | null; diagram?: string | null; element?: string | null; anchor?: string | null }
+  | { kind: 'project' }
+  | { kind: 'work'; work: string; anchor?: string | null; view?: 'ledger' | null }
+  | { kind: 'diagram'; work: string; path: string | null; element?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
-export interface TabState { id: string; target: Target; preview: boolean }
+/** A tab: what it shows, of which project (by its folder ID). */
+export interface TabState { id: string; project: string; target: Target; preview: boolean }
+/** A window's layout: its sidebar and its tabs, and the width the reader gave a diagram's details (absent for the default). */
 export interface UiState {
-  sidebar: { visible: boolean; width: number; expanded: string[] };
+  sidebar: { visible: boolean; width: number };
   tabs: { items: TabState[]; active: string | null };
+  inspectorWidth?: number;
+  /** Loaded while the window's computer did not answer: tabs of projects not listed yet wait to be loaded again. */
+  pending?: boolean;
 }
-export const defaultUiState: UiState = { sidebar: { visible: true, width: 280, expanded: [] }, tabs: { items: [], active: null } };
-export const limits = { path: 2048, tabs: 40, expanded: 2000, sidebarMin: 170, sidebarMax: 640 } as const;
+export const defaultUiState: UiState = { sidebar: { visible: true, width: 280 }, tabs: { items: [], active: null } };
+export const limits = { path: 2048, tabs: 40, sidebarMin: 170, sidebarMax: 640, inspectorMin: 240, inspectorMax: 1200 } as const;
+
+/** What Help › About Atlas shows. */
+export interface AboutInfo {
+  version: string;
+  electron: string;
+  chromium: string;
+  node: string;
+  /** The operating system, its version and the processor architecture, such as Windows 10.0.26200 (x64). */
+  system: string;
+  /** The Atlas home. */
+  dataFolder: string;
+}
 
 export interface ExportResult { path: string; bytes: number; warnings: string[] }
 export interface ImportPreview {
@@ -93,31 +150,65 @@ export interface ImportPreview {
 }
 export interface ImportResult { workId: string; path: string; files: number; notes: string[] }
 
-export type { DocumentContent };
-
 /**
  * The bridge the preload script exposes to the renderer as `window.atlas`. Every method maps to
  * one channel and resolves to a Result; errors arrive as structured values, never as exceptions.
+ * A `project` is a project's folder ID on the window's computer; a `hostId` of null means this computer.
  */
 export interface AtlasBridge {
   info(): Promise<Result<WindowInfo>>;
-  recents(): Promise<Result<RecentFolder[]>>;
-  snapshot(): Promise<Result<Snapshot>>;
-  document(path: string): Promise<Result<DocumentContent>>;
-  models(work: string): Promise<Result<Catalog>>;
-  model(work: string, handle: string): Promise<Result<unknown>>;
-  references(work: string | null, path: string): Promise<Result<ModelReference[]>>;
-  diagrams(): Promise<Result<DiagramIndexEntry[]>>;
-  recordView(event: ViewEventInput): Promise<Result<void>>;
+  /** The projects of the window's computer, in their order. */
+  projects(): Promise<Result<Project[]>>;
+  /** A new project on the window's computer, from the bundled templates. */
+  createProject(name: string, repositories: ProjectRepository[]): Promise<Result<Project>>;
+  /** Rename a project, hide, archive or show it, or move it in the order. */
+  updateProject(project: string, change: { name?: string; state?: ProjectState; position?: number }): Promise<Result<Project>>;
+  /** Move a project outside the computer's Atlas home into it; it comes back under its new folder ID. */
+  adoptProject(project: string): Promise<Result<Project>>;
+  /** Start following a project's folder; its state now, and changes as planning:changed. */
+  openProject(project: string): Promise<Result<FolderChange>>;
+  /** Stop following a project's folder (no tab shows it, and quick open is closed). */
+  closeProject(project: string): Promise<Result<void>>;
+  snapshot(project: string): Promise<Result<Snapshot>>;
+  document(project: string, path: string): Promise<Result<DocumentContent>>;
+  /** A work item's diagram files. */
+  diagrams(project: string, work: string): Promise<Result<DiagramEntry[]>>;
+  /** A diagram's viewer payload, by its path in the work folder, with its family's. */
+  diagram(project: string, work: string, path: string): Promise<Result<unknown>>;
+  /** The diagrams a document links to. */
+  references(project: string, work: string | null, path: string): Promise<Result<DiagramReference[]>>;
+  /** Every diagram of a project, for quick open. */
+  diagramIndex(project: string): Promise<Result<DiagramIndexEntry[]>>;
+  recordView(project: string, event: ViewEventInput): Promise<Result<void>>;
   loadUi(): Promise<Result<UiState>>;
   saveUi(state: UiState): Promise<Result<void>>;
-  reveal(path: string): Promise<Result<void>>;
+  reveal(project: string, path: string): Promise<Result<void>>;
   openExternal(url: string): Promise<Result<void>>;
-  command(command: AppCommand, argument?: string): Promise<Result<void>>;
-  exportPlan(work: string): Promise<Result<ExportResult | null>>;
-  chooseImport(): Promise<Result<ImportPreview | null>>;
+  copy(text: string): Promise<Result<void>>;
+  command(command: AppCommand): Promise<Result<void>>;
+  /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
+  theme(): Promise<Result<ThemePreference>>;
+  setTheme(preference: ThemePreference): Promise<Result<void>>;
+  /** The versions and the Atlas home Help › About Atlas shows. */
+  about(): Promise<Result<AboutInfo>>;
+  exportPlan(project: string, work: string): Promise<Result<ExportResult | null>>;
+  chooseImport(project: string): Promise<Result<ImportPreview | null>>;
   confirmImport(token: string): Promise<Result<ImportResult>>;
   cancelImport(token: string): Promise<Result<void>>;
-  onChanged(listener: (change: FolderChange) => void): () => void;
+  /** This computer and the computers this app paired with, each checked for whether it answers. */
+  computers(): Promise<Result<Computer[]>>;
+  /** Show another computer's projects, in this window or a new one. */
+  switchComputer(hostId: string | null, newWindow: boolean): Promise<Result<void>>;
+  pairRemote(link: string, code: string | null): Promise<Result<Computer>>;
+  forgetRemote(hostId: string): Promise<Result<void>>;
+  accessState(hostId: string | null): Promise<Result<AccessState>>;
+  updateAccess(settings: AccessSettings): Promise<Result<AccessState>>;
+  createPairing(hostId: string | null, address: string | null, grant: PairingGrant): Promise<Result<PairingLinkView>>;
+  revokePairing(hostId: string | null, code: string): Promise<Result<void>>;
+  devices(hostId: string | null): Promise<Result<PairedDevice[]>>;
+  revokeDevice(hostId: string | null, deviceId: string): Promise<Result<void>>;
+  onChanged(listener: (change: ProjectChange) => void): () => void;
+  onProjectsChanged(listener: (change: ProjectsChange) => void): () => void;
   onMenu(listener: (command: MenuCommand) => void): () => void;
+  onAccessChanged(listener: (change: AccessChange) => void): () => void;
 }

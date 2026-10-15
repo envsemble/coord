@@ -1,17 +1,18 @@
 import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { UMLNode } from "./UMLNode";
+import { CHANGE_COLORS, UMLNode, isChanged } from "./UMLNode";
 import { UMLRelation, UMLRelationLabels } from "./UMLRelation";
 import { focusedElements, interactionIndex } from "./interaction";
 import { UMLGeneralizationGroup } from "./UMLGeneralizationGroup";
 import { createHighlightController } from "./highlight";
 
 const markerStates = ["", "-active", "-primary"];
+const changeStates = Object.keys(CHANGE_COLORS).map((change) => `-${change}`);
 const markerColor = (state, normal) =>
   state === "-primary"
     ? "var(--diagram-selection,#9a6700)"
     : state === "-active"
       ? "var(--accent,#0969da)"
-      : normal;
+      : CHANGE_COLORS[state.slice(1)] || normal;
 
 // A domain-independent renderer. The input is ordinary graph/geometry data;
 // this component has no knowledge of R5, model evidence, or application panels.
@@ -23,6 +24,14 @@ export const UMLDiagram = memo(function UMLDiagram({
   backgroundURL,
 }) {
   const markerId = `inheritance-${useId().replaceAll(":", "")}`;
+  // Changed relations draw their arrowheads in their change colour.
+  const states = useMemo(
+    () =>
+      diagram.edges.some((edge) => isChanged(edge.changeStatus))
+        ? [...markerStates, ...changeStates]
+        : markerStates,
+    [diagram],
+  );
   const svgRef = useRef(null);
   const highlight = useRef(null);
   const latestHandlers = useRef(handlers);
@@ -99,7 +108,7 @@ export const UMLDiagram = memo(function UMLDiagram({
         }}
       >
         <defs>
-          {markerStates.map((state) => (
+          {states.map((state) => (
             <marker
               key={`dependency${state}`}
               id={`${markerId}-DEPENDENCY${state}`}
@@ -119,7 +128,7 @@ export const UMLDiagram = memo(function UMLDiagram({
             </marker>
           ))}
           {["SHARED", "COMPOSITE"].flatMap((aggregation) =>
-            markerStates.map((state) => (
+            states.map((state) => (
               <marker
                 key={`${aggregation}${state}`}
                 id={`${markerId}-${aggregation}${state}`}
@@ -143,7 +152,7 @@ export const UMLDiagram = memo(function UMLDiagram({
               </marker>
             )),
           )}
-          {markerStates.map((state) => (
+          {states.map((state) => (
             <marker
               key={state}
               id={`${markerId}${state}`}
@@ -202,7 +211,7 @@ export const UMLDiagram = memo(function UMLDiagram({
         </g>
       </svg>
     );
-  }, [diagram, initial, stableHandlers, markerId, interactive, bitmap]);
+  }, [diagram, initial, stableHandlers, markerId, interactive, bitmap, states]);
   const overlay = useMemo(() => {
     if (!interactive || !focus) return null;
     const index = interactionIndex(diagram);

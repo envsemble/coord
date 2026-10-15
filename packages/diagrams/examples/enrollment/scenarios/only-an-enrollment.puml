@@ -1,0 +1,9 @@
+@startuml
+title An enrollment of no kind
+' atlas scenario ../enrollment.puml expected invalid
+object "ada : Person" as ada
+object "mit : Institution" as mit
+object "e1 : Enrollment" as e1
+e1 -- ada : learner
+e1 -- mit : school
+@enduml

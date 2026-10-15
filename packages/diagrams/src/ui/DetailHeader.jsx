@@ -1,35 +1,59 @@
-import { FileCodeIcon } from "./Icons";
+import { Badge, Text } from "@envsemble/envui";
+import { ChangeBadge } from "../review/ChangeMark";
+import { ConceptIcon } from "./Icons";
+
+// Evidence status is worth a badge only when it qualifies what is shown:
+// observed is the norm for captures, and a new element is not yet observed.
+const STATUSES = {
+  inferred: {
+    label: "Inferred",
+    tone: "neutral",
+    title: "Interpreted from the evidence rather than observed in the source",
+  },
+  unresolved: {
+    label: "Unresolved",
+    tone: "warning",
+    title: "The evidence leaves this open",
+  },
+};
 
 export function DetailHeader({
   title,
+  owner,
   tag,
   status,
+  change,
   description,
-  stereotype,
-  icon: Icon = FileCodeIcon,
+  icon: Icon = ConceptIcon,
 }) {
+  const evidence = change !== "added" && STATUSES[status];
   return (
-    <div className="detail-header">
-      <h1>
-        <Icon size={20} />
-        <span>{title}</span>
-      </h1>
-      <div className="detail-tags">
-        <span className="tag stereotype-tag" data-stereotype={stereotype}>
-          {tag}
+    <header className="detail-header">
+      <div className="detail-title">
+        <span className="detail-icon" aria-hidden="true">
+          <Icon />
         </span>
-        {status && (
-          <span className="tag evidence-status" data-status={status}>
-            {status}
-          </span>
-        )}
+        <Text as="h1" variant="page-heading">
+          {owner && <span className="detail-owner">{owner}.</span>}
+          {title}
+        </Text>
       </div>
-      {description && (
-        <details className="detail-description">
-          <summary>Description</summary>
-          <p>{description}</p>
-        </details>
+      {(tag || change || evidence) && (
+        <div className="detail-tags">
+          {tag && <Badge variant="outline">{tag}</Badge>}
+          <ChangeBadge status={change} />
+          {evidence && (
+            <Badge tone={evidence.tone} title={evidence.title}>
+              {evidence.label}
+            </Badge>
+          )}
+        </div>
       )}
-    </div>
+      {description && (
+        <Text tone="muted" className="detail-description">
+          {description}
+        </Text>
+      )}
+    </header>
   );
 }

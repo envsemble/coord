@@ -1,8 +1,45 @@
-// GitHub Octicons (MIT), re-exported under the names the dashboard uses.
-export {
-  AlertIcon, ArrowLeftIcon, BlockedIcon, BookIcon, CheckCircleIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon,
-  CircleSlashIcon, CodeIcon, DatabaseIcon, DownloadIcon, FileDirectoryFillIcon, FileDirectoryIcon, FileIcon,
-  FoldIcon, GitCommitIcon, GitPullRequestIcon, GraphIcon, InfoIcon, IssueClosedIcon, IssueDraftIcon, IssueOpenedIcon,
-  LinkExternalIcon, PencilIcon, PulseIcon, QuestionIcon, RepoIcon, ScreenFullIcon, ScreenNormalIcon, SearchIcon,
-  SkipIcon, SyncIcon, TableIcon, UnfoldIcon, WorkflowIcon, XIcon, FileDirectoryOpenFillIcon, ProjectIcon, TriangleDownIcon, TasklistIcon,
-} from '@primer/octicons-react';
+// envUI's Material Symbols (Apache-2.0), under the names the app uses. Each import is one icon module.
+export { AccountTree as DiagramIcon } from '@envsemble/envui/icons/AccountTree';
+export { Add as AddIcon } from '@envsemble/envui/icons/Add';
+export { ArrowUpward as ArrowUpIcon } from '@envsemble/envui/icons/ArrowUpward';
+export { BarChart as StatisticsIcon } from '@envsemble/envui/icons/BarChart';
+export { Block as BlockedIcon } from '@envsemble/envui/icons/Block';
+export { Check as CheckIcon } from '@envsemble/envui/icons/Check';
+export { CheckCircle as CompleteIcon } from '@envsemble/envui/icons/CheckCircle';
+export { Checklist as PlanIcon } from '@envsemble/envui/icons/Checklist';
+export { ChevronRight as ChevronRightIcon } from '@envsemble/envui/icons/ChevronRight';
+export { Circle as DotIcon } from '@envsemble/envui/icons/Circle';
+export { Close as CloseIcon } from '@envsemble/envui/icons/Close';
+export { Commit as CommitIcon } from '@envsemble/envui/icons/Commit';
+export { Computer as ComputerIcon } from '@envsemble/envui/icons/Computer';
+export { ContentCopy as CopyIcon } from '@envsemble/envui/icons/ContentCopy';
+export { Description as FileIcon } from '@envsemble/envui/icons/Description';
+export { DoNotDisturbOn as AbandonedIcon } from '@envsemble/envui/icons/DoNotDisturbOn';
+export { Dns as ServerIcon } from '@envsemble/envui/icons/Dns';
+export { Download as DownloadIcon } from '@envsemble/envui/icons/Download';
+export { EditNote as DraftIcon } from '@envsemble/envui/icons/EditNote';
+export { EditSquare as NewProjectIcon } from '@envsemble/envui/icons/EditSquare';
+export { Error as ErrorIcon } from '@envsemble/envui/icons/Error';
+export { Folder as FolderIcon } from '@envsemble/envui/icons/Folder';
+export { FolderOpen as FolderOpenIcon } from '@envsemble/envui/icons/FolderOpen';
+export { Fullscreen as FullscreenIcon } from '@envsemble/envui/icons/Fullscreen';
+export { Help as UnknownIcon } from '@envsemble/envui/icons/Help';
+export { History as ActivityIcon } from '@envsemble/envui/icons/History';
+export { Home as HomeIcon } from '@envsemble/envui/icons/Home';
+export { Info as InfoIcon } from '@envsemble/envui/icons/Info';
+export { Inventory2 as ArchiveIcon } from '@envsemble/envui/icons/Inventory2';
+export { MenuBook as LedgerIcon } from '@envsemble/envui/icons/MenuBook';
+export { MoreHoriz as MoreIcon } from '@envsemble/envui/icons/MoreHoriz';
+export { OpenInNew as NewWindowIcon } from '@envsemble/envui/icons/OpenInNew';
+export { Pending as InProgressIcon } from '@envsemble/envui/icons/Pending';
+export { RadioButtonUnchecked as OpenIcon } from '@envsemble/envui/icons/RadioButtonUnchecked';
+export { Search as SearchIcon } from '@envsemble/envui/icons/Search';
+export { SkipNext as SupersededIcon } from '@envsemble/envui/icons/SkipNext';
+export { TaskAlt as WorkIcon } from '@envsemble/envui/icons/TaskAlt';
+export { UnfoldLess as CollapseAllIcon } from '@envsemble/envui/icons/UnfoldLess';
+export { Upload as UploadIcon } from '@envsemble/envui/icons/Upload';
+export { Unarchive as RestoreIcon } from '@envsemble/envui/icons/Unarchive';
+export { Visibility as ShowIcon } from '@envsemble/envui/icons/Visibility';
+export { VisibilityOff as HideIcon } from '@envsemble/envui/icons/VisibilityOff';
+export { Warning as WarningIcon } from '@envsemble/envui/icons/Warning';
+export { Devices as DevicesIcon } from '@envsemble/envui/icons/Devices';

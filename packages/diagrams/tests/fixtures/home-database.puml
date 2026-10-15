@@ -1,0 +1,161 @@
+@startuml
+title Atlas home database (proposal)
+package "Projects and layout" {
+  ' atlas description A planning folder shown as a project in the sidebar, with its order and state.
+  entity project {
+    *id : integer <<PK>>
+    --
+    connection_id : text <<FK>>
+    *name : text
+    *folder : text
+    *position : integer
+    *state : text
+    *created_at : text
+  }
+  ' atlas description A tab of a window, showing something of one project.
+  entity tab {
+    *id : integer <<PK>>
+    --
+    *window_id : integer <<FK>>
+    *project_id : integer <<FK>>
+    *position : integer
+    *kind : text
+    target : text
+    *active : boolean
+  }
+  ' atlas description An app window, with its bounds and the computer it shows.
+  entity window {
+    *id : integer <<PK>>
+    --
+    connection_id : text <<FK>>
+    *x : integer
+    *y : integer
+    *width : integer
+    *height : integer
+    *maximized : boolean
+    *sidebar_width : integer
+  }
+  ' atlas description One Atlas setting, by key.
+  entity setting {
+    *key : text <<PK>>
+    --
+    *value : text
+  }
+}
+package "Remote access" {
+  ' atlas description A computer this app is paired with, and the token it uses there.
+  entity connection {
+    *id : text <<PK>>
+    --
+    *host_id : text
+    *name : text
+    *origin : text
+    *device_id : text
+    *token : blob
+    *paired_at : text
+  }
+  ' atlas description A device paired with this computer's host.
+  entity device {
+    *id : text <<PK>>
+    --
+    *name : text
+    *secret_hash : text
+    *paired_at : text
+    last_seen_at : text
+  }
+}
+package "Agent sessions" {
+  ' atlas description An agent session the hooks have seen.
+  entity session {
+    *id : text <<PK>>
+    --
+    *harness : text
+    transcript_path : text
+    *started_at : text
+    *updated_at : text
+  }
+  ' atlas description Links a session to the work item it works on, and whether it amends the plan.
+  entity session_work {
+    *id : integer <<PK>>
+    --
+    *session_id : text <<FK>>
+    *project_id : integer <<FK>>
+    *work_id : text
+    *linked_at : text
+    *amending : boolean
+    amended_at : text
+  }
+}
+package "Statistics" {
+  ' atlas description An agent read or an app view of a planning document.
+  entity document_use {
+    *id : text <<PK>>
+    --
+    *project_id : integer <<FK>>
+    *source : text
+    *path : text
+    *document_key : text
+    work_id : text
+    session : text
+    *at : text
+    revision : text
+    content_hash : text
+  }
+  ' atlas description A stretch of time when statistics could not be collected.
+  entity collection_gap {
+    *id : integer <<PK>>
+    --
+    *project_id : integer <<FK>>
+    *at : text
+    *reason : text
+  }
+  ' atlas description Time and tokens reported for a work item.
+  entity work_report {
+    *id : integer <<PK>>
+    --
+    *project_id : integer <<FK>>
+    *work_id : text
+    *at : text
+    stage : text
+    step : text
+    model : text
+    session : text
+    tokens : integer
+    measured_since : text
+    agent_ms : integer
+  }
+  ' atlas description A work report's time and tokens for one model.
+  entity report_model {
+    *id : integer <<PK>>
+    --
+    *report_id : integer <<FK>>
+    *model : text
+    *agent_ms : integer
+    *input : integer
+    *cache_read : integer
+    *cache_write : integer
+    *output : integer
+  }
+  ' atlas description A subagent counted in a work report.
+  entity report_subagent {
+    *id : integer <<PK>>
+    --
+    *report_id : integer <<FK>>
+    *agent : text
+    model : text
+    *agent_ms : integer
+    *tokens : integer
+  }
+}
+connection |o--o{ project : connection_id
+project ||--o{ tab : project_id
+window ||--o{ tab : window_id
+connection |o--o{ window : connection_id
+project ||--o{ session_work : project_id
+session ||--o{ session_work : session_id
+project ||--o{ document_use : project_id
+project ||--o{ collection_gap : project_id
+project ||--o{ work_report : project_id
+work_report ||--o{ report_model : report_id
+work_report ||--o{ report_subagent : report_id
+@enduml

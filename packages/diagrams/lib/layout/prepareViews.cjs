@@ -1,3 +1,8 @@
+// A model without views shows every class but its datatypes and enumerations.
+const defaultNodeIds = (model) =>
+  model.classes
+    .filter((c) => !["datatype", "enumeration"].includes(c.stereotype))
+    .map((c) => c.id);
 // Views contain presentation preferences only. Model IDs, never display names,
 // identify their members, so two projects may each contain a class called User.
 function prepareViews(model, settings) {
@@ -10,10 +15,7 @@ function prepareViews(model, settings) {
           key: "model",
           label: "Model",
           title: model.title,
-          nodeIds: [...byId.keys()].filter(
-            (id) =>
-              !["datatype", "enumeration"].includes(byId.get(id).stereotype),
-          ),
+          nodeIds: defaultNodeIds(model),
         },
       ];
   if (new Set(input.map((v) => v.key)).size !== input.length)
@@ -113,4 +115,4 @@ function prepareViews(model, settings) {
     };
   });
 }
-module.exports = { prepareViews };
+module.exports = { prepareViews, defaultNodeIds };

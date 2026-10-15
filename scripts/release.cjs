@@ -6,7 +6,16 @@ const { createHash } = require("node:crypto");
 const { zipSync, unzipSync } = require("fflate");
 const hash = (data) => createHash("sha256").update(data).digest("hex");
 // Committed folders and root files copied into the release as source.
-const SOURCE_FOLDERS = ["app", "packages", "skills", "assets", "docs"];
+const SOURCE_FOLDERS = [
+  "app",
+  "packages",
+  "plugin",
+  "extras",
+  ".claude-plugin",
+  ".agents",
+  "assets",
+  "docs",
+];
 const SOURCE_FILES = [
   "README.md",
   "CHANGELOG.md",
@@ -137,7 +146,7 @@ ${status}`,
       process.execPath,
       [
         "-e",
-        "const {createEnrollmentDocument}=require('./examples/enrollment/learning.cjs'); require('./lib/index.cjs').buildViewer({document:createEnrollmentDocument(),slug:'enrollment'}).then(b=>process.stdout.write(b.html)).catch(e=>{console.error(e);process.exitCode=1});",
+        "require('./scripts/build.cjs').buildExample('enrollment').then(b=>process.stdout.write(b.html)).catch(e=>{console.error(e);process.exitCode=1});",
       ],
       {
         cwd: diagramsRoot,
@@ -148,7 +157,7 @@ ${status}`,
     );
     files.set("enrollment.html", html);
     files.set(
-      "r5.html",
+      "shop.html",
       fs.readFileSync(path.join(diagramsRoot, "index.html")),
     );
     for (const [name, data] of Object.entries(tracked)) {

@@ -4,8 +4,57 @@ const { buildSync } = require("esbuild");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { highlightSnippets } = require("../lib/build/highlightSnippets.cjs");
-const sources = require("../examples/r5/source-evidence.json");
-const excerpts = require("../examples/r5/source-snippets.json");
+// A pinned TypeScript declaration and a table's SQL, as captures cite them.
+const COMMIT = "c49e0d2123bc3ddb53419005ddd7c6ef73925faf";
+const sources = [
+  {
+    id: "source:Checkout",
+    repo: "example/shop",
+    commit: COMMIT,
+    file: "src/checkout.ts",
+    title: "Checkout declaration",
+    claim: "",
+    line: 10,
+    url: `https://github.com/example/shop/blob/${COMMIT}/src/checkout.ts#L10`,
+  },
+  {
+    id: "source:orders",
+    repo: "example/shop",
+    commit: COMMIT,
+    file: "main.orders",
+    title: "orders catalog",
+    claim: "",
+    url: `https://github.com/example/shop/blob/${COMMIT}/schema.sql#L1`,
+  },
+];
+const excerpts = {
+  "source:Checkout": {
+    repo: "example/shop",
+    commit: COMMIT,
+    file: "src/checkout.ts",
+    startLine: 10,
+    language: "typescript",
+    code: [
+      "export class Checkout {",
+      "  lines: Line[] = [];",
+      "  pay(card: string): Promise<string> {",
+      "    return this.gateway.charge(card);",
+      "  }",
+      "}",
+    ].join("\n"),
+  },
+  "source:orders": {
+    repo: "example/shop",
+    commit: COMMIT,
+    file: "main.orders",
+    startLine: 1,
+    language: "sql",
+    code: [
+      "CREATE TABLE orders (id INTEGER PRIMARY KEY, total NUMERIC(10,2));",
+      "CREATE INDEX orders_total ON orders(total);",
+    ].join("\n"),
+  },
+};
 
 test("Shiki previews preserve pinned source text, exact line ranges, and both GitHub themes", async () => {
   const highlighted = await highlightSnippets(sources, excerpts);
@@ -27,8 +76,8 @@ test("Shiki previews preserve pinned source text, exact line ranges, and both Gi
     assert.match(snippet.url, new RegExp(`${source.commit}/`));
   }
   await assert.rejects(
-    highlightSnippets([sources[1]], {
-      R1: { ...excerpts.R1, commit: "outdated" },
+    highlightSnippets([sources[0]], {
+      "source:Checkout": { ...excerpts["source:Checkout"], commit: "outdated" },
     }),
     /Stale or missing/,
   );

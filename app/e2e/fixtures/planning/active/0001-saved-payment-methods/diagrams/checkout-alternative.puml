@@ -1,0 +1,253 @@
+@startuml
+title Checkout · alternative: methods on the customer
+' atlas proposal checkout-capture.puml
+
+' atlas evidence {"file":"src/cart/Cart.ts","line":10,"endLine":29,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":10,"code":"export class Cart {\n  readonly lines: CartLine[] = [];\n\n  constructor(\n    readonly id: string,\n    readonly customerId: string | null,\n  ) {}\n\n  add(line: CartLine): void {\n    const existing = this.lines.find((l) => l.sku === line.sku);\n    if (existing) existing.quantity += line.quantity;\n    else this.lines.push({ ...line });"}
+class Cart {
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":11}
+  lines : CartLine[]
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":14}
+  id : string
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":15}
+  customerId : string | null
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":13}
+  constructor(id : string, customerId : string | null)
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":18}
+  add(line : CartLine) : void
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":24}
+  subtotal() : Money
+}
+
+' atlas evidence {"file":"src/cart/Cart.ts","line":4,"endLine":8,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":4,"code":"export interface CartLine {\n  sku: Sku;\n  quantity: number;\n  unitPrice: Money;\n}"}
+interface CartLine {
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":5}
+  sku : string
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":6}
+  quantity : number
+  ' atlas evidence {"file":"src/cart/Cart.ts","line":7}
+  unitPrice : Money
+}
+
+' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":17,"endLine":50,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":17,"code":"export class CheckoutService {\n  constructor(\n    private readonly payments: PaymentGateway,\n    private readonly inventory: InventoryService,\n    private readonly orders: OrderRepository,\n  ) {}\n\n  async placeOrder(cart: Cart, customer: Customer, shipTo: Address, card: CardSession): Promise<Order> {\n    if (cart.lines.length === 0) throw new CheckoutError(\"Cart is empty\");\n    const total = cart.subtotal();\n    const order: Order = {\n      id: `ord_${cart.id}`,"}
+class CheckoutService {
+  ' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":19}
+  -payments : PaymentGateway
+  ' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":20}
+  -inventory : InventoryService
+  ' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":21}
+  -orders : OrderRepository
+  ' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":18}
+  constructor(payments : PaymentGateway, inventory : InventoryService, orders : OrderRepository)
+  ' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":24}
+  placeOrder(cart : Cart, customer : Customer, shipTo : Address, card : CardSession) : Promise<Order>
+  placeOrderWithSavedMethod(cart : Cart, customer : Customer, shipTo : Address, methodId : string) : Promise<Order>
+}
+
+' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":8,"endLine":10,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":8,"code":"export interface OrderRepository {\n  save(order: Order): Promise<void>;\n}"}
+interface OrderRepository {
+  ' atlas evidence {"file":"src/checkout/CheckoutService.ts","line":9}
+  save(order : Order) : Promise<void>
+}
+
+' atlas evidence {"file":"src/customers/Customer.ts","line":3,"endLine":9,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":3,"code":"export interface Address {\n  line1: string;\n  line2?: string;\n  city: string;\n  postalCode: string;\n  country: CountryCode;\n}"}
+interface Address {
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":4}
+  line1 : string
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":5}
+  line2 : string | undefined [0..1]
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":6}
+  city : string
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":7}
+  postalCode : string
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":8}
+  country : string
+}
+
+' atlas evidence {"file":"src/customers/Customer.ts","line":11,"endLine":18,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":11,"code":"export interface Customer {\n  readonly id: string;\n  email: string;\n  name: string;\n  shippingAddresses: Address[];\n  billingAddress?: Address;\n  createdAt: Date;\n}"}
+interface Customer {
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":12}
+  id : string
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":13}
+  email : string
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":14}
+  name : string
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":15}
+  shippingAddresses : Address[]
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":16}
+  billingAddress : Address | undefined [0..1]
+  ' atlas evidence {"file":"src/customers/Customer.ts","line":17}
+  createdAt : Date
+  savedPaymentMethods : SavedPaymentMethod[]
+  defaultPaymentMethodId : string | undefined [0..1]
+}
+
+' atlas evidence {"file":"src/inventory/InventoryService.ts","line":10,"endLine":15,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":10,"code":"export interface InventoryService {\n  /** Holds stock for every line or none; throws InsufficientStockError on the first shortfall. */\n  reserve(orderId: string, lines: OrderLine[], holdMinutes: number): Promise<StockReservation[]>;\n  commit(orderId: string): Promise<void>;\n  release(orderId: string): Promise<void>;\n}"}
+interface InventoryService {
+  ' atlas evidence {"file":"src/inventory/InventoryService.ts","line":12}
+  reserve(orderId : string, lines : OrderLine[], holdMinutes : number) : Promise<StockReservation[]>
+  ' atlas evidence {"file":"src/inventory/InventoryService.ts","line":13}
+  commit(orderId : string) : Promise<void>
+  ' atlas evidence {"file":"src/inventory/InventoryService.ts","line":14}
+  release(orderId : string) : Promise<void>
+}
+
+' atlas evidence {"file":"src/orders/Order.ts","line":12,"endLine":20,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":12,"code":"export interface Order {\n  readonly id: string;\n  readonly customerId: string;\n  readonly lines: OrderLine[];\n  readonly total: Money;\n  shippingAddress: Address;\n  status: OrderStatus;\n  placedAt: Date;\n}"}
+interface Order {
+  ' atlas evidence {"file":"src/orders/Order.ts","line":13}
+  id : string
+  ' atlas evidence {"file":"src/orders/Order.ts","line":14}
+  customerId : string
+  ' atlas evidence {"file":"src/orders/Order.ts","line":15}
+  lines : OrderLine[]
+  ' atlas evidence {"file":"src/orders/Order.ts","line":16}
+  total : Money
+  ' atlas evidence {"file":"src/orders/Order.ts","line":17}
+  shippingAddress : Address
+  ' atlas evidence {"file":"src/orders/Order.ts","line":18}
+  status : OrderStatus
+  ' atlas evidence {"file":"src/orders/Order.ts","line":19}
+  placedAt : Date
+}
+
+' atlas evidence {"file":"src/orders/OrderLine.ts","line":4,"endLine":9,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":4,"code":"export interface OrderLine {\n  readonly sku: Sku;\n  readonly quantity: number;\n  readonly unitPrice: Money;\n  readonly lineTotal: Money;\n}"}
+interface OrderLine {
+  ' atlas evidence {"file":"src/orders/OrderLine.ts","line":5}
+  sku : string
+  ' atlas evidence {"file":"src/orders/OrderLine.ts","line":6}
+  quantity : number
+  ' atlas evidence {"file":"src/orders/OrderLine.ts","line":7}
+  unitPrice : Money
+  ' atlas evidence {"file":"src/orders/OrderLine.ts","line":8}
+  lineTotal : Money
+}
+
+' atlas evidence {"file":"src/payments/AcquirerGateway.ts","line":9,"endLine":33,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":9,"code":"export class AcquirerGateway implements PaymentGateway {\n  constructor(private readonly client: AcquirerClient) {}\n\n  async authorise(orderId: string, amount: Money, card: CardSession): Promise<Payment> {\n    const response = await this.client.post(\"/authorisations\", { orderId, amount, session: card.sessionId });\n    return {\n      id: response.id,\n      orderId,\n      amount,\n      status: response.result === \"approved\" ? PaymentStatus.Authorised : PaymentStatus.Declined,\n      acquirerReference: response.reference,\n      createdAt: new Date(),"}
+class AcquirerGateway {
+  ' atlas evidence {"file":"src/payments/AcquirerGateway.ts","line":10}
+  -client : AcquirerClient
+  ' atlas evidence {"file":"src/payments/AcquirerGateway.ts","line":10}
+  constructor(client : AcquirerClient)
+  ' atlas evidence {"file":"src/payments/AcquirerGateway.ts","line":12}
+  authorise(orderId : string, amount : Money, card : CardSession) : Promise<Payment>
+  ' atlas evidence {"file":"src/payments/AcquirerGateway.ts","line":24}
+  capture(payment : Payment) : Promise<Payment>
+  ' atlas evidence {"file":"src/payments/AcquirerGateway.ts","line":29}
+  refund(payment : Payment, amount : Money) : Promise<Payment>
+  tokenise(card : CardSession) : Promise<PaymentToken>
+  authoriseWithToken(orderId : string, amount : Money, token : PaymentToken) : Promise<Payment>
+}
+
+' atlas evidence {"file":"src/payments/Payment.ts","line":10,"endLine":18,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":10,"code":"export interface Payment {\n  readonly id: string;\n  readonly orderId: string;\n  readonly amount: Money;\n  status: PaymentStatus;\n  /** Reference returned by the acquirer; never a card number. */\n  acquirerReference: string;\n  createdAt: Date;\n}"}
+interface Payment {
+  ' atlas evidence {"file":"src/payments/Payment.ts","line":11}
+  id : string
+  ' atlas evidence {"file":"src/payments/Payment.ts","line":12}
+  orderId : string
+  ' atlas evidence {"file":"src/payments/Payment.ts","line":13}
+  amount : Money
+  ' atlas evidence {"file":"src/payments/Payment.ts","line":14}
+  status : PaymentStatus
+  ' atlas evidence {"file":"src/payments/Payment.ts","line":16}
+  acquirerReference : string
+  ' atlas evidence {"file":"src/payments/Payment.ts","line":17}
+  createdAt : Date
+}
+
+' atlas evidence {"file":"src/payments/Payment.ts","line":3,"endLine":8,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":3,"code":"export enum PaymentStatus {\n  Authorised = \"authorised\",\n  Captured = \"captured\",\n  Declined = \"declined\",\n  Refunded = \"refunded\",\n}"}
+enum PaymentStatus {
+  Authorised
+  Captured
+  Declined
+  Refunded
+}
+
+' atlas evidence {"file":"src/payments/PaymentGateway.ts","line":5,"endLine":8,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":5,"code":"export interface CardSession {\n  readonly sessionId: string;\n  readonly expiresAt: Date;\n}"}
+interface CardSession {
+  ' atlas evidence {"file":"src/payments/PaymentGateway.ts","line":6}
+  sessionId : string
+  ' atlas evidence {"file":"src/payments/PaymentGateway.ts","line":7}
+  expiresAt : Date
+}
+
+' atlas evidence {"file":"src/payments/PaymentGateway.ts","line":10,"endLine":14,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":10,"code":"export interface PaymentGateway {\n  authorise(orderId: string, amount: Money, card: CardSession): Promise<Payment>;\n  capture(payment: Payment): Promise<Payment>;\n  refund(payment: Payment, amount: Money): Promise<Payment>;\n}"}
+interface PaymentGateway {
+  ' atlas evidence {"file":"src/payments/PaymentGateway.ts","line":11}
+  authorise(orderId : string, amount : Money, card : CardSession) : Promise<Payment>
+  ' atlas evidence {"file":"src/payments/PaymentGateway.ts","line":12}
+  capture(payment : Payment) : Promise<Payment>
+  ' atlas evidence {"file":"src/payments/PaymentGateway.ts","line":13}
+  refund(payment : Payment, amount : Money) : Promise<Payment>
+  tokenise(card : CardSession) : Promise<PaymentToken>
+  authoriseWithToken(orderId : string, amount : Money, token : PaymentToken) : Promise<Payment>
+}
+
+' atlas evidence {"file":"src/shared/Money.ts","line":8,"endLine":11,"repo":"shop","commit":"ed76f7322ea1787512a570d5cf936138aa85f7cb"}
+' atlas snippet {"language":"typescript","startLine":8,"code":"export interface Money {\n  readonly amountMinor: number;\n  readonly currency: Currency;\n}"}
+interface Money {
+  ' atlas evidence {"file":"src/shared/Money.ts","line":9}
+  amountMinor : number
+  ' atlas evidence {"file":"src/shared/Money.ts","line":10}
+  currency : Currency
+}
+
+interface PaymentToken {
+  provider : string
+  value : string
+  fingerprint : string
+}
+
+interface SavedPaymentMethod {
+  id : string
+  token : PaymentToken
+  brand : string
+  last4 : string
+  expiryMonth : number
+  expiryYear : number
+}
+
+Cart ..> CartLine
+Cart ..> Money
+CartLine ..> Money
+CheckoutService ..> Cart
+CheckoutService ..> OrderRepository
+CheckoutService ..> Address
+CheckoutService ..> Customer
+CheckoutService ..> InventoryService
+CheckoutService ..> Order
+CheckoutService ..> CardSession
+CheckoutService ..> PaymentGateway
+OrderRepository ..> Order
+Customer ..> Address
+InventoryService ..> OrderLine
+Order ..> Address
+Order ..> OrderLine
+Order ..> Money
+OrderLine ..> Money
+AcquirerGateway ..> Payment
+AcquirerGateway ..> CardSession
+AcquirerGateway ..> Money
+Payment ..> PaymentStatus
+Payment ..> Money
+PaymentGateway ..> Payment
+PaymentGateway ..> CardSession
+PaymentGateway ..> Money
+SavedPaymentMethod ..> PaymentToken
+Customer ..> SavedPaymentMethod
+PaymentGateway ..> PaymentToken
+AcquirerGateway ..> PaymentToken
+AcquirerGateway ..|> PaymentGateway
+@enduml

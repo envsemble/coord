@@ -30,7 +30,7 @@ function createPayloadCache(build) {
 }
 function modelPlugin({ root, buildPayload } = {}) {
   root ||= path.resolve(__dirname, "..");
-  const modelDirectories = ["examples/r5", "lib", "schemas"].map((dir) =>
+  const modelDirectories = ["examples", "lib", "scripts"].map((dir) =>
     path.join(root, dir),
   );
   const renderingDirectory = path.join(root, "src/visualization");
@@ -49,30 +49,14 @@ function modelPlugin({ root, buildPayload } = {}) {
     buildPayload ||
       (async () => {
         // Reload only project-owned CommonJS modules. Registry dependencies remain
-        // cached, while generators, evidence, schemas and SVG components stay fresh.
+        // cached, while the example diagrams and the layout stay fresh.
         for (const file of Object.keys(require.cache))
           if (modelDirectories.some((dir) => inside(file, dir)))
             delete require.cache[file];
-        const { createProject } = require(
-          path.join(root, "examples/r5/create-project.cjs"),
+        const { prepareExample } = require(
+          path.join(root, "scripts/build.cjs"),
         );
-        const { createEvidence, createViews } = require(
-          path.join(root, "examples/r5/metadata.cjs"),
-        );
-        const snippets = require(
-          path.join(root, "examples/r5/source-snippets.json"),
-        );
-        const { prepareViewer } = require(path.join(root, "lib/index.cjs"));
-        const project = createProject();
-        return (
-          await prepareViewer({
-            project,
-            evidence: createEvidence(project),
-            views: createViews(project),
-            snippets,
-            slug: "r5",
-          })
-        ).payload;
+        return (await prepareExample("shop", false)).prepared.payload;
       }),
   );
   let server,
@@ -88,7 +72,7 @@ function modelPlugin({ root, buildPayload } = {}) {
       server.ws.send({ type: "update", updates: [] });
       server.ws.send({
         type: "custom",
-        event: "ontouml:model-update",
+        event: "atlas:model-update",
         data: payload,
       });
     } catch (error) {

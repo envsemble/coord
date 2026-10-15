@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/atlas-planning",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Internal Atlas planning-folder reader shared by the atlas command and the app",
   "repository": {
@@ -15,7 +15,9 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./atlas": "./src/atlas.ts",
+    "./diagrams": "./src/diagrams.ts",
+    "./headings": "./src/headings.ts",
+    "./ledger": "./src/ledger.ts",
     "./session": "./src/session.ts",
     "./paths": "./src/paths.ts",
     "./provenance": "./src/provenance.ts",
@@ -23,26 +25,32 @@
   },
   "scripts": {
     "build": "node scripts/build-viewer.mjs",
-    "test": "node --test \"src/*.test.ts\"",
+    "test": "node --import ../../scripts/test-home.mjs --test \"src/*.test.ts\"",
     "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p viewer/tsconfig.json"
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",
+    "github-slugger": "2.0.0",
+    "mdast-util-from-markdown": "2.1.0",
+    "mdast-util-gfm": "3.1.0",
+    "micromark-extension-gfm": "3.0.0",
     "parse5": "8.0.1",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@primer/octicons-react": "19.40.0",
-    "@primer/primitives": "^11.10.0",
+    "@envsemble/envui": "0.6.0",
+    "@shikijs/langs": "4.5.0",
+    "@shikijs/themes": "4.5.0",
+    "@types/mdast": "4.0.4",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "esbuild": "0.28.2",
-    "github-slugger": "2.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "shiki": "4.5.0",
     "typescript": "7.0.2"
   }
 }

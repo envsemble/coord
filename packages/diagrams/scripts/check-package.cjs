@@ -26,6 +26,28 @@ try {
     packed.files.some((file) => file.path === "dist/react.mjs"),
     "Missing compiled React entry point",
   );
+  // The envUI peer is the copy this workspace builds against (a linked local
+  // checkout while envUI changes alongside, or the installed release), packed
+  // beside the package, so the check needs no private registry access.
+  const envUI = path.dirname(
+    require.resolve("@envsemble/envui/package.json", { paths: [root] }),
+  );
+  const envUIResult = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [npm, "pack", "--json", "--ignore-scripts", "--pack-destination", stage],
+      {
+        cwd: envUI,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        // envUI lists thousands of icon modules.
+        maxBuffer: 256 * 1024 * 1024,
+      },
+    ),
+  );
+  const envUIPacked = Array.isArray(envUIResult)
+    ? envUIResult[0]
+    : Object.values(envUIResult)[0];
   // Without its own package.json, npm would install into the nearest ancestor
   // project (for example a stray ~/node_modules) instead of the clean stage.
   fs.writeFileSync(
@@ -41,6 +63,7 @@ try {
       "--no-audit",
       "--no-fund",
       path.join(stage, packed.filename),
+      path.join(stage, envUIPacked.filename),
     ],
     { cwd: stage, stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -48,26 +71,26 @@ try {
     const assert = require('node:assert/strict');
     const path = require('node:path');
     assert(require.resolve('@envsemble/atlas-diagrams').startsWith(path.join(process.cwd(), 'node_modules') + path.sep), 'Resolved an installation outside the clean stage');
-    const {Project,validateModel,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@envsemble/atlas-diagrams');
-    const p=new Project(); p.name.add('Installed package test');
-    const root=p.packageBuilder().root().name('Orders').build();
-    root.classBuilder().kind().name('Order').build();
-    const project=JSON.parse(JSON.stringify(p));
-    assert(validateModel(project).valid);
+    const {checkDiagram,prepareDiagrams,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@envsemble/atlas-diagrams');
+    const file={path:'orders.puml',text:['@startuml','title Installed package test','class Order','@enduml',''].join(String.fromCharCode(10))};
+    assert.deepEqual(checkDiagram(file.text),[]);
     (async()=>{
       const fs=require('node:fs');
       fs.writeFileSync('tsconfig.json',JSON.stringify({files:['consumer.ts'],compilerOptions:{target:'ES2022',skipLibCheck:true}}));
       fs.writeFileSync('consumer.ts','export class Consumer { value!: string; }');
       const ts=await captureTypeScript({identity:'consumer',projects:[{identity:'ts',path:process.cwd()}]});
-      assert.equal(ts.model.nodes[0].name,'Consumer');
+      assert.match(ts,/^class Consumer \{$/m);
+      assert.deepEqual(checkDiagram(ts),[]);
       fs.writeFileSync('Consumer.java','class Consumer { String value; }');
       const java=await captureJava({identity:'consumer',projects:[{identity:'java',path:process.cwd(),files:['Consumer.java']}]});
-      assert.equal(java.model.nodes[0].name,'Consumer');
+      assert.match(java,/^class Consumer \{$/m);
+      assert.deepEqual(checkDiagram(java),[]);
       const react=await import('@envsemble/atlas-diagrams/react');
-      assert.equal(typeof react.OntoUMLViewer,'function');
+      assert.equal(typeof react.DiagramViewer,'function');
       assert.equal(typeof react.AtlasPanel,'function');
       assert(require('node:fs').existsSync(require.resolve('@envsemble/atlas-diagrams/embedded.css')));
-      const built=await buildViewer({project});
+      const {prepared}=await prepareDiagrams({files:[file],includeArtifacts:true});
+      const built=await buildViewer({prepared:prepared.get(file.path),file});
       assert(built.html.includes('Installed package test'));
       assert(built.payload.views.length===1);
       writeViewer(built,'site');

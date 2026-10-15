@@ -1,33 +1,28 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron';
-import type { RecentFolder } from '../shared/contract.ts';
 import type { WindowManager } from './windows.ts';
 
-export function buildMenu(manager: WindowManager, recents: RecentFolder[], actions: { openLogs(): void; about(): void; devTools: boolean }) {
+/**
+ * The application menu. On macOS it is the system's menu bar; elsewhere windows draw the same menus
+ * in their title bar, and this menu stays hidden, keeping its shortcuts.
+ */
+export function buildMenu(manager: WindowManager, actions: { openLogs(): void; devTools: boolean }) {
   const window = () => manager.focused();
-  const recentItems: MenuItemConstructorOptions[] = recents.length
-    ? [
-      ...recents.map((item): MenuItemConstructorOptions => ({
-        label: item.path.replaceAll('&', '&&'),
-        sublabel: item.available ? undefined : 'Missing',
-        click: () => { void manager.openRecent(item.path, window()); },
-      })),
-      { type: 'separator' },
-      { label: 'Clear Recently Opened', click: () => { void manager.clearRecents(); } },
-    ]
-    : [{ label: 'No recent folders', enabled: false }];
+  const mac = process.platform === 'darwin';
   const template: MenuItemConstructorOptions[] = [
     {
       label: '&File',
       submenu: [
-        { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { void manager.create(null); } },
+        { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { manager.create(window()?.computer ?? null); } },
+        { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
         { type: 'separator' },
-        { label: '&Open Folder…', accelerator: 'CmdOrCtrl+O', click: () => { void manager.chooseFolder(window()); } },
-        { label: 'Open &Recent', id: 'open-recent', submenu: recentItems },
+        { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },
+        { label: 'Re&mote Access…', click: () => manager.sendMenu('remoteAccess') },
         { type: 'separator' },
         { label: '&Import Plan…', click: () => manager.sendMenu('importPlan') },
         { label: '&Export Plan…', click: () => manager.sendMenu('exportPlan') },
         { type: 'separator' },
         { label: 'Close &Tab', accelerator: 'CmdOrCtrl+W', click: () => manager.sendMenu('closeTab') },
+        { label: 'Close &All Tabs', click: () => manager.sendMenu('closeAllTabs') },
         { label: 'Close Win&dow', accelerator: 'CmdOrCtrl+Shift+W', click: () => window()?.win.close() },
         { type: 'separator' },
         { role: 'quit', label: 'E&xit' },
@@ -37,16 +32,19 @@ export function buildMenu(manager: WindowManager, recents: RecentFolder[], actio
     {
       label: '&View',
       submenu: [
-        { label: '&Quick Open…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
+        // The window takes these keys itself, except in a field, where they reach this menu and the window ignores them.
+        { label: '&Back', accelerator: mac ? 'Cmd+[' : 'Alt+Left', click: () => manager.sendMenu('goBack') },
+        { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
         { type: 'separator' },
-        { label: '&Explorer', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('showExplorer') },
+        { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
+        { type: 'separator' },
+        { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('toggleFiles') },
         { label: 'Toggle &Sidebar', accelerator: 'CmdOrCtrl+B', click: () => manager.sendMenu('toggleSidebar') },
         { type: 'separator' },
-        { label: '&Work', click: () => manager.sendMenu('openWorkList') },
-        { label: '&Activity', click: () => manager.sendMenu('openActivity') },
-        { label: 'S&tatistics', click: () => manager.sendMenu('openStatistics') },
-        { type: 'separator' },
-        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        // Zoom keeps the title bar's window buttons as tall as the bar above its line.
+        { label: '&Actual Size', accelerator: 'CmdOrCtrl+0', click: () => window()?.zoom('reset') },
+        { label: 'Zoom &In', accelerator: 'CmdOrCtrl+Plus', click: () => window()?.zoom('in') },
+        { label: 'Zoom &Out', accelerator: 'CmdOrCtrl+-', click: () => window()?.zoom('out') },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(actions.devTools ? [{ type: 'separator' } as const, { role: 'reload' } as const, { role: 'toggleDevTools' } as const] : []),
@@ -57,7 +55,7 @@ export function buildMenu(manager: WindowManager, recents: RecentFolder[], actio
       submenu: [
         { label: 'Open &Logs', click: actions.openLogs },
         { type: 'separator' },
-        { label: '&About Atlas', click: actions.about },
+        { label: '&About Atlas', click: () => manager.sendMenu('about') },
       ],
     },
   ];

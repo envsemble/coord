@@ -1,8 +1,8 @@
 {
   "name": "@envsemble/atlas-cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
-  "description": "The atlas command: model tools, the MCP server, planning checks and consultation logging",
+  "description": "The atlas command: planning-state operations, captures, the MCP server, harness hooks and setup, checks, consultation logging, work statistics and the headless host",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/envsemble/atlas.git",
@@ -17,12 +17,14 @@
     "atlas": "./bin/atlas.js"
   },
   "scripts": {
-    "test": "node --test \"src/*.test.ts\"",
+    "test": "node --import ../../scripts/test-home.mjs --test \"src/*.test.ts\"",
     "check:types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",
-    "@envsemble/atlas-planning": "*"
+    "@envsemble/atlas-host": "*",
+    "@envsemble/atlas-planning": "*",
+    "@modelcontextprotocol/sdk": "1.32.1"
   },
   "devDependencies": {
     "@types/node": "^24",

@@ -151,6 +151,8 @@ public class AtlasJava {
                 .map(Object::toString)
                 .sorted()
                 .toList(),
+              "description",
+              trees.getDocComment(p),
               "location",
               location(p)
             )
@@ -169,10 +171,18 @@ public class AtlasJava {
               id + ":method:" + signature,
               "name",
               name,
-              "type",
-              signature +
-                " : " +
-                executable.getReturnType() +
+              "parameters",
+              executable
+                .getParameters()
+                .stream()
+                .map(
+                  parameter ->
+                    parameter.getSimpleName() + ": " + parameter.asType()
+                )
+                .reduce((a, b) -> a + ", " + b)
+                .orElse(""),
+              "returns",
+              executable.getReturnType() +
                 (executable.getThrownTypes().isEmpty()
                   ? ""
                   : " throws " +
@@ -190,6 +200,8 @@ public class AtlasJava {
                 .map(Object::toString)
                 .sorted()
                 .toList(),
+              "description",
+              trees.getDocComment(p),
               "location",
               location(p)
             )
@@ -222,6 +234,8 @@ public class AtlasJava {
         attributes,
         "methods",
         methods,
+        "description",
+        trees.getDocComment(current),
         "location",
         location(current)
       );
@@ -380,9 +394,9 @@ public class AtlasJava {
   }
 
   public static void main(String[] args) throws Exception {
-    if (Runtime.version().feature() != 21) {
+    if (Runtime.version().feature() < 21) {
       System.out.println(
-        encode(map("error", "CAPTURE_VERSION: Java 21 JDK is required"))
+        encode(map("error", "CAPTURE_VERSION: a JDK 21 or newer is required"))
       );
       return;
     }

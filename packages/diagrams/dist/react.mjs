@@ -27,7 +27,7 @@ function indexViewerModel(model, generalizationGroups = []) {
     ])
   ]);
   const sets = new Map((model.partitions || []).map((set) => [set.id, set]));
-  const groups2 = new Map(
+  const groups = new Map(
     generalizationGroups.map((group) => [
       group.id,
       {
@@ -43,8 +43,8 @@ function indexViewerModel(model, generalizationGroups = []) {
     nodes,
     names,
     edges,
-    groups: groups2,
-    getElement: (target) => target?.kind === "node" ? nodes.get(target.id) : target?.kind === "group" ? groups2.get(target.id) : edges.get(target?.id)
+    groups,
+    getElement: (target) => target?.kind === "node" ? nodes.get(target.id) : target?.kind === "group" ? groups.get(target.id) : edges.get(target?.id)
   };
 }
 function viewForNode(views, currentKey, node) {
@@ -54,8 +54,8 @@ function viewForNode(views, currentKey, node) {
 }
 
 // src/model/inspectionTarget.js
-function inspectionTarget(model, index, views, viewKey, id) {
-  const node = index.nodes.get(id) || model.classes.find(
+function inspectionTarget(model, index2, views, viewKey, id) {
+  const node = index2.nodes.get(id) || model.classes.find(
     (c) => [...c.attributes, ...c.methods || []].some((m) => m.id === id)
   );
   if (node) {
@@ -63,28 +63,31 @@ function inspectionTarget(model, index, views, viewKey, id) {
     return view2 ? {
       viewKey: view2.key,
       target: { kind: "node", id: node.id },
-      nodeId: node.id
+      nodeId: node.id,
+      ...node.id !== id ? { memberId: id } : {}
     } : null;
   }
-  const view = views.find(
-    (v) => v.diagram.edges.some((e) => e.id === id) || v.diagram.generalizationGroups?.some(
-      (g) => g.id === id || g.memberIds.includes(id)
-    )
+  const holds = (v) => v.diagram.edges.some((e) => e.id === id) || v.diagram.generalizationGroups?.some(
+    (g) => g.id === id || g.memberIds.includes(id)
   );
-  return view ? {
+  const view = views.find((v) => v.key === viewKey && holds(v)) || views.find(holds);
+  if (!view) return null;
+  const edge = view.diagram.edges.find((e) => e.id === id);
+  return {
     viewKey: view.key,
-    target: { kind: index.edges.has(id) ? "edge" : "group", id }
-  } : null;
+    target: { kind: index2.edges.has(id) ? "edge" : "group", id },
+    ...edge ? { nodeIds: [edge.source, edge.target] } : {}
+  };
 }
 
-// src/viewer/OntoUMLViewer.jsx
+// src/viewer/DiagramViewer.jsx
 import {
-  useCallback as useCallback4,
-  useEffect as useEffect8,
-  useLayoutEffect as useLayoutEffect10,
+  useCallback as useCallback5,
+  useEffect as useEffect9,
+  useLayoutEffect as useLayoutEffect11,
   useMemo as useMemo9,
-  useRef as useRef10,
-  useState as useState13
+  useRef as useRef11,
+  useState as useState12
 } from "react";
 
 // src/visualization/DiagramCanvas.jsx
@@ -114,7 +117,7 @@ function interactionIndex(diagram) {
   const nodes = new Map(diagram.nodes.map((node) => [node.id, node]));
   const edges = /* @__PURE__ */ new Map();
   const incident = /* @__PURE__ */ new Map();
-  const groups2 = /* @__PURE__ */ new Map();
+  const groups = /* @__PURE__ */ new Map();
   const groupsByEdge = /* @__PURE__ */ new Map();
   const append = (map, id, value) => {
     if (!map.has(id)) map.set(id, /* @__PURE__ */ new Set());
@@ -126,43 +129,43 @@ function interactionIndex(diagram) {
     append(incident, edge.target, edge);
   }
   for (const group of diagram.generalizationGroups || []) {
-    groups2.set(group.id, group);
+    groups.set(group.id, group);
     for (const id of group.memberIds) append(groupsByEdge, id, group.id);
   }
-  const index = { nodes, edges, incident, groups: groups2, groupsByEdge };
-  indexes.set(diagram, index);
-  return index;
+  const index2 = { nodes, edges, incident, groups, groupsByEdge };
+  indexes.set(diagram, index2);
+  return index2;
 }
 function focusedElements(diagram, target) {
   if (!target) return null;
   const nodes = /* @__PURE__ */ new Set();
   const edges = /* @__PURE__ */ new Set();
-  const groups2 = /* @__PURE__ */ new Set();
-  const index = interactionIndex(diagram);
+  const groups = /* @__PURE__ */ new Set();
+  const index2 = interactionIndex(diagram);
   if (target.kind === "node") {
-    if (!index.nodes.has(target.id)) return null;
+    if (!index2.nodes.has(target.id)) return null;
     nodes.add(target.id);
-    for (const edge of index.incident.get(target.id) || []) {
+    for (const edge of index2.incident.get(target.id) || []) {
       edges.add(edge.id);
       nodes.add(edge.source);
       nodes.add(edge.target);
     }
   } else if (target.kind === "group") {
-    const group = index.groups.get(target.id);
+    const group = index2.groups.get(target.id);
     if (!group) return null;
     group.memberIds.forEach((id) => edges.add(id));
     group.sourceIds.forEach((id) => nodes.add(id));
     nodes.add(group.target);
   } else {
-    const edge = index.edges.get(target.id);
+    const edge = index2.edges.get(target.id);
     if (!edge) return null;
     edges.add(edge.id);
     nodes.add(edge.source);
     nodes.add(edge.target);
   }
   for (const id of edges)
-    for (const groupId of index.groupsByEdge.get(id) || []) groups2.add(groupId);
-  return { nodes, edges, groups: groups2, primary: target };
+    for (const groupId of index2.groupsByEdge.get(id) || []) groups.add(groupId);
+  return { nodes, edges, groups, primary: target };
 }
 function elementClass(kind, id, focus, selected) {
   const target = { kind, id };
@@ -202,54 +205,88 @@ function interactionProps(target, handlers, focusable = true) {
 
 // src/visualization/UMLNode.jsx
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-var typeColors = {
-  kind: "#0550ae",
-  role: "#953800",
-  relator: "#8250df",
-  phase: "#116329",
-  event: "#cf222e",
-  mode: "#0a3069"
+var CHANGE_COLORS = {
+  added: "var(--change-added,#1a7f37)",
+  modified: "var(--change-modified,#9a6700)",
+  removed: "var(--change-removed,#cf222e)"
 };
-var typeBackgrounds = {
-  kind: "#ddedff",
-  role: "#fff0df",
-  relator: "#f0e5ff",
-  phase: "#e1f2e4",
-  event: "#ffe5e2",
-  mode: "#e0f3f5"
-};
-var colorFamilies = {
-  subkind: "kind",
-  collective: "kind",
-  quantity: "kind",
-  category: "kind",
-  mixin: "kind",
-  roleMixin: "role",
-  phaseMixin: "phase",
-  quality: "mode"
-};
+var CHANGE_TAGS = { added: "New", modified: "Changed", removed: "Removed" };
+var MEMBER_GLYPHS = { added: "+", modified: "~", removed: "\u2212" };
+var isChanged = (status) => !!CHANGE_COLORS[status];
+var Tooltip = ({ text }) => text ? /* @__PURE__ */ jsx("title", { children: text }) : null;
+function MemberText({ member, x, y, method }) {
+  const status = isChanged(member.changeStatus) ? member.changeStatus : null;
+  const text = method ? member.type : member.slot ? `${member.name} = ${member.type}` : !member.type ? member.name : `${member.name} : ${member.type}${member.multiplicity ? ` [${member.multiplicity}]` : ""}`;
+  if (!status)
+    return /* @__PURE__ */ jsxs("text", { x, y, children: [
+      /* @__PURE__ */ jsx(Tooltip, { text: member.description }),
+      text
+    ] });
+  return /* @__PURE__ */ jsxs("g", { className: "member-change", "data-change": status, children: [
+    /* @__PURE__ */ jsx(
+      "text",
+      {
+        x: x - 9,
+        y,
+        textAnchor: "middle",
+        fill: CHANGE_COLORS[status],
+        fontWeight: "700",
+        children: MEMBER_GLYPHS[status]
+      }
+    ),
+    /* @__PURE__ */ jsxs(
+      "text",
+      {
+        x,
+        y,
+        fill: CHANGE_COLORS[status],
+        textDecoration: status === "removed" ? "line-through" : void 0,
+        children: [
+          /* @__PURE__ */ jsx(Tooltip, { text: member.description }),
+          text
+        ]
+      }
+    )
+  ] });
+}
 function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
   const header = node.attributes.length || methods.length ? 66 : node.height;
-  const color = String(
-    colorFamilies[node.stereotype] || node.stereotype || "none"
-  ).replace(/[^\w-]/g, "-");
+  const change = isChanged(node.changeStatus) ? node.changeStatus : null;
+  const tag = change && CHANGE_TAGS[change];
+  const tagWidth = tag ? tag.length * 6.4 + 12 : 0;
   return /* @__PURE__ */ jsxs(
     "g",
     {
       id: `${idPrefix}node-${node.id}`,
-      className: elementClass("node", node.id, focus, selected),
+      className: `${elementClass("node", node.id, focus, selected)}${change ? " changed" : ""}`,
       "data-name": node.name,
       "data-node-id": node.id,
       "data-element-kind": "node",
       "data-element-id": node.id,
       "data-change": node.changeStatus,
-      "aria-label": node.name,
+      "aria-label": tag ? `${node.name}, ${tag.toLowerCase()}` : node.name,
       "aria-pressed": handlers ? sameTarget(target, selected) : void 0,
       transform: `translate(${node.x} ${node.y})`,
       ...interactionProps(target, handlers),
       children: [
+        /* @__PURE__ */ jsx(Tooltip, { text: node.description }),
+        change && /* @__PURE__ */ jsx(
+          "rect",
+          {
+            className: "node-ring",
+            x: "-5",
+            y: "-5",
+            width: node.width + 10,
+            height: node.height + 10,
+            rx: "6",
+            fill: "none",
+            stroke: "transparent",
+            strokeWidth: "2.5",
+            vectorEffect: "non-scaling-stroke"
+          }
+        ),
         /* @__PURE__ */ jsx(
           "rect",
           {
@@ -257,19 +294,44 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             width: node.width,
             height: node.height,
             rx: "3",
-            fill: `var(--node-${color},${typeBackgrounds[color] || "var(--surface,#f6f8fa)"})`,
-            stroke: "var(--diagram-border,#818b98)",
-            strokeWidth: "1.25",
+            fill: "var(--surface,#f6f8fa)",
+            stroke: change ? CHANGE_COLORS[change] : "var(--diagram-border,#818b98)",
+            strokeWidth: change ? "2.25" : "1.25",
+            strokeDasharray: change === "removed" ? "6 4" : void 0,
             vectorEffect: "non-scaling-stroke"
           }
         ),
+        tag && /* @__PURE__ */ jsxs("g", { className: "change-tag", transform: "translate(7 7)", children: [
+          /* @__PURE__ */ jsx(
+            "rect",
+            {
+              width: tagWidth,
+              height: "17",
+              rx: "8.5",
+              fill: CHANGE_COLORS[change],
+              fillOpacity: "0.16"
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "text",
+            {
+              x: tagWidth / 2,
+              y: "12.5",
+              textAnchor: "middle",
+              fill: CHANGE_COLORS[change],
+              fontSize: "10.5",
+              fontWeight: "600",
+              children: tag
+            }
+          )
+        ] }),
         node.stereotype && /* @__PURE__ */ jsxs(
           "text",
           {
             x: node.width / 2,
             y: header / 2 - 10,
             textAnchor: "middle",
-            fill: `var(--type-${color},${typeColors[color] || "var(--diagram-muted,#59636e)"})`,
+            fill: "var(--diagram-muted,#59636e)",
             fontSize: "11.5",
             children: [
               "\xAB",
@@ -288,10 +350,10 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             fontSize: "15",
             fontWeight: "600",
             fontStyle: node.isAbstract ? "italic" : void 0,
+            textDecoration: change === "removed" ? "line-through" : void 0,
             children: node.name
           }
         ),
-        node.changeStatus && node.changeStatus !== "unchanged" && /* @__PURE__ */ jsx("text", { x: "8", y: "15", fill: "var(--text)", fontSize: "12", children: node.changeStatus === "added" ? "+" : node.changeStatus === "removed" ? "\u2212" : "\u0394" }),
         (node.attributes.length > 0 || methods.length > 0) && /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx(
             "path",
@@ -306,12 +368,15 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
               className: "attributes",
               fill: "var(--diagram-attribute,#59636e)",
               fontSize: "12",
-              children: node.attributes.map((attribute, i) => /* @__PURE__ */ jsxs("text", { x: "14", y: 85 + i * 20, children: [
-                attribute.name,
-                " : ",
-                attribute.type,
-                attribute.multiplicity ? ` [${attribute.multiplicity}]` : ""
-              ] }, attribute.id || i))
+              children: node.attributes.map((attribute, i) => /* @__PURE__ */ jsx(
+                MemberText,
+                {
+                  member: attribute,
+                  x: 14,
+                  y: 85 + i * 20
+                },
+                attribute.id || i
+              ))
             }
           ),
           methods.length > 0 && /* @__PURE__ */ jsxs(Fragment, { children: [
@@ -329,11 +394,12 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                 fill: "var(--diagram-attribute,#59636e)",
                 fontSize: "12",
                 children: methods.map((method, i) => /* @__PURE__ */ jsx(
-                  "text",
+                  MemberText,
                   {
-                    x: "14",
-                    y: (node.attributes.length ? 97 + node.attributes.length * 20 : 85) + i * 20,
-                    children: method.type
+                    member: method,
+                    method: true,
+                    x: 14,
+                    y: (node.attributes.length ? 97 + node.attributes.length * 20 : 85) + i * 20
                   },
                   method.id || i
                 ))
@@ -346,10 +412,774 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   );
 }
 
+// src/model/multiplicity.js
+var knownMultiplicity = (value) => typeof value === "string" && value.trim() !== "" && value.trim() !== "?";
+
+// src/review/changes.js
+var CHANGE_LABELS = {
+  added: "New",
+  modified: "Changed",
+  removed: "Removed"
+};
+var CHANGE_STATUSES = ["added", "modified", "removed"];
+var GLYPHS = { added: "+", modified: "~", removed: "\u2212" };
+var changeGlyph = (status) => GLYPHS[status] || "";
+var MAX_TOKENS = 4;
+var MAX_VALUE = 160;
+var MAX_INLINE = 40;
+var GENERIC_RELATION_NAMES = /* @__PURE__ */ new Set(["declared type use", "association"]);
+function informativeName(edge) {
+  const name = typeof edge?.name === "string" ? edge.name.trim() : "";
+  return name && !GENERIC_RELATION_NAMES.has(name.toLowerCase()) ? name : "";
+}
+var edgeEnds = (edge) => "specificId" in edge ? [edge.specificId, edge.generalId] : [edge.sourceId, edge.targetId];
+function nameIndex(...models) {
+  const names = /* @__PURE__ */ new Map();
+  const put = (id, name) => {
+    if (id && !names.has(id)) names.set(id, name);
+  };
+  const present = models.filter(Boolean);
+  for (const model of present)
+    for (const c of model.classes || []) {
+      put(c.id, c.name);
+      for (const m of [...c.attributes || [], ...c.methods || []])
+        put(m.id, `${c.name}.${m.name}`);
+    }
+  for (const model of present) {
+    for (const e of model.relations || []) {
+      const [source, target] = edgeEnds(e).map((id) => names.get(id));
+      put(
+        e.originalId || e.id,
+        informativeName(e) || `${source ?? "?"} \u2192 ${target ?? "?"}`
+      );
+    }
+    for (const g of model.generalizations || []) {
+      const [specific, general] = edgeEnds(g).map((id) => names.get(id));
+      put(
+        g.originalId || g.id,
+        `${specific ?? "?"} ${g.realization ? "implements" : "inherits"} ${general ?? "?"}`
+      );
+    }
+    for (const p of model.partitions || []) if (p.name) put(p.id, p.name);
+  }
+  return names;
+}
+var textOf = (value) => typeof value === "string" ? value : null;
+var isForeignKey = (item) => Array.isArray(item?.columns) && typeof item.target === "string";
+var isPart = (item) => !!item && typeof item === "object" && !Array.isArray(item) && typeof item.$element !== "string" && (isForeignKey(item) || typeof item.name === "string" && !!item.name);
+var referencedColumns = (columns) => {
+  const known = knownColumns(columns);
+  return known.length ? `(${known.join(", ")})` : "";
+};
+var foreignKeyText = (key) => `${key.columns.join(", ")} \u2192 ${key.target}${referencedColumns(key.targetColumns)}`;
+function partName(item) {
+  return isForeignKey(item) ? foreignKeyText(item) : item.name;
+}
+function describePart(item) {
+  if (isForeignKey(item))
+    return [
+      foreignKeyText(item),
+      item.onDelete && `on delete ${String(item.onDelete).toLowerCase()}`,
+      item.onUpdate && `on update ${String(item.onUpdate).toLowerCase()}`
+    ].filter(Boolean).join(", ");
+  const statement = typeof item.definition === "string" ? item.definition : typeof item.sql === "string" ? item.sql : "";
+  const plain = Array.isArray(item.columns) && item.columns.length > 0 && item.columns.every((c) => typeof c === "string") && !item.partial && !item.predicate && !item.expressions && !CHECKS.has(item.type);
+  if (!plain && statement) return statement;
+  const columns = Array.isArray(item.columns) ? `(${item.columns.filter(Boolean).join(", ")})` : "";
+  const flags = ["unique", "partial"].filter((flag) => item[flag] === true);
+  return [columns, ...flags].filter(Boolean).join(", ") || item.name;
+}
+var CHECKS = /* @__PURE__ */ new Set(["c", "x", "f", "t"]);
+function partChange(before, after) {
+  const was = describePart(before), is = describePart(after);
+  if (was !== is) return [was, is];
+  const fields = [.../* @__PURE__ */ new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k])).map((k) => [k, readable(before[k]), readable(after[k])]);
+  return [
+    `${was}; ${fields.map(([k, b]) => `${k} ${b}`).join("; ")}`,
+    `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`
+  ];
+}
+var knownColumns = (columns) => Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
+var comparable = (item) => {
+  if (!isForeignKey(item)) return item;
+  const { targetColumns, ...rest } = item;
+  return { ...rest, targetColumns: knownColumns(targetColumns) };
+};
+var partKey = (item) => isPart(item) ? isForeignKey(item) ? `key:${JSON.stringify([item.columns, item.target, knownColumns(item.targetColumns)])}` : `name:${item.name}` : JSON.stringify(item);
+function itemChanges(note) {
+  const before = note.before?.present ? note.before.value : [];
+  const after = note.after?.present ? note.after.value : [];
+  if (!Array.isArray(before) || !Array.isArray(after)) return null;
+  const was = new Map(before.map((item) => [partKey(item), item]));
+  const now = new Map(after.map((item) => [partKey(item), item]));
+  const out = [];
+  for (const [key, item] of now)
+    if (!was.has(key)) out.push({ status: "added", after: item });
+    else if (JSON.stringify(comparable(was.get(key))) !== JSON.stringify(comparable(item)))
+      out.push({ status: "modified", before: was.get(key), after: item });
+  for (const [key, item] of was)
+    if (!now.has(key)) out.push({ status: "removed", before: item });
+  return out;
+}
+function readable(value, names = /* @__PURE__ */ new Map()) {
+  if (typeof value === "string") return names.get(value) ?? value;
+  if (value === void 0 || value === null) return "none";
+  if (typeof value === "object" && typeof value.$element === "string")
+    return names.get(value.$element) || value.$element;
+  if (Array.isArray(value))
+    return value.length ? value.map((item) => readable(item, names)).join(", ") : "none";
+  if (typeof value === "object") {
+    if (isPart(value)) return describePart(value);
+  }
+  const text = JSON.stringify(
+    value,
+    (key, v) => v && typeof v === "object" && typeof v.$element === "string" ? names.get(v.$element) || v.$element : typeof v === "string" ? names.get(v) ?? v : v
+  );
+  return text === void 0 ? String(value) : text;
+}
+var shorten = (text, limit = MAX_VALUE) => text.length > limit ? `${text.slice(0, limit - 1)}\u2026` : text;
+var CONTAINER_KEYS = /* @__PURE__ */ new Set(["contents", "properties", "literals"]);
+var MEMBER_LISTS = /* @__PURE__ */ new Set([
+  "attributes",
+  "methods",
+  "properties",
+  "literals",
+  "contents"
+]);
+var isElementList = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every(
+  (v) => v && typeof v === "object" && typeof v.$element === "string"
+);
+var isIdentityList = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every((v) => typeof v === "string");
+var meaningfulProperties = (change) => (change?.properties || []).filter(
+  (p) => !(isElementList(p.before) && isElementList(p.after)) && !(CONTAINER_KEYS.has(p.key) && isIdentityList(p.before) && isIdentityList(p.after))
+);
+var listItems = (cell) => cell?.present && Array.isArray(cell.value) ? cell.value.map((v) => typeof v === "string" ? v : v?.$element).filter((v) => typeof v === "string") : [];
+function listDelta(p) {
+  const before = listItems(p.before), after = listItems(p.after);
+  return {
+    joined: after.filter((id) => !before.includes(id)),
+    left: before.filter((id) => !after.includes(id))
+  };
+}
+function listChanges(change) {
+  const cell = (data2, key) => data2 && key in data2 ? { present: true, value: data2[key] } : void 0;
+  if (change.kind === "modified")
+    return (change.properties || []).filter((p) => MEMBER_LISTS.has(p.key)).map((p) => ({ key: p.key, ...listDelta(p) }));
+  const data = change.kind === "added" ? change.after : change.before;
+  return [...MEMBER_LISTS].map((key) => ({ key, items: listItems(cell(data, key)) })).filter(({ items }) => items.length).map(({ key, items }) => ({
+    key,
+    joined: change.kind === "added" ? items : [],
+    left: change.kind === "removed" ? items : []
+  }));
+}
+function movesOf(changes) {
+  const createdOrDeleted = new Set(
+    changes.filter((c) => c.kind !== "modified").map((c) => c.elementId)
+  );
+  const moves = /* @__PURE__ */ new Map();
+  for (const change of changes)
+    for (const { joined, left } of listChanges(change)) {
+      for (const id of joined)
+        if (!createdOrDeleted.has(id))
+          moves.set(id, { ...moves.get(id), to: change.elementId });
+      for (const id of left)
+        if (!createdOrDeleted.has(id))
+          moves.set(id, { ...moves.get(id), from: change.elementId });
+    }
+  return moves;
+}
+var memberLabel = (member, method) => method ? `${member.name}()` : member.name;
+function memberSignature(member, method, profile) {
+  if (method) return member.type || `${member.name}()`;
+  if (!member.type) return member.name;
+  return profile === "database" ? `${member.name} ${member.type}` : `${member.name}: ${member.type}`;
+}
+function elementFile(element, model) {
+  if (element?.location?.file) return element.location.file;
+  const source = (model?.sources || []).find(
+    (s) => s.id === element?.primarySource
+  );
+  return source?.file || null;
+}
+var PLAIN_KINDS = /* @__PURE__ */ new Set(["dependency", "foreign key"]);
+function edgeTag(edge) {
+  if ("specificId" in edge) return edge.realization ? "implements" : "inherits";
+  if (PLAIN_KINDS.has(edge.stereotype)) return "";
+  return edge.stereotype ? `\xAB${edge.stereotype}\xBB` : "";
+}
+function index(model) {
+  const classes = new Map(model.classes.map((c) => [c.id, c]));
+  const members = /* @__PURE__ */ new Map();
+  for (const c of model.classes) {
+    for (const member of c.attributes || [])
+      members.set(member.id, { owner: c, member, method: false });
+    for (const member of c.methods || [])
+      members.set(member.id, { owner: c, member, method: true });
+  }
+  const edges = /* @__PURE__ */ new Map();
+  for (const edge of [...model.relations, ...model.generalizations]) {
+    const id = edge.originalId || edge.id;
+    if (!edges.has(id) || edge.changeStatus !== "removed") edges.set(id, edge);
+  }
+  return { classes, members, edges };
+}
+function drawn(views) {
+  if (!views) return null;
+  const nodes = /* @__PURE__ */ new Set(), edges = /* @__PURE__ */ new Set();
+  for (const view of views)
+    for (const diagram of [view.diagram, view.diagramFields].filter(Boolean)) {
+      for (const node of diagram.nodes || []) nodes.add(node.id);
+      for (const edge of diagram.edges || []) edges.add(edge.id);
+      for (const group of diagram.generalizationGroups || [])
+        for (const id of group.memberIds || []) edges.add(id);
+    }
+  return { nodes, edges };
+}
+function memberFromChange(change, names) {
+  const data = change.after || change.before || {};
+  const type = typeof data.type === "string" ? data.type : void 0;
+  const method = typeof type === "string" && (/^[^:]*\(/.test(type) || /:method%3A/.test(change.elementId || ""));
+  return {
+    name: textOf(data.name) ?? readable(change.name, names),
+    type,
+    method
+  };
+}
+var modelLevelType = (change) => change.elementId ? null : "model";
+function listTokens(note, names, prefix = "") {
+  const changes = itemChanges(note);
+  if (!changes?.length) return null;
+  const order = { modified: 0, added: 1, removed: 2 };
+  return changes.sort((a, b) => order[a.status] - order[b.status]).map(({ status, before, after }) => {
+    const item = after ?? before;
+    const text = isPart(item) ? partName(item) : readable(item, names);
+    return {
+      status,
+      text: shorten(prefix ? `${prefix} ${text}` : text, 60)
+    };
+  });
+}
+function rollupChanges(comparison, model, views) {
+  if (!comparison?.changes || !model) return null;
+  const { classes, members, edges } = index(model);
+  const names = nameIndex(model, comparison.baseline?.model);
+  const canvas = drawn(views);
+  const profile = model.document?.profile;
+  const changes = comparison.changes.changes || [];
+  const recorded = new Map(
+    changes.filter((c) => c.elementId).map((c) => [c.elementId, c])
+  );
+  const moves = movesOf(changes);
+  const rows = /* @__PURE__ */ new Map();
+  const row = (key, make) => {
+    if (!rows.has(key)) rows.set(key, { key, changes: [], ...make() });
+    return rows.get(key);
+  };
+  const nodeRow = (c, status) => row(`node:${c.id}`, () => ({
+    status: status || c.changeStatus || "modified",
+    kind: "node",
+    target: !canvas || canvas.nodes.has(c.id) ? { kind: "node", id: c.id } : null,
+    id: c.id,
+    name: c.name,
+    tag: c.stereotype || c.kind || "",
+    members: [],
+    notes: []
+  }));
+  const edgeRow = (edge, status) => {
+    const [source, target] = edgeEnds(edge).map((id) => classes.get(id));
+    return row(`edge:${edge.originalId || edge.id}`, () => ({
+      status: status || edge.changeStatus || "modified",
+      kind: "edge",
+      target: !canvas || canvas.edges.has(edge.id) ? { kind: "edge", id: edge.id } : null,
+      id: edge.originalId || edge.id,
+      name: `${source?.name ?? "?"} \u2192 ${target?.name ?? "?"}`,
+      sourceName: source?.name,
+      targetName: target?.name,
+      tag: edgeTag(edge),
+      label: informativeName(edge),
+      // A type-use dependency says which of the source's members use the target.
+      via: edge.stereotype === "dependency" && !informativeName(edge) ? dependencyMembers(source, target).map(
+        ({ member, method }) => memberLabel(member, method)
+      ) : [],
+      members: [],
+      notes: []
+    }));
+  };
+  const modelRow = () => row("model", () => ({
+    status: "model",
+    kind: "model",
+    target: null,
+    id: model.id,
+    name: "Model",
+    tag: "",
+    members: [],
+    notes: []
+  }));
+  const note = (p, key = p.key) => ({
+    key,
+    property: p.key,
+    before: p.before,
+    after: p.after
+  });
+  const scoped = (cell) => !cell.present || Array.isArray(cell.value) && cell.value.every((item) => Array.isArray(item) && classes.has(item[0]));
+  const fromModel = (p) => !(profile === "database" && p.key === "constraints" && scoped(p.before) && scoped(p.after));
+  const memberIn = (classId, id) => {
+    const c = classes.get(classId);
+    const attribute = (c?.attributes || []).find((m) => m.id === id);
+    if (attribute) return { member: attribute, method: false };
+    const method = (c?.methods || []).find((m) => m.id === id);
+    return method ? { member: method, method: true } : null;
+  };
+  const currentOwner = (id) => model.classes.find(
+    (c) => [...c.attributes || [], ...c.methods || []].some(
+      (m) => m.id === id && m.changeStatus !== "removed"
+    )
+  )?.id;
+  const placeName = (id) => names.get(id) ?? textOf(recorded.get(id)?.after?.name) ?? textOf(recorded.get(id)?.before?.name) ?? id;
+  const movedMember = (classId, id, status, other) => {
+    const found = memberIn(classId, id);
+    const member = found ? {
+      name: found.member.name,
+      type: found.member.type,
+      method: found.method
+    } : recorded.has(id) ? memberFromChange(recorded.get(id), names) : { name: names.get(id) ?? id, method: false };
+    return {
+      id,
+      status,
+      label: memberLabel(member, member.method),
+      member,
+      ...other ? { moved: { [status === "added" ? "from" : "to"]: placeName(other) } } : {}
+    };
+  };
+  for (const change of changes) {
+    const id = change.elementId;
+    const properties = meaningfulProperties(change);
+    if (modelLevelType(change)) {
+      const notes = properties.filter(fromModel).map((p) => note(p));
+      if (!notes.length) continue;
+      const entry2 = modelRow();
+      entry2.changes.push(change);
+      entry2.notes.push(...notes);
+      continue;
+    }
+    if (classes.has(id)) {
+      const entry2 = nodeRow(classes.get(id), change.kind);
+      entry2.status = change.kind;
+      entry2.changes.push(change);
+      for (const p of properties) entry2.notes.push(note(p));
+      for (const { joined, left } of listChanges(change)) {
+        for (const item of joined)
+          if (moves.has(item))
+            entry2.members.push(
+              movedMember(id, item, "added", moves.get(item).from)
+            );
+        for (const item of left)
+          if (moves.has(item))
+            entry2.members.push(
+              movedMember(
+                id,
+                item,
+                "removed",
+                moves.get(item).to ?? currentOwner(item)
+              )
+            );
+      }
+      continue;
+    }
+    if (edges.has(id)) {
+      const entry2 = edgeRow(edges.get(id), change.kind);
+      entry2.status = change.kind;
+      entry2.changes.push(change);
+      for (const p of properties) entry2.notes.push(note(p));
+      continue;
+    }
+    if (moves.has(id)) {
+      const to = moves.get(id).to ?? currentOwner(id);
+      if (to && classes.has(to))
+        nodeRow(classes.get(to), "modified").changes.push(change);
+      continue;
+    }
+    const known = members.get(id);
+    const owner = known ? known.owner.id : change.ownerId;
+    if (owner && classes.has(owner)) {
+      const entry2 = nodeRow(classes.get(owner), "modified");
+      entry2.changes.push(change);
+      const member = known ? {
+        name: known.member.name,
+        type: known.member.type,
+        method: known.method
+      } : memberFromChange(change, names);
+      entry2.members.push({
+        id,
+        status: change.kind,
+        label: memberLabel(member, member.method),
+        member
+      });
+      continue;
+    }
+    if (!properties.length && change.kind === "modified") continue;
+    const type = (change.after || change.before || {}).type;
+    const entry = row(`other:${id}`, () => ({
+      status: change.kind,
+      kind: "other",
+      target: null,
+      id,
+      name: names.get(id) || readable(change.name, names),
+      tag: type === "GeneralizationSet" ? "generalization set" : typeof type === "string" ? type.toLowerCase() : "element",
+      members: [],
+      notes: []
+    }));
+    entry.changes.push(change);
+    for (const p of properties) entry.notes.push(note(p));
+  }
+  const all = [...rows.values()];
+  for (const entry of all) {
+    if (entry.kind === "node" && entry.status === "modified") {
+      const c = classes.get(entry.id);
+      const order = [...c?.attributes || [], ...c?.methods || []].map(
+        (m) => m.id
+      );
+      const at = (id) => {
+        const i = order.indexOf(id);
+        return i < 0 ? order.length : i;
+      };
+      entry.members.sort((x, y) => at(x.id) - at(y.id));
+    }
+    if (entry.kind === "node" && entry.status !== "modified") {
+      const c = classes.get(entry.id);
+      entry.members = [
+        ...(c?.attributes || []).map((m) => ({ member: m, method: false })),
+        ...(c?.methods || []).map((m) => ({ member: m, method: true }))
+      ].map(({ member, method }) => {
+        const move = moves.get(member.id);
+        const other = entry.status === "added" ? move?.from : move?.to ?? (move ? currentOwner(member.id) : void 0);
+        return {
+          id: member.id,
+          status: entry.status,
+          label: memberLabel(member, method),
+          member: { name: member.name, type: member.type, method },
+          ...other ? {
+            moved: {
+              [entry.status === "added" ? "from" : "to"]: placeName(other)
+            }
+          } : {}
+        };
+      });
+    }
+    entry.summary = summarize(entry, names);
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+  const groups = CHANGE_STATUSES.map((status) => {
+    const of = (kind) => all.filter((r) => r.status === status && r.kind === kind).sort(byName);
+    return {
+      status,
+      label: CHANGE_LABELS[status],
+      elements: [...of("node"), ...of("other")],
+      relations: of("edge")
+    };
+  });
+  groups.push({
+    status: "model",
+    label: "Model",
+    elements: all.filter((r) => r.kind === "model"),
+    relations: []
+  });
+  const listed = groups.filter((g) => g.elements.length || g.relations.length);
+  const ordered = listed.flatMap((g) => [...g.elements, ...g.relations]);
+  const conflicts = comparison.conflicts || [];
+  return {
+    groups: listed,
+    rows: ordered,
+    // What Previous and Next step through: the changes the canvas can show.
+    navigable: ordered.filter((r) => r.target),
+    conflicts,
+    total: ordered.length,
+    // What the Changes button counts: every listed change, and conflicts.
+    count: ordered.length + conflicts.length,
+    names
+  };
+}
+var counted = /* @__PURE__ */ new WeakMap();
+function changeCount(payload) {
+  const comparison = payload?.comparison;
+  if (!comparison?.changes) return null;
+  if (!counted.has(payload)) {
+    const view = comparison.changeView || payload;
+    counted.set(
+      payload,
+      rollupChanges(comparison, view.model, view.views)?.count ?? 0
+    );
+  }
+  return counted.get(payload);
+}
+var SINGULAR = {
+  foreignKeys: "foreign key",
+  keys: "key",
+  indexes: "index",
+  constraints: "constraint",
+  triggers: "trigger",
+  modifiers: "modifier"
+};
+function noteTokens(n, names, lists = true) {
+  if (lists && n.property !== "moved") {
+    const tokens = listTokens(n, names, SINGULAR[n.property] ?? n.property);
+    if (tokens?.length) return tokens;
+  }
+  const before = cellText(n.before, names, n.property), after = cellText(n.after, names, n.property);
+  if (before.length > MAX_INLINE || after.length > MAX_INLINE || /\n/.test(before + after))
+    return [{ status: "modified", text: `${n.key} changed` }];
+  return [{ status: "modified", text: `${n.key}: ${before} \u2192 ${after}` }];
+}
+function summarize(entry, names) {
+  const note = entry.target || !["node", "edge"].includes(entry.kind) ? null : "Not drawn in any view";
+  if (entry.kind === "edge") {
+    const notes = entry.notes.flatMap(
+      (n) => noteTokens(n, names, false).map((t) => t.text)
+    );
+    const via = entry.via.length ? `via ${entry.via.slice(0, MAX_TOKENS - 1).join(", ")}` : "";
+    return {
+      text: [entry.label || via, ...notes].filter(Boolean).join(" \xB7 "),
+      tokens: [],
+      more: Math.max(0, entry.via.length - (MAX_TOKENS - 1)),
+      note
+    };
+  }
+  if (entry.kind === "model") {
+    const tokens = entry.notes.flatMap(
+      (n) => n.property === "presence" ? [{ status: n.status, text: n.key }] : n.property === "constraints" && listTokens(n, names) || noteTokens(n, names)
+    );
+    return {
+      text: "",
+      tokens: tokens.slice(0, MAX_TOKENS),
+      more: Math.max(0, tokens.length - MAX_TOKENS),
+      note
+    };
+  }
+  const members = entry.members;
+  if (entry.status === "modified") {
+    const tokens = members.map((m) => ({ status: m.status, text: m.label }));
+    const notes = entry.notes.flatMap((n) => noteTokens(n, names));
+    const all = [...notes, ...tokens];
+    return {
+      text: "",
+      tokens: all.slice(0, MAX_TOKENS),
+      more: Math.max(0, all.length - MAX_TOKENS),
+      note
+    };
+  }
+  const own = members.filter((m) => !m.moved);
+  return {
+    text: own.slice(0, MAX_TOKENS - 1).map((m) => m.label).join(", "),
+    tokens: [],
+    more: Math.max(0, own.length - (MAX_TOKENS - 1)),
+    note
+  };
+}
+var TEXT_KEYS = /* @__PURE__ */ new Set(["name", "description", "documentation", "moved"]);
+var cellText = (cell, names, key) => cell?.present ? readable(cell.value, TEXT_KEYS.has(key) ? void 0 : names) : "none";
+function rowFor(rollup, target, model) {
+  if (!rollup || !target) return null;
+  if (target.kind === "node")
+    return rollup.rows.find((r) => r.kind === "node" && r.id === target.id);
+  const edge = [...model?.relations || [], ...model?.generalizations || []].filter(Boolean).find((e) => e.id === target.id);
+  const id = edge?.originalId || target.id;
+  return rollup.rows.find((r) => r.kind === "edge" && r.id === id) || null;
+}
+function describeClassChange(rollup, element, profile) {
+  const entry = rollup?.rows.find(
+    (r) => r.kind === "node" && r.id === element.id
+  );
+  if (!entry) return null;
+  const names = rollup.names;
+  const byId = new Map(entry.changes.map((c) => [c.elementId, c]));
+  const moved = new Map(
+    entry.members.filter((m) => m.moved).map((m) => [m.id, m.moved])
+  );
+  const members = [
+    ...(element.attributes || []).map((m) => ({ member: m, method: false })),
+    ...(element.methods || []).map((m) => ({ member: m, method: true }))
+  ];
+  const seen = /* @__PURE__ */ new Set();
+  const changed = [];
+  for (const { member, method } of members) {
+    const change = byId.get(member.id);
+    if (!change && !(member.changeStatus && member.changeStatus !== "unchanged"))
+      continue;
+    seen.add(member.id);
+    changed.push(
+      memberChange(
+        member,
+        method,
+        change,
+        profile,
+        names,
+        moved.get(member.id)
+      )
+    );
+  }
+  for (const m of entry.members) {
+    if (seen.has(m.id) || entry.status !== "modified") continue;
+    seen.add(m.id);
+    changed.push(
+      memberChange(
+        {
+          id: m.id,
+          name: m.member.name,
+          type: m.member.type,
+          changeStatus: m.status
+        },
+        m.member.method,
+        byId.get(m.id),
+        profile,
+        names,
+        m.moved
+      )
+    );
+  }
+  return {
+    status: entry.status,
+    properties: entry.notes.flatMap((n) => {
+      const parts = itemChanges(n);
+      if (parts?.length && parts.every((c) => isPart(c.after ?? c.before)))
+        return parts.map(({ status, before, after }) => {
+          const part = after ?? before;
+          const [was, is] = before && after ? partChange(before, after) : [
+            before ? describePart(before) : "none",
+            after ? describePart(after) : "none"
+          ];
+          return {
+            key: isForeignKey(part) ? "foreign key" : `${SINGULAR[n.property] ?? n.property} ${partName(part)}`,
+            status,
+            before: was,
+            after: is
+          };
+        });
+      return [
+        {
+          key: n.key,
+          status: "modified",
+          before: cellText(n.before, names, n.property),
+          after: cellText(n.after, names, n.property)
+        }
+      ];
+    }),
+    members: entry.status === "modified" ? changed : [],
+    // Members of a new or removed type that moved there or away.
+    moved: entry.status === "modified" ? [] : entry.members.filter((m) => m.moved),
+    entry
+  };
+}
+function previousMember(before, member) {
+  return {
+    ...member,
+    name: textOf(before.name) ?? member.name,
+    type: typeof before.type === "string" ? before.type : member.type
+  };
+}
+function memberChange(member, method, change, profile, names, moved) {
+  const status = member.changeStatus && member.changeStatus !== "unchanged" ? member.changeStatus : change?.kind;
+  const properties = meaningfulProperties(change).map((p) => ({
+    key: p.key,
+    before: cellText(p.before, names, p.key),
+    after: cellText(p.after, names, p.key)
+  }));
+  const before = change?.before;
+  return {
+    id: member.id,
+    status,
+    method,
+    name: member.name,
+    signature: memberSignature(member, method, profile),
+    // A member that moved in may also have changed on the way.
+    previous: (status === "modified" || moved?.from) && before ? memberSignature(previousMember(before, member), method, profile) : null,
+    properties,
+    moved: moved || null,
+    location: member.location || before?.location || null
+  };
+}
+function fileExists(model, file) {
+  if (!file) return false;
+  return model.classes.some(
+    (c) => c.changeStatus !== "added" && elementFile(c, model) === file
+  );
+}
+function dependencyMembers(source, target) {
+  if (!source || !target?.name) return [];
+  const pattern = new RegExp(
+    `(^|[^\\w$])${target.name.replace(/[$.*+?^(){}[\]|\\]/g, "\\$&")}([^\\w$]|$)`
+  );
+  return [
+    ...(source.attributes || []).map((m) => ({ member: m, method: false })),
+    ...(source.methods || []).map((m) => ({ member: m, method: true }))
+  ].filter(
+    ({ member }) => typeof member.type === "string" && pattern.test(member.type)
+  );
+}
+
 // src/visualization/UMLRelation.jsx
 import { Fragment as Fragment2, jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
 function relationName(edge) {
-  return edge.type === "generalization" ? `${edge.sourceName} ${edge.realization ? "implements" : "inherits"} ${edge.targetName}` : `${edge.name}: ${edge.sourceName} (${edge.sourceMultiplicity}), ${edge.targetName} (${edge.targetMultiplicity})`;
+  if (edge.type === "generalization")
+    return `${edge.sourceName} ${edge.realization ? "implements" : "inherits"} ${edge.targetName}`;
+  const own = informativeName(edge);
+  if (!own && edge.stereotype === "dependency")
+    return `${edge.sourceName} uses ${edge.targetName}`;
+  const end = (name, count) => knownMultiplicity(count) ? `${name} (${count})` : name;
+  return `${own || edge.stereotype || "Association"}: ${end(edge.sourceName, edge.sourceMultiplicity)}, ${end(edge.targetName, edge.targetMultiplicity)}`;
+}
+var MARK_GAP = 9;
+var MARK_END = 18;
+var MARK_PLACES = [0.5, 0.35, 0.65, 0.2, 0.8];
+function changeMarkPoint(paths, labels = []) {
+  const segments = [];
+  for (const d of paths) {
+    const n = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    for (let i = 2; i + 1 < n.length; i += 2)
+      segments.push({
+        from: [n[i - 2], n[i - 1]],
+        to: [n[i], n[i + 1]],
+        length: Math.abs(n[i] - n[i - 2]) + Math.abs(n[i + 1] - n[i - 1])
+      });
+  }
+  const free = ({ x, y }) => !labels.some(
+    (l) => x > l.x - MARK_GAP && x < l.x + l.width + MARK_GAP && y > l.y - MARK_GAP && y < l.y + l.height + MARK_GAP
+  );
+  for (const { from, to, length } of segments.sort(
+    (a, b) => b.length - a.length
+  ))
+    for (const place of MARK_PLACES) {
+      if (Math.min(place, 1 - place) * length < MARK_END) continue;
+      const point = {
+        x: from[0] + (to[0] - from[0]) * place,
+        y: from[1] + (to[1] - from[1]) * place
+      };
+      if (free(point)) return point;
+    }
+  return null;
+}
+function ChangeMarkGlyph({ change, at }) {
+  return /* @__PURE__ */ jsxs2(
+    "g",
+    {
+      className: "edge-change-mark",
+      transform: `translate(${at.x} ${at.y})`,
+      "aria-hidden": "true",
+      children: [
+        /* @__PURE__ */ jsx2("circle", { r: "7.5", fill: CHANGE_COLORS[change] }),
+        /* @__PURE__ */ jsx2(
+          "text",
+          {
+            y: "4.5",
+            textAnchor: "middle",
+            fill: "var(--canvas,#ffffff)",
+            fontSize: "13",
+            fontWeight: "700",
+            children: changeGlyph(change)
+          }
+        )
+      ]
+    }
+  );
 }
 function UMLRelation({
   edge,
@@ -364,35 +1194,51 @@ function UMLRelation({
   const highlighted = focus?.[kind === "group" ? "groups" : "edges"]?.has(
     edge.id
   );
-  const markerState = sameTarget(target, focus?.primary) ? "-primary" : highlighted ? "-active" : "";
+  const change = isChanged(edge.changeStatus) ? edge.changeStatus : null;
+  const markerState = change ? `-${change}` : sameTarget(target, focus?.primary) ? "-primary" : highlighted ? "-active" : "";
   const aggregationMarker = (kind2) => ["SHARED", "COMPOSITE"].includes(kind2) ? `url(#${markerId}-${kind2}${markerState})` : void 0;
+  const name = accessibleName || `${relationName(edge)}${change ? `, ${change === "added" ? "new" : change === "removed" ? "removed" : "changed"}` : ""}`;
+  const routes = edge.branchPaths || edge.paths;
+  const mark = change ? changeMarkPoint(routes, edge.labels) : null;
   return /* @__PURE__ */ jsxs2(
     "g",
     {
-      className: `${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}`,
+      className: `${elementClass(kind, edge.id, focus, selected)} relation-route${edge.type === "generalization" ? " generalization" : ""}${change ? " changed" : ""}`,
       "data-edge": edge.id,
       "data-element-kind": kind,
       "data-element-id": edge.id,
       "data-source": edge.source,
       "data-target": edge.target,
       "data-change": edge.changeStatus,
-      "aria-label": accessibleName || relationName(edge),
+      "aria-label": name,
       "aria-pressed": handlers ? sameTarget(target, selected) : void 0,
       ...interactionProps(target, handlers),
       children: [
-        /* @__PURE__ */ jsx2("title", { children: accessibleName || relationName(edge) }),
-        (edge.branchPaths || edge.paths).map((d, i) => /* @__PURE__ */ jsxs2("g", { children: [
+        /* @__PURE__ */ jsx2("title", { children: name }),
+        routes.map((d, i) => /* @__PURE__ */ jsxs2("g", { children: [
+          change && /* @__PURE__ */ jsx2(
+            "path",
+            {
+              className: "edge-halo",
+              d,
+              fill: "none",
+              stroke: "transparent",
+              strokeWidth: "7",
+              strokeLinecap: "round",
+              strokeLinejoin: "round"
+            }
+          ),
           /* @__PURE__ */ jsx2(
             "path",
             {
               className: "edge-path",
               d,
               fill: "none",
-              stroke: edge.type === "generalization" ? "var(--diagram-inheritance,#59636e)" : "var(--diagram-edge,#59636e)",
-              strokeWidth: "1.4",
-              strokeDasharray: edge.realization || edge.stereotype === "dependency" ? "6 4" : void 0,
+              stroke: change ? CHANGE_COLORS[change] : edge.type === "generalization" ? "var(--diagram-inheritance,#59636e)" : "var(--diagram-edge,#59636e)",
+              strokeWidth: change ? "2" : "1.4",
+              strokeDasharray: change === "removed" ? "2 4" : edge.realization || edge.stereotype === "dependency" ? "6 4" : void 0,
               markerStart: edge.type === "association" ? aggregationMarker(edge.sourceAggregation) : void 0,
-              markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${markerState})` : edge.stereotype === "dependency" ? `url(#${markerId}-DEPENDENCY${markerState})` : aggregationMarker(edge.targetAggregation)
+              markerEnd: edge.type === "generalization" && !edge.branchPaths ? `url(#${markerId}${markerState})` : edge.stereotype === "dependency" || edge.navigable ? `url(#${markerId}-DEPENDENCY${markerState})` : aggregationMarker(edge.targetAggregation)
             }
           ),
           handlers && /* @__PURE__ */ jsx2(
@@ -407,7 +1253,8 @@ function UMLRelation({
               pointerEvents: "stroke"
             }
           )
-        ] }, i))
+        ] }, i)),
+        mark && /* @__PURE__ */ jsx2(ChangeMarkGlyph, { change, at: mark })
       ]
     }
   );
@@ -455,6 +1302,7 @@ function UMLRelationLabels({
   kind = "edge"
 }) {
   const target = { kind, id: edge.id };
+  if (!edge.labels.length) return null;
   return /* @__PURE__ */ jsx2(
     "g",
     {
@@ -462,6 +1310,7 @@ function UMLRelationLabels({
       "data-edge": edge.id,
       "data-element-kind": kind,
       "data-element-id": edge.id,
+      "data-change": edge.changeStatus,
       "aria-hidden": "true",
       ...interactionProps(target, handlers, false),
       children: edge.labels.map((label) => /* @__PURE__ */ jsx2(
@@ -486,17 +1335,20 @@ function UMLRelationLabels({
                 textAnchor: "middle",
                 fill: "var(--diagram-label,#1f2328)",
                 fontSize: "13",
-                children: label.text.split("\n").map((line, i, lines) => /* @__PURE__ */ jsx2(
-                  "tspan",
-                  {
-                    x: label.width / 2,
-                    y: 17 + i * 17,
-                    fontSize: i === 0 && lines.length > 1 ? "11.5" : void 0,
-                    fill: i === 0 && lines.length > 1 ? "var(--diagram-muted,#59636e)" : void 0,
-                    children: line
-                  },
-                  i
-                ))
+                children: label.text.split("\n").map((line, i, lines) => {
+                  const stereotype = i === 0 && (lines.length > 1 || /^«.*»$/.test(line));
+                  return /* @__PURE__ */ jsx2(
+                    "tspan",
+                    {
+                      x: label.width / 2,
+                      y: 17 + i * 17,
+                      fontSize: stereotype ? "11.5" : void 0,
+                      fill: stereotype ? "var(--diagram-muted,#59636e)" : void 0,
+                      children: line
+                    },
+                    i
+                  );
+                })
               }
             )
           ] })
@@ -548,7 +1400,8 @@ function createHighlightController(svg, diagram) {
     if (!records.has(key)) records.set(key, []);
     element.classList.remove("dimmed");
     const markers = [];
-    for (const path of element.querySelectorAll(".edge-path")) {
+    const paths = element.classList.contains("changed") ? [] : element.querySelectorAll(".edge-path");
+    for (const path of paths) {
       for (const name of ["marker-start", "marker-end"]) {
         const value = path.getAttribute(name);
         if (value)
@@ -625,7 +1478,8 @@ function createHighlightController(svg, diagram) {
 // src/visualization/UMLDiagram.jsx
 import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 var markerStates = ["", "-active", "-primary"];
-var markerColor = (state, normal) => state === "-primary" ? "var(--diagram-selection,#9a6700)" : state === "-active" ? "var(--accent,#0969da)" : normal;
+var changeStates = Object.keys(CHANGE_COLORS).map((change) => `-${change}`);
+var markerColor = (state, normal) => state === "-primary" ? "var(--diagram-selection,#9a6700)" : state === "-active" ? "var(--accent,#0969da)" : CHANGE_COLORS[state.slice(1)] || normal;
 var UMLDiagram = memo(function UMLDiagram2({
   diagram,
   active = null,
@@ -634,6 +1488,10 @@ var UMLDiagram = memo(function UMLDiagram2({
   backgroundURL
 }) {
   const markerId = `inheritance-${useId().replaceAll(":", "")}`;
+  const states = useMemo(
+    () => diagram.edges.some((edge) => isChanged(edge.changeStatus)) ? [...markerStates, ...changeStates] : markerStates,
+    [diagram]
+  );
   const svgRef = useRef(null);
   const highlight = useRef(null);
   const latestHandlers = useRef(handlers);
@@ -692,7 +1550,7 @@ var UMLDiagram = memo(function UMLDiagram2({
         },
         children: [
           /* @__PURE__ */ jsxs3("defs", { children: [
-            markerStates.map((state) => /* @__PURE__ */ jsx4(
+            states.map((state) => /* @__PURE__ */ jsx4(
               "marker",
               {
                 id: `${markerId}-DEPENDENCY${state}`,
@@ -715,7 +1573,7 @@ var UMLDiagram = memo(function UMLDiagram2({
               `dependency${state}`
             )),
             ["SHARED", "COMPOSITE"].flatMap(
-              (aggregation) => markerStates.map((state) => /* @__PURE__ */ jsx4(
+              (aggregation) => states.map((state) => /* @__PURE__ */ jsx4(
                 "marker",
                 {
                   id: `${markerId}-${aggregation}${state}`,
@@ -738,7 +1596,7 @@ var UMLDiagram = memo(function UMLDiagram2({
                 `${aggregation}${state}`
               ))
             ),
-            markerStates.map((state) => /* @__PURE__ */ jsx4(
+            states.map((state) => /* @__PURE__ */ jsx4(
               "marker",
               {
                 id: `${markerId}${state}`,
@@ -801,13 +1659,13 @@ var UMLDiagram = memo(function UMLDiagram2({
         ]
       }
     );
-  }, [diagram, initial, stableHandlers, markerId, interactive, bitmap]);
+  }, [diagram, initial, stableHandlers, markerId, interactive, bitmap, states]);
   const overlay = useMemo(() => {
     if (!interactive || !focus) return null;
-    const index = interactionIndex(diagram);
-    const groups2 = [...focus.groups].map((id) => index.groups.get(id));
-    const edges = [...focus.edges].map((id) => index.edges.get(id));
-    const nodes = [...focus.nodes].map((id) => index.nodes.get(id)).filter(Boolean);
+    const index2 = interactionIndex(diagram);
+    const groups = [...focus.groups].map((id) => index2.groups.get(id));
+    const edges = [...focus.edges].map((id) => index2.edges.get(id));
+    const nodes = [...focus.nodes].map((id) => index2.nodes.get(id)).filter(Boolean);
     return /* @__PURE__ */ jsxs3(
       "svg",
       {
@@ -822,7 +1680,7 @@ var UMLDiagram = memo(function UMLDiagram2({
         },
         children: [
           /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
-            groups2.map((group) => /* @__PURE__ */ jsx4(
+            groups.map((group) => /* @__PURE__ */ jsx4(
               UMLGeneralizationGroup,
               {
                 ...{ group, focus, selected, markerId }
@@ -838,7 +1696,7 @@ var UMLDiagram = memo(function UMLDiagram2({
             ))
           ] }),
           /* @__PURE__ */ jsxs3("g", { className: "relation-label-layer", children: [
-            groups2.map((group) => /* @__PURE__ */ jsx4(
+            groups.map((group) => /* @__PURE__ */ jsx4(
               UMLGeneralizationGroup,
               {
                 labels: true,
@@ -1048,10 +1906,21 @@ function createCamera({
     const x = (Math.min(...anchors.map((n) => n.x)) + Math.max(...anchors.map((n) => n.x + n.w))) / 2;
     const y = (Math.min(...anchors.map((n) => n.y)) + Math.max(...anchors.map((n) => n.y + n.h))) / 2;
     const area = visibleArea();
+    const width = Math.max(...anchors.map((n) => n.x + n.w)) - Math.min(...anchors.map((n) => n.x));
+    const height = Math.max(...anchors.map((n) => n.y + n.h)) - Math.min(...anchors.map((n) => n.y));
+    const scale = Math.max(
+      camera.scale,
+      0.5,
+      Math.min(
+        0.7,
+        (area.width - 2 * FIT_PADDING) / Math.max(1, width),
+        (area.height - 2 * FIT_PADDING) / Math.max(1, height)
+      )
+    );
     snapTo({
-      scale: 0.7,
-      x: area.x + area.width / 2 - x * 0.7,
-      y: area.y + area.height / 2 - y * 0.7,
+      scale,
+      x: area.x + area.width / 2 - x * scale,
+      y: area.y + area.height / 2 - y * scale,
       fitted: false
     });
   }
@@ -1112,6 +1981,41 @@ function createCamera({
         scale,
         x: area.x + freeWidth / 2 - (m.e + Number(r.getAttribute("width")) / 2) * scale,
         y: area.y + area.height / 2 - (m.f + Number(r.getAttribute("height")) / 2) * scale,
+        fitted: false
+      },
+      ZOOM_EASING_MS
+    );
+  }
+  function focusNodes(ids, rightInset = 0) {
+    const boxes = ids.map(
+      (id) => worldRef.current.querySelector(`.node[data-node-id="${id}"]`)
+    ).filter(Boolean).map((node) => {
+      const m = node.transform.baseVal.consolidate().matrix;
+      const r = node.querySelector("rect");
+      return {
+        x: m.e,
+        y: m.f,
+        right: m.e + Number(r.getAttribute("width")),
+        bottom: m.f + Number(r.getAttribute("height"))
+      };
+    });
+    if (!boxes.length) return;
+    cancelMotion();
+    const left = Math.min(...boxes.map((b) => b.x)), top = Math.min(...boxes.map((b) => b.y)), right = Math.max(...boxes.map((b) => b.right)), bottom = Math.max(...boxes.map((b) => b.bottom));
+    const area = visibleArea();
+    const freeWidth = Math.max(1, area.width - rightInset);
+    const fits = Math.min(
+      (freeWidth - 2 * FIT_PADDING) / Math.max(1, right - left),
+      (area.height - 2 * FIT_PADDING) / Math.max(1, bottom - top)
+    );
+    const scale = clampScale(
+      Math.min(Math.max(camera.scale, 0.85), Math.max(0.3, fits))
+    );
+    moveTo(
+      {
+        scale,
+        x: area.x + freeWidth / 2 - (left + right) / 2 * scale,
+        y: area.y + area.height / 2 - (top + bottom) / 2 * scale,
         fitted: false
       },
       ZOOM_EASING_MS
@@ -1336,6 +2240,7 @@ function createCamera({
     attach,
     restoreView,
     focusNode,
+    focusNodes,
     revealNode,
     hasDragged: () => moved,
     fit,
@@ -1378,7 +2283,9 @@ function useDiagramCamera({
     controls.restoreView(diagram.key, diagram.fields, diagram.initialFocus);
   }, [controls, diagram]);
   useLayoutEffect2(() => {
-    if (focusRequest)
+    if (focusRequest?.ids)
+      controls.focusNodes(focusRequest.ids, focusRequest.rightInset);
+    else if (focusRequest)
       controls.focusNode(focusRequest.id, focusRequest.rightInset);
   }, [controls, focusRequest]);
   useLayoutEffect2(() => controls.attach(), [controls]);
@@ -1443,7 +2350,7 @@ var DiagramCanvas = memo2(
       {
         ref: canvasRef,
         id: "canvas",
-        "aria-label": "Interactive OntoUML diagram",
+        "aria-label": "Interactive diagram",
         onPointerLeave: () => onHover(null),
         children: [
           /* @__PURE__ */ jsx5("div", { className: "canvas-grid", "aria-hidden": "true" }),
@@ -1476,31 +2383,37 @@ var THEME_VARS = [
   "--diagram-label",
   "--diagram-muted",
   "--diagram-attribute",
-  "--node-kind",
-  "--node-role",
-  "--node-relator",
-  "--node-phase",
-  "--node-event",
-  "--node-mode",
-  "--type-kind",
-  "--type-role",
-  "--type-relator",
-  "--type-phase",
-  "--type-event",
-  "--type-mode"
+  "--change-added",
+  "--change-modified",
+  "--change-removed"
 ];
 var EMPTY_URLS = { diagramURL: void 0, backgroundURL: void 0 };
-function useSVGExport(svgSource, theme) {
+function resolvedColours(element) {
+  const declared = getComputedStyle(element);
+  const probe = document.createElement("span");
+  probe.hidden = true;
+  element.appendChild(probe);
+  const colours = /* @__PURE__ */ new Map();
+  for (const name of THEME_VARS) {
+    if (!declared.getPropertyValue(name).trim()) continue;
+    probe.style.color = `var(${name})`;
+    colours.set(name, getComputedStyle(probe).color);
+  }
+  probe.remove();
+  return colours;
+}
+function useSVGExport(svgSource, theme, scope, fade = false) {
   const [urls, setURLs] = useState3(EMPTY_URLS);
   useEffect2(() => {
     const svg = new DOMParser().parseFromString(
       svgSource,
       "image/svg+xml"
     ).documentElement;
-    const styles = getComputedStyle(document.documentElement);
-    for (const name of THEME_VARS)
-      svg.style.setProperty(name, styles.getPropertyValue(name).trim());
+    const colours = resolvedColours(scope?.current || document.documentElement);
+    for (const [name, colour] of colours) svg.style.setProperty(name, colour);
     svg.querySelectorAll(".selected,.dimmed").forEach((n) => n.classList.remove("selected", "dimmed"));
+    const faded = fade ? [...svg.querySelectorAll('[data-change="unchanged"]')] : [];
+    for (const element of faded) element.setAttribute("opacity", "0.32");
     const backgroundURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"
@@ -1512,186 +2425,157 @@ function useSVGExport(svgSource, theme) {
     );
     background.setAttribute("width", svg.viewBox.baseVal.width);
     background.setAttribute("height", svg.viewBox.baseVal.height);
-    background.setAttribute("fill", styles.getPropertyValue("--canvas").trim());
+    background.setAttribute("fill", colours.get("--canvas") ?? "#ffffff");
     svg.insertBefore(background, svg.firstChild);
+    for (const element of faded) element.removeAttribute("opacity");
     const diagramURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"
       })
     );
-    setURLs({ diagramURL, backgroundURL, source: svgSource, theme });
+    setURLs({ diagramURL, backgroundURL, source: svgSource, theme, fade });
     return () => {
       URL.revokeObjectURL(diagramURL);
       URL.revokeObjectURL(backgroundURL);
     };
-  }, [svgSource, theme]);
-  return urls.source === svgSource && urls.theme === theme ? urls : EMPTY_URLS;
+  }, [svgSource, theme, fade]);
+  return urls.source === svgSource && urls.theme === theme && urls.fade === fade ? urls : EMPTY_URLS;
 }
 
+// src/viewer/DiagramViewer.jsx
+import {
+  Dialog,
+  EmptyState,
+  useTheme,
+  useThemePreference
+} from "@envsemble/envui";
+
+// src/ui/Panel.jsx
+import { Surface, Text } from "@envsemble/envui";
+
 // src/ui/Button.jsx
+import { IconButton, Tooltip as Tooltip2 } from "@envsemble/envui";
 import { jsx as jsx6 } from "react/jsx-runtime";
-function IconButton({
+function ToolButton({
   label,
-  title = label,
-  className = "",
-  children,
+  tooltip = label,
+  icon,
+  pressed,
+  variant,
+  side = "bottom",
   ...props
 }) {
-  return /* @__PURE__ */ jsx6(
-    "button",
+  return /* @__PURE__ */ jsx6(Tooltip2, { content: tooltip, side, children: /* @__PURE__ */ jsx6(
+    IconButton,
     {
-      className: `icon ${className}`,
-      "aria-label": label,
-      title,
       ...props,
-      children
+      "aria-label": label,
+      "aria-pressed": pressed,
+      icon,
+      variant: variant ?? (pressed ? "primary" : "secondary")
     }
-  );
-}
-function ToggleButton({ pressed, className = "", children, ...props }) {
-  return /* @__PURE__ */ jsx6("button", { className, "aria-pressed": pressed, ...props, children });
+  ) });
 }
 
 // src/ui/Icons.jsx
-import {
-  ArrowLeftIcon,
-  BookIcon,
-  CodeIcon,
-  DashIcon,
-  DatabaseIcon,
-  DiffAddedIcon,
-  DiffModifiedIcon,
-  DiffRemovedIcon,
-  DownloadIcon,
-  FileCodeIcon,
-  FileMediaIcon,
-  FocusCenterIcon,
-  GitBranchIcon,
-  GitPullRequestIcon,
-  AlertIcon,
-  LinkExternalIcon,
-  MarkGithubIcon,
-  MoonIcon,
-  NoteIcon,
-  PencilAiIcon,
-  PlusIcon,
-  QuestionIcon,
-  RepoIcon,
-  ScreenFullIcon,
-  ScreenNormalIcon,
-  SearchIcon,
-  SidebarCollapseIcon,
-  SidebarExpandIcon,
-  SunIcon,
-  TableIcon,
-  TriangleDownIcon,
-  XIcon
-} from "@primer/octicons-react";
+import { AccountTree } from "@envsemble/envui/icons/AccountTree";
+import { Add } from "@envsemble/envui/icons/Add";
+import { ArrowBack } from "@envsemble/envui/icons/ArrowBack";
+import { Category } from "@envsemble/envui/icons/Category";
+import { ChevronLeft } from "@envsemble/envui/icons/ChevronLeft";
+import { ChevronRight } from "@envsemble/envui/icons/ChevronRight";
+import { Close } from "@envsemble/envui/icons/Close";
+import { Code } from "@envsemble/envui/icons/Code";
+import { Contrast } from "@envsemble/envui/icons/Contrast";
+import { Database } from "@envsemble/envui/icons/Database";
+import { Description } from "@envsemble/envui/icons/Description";
+import { Difference } from "@envsemble/envui/icons/Difference";
+import { Download } from "@envsemble/envui/icons/Download";
+import { EditNote } from "@envsemble/envui/icons/EditNote";
+import { ExpandLess } from "@envsemble/envui/icons/ExpandLess";
+import { ExpandMore } from "@envsemble/envui/icons/ExpandMore";
+import { FitScreen } from "@envsemble/envui/icons/FitScreen";
+import { FolderZip } from "@envsemble/envui/icons/FolderZip";
+import { Fullscreen } from "@envsemble/envui/icons/Fullscreen";
+import { FullscreenExit } from "@envsemble/envui/icons/FullscreenExit";
+import { Image } from "@envsemble/envui/icons/Image";
+import { Info } from "@envsemble/envui/icons/Info";
+import { OpenInNew } from "@envsemble/envui/icons/OpenInNew";
+import { Polyline } from "@envsemble/envui/icons/Polyline";
+import { Remove } from "@envsemble/envui/icons/Remove";
+import { RightPanelClose } from "@envsemble/envui/icons/RightPanelClose";
+import { RightPanelOpen } from "@envsemble/envui/icons/RightPanelOpen";
+import { School } from "@envsemble/envui/icons/School";
+import { Search } from "@envsemble/envui/icons/Search";
+import { TableRows } from "@envsemble/envui/icons/TableRows";
+import { Visibility } from "@envsemble/envui/icons/Visibility";
+import { Warning } from "@envsemble/envui/icons/Warning";
 
 // src/ui/Panel.jsx
 import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
 function Panel({
+  ref,
   open,
   onClose,
   label = "Diagram details",
   title = label,
+  toolbar = null,
   closeLabel = "Close details",
+  resizer = null,
   children,
   id = "panel",
   className = "",
   ...props
 }) {
+  const compact = !title && !toolbar;
   return /* @__PURE__ */ jsxs5(
-    "aside",
+    Surface,
     {
+      as: "aside",
+      tone: "pane",
+      padding: 0,
       id,
       className: `panel${open ? " open" : ""}${className ? ` ${className}` : ""}`,
       "aria-label": label,
       ...props,
       children: [
-        /* @__PURE__ */ jsxs5("div", { className: `panel-header${title ? "" : " compact"}`, children: [
-          title && /* @__PURE__ */ jsx7("span", { className: "panel-title", children: title }),
-          onClose && /* @__PURE__ */ jsx7(
-            IconButton,
-            {
-              className: "panel-close",
-              label: closeLabel,
-              onClick: onClose,
-              children: /* @__PURE__ */ jsx7(XIcon, { size: 16 })
-            }
-          )
-        ] }),
-        /* @__PURE__ */ jsx7("div", { className: "panel-content", children })
+        resizer,
+        /* @__PURE__ */ jsxs5("div", { className: "panel-scroll", ref, children: [
+          /* @__PURE__ */ jsxs5("div", { className: `panel-header${compact ? " compact" : ""}`, children: [
+            toolbar,
+            !toolbar && title && /* @__PURE__ */ jsx7(Text, { as: "h2", variant: "section-heading", className: "panel-title", children: title }),
+            onClose && /* @__PURE__ */ jsx7(
+              ToolButton,
+              {
+                className: "panel-close",
+                label: closeLabel,
+                icon: /* @__PURE__ */ jsx7(Close, {}),
+                onClick: onClose
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsx7("div", { className: "panel-content", children })
+        ] })
       ]
     }
   );
 }
 
-// src/ui/useTheme.js
-import { useLayoutEffect as useLayoutEffect4, useState as useState4 } from "react";
-function useTheme(storageKey) {
-  const [theme, setTheme] = useState4(() => {
-    try {
-      return localStorage.getItem(storageKey) === "light" ? "light" : "dark";
-    } catch {
-      return "dark";
-    }
-  });
-  useLayoutEffect4(() => {
-    document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem(storageKey, theme);
-    } catch {
-    }
-  }, [theme, storageKey]);
-  return [theme, () => setTheme((old) => old === "dark" ? "light" : "dark")];
-}
-
 // src/viewer/ViewerToolbar.jsx
 import { forwardRef as forwardRef2, useMemo as useMemo4 } from "react";
-
-// src/ui/Tabs.jsx
-import { jsx as jsx8 } from "react/jsx-runtime";
-function Tabs({
-  items,
-  value,
-  onChange,
-  label = "Diagram",
-  compact = false
-}) {
-  if (compact)
-    return /* @__PURE__ */ jsx8(
-      "select",
-      {
-        className: "view-select",
-        "aria-label": label,
-        value,
-        onChange: (e) => onChange(e.target.value),
-        children: items.map((item) => /* @__PURE__ */ jsx8("option", { value: item.key, children: item.label }, item.key))
-      }
-    );
-  return /* @__PURE__ */ jsx8("nav", { className: "tabs", "aria-label": label, children: items.map((item) => /* @__PURE__ */ jsx8(
-    "button",
-    {
-      "data-view": item.key,
-      "aria-selected": item.key === value,
-      onClick: () => onChange(item.key),
-      children: item.label
-    },
-    item.key
-  )) });
-}
+import { Text as Text3, ThemeToggle } from "@envsemble/envui";
 
 // src/ui/CameraControls.jsx
 import { useSyncExternalStore } from "react";
-import { jsx as jsx9, jsxs as jsxs6 } from "react/jsx-runtime";
+import { Button, ButtonGroup, Kbd, Tooltip as Tooltip3 } from "@envsemble/envui";
+import { Fragment as Fragment3, jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
 function ZoomReadout({ zoom, onReset }) {
-  return /* @__PURE__ */ jsxs6(
-    "button",
+  return /* @__PURE__ */ jsx8(Tooltip3, { content: "Reset to 100%", side: "bottom", children: /* @__PURE__ */ jsxs6(
+    Button,
     {
       id: "zoom-value",
+      variant: "secondary",
       className: "zoom-readout",
-      title: "Reset to 100%",
       "aria-label": `Zoom ${zoom}%; reset to 100%`,
       onClick: onReset,
       children: [
@@ -1699,7 +2583,7 @@ function ZoomReadout({ zoom, onReset }) {
         "%"
       ]
     }
-  );
+  ) });
 }
 function ObservedZoomReadout({ store, onReset }) {
   const zoom = useSyncExternalStore(
@@ -1707,42 +2591,58 @@ function ObservedZoomReadout({ store, onReset }) {
     store.getSnapshot,
     store.getSnapshot
   );
-  return /* @__PURE__ */ jsx9(ZoomReadout, { zoom, onReset });
+  return /* @__PURE__ */ jsx8(ZoomReadout, { zoom, onReset });
 }
-function CameraControls({ zoom, zoomStore, onZoom, onReset, onFit }) {
-  return /* @__PURE__ */ jsxs6("div", { className: "camera-controls", role: "group", "aria-label": "Zoom", children: [
-    /* @__PURE__ */ jsx9(
-      IconButton,
+function CameraControls({
+  zoom,
+  zoomStore,
+  onZoom,
+  onReset,
+  onFit,
+  compact = false
+}) {
+  return /* @__PURE__ */ jsxs6(ButtonGroup, { "aria-label": "Zoom", className: "camera-controls", children: [
+    !compact && /* @__PURE__ */ jsx8(
+      ToolButton,
       {
         id: "zoom-out",
         label: "Zoom out",
-        title: "Zoom out (\u2212)",
+        tooltip: /* @__PURE__ */ jsxs6(Fragment3, { children: [
+          "Zoom out ",
+          /* @__PURE__ */ jsx8(Kbd, { children: "\u2212" })
+        ] }),
         "aria-keyshortcuts": "-",
-        onClick: () => onZoom(1 / 1.25),
-        children: /* @__PURE__ */ jsx9(DashIcon, { size: 16 })
+        icon: /* @__PURE__ */ jsx8(Remove, {}),
+        onClick: () => onZoom(1 / 1.25)
       }
     ),
-    zoomStore ? /* @__PURE__ */ jsx9(ObservedZoomReadout, { store: zoomStore, onReset }) : /* @__PURE__ */ jsx9(ZoomReadout, { zoom, onReset }),
-    /* @__PURE__ */ jsx9(
-      IconButton,
+    zoomStore ? /* @__PURE__ */ jsx8(ObservedZoomReadout, { store: zoomStore, onReset }) : /* @__PURE__ */ jsx8(ZoomReadout, { zoom, onReset }),
+    !compact && /* @__PURE__ */ jsx8(
+      ToolButton,
       {
         id: "zoom-in",
         label: "Zoom in",
-        title: "Zoom in (+)",
+        tooltip: /* @__PURE__ */ jsxs6(Fragment3, { children: [
+          "Zoom in ",
+          /* @__PURE__ */ jsx8(Kbd, { children: "+" })
+        ] }),
         "aria-keyshortcuts": "+",
-        onClick: () => onZoom(1.25),
-        children: /* @__PURE__ */ jsx9(PlusIcon, { size: 16 })
+        icon: /* @__PURE__ */ jsx8(Add, {}),
+        onClick: () => onZoom(1.25)
       }
     ),
-    /* @__PURE__ */ jsx9(
-      IconButton,
+    /* @__PURE__ */ jsx8(
+      ToolButton,
       {
         id: "fit",
-        label: "Fit",
-        title: "Fit diagram (0)",
+        label: "Fit diagram",
+        tooltip: /* @__PURE__ */ jsxs6(Fragment3, { children: [
+          "Fit diagram ",
+          /* @__PURE__ */ jsx8(Kbd, { children: "0" })
+        ] }),
         "aria-keyshortcuts": "0",
-        onClick: onFit,
-        children: /* @__PURE__ */ jsx9(FocusCenterIcon, { size: 16 })
+        icon: /* @__PURE__ */ jsx8(FitScreen, {}),
+        onClick: onFit
       }
     )
   ] });
@@ -1753,17 +2653,18 @@ import {
   memo as memo3,
   useEffect as useEffect4,
   useId as useId2,
-  useLayoutEffect as useLayoutEffect6,
+  useLayoutEffect as useLayoutEffect5,
   useMemo as useMemo3,
   useRef as useRef5,
-  useState as useState5
+  useState as useState4
 } from "react";
+import { Kbd as Kbd2, SearchField, Surface as Surface2 } from "@envsemble/envui";
 
 // src/ui/usePopupDismiss.js
-import { useEffect as useEffect3, useLayoutEffect as useLayoutEffect5, useRef as useRef4 } from "react";
+import { useEffect as useEffect3, useLayoutEffect as useLayoutEffect4, useRef as useRef4 } from "react";
 function usePopupDismiss(onClose, ...roots) {
   const latest = useRef4({ onClose, roots });
-  useLayoutEffect5(() => {
+  useLayoutEffect4(() => {
     latest.current = { onClose, roots };
   });
   useEffect3(() => {
@@ -1784,14 +2685,14 @@ function usePopupDismiss(onClose, ...roots) {
 }
 
 // src/ui/ConceptSearch.jsx
-import { jsx as jsx10, jsxs as jsxs7 } from "react/jsx-runtime";
+import { Fragment as Fragment4, jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
 var ConceptSearch = memo3(function ConceptSearch2({
   classes,
   onChoose
 }) {
-  const [query, setQuery] = useState5("");
-  const [open, setOpen] = useState5(false);
-  const [showHits, setShowHits] = useState5(false);
+  const [query, setQuery] = useState4("");
+  const [open, setOpen] = useState4(false);
+  const [showHits, setShowHits] = useState4(false);
   const inputRef = useRef5(null);
   const suggestionsRef = useRef5(null);
   const searchRef = useRef5(null);
@@ -1814,7 +2715,7 @@ var ConceptSearch = memo3(function ConceptSearch2({
     setShowHits(false);
     setOpen(false);
   };
-  useLayoutEffect6(() => {
+  useLayoutEffect5(() => {
     if (open) inputRef.current.focus();
   }, [open]);
   usePopupDismiss(close, searchRef);
@@ -1844,29 +2745,28 @@ var ConceptSearch = memo3(function ConceptSearch2({
   }
   const listOpen = showHits && hits.length > 0;
   return /* @__PURE__ */ jsxs7("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
-    /* @__PURE__ */ jsx10(
-      "button",
+    /* @__PURE__ */ jsx9(
+      ToolButton,
       {
-        type: "button",
-        className: "icon search-toggle",
-        "aria-label": "Open concept search",
+        className: "search-toggle",
+        label: "Open concept search",
+        tooltip: /* @__PURE__ */ jsxs7(Fragment4, { children: [
+          "Find concept ",
+          /* @__PURE__ */ jsx9(Kbd2, { children: "/" })
+        ] }),
         "aria-expanded": open,
         "aria-controls": fieldId,
-        title: "Find concept (/)",
-        onClick: () => setOpen(!open),
-        children: /* @__PURE__ */ jsx10(SearchIcon, { size: 16 })
+        icon: /* @__PURE__ */ jsx9(Search, {}),
+        onClick: () => setOpen(!open)
       }
     ),
     /* @__PURE__ */ jsxs7("div", { className: "search-field", id: fieldId, children: [
-      /* @__PURE__ */ jsx10(SearchIcon, { size: 14, className: "search-icon" }),
-      /* @__PURE__ */ jsx10(
-        "input",
+      /* @__PURE__ */ jsx9(
+        SearchField,
         {
           ref: inputRef,
-          id: "search",
-          type: "search",
-          placeholder: "Find a concept",
-          "aria-label": "Find concept",
+          label: "Find concept",
+          placeholder: "Find a concept (/)",
           autoComplete: "off",
           "aria-keyshortcuts": "/",
           role: "combobox",
@@ -1874,8 +2774,8 @@ var ConceptSearch = memo3(function ConceptSearch2({
           "aria-controls": listId,
           "aria-autocomplete": "list",
           value: query,
-          onChange: (e) => {
-            setQuery(e.target.value);
+          onValueChange: (next) => {
+            setQuery(next);
             setShowHits(true);
           },
           onKeyDown: (e) => {
@@ -1889,18 +2789,25 @@ var ConceptSearch = memo3(function ConceptSearch2({
             }
             if (e.key === "Escape") {
               e.stopPropagation();
-              close();
-              inputRef.current.blur();
+              if (listOpen) {
+                e.preventDefault();
+                setShowHits(false);
+              } else if (!query) {
+                close();
+                inputRef.current.blur();
+              }
             }
           }
         }
       ),
-      /* @__PURE__ */ jsx10("kbd", { className: "search-shortcut", "aria-hidden": "true", children: "/" }),
-      /* @__PURE__ */ jsx10(
-        "div",
+      /* @__PURE__ */ jsx9(
+        Surface2,
         {
           ref: suggestionsRef,
           id: listId,
+          tone: "pane",
+          padding: 1,
+          corners: "standard",
           className: `suggestions${listOpen ? " open" : ""}`,
           role: "listbox",
           "aria-label": "Concepts",
@@ -1908,22 +2815,35 @@ var ConceptSearch = memo3(function ConceptSearch2({
             const items = [
               ...suggestionsRef.current.querySelectorAll("button")
             ];
-            const index = items.indexOf(document.activeElement);
+            const index2 = items.indexOf(document.activeElement);
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
-              const next = index + (e.key === "ArrowDown" ? 1 : -1);
+              const next = index2 + (e.key === "ArrowDown" ? 1 : -1);
               if (next < 0) inputRef.current.focus();
               else items[Math.min(next, items.length - 1)]?.focus();
             }
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              setShowHits(false);
+              inputRef.current.focus();
+            }
           },
-          children: hits.map((c) => /* @__PURE__ */ jsx10(
+          children: hits.map((c) => /* @__PURE__ */ jsxs7(
             "button",
             {
               type: "button",
               role: "option",
               "aria-selected": "false",
+              className: "suggestion",
               onClick: () => choose(c.id),
-              children: c.name
+              children: [
+                /* @__PURE__ */ jsx9("span", { className: "suggestion-name", children: c.name }),
+                c.stereotype && /* @__PURE__ */ jsxs7("span", { className: "suggestion-detail", children: [
+                  "\xAB",
+                  c.stereotype,
+                  "\xBB"
+                ] })
+              ]
             },
             c.id
           ))
@@ -1934,805 +2854,149 @@ var ConceptSearch = memo3(function ConceptSearch2({
 });
 
 // src/ui/ExportMenu.jsx
-import { useRef as useRef6, useState as useState6 } from "react";
-import { jsx as jsx11, jsxs as jsxs8 } from "react/jsx-runtime";
-function ExportMenu({ children }) {
-  const [open, setOpen] = useState6(false);
-  const root = useRef6(null);
-  usePopupDismiss(() => setOpen(false), root);
-  return /* @__PURE__ */ jsxs8("div", { className: "menu-wrap", ref: root, children: [
-    /* @__PURE__ */ jsx11(
-      IconButton,
-      {
-        id: "export",
-        label: "Export",
-        "aria-expanded": open,
-        onClick: () => setOpen(!open),
-        children: /* @__PURE__ */ jsx11(DownloadIcon, { size: 16 })
-      }
-    ),
-    /* @__PURE__ */ jsx11("div", { id: "export-menu", className: `menu${open ? " open" : ""}`, children })
-  ] });
+import { Menu, MenuItem } from "@envsemble/envui";
+import { jsx as jsx10 } from "react/jsx-runtime";
+function downloadURL(href, filename) {
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = filename;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
 }
-
-// src/ui/useBlobURL.js
-import { useEffect as useEffect5, useState as useState7 } from "react";
-function useBlobURL(data, type = "text/plain;charset=utf-8") {
-  const [url, setURL] = useState7(void 0);
-  useEffect5(() => {
-    const next = URL.createObjectURL(new Blob([data], { type }));
-    setURL(next);
-    return () => URL.revokeObjectURL(next);
-  }, [data, type]);
-  return url;
+function downloadData(data, filename, type = "text/plain;charset=utf-8") {
+  const href = URL.createObjectURL(new Blob([data], { type }));
+  downloadURL(href, filename);
+  setTimeout(() => URL.revokeObjectURL(href), 1e4);
 }
-
-// src/ui/DownloadLink.jsx
-import { jsx as jsx12 } from "react/jsx-runtime";
-function DownloadLink({
-  data,
-  filename,
-  type,
-  children,
-  id,
-  className = "source"
-}) {
-  const href = useBlobURL(data, type);
-  return /* @__PURE__ */ jsx12("a", { id, className, href, download: filename, children });
+function ExportMenu({ items }) {
+  return /* @__PURE__ */ jsx10(
+    Menu,
+    {
+      "aria-label": "Export",
+      trigger: /* @__PURE__ */ jsx10(
+        ToolButton,
+        {
+          id: "export",
+          label: "Export",
+          tooltip: "Export the diagram or model",
+          icon: /* @__PURE__ */ jsx10(Download, {})
+        }
+      ),
+      children: items.map((item) => /* @__PURE__ */ jsx10(
+        MenuItem,
+        {
+          className: item.key,
+          icon: item.icon,
+          description: item.description,
+          onClick: item.onSelect,
+          children: item.label
+        },
+        item.key
+      ))
+    }
+  );
 }
 
 // src/ui/Island.jsx
-import { jsx as jsx13 } from "react/jsx-runtime";
+import { Surface as Surface3 } from "@envsemble/envui";
+import { jsx as jsx11 } from "react/jsx-runtime";
 function Island({ label, className = "", children, ...props }) {
-  return /* @__PURE__ */ jsx13(
-    "div",
+  return /* @__PURE__ */ jsx11(
+    Surface3,
     {
-      className: `atlas-island${className ? ` ${className}` : ""}`,
+      tone: "pane",
+      corners: "pill",
+      padding: 1,
+      density: "compact",
       role: "group",
       "aria-label": label,
+      className: `atlas-island${className ? ` ${className}` : ""}`,
       ...props,
       children
     }
   );
 }
 function IslandDivider() {
-  return /* @__PURE__ */ jsx13("span", { className: "island-divider", "aria-hidden": "true" });
+  return /* @__PURE__ */ jsx11("span", { className: "island-divider", "aria-hidden": "true" });
 }
-function SegmentedControl({ items, value, onChange, label }) {
-  return /* @__PURE__ */ jsx13("div", { className: "segmented-control", role: "group", "aria-label": label, children: items.map((item) => /* @__PURE__ */ jsx13(
-    "button",
+
+// src/ui/ViewSwitcher.jsx
+import { SegmentedControl, Select } from "@envsemble/envui";
+import { jsx as jsx12 } from "react/jsx-runtime";
+function ViewSwitcher({
+  items,
+  value,
+  onChange,
+  label = "Diagram view",
+  compact = false
+}) {
+  const options = items.map((item) => ({ value: item.key, label: item.label }));
+  if (compact)
+    return /* @__PURE__ */ jsx12(
+      Select,
+      {
+        className: "view-select",
+        "aria-label": label,
+        options,
+        value,
+        onValueChange: (next) => next && onChange(next)
+      }
+    );
+  return /* @__PURE__ */ jsx12(
+    SegmentedControl,
     {
-      type: "button",
-      "data-mode": item.key,
-      "aria-current": item.key === value ? "true" : void 0,
-      title: item.title,
-      onClick: () => onChange(item.key),
-      children: item.label
-    },
-    item.key
-  )) });
+      className: "view-switcher",
+      "aria-label": label,
+      size: "compact",
+      options,
+      value,
+      onValueChange: onChange
+    }
+  );
 }
 
 // src/ui/AtlasMark.jsx
-import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
+import { jsx as jsx13, jsxs as jsxs8 } from "react/jsx-runtime";
 function AtlasMark({ size = 28, label = "Atlas" }) {
-  return /* @__PURE__ */ jsxs9(
+  return /* @__PURE__ */ jsxs8(
     "svg",
     {
       width: size,
       height: size,
-      viewBox: "0 0 64 64",
+      viewBox: "27 26.5 189 189",
       role: label ? "img" : void 0,
       "aria-label": label || void 0,
       "aria-hidden": label ? void 0 : true,
       children: [
-        /* @__PURE__ */ jsx14(
-          "path",
+        /* @__PURE__ */ jsx13("rect", { x: "27", y: "27", width: "189", height: "188", rx: "43", fill: "#111820" }),
+        /* @__PURE__ */ jsxs8(
+          "g",
           {
             fill: "none",
-            stroke: "currentColor",
-            strokeWidth: "4",
+            stroke: "#fff",
+            strokeWidth: "12",
+            strokeLinecap: "round",
             strokeLinejoin: "round",
-            d: "M16 47V32h16V17m0 15h16v15"
+            children: [
+              /* @__PURE__ */ jsx13("path", { d: "M76 163 L120 77 L164 163" }),
+              /* @__PURE__ */ jsx13("path", { d: "M96 132 H144" })
+            ]
           }
         ),
-        /* @__PURE__ */ jsx14("path", { fill: "var(--warning, #e3b341)", d: "m32 9-8 12h16z" }),
-        /* @__PURE__ */ jsx14(
-          "rect",
-          {
-            x: "9",
-            y: "42",
-            width: "14",
-            height: "14",
-            rx: "4",
-            fill: "var(--accent, #539bf5)"
-          }
-        ),
-        /* @__PURE__ */ jsx14(
-          "rect",
-          {
-            x: "41",
-            y: "42",
-            width: "14",
-            height: "14",
-            rx: "4",
-            fill: "var(--success, #57ab5a)"
-          }
-        )
-      ]
-    }
-  );
-}
-
-// src/viewer/ViewerToolbar.jsx
-import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
-var ViewerToolbar = forwardRef2(function ViewerToolbar2({
-  model,
-  views,
-  exports,
-  viewKey,
-  fields,
-  theme,
-  zoomStore,
-  diagramURL,
-  sidebarHidden,
-  sidebarOpen,
-  learningOpen,
-  aboutOpen,
-  comparisonControls,
-  reportControl,
-  density = 0,
-  onSidebar,
-  onView,
-  onFields,
-  onTheme,
-  onChoose,
-  onAbout,
-  onLearn,
-  onZoom,
-  onReset,
-  onFit
-}, ref) {
-  const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
-  const sidebarLabel = sidebarHidden ? "Show details" : "Hide details";
-  const conceptual = !model.document || model.document.profile === "ontouml";
-  const modelFile = `${exports.slug}-${conceptual ? "ontouml" : "structural"}.json`;
-  const searchClasses = useMemo4(() => {
-    const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
-    return model.classes.filter((concept) => visibleIds.has(concept.id));
-  }, [model.classes, views]);
-  return /* @__PURE__ */ jsxs10(
-    "header",
-    {
-      className: `atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
-      ref,
-      children: [
-        /* @__PURE__ */ jsxs10(Island, { label: "Diagram navigation", className: "island-start", children: [
-          /* @__PURE__ */ jsx15("span", { className: "brand-mark", title: model.title, children: /* @__PURE__ */ jsx15(AtlasMark, {}) }),
-          /* @__PURE__ */ jsx15("span", { className: "island-title", title: model.title, children: model.title }),
-          (views.length > 1 || comparisonControls) && /* @__PURE__ */ jsx15(IslandDivider, {}),
-          views.length > 1 && /* @__PURE__ */ jsx15(
-            Tabs,
-            {
-              items: views,
-              value: viewKey,
-              onChange: onView,
-              compact: density > 0
-            }
-          ),
-          views.length > 1 && comparisonControls && /* @__PURE__ */ jsx15(IslandDivider, {}),
-          comparisonControls
-        ] }),
-        /* @__PURE__ */ jsxs10(Island, { label: "Diagram tools", className: "island-end", children: [
-          /* @__PURE__ */ jsx15(ConceptSearch, { classes: searchClasses, onChoose }),
-          /* @__PURE__ */ jsx15(IslandDivider, {}),
-          /* @__PURE__ */ jsx15(
-            ToggleButton,
-            {
-              id: "fields",
-              className: "icon fields",
-              pressed: fields,
-              "aria-label": "Fields",
-              title: "Show attributes in the diagram",
-              onClick: onFields,
-              children: /* @__PURE__ */ jsx15(TableIcon, { size: 16 })
-            }
-          ),
-          /* @__PURE__ */ jsx15(CameraControls, { ...{ zoomStore, onZoom, onReset, onFit } }),
-          /* @__PURE__ */ jsx15(IslandDivider, {}),
-          conceptual && /* @__PURE__ */ jsxs10(
-            "button",
-            {
-              id: "learn-toggle",
-              type: "button",
-              className: "icon learn-toggle",
-              "aria-pressed": learningOpen && sidebarOpen,
-              onClick: onLearn,
-              "aria-label": `Learn OntoUML; ${model.validation.counts.error} findings`,
-              title: "Learn OntoUML",
-              children: [
-                /* @__PURE__ */ jsx15(BookIcon, { size: 16 }),
-                model.validation.counts.error > 0 && /* @__PURE__ */ jsx15("span", { className: "validation-count", children: model.validation.counts.error })
-              ]
-            }
-          ),
-          reportControl,
-          /* @__PURE__ */ jsx15(
-            IconButton,
-            {
-              id: "sidebar-toggle",
-              label: sidebarLabel,
-              "aria-controls": "inspector",
-              "aria-expanded": sidebarOpen,
-              onClick: onSidebar,
-              children: sidebarHidden ? /* @__PURE__ */ jsx15(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx15(SidebarCollapseIcon, { size: 16 })
-            }
-          ),
-          /* @__PURE__ */ jsx15(IslandDivider, {}),
-          /* @__PURE__ */ jsx15(IconButton, { id: "theme-toggle", label: themeLabel, onClick: onTheme, children: theme === "dark" ? /* @__PURE__ */ jsx15(SunIcon, { size: 16 }) : /* @__PURE__ */ jsx15(MoonIcon, { size: 16 }) }),
-          /* @__PURE__ */ jsxs10(ExportMenu, { children: [
-            /* @__PURE__ */ jsxs10(
-              "a",
-              {
-                id: "svg-download",
-                href: diagramURL,
-                download: `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
-                children: [
-                  /* @__PURE__ */ jsx15(FileMediaIcon, { size: 16 }),
-                  "SVG"
-                ]
-              }
-            ),
-            /* @__PURE__ */ jsxs10(
-              DownloadLink,
-              {
-                id: "puml-download",
-                className: "",
-                data: exports.readText(`${exports.slug}-${viewKey}.puml`),
-                filename: `${exports.slug}-${viewKey}.puml`,
-                children: [
-                  /* @__PURE__ */ jsx15(FileCodeIcon, { size: 16 }),
-                  "PlantUML"
-                ]
-              }
-            ),
-            /* @__PURE__ */ jsxs10(
-              DownloadLink,
-              {
-                id: "model-download",
-                className: "",
-                data: exports.readText(modelFile),
-                filename: modelFile,
-                type: "application/json",
-                children: [
-                  /* @__PURE__ */ jsx15(FileCodeIcon, { size: 16 }),
-                  conceptual ? "OntoUML JSON" : "Structural JSON"
-                ]
-              }
-            ),
-            /* @__PURE__ */ jsxs10(
-              DownloadLink,
-              {
-                id: "bundle-download",
-                className: "",
-                data: exports.bundle,
-                filename: `${exports.slug}-models.zip`,
-                type: "application/zip",
-                children: [
-                  /* @__PURE__ */ jsx15(DownloadIcon, { size: 16 }),
-                  "Models ZIP"
-                ]
-              }
-            )
-          ] }),
-          /* @__PURE__ */ jsx15(
-            IconButton,
-            {
-              id: "info",
-              label: "About and controls",
-              onClick: onAbout,
-              "aria-controls": "about-panel",
-              "aria-expanded": aboutOpen,
-              children: /* @__PURE__ */ jsx15(QuestionIcon, { size: 16 })
-            }
-          )
+        /* @__PURE__ */ jsxs8("g", { fill: "#fff", children: [
+          /* @__PURE__ */ jsx13("circle", { cx: "120", cy: "77", r: "18" }),
+          /* @__PURE__ */ jsx13("circle", { cx: "76", cy: "163", r: "18" }),
+          /* @__PURE__ */ jsx13("circle", { cx: "164", cy: "163", r: "18" })
         ] })
       ]
     }
   );
-});
-
-// src/model/printable.js
-var printable = (value) => typeof value === "string" ? value : JSON.stringify(value ?? "");
-
-// src/ui/CodeSnippet.jsx
-import { Fragment as Fragment3, memo as memo4 } from "react";
-import { jsx as jsx16, jsxs as jsxs11 } from "react/jsx-runtime";
-var CodeSnippet = memo4(function CodeSnippet2({ snippet, label }) {
-  return /* @__PURE__ */ jsx16("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx16("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs11(Fragment3, { children: [
-    /* @__PURE__ */ jsx16("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx16("span", { style: token.style, children: token.content }, j)) }),
-    i < snippet.lines.length - 1 ? "\n" : null
-  ] }, i)) }) });
-});
-
-// src/viewer/SourceEvidence.jsx
-import { jsx as jsx17, jsxs as jsxs12 } from "react/jsx-runtime";
-function SourceExcerpt({ source, snippet }) {
-  if (!snippet)
-    return /* @__PURE__ */ jsxs12("div", { className: "source-excerpt", children: [
-      /* @__PURE__ */ jsx17("p", { children: source.claim }),
-      source.url && /* @__PURE__ */ jsx17(
-        "a",
-        {
-          className: "source-github",
-          href: source.url,
-          target: "_blank",
-          rel: "noopener noreferrer",
-          children: "View source \u2197"
-        }
-      )
-    ] });
-  return /* @__PURE__ */ jsxs12("div", { className: "source-excerpt source-file-card", children: [
-    /* @__PURE__ */ jsxs12("div", { className: "source-path", title: source.file, children: [
-      /* @__PURE__ */ jsx17(FileCodeIcon, { size: 16 }),
-      /* @__PURE__ */ jsx17("span", { className: "source-filename", children: source.file.split("/").pop() }),
-      /* @__PURE__ */ jsx17("span", { className: "source-language", children: snippet.language })
-    ] }),
-    /* @__PURE__ */ jsx17(
-      CodeSnippet,
-      {
-        snippet,
-        label: `${source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
-      }
-    ),
-    snippet.url && /* @__PURE__ */ jsx17("div", { className: "source-footer", children: /* @__PURE__ */ jsxs12(
-      "a",
-      {
-        className: "source-github",
-        href: snippet.url,
-        target: "_blank",
-        rel: "noopener noreferrer",
-        "aria-label": `View ${source.title} on GitHub`,
-        children: [
-          snippet.url.startsWith("https://github.com/") && /* @__PURE__ */ jsx17(MarkGithubIcon, { size: 16 }),
-          snippet.url.startsWith("https://github.com/") ? "View on GitHub" : "View source",
-          " ",
-          /* @__PURE__ */ jsx17(LinkExternalIcon, { size: 12 })
-        ]
-      }
-    ) })
-  ] });
-}
-function SourceEvidence({
-  evidence,
-  sources,
-  snippets,
-  primary,
-  label = "Source"
-}) {
-  const records = [...new Set(primary ? [primary, ...evidence] : evidence)].filter((id) => evidence.includes(id)).map((id) => sources.find((s) => s.id === id)).filter(Boolean);
-  if (!records.length) return null;
-  return /* @__PURE__ */ jsxs12("section", { className: "source-evidence", "aria-label": label, children: [
-    label !== "Source" && /* @__PURE__ */ jsx17("h2", { children: label }),
-    records.map(
-      (source, i) => i === 0 ? /* @__PURE__ */ jsx17(
-        SourceExcerpt,
-        {
-          source,
-          snippet: snippets[source.id]
-        },
-        source.id
-      ) : /* @__PURE__ */ jsxs12("details", { className: "additional-source", children: [
-        /* @__PURE__ */ jsx17("summary", { children: source.title }),
-        /* @__PURE__ */ jsx17(SourceExcerpt, { source, snippet: snippets[source.id] })
-      ] }, source.id)
-    )
-  ] });
 }
 
-// src/learning/LearningContent.jsx
-import { useState as useState8, useMemo as useMemo5 } from "react";
-
-// src/learning/reference.json
-var reference_default = {
-  kind: {
-    title: "Kind",
-    summary: "A type that supplies the principle used to identify its instances. An instance remains a member throughout its existence.",
-    question: "What makes this the same individual after its state or relationships change?",
-    example: "Person supplies identity; Student borrows that identity.",
-    path: "classes/sortals/kind/index.html"
-  },
-  subkind: {
-    title: "Subkind",
-    summary: "A permanent specialization that inherits an identity principle from an identity provider.",
-    question: "Can an individual stop belonging to this type while remaining the same individual? If yes, reconsider the stereotype.",
-    path: "classes/sortals/subkind/index.html"
-  },
-  role: {
-    title: "Role",
-    summary: "A temporary classification that inherits identity and depends on a relationship. Leaving the role does not destroy the individual.",
-    question: "Which mandatory relationship makes an individual play this role?",
-    example: "A Person becomes a Student through an Enrollment and can later stop being a Student.",
-    path: "classes/sortals/role/index.html"
-  },
-  phase: {
-    title: "Phase",
-    summary: "A temporary classification determined by intrinsic properties. Phases inherit identity and belong to a disjoint, complete partition.",
-    question: "Which intrinsic property determines this phase, and do the alternatives cover all instances without overlap?",
-    example: "Living and Deceased partition Person. A connection to another person does not determine these phases.",
-    path: "classes/sortals/phase/index.html"
-  },
-  relator: {
-    title: "Relator",
-    summary: "An individual that grounds a relationship between other individuals and depends on them. Its mediations must require at least two participants in total.",
-    question: "What relationship instance has its own identity and lifecycle?",
-    example: "Enrollment connects a Student and a School. It can have a start date and its own termination.",
-    path: "classes/sortals/relator/index.html"
-  },
-  mode: {
-    title: "Mode",
-    summary: "An intrinsic dependent individual without a structured value. It exists in exactly one bearer through characterization.",
-    question: "What is its bearer, and why model this as an individual rather than an attribute?",
-    example: "A skill or disposition depends on the person who has it.",
-    path: "classes/aspects/mode/index.html"
-  },
-  quality: {
-    title: "Quality",
-    summary: "An intrinsic dependent individual with a structured value, such as a measurable height or weight. It characterizes exactly one bearer.",
-    question: "What value space describes this quality, and which individual bears it?",
-    path: "classes/aspects/quality/index.html"
-  },
-  collective: {
-    title: "Collective",
-    summary: "An identity provider for a collection whose members contribute uniformly to it.",
-    question: "Do the members contribute in the same way, and what preserves the collection's identity when membership changes?",
-    path: "classes/sortals/collective/index.html"
-  },
-  quantity: {
-    title: "Quantity",
-    summary: "An identity provider for an amount of matter. Its parts are essential to that particular quantity.",
-    question: "Is this an amount of matter, rather than a count or numerical value?",
-    path: "classes/sortals/quantity/index.html"
-  },
-  category: {
-    title: "Category",
-    summary: "A permanent classification shared by individuals with different identity principles. It does not supply their identity.",
-    question: "Which different identity providers are grouped by this shared property?",
-    path: "classes/nonsortals/category/index.html"
-  },
-  mixin: {
-    title: "Mixin",
-    summary: "A classification spanning different identity principles that may be permanent for some instances and contingent for others.",
-    question: "Which instances must belong and which can leave while keeping their identity?",
-    path: "classes/nonsortals/mixin/index.html"
-  },
-  roleMixin: {
-    title: "Role mixin",
-    summary: "A temporary, relationally dependent classification spanning different identity principles.",
-    question: "Which different kinds can play this role, and which relationship makes them do so?",
-    path: "classes/nonsortals/rolemixin/index.html"
-  },
-  phaseMixin: {
-    title: "Phase mixin",
-    summary: "A temporary classification spanning different identity principles and determined by intrinsic properties.",
-    question: "Which intrinsic condition is shared across these different identity providers?",
-    path: "classes/nonsortals/phasemixin/index.html"
-  },
-  mediation: {
-    title: "Mediation",
-    summary: "Connects a relator to an individual on which it depends. Read the count at each end from one instance at the opposite end.",
-    question: "Which participants must exist for this relationship instance to exist?",
-    example: "For each Enrollment, exactly one Student; for each Student, one or more Enrollments if enrollment is required for that role.",
-    path: "relationships/mediation/index.html"
-  },
-  characterization: {
-    title: "Characterization",
-    summary: "Connects an intrinsic aspect to its bearer. The aspect depends on exactly one bearer.",
-    question: "Can this aspect exist without this bearer?",
-    path: "relationships/characterization/index.html"
-  },
-  material: {
-    title: "Material relation",
-    summary: "A relationship grounded by a relator and its mediations.",
-    question: "Which relator makes the relationship true?",
-    example: "A Student studies at a School because an Enrollment connects them.",
-    path: "relationships/material/index.html"
-  },
-  formal: {
-    title: "Formal relation",
-    summary: "A relationship that holds directly between its participants without requiring a relator to ground it.",
-    question: "What properties of the participants are sufficient for this relationship to hold?",
-    path: "relationships/formal/index.html"
-  },
-  componentOf: {
-    title: "Component of",
-    summary: "A part-whole relation where parts contribute different functions to a functional whole.",
-    question: "What function does the part perform for the whole?",
-    path: "relationships/aggregations/componentOf/index.html"
-  },
-  memberOf: {
-    title: "Member of",
-    summary: "A part-whole relation connecting a member to a collective.",
-    question: "Does each member contribute uniformly to the collection?",
-    path: "relationships/aggregations/memberOf/index.html"
-  },
-  generalization: {
-    title: "Generalization",
-    summary: "Every instance of the specific type is also an instance of the general type. The hollow triangle points to the general type.",
-    question: "Is every instance of the specific type necessarily an instance of the general type?",
-    path: "theory/identity.html"
-  },
-  generalizationSet: {
-    title: "Generalization set",
-    summary: "A named group of inheritances sharing a supertype. Complete means its subtypes cover every instance of that supertype; incomplete permits instances outside them. Disjoint forbids simultaneous membership in different subtypes; overlapping permits it. These two constraints are independent.",
-    question: "Do the listed alternatives cover every instance, and may one instance belong to more than one at the same time?",
-    example: "Active and Suspended can form a complete, disjoint partition of Enrollment. Joining lines alone does not assert either constraint.",
-    url: "https://www.omg.org/spec/UML/2.5.1/PDF"
-  },
-  association: {
-    title: "Association",
-    summary: "A link between instances of two types. Its multiplicities constrain the number of instances allowed at each end.",
-    question: "Is this relationship intrinsic, grounded by a relator, or a direct relation? Record the reason if its stereotype is unresolved.",
-    path: "relationships/index.html"
-  }
-};
-
-// src/learning/modelHelp.js
-var documentationURL = (key) => reference_default[key]?.url || `https://ontouml.readthedocs.io/en/latest/${reference_default[key]?.path || ""}`;
-function lessonFor(key) {
-  return reference_default[key] || {
-    title: key || "Unspecified stereotype",
-    summary: "This stereotype is not covered by the bundled lessons. Consult the metamodel and record the classification rationale.",
-    question: "What are its identity, rigidity, and dependence commitments?"
-  };
-}
-function countMeaning(value) {
-  if (value === "*") return "zero or more";
-  const [a, b] = value.split("..");
-  if (b === "*") return `${a} or more`;
-  return b ? `${a} to ${b}` : `exactly ${a}`;
-}
-function readMultiplicity(relation) {
-  return [
-    `For each ${relation.source.name}: ${countMeaning(relation.targetMultiplicity)} ${relation.targetMultiplicity === "1" ? "instance" : "instances"} of ${relation.target.name}.`,
-    `For each ${relation.target.name}: ${countMeaning(relation.sourceMultiplicity)} ${relation.sourceMultiplicity === "1" ? "instance" : "instances"} of ${relation.source.name}.`
-  ];
-}
-var identityIndexes = /* @__PURE__ */ new WeakMap();
-function identityIndex(model) {
-  if (identityIndexes.has(model)) return identityIndexes.get(model);
-  const classes = new Map(model.classes.map((c) => [c.id, c]));
-  const parents = /* @__PURE__ */ new Map();
-  for (const generalization of model.generalizations) {
-    const { specificId, generalId } = generalization;
-    if (!parents.has(specificId)) parents.set(specificId, []);
-    parents.get(specificId).push(generalId);
-  }
-  const index = { classes, parents };
-  identityIndexes.set(model, index);
-  return index;
-}
-function identityProviders(model, id) {
-  const found = /* @__PURE__ */ new Set(), pending = [id];
-  const { classes, parents } = identityIndex(model);
-  while (pending.length) {
-    const next = pending.pop();
-    if (found.has(next)) continue;
-    found.add(next);
-    pending.push(...parents.get(next) || []);
-  }
-  return [...found].map((key) => classes.get(key)).filter(
-    (c) => c && [
-      "kind",
-      "collective",
-      "quantity",
-      "relator",
-      "mode",
-      "quality"
-    ].includes(c.stereotype)
-  );
-}
-
-// src/learning/LearningContent.jsx
-import { Fragment as Fragment4, jsx as jsx18, jsxs as jsxs13 } from "react/jsx-runtime";
-function Lesson({ stereotype, children }) {
-  const lesson = lessonFor(stereotype);
-  return /* @__PURE__ */ jsxs13("div", { className: "lesson", children: [
-    /* @__PURE__ */ jsx18("p", { children: lesson.summary }),
-    children,
-    /* @__PURE__ */ jsx18("p", { className: "learning-question", children: lesson.question }),
-    lesson.example && /* @__PURE__ */ jsx18("p", { className: "muted", children: lesson.example }),
-    /* @__PURE__ */ jsx18(
-      "a",
-      {
-        className: "source",
-        href: documentationURL(stereotype),
-        target: "_blank",
-        rel: "noopener noreferrer",
-        children: stereotype === "generalizationSet" ? "UML specification \u2197" : "OntoUML specification \u2197"
-      }
-    )
-  ] });
-}
-function ElementLearning({ element, model, relation = false }) {
-  const key = relation ? element.type === "generalizationSet" ? "generalizationSet" : element.type === "generalization" ? "generalization" : element.stereotype || "association" : element.stereotype;
-  const providers = relation ? [] : identityProviders(model, element.id);
-  const issues = model.validation.issues.filter(
-    (i) => i.elementId === element.id
-  );
-  return /* @__PURE__ */ jsxs13("section", { className: "element-learning", "aria-label": "Model guidance", children: [
-    issues.filter((i) => i.severity !== "info").map((issue) => /* @__PURE__ */ jsxs13("details", { className: "finding", children: [
-      /* @__PURE__ */ jsxs13("summary", { children: [
-        issue.severity === "error" ? "Needs review" : "Review",
-        " \xB7",
-        " ",
-        issue.code.replaceAll("_", " ").toLowerCase()
-      ] }),
-      /* @__PURE__ */ jsx18("p", { children: issue.message }),
-      issue.documentation && /* @__PURE__ */ jsx18(
-        "a",
-        {
-          className: "source",
-          href: issue.documentation,
-          target: "_blank",
-          rel: "noopener noreferrer",
-          children: "Rule in the specification \u2197"
-        }
-      )
-    ] }, issue.code)),
-    /* @__PURE__ */ jsxs13("details", { className: "learn-concept", children: [
-      /* @__PURE__ */ jsx18("summary", { children: key === "generalizationSet" ? "Understand generalization sets" : `Understand \xAB${key || "unspecified"}\xBB` }),
-      /* @__PURE__ */ jsxs13(Lesson, { stereotype: key, children: [
-        providers.length > 0 && /* @__PURE__ */ jsxs13("p", { children: [
-          "Identity supplied by ",
-          providers.map((p) => p.name).join(", "),
-          "."
-        ] }),
-        relation && element.type === "association" && /* @__PURE__ */ jsx18("div", { className: "counts-reading", children: readMultiplicity(element).map((sentence) => /* @__PURE__ */ jsx18("p", { children: sentence }, sentence)) })
-      ] })
-    ] }),
-    element.rationale && element.rationale !== element.description && /* @__PURE__ */ jsxs13("details", { className: "learn-concept", children: [
-      /* @__PURE__ */ jsx18("summary", { children: "Why this classification?" }),
-      /* @__PURE__ */ jsx18("p", { children: element.rationale })
-    ] }),
-    (element.questions || []).map((question) => /* @__PURE__ */ jsxs13("details", { className: "learn-concept uncertainty", children: [
-      /* @__PURE__ */ jsx18("summary", { children: question.question }),
-      /* @__PURE__ */ jsx18("p", { children: question.why }),
-      /* @__PURE__ */ jsx18("h2", { children: "How to resolve it" }),
-      /* @__PURE__ */ jsx18("p", { children: question.resolve })
-    ] }, question.question))
-  ] });
-}
-function LearningLibrary({ model, onInspect }) {
-  const [tab, setTab] = useState8("learn"), [query, setQuery] = useState8("");
-  const [reveal, setReveal] = useState8(false);
-  const visibleIssues = model.validation.issues.filter(
-    (i) => i.severity !== "info"
-  );
-  const coverage = model.validation.issues.filter((i) => i.severity === "info");
-  const elementNames = useMemo5(
-    () => new Map(
-      [...model.classes, ...model.relations, ...model.partitions || []].map(
-        (e) => [e.id, e.name]
-      )
-    ),
-    [model]
-  );
-  const renderIssue = (issue, i) => /* @__PURE__ */ jsxs13("div", { className: `validation-issue ${issue.severity}`, children: [
-    /* @__PURE__ */ jsx18("span", { className: "tag", children: issue.severity }),
-    /* @__PURE__ */ jsx18("p", { children: issue.message }),
-    issue.elementId && /* @__PURE__ */ jsxs13(
-      "button",
-      {
-        className: "issue-link",
-        onClick: () => onInspect(issue.elementId),
-        children: [
-          elementNames.get(issue.elementId) || "Show in model",
-          " \u2197"
-        ]
-      }
-    )
-  ] }, i);
-  return /* @__PURE__ */ jsxs13(Fragment4, { children: [
-    /* @__PURE__ */ jsxs13("div", { className: "learning-tabs", children: [
-      /* @__PURE__ */ jsx18("button", { "aria-pressed": tab === "learn", onClick: () => setTab("learn"), children: "Learn" }),
-      /* @__PURE__ */ jsxs13(
-        "button",
-        {
-          "aria-pressed": tab === "checks",
-          onClick: () => setTab("checks"),
-          children: [
-            "Checks",
-            " ",
-            /* @__PURE__ */ jsx18("span", { className: "validation-count", children: model.validation.counts.error })
-          ]
-        }
-      ),
-      /* @__PURE__ */ jsx18(
-        "button",
-        {
-          "aria-pressed": tab === "questions",
-          onClick: () => setTab("questions"),
-          children: "Open questions"
-        }
-      )
-    ] }),
-    tab === "learn" && /* @__PURE__ */ jsxs13(Fragment4, { children: [
-      /* @__PURE__ */ jsx18(
-        "input",
-        {
-          className: "learning-search",
-          type: "search",
-          "aria-label": "Find a stereotype",
-          placeholder: "Find a stereotype\u2026",
-          value: query,
-          onChange: (e) => setQuery(e.target.value)
-        }
-      ),
-      /* @__PURE__ */ jsxs13("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsx18("summary", { children: "How to read counts" }),
-        /* @__PURE__ */ jsx18("p", { children: "The count next to a type says how many of its instances can relate to one instance at the opposite end." }),
-        /* @__PURE__ */ jsx18("p", { children: "1 = exactly one \xB7 0..1 = optional, at most one \xB7 1..* = at least one \xB7 * = zero or more." }),
-        /* @__PURE__ */ jsx18("p", { className: "learning-question", children: "Person [1] \u2014 [0..*] Enrollment. How many people does each enrollment require?" }),
-        /* @__PURE__ */ jsx18(
-          "button",
-          {
-            className: "answer-button",
-            onClick: () => setReveal(!reveal),
-            children: reveal ? "Hide answer" : "Check your understanding"
-          }
-        ),
-        reveal && /* @__PURE__ */ jsx18("p", { children: "Exactly one Person per Enrollment. The 0..* beside Enrollment permits a Person to have no enrollments or many." })
-      ] }),
-      Object.entries(reference_default).filter(
-        ([key, value]) => `${key} ${value.summary}`.toLowerCase().includes(query.toLowerCase())
-      ).map(([key, lesson]) => /* @__PURE__ */ jsxs13("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsx18("summary", { children: key === "generalizationSet" ? lesson.title : `${lesson.title} \xB7 \xAB${key}\xBB` }),
-        /* @__PURE__ */ jsx18(Lesson, { stereotype: key })
-      ] }, key))
-    ] }),
-    tab === "checks" && /* @__PURE__ */ jsxs13(Fragment4, { children: [
-      !model.validation.counts.error && /* @__PURE__ */ jsx18("p", { children: "The implemented checks pass." }),
-      visibleIssues.map(renderIssue),
-      /* @__PURE__ */ jsxs13("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsx18("summary", { children: "Rule coverage" }),
-        /* @__PURE__ */ jsx18("p", { className: "muted", children: "Official JSON schema, reference integrity, and a documented subset of ontology rules. Domain accuracy still needs judgment." }),
-        coverage.map(renderIssue),
-        model.validation.limitations.map((limit) => /* @__PURE__ */ jsx18("p", { className: "muted", children: limit }, limit))
-      ] })
-    ] }),
-    tab === "questions" && /* @__PURE__ */ jsx18(Fragment4, { children: model.unknowns.length ? model.unknowns.map((question) => /* @__PURE__ */ jsx18("p", { className: "open-question", children: question }, question)) : /* @__PURE__ */ jsx18("p", { className: "muted", children: "No project-wide questions recorded." }) })
-  ] });
-}
-
-// src/ui/DetailHeader.jsx
-import { jsx as jsx19, jsxs as jsxs14 } from "react/jsx-runtime";
-function DetailHeader({
-  title,
-  tag,
-  status,
-  description,
-  stereotype,
-  icon: Icon = FileCodeIcon
-}) {
-  return /* @__PURE__ */ jsxs14("div", { className: "detail-header", children: [
-    /* @__PURE__ */ jsxs14("h1", { children: [
-      /* @__PURE__ */ jsx19(Icon, { size: 20 }),
-      /* @__PURE__ */ jsx19("span", { children: title })
-    ] }),
-    /* @__PURE__ */ jsxs14("div", { className: "detail-tags", children: [
-      /* @__PURE__ */ jsx19("span", { className: "tag stereotype-tag", "data-stereotype": stereotype, children: tag }),
-      status && /* @__PURE__ */ jsx19("span", { className: "tag evidence-status", "data-status": status, children: status })
-    ] }),
-    description && /* @__PURE__ */ jsxs14("details", { className: "detail-description", children: [
-      /* @__PURE__ */ jsx19("summary", { children: "Description" }),
-      /* @__PURE__ */ jsx19("p", { children: description })
-    ] })
-  ] });
-}
-
-// src/viewer/DetailsContent.jsx
-import { memo as memo5 } from "react";
+// src/viewer/ProvenanceBadge.jsx
+import { Badge, Surface as Surface4, Text as Text2 } from "@envsemble/envui";
 
 // src/viewer/provenance.js
 var MONTHS = [
@@ -2771,7 +3035,8 @@ function sourceKindLabel(kind) {
 }
 function baselineSnapshot(document2) {
   const snapshots = Array.isArray(document2.snapshots) ? document2.snapshots : [];
-  return snapshots.find((s) => s.id === document2.baselineId) || (document2.state === "snapshot" ? snapshots[0] : void 0);
+  const own = document2.state === "snapshot" && document2.captureId;
+  return snapshots.find((s) => s.id === (own || document2.baselineId)) || (document2.state === "snapshot" ? snapshots[0] : void 0);
 }
 function captureDetail(snapshot) {
   const capture = snapshot?.capture;
@@ -2810,167 +3075,1297 @@ function describeProvenance(document2) {
     result = {
       kind: "authored",
       label: "Agent-authored",
-      detail: document2.profile === "ontouml" ? "Conceptual model" : "Structural model",
+      detail: document2.profile === "object" ? "Object diagram" : document2.profile === "class" ? "Class diagram" : document2.profile === "database" ? "Entity diagram" : "Structural model",
       tone: "success"
     };
   } else return { kind: "unknown", label: "", detail: "", tone: "neutral" };
-  if (document2.imported)
-    result.detail = result.detail ? `${result.detail} \xB7 Imported` : "Imported";
   return result;
 }
 
-// src/viewer/DetailsContent.jsx
-import { Fragment as Fragment5, jsx as jsx20, jsxs as jsxs15 } from "react/jsx-runtime";
-function ChangeDetails({ element, model }) {
-  const ids = /* @__PURE__ */ new Set([
-    element.originalId || element.id,
-    ...(element.attributes || []).map((a) => a.id),
-    ...(element.methods || []).map((m) => m.id)
-  ]);
-  const changes = model.document?.comparison?.changes?.changes.filter(
-    (c) => ids.has(c.elementId)
-  ) || [];
-  const mappings = model.document?.mappings?.filter((m) => ids.has(m.elementId)) || [];
-  if (!changes.length && !mappings.length) return null;
-  return /* @__PURE__ */ jsxs15(Fragment5, { children: [
-    !!changes.length && /* @__PURE__ */ jsxs15("details", { children: [
-      /* @__PURE__ */ jsxs15("summary", { children: [
-        "Changes \xB7 ",
-        changes.length
-      ] }),
-      changes.map((c) => /* @__PURE__ */ jsxs15("div", { children: [
-        /* @__PURE__ */ jsxs15("p", { children: [
-          c.kind,
-          " \xB7",
-          " ",
-          typeof c.name === "string" ? c.name : JSON.stringify(c.name)
+// src/viewer/ProvenanceBadge.jsx
+import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
+function ProvenanceIcon({ provenance, profile }) {
+  if (provenance.kind === "proposal") return /* @__PURE__ */ jsx14(Difference, {});
+  if (provenance.kind === "authored") return /* @__PURE__ */ jsx14(EditNote, {});
+  if (profile === "database") return /* @__PURE__ */ jsx14(Database, {});
+  if (profile === "code") return /* @__PURE__ */ jsx14(Code, {});
+  return /* @__PURE__ */ jsx14(Description, {});
+}
+function ProvenanceLabel({ document: document2 }) {
+  const provenance = describeProvenance(document2);
+  if (provenance.kind === "unknown") return null;
+  return /* @__PURE__ */ jsx14(
+    Badge,
+    {
+      tone: provenance.tone,
+      icon: /* @__PURE__ */ jsx14(ProvenanceIcon, { provenance, profile: document2?.profile }),
+      children: provenance.label
+    }
+  );
+}
+function ProvenanceBadge({ document: document2, className = "" }) {
+  const provenance = describeProvenance(document2);
+  if (provenance.kind === "unknown") return null;
+  return /* @__PURE__ */ jsxs9(
+    Surface4,
+    {
+      tone: "pane",
+      corners: "pill",
+      padding: 1,
+      density: "compact",
+      className: `atlas-provenance${className ? ` ${className}` : ""}`,
+      title: provenance.detail ? `${provenance.label} \xB7 ${provenance.detail}` : provenance.label,
+      children: [
+        /* @__PURE__ */ jsx14(ProvenanceLabel, { document: document2 }),
+        provenance.detail && /* @__PURE__ */ jsx14(Text2, { as: "span", variant: "supporting", className: "provenance-detail", children: provenance.detail })
+      ]
+    }
+  );
+}
+
+// src/viewer/ViewerToolbar.jsx
+import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
+function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
+  const sourceFile = `${exports.slug}.puml`;
+  return [
+    {
+      key: "svg-download",
+      label: "SVG image",
+      description: `This view${fields ? " with attributes" : ""}, ${theme} theme`,
+      icon: /* @__PURE__ */ jsx15(Image, {}),
+      onSelect: () => diagramURL && downloadURL(
+        diagramURL,
+        `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`
+      )
+    },
+    {
+      key: "source-download",
+      label: "PlantUML",
+      description: "The diagram's source",
+      icon: /* @__PURE__ */ jsx15(Code, {}),
+      onSelect: () => downloadData(exports.readText(sourceFile), sourceFile)
+    },
+    {
+      key: "bundle-download",
+      label: "Models ZIP",
+      description: "Every export, with evidence and validation",
+      icon: /* @__PURE__ */ jsx15(FolderZip, {}),
+      onSelect: () => downloadData(
+        exports.bundle,
+        `${exports.slug}-models.zip`,
+        "application/zip"
+      )
+    }
+  ];
+}
+var ViewerToolbar = forwardRef2(function ViewerToolbar2({
+  model,
+  views,
+  exports,
+  viewKey,
+  fields,
+  theme,
+  zoomStore,
+  diagramURL,
+  sidebarHidden,
+  sidebarOpen,
+  learningOpen,
+  aboutOpen,
+  reviewControls,
+  provenance,
+  guided = false,
+  density = 0,
+  themeToggle = false,
+  onSidebar,
+  onView,
+  onFields,
+  onChoose,
+  onAbout,
+  onLearn,
+  onZoom,
+  onReset,
+  onFit
+}, ref) {
+  const searchClasses = useMemo4(() => {
+    const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
+    return model.classes.filter((concept) => visibleIds.has(concept.id));
+  }, [model.classes, views]);
+  const origin = describeProvenance(provenance);
+  return /* @__PURE__ */ jsxs10(
+    "header",
+    {
+      className: `atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
+      ref,
+      children: [
+        /* @__PURE__ */ jsxs10(Island, { label: "Diagram navigation", className: "island-start", children: [
+          /* @__PURE__ */ jsx15("span", { className: "brand-mark", children: /* @__PURE__ */ jsx15(AtlasMark, { label: "" }) }),
+          /* @__PURE__ */ jsx15(
+            Text3,
+            {
+              as: "span",
+              variant: "section-heading",
+              className: "island-title",
+              title: model.title,
+              children: model.title
+            }
+          ),
+          origin.kind !== "unknown" && /* @__PURE__ */ jsx15(
+            "span",
+            {
+              className: "island-provenance",
+              title: origin.detail || void 0,
+              children: /* @__PURE__ */ jsx15(ProvenanceLabel, { document: provenance })
+            }
+          ),
+          (views.length > 1 || reviewControls) && /* @__PURE__ */ jsx15(IslandDivider, {}),
+          views.length > 1 && /* @__PURE__ */ jsx15(
+            ViewSwitcher,
+            {
+              items: views,
+              value: viewKey,
+              onChange: onView,
+              compact: density > 0
+            }
+          ),
+          views.length > 1 && reviewControls && /* @__PURE__ */ jsx15(IslandDivider, {}),
+          reviewControls
         ] }),
-        c.properties.map((p) => /* @__PURE__ */ jsxs15("p", { children: [
-          p.key,
-          ":",
-          " ",
-          p.before.present ? JSON.stringify(p.before.value) : "absent",
-          " ",
-          "\u2192 ",
-          p.after.present ? JSON.stringify(p.after.value) : "absent"
-        ] }, p.key)),
-        c.rationale.map((r) => /* @__PURE__ */ jsx20("p", { children: r.text }, r.id))
-      ] }, c.id))
-    ] }),
-    !!mappings.length && /* @__PURE__ */ jsxs15("details", { children: [
-      /* @__PURE__ */ jsx20("summary", { children: "Mappings" }),
-      mappings.map((m) => /* @__PURE__ */ jsxs15("div", { children: [
-        /* @__PURE__ */ jsxs15("p", { children: [
-          m.targetTitle,
-          " \xB7 ",
-          m.targetElementId
-        ] }),
-        /* @__PURE__ */ jsx20("p", { children: m.reason }),
-        /* @__PURE__ */ jsxs15("small", { children: [
-          "Authored link \xB7 retained ",
-          m.targetProfile,
-          " snapshot"
+        /* @__PURE__ */ jsxs10(Island, { label: "Diagram tools", className: "island-end", children: [
+          /* @__PURE__ */ jsx15(ConceptSearch, { classes: searchClasses, onChoose }),
+          /* @__PURE__ */ jsx15(
+            ToolButton,
+            {
+              id: "fields",
+              label: "Fields",
+              tooltip: fields ? "Hide attributes" : "Show attributes",
+              pressed: fields,
+              icon: /* @__PURE__ */ jsx15(TableRows, {}),
+              onClick: onFields
+            }
+          ),
+          /* @__PURE__ */ jsx15(
+            CameraControls,
+            {
+              ...{ zoomStore, onZoom, onReset, onFit },
+              compact: density > 2
+            }
+          ),
+          /* @__PURE__ */ jsx15(IslandDivider, {}),
+          guided && /* @__PURE__ */ jsx15(
+            ToolButton,
+            {
+              id: "learn-toggle",
+              label: "Understand the model",
+              pressed: learningOpen && sidebarOpen,
+              icon: /* @__PURE__ */ jsx15(School, {}),
+              onClick: onLearn
+            }
+          ),
+          /* @__PURE__ */ jsx15(
+            ToolButton,
+            {
+              id: "sidebar-toggle",
+              label: sidebarHidden ? "Show details" : "Hide details",
+              "aria-controls": "inspector",
+              "aria-expanded": sidebarOpen,
+              icon: sidebarHidden ? /* @__PURE__ */ jsx15(RightPanelOpen, {}) : /* @__PURE__ */ jsx15(RightPanelClose, {}),
+              onClick: onSidebar
+            }
+          ),
+          /* @__PURE__ */ jsx15(IslandDivider, {}),
+          themeToggle && /* @__PURE__ */ jsx15(ThemeToggle, { id: "theme-toggle" }),
+          /* @__PURE__ */ jsx15(
+            ExportMenu,
+            {
+              items: exportChoices({
+                exports,
+                viewKey,
+                fields,
+                theme,
+                diagramURL
+              })
+            }
+          ),
+          /* @__PURE__ */ jsx15(
+            ToolButton,
+            {
+              id: "info",
+              label: "About and controls",
+              "aria-haspopup": "dialog",
+              "aria-expanded": aboutOpen,
+              icon: /* @__PURE__ */ jsx15(Info, {}),
+              onClick: onAbout
+            }
+          )
         ] })
-      ] }, m.id))
-    ] })
+      ]
+    }
+  );
+});
+
+// src/viewer/DetailsContent.jsx
+import { memo as memo5 } from "react";
+import {
+  Badge as Badge3,
+  Button as Button5,
+  DisclosureNote as DisclosureNote3,
+  Kbd as Kbd3,
+  Stack as Stack3,
+  Text as Text7
+} from "@envsemble/envui";
+
+// src/ui/DownloadLink.jsx
+import { Button as Button2 } from "@envsemble/envui";
+
+// src/ui/useBlobURL.js
+import { useEffect as useEffect5, useState as useState5 } from "react";
+function useBlobURL(data, type = "text/plain;charset=utf-8") {
+  const [url, setURL] = useState5(void 0);
+  useEffect5(() => {
+    const next = URL.createObjectURL(new Blob([data], { type }));
+    setURL(next);
+    return () => URL.revokeObjectURL(next);
+  }, [data, type]);
+  return url;
+}
+
+// src/ui/DownloadLink.jsx
+import { jsx as jsx16 } from "react/jsx-runtime";
+function DownloadLink({ data, filename, type, children, ...props }) {
+  const href = useBlobURL(data, type);
+  return /* @__PURE__ */ jsx16(
+    Button2,
+    {
+      ...props,
+      variant: "text",
+      startIcon: /* @__PURE__ */ jsx16(Download, {}),
+      ...href ? { href, download: filename } : { disabled: true },
+      children
+    }
+  );
+}
+
+// src/viewer/SourceEvidence.jsx
+import { Button as Button3, Card, DisclosureNote, Stack, Text as Text4 } from "@envsemble/envui";
+
+// src/ui/CodeSnippet.jsx
+import { Fragment as Fragment5, memo as memo4 } from "react";
+import { jsx as jsx17, jsxs as jsxs11 } from "react/jsx-runtime";
+var CodeSnippet = memo4(function CodeSnippet2({ snippet, label }) {
+  return /* @__PURE__ */ jsx17("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx17("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs11(Fragment5, { children: [
+    /* @__PURE__ */ jsx17("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx17("span", { style: token.style, children: token.content }, j)) }),
+    i < snippet.lines.length - 1 ? "\n" : null
+  ] }, i)) }) });
+});
+
+// src/viewer/SourceEvidence.jsx
+import { jsx as jsx18, jsxs as jsxs12 } from "react/jsx-runtime";
+function SourceExcerpt({ source, snippet }) {
+  if (!snippet)
+    return /* @__PURE__ */ jsxs12(Stack, { gap: 2, align: "start", className: "source-excerpt", children: [
+      /* @__PURE__ */ jsx18(Text4, { children: source.claim }),
+      source.url && /* @__PURE__ */ jsx18(
+        Button3,
+        {
+          variant: "text",
+          href: source.url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          endIcon: /* @__PURE__ */ jsx18(OpenInNew, {}),
+          children: "View source"
+        }
+      )
+    ] });
+  const github = snippet.url?.startsWith("https://github.com/");
+  return /* @__PURE__ */ jsx18(
+    Card,
+    {
+      padding: 3,
+      className: "source-file-card",
+      heading: /* @__PURE__ */ jsx18("span", { title: source.file, children: source.file.split("/").pop() }),
+      meta: `${snippet.language} \xB7 lines ${snippet.startLine}\u2013${snippet.endLine}`,
+      actions: snippet.url ? /* @__PURE__ */ jsx18(
+        Button3,
+        {
+          variant: "text",
+          href: snippet.url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          "aria-label": `View ${source.title} on ${github ? "GitHub" : "its source"}`,
+          endIcon: /* @__PURE__ */ jsx18(OpenInNew, {}),
+          children: github ? "View on GitHub" : "View source"
+        }
+      ) : void 0,
+      children: /* @__PURE__ */ jsx18(
+        CodeSnippet,
+        {
+          snippet,
+          label: `${source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
+        }
+      )
+    }
+  );
+}
+function SourceEvidence({
+  evidence,
+  sources,
+  snippets,
+  primary,
+  label = "Source"
+}) {
+  const records = [...new Set(primary ? [primary, ...evidence] : evidence)].filter((id) => evidence.includes(id)).map((id) => sources.find((s) => s.id === id)).filter(Boolean);
+  if (!records.length) return null;
+  return /* @__PURE__ */ jsxs12(
+    Stack,
+    {
+      as: "section",
+      gap: 2,
+      className: "source-evidence detail-section",
+      "aria-label": label,
+      children: [
+        label !== "Source" && /* @__PURE__ */ jsx18(Text4, { as: "h2", variant: "caption", className: "detail-section-title", children: label }),
+        records.map(
+          (source, i) => i === 0 ? /* @__PURE__ */ jsx18(
+            SourceExcerpt,
+            {
+              source,
+              snippet: snippets[source.id]
+            },
+            source.id
+          ) : /* @__PURE__ */ jsx18(
+            DisclosureNote,
+            {
+              title: source.title,
+              className: "additional-source",
+              children: /* @__PURE__ */ jsx18(SourceExcerpt, { source, snippet: snippets[source.id] })
+            },
+            source.id
+          )
+        )
+      ]
+    }
+  );
+}
+
+// src/ui/DetailHeader.jsx
+import { Badge as Badge2, Text as Text5 } from "@envsemble/envui";
+
+// src/review/ChangeMark.jsx
+import { jsx as jsx19 } from "react/jsx-runtime";
+function ChangeMark({ status }) {
+  if (!CHANGE_LABELS[status]) return null;
+  return /* @__PURE__ */ jsx19("span", { className: "change-mark", "data-change": status, "aria-hidden": "true", children: changeGlyph(status) });
+}
+function ChangeBadge({ status }) {
+  if (!CHANGE_LABELS[status]) return null;
+  return /* @__PURE__ */ jsx19("span", { className: "change-badge", "data-change": status, children: CHANGE_LABELS[status] });
+}
+
+// src/ui/DetailHeader.jsx
+import { jsx as jsx20, jsxs as jsxs13 } from "react/jsx-runtime";
+var STATUSES = {
+  inferred: {
+    label: "Inferred",
+    tone: "neutral",
+    title: "Interpreted from the evidence rather than observed in the source"
+  },
+  unresolved: {
+    label: "Unresolved",
+    tone: "warning",
+    title: "The evidence leaves this open"
+  }
+};
+function DetailHeader({
+  title,
+  owner,
+  tag,
+  status,
+  change,
+  description,
+  icon: Icon = Category
+}) {
+  const evidence = change !== "added" && STATUSES[status];
+  return /* @__PURE__ */ jsxs13("header", { className: "detail-header", children: [
+    /* @__PURE__ */ jsxs13("div", { className: "detail-title", children: [
+      /* @__PURE__ */ jsx20("span", { className: "detail-icon", "aria-hidden": "true", children: /* @__PURE__ */ jsx20(Icon, {}) }),
+      /* @__PURE__ */ jsxs13(Text5, { as: "h1", variant: "page-heading", children: [
+        owner && /* @__PURE__ */ jsxs13("span", { className: "detail-owner", children: [
+          owner,
+          "."
+        ] }),
+        title
+      ] })
+    ] }),
+    (tag || change || evidence) && /* @__PURE__ */ jsxs13("div", { className: "detail-tags", children: [
+      tag && /* @__PURE__ */ jsx20(Badge2, { variant: "outline", children: tag }),
+      /* @__PURE__ */ jsx20(ChangeBadge, { status: change }),
+      evidence && /* @__PURE__ */ jsx20(Badge2, { tone: evidence.tone, title: evidence.title, children: evidence.label })
+    ] }),
+    description && /* @__PURE__ */ jsx20(Text5, { tone: "muted", className: "detail-description", children: description })
   ] });
 }
+
+// src/viewer/DetailSections.jsx
+import { useEffect as useEffect6, useRef as useRef6, useState as useState6 } from "react";
+import { Button as Button4, DisclosureNote as DisclosureNote2, Stack as Stack2, Text as Text6 } from "@envsemble/envui";
+
+// src/model/printable.js
+var printable = (value) => typeof value === "string" ? value : JSON.stringify(value ?? "");
+
+// src/viewer/DetailSections.jsx
+import { Fragment as Fragment6, jsx as jsx21, jsxs as jsxs14 } from "react/jsx-runtime";
+function Section({ title, label = title, className = "", children }) {
+  return /* @__PURE__ */ jsxs14(
+    Stack2,
+    {
+      as: "section",
+      gap: 2,
+      className: `detail-section${className ? ` ${className}` : ""}`,
+      "aria-label": label,
+      children: [
+        /* @__PURE__ */ jsx21(Text6, { as: "h2", variant: "caption", className: "detail-section-title", children: title }),
+        children
+      ]
+    }
+  );
+}
+function InlineText({ text }) {
+  const parts = (text === null || text === void 0 ? "" : printable(text)).replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1").split(/(`[^`\n]+`)/);
+  return parts.map(
+    (part, i) => part.length > 2 && part.startsWith("`") && part.endsWith("`") ? /* @__PURE__ */ jsx21("code", { children: part.slice(1, -1) }, i) : part
+  );
+}
+var RECORD_KINDS = {
+  plan: "Plan",
+  glossary: "Glossary",
+  decision: "Decision",
+  scenario: "Scenario"
+};
+var recordLabel = (record) => `${RECORD_KINDS[record.kind] || "Note"} \u203A ${record.title || record.section || record.id}`;
+var excerpt = (text) => text.replace(/^[ \t]*[-*+][ \t]+/gm, "\u2022 ");
+function Reference({ record, onReference }) {
+  const [open, setOpen] = useState6(false);
+  const label = recordLabel(record);
+  const text = excerpt(printable(record.text ?? "")).trim();
+  const long = text.length > 110 || text.includes("\n");
+  return /* @__PURE__ */ jsxs14("li", { className: "reference", children: [
+    /* @__PURE__ */ jsxs14("div", { className: "reference-head", children: [
+      onReference && typeof record.path === "string" ? /* @__PURE__ */ jsx21(
+        Button4,
+        {
+          variant: "text",
+          className: "reference-link",
+          "aria-label": `Open ${label}`,
+          onClick: () => onReference(record),
+          children: label
+        }
+      ) : /* @__PURE__ */ jsx21(Text6, { as: "span", className: "reference-title", children: label }),
+      long && /* @__PURE__ */ jsx21(
+        ToolButton,
+        {
+          className: "reference-toggle",
+          variant: "text",
+          label: open ? "Show less of the passage" : "Show the whole passage",
+          "aria-expanded": open,
+          icon: open ? /* @__PURE__ */ jsx21(ExpandLess, {}) : /* @__PURE__ */ jsx21(ExpandMore, {}),
+          onClick: () => setOpen((value) => !value)
+        }
+      )
+    ] }),
+    text && /* @__PURE__ */ jsx21(
+      Text6,
+      {
+        variant: "supporting",
+        className: `reference-excerpt${open ? " expanded" : ""}`,
+        children: /* @__PURE__ */ jsx21(InlineText, { text })
+      }
+    )
+  ] });
+}
+function Question({ question }) {
+  return /* @__PURE__ */ jsxs14(
+    DisclosureNote2,
+    {
+      className: "detail-question",
+      title: printable(question?.question ?? question),
+      children: [
+        question?.why && /* @__PURE__ */ jsx21(Text6, { children: printable(question.why) }),
+        question?.resolve && /* @__PURE__ */ jsxs14(Text6, { tone: "muted", children: [
+          /* @__PURE__ */ jsx21("strong", { children: "To resolve: " }),
+          printable(question.resolve)
+        ] })
+      ]
+    }
+  );
+}
+function Why({ rationale, questions = [], records = [], onReference }) {
+  const reasons = [].concat(rationale ?? []).filter((r) => r !== null && r !== void 0 && r !== "");
+  const asked = [].concat(questions || []).filter(Boolean);
+  if (!reasons.length && !asked.length && !records.length) return null;
+  return /* @__PURE__ */ jsxs14(Section, { title: "Why", children: [
+    reasons.map((reason, i) => /* @__PURE__ */ jsx21(Text6, { className: "detail-rationale", children: /* @__PURE__ */ jsx21(InlineText, { text: reason }) }, i)),
+    asked.map((question, i) => /* @__PURE__ */ jsx21(Question, { question }, i)),
+    records.length > 0 && /* @__PURE__ */ jsx21("ul", { className: "reference-list", "aria-label": "Planning references", children: records.map((record) => /* @__PURE__ */ jsx21(
+      Reference,
+      {
+        record,
+        onReference
+      },
+      record.id
+    )) })
+  ] });
+}
+function linkedRecords(model, ids) {
+  const context = model.document?.context;
+  if (!context) return [];
+  const wanted = new Set(ids.filter(Boolean));
+  const linked = new Set(
+    context.links.filter((link) => wanted.has(link.elementId)).map((link) => link.recordId)
+  );
+  return context.records.filter((record) => linked.has(record.id));
+}
+var KIND_WORDS = { "type alias": "type alias", enum: "enum" };
+var countOf = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+function contents(element, profile, except = /* @__PURE__ */ new Set()) {
+  const own = (members) => (members || []).filter((m) => !except.has(m.id));
+  const fields = own(element.attributes).length, methods = own(element.methods).length;
+  const field = profile === "database" ? "column" : element.stereotype === "enum" ? "member" : profile === "code" ? "field" : "attribute";
+  return [
+    fields ? countOf(fields, field) : "",
+    methods ? countOf(methods, "method") : ""
+  ].filter(Boolean).join(" and ");
+}
+var TYPE_KEYS = ["type"];
+var SIGNATURE_KEYS = [...TYPE_KEYS, "name"];
+var typeChange = (member) => member.properties.some((p) => p.key === "name") ? null : member.properties.find((p) => TYPE_KEYS.includes(p.key)) || null;
+function ChangedValue({ before, after }) {
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    /* @__PURE__ */ jsx21("del", { className: "change-before", children: before }),
+    /* @__PURE__ */ jsx21("span", { className: "change-arrow", "aria-hidden": "true", children: "\u2192" }),
+    /* @__PURE__ */ jsx21("span", { className: "visually-hidden", children: " changed to " }),
+    /* @__PURE__ */ jsx21("ins", { className: "change-after", children: after })
+  ] });
+}
+function ChangedProperty({ name, before, after }) {
+  return /* @__PURE__ */ jsxs14("span", { children: [
+    /* @__PURE__ */ jsx21("span", { className: "change-key", children: name }),
+    " ",
+    /* @__PURE__ */ jsx21(ChangedValue, { before, after })
+  ] });
+}
+function WhatChanges({ change, element, model, profile }) {
+  if (!change) return null;
+  const kind = KIND_WORDS[element.stereotype] || element.stereotype || (profile === "database" ? "table" : "class");
+  const moved = change.moved || [];
+  const held = contents(element, profile, new Set(moved.map((m) => m.id)));
+  const movedText = moved.length ? `${moved.map(
+    (m) => m.moved.to ? `${m.label} moved to ${m.moved.to}` : `${m.label} moved from ${m.moved.from}`
+  ).join("; ")}.` : "";
+  if (change.status === "added") {
+    const file = profile === "code" ? elementFile(element, model) : null;
+    return /* @__PURE__ */ jsxs14(Section, { title: "What changes", children: [
+      /* @__PURE__ */ jsxs14(Text6, { children: [
+        "New ",
+        kind,
+        held ? ` with ${held}` : "",
+        "."
+      ] }),
+      movedText && /* @__PURE__ */ jsx21(Text6, { children: movedText }),
+      file && /* @__PURE__ */ jsxs14(Text6, { className: "proposed-location", children: [
+        "Proposed in ",
+        /* @__PURE__ */ jsx21("code", { children: file }),
+        fileExists(model, file) ? "" : " (a new file)"
+      ] })
+    ] });
+  }
+  if (change.status === "removed")
+    return /* @__PURE__ */ jsxs14(Section, { title: "What changes", children: [
+      /* @__PURE__ */ jsxs14(Text6, { children: [
+        "The ",
+        kind,
+        " is removed",
+        held ? `, with its ${held}` : "",
+        "."
+      ] }),
+      movedText && /* @__PURE__ */ jsx21(Text6, { children: movedText })
+    ] });
+  if (!change.properties.length && !change.members.length) return null;
+  return /* @__PURE__ */ jsx21(Section, { title: "What changes", children: /* @__PURE__ */ jsxs14("ul", { className: "change-list", children: [
+    change.properties.map((p, i) => /* @__PURE__ */ jsxs14(
+      "li",
+      {
+        className: "change-line",
+        "data-change": p.status,
+        children: [
+          /* @__PURE__ */ jsx21(ChangeMark, { status: p.status }),
+          /* @__PURE__ */ jsx21("span", { className: "change-line-text", children: p.status === "modified" ? /* @__PURE__ */ jsx21(
+            ChangedProperty,
+            {
+              name: p.key,
+              before: p.before,
+              after: p.after
+            }
+          ) : (
+            // A part of a table that is new or removed, as it reads.
+            /* @__PURE__ */ jsxs14("span", { children: [
+              /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+                CHANGE_LABELS[p.status],
+                ":",
+                " "
+              ] }),
+              /* @__PURE__ */ jsx21("span", { className: "change-key", children: p.key }),
+              " ",
+              /* @__PURE__ */ jsx21("code", { className: "signature", children: p.status === "added" ? p.after : p.before })
+            ] })
+          ) })
+        ]
+      },
+      `${p.key}-${i}`
+    )),
+    change.members.map((m) => /* @__PURE__ */ jsxs14("li", { className: "change-line", "data-change": m.status, children: [
+      /* @__PURE__ */ jsx21(ChangeMark, { status: m.status }),
+      /* @__PURE__ */ jsxs14("span", { className: "change-line-text", children: [
+        /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+          CHANGE_LABELS[m.status],
+          ":",
+          " "
+        ] }),
+        m.status === "modified" && !m.method && typeChange(m) ? (
+          // A field whose type changed reads as its name and both types.
+          /* @__PURE__ */ jsxs14("code", { className: "signature", children: [
+            /* @__PURE__ */ jsx21("span", { className: "member-name", children: m.name }),
+            profile === "database" ? " " : ": ",
+            /* @__PURE__ */ jsx21(
+              ChangedValue,
+              {
+                before: typeChange(m).before,
+                after: typeChange(m).after
+              }
+            )
+          ] })
+        ) : (m.status === "modified" || m.moved) && m.previous && m.previous !== m.signature ? /* @__PURE__ */ jsx21("code", { className: "signature", children: /* @__PURE__ */ jsx21(ChangedValue, { before: m.previous, after: m.signature }) }) : /* @__PURE__ */ jsx21("code", { className: "signature", children: m.signature }),
+        m.properties.filter((p) => !SIGNATURE_KEYS.includes(p.key)).map((p) => /* @__PURE__ */ jsxs14("span", { className: "change-detail", children: [
+          p.key,
+          ": ",
+          /* @__PURE__ */ jsx21(ChangedValue, { before: p.before, after: p.after })
+        ] }, p.key)),
+        m.moved && /* @__PURE__ */ jsx21("span", { className: "change-detail", children: m.moved.from ? `Moved from ${m.moved.from}` : `Moved to ${m.moved.to}` })
+      ] }),
+      m.location && /* @__PURE__ */ jsx21(
+        "span",
+        {
+          className: "member-line",
+          title: `Line ${m.location.startLine}`,
+          children: m.location.startLine
+        }
+      )
+    ] }, m.id))
+  ] }) });
+}
+function sourceOf(element, sources) {
+  const ids = [element.primarySource, ...element.evidence || []].filter(
+    Boolean
+  );
+  return ids.map((id) => sources.find((s) => s.id === id)).find(Boolean);
+}
+function CodeWhere({ element, model, snippets, change }) {
+  if (change === "added") return null;
+  const file = elementFile(element, model);
+  const location2 = element.location;
+  const source = sourceOf(element, model.sources || []);
+  const snippet = source && snippets?.[source.id];
+  if (!file && !snippet) return null;
+  const url = snippet?.url || source?.url;
+  return /* @__PURE__ */ jsxs14(Section, { title: change === "removed" ? "Where it was" : "Where in code", children: [
+    /* @__PURE__ */ jsxs14("div", { className: "code-where", children: [
+      /* @__PURE__ */ jsx21("code", { className: "code-path", title: file || void 0, children: file || source.file }),
+      location2 && /* @__PURE__ */ jsx21("span", { className: "code-lines", children: location2.startLine === location2.endLine ? `line ${location2.startLine}` : `lines ${location2.startLine}\u2013${location2.endLine}` })
+    ] }),
+    snippet && /* @__PURE__ */ jsx21(
+      CodeSnippet,
+      {
+        snippet,
+        label: `${file || source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
+      }
+    ),
+    url && /* @__PURE__ */ jsx21(
+      Button4,
+      {
+        variant: "text",
+        href: url,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        endIcon: /* @__PURE__ */ jsx21(OpenInNew, {}),
+        className: "code-source-link",
+        children: url.startsWith("https://github.com/") ? "View on GitHub" : "View source"
+      }
+    )
+  ] });
+}
+function useReveal(focused) {
+  const ref = useRef6(null);
+  useEffect6(() => {
+    if (focused) ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [focused]);
+  return ref;
+}
+function FocusableRow({ focused, change, children }) {
+  const ref = useReveal(focused);
+  return /* @__PURE__ */ jsx21(
+    "li",
+    {
+      ref,
+      className: `member${focused ? " focused" : ""}`,
+      "data-change": change,
+      "aria-current": focused ? "true" : void 0,
+      children
+    }
+  );
+}
+function Described({ description, children }) {
+  if (!description) return children;
+  return /* @__PURE__ */ jsxs14("span", { className: "member-text", children: [
+    children,
+    /* @__PURE__ */ jsx21(Text6, { as: "span", variant: "supporting", className: "member-description", children: description })
+  ] });
+}
+function MemberRow({ member, method, profile, review, focused }) {
+  const status = review ? member.changeStatus : void 0;
+  const marked = status && status !== "unchanged";
+  const ref = useReveal(focused);
+  return /* @__PURE__ */ jsxs14(
+    "li",
+    {
+      ref,
+      className: `member${focused ? " focused" : ""}`,
+      "data-change": marked ? status : void 0,
+      "aria-current": focused ? "true" : void 0,
+      children: [
+        review && /* @__PURE__ */ jsx21(ChangeMark, { status }),
+        marked && /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+          CHANGE_LABELS[status],
+          ": "
+        ] }),
+        /* @__PURE__ */ jsx21(Described, { description: member.description, children: /* @__PURE__ */ jsx21("code", { className: "signature", children: method ? member.type || `${member.name}()` : /* @__PURE__ */ jsxs14(Fragment6, { children: [
+          /* @__PURE__ */ jsxs14("span", { className: "member-name", children: [
+            member.name,
+            member.optional ? "?" : ""
+          ] }),
+          member.type && /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
+            profile === "database" ? " " : ": ",
+            member.type,
+            member.multiplicity ? ` [${member.multiplicity}]` : ""
+          ] })
+        ] }) }) }),
+        member.location && /* @__PURE__ */ jsx21(
+          "span",
+          {
+            className: "member-line",
+            title: `Line ${member.location.startLine}`,
+            children: member.location.startLine
+          }
+        )
+      ]
+    }
+  );
+}
+function Members({ element, profile, review, focus = null }) {
+  const fields = element.attributes || [], methods = element.methods || [];
+  if (!fields.length && !methods.length) return null;
+  const marks = review && element.changeStatus === "modified";
+  const fieldTitle = element.stereotype === "enum" ? "Members" : profile === "code" ? "Fields" : "Attributes";
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    fields.length > 0 && /* @__PURE__ */ jsx21(Section, { title: `${fieldTitle} \xB7 ${fields.length}`, label: fieldTitle, children: /* @__PURE__ */ jsx21("ul", { className: `member-list${marks ? " marked" : ""}`, children: fields.map((member) => /* @__PURE__ */ jsx21(
+      MemberRow,
+      {
+        member,
+        profile,
+        review: marks,
+        focused: member.id === focus
+      },
+      member.id
+    )) }) }),
+    methods.length > 0 && /* @__PURE__ */ jsx21(Section, { title: `Methods \xB7 ${methods.length}`, label: "Methods", children: /* @__PURE__ */ jsx21("ul", { className: `member-list${marks ? " marked" : ""}`, children: methods.map((member) => /* @__PURE__ */ jsx21(
+      MemberRow,
+      {
+        member,
+        method: true,
+        profile,
+        review: marks,
+        focused: member.id === focus
+      },
+      member.id
+    )) }) })
+  ] });
+}
+function foreignKeys(element, model, rollup) {
+  const outgoing = (model.relations || []).filter(
+    (r) => r.sourceId === element.id && Array.isArray(r.columns)
+  );
+  const current = new Set(
+    outgoing.filter((r) => r.changeStatus !== "removed").map((r) => r.id)
+  );
+  return outgoing.filter((r) => !(r.changeStatus === "removed" && current.has(r.originalId))).map((relation) => {
+    const status = rollup && relation.changeStatus && relation.changeStatus !== "unchanged" ? relation.changeStatus : void 0;
+    const record = status === "modified" ? rowFor(
+      rollup,
+      { kind: "edge", id: relation.id },
+      model
+    )?.changes.find((c) => c.elementId === relation.id) : null;
+    const before = record?.before;
+    const previous = Array.isArray(before?.columns) ? {
+      columns: before.columns,
+      targetId: before.targetId,
+      target: before.target,
+      targetColumns: before.targetColumns
+    } : null;
+    const details = meaningfulProperties(record).filter(
+      (p) => !["columns", "targetId", "target", "targetColumns", "name"].includes(
+        p.key
+      )
+    );
+    return { relation, previous, status, details, names: rollup?.names };
+  });
+}
+function TableSchema({
+  element,
+  model,
+  review,
+  rollup = null,
+  focus = null
+}) {
+  const columns = element.attributes || [];
+  const marks = review && element.changeStatus === "modified";
+  const outgoing = foreignKeys(element, model, rollup);
+  const record = rollup ? rowFor(rollup, { kind: "node", id: element.id })?.changes.find(
+    (c) => c.elementId === element.id
+  ) : null;
+  const keyNote = record?.properties?.find((p) => p.key === "keys");
+  const keyChanges = new Map(
+    (keyNote ? itemChanges(keyNote) || [] : []).filter((c) => !(c.after ?? c.before)?.primary).map((c) => [(c.after ?? c.before).name, c])
+  );
+  const tables = new Map(model.classes.map((c) => [c.id, c.name]));
+  const keyText = (relation) => `${relation.columns.join(", ")} \u2192 ${tables.get(relation.targetId) || relation.target}${referencedColumns(relation.targetColumns)}`;
+  const unique = [
+    ...(element.keys || []).filter((key) => !key.primary),
+    ...[...keyChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
+  ];
+  const shownByRelation = (key) => outgoing.some(
+    ({ relation }) => relation.changeStatus !== "removed" && JSON.stringify(relation.columns) === JSON.stringify(key.columns) && (relation.target === key.target || tables.get(relation.targetId) === key.target)
+  );
+  const foreignNote = record?.properties?.find((p) => p.key === "foreignKeys");
+  const foreignChanges = new Map(
+    (foreignNote ? itemChanges(foreignNote) || [] : []).map((c) => [
+      partKey(c.after ?? c.before),
+      c
+    ])
+  );
+  const external = [
+    ...(element.foreignKeys || []).filter(
+      (key) => Array.isArray(key.columns) && typeof key.target === "string" && !shownByRelation(key)
+    ),
+    ...[...foreignChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
+  ];
+  const sql = [
+    element.definition,
+    ...(element.constraints || []).map((c) => c.definition),
+    ...(element.triggers || []).map((t) => t.definition || t.sql)
+  ].filter(Boolean);
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
+    columns.length > 0 && /* @__PURE__ */ jsx21(Section, { title: `Columns \xB7 ${columns.length}`, label: "Columns", children: /* @__PURE__ */ jsx21("ul", { className: `member-list columns${marks ? " marked" : ""}`, children: columns.map((column) => {
+      const status = marks ? column.changeStatus : void 0;
+      const marked = status && status !== "unchanged";
+      return /* @__PURE__ */ jsxs14(
+        FocusableRow,
+        {
+          focused: column.id === focus,
+          change: marked ? status : void 0,
+          children: [
+            marks && /* @__PURE__ */ jsx21(ChangeMark, { status }),
+            marked && /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+              CHANGE_LABELS[status],
+              ":",
+              " "
+            ] }),
+            /* @__PURE__ */ jsx21(Described, { description: column.description, children: /* @__PURE__ */ jsxs14("code", { className: "signature", children: [
+              /* @__PURE__ */ jsx21("span", { className: "member-name", children: column.name }),
+              " ",
+              /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
+                column.type,
+                column.nullable ? "" : " not null",
+                column.default !== null && column.default !== void 0 ? ` default ${column.default}` : ""
+              ] })
+            ] }) }),
+            (column.primaryKeyOrder || column.generated) && /* @__PURE__ */ jsxs14("span", { className: "column-flags", children: [
+              column.primaryKeyOrder ? "PK" : "",
+              column.generated ? " generated" : ""
+            ] })
+          ]
+        },
+        column.id
+      );
+    }) }) }),
+    (outgoing.length > 0 || unique.length > 0 || external.length > 0) && /* @__PURE__ */ jsx21(Section, { title: "Keys", children: /* @__PURE__ */ jsxs14(
+      "ul",
+      {
+        className: `member-list${outgoing.some((key) => key.status) || keyChanges.size || foreignChanges.size ? " marked" : ""}`,
+        children: [
+          unique.map((key) => {
+            const change = keyChanges.get(key.name);
+            return /* @__PURE__ */ jsxs14(
+              "li",
+              {
+                className: "member",
+                "data-change": change?.status,
+                children: [
+                  change && /* @__PURE__ */ jsx21(ChangeMark, { status: change.status }),
+                  change && /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+                    CHANGE_LABELS[change.status],
+                    ":",
+                    " "
+                  ] }),
+                  /* @__PURE__ */ jsxs14("code", { className: "signature", children: [
+                    /* @__PURE__ */ jsx21("span", { className: "member-name", children: "unique" }),
+                    " ",
+                    /* @__PURE__ */ jsx21("span", { className: "member-type", children: change?.status === "modified" ? /* @__PURE__ */ jsx21(
+                      ChangedValue,
+                      {
+                        before: partChange(change.before, change.after)[0],
+                        after: partChange(change.before, change.after)[1]
+                      }
+                    ) : `(${key.columns.join(", ")})` })
+                  ] })
+                ]
+              },
+              key.name
+            );
+          }),
+          outgoing.map(({ relation, previous, status, details, names }) => /* @__PURE__ */ jsxs14(
+            "li",
+            {
+              className: "member",
+              "data-change": status && status !== "unchanged" ? status : void 0,
+              children: [
+                status && /* @__PURE__ */ jsx21(ChangeMark, { status }),
+                status && CHANGE_LABELS[status] && /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+                  CHANGE_LABELS[status],
+                  ":",
+                  " "
+                ] }),
+                /* @__PURE__ */ jsxs14("span", { className: "change-line-text", children: [
+                  /* @__PURE__ */ jsx21("code", { className: "signature", children: previous && keyText(previous) !== keyText(relation) ? /* @__PURE__ */ jsx21(
+                    ChangedValue,
+                    {
+                      before: keyText(previous),
+                      after: keyText(relation)
+                    }
+                  ) : /* @__PURE__ */ jsxs14(Fragment6, { children: [
+                    /* @__PURE__ */ jsx21("span", { className: "member-name", children: relation.columns.join(", ") }),
+                    " ",
+                    /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
+                      "\u2192 ",
+                      tables.get(relation.targetId) || relation.target,
+                      referencedColumns(relation.targetColumns)
+                    ] })
+                  ] }) }),
+                  details.map((p) => /* @__PURE__ */ jsxs14("span", { className: "change-detail", children: [
+                    p.key,
+                    ":",
+                    " ",
+                    /* @__PURE__ */ jsx21(
+                      ChangedValue,
+                      {
+                        before: cellText(p.before, names, p.key),
+                        after: cellText(p.after, names, p.key)
+                      }
+                    )
+                  ] }, p.key))
+                ] })
+              ]
+            },
+            relation.id
+          )),
+          external.map((key) => {
+            const change = foreignChanges.get(partKey(key));
+            return /* @__PURE__ */ jsxs14(
+              "li",
+              {
+                className: "member",
+                "data-change": change?.status,
+                children: [
+                  change && /* @__PURE__ */ jsx21(ChangeMark, { status: change.status }),
+                  change && /* @__PURE__ */ jsxs14("span", { className: "visually-hidden", children: [
+                    CHANGE_LABELS[change.status],
+                    ":",
+                    " "
+                  ] }),
+                  /* @__PURE__ */ jsx21("code", { className: "signature", children: change?.status === "modified" ? /* @__PURE__ */ jsx21(
+                    ChangedValue,
+                    {
+                      before: partChange(change.before, change.after)[0],
+                      after: partChange(change.before, change.after)[1]
+                    }
+                  ) : /* @__PURE__ */ jsxs14(Fragment6, { children: [
+                    /* @__PURE__ */ jsx21("span", { className: "member-name", children: key.columns.join(", ") }),
+                    " ",
+                    /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
+                      "\u2192 ",
+                      key.target,
+                      referencedColumns(key.targetColumns)
+                    ] })
+                  ] }) })
+                ]
+              },
+              partKey(key)
+            );
+          })
+        ]
+      }
+    ) }),
+    sql.length > 0 && /* @__PURE__ */ jsx21(DisclosureNote2, { title: "Definition", className: "detail-definition", children: sql.map((text, i) => /* @__PURE__ */ jsx21("pre", { className: "source-code", tabIndex: 0, children: /* @__PURE__ */ jsx21("code", { children: text }) }, i)) })
+  ] });
+}
+
+// src/viewer/DetailsContent.jsx
+import { Fragment as Fragment7, jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
+var profileOf = (model) => model.document?.profile || "class";
+var changeOf = (review, element) => review && element.changeStatus && element.changeStatus !== "unchanged" ? element.changeStatus : null;
 var ConceptDetails = memo5(function ConceptDetails2({
   concept,
   model,
-  snippets
+  snippets,
+  review = null,
+  member = null,
+  onReference
 }) {
-  return /* @__PURE__ */ jsxs15(Fragment5, { children: [
-    /* @__PURE__ */ jsx20(
+  const profile = profileOf(model);
+  const change = changeOf(review, concept);
+  const described = change ? describeClassChange(review.rollup, concept, profile) : null;
+  const records = linkedRecords(model, [
+    concept.id,
+    ...(concept.attributes || []).map((a) => a.id),
+    ...(concept.methods || []).map((m) => m.id)
+  ]);
+  return /* @__PURE__ */ jsxs15(Fragment7, { children: [
+    /* @__PURE__ */ jsx22(
       DetailHeader,
       {
         title: concept.name,
+        owner: concept.namespace,
         tag: `\xAB${concept.stereotype || "unspecified"}\xBB`,
-        stereotype: concept.stereotype,
         status: concept.status,
+        change,
         description: concept.description
       }
     ),
-    /* @__PURE__ */ jsx20(
+    /* @__PURE__ */ jsx22(
+      WhatChanges,
+      {
+        change: described,
+        element: concept,
+        model,
+        profile
+      }
+    ),
+    profile === "code" && /* @__PURE__ */ jsx22(
+      CodeWhere,
+      {
+        element: concept,
+        model,
+        snippets,
+        change
+      }
+    ),
+    /* @__PURE__ */ jsx22(
+      Why,
+      {
+        rationale: concept.rationale,
+        questions: concept.questions,
+        records,
+        onReference
+      }
+    ),
+    profile === "database" ? /* @__PURE__ */ jsx22(
+      TableSchema,
+      {
+        element: concept,
+        model,
+        review: !!review,
+        rollup: review?.rollup,
+        focus: member
+      }
+    ) : /* @__PURE__ */ jsx22(
+      Members,
+      {
+        element: concept,
+        profile,
+        review: !!review,
+        focus: member
+      }
+    ),
+    profile !== "code" && profile !== "database" && /* @__PURE__ */ jsx22(
       SourceEvidence,
       {
         evidence: concept.evidence,
         primary: concept.primarySource,
         sources: model.sources,
-        snippets
+        snippets,
+        label: "Sources"
       }
-    ),
-    (!model.document || model.document.profile === "ontouml") && /* @__PURE__ */ jsx20(ElementLearning, { element: concept, model }),
-    model.document?.profile === "database" && /* @__PURE__ */ jsx20(CapturedSchema, { element: concept }),
-    /* @__PURE__ */ jsx20(CaptureDetails, { model }),
-    /* @__PURE__ */ jsx20(ChangeDetails, { element: concept, model }),
-    model.document?.profile === "code" && /* @__PURE__ */ jsxs15(Fragment5, { children: [
-      concept.definition && /* @__PURE__ */ jsxs15("details", { className: "concept-fields", children: [
-        /* @__PURE__ */ jsx20("summary", { children: "Definition" }),
-        /* @__PURE__ */ jsx20("pre", { style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere" }, children: /* @__PURE__ */ jsx20("code", { children: concept.definition }) })
-      ] }),
-      concept.methods?.length > 0 && /* @__PURE__ */ jsxs15("details", { className: "concept-fields", children: [
-        /* @__PURE__ */ jsx20("summary", { children: "Methods" }),
-        concept.methods.map((method) => /* @__PURE__ */ jsxs15("p", { children: [
-          method.modifiers?.join(" "),
-          " ",
-          method.type
-        ] }, method.id))
-      ] })
-    ] }),
-    concept.attributes.length > 0 && model.document?.profile !== "database" && /* @__PURE__ */ jsxs15("details", { className: "concept-fields", children: [
-      /* @__PURE__ */ jsx20("summary", { children: "Fields" }),
-      concept.attributes.map(
-        ({ name, type, multiplicity: cardinality }, i) => /* @__PURE__ */ jsxs15("div", { className: "field-row", children: [
-          /* @__PURE__ */ jsx20("span", { children: name }),
-          /* @__PURE__ */ jsxs15("span", { children: [
-            type,
-            cardinality ? ` [${cardinality}]` : ""
-          ] })
-        ] }, i)
-      )
-    ] })
+    )
   ] });
 });
+function RelationEnds({ heading, ends, onChoose }) {
+  return /* @__PURE__ */ jsxs15(Stack3, { gap: 1, className: "relation-ends", children: [
+    heading && /* @__PURE__ */ jsx22(Text7, { as: "h2", variant: "caption", className: "detail-section-title", children: heading }),
+    /* @__PURE__ */ jsx22("ul", { className: "relation-end-list", children: ends.map(([node, count, role], i) => /* @__PURE__ */ jsxs15("li", { className: "relation-end", children: [
+      role && /* @__PURE__ */ jsx22("span", { className: "relation-role", children: role }),
+      /* @__PURE__ */ jsx22(Button5, { variant: "text", onClick: () => onChoose(node.id), children: node.name }),
+      knownMultiplicity(count) && /* @__PURE__ */ jsx22(Badge3, { variant: "outline", className: "count-badge", children: count })
+    ] }, `${node.id}-${i}`)) })
+  ] });
+}
+var setConstraints = (set) => `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}`;
+function relationTitle(relation) {
+  if (relation.type === "generalization")
+    return relation.realization ? "Implementation" : "Inheritance";
+  return informativeName(relation) || `${relation.source.name} \u2192 ${relation.target.name}`;
+}
+function relationTag(relation) {
+  if (relation.type === "generalization") return "Generalization";
+  return relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association";
+}
+function DeclaredBy({ relation, profile }) {
+  const members = dependencyMembers(relation.source, relation.target);
+  if (!members.length) return null;
+  return /* @__PURE__ */ jsx22(Section, { title: "Declared by", children: /* @__PURE__ */ jsx22("ul", { className: "member-list", children: members.map(({ member, method }) => /* @__PURE__ */ jsxs15(
+    "li",
+    {
+      className: "member",
+      "data-change": member.changeStatus && member.changeStatus !== "unchanged" ? member.changeStatus : void 0,
+      children: [
+        /* @__PURE__ */ jsx22(ChangeMark, { status: member.changeStatus }),
+        /* @__PURE__ */ jsx22("code", { className: "signature", children: memberSignature(member, method, profile) }),
+        member.location && /* @__PURE__ */ jsx22("span", { className: "member-line", children: member.location.startLine })
+      ]
+    },
+    member.id
+  )) }) });
+}
+function ForeignKey({ relation }) {
+  if (!Array.isArray(relation.columns)) return null;
+  return /* @__PURE__ */ jsxs15(Section, { title: "Columns", children: [
+    /* @__PURE__ */ jsxs15(Text7, { children: [
+      /* @__PURE__ */ jsxs15("code", { children: [
+        relation.source.name,
+        "(",
+        relation.columns.join(", "),
+        ")"
+      ] }),
+      " ",
+      "\u2192",
+      " ",
+      /* @__PURE__ */ jsxs15("code", { children: [
+        relation.target.name,
+        referencedColumns(relation.targetColumns)
+      ] })
+    ] }),
+    (relation.onDelete || relation.onUpdate) && /* @__PURE__ */ jsx22(Text7, { tone: "muted", children: [
+      relation.onDelete && `On delete ${relation.onDelete.toLowerCase()}`,
+      relation.onUpdate && `on update ${relation.onUpdate.toLowerCase()}`
+    ].filter(Boolean).join(", ") })
+  ] });
+}
 var RelationDetails = memo5(function RelationDetails2({
   relation,
   onChoose,
   model,
-  snippets
+  snippets,
+  review = null,
+  onReference
 }) {
-  return /* @__PURE__ */ jsxs15(Fragment5, { children: [
-    /* @__PURE__ */ jsx20(
+  const profile = profileOf(model);
+  const generalization = relation.type === "generalization";
+  const change = changeOf(review, relation);
+  const entry = change ? rowFor(review.rollup, { kind: "edge", id: relation.id }, model) : null;
+  const semanticId = relation.originalId || relation.id;
+  return /* @__PURE__ */ jsxs15(Fragment7, { children: [
+    /* @__PURE__ */ jsx22(
       DetailHeader,
       {
-        title: relation.type === "generalization" ? relation.realization ? "Implementation" : "Inheritance" : relation.name,
-        icon: GitBranchIcon,
-        tag: relation.type === "generalization" ? "Generalization" : relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association",
-        stereotype: relation.stereotype
+        title: relationTitle(relation),
+        icon: generalization ? AccountTree : Polyline,
+        tag: relationTag(relation),
+        change,
+        description: relation.description
       }
     ),
-    /* @__PURE__ */ jsx20("div", { className: "relation-ends", children: [
-      [relation.source, relation.sourceMultiplicity],
-      [relation.target, relation.targetMultiplicity]
-    ].map(([node, count], i) => /* @__PURE__ */ jsxs15("div", { className: "relation-end", children: [
-      /* @__PURE__ */ jsx20("button", { onClick: () => onChoose(node.id), children: node.name }),
-      count && /* @__PURE__ */ jsx20("span", { className: "count-badge", children: count })
-    ] }, i)) }),
-    /* @__PURE__ */ jsx20(ChangeDetails, { element: relation, model }),
-    (!model.document || model.document.profile === "ontouml") && /* @__PURE__ */ jsx20(ElementLearning, { element: relation, model, relation: true }),
-    model.document?.profile === "database" && /* @__PURE__ */ jsx20(CapturedSchema, { element: relation }),
-    relation.type === "generalization" && (model.partitions || []).filter(
-      (set) => set.generalizations.includes(relation.originalId || relation.id)
-    ).map((set) => /* @__PURE__ */ jsxs15("div", { className: "generalization-set-summary", children: [
-      /* @__PURE__ */ jsx20("h2", { children: set.name }),
-      /* @__PURE__ */ jsx20("p", { children: `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}` })
+    /* @__PURE__ */ jsx22(
+      RelationEnds,
+      {
+        ends: generalization ? [
+          [relation.source, null, "Subtype"],
+          [
+            relation.target,
+            null,
+            relation.realization ? "Implements" : "Supertype"
+          ]
+        ] : [
+          [relation.source, relation.sourceMultiplicity, "From"],
+          [relation.target, relation.targetMultiplicity, "To"]
+        ],
+        onChoose
+      }
+    ),
+    entry && entry.notes.length > 0 && /* @__PURE__ */ jsx22(Section, { title: "What changes", children: /* @__PURE__ */ jsx22("ul", { className: "change-list", children: entry.notes.map((note, i) => /* @__PURE__ */ jsxs15(
+      "li",
+      {
+        className: "change-line",
+        "data-change": "modified",
+        children: [
+          /* @__PURE__ */ jsx22(ChangeMark, { status: "modified" }),
+          /* @__PURE__ */ jsx22("span", { className: "change-line-text", children: /* @__PURE__ */ jsx22(
+            ChangedProperty,
+            {
+              name: note.key,
+              before: cellText(
+                note.before,
+                review.rollup.names,
+                note.property
+              ),
+              after: cellText(
+                note.after,
+                review.rollup.names,
+                note.property
+              )
+            }
+          ) })
+        ]
+      },
+      `${note.key}-${i}`
+    )) }) }),
+    profile === "code" && !generalization && /* @__PURE__ */ jsx22(DeclaredBy, { relation, profile }),
+    profile === "database" && /* @__PURE__ */ jsx22(ForeignKey, { relation }),
+    /* @__PURE__ */ jsx22(
+      Why,
+      {
+        rationale: relation.rationale,
+        questions: relation.questions,
+        records: linkedRecords(model, [semanticId]),
+        onReference
+      }
+    ),
+    generalization && (model.partitions || []).filter((set) => set.generalizations.includes(semanticId)).map((set) => /* @__PURE__ */ jsxs15(Stack3, { gap: 1, className: "generalization-set-summary", children: [
+      /* @__PURE__ */ jsx22(Text7, { as: "h2", variant: "section-heading", children: set.name }),
+      /* @__PURE__ */ jsx22(Text7, { tone: "muted", children: setConstraints(set) })
     ] }, set.id)),
-    /* @__PURE__ */ jsx20(
+    profile !== "code" && relation.evidence?.length > 0 && /* @__PURE__ */ jsx22(
       SourceEvidence,
       {
-        evidence: relation.evidence?.length ? relation.evidence : [...relation.source.evidence, ...relation.target.evidence],
+        evidence: relation.evidence,
         sources: model.sources,
         snippets,
-        label: relation.evidence?.length ? "Source" : "Endpoint evidence"
+        label: "Sources"
       }
     )
   ] });
@@ -2979,175 +4374,119 @@ var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
   group,
   onChoose,
   model,
-  snippets
+  snippets,
+  onReference
 }) {
   const declared = group.type === "generalizationSet";
-  return /* @__PURE__ */ jsxs15(Fragment5, { children: [
-    /* @__PURE__ */ jsx20(
+  return /* @__PURE__ */ jsxs15(Fragment7, { children: [
+    /* @__PURE__ */ jsx22(
       DetailHeader,
       {
         title: group.name,
         tag: declared ? "Generalization set" : "Joined inheritance",
-        icon: GitBranchIcon,
+        icon: AccountTree,
         description: group.description
       }
     ),
-    /* @__PURE__ */ jsxs15("div", { className: "relation-ends", children: [
-      /* @__PURE__ */ jsx20("h2", { children: "Supertype" }),
-      /* @__PURE__ */ jsx20("div", { className: "relation-end", children: /* @__PURE__ */ jsx20("button", { onClick: () => onChoose(group.target.id), children: group.target.name }) }),
-      /* @__PURE__ */ jsx20("h2", { children: "Subtypes" }),
-      group.sources.map((node) => /* @__PURE__ */ jsx20("div", { className: "relation-end", children: /* @__PURE__ */ jsx20("button", { onClick: () => onChoose(node.id), children: node.name }) }, node.id))
-    ] }),
-    declared ? /* @__PURE__ */ jsxs15(Fragment5, { children: [
-      /* @__PURE__ */ jsx20("p", { className: "set-constraints", children: `{${group.complete ? "complete" : "incomplete"}, ${group.disjoint ? "disjoint" : "overlapping"}}` }),
-      /* @__PURE__ */ jsxs15("details", { className: "learn-concept", children: [
-        /* @__PURE__ */ jsx20("summary", { children: "Read these constraints" }),
-        /* @__PURE__ */ jsx20("p", { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
-        /* @__PURE__ */ jsx20("p", { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." })
+    /* @__PURE__ */ jsx22(
+      RelationEnds,
+      {
+        heading: "Supertype",
+        ends: [[group.target]],
+        onChoose
+      }
+    ),
+    /* @__PURE__ */ jsx22(
+      RelationEnds,
+      {
+        heading: "Subtypes",
+        ends: group.sources.map((node) => [node]),
+        onChoose
+      }
+    ),
+    declared ? /* @__PURE__ */ jsxs15(Fragment7, { children: [
+      /* @__PURE__ */ jsx22(Text7, { className: "set-constraints", children: setConstraints(group) }),
+      /* @__PURE__ */ jsxs15(DisclosureNote3, { title: "Read these constraints", children: [
+        /* @__PURE__ */ jsx22(Text7, { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
+        /* @__PURE__ */ jsx22(Text7, { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." })
       ] }),
-      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs15("p", { className: "muted", children: [
+      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs15(Text7, { tone: "muted", children: [
         group.memberIds.length,
         " of ",
         group.totalMembers,
         " members are shown. These constraints apply to the full set."
       ] }),
-      /* @__PURE__ */ jsx20(ElementLearning, { element: group, model, relation: true })
-    ] }) : /* @__PURE__ */ jsxs15("details", { className: "learn-concept", children: [
-      /* @__PURE__ */ jsx20("summary", { children: "Read joined inheritance" }),
-      /* @__PURE__ */ jsx20("p", { className: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." })
-    ] }),
-    /* @__PURE__ */ jsx20(
+      /* @__PURE__ */ jsx22(
+        Why,
+        {
+          records: linkedRecords(model, [group.id]),
+          onReference
+        }
+      )
+    ] }) : /* @__PURE__ */ jsx22(DisclosureNote3, { title: "Read joined inheritance", children: /* @__PURE__ */ jsx22(Text7, { tone: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }) }),
+    /* @__PURE__ */ jsx22(
       SourceEvidence,
       {
         evidence: group.evidence,
         primary: group.primarySource,
         sources: model.sources,
-        snippets
+        snippets,
+        label: "Sources"
       }
     )
   ] });
 });
-function CaptureDetails({ model }) {
-  const document2 = model.document;
-  const snapshot = document2?.snapshots.find(
-    (s) => s.id === document2.baselineId
-  );
-  if (!snapshot) return null;
-  const capture = snapshot.capture;
-  return /* @__PURE__ */ jsxs15("details", { className: "concept-fields", children: [
-    /* @__PURE__ */ jsxs15("summary", { children: [
-      "Capture \xB7 ",
-      capture.coverage.status,
-      document2.imported ? " \xB7 imported claims" : ""
-    ] }),
-    /* @__PURE__ */ jsxs15("p", { children: [
-      "Captured ",
-      formatCaptureDate(capture.capturedAt)
-    ] }),
-    /* @__PURE__ */ jsxs15("p", { children: [
-      sourceKindLabel(capture.source.kind),
-      " \xB7 ",
-      capture.source.identity
-    ] }),
-    /* @__PURE__ */ jsx20("p", { children: printable(capture.consistency?.kind) }),
-    (capture.coverage.diagnostics || []).map((d, i) => /* @__PURE__ */ jsx20("p", { children: printable(d.message ?? d) }, i)),
-    [].concat(capture.limitations || []).map((text, i) => /* @__PURE__ */ jsx20("p", { className: "muted", children: printable(text) }, i))
-  ] });
-}
-function CapturedSchema({ element }) {
-  return /* @__PURE__ */ jsxs15(Fragment5, { children: [
-    element.attributes?.length > 0 && /* @__PURE__ */ jsxs15("details", { className: "concept-fields", open: true, children: [
-      /* @__PURE__ */ jsx20("summary", { children: "Columns" }),
-      element.attributes.map((column) => /* @__PURE__ */ jsxs15("div", { className: "field-row", children: [
-        /* @__PURE__ */ jsxs15("span", { children: [
-          column.name,
-          /* @__PURE__ */ jsxs15("small", { children: [
-            column.primaryKeyOrder ? ` \xB7 PK ${column.primaryKeyOrder}` : "",
-            column.generated ? " \xB7 generated" : ""
-          ] })
-        ] }),
-        /* @__PURE__ */ jsxs15("span", { children: [
-          column.type,
-          " \xB7 ",
-          column.nullable ? "nullable" : "required",
-          column.default !== null && column.default !== void 0 ? ` \xB7 default ${column.default}` : ""
-        ] })
-      ] }, column.id))
-    ] }),
-    element.keys?.length > 0 && /* @__PURE__ */ jsxs15("details", { className: "concept-fields", children: [
-      /* @__PURE__ */ jsx20("summary", { children: "Keys" }),
-      element.keys.map((key) => /* @__PURE__ */ jsxs15("p", { children: [
-        key.primary ? "Primary" : "Unique",
-        " \xB7 ",
-        key.columns.join(", ")
-      ] }, key.name))
-    ] }),
-    [
-      element.definition,
-      ...(element.constraints || []).map((c) => c.definition),
-      ...(element.indexes || []).map((i) => i.definition),
-      ...(element.triggers || []).map((t) => t.definition || t.sql)
-    ].filter(Boolean).length > 0 && /* @__PURE__ */ jsxs15("details", { className: "concept-fields", children: [
-      /* @__PURE__ */ jsx20("summary", { children: "Captured SQL" }),
+function About({ model, exports, provenance }) {
+  return /* @__PURE__ */ jsxs15(Stack3, { gap: 4, className: "atlas-portal about-content", children: [
+    /* @__PURE__ */ jsx22(ProvenanceBadge, { document: provenance, className: "inline" }),
+    /* @__PURE__ */ jsx22(Text7, { tone: "muted", children: model.status }),
+    /* @__PURE__ */ jsx22("dl", { className: "shortcut-list", children: [
+      ["Scroll or pinch", "Zoom"],
+      ["Drag", "Pan"],
       [
-        element.definition,
-        ...(element.constraints || []).map((c) => c.definition),
-        ...(element.indexes || []).map((i) => i.definition),
-        ...(element.triggers || []).map((t) => t.definition || t.sql)
-      ].filter(Boolean).map((sql, i) => /* @__PURE__ */ jsx20(
-        "pre",
+        /* @__PURE__ */ jsxs15(Fragment7, { children: [
+          /* @__PURE__ */ jsx22(Kbd3, { children: "+" }),
+          " ",
+          /* @__PURE__ */ jsx22(Kbd3, { children: "\u2212" })
+        ] }),
+        "Zoom in or out"
+      ],
+      [/* @__PURE__ */ jsx22(Kbd3, { children: "0" }), "Fit the diagram"],
+      [/* @__PURE__ */ jsx22(Kbd3, { children: "/" }), "Find a concept"],
+      [/* @__PURE__ */ jsx22(Kbd3, { children: "Esc" }), "Clear the selection"]
+    ].map(([keys, action], i) => /* @__PURE__ */ jsxs15("div", { className: "shortcut", children: [
+      /* @__PURE__ */ jsx22("dt", { children: keys }),
+      /* @__PURE__ */ jsx22("dd", { children: action })
+    ] }, i)) }),
+    /* @__PURE__ */ jsxs15(Stack3, { gap: 1, align: "start", children: [
+      /* @__PURE__ */ jsx22(
+        DownloadLink,
         {
-          style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
-          children: /* @__PURE__ */ jsx20("code", { children: sql })
-        },
-        i
-      ))
+          data: exports.readText(`${exports.slug}-model-notes.txt`),
+          filename: `${exports.slug}-model-notes.txt`,
+          children: "Source notes"
+        }
+      ),
+      /* @__PURE__ */ jsx22(
+        DownloadLink,
+        {
+          data: exports.readText(`${exports.slug}-validation.json`),
+          filename: `${exports.slug}-validation.json`,
+          type: "application/json",
+          children: "Validation report"
+        }
+      )
     ] })
-  ] });
-}
-function About({ model, exports }) {
-  return /* @__PURE__ */ jsxs15(Fragment5, { children: [
-    /* @__PURE__ */ jsx20("h1", { children: model.title }),
-    /* @__PURE__ */ jsx20("p", { children: "Scroll or pinch to zoom \xB7 Drag to pan" }),
-    /* @__PURE__ */ jsxs15("p", { children: [
-      /* @__PURE__ */ jsx20("kbd", { children: "+" }),
-      " / ",
-      /* @__PURE__ */ jsx20("kbd", { children: "\u2212" }),
-      " zoom \xB7 ",
-      /* @__PURE__ */ jsx20("kbd", { children: "0" }),
-      " fit \xB7 ",
-      /* @__PURE__ */ jsx20("kbd", { children: "Esc" }),
-      " ",
-      "clear"
-    ] }),
-    /* @__PURE__ */ jsx20("p", { className: "muted", children: model.status }),
-    /* @__PURE__ */ jsx20(
-      DownloadLink,
-      {
-        data: exports.readText(`${exports.slug}-model-notes.txt`),
-        filename: `${exports.slug}-model-notes.txt`,
-        children: "Source notes \u2193"
-      }
-    ),
-    /* @__PURE__ */ jsx20(
-      DownloadLink,
-      {
-        data: exports.readText(`${exports.slug}-validation.json`),
-        filename: `${exports.slug}-validation.json`,
-        type: "application/json",
-        children: "Validation report \u2193"
-      }
-    )
   ] });
 }
 
 // src/viewer/useInspection.js
 import {
   useCallback as useCallback2,
-  useEffect as useEffect6,
-  useLayoutEffect as useLayoutEffect7,
-  useMemo as useMemo6,
-  useState as useState9
+  useEffect as useEffect7,
+  useLayoutEffect as useLayoutEffect6,
+  useMemo as useMemo5,
+  useState as useState7
 } from "react";
 import { flushSync } from "react-dom";
 
@@ -3227,9 +4566,9 @@ function useInspection({
   previewEnabled = true,
   previewVisible = false
 } = {}) {
-  const [hovered, setHovered] = useState9(null);
-  const [preview, setPreview] = useState9(null);
-  const controller = useMemo6(
+  const [hovered, setHovered] = useState7(null);
+  const [preview, setPreview] = useState7(null);
+  const controller = useMemo5(
     () => createInspectionController({
       onHover: (target) => setHovered((old) => sameTarget(old, target) ? old : target),
       // An open inspector follows the same input commit as its highlight.
@@ -3238,10 +4577,10 @@ function useInspection({
     }),
     [createInspectionController]
   );
-  useLayoutEffect7(() => {
+  useLayoutEffect6(() => {
     controller.configure({ previewEnabled, previewVisible });
   }, [controller, previewEnabled, previewVisible]);
-  useEffect6(() => () => controller.dispose(), [controller]);
+  useEffect7(() => () => controller.dispose(), [controller]);
   const hover = useCallback2(
     (target) => {
       flushSync(() => controller.hover(target));
@@ -3255,6 +4594,189 @@ function useInspection({
     keepHover: controller.keepHover,
     clearHover: controller.clearHover
   };
+}
+
+// src/learning/LearningContent.jsx
+import { useMemo as useMemo6 } from "react";
+import {
+  Badge as Badge4,
+  Button as Button6,
+  DisclosureNote as DisclosureNote4,
+  Notice,
+  Stack as Stack4,
+  Text as Text8
+} from "@envsemble/envui";
+import { Fragment as Fragment8, jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
+var RECORD_KINDS2 = {
+  plan: "Plan",
+  glossary: "Glossary",
+  decision: "Decision",
+  scenario: "Scenario"
+};
+function ContextNotes({ ids = [], model }) {
+  const records = (model.document?.context?.records || []).filter(
+    (r) => ids.includes(r.id)
+  );
+  if (!records.length) return null;
+  return /* @__PURE__ */ jsxs16(Text8, { variant: "supporting", className: "learning-context", children: [
+    "From",
+    " ",
+    records.map(
+      (r) => `${RECORD_KINDS2[r.kind] || "Note"} \u203A ${r.title || r.section || r.id}`
+    ).join(", ")
+  ] });
+}
+function verdict(scenario) {
+  const met = scenario.result.expectationMet;
+  const expected = scenario.expected === "invalid" ? "Invalid" : "Valid";
+  if (met === null)
+    return { tone: "neutral", text: `${expected} \xB7 not fully checked` };
+  return met ? { tone: "success", text: `${expected} \xB7 as expected` } : { tone: "danger", text: `${expected} expected \xB7 differs` };
+}
+function Examples({ learning, model, names, onInspect }) {
+  const classNames = new Map(model.classes.map((c) => [c.id, c.name]));
+  return /* @__PURE__ */ jsxs16(Stack4, { gap: 5, children: [
+    learning.scope && /* @__PURE__ */ jsx23(Text8, { tone: "muted", children: learning.scope }),
+    learning.scenarios.map((scenario) => {
+      const { tone, text } = verdict(scenario);
+      const labels = new Map(
+        scenario.instances.map((i) => [i.id, i.label || i.id])
+      );
+      return /* @__PURE__ */ jsxs16(Stack4, { gap: 2, className: "example", children: [
+        /* @__PURE__ */ jsxs16("div", { className: "example-head", children: [
+          /* @__PURE__ */ jsx23(Text8, { as: "h3", variant: "section-heading", children: scenario.title }),
+          /* @__PURE__ */ jsx23(Badge4, { tone, children: text })
+        ] }),
+        scenario.description && /* @__PURE__ */ jsx23(Text8, { children: scenario.description }),
+        /* @__PURE__ */ jsx23(ContextNotes, { ids: scenario.contextIds, model }),
+        scenario.result.issues.map((issue, i) => /* @__PURE__ */ jsxs16(Notice, { tone: "warning", children: [
+          issue.message,
+          issue.elementId && names.has(issue.elementId) && /* @__PURE__ */ jsxs16(Fragment8, { children: [
+            " ",
+            /* @__PURE__ */ jsx23(
+              Button6,
+              {
+                variant: "text",
+                onClick: () => onInspect(issue.elementId),
+                children: names.get(issue.elementId)
+              }
+            )
+          ] })
+        ] }, i)),
+        /* @__PURE__ */ jsxs16(
+          DisclosureNote4,
+          {
+            title: `${scenario.instances.length} instances \xB7 ${scenario.links.length} links`,
+            children: [
+              /* @__PURE__ */ jsx23("ul", { className: "example-list", children: scenario.instances.map((instance) => /* @__PURE__ */ jsxs16("li", { children: [
+                /* @__PURE__ */ jsx23("strong", { children: instance.label || instance.id }),
+                ": ",
+                instance.classIds.map((id) => classNames.get(id) || id).join(", ")
+              ] }, instance.id)) }),
+              scenario.links.length > 0 && /* @__PURE__ */ jsx23("ul", { className: "example-list", children: scenario.links.map((link, i) => /* @__PURE__ */ jsxs16("li", { children: [
+                labels.get(link.sourceId) || link.sourceId,
+                " \u2192",
+                " ",
+                /* @__PURE__ */ jsx23("em", { children: names.get(link.relationId) || link.relationId }),
+                " \u2192",
+                " ",
+                labels.get(link.targetId) || link.targetId
+              ] }, i)) }),
+              scenario.result.unassessed.map((u, i) => /* @__PURE__ */ jsx23(Text8, { tone: "muted", children: u.message }, i))
+            ]
+          }
+        )
+      ] }, scenario.id);
+    })
+  ] });
+}
+function LearningLibrary({ model, learning = null, onInspect }) {
+  const elementNames = useMemo6(
+    () => new Map(
+      [...model.classes, ...model.relations, ...model.partitions || []].map(
+        (e) => [e.originalId || e.id, e.name]
+      )
+    ),
+    [model]
+  );
+  if (!learning?.scenarios?.length) return null;
+  return /* @__PURE__ */ jsx23(Stack4, { gap: 6, className: "model-guide", children: /* @__PURE__ */ jsxs16(Stack4, { as: "section", gap: 3, "aria-label": "Examples", children: [
+    /* @__PURE__ */ jsx23(Text8, { as: "h3", variant: "caption", className: "detail-section-title", children: "Examples" }),
+    /* @__PURE__ */ jsx23(
+      Examples,
+      {
+        learning,
+        model,
+        names: elementNames,
+        onInspect
+      }
+    )
+  ] }) });
+}
+
+// src/viewer/InspectorContent.jsx
+import { jsx as jsx24 } from "react/jsx-runtime";
+function InspectorContent({
+  learning,
+  element,
+  inspected,
+  member = null,
+  model,
+  snippets,
+  guide,
+  changes,
+  showOverview,
+  onChoose,
+  onInspectLearning = onChoose,
+  onReference
+}) {
+  if (learning)
+    return /* @__PURE__ */ jsx24(
+      LearningLibrary,
+      {
+        model,
+        learning: guide,
+        onInspect: onInspectLearning
+      }
+    );
+  const review = changes?.details ?? null;
+  if (element && inspected.kind === "node")
+    return /* @__PURE__ */ jsx24(
+      ConceptDetails,
+      {
+        concept: element,
+        model,
+        snippets,
+        review,
+        member,
+        onReference
+      }
+    );
+  if (element && inspected.kind === "edge")
+    return /* @__PURE__ */ jsx24(
+      RelationDetails,
+      {
+        relation: element,
+        model,
+        snippets,
+        review,
+        onChoose,
+        onReference
+      }
+    );
+  if (element && inspected.kind === "group")
+    return /* @__PURE__ */ jsx24(
+      GeneralizationSetDetails,
+      {
+        group: element,
+        model,
+        snippets,
+        onChoose,
+        onReference
+      }
+    );
+  if (showOverview) return changes.content;
+  return null;
 }
 
 // src/viewer/useArtifactArchive.js
@@ -3298,712 +4820,137 @@ function createZoomStore() {
   };
 }
 
-// src/viewer/ProvenanceBadge.jsx
-import { jsx as jsx21, jsxs as jsxs16 } from "react/jsx-runtime";
-function ProvenanceIcon({ provenance, profile }) {
-  if (provenance.kind === "proposal") return /* @__PURE__ */ jsx21(GitPullRequestIcon, { size: 14 });
-  if (provenance.kind === "authored") return /* @__PURE__ */ jsx21(PencilAiIcon, { size: 14 });
-  if (profile === "database") return /* @__PURE__ */ jsx21(DatabaseIcon, { size: 14 });
-  if (profile === "code") return /* @__PURE__ */ jsx21(CodeIcon, { size: 14 });
-  return /* @__PURE__ */ jsx21(FileCodeIcon, { size: 14 });
-}
-function ProvenanceLabel({ document: document2 }) {
-  const provenance = describeProvenance(document2);
-  if (provenance.kind === "unknown") return null;
-  return /* @__PURE__ */ jsxs16(
-    "span",
-    {
-      className: "provenance-label",
-      "data-tone": provenance.tone,
-      "data-kind": provenance.kind,
-      children: [
-        /* @__PURE__ */ jsx21(ProvenanceIcon, { provenance, profile: document2?.profile }),
-        provenance.label
-      ]
-    }
-  );
-}
-function ProvenanceBadge({ document: document2, className = "" }) {
-  const provenance = describeProvenance(document2);
-  if (provenance.kind === "unknown") return null;
-  return /* @__PURE__ */ jsxs16(
-    "div",
-    {
-      className: `atlas-provenance${className ? ` ${className}` : ""}`,
-      title: provenance.detail ? `${provenance.label} \xB7 ${provenance.detail}` : provenance.label,
-      children: [
-        /* @__PURE__ */ jsx21(ProvenanceLabel, { document: document2 }),
-        provenance.detail && /* @__PURE__ */ jsx21("span", { className: "provenance-detail", children: provenance.detail })
-      ]
-    }
-  );
-}
-
-// src/viewer/ComparisonViewer.jsx
-import { useId as useId3, useMemo as useMemo8, useRef as useRef7, useState as useState10 } from "react";
-
-// src/viewer/comparisonSelection.js
-function containsTarget(payload, target) {
-  const owner = payload?.model?.classes?.find(
-    (node) => [...node.attributes || [], ...node.methods || []].some(
-      (member) => member.id === target.id
-    )
-  );
-  return payload?.views?.some((view) => {
-    if (target.kind === "view") return view.key === target.id;
-    const diagram = view.diagram;
-    return diagram.nodes.some(
-      (node) => node.id === target.id || node.id === owner?.id
-    ) || diagram.edges.some((edge) => edge.id === target.id) || diagram.generalizationGroups?.some(
-      (group) => group.id === target.id || group.memberIds.includes(target.id)
-    );
-  });
-}
-function reconcileComparisonFocus(selection, payload, target = payload.focus) {
-  if (selection.externalFocus === target) return selection;
-  const models = {
-    changes: payload.comparison.changeView || payload,
-    baseline: payload.comparison.baseline
-  };
-  const mode = !target || containsTarget(models[selection.mode], target) ? selection.mode : ["changes", "baseline"].find(
-    (key) => containsTarget(models[key], target)
-  ) || selection.mode;
-  return { mode, focus: null, externalFocus: target };
-}
-
-// src/viewer/ComparisonViewer.jsx
-import { Fragment as Fragment6, jsx as jsx22, jsxs as jsxs17 } from "react/jsx-runtime";
-var modes = [
-  {
-    key: "baseline",
-    label: "Baseline",
-    title: "The captured source before the proposal"
-  },
-  {
-    key: "changes",
-    label: "Changes",
-    title: "The proposal with added, removed and modified elements highlighted"
-  }
-];
-var groups = [
-  { kind: "added", label: "Added", Icon: DiffAddedIcon },
-  { kind: "removed", label: "Removed", Icon: DiffRemovedIcon },
-  { kind: "modified", label: "Modified", Icon: DiffModifiedIcon }
-];
-var ONTOUML_KINDS = {
-  Class: "class",
-  Relation: "relation",
-  Generalization: "inheritance",
-  GeneralizationSet: "generalization set",
-  Package: "package",
-  Literal: "literal"
-};
-var MAX_VALUE = 160;
-function nameIndex(...models) {
-  const names = /* @__PURE__ */ new Map();
-  for (const model of models) {
-    if (!model) continue;
-    for (const c of model.classes || []) {
-      names.set(c.id, c.name);
-      for (const m of [...c.attributes || [], ...c.methods || []])
-        names.set(m.id, `${c.name}.${m.name}`);
-    }
-    for (const e of [...model.relations || [], ...model.partitions || []])
-      if (e.name) names.set(e.id, e.name);
-  }
-  return names;
-}
-function readable(value, names) {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object" && typeof value.$element === "string")
-    return names.get(value.$element) || value.$element;
-  if (Array.isArray(value))
-    return value.length ? value.map((item) => readable(item, names)).join(", ") : "none";
-  const text = JSON.stringify(
-    value,
-    (key, v) => v && typeof v === "object" && typeof v.$element === "string" ? names.get(v.$element) || v.$element : v
-  );
-  return text === void 0 ? String(value) : text;
-}
-function shorten(text) {
-  return text.length > MAX_VALUE ? `${text.slice(0, MAX_VALUE - 1)}\u2026` : text;
-}
-function elementKind(change, model, profile) {
-  const data = change.after || change.before || {};
-  if (typeof data.type === "string" && ONTOUML_KINDS[data.type])
-    return ONTOUML_KINDS[data.type];
-  if (!change.elementId) return "model";
-  if (model.classes.some((c) => c.id === change.elementId))
-    return profile === "database" ? "table" : profile === "code" ? "type" : "class";
-  if (model.relations.some((r) => r.id === change.elementId)) return "relation";
-  if (model.generalizations.some((g) => g.id === change.elementId))
-    return "inheritance";
-  if (change.ownerId && model.classes.some((c) => c.id === change.ownerId))
-    return profile === "database" ? "column" : profile === "code" ? "member" : "attribute";
-  return "element";
-}
-var uniqueRecords = (records = []) => records.filter(
-  (r, i) => r && records.findIndex((other) => other?.id === r.id) === i
-);
-function ValueCell({ cell, names, side }) {
-  if (!cell.present)
-    return /* @__PURE__ */ jsx22("span", { className: `change-value ${side} absent`, children: "absent" });
-  const text = readable(cell.value, names);
-  return /* @__PURE__ */ jsx22("code", { className: `change-value ${side}`, title: text, children: shorten(text) });
-}
-function ChangeItem({ change, kind, names, onInspect }) {
-  const ownerName = change.ownerId && names.get(change.ownerId);
-  const name = typeof change.name === "string" ? change.name : readable(change.name, names);
-  return /* @__PURE__ */ jsxs17("li", { className: "change-item", "data-change": change.kind, children: [
-    /* @__PURE__ */ jsxs17("div", { className: "change-row", children: [
-      /* @__PURE__ */ jsx22("span", { className: "change-name", children: ownerName && kind !== "class" && !name.startsWith(ownerName) ? /* @__PURE__ */ jsxs17(Fragment6, { children: [
-        /* @__PURE__ */ jsxs17("span", { className: "muted", children: [
-          ownerName,
-          "."
-        ] }),
-        name
-      ] }) : name }),
-      /* @__PURE__ */ jsx22("span", { className: "change-kind", children: kind }),
-      onInspect && /* @__PURE__ */ jsx22(
-        "button",
-        {
-          type: "button",
-          className: "btn-sm",
-          onClick: onInspect,
-          "aria-label": `Inspect ${name}`,
-          children: "Inspect"
-        }
-      )
-    ] }),
-    change.properties?.length > 0 && /* @__PURE__ */ jsx22("dl", { className: "change-properties", children: change.properties.map((p) => /* @__PURE__ */ jsxs17("div", { className: "change-property", children: [
-      /* @__PURE__ */ jsx22("dt", { children: p.key }),
-      /* @__PURE__ */ jsxs17("dd", { children: [
-        /* @__PURE__ */ jsx22(ValueCell, { cell: p.before, names, side: "before" }),
-        /* @__PURE__ */ jsx22("span", { className: "change-arrow", "aria-label": "changed to", children: "\u2192" }),
-        /* @__PURE__ */ jsx22(ValueCell, { cell: p.after, names, side: "after" })
-      ] })
-    ] }, p.key)) }),
-    uniqueRecords(change.rationale).map((r) => /* @__PURE__ */ jsxs17("p", { className: "change-rationale", children: [
-      r.title && /* @__PURE__ */ jsxs17("strong", { children: [
-        r.title,
-        ": "
-      ] }),
-      r.text
-    ] }, r.id))
-  ] });
-}
-function Conflict({ conflict }) {
-  return /* @__PURE__ */ jsx22("li", { className: "change-item conflict", children: /* @__PURE__ */ jsxs17("details", { children: [
-    /* @__PURE__ */ jsx22("summary", { children: /* @__PURE__ */ jsx22("span", { className: "change-name", children: conflict.path.join(" / ") || "References" }) }),
-    /* @__PURE__ */ jsx22("p", { className: "change-rationale", children: conflict.reason }),
-    ["base", "left", "right"].map((side) => /* @__PURE__ */ jsxs17("div", { className: "conflict-side", children: [
-      /* @__PURE__ */ jsx22("span", { className: "change-kind", children: side }),
-      /* @__PURE__ */ jsx22("pre", { children: conflict[side].present ? JSON.stringify(conflict[side].value, null, 2) : "Deleted" })
-    ] }, side))
-  ] }) });
-}
-function ChangeSummary({
-  comparison,
-  model,
-  baselineDate,
-  targetOf,
-  onInspect
-}) {
-  const [open, setOpen] = useState10(false);
-  const root = useRef7(null);
-  const popoverId = useId3();
-  usePopupDismiss(() => setOpen(false), root);
-  const { counts, changes } = comparison.changes;
-  const names = useMemo8(
-    () => nameIndex(
-      comparison.baseline?.model,
-      comparison.changeView?.model,
-      model
-    ),
-    [comparison, model]
-  );
-  const conflicts = comparison.conflicts || [];
-  const total = changes.length;
-  const label = `${total} ${total === 1 ? "change" : "changes"}${conflicts.length ? `, ${conflicts.length} ${conflicts.length === 1 ? "conflict" : "conflicts"}` : ""}`;
-  return /* @__PURE__ */ jsxs17("div", { className: "changes-menu", ref: root, children: [
-    /* @__PURE__ */ jsxs17(
-      "button",
-      {
-        type: "button",
-        className: "change-counts",
-        "aria-label": `Show ${label}`,
-        "aria-expanded": open,
-        "aria-controls": popoverId,
-        title: "Show semantic changes",
-        onClick: () => setOpen((v) => !v),
-        children: [
-          /* @__PURE__ */ jsxs17("span", { className: "count-added", children: [
-            "+",
-            counts.added
-          ] }),
-          /* @__PURE__ */ jsxs17("span", { className: "count-removed", children: [
-            "\u2212",
-            counts.removed
-          ] }),
-          /* @__PURE__ */ jsxs17("span", { className: "count-modified", children: [
-            "~",
-            counts.modified
-          ] }),
-          conflicts.length > 0 && /* @__PURE__ */ jsxs17("span", { className: "count-conflicts", children: [
-            /* @__PURE__ */ jsx22(AlertIcon, { size: 12 }),
-            conflicts.length
-          ] }),
-          /* @__PURE__ */ jsx22(TriangleDownIcon, { size: 16 })
-        ]
-      }
-    ),
-    /* @__PURE__ */ jsxs17(
-      "div",
-      {
-        id: popoverId,
-        className: `atlas-popover changes-popover${open ? " open" : ""}`,
-        role: "dialog",
-        "aria-label": "Semantic changes",
-        hidden: !open,
-        children: [
-          /* @__PURE__ */ jsxs17("header", { className: "popover-header", children: [
-            /* @__PURE__ */ jsx22("strong", { children: label.charAt(0).toUpperCase() + label.slice(1) }),
-            baselineDate && /* @__PURE__ */ jsxs17("span", { className: "muted", children: [
-              "Compared with source captured ",
-              baselineDate
-            ] })
-          ] }),
-          /* @__PURE__ */ jsxs17("div", { className: "popover-body", children: [
-            conflicts.length > 0 && /* @__PURE__ */ jsxs17("section", { className: "change-group", "data-kind": "conflict", children: [
-              /* @__PURE__ */ jsxs17("h3", { children: [
-                /* @__PURE__ */ jsx22(AlertIcon, { size: 16 }),
-                "Conflicts",
-                /* @__PURE__ */ jsx22("span", { className: "counter", children: conflicts.length })
-              ] }),
-              /* @__PURE__ */ jsx22("ul", { children: conflicts.map((c) => /* @__PURE__ */ jsx22(Conflict, { conflict: c }, c.id)) })
-            ] }),
-            groups.map(({ kind, label: label2, Icon }) => {
-              const items = changes.filter((c) => c.kind === kind);
-              if (!items.length) return null;
-              return /* @__PURE__ */ jsxs17("section", { className: "change-group", "data-kind": kind, children: [
-                /* @__PURE__ */ jsxs17("h3", { children: [
-                  /* @__PURE__ */ jsx22(Icon, { size: 16 }),
-                  label2,
-                  /* @__PURE__ */ jsx22("span", { className: "counter", children: items.length })
-                ] }),
-                /* @__PURE__ */ jsx22("ul", { children: items.map((c) => {
-                  const target = targetOf(c);
-                  return /* @__PURE__ */ jsx22(
-                    ChangeItem,
-                    {
-                      change: c,
-                      kind: elementKind(c, model, model.document?.profile),
-                      names,
-                      onInspect: target ? () => {
-                        setOpen(false);
-                        onInspect(target);
-                      } : null
-                    },
-                    c.id
-                  );
-                }) })
-              ] }, kind);
-            }),
-            !changes.length && /* @__PURE__ */ jsx22("p", { className: "popover-empty", children: "No semantic changes." })
-          ] })
-        ]
-      }
-    )
-  ] });
-}
-function ComparisonViewer({
-  payload,
-  focus: incomingFocus = payload.focus,
-  render
-}) {
-  const [selection, setSelection] = useState10({
-    mode: "changes",
-    focus: null,
-    externalFocus: void 0
-  });
-  const current = reconcileComparisonFocus(selection, payload, incomingFocus);
-  if (current !== selection) setSelection(current);
-  const { mode, focus } = current;
-  const setMode = (mode2) => setSelection((old) => ({ ...old, mode: mode2 }));
+// src/viewer/reviewedPayload.js
+var reviews = /* @__PURE__ */ new WeakMap();
+function reviewedPayload(payload) {
   const comparison = payload.comparison;
-  const changeView = comparison.changeView || payload;
-  const active = mode === "baseline" ? comparison.baseline : changeView;
-  const selected = { ...payload, ...active, comparison: void 0 };
-  const inspectModel = changeView.model || payload.model;
-  const inspectTarget = (change) => {
-    const model = inspectModel;
-    const node = model.classes.find(
-      (n) => n.id === change.elementId || n.id === change.ownerId
-    );
-    if (node) return { kind: "node", id: node.id };
-    if ([...model.relations, ...model.generalizations].some(
-      (e) => e.id === change.elementId
-    ))
-      return { kind: "edge", id: change.elementId };
-    return null;
-  };
-  const inspect = (target) => setSelection((old) => ({ ...old, mode: "changes", focus: { ...target } }));
   const document2 = payload.model.document;
-  const baseline = document2?.snapshots?.find(
-    (s) => s.id === document2.baselineId
-  );
-  const comparisonControls = /* @__PURE__ */ jsxs17(Fragment6, { children: [
-    /* @__PURE__ */ jsx22(
-      SegmentedControl,
-      {
-        label: "Comparison",
-        items: modes,
-        value: mode,
-        onChange: setMode
-      }
-    ),
-    /* @__PURE__ */ jsx22(
-      ChangeSummary,
-      {
-        comparison,
-        model: inspectModel,
-        baselineDate: formatCaptureDate(baseline?.capture?.capturedAt),
-        targetOf: inspectTarget,
-        onInspect: inspect
-      }
-    )
-  ] });
-  return render(selected, focus, {
-    comparisonControls,
+  if (!comparison)
+    return { payload, review: null, provenanceDocument: document2 };
+  let review = reviews.get(comparison);
+  if (!review) {
+    const capturedAt = document2?.snapshots?.find(
+      (s) => s.id === document2.baselineId
+    )?.capture?.capturedAt;
+    review = { comparison, baselineDate: formatCaptureDate(capturedAt) };
+    reviews.set(comparison, review);
+  }
+  return {
+    payload: {
+      ...payload,
+      ...comparison.changeView || {},
+      comparison: void 0
+    },
+    review,
     provenanceDocument: document2
-  });
-}
-
-// src/viewer/ReportViewer.jsx
-import { useEffect as useEffect7, useRef as useRef8, useState as useState11 } from "react";
-
-// src/learning/ModelReport.jsx
-import { jsx as jsx23, jsxs as jsxs18 } from "react/jsx-runtime";
-var inspectKind = (model, id) => model.classes.some((n) => n.id === id) ? "node" : model.partitions.some((s) => s.id === id) ? "group" : "edge";
-function ModelReport({
-  report,
-  model,
-  snippets,
-  onInspect,
-  onReference
-}) {
-  const names = new Map(
-    [
-      ...model.classes,
-      ...model.relations,
-      ...model.generalizations,
-      ...model.partitions
-    ].map((e) => [e.id, e.name || "Inheritance"])
-  );
-  const show = (id) => /* @__PURE__ */ jsx23(
-    "button",
-    {
-      className: "report-reference",
-      onClick: () => onInspect({ kind: inspectKind(model, id), id }),
-      children: names.get(id) || id
-    }
-  );
-  const context = (ids = []) => report.context.records.filter((r) => ids.includes(r.id)).map((r) => /* @__PURE__ */ jsxs18("blockquote", { children: [
-    /* @__PURE__ */ jsx23("strong", { children: r.title || r.kind }),
-    /* @__PURE__ */ jsx23("p", { children: r.text }),
-    onReference && r.path && /* @__PURE__ */ jsx23("button", { onClick: () => onReference(r), children: "Open planning passage" })
-  ] }, r.id));
-  return /* @__PURE__ */ jsxs18("article", { className: "model-report", "aria-label": "Model report", children: [
-    /* @__PURE__ */ jsxs18("header", { children: [
-      /* @__PURE__ */ jsx23(ProvenanceBadge, { document: report, className: "inline" }),
-      /* @__PURE__ */ jsx23("h1", { children: report.title }),
-      /* @__PURE__ */ jsx23("p", { children: report.scope }),
-      report.author && /* @__PURE__ */ jsx23("p", { children: report.author }),
-      report.revision && /* @__PURE__ */ jsxs18("p", { className: "report-revision", children: [
-        "Revision ",
-        report.revision.id,
-        /* @__PURE__ */ jsx23("br", {}),
-        formatCaptureDate(report.revision.createdAt)
-      ] }),
-      /* @__PURE__ */ jsx23("button", { className: "report-print", onClick: () => window.print(), children: "Print / save PDF" })
-    ] }),
-    /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Source and scope" }),
-      report.imported && /* @__PURE__ */ jsx23("p", { children: "Imported capture claims are preserved; the source has not been reverified." }),
-      report.snapshots.length ? report.snapshots.map((s) => /* @__PURE__ */ jsxs18("details", { open: true, children: [
-        /* @__PURE__ */ jsxs18("summary", { children: [
-          s.id === report.baselineId ? "Baseline" : "Retained capture",
-          " \xB7",
-          " ",
-          s.capture.source.identity
-        ] }),
-        /* @__PURE__ */ jsxs18("p", { children: [
-          "Captured ",
-          formatCaptureDate(s.capture.capturedAt),
-          " \xB7",
-          " ",
-          s.capture.adapter.id,
-          " ",
-          s.capture.adapter.version,
-          " \xB7",
-          " ",
-          s.capture.coverage.status
-        ] }),
-        /* @__PURE__ */ jsx23("p", { children: s.capture.source.scope.join(", ") }),
-        /* @__PURE__ */ jsx23("pre", { children: printable(s.capture.source.revision || s.integrity) }),
-        /* @__PURE__ */ jsx23("p", { children: printable(s.capture.consistency?.kind) }),
-        s.capture.coverage.diagnostics.map((d, i) => /* @__PURE__ */ jsx23("p", { children: printable(d.message ?? d) }, i)),
-        [].concat(s.capture.limitations || []).map((t, i) => /* @__PURE__ */ jsx23("p", { children: printable(t) }, i))
-      ] }, s.id)) : /* @__PURE__ */ jsx23("p", { children: "Authored model. Evidence supports interpretations within its stated limits." })
-    ] }),
-    report.walkthroughs.length > 0 && /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Walkthroughs" }),
-      report.walkthroughs.map((w) => /* @__PURE__ */ jsxs18("div", { children: [
-        /* @__PURE__ */ jsx23("h3", { children: w.title }),
-        context(w.contextIds),
-        /* @__PURE__ */ jsx23("ol", { children: w.steps.map((step, i) => /* @__PURE__ */ jsxs18("li", { children: [
-          /* @__PURE__ */ jsx23("p", { children: step.text }),
-          step.viewKey && /* @__PURE__ */ jsx23(
-            "button",
-            {
-              onClick: () => onInspect({ kind: "view", id: step.viewKey }),
-              children: "Open view"
-            }
-          ),
-          /* @__PURE__ */ jsx23("div", { children: step.elementIds.map((id) => /* @__PURE__ */ jsxs18("span", { children: [
-            show(id),
-            " "
-          ] }, id)) })
-        ] }, i)) })
-      ] }, w.id))
-    ] }),
-    /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Guided views" }),
-      report.diagrams.map((d) => /* @__PURE__ */ jsxs18("figure", { children: [
-        /* @__PURE__ */ jsx23("figcaption", { children: d.title }),
-        /* @__PURE__ */ jsx23(
-          "img",
-          {
-            src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`,
-            alt: `${d.title}: UML diagram with members and relation counts`
-          }
-        ),
-        /* @__PURE__ */ jsx23(
-          "a",
-          {
-            href: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`,
-            download: `${d.key}.svg`,
-            children: "SVG"
-          }
-        )
-      ] }, d.key))
-    ] }),
-    /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Reading the model" }),
-      report.explanations.map((e, i) => /* @__PURE__ */ jsxs18("p", { children: [
-        show(e.elementId),
-        " \xB7 ",
-        e.text,
-        !e.assessed && " Unestablished participation."
-      ] }, i))
-    ] }),
-    report.scenarios.length > 0 && /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Instances and counterexamples" }),
-      report.scenarios.map((s) => /* @__PURE__ */ jsxs18("div", { className: "report-scenario", children: [
-        /* @__PURE__ */ jsx23("h3", { children: s.title }),
-        /* @__PURE__ */ jsx23("p", { children: s.description }),
-        /* @__PURE__ */ jsxs18("p", { children: [
-          "Expected ",
-          s.expected,
-          " \xB7 assessed ",
-          s.result.outcome,
-          s.result.expectationMet === null ? " \xB7 incomplete coverage" : s.result.expectationMet ? " \xB7 expectation met" : " \xB7 expectation differs"
-        ] }),
-        context(s.contextIds),
-        /* @__PURE__ */ jsxs18("table", { children: [
-          /* @__PURE__ */ jsx23("thead", { children: /* @__PURE__ */ jsxs18("tr", { children: [
-            /* @__PURE__ */ jsx23("th", { children: "Instance" }),
-            /* @__PURE__ */ jsx23("th", { children: "Memberships" })
-          ] }) }),
-          /* @__PURE__ */ jsx23("tbody", { children: s.instances.map((i) => /* @__PURE__ */ jsxs18("tr", { children: [
-            /* @__PURE__ */ jsx23("td", { children: i.label || i.id }),
-            /* @__PURE__ */ jsx23("td", { children: i.classIds.map((id) => /* @__PURE__ */ jsxs18("span", { children: [
-              show(id),
-              " "
-            ] }, id)) })
-          ] }, i.id)) })
-        ] }),
-        s.links.map((l, i) => /* @__PURE__ */ jsxs18("p", { children: [
-          l.sourceId,
-          " \u2192 ",
-          show(l.relationId),
-          " \u2192 ",
-          l.targetId
-        ] }, i)),
-        s.result.issues.map((finding, i) => /* @__PURE__ */ jsxs18("p", { children: [
-          show(finding.elementId),
-          " \xB7 ",
-          finding.message
-        ] }, i)),
-        s.result.unassessed.map((u, i) => /* @__PURE__ */ jsx23("p", { className: "muted", children: u.message }, i))
-      ] }, s.id))
-    ] }),
-    /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Glossary and selected planning context" }),
-      report.context.records.map((r) => /* @__PURE__ */ jsxs18("div", { children: [
-        /* @__PURE__ */ jsxs18("h3", { children: [
-          r.title || r.id,
-          " \xB7 ",
-          r.kind
-        ] }),
-        /* @__PURE__ */ jsx23("p", { children: r.text }),
-        onReference && r.path && /* @__PURE__ */ jsx23("button", { onClick: () => onReference(r), children: "Open planning passage" })
-      ] }, r.id))
-    ] }),
-    /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Classification and open questions" }),
-      [...model.classes, ...model.relations].filter((e) => e.rationale || e.questions?.length).map((e) => /* @__PURE__ */ jsxs18("div", { children: [
-        /* @__PURE__ */ jsx23("h3", { children: show(e.id) }),
-        /* @__PURE__ */ jsx23("p", { children: printable(e.rationale) }),
-        [].concat(e.questions || []).map((q, i) => /* @__PURE__ */ jsxs18("div", { children: [
-          /* @__PURE__ */ jsx23("strong", { children: printable(q?.question ?? q) }),
-          /* @__PURE__ */ jsx23("p", { children: printable(q?.why) }),
-          /* @__PURE__ */ jsx23("p", { children: printable(q?.resolve) })
-        ] }, i))
-      ] }, e.id))
-    ] }),
-    /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Validation and coverage" }),
-      /* @__PURE__ */ jsxs18("p", { children: [
-        model.validation.counts.error,
-        " errors \xB7",
-        " ",
-        model.validation.counts.warning,
-        " warnings \xB7",
-        " ",
-        model.validation.counts.info,
-        " coverage notes"
-      ] }),
-      model.validation.issues.map((issue, i) => /* @__PURE__ */ jsxs18("p", { children: [
-        issue.severity,
-        " \xB7 ",
-        issue.code,
-        " \xB7 ",
-        issue.message
-      ] }, i)),
-      report.limitations.map((l, i) => /* @__PURE__ */ jsx23("p", { children: l }, i))
-    ] }),
-    /* @__PURE__ */ jsxs18("section", { children: [
-      /* @__PURE__ */ jsx23("h2", { children: "Evidence and references" }),
-      /* @__PURE__ */ jsx23(
-        SourceEvidence,
-        {
-          evidence: model.sources.map((s) => s.id),
-          sources: model.sources,
-          snippets
-        }
-      ),
-      /* @__PURE__ */ jsx23("p", { children: /* @__PURE__ */ jsx23(
-        "a",
-        {
-          href: "https://ontouml.readthedocs.io/en/latest/",
-          target: "_blank",
-          rel: "noopener noreferrer",
-          children: "OntoUML specification"
-        }
-      ) })
-    ] })
-  ] });
-}
-
-// src/viewer/ReportViewer.jsx
-import { Fragment as Fragment7, jsx as jsx24, jsxs as jsxs19 } from "react/jsx-runtime";
-function ReportViewer({
-  payload,
-  theme = "dark",
-  leading,
-  onReference,
-  render
-}) {
-  const [open, setOpen] = useState11(false), [focus, setFocus] = useState11(null);
-  const host = useRef8(null), back = useRef8(null), returnFocus = useRef8(false);
-  const close = () => {
-    returnFocus.current = true;
-    setOpen(false);
   };
-  useEffect7(() => {
-    if (open) {
-      back.current?.focus();
-      const escape = (e) => {
-        if (e.key === "Escape" && host.current?.contains(e.target)) close();
+}
+
+// src/viewer/useInspectorWidth.jsx
+import { useLayoutEffect as useLayoutEffect7, useRef as useRef7, useState as useState8 } from "react";
+import { jsx as jsx25 } from "react/jsx-runtime";
+var MIN = 288;
+var MAX = 1200;
+var SHARE = 0.6;
+var STEP = 16;
+var LARGE_STEP = 48;
+function useInspectorWidth({
+  viewerRef,
+  panelRef,
+  width,
+  onChange,
+  label = "Resize details"
+}) {
+  const [own, setOwn] = useState8(null);
+  const [dragged, setDragged] = useState8(null);
+  const [sizes, setSizes] = useState8({ viewer: 0, panel: 0 });
+  const drag = useRef7(null);
+  useLayoutEffect7(() => {
+    const viewer = viewerRef.current, panel = panelRef.current;
+    if (!viewer || !panel || typeof ResizeObserver !== "function") return;
+    const measure = () => setSizes((old) => {
+      const next = {
+        viewer: viewer.clientWidth,
+        panel: Math.round(panel.getBoundingClientRect().width)
       };
-      document.addEventListener("keydown", escape);
-      return () => document.removeEventListener("keydown", escape);
-    }
-    if (returnFocus.current) {
-      returnFocus.current = false;
-      host.current?.querySelector(".report-toggle")?.focus();
-    }
-  }, [open]);
-  const reportControl = /* @__PURE__ */ jsxs19(
-    "button",
-    {
-      type: "button",
-      className: "icon with-label report-toggle",
-      "aria-label": "Open model report",
-      title: "Model report",
-      onClick: () => setOpen(true),
-      children: [
-        /* @__PURE__ */ jsx24(NoteIcon, { size: 16 }),
-        /* @__PURE__ */ jsx24("span", { className: "collapsible-label", children: "Report" })
-      ]
-    }
-  );
-  return /* @__PURE__ */ jsxs19(
+      return next.viewer === old.viewer && next.panel === old.panel ? old : next;
+    });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewer);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [viewerRef, panelRef]);
+  const max = Math.max(MIN, Math.min(MAX, Math.floor(sizes.viewer * SHARE)));
+  const clamp = (value) => Math.round(Math.min(max, Math.max(MIN, value)));
+  const chosen = onChange ? width ?? null : own;
+  const shown2 = dragged ?? (chosen === null ? null : clamp(chosen));
+  const commit = (next) => {
+    const value = clamp(next);
+    if (onChange) {
+      if (value !== chosen) onChange(value);
+    } else setOwn(value);
+  };
+  const current = () => shown2 ?? Math.round(panelRef.current?.getBoundingClientRect().width || sizes.panel);
+  const separator = /* @__PURE__ */ jsx25(
     "div",
     {
-      ref: host,
-      className: `atlas-panel atlas-report-host${open ? " report-open" : ""}`,
-      "data-theme": theme,
-      children: [
-        /* @__PURE__ */ jsx24("div", { className: "report-diagram", hidden: open, children: render({ ...payload, report: void 0 }, focus, { reportControl }) }),
-        open && /* @__PURE__ */ jsxs19("div", { className: "report-view", children: [
-          /* @__PURE__ */ jsx24("div", { className: "atlas-overlay-top report-toolbar", children: /* @__PURE__ */ jsxs19(Island, { label: "Report navigation", className: "island-start", children: [
-            /* @__PURE__ */ jsxs19(
-              "button",
-              {
-                ref: back,
-                type: "button",
-                className: "icon with-label",
-                onClick: close,
-                children: [
-                  /* @__PURE__ */ jsx24(ArrowLeftIcon, { size: 16 }),
-                  /* @__PURE__ */ jsx24("span", { children: "Back to diagram" })
-                ]
-              }
-            ),
-            leading && /* @__PURE__ */ jsxs19(Fragment7, { children: [
-              /* @__PURE__ */ jsx24(IslandDivider, {}),
-              /* @__PURE__ */ jsx24("div", { className: "island-leading", children: leading })
-            ] })
-          ] }) }),
-          /* @__PURE__ */ jsx24(
-            ModelReport,
-            {
-              report: payload.report,
-              model: payload.model,
-              snippets: payload.snippets,
-              onReference,
-              onInspect: (target) => {
-                setFocus({ ...target });
-                setOpen(false);
-              }
-            }
-          )
-        ] })
-      ]
+      role: "separator",
+      "aria-orientation": "vertical",
+      "aria-label": label,
+      "aria-valuenow": shown2 ?? sizes.panel,
+      "aria-valuemin": MIN,
+      "aria-valuemax": max,
+      tabIndex: 0,
+      className: "panel-resize",
+      onPointerDown: (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        drag.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startWidth: current()
+        };
+        setDragged(clamp(drag.current.startWidth));
+      },
+      onPointerMove: (event) => {
+        const d = drag.current;
+        if (!d || d.pointerId !== event.pointerId) return;
+        setDragged(clamp(d.startWidth + d.startX - event.clientX));
+      },
+      onPointerUp: (event) => {
+        const d = drag.current;
+        if (!d || d.pointerId !== event.pointerId) return;
+        drag.current = null;
+        setDragged(null);
+        commit(d.startWidth + d.startX - event.clientX);
+      },
+      onPointerCancel: (event) => {
+        if (drag.current?.pointerId !== event.pointerId) return;
+        drag.current = null;
+        setDragged(null);
+      },
+      onKeyDown: (event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
+        const step = event.shiftKey ? LARGE_STEP : STEP;
+        let next;
+        if (event.key === "ArrowLeft") next = current() + step;
+        else if (event.key === "ArrowRight") next = current() - step;
+        else if (event.key === "Home") next = MIN;
+        else if (event.key === "End") next = max;
+        else return;
+        event.preventDefault();
+        commit(next);
+      }
     }
   );
+  return {
+    width: shown2,
+    style: shown2 === null ? void 0 : { "--inspector-width": `${shown2}px` },
+    resizing: dragged !== null,
+    separator
+  };
 }
 
 // src/viewer/useOverlayInsets.js
@@ -4029,11 +4976,10 @@ function useOverlayInsets(viewerRef, topRef) {
       const box = viewer.getBoundingClientRect();
       const edge = (selector) => viewer.querySelector(selector)?.getBoundingClientRect();
       const top = edge(":scope > .atlas-overlay-top");
-      const badge = edge(":scope > .atlas-provenance");
       const inspector = edge(":scope > .inspector.open");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
-        bottom: badge ? Math.max(0, box.bottom - badge.top) : 0,
+        bottom: 0,
         left: 0,
         // A full-width inspector on narrow panels covers the diagram anyway.
         right: inspector && inspector.width < box.width * 0.6 ? Math.max(0, box.right - inspector.left) : 0,
@@ -4053,12 +4999,12 @@ function useOverlayInsets(viewerRef, topRef) {
 }
 
 // src/viewer/useToolbarDensity.js
-import { useLayoutEffect as useLayoutEffect9, useRef as useRef9, useState as useState12 } from "react";
+import { useLayoutEffect as useLayoutEffect9, useRef as useRef8, useState as useState9 } from "react";
 var MAX_LEVEL = 3;
 var HYSTERESIS = 24;
-function useToolbarDensity(topRef, resetKey) {
-  const [level, setLevel] = useState12(0);
-  const limits = useRef9([]);
+function useToolbarDensity(topRef, resetKey, contentKey) {
+  const [level, setLevel] = useState9(0);
+  const limits = useRef8([]);
   useLayoutEffect9(() => {
     limits.current = [];
     setLevel(0);
@@ -4072,9 +5018,17 @@ function useToolbarDensity(topRef, resetKey) {
         (child) => child.classList.contains("atlas-island")
       );
       if (!width || !islands.length) return;
+      const stacked = top.classList.contains("stacked");
       const row = Math.min(...islands.map((island) => island.offsetTop));
+      const wrapped = (island) => {
+        const controls = Math.max(
+          0,
+          ...[...island.children].map((child) => child.offsetHeight)
+        );
+        return island.offsetHeight > controls * 1.5 + 12;
+      };
       const crowded = islands.some(
-        (island) => island.offsetTop > row + 4 || island.offsetHeight > 48
+        (island) => !stacked && island.offsetTop > row + 4 || wrapped(island)
       );
       setLevel((current) => {
         if (current > 0 && width > limits.current[current - 1] + HYSTERESIS)
@@ -4091,86 +5045,533 @@ function useToolbarDensity(topRef, resetKey) {
     observer.observe(top);
     for (const child of top.children) observer.observe(child);
     return () => observer.disconnect();
-  }, [topRef, level, resetKey]);
+  }, [topRef, level, resetKey, contentKey]);
   return level;
 }
 
-// src/viewer/OntoUMLViewer.jsx
-import { jsx as jsx25, jsxs as jsxs20 } from "react/jsx-runtime";
-function OntoUMLViewer(props) {
-  const nested = (payload, focus, extras) => /* @__PURE__ */ jsx25(
-    OntoUMLViewer,
+// src/review/useChangeReview.jsx
+import { useCallback as useCallback4, useMemo as useMemo8, useRef as useRef10, useState as useState11 } from "react";
+import { Button as Button8, Counter as Counter2, Tooltip as Tooltip4 } from "@envsemble/envui";
+
+// src/review/ChangesOverview.jsx
+import { useEffect as useEffect8, useLayoutEffect as useLayoutEffect10, useRef as useRef9, useState as useState10 } from "react";
+import { Button as Button7, Counter, DisclosureNote as DisclosureNote5, Stack as Stack5, Text as Text9 } from "@envsemble/envui";
+import { Fragment as Fragment9, jsx as jsx26, jsxs as jsxs17 } from "react/jsx-runtime";
+function Summary({ row }) {
+  const { summary } = row;
+  const note = summary.note && /* @__PURE__ */ jsx26("span", { className: "change-row-note", children: summary.note });
+  if (summary.tokens.length)
+    return /* @__PURE__ */ jsxs17(Fragment9, { children: [
+      /* @__PURE__ */ jsxs17("span", { className: "change-row-summary", children: [
+        summary.tokens.map((token, i) => /* @__PURE__ */ jsxs17("span", { className: "change-token", "data-change": token.status, children: [
+          /* @__PURE__ */ jsx26("span", { className: "change-token-glyph", "aria-hidden": "true", children: changeGlyph(token.status) }),
+          /* @__PURE__ */ jsxs17("span", { className: "visually-hidden", children: [
+            CHANGE_LABELS[token.status],
+            " "
+          ] }),
+          token.text
+        ] }, i)),
+        summary.more > 0 && /* @__PURE__ */ jsxs17("span", { className: "change-token more", children: [
+          "+",
+          summary.more,
+          " more"
+        ] })
+      ] }),
+      note
+    ] });
+  if (!summary.text && !summary.more) return note || null;
+  return /* @__PURE__ */ jsxs17(Fragment9, { children: [
+    /* @__PURE__ */ jsxs17("span", { className: "change-row-summary", children: [
+      summary.text,
+      summary.more > 0 && /* @__PURE__ */ jsxs17("span", { className: "change-token more", children: [
+        summary.text ? " " : "",
+        "+",
+        summary.more,
+        " more"
+      ] })
+    ] }),
+    note
+  ] });
+}
+function ChangeRow({ row, active, onSelect, onHover }) {
+  const content = /* @__PURE__ */ jsxs17(Fragment9, { children: [
+    /* @__PURE__ */ jsx26(ChangeMark, { status: row.status }),
+    /* @__PURE__ */ jsxs17("span", { className: "change-row-text", children: [
+      /* @__PURE__ */ jsxs17("span", { className: "change-row-title", children: [
+        /* @__PURE__ */ jsx26("span", { className: "change-row-name", children: row.name }),
+        row.tag && /* @__PURE__ */ jsx26("span", { className: "change-row-tag", children: row.tag })
+      ] }),
+      /* @__PURE__ */ jsx26(Summary, { row })
+    ] })
+  ] });
+  if (!row.target)
+    return /* @__PURE__ */ jsx26("li", { className: "change-row static", "data-change": row.status, children: content });
+  return /* @__PURE__ */ jsx26("li", { children: /* @__PURE__ */ jsx26(
+    "button",
     {
-      ...payload,
-      reportControl: props.reportControl,
-      ...extras,
-      focus: focus || props.focus
+      type: "button",
+      className: "change-row",
+      "data-change": row.status,
+      "data-key": row.key,
+      "aria-current": active ? "true" : void 0,
+      onClick: () => onSelect(row),
+      onPointerEnter: () => onHover?.(row.target),
+      onPointerLeave: () => onHover?.(null),
+      onFocus: () => onHover?.(row.target),
+      onBlur: () => onHover?.(null),
+      children: content
+    }
+  ) });
+}
+function RowList({ rows, label, active, onSelect, onHover }) {
+  return /* @__PURE__ */ jsx26("ul", { className: "change-rows", "aria-label": label, children: rows.map((row) => /* @__PURE__ */ jsx26(
+    ChangeRow,
+    {
+      row,
+      active: active === row.key,
+      onSelect,
+      onHover
+    },
+    row.key
+  )) });
+}
+function RelationRows({ group, active, returning, onSelect, onHover }) {
+  const rows = group.relations;
+  const [open, setOpen] = useState10(
+    () => rows.some((r) => r.key === active || r.key === returning)
+  );
+  const list = /* @__PURE__ */ jsx26(
+    RowList,
+    {
+      rows,
+      label: `${group.label} relations`,
+      active,
+      onSelect,
+      onHover
     }
   );
-  if (props.report) return /* @__PURE__ */ jsx25(ReportViewer, { payload: props, render: nested });
-  if (props.comparison)
-    return /* @__PURE__ */ jsx25(ComparisonViewer, { payload: props, focus: props.focus, render: nested });
-  if (!props.views.length)
-    return /* @__PURE__ */ jsxs20("div", { className: "viewer-error", children: [
-      /* @__PURE__ */ jsx25(
-        ProvenanceBadge,
+  if (rows.length <= 3)
+    return /* @__PURE__ */ jsxs17(Fragment9, { children: [
+      /* @__PURE__ */ jsx26(Text9, { as: "h4", variant: "caption", className: "change-subheading", children: "Relations" }),
+      list
+    ] });
+  return /* @__PURE__ */ jsx26(
+    DisclosureNote5,
+    {
+      className: "change-relations",
+      title: `Relations \xB7 ${rows.length}`,
+      open,
+      onToggle: (event) => setOpen(event.currentTarget.open),
+      children: list
+    }
+  );
+}
+function shown(item) {
+  const own = item.closest("details");
+  const fold = item.tagName === "SUMMARY" ? own?.parentElement?.closest("details") : own;
+  return !fold || fold.open;
+}
+function moveFocus(event) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  const buttons = [
+    ...event.currentTarget.querySelectorAll("button.change-row, summary")
+  ].filter(shown);
+  const at = buttons.indexOf(document.activeElement);
+  if (at < 0 && !["Home", "End"].includes(event.key)) return;
+  const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : Math.min(
+    buttons.length - 1,
+    Math.max(0, at + (event.key === "ArrowDown" ? 1 : -1))
+  );
+  event.preventDefault();
+  buttons[next]?.focus();
+}
+function ChangesOverview({
+  rollup,
+  baselineDate,
+  profile,
+  active,
+  handoff,
+  onSelect,
+  onHover
+}) {
+  const list = useRef9(null);
+  useEffect8(() => {
+    const request = handoff?.current;
+    if (request?.to !== "overview") return;
+    handoff.current = null;
+    const rows = [
+      ...list.current?.querySelectorAll("button.change-row") || []
+    ];
+    (rows.find((row) => row.dataset.key === request.key) || rows[0])?.focus();
+  }, [handoff]);
+  const source = profile === "code" ? "the code" : profile === "database" ? "the database" : "the model";
+  return /* @__PURE__ */ jsxs17(Stack5, { gap: 4, className: "changes-overview", children: [
+    /* @__PURE__ */ jsx26(Text9, { variant: "supporting", children: rollup.total ? `Compared with ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` : `No changes to ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` }),
+    rollup.conflicts.length > 0 && /* @__PURE__ */ jsxs17("section", { className: "change-group", "data-change": "conflict", children: [
+      /* @__PURE__ */ jsxs17(
+        Text9,
         {
-          document: props.provenanceDocument || props.model.document,
-          className: "inline"
+          as: "h3",
+          variant: "section-heading",
+          className: "change-group-heading",
+          children: [
+            "Conflicts",
+            /* @__PURE__ */ jsx26(Counter, { value: rollup.conflicts.length })
+          ]
         }
       ),
-      /* @__PURE__ */ jsx25("h1", { children: props.model.title }),
-      /* @__PURE__ */ jsx25("p", { children: "No entities in this model." }),
-      props.comparisonControls && /* @__PURE__ */ jsx25("div", { className: "atlas-island inline", children: props.comparisonControls })
+      rollup.conflicts.map((conflict) => /* @__PURE__ */ jsx26(
+        DisclosureNote5,
+        {
+          title: conflict.path.join(" / ") || "References",
+          children: /* @__PURE__ */ jsx26(Text9, { tone: "muted", children: conflict.reason })
+        },
+        conflict.id
+      ))
+    ] }),
+    /* @__PURE__ */ jsx26("div", { ref: list, className: "change-groups", onKeyDown: moveFocus, children: rollup.groups.map((group) => /* @__PURE__ */ jsxs17(
+      "section",
+      {
+        className: "change-group",
+        "data-change": group.status,
+        "aria-label": `${group.label}, ${group.elements.length + group.relations.length}`,
+        children: [
+          /* @__PURE__ */ jsxs17(
+            Text9,
+            {
+              as: "h3",
+              variant: "section-heading",
+              className: "change-group-heading",
+              children: [
+                /* @__PURE__ */ jsx26(ChangeMark, { status: group.status }),
+                group.label,
+                /* @__PURE__ */ jsx26(Counter, { value: group.elements.length + group.relations.length })
+              ]
+            }
+          ),
+          group.elements.length > 0 && /* @__PURE__ */ jsx26(
+            RowList,
+            {
+              rows: group.elements,
+              label: `${group.label} elements`,
+              active,
+              onSelect,
+              onHover
+            }
+          ),
+          group.relations.length > 0 && /* @__PURE__ */ jsx26(
+            RelationRows,
+            {
+              group,
+              active,
+              returning: handoff?.current?.key,
+              onSelect,
+              onHover
+            }
+          )
+        ]
+      },
+      group.status
+    )) })
+  ] });
+}
+function ChangeNavigation({
+  position,
+  total,
+  name,
+  handoff,
+  onBack,
+  onStep
+}) {
+  const back = useRef9(null);
+  useLayoutEffect10(() => {
+    if (handoff?.current?.to !== "details") return;
+    handoff.current = null;
+    back.current?.focus();
+  }, [handoff]);
+  return /* @__PURE__ */ jsxs17("div", { className: "change-navigation", children: [
+    /* @__PURE__ */ jsx26(
+      Button7,
+      {
+        ref: back,
+        variant: "text",
+        className: "change-back",
+        "aria-label": "All changes",
+        startIcon: /* @__PURE__ */ jsx26(ArrowBack, {}),
+        onClick: onBack,
+        children: /* @__PURE__ */ jsx26("span", { className: "change-back-label", children: "All changes" })
+      }
+    ),
+    total > 0 && /* @__PURE__ */ jsxs17("span", { className: "change-stepper", role: "group", "aria-label": "Changes", children: [
+      /* @__PURE__ */ jsx26(
+        ToolButton,
+        {
+          label: "Previous change",
+          icon: /* @__PURE__ */ jsx26(ChevronLeft, {}),
+          "aria-disabled": position === 0 || void 0,
+          onClick: () => onStep(-1)
+        }
+      ),
+      /* @__PURE__ */ jsxs17(
+        "span",
+        {
+          className: "change-position",
+          "aria-live": "polite",
+          "aria-atomic": "true",
+          children: [
+            position >= 0 ? `${position + 1} of ${total}` : `${total} ${total === 1 ? "change" : "changes"}`,
+            position >= 0 && name && /* @__PURE__ */ jsxs17("span", { className: "visually-hidden", children: [
+              ": ",
+              name
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsx26(
+        ToolButton,
+        {
+          label: "Next change",
+          icon: /* @__PURE__ */ jsx26(ChevronRight, {}),
+          "aria-disabled": position === total - 1 || void 0,
+          onClick: () => onStep(1)
+        }
+      )
+    ] })
+  ] });
+}
+
+// src/review/useChangeReview.jsx
+import { Fragment as Fragment10, jsx as jsx27, jsxs as jsxs18 } from "react/jsx-runtime";
+var ROOMY_WIDTH = 1280;
+var overviewByDefault = () => typeof window !== "undefined" && window.innerWidth >= ROOMY_WIDTH;
+function useChangeReview({
+  review,
+  model,
+  views,
+  selected,
+  overview,
+  setOverview,
+  choose,
+  select,
+  hover,
+  onShowPanel
+}) {
+  const rollup = useMemo8(
+    () => review ? rollupChanges(review.comparison, model, views) : null,
+    [review, model, views]
+  );
+  const details = useMemo8(() => rollup ? { rollup } : null, [rollup]);
+  const [fade, setFade] = useState11(true);
+  const handoff = useRef10(null);
+  const current = rollup && selected ? rowFor(rollup, selected, model) : null;
+  const position = current ? rollup.navigable.indexOf(current) : -1;
+  const total = rollup?.navigable.length || 0;
+  const open = useCallback4(
+    (row) => {
+      if (row?.target) choose(row.target.id);
+    },
+    [choose]
+  );
+  const step = useCallback4(
+    (delta) => {
+      if (!rollup) return;
+      const next = position < 0 ? delta > 0 ? 0 : total - 1 : position + delta;
+      if (next < 0 || next >= total) return;
+      open(rollup.navigable[next]);
+    },
+    [rollup, position, total, open]
+  );
+  const back = useCallback4(() => {
+    setOverview(true);
+    onShowPanel?.();
+    select(null);
+  }, [select, onShowPanel, setOverview]);
+  const openRow = useCallback4(
+    (row) => {
+      handoff.current = { to: "details" };
+      open(row);
+    },
+    [open]
+  );
+  const backToOverview = useCallback4(() => {
+    handoff.current = { to: "overview", key: current?.key };
+    back();
+  }, [back, current]);
+  if (!rollup) return null;
+  return {
+    rollup,
+    details,
+    /** Leaving a change's details by keyboard returns focus to it in the overview. */
+    returnFocus: () => {
+      if (overview) handoff.current = { to: "overview", key: current?.key };
+    },
+    fade,
+    position,
+    total,
+    /** Toolbar controls: the changes overview toggle and fading. */
+    controls: (showing) => /* @__PURE__ */ jsxs18(Fragment10, { children: [
+      /* @__PURE__ */ jsx27(
+        Tooltip4,
+        {
+          content: showing ? "Hide the changes" : "Show every change",
+          side: "bottom",
+          children: /* @__PURE__ */ jsxs18(
+            Button8,
+            {
+              variant: showing ? "primary" : "secondary",
+              className: "changes-toggle",
+              "aria-pressed": showing,
+              "aria-label": `Changes, ${rollup.count}`,
+              startIcon: /* @__PURE__ */ jsx27(Difference, {}),
+              onClick: () => {
+                if (showing) setOverview(false);
+                else back();
+              },
+              children: [
+                /* @__PURE__ */ jsx27("span", { className: "collapsible-label", children: "Changes" }),
+                /* @__PURE__ */ jsx27(
+                  Counter2,
+                  {
+                    value: rollup.count,
+                    tone: showing ? "accent" : "neutral"
+                  }
+                )
+              ]
+            }
+          )
+        }
+      ),
+      /* @__PURE__ */ jsx27(
+        ToolButton,
+        {
+          label: "Fade unchanged elements",
+          pressed: fade,
+          icon: /* @__PURE__ */ jsx27(Contrast, {}),
+          onClick: () => setFade((value) => !value)
+        }
+      )
+    ] }),
+    /** Above a selected element's details: back to every change, previous and next. */
+    navigation: /* @__PURE__ */ jsx27(
+      ChangeNavigation,
+      {
+        position,
+        total,
+        name: current?.label && current.label !== current.name ? `${current.name}, ${current.label}` : current?.name,
+        handoff,
+        onBack: backToOverview,
+        onStep: step
+      }
+    ),
+    /** The overview list for the inspector. */
+    content: /* @__PURE__ */ jsx27(
+      ChangesOverview,
+      {
+        rollup,
+        baselineDate: review.baselineDate,
+        profile: model.document?.profile,
+        active: current?.key,
+        handoff,
+        onSelect: openRow,
+        onHover: hover
+      }
+    )
+  };
+}
+
+// src/viewer/DiagramViewer.jsx
+import { jsx as jsx28, jsxs as jsxs19 } from "react/jsx-runtime";
+function DiagramViewer(props) {
+  const { payload, review, provenanceDocument } = reviewedPayload(props);
+  if (!payload.views.length)
+    return /* @__PURE__ */ jsxs19("main", { className: "viewer-error", children: [
+      /* @__PURE__ */ jsx28(ProvenanceBadge, { document: provenanceDocument, className: "inline" }),
+      /* @__PURE__ */ jsx28(
+        EmptyState,
+        {
+          headingLevel: 1,
+          title: payload.model.title,
+          description: "No entities in this model."
+        }
+      )
     ] });
-  return /* @__PURE__ */ jsx25(ViewerContent, { ...props });
+  return /* @__PURE__ */ jsx28(
+    ViewerContent,
+    {
+      ...payload,
+      focus: props.focus,
+      review,
+      provenanceDocument
+    }
+  );
+}
+var WIDTH_KEY = "atlas-inspector-width";
+function useStoredWidth() {
+  const [width, setWidth] = useState12(() => {
+    try {
+      const stored = Number(localStorage.getItem(WIDTH_KEY));
+      return stored > 0 ? stored : null;
+    } catch {
+      return null;
+    }
+  });
+  const change = useCallback5((next) => {
+    setWidth(next);
+    try {
+      localStorage.setItem(WIDTH_KEY, String(next));
+    } catch {
+    }
+  }, []);
+  return [width, change];
+}
+function useOptionalThemePreference() {
+  try {
+    return useThemePreference();
+  } catch {
+    return null;
+  }
 }
 function ViewerContent({
   model,
   views,
   exports: exportData,
   snippets = {},
+  learning: guide = null,
   focus = null,
-  comparisonControls,
-  reportControl,
+  review = null,
   provenanceDocument
 }) {
   const exports = useArtifactArchive(exportData);
-  const [viewKey, setViewKey] = useState13(views[0].key), [fields, setFields] = useState13(false);
-  const [theme, toggleTheme] = useTheme("atlas-theme");
-  const [selected, setSelected] = useState13(null);
-  const [aboutOpen, setAboutOpen] = useState13(false);
-  const [learningOpen, setLearningOpen] = useState13(false);
-  const [sidebarHidden, setSidebarHidden] = useState13(false);
+  const [viewKey, setViewKey] = useState12(views[0].key), [fields, setFields] = useState12(false);
+  const preference = useOptionalThemePreference();
+  const ambientTheme = useTheme();
+  const theme = preference?.theme || ambientTheme;
+  const [selected, setSelected] = useState12(null);
+  const [aboutOpen, setAboutOpen] = useState12(false);
+  const [learningOpen, setLearningOpen] = useState12(false);
+  const [sidebarHidden, setSidebarHidden] = useState12(false);
+  const [overview, setOverview] = useState12(overviewByDefault);
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
-    previewEnabled: !sidebarHidden,
+    previewEnabled: !sidebarHidden && !(review && overview && !selected && !learningOpen),
     previewVisible: !!selected || learningOpen
   });
-  const [focusRequest, setFocusRequest] = useState13(null);
+  const [focusRequest, setFocusRequest] = useState12(null);
+  const [member, setMember] = useState12(null);
   const zoomStore = useMemo9(createZoomStore, []);
-  const cameraRef = useRef10(null);
-  const viewerRef = useRef10(null), toolbarRef = useRef10(null);
+  const cameraRef = useRef11(null);
+  const viewerRef = useRef11(null), toolbarRef = useRef11(null);
   const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
   const density = useToolbarDensity(
     toolbarRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`
+    `${model.id}:${views.map((v) => v.key).join()}:${!!review}`
   );
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
-  const index = useMemo9(
+  const index2 = useMemo9(
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups]
   );
-  const { diagramURL, backgroundURL } = useSVGExport(
-    exports.readText(
-      `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`
-    ),
-    theme
-  );
-  const inspected = inspectedTarget(preview, selected);
-  const element = index.getElement(inspected);
-  const sidebarOpen = !sidebarHidden && (!!element || learningOpen);
-  const select = useCallback4(
+  const select = useCallback5(
     (target) => {
       clearHover();
       setSelected((old) => sameTarget(old, target) ? old : target);
@@ -4179,44 +5580,78 @@ function ViewerContent({
     },
     [clearHover]
   );
-  const clear = useCallback4(() => {
+  const clear = useCallback5(() => {
     setSelected(null);
     setAboutOpen(false);
     setLearningOpen(false);
     clearHover();
   }, [clearHover]);
-  useEffect8(() => {
+  const choose = useCallback5(
+    (id) => {
+      const next = inspectionTarget(model, index2, views, viewKey, id);
+      if (!next) return;
+      setViewKey(next.viewKey);
+      select(next.target);
+      setMember(next.memberId || null);
+      if (next.nodeId) setFocusRequest({ id: next.nodeId });
+      else if (next.nodeIds) setFocusRequest({ ids: next.nodeIds });
+    },
+    [index2, model, views, viewKey, select]
+  );
+  const changes = useChangeReview({
+    review,
+    model,
+    views,
+    selected,
+    overview,
+    setOverview,
+    choose,
+    select,
+    hover,
+    onShowPanel: () => {
+      setSidebarHidden(false);
+      setLearningOpen(false);
+    }
+  });
+  const { diagramURL, backgroundURL } = useSVGExport(
+    exports.readText(
+      `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`
+    ),
+    theme,
+    viewerRef,
+    !!changes?.fade
+  );
+  const inspected = inspectedTarget(preview, selected);
+  const element = index2.getElement(inspected);
+  const showOverview = !!changes && overview && !element && !learningOpen;
+  const sidebarOpen = !sidebarHidden && (!!element || learningOpen || showOverview);
+  useEffect9(() => {
     setSelected(null);
     setFocusRequest(null);
     setViewKey(views[0].key);
     clearHover();
   }, [model.id, clearHover]);
-  const onHover = useCallback4(
+  const onHover = useCallback5(
     (target) => {
       if (target) setLearningOpen(false);
       hover(target);
     },
     [hover]
   );
-  useEffect8(() => {
+  const latestChanges = useRef11(null);
+  latestChanges.current = changes;
+  useEffect9(() => {
     const escape = (e) => {
-      if (e.key === "Escape") clear();
+      if (e.key !== "Escape") return;
+      if (e.target.closest?.(".inspector"))
+        latestChanges.current?.returnFocus();
+      clear();
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [clear]);
-  const choose = useCallback4(
-    (id) => {
-      const next = inspectionTarget(model, index, views, viewKey, id);
-      if (!next) return;
-      setViewKey(next.viewKey);
-      select(next.target);
-      if (next.nodeId) setFocusRequest({ id: next.nodeId });
-    },
-    [index, model, views, viewKey, select]
-  );
-  const lastExternalFocus = useRef10(null);
-  useEffect8(() => {
+  const lastExternalFocus = useRef11(null);
+  useEffect9(() => {
     if (focus && focus !== lastExternalFocus.current) {
       lastExternalFocus.current = focus;
       if (focus.kind === "view" && views.some((v) => v.key === focus.id))
@@ -4224,26 +5659,53 @@ function ViewerContent({
       else choose(focus.id);
     }
   }, [focus, choose, views]);
-  useEffect8(() => {
-    if (selected && !index.getElement(selected)) select(null);
-  }, [index, selected, select]);
-  useLayoutEffect10(() => {
+  useEffect9(() => {
+    if (selected && !index2.getElement(selected)) select(null);
+  }, [index2, selected, select]);
+  const inspector = useRef11(null);
+  const showing = learningOpen ? "learning" : selected ? `${selected.kind}:${selected.id}` : showOverview ? "overview" : "";
+  useLayoutEffect11(() => {
+    if (inspector.current) inspector.current.scrollTop = 0;
+  }, [showing]);
+  const [storedWidth, setStoredWidth] = useStoredWidth();
+  const resize = useInspectorWidth({
+    viewerRef,
+    panelRef: inspector,
+    width: storedWidth,
+    onChange: setStoredWidth
+  });
+  const settledWidth = resize.resizing ? null : resize.width;
+  useLayoutEffect11(() => {
     if (sidebarOpen && selected?.kind === "node")
       cameraRef.current?.revealNode(selected.id);
-  }, [sidebarOpen]);
-  return /* @__PURE__ */ jsxs20(
+  }, [sidebarOpen, settledWidth]);
+  const inspectLearning = (id) => {
+    if (index2.nodes.has(id)) return choose(id);
+    const groupView = views.find(
+      (v) => v.diagram.generalizationGroups?.some((g) => g.id === id)
+    );
+    if (groupView) {
+      setViewKey(groupView.key);
+      select({ kind: "group", id });
+      return;
+    }
+    choose(id);
+  };
+  return /* @__PURE__ */ jsxs19(
     "div",
     {
       ref: viewerRef,
-      className: `viewer${sidebarOpen ? " inspecting" : ""}`,
+      className: `viewer${sidebarOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`,
+      style: resize.style,
       children: [
-        /* @__PURE__ */ jsx25(
+        /* @__PURE__ */ jsx28(
           ViewerToolbar,
           {
             ref: toolbarRef,
             density,
-            comparisonControls,
-            reportControl,
+            reviewControls: changes?.controls(sidebarOpen && showOverview),
+            provenance: provenanceDocument,
+            guided: !!guide,
             ...{
               model,
               views,
@@ -4271,7 +5733,7 @@ function ViewerContent({
               setFocusRequest(null);
               setFields(!fields);
             },
-            onTheme: toggleTheme,
+            themeToggle: !!preference,
             onLearn: () => {
               clearHover();
               setSidebarHidden(false);
@@ -4286,7 +5748,7 @@ function ViewerContent({
             onFit: () => cameraRef.current.fit()
           }
         ),
-        /* @__PURE__ */ jsx25(
+        /* @__PURE__ */ jsx28(
           DiagramCanvas,
           {
             ref: cameraRef,
@@ -4298,89 +5760,59 @@ function ViewerContent({
             onClearHover: clearHover
           }
         ),
-        /* @__PURE__ */ jsx25(ProvenanceBadge, { document: provenanceDocument || model.document }),
-        /* @__PURE__ */ jsxs20(
+        /* @__PURE__ */ jsx28(
           Panel,
           {
+            ref: inspector,
             id: "inspector",
             className: "inspector",
             open: sidebarOpen,
-            label: learningOpen ? "OntoUML learning library" : "Model details",
-            title: null,
+            label: learningOpen ? "Model guide" : showOverview ? "Changes in this proposal" : "Model details",
+            title: learningOpen ? "Understand the model" : showOverview ? "Changes" : null,
+            toolbar: !learningOpen && element && changes ? changes.navigation : null,
             closeLabel: "Hide details",
             onClose: () => setSidebarHidden(true),
+            resizer: resize.separator,
             onPointerEnter: keepHover,
             onPointerLeave: () => hover(null),
             onFocusCapture: keepHover,
             onBlurCapture: (e) => {
               if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
             },
-            children: [
-              sidebarOpen && learningOpen && /* @__PURE__ */ jsx25(
-                LearningLibrary,
-                {
-                  model,
-                  onInspect: (id) => {
-                    if (index.nodes.has(id)) choose(id);
-                    else {
-                      const groupView = views.find(
-                        (v) => v.diagram.generalizationGroups?.some((g) => g.id === id)
-                      );
-                      if (groupView) {
-                        setViewKey(groupView.key);
-                        select({ kind: "group", id });
-                        return;
-                      }
-                      const edge = index.edges.get(id);
-                      const next = views.find(
-                        (v) => v.diagram.edges.some((e) => e.id === id)
-                      );
-                      if (edge && next) {
-                        setViewKey(next.key);
-                        select({ kind: "edge", id });
-                      }
-                    }
-                  }
-                }
-              ),
-              sidebarOpen && !learningOpen && element && inspected.kind === "node" && /* @__PURE__ */ jsx25(
-                ConceptDetails,
-                {
-                  concept: element,
-                  model,
-                  snippets
-                }
-              ),
-              sidebarOpen && !learningOpen && element && inspected.kind === "edge" && /* @__PURE__ */ jsx25(
-                RelationDetails,
-                {
-                  relation: element,
-                  onChoose: choose,
-                  model,
-                  snippets
-                }
-              ),
-              sidebarOpen && !learningOpen && element && inspected.kind === "group" && /* @__PURE__ */ jsx25(
-                GeneralizationSetDetails,
-                {
-                  group: element,
-                  model,
-                  snippets,
-                  onChoose: choose
-                }
-              )
-            ]
+            children: sidebarOpen && /* @__PURE__ */ jsx28(
+              InspectorContent,
+              {
+                learning: learningOpen,
+                element,
+                inspected,
+                member: sameTarget(inspected, selected) ? member : null,
+                model,
+                views,
+                snippets,
+                guide,
+                changes,
+                showOverview,
+                onChoose: choose,
+                onInspectLearning: inspectLearning
+              }
+            )
           }
         ),
-        /* @__PURE__ */ jsx25(
-          Panel,
+        /* @__PURE__ */ jsx28(
+          Dialog,
           {
-            id: "about-panel",
-            className: "about-panel",
-            label: "About and controls",
             open: aboutOpen,
-            onClose: () => setAboutOpen(false),
-            children: /* @__PURE__ */ jsx25(About, { model, exports })
+            onOpenChange: setAboutOpen,
+            title: model.title,
+            description: "About this diagram and its controls",
+            children: /* @__PURE__ */ jsx28(
+              About,
+              {
+                model,
+                exports,
+                provenance: provenanceDocument
+              }
+            )
           }
         )
       ]
@@ -4390,76 +5822,55 @@ function ViewerContent({
 
 // src/viewer/AtlasPanel.jsx
 import {
-  useCallback as useCallback5,
-  useEffect as useEffect9,
-  useId as useId4,
-  useLayoutEffect as useLayoutEffect11,
+  useCallback as useCallback6,
+  useEffect as useEffect10,
+  useId as useId3,
+  useLayoutEffect as useLayoutEffect12,
   useMemo as useMemo10,
-  useRef as useRef11,
-  useState as useState14
+  useRef as useRef12,
+  useState as useState13
 } from "react";
-import { jsx as jsx26, jsxs as jsxs21 } from "react/jsx-runtime";
+import { EmptyState as EmptyState2, Theme } from "@envsemble/envui";
+import { jsx as jsx29, jsxs as jsxs20 } from "react/jsx-runtime";
+function overlayClass(sections, density = 0) {
+  return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
+}
 function AtlasPanel(props) {
-  const nested = (payload, focus, extras) => /* @__PURE__ */ jsx26(
-    AtlasPanel,
-    {
-      ...props,
-      ...extras,
-      payload,
-      focus: focus || props.focus
-    }
-  );
-  if (props.payload.report)
-    return /* @__PURE__ */ jsx26(
-      ReportViewer,
+  const { payload, review } = reviewedPayload(props.payload);
+  if (!payload.views.length) {
+    const theme = props.theme || "dark";
+    return /* @__PURE__ */ jsx29(
+      Theme,
       {
-        payload: props.payload,
-        theme: props.theme,
-        leading: props.leading,
-        onReference: props.onReference,
-        render: nested
-      }
-    );
-  if (props.payload.comparison)
-    return /* @__PURE__ */ jsx26(
-      ComparisonViewer,
-      {
-        payload: props.payload,
-        focus: props.focus,
-        render: nested
-      }
-    );
-  if (!props.payload.views.length) {
-    const tools = [props.leading, props.comparisonControls].filter(Boolean);
-    return /* @__PURE__ */ jsx26(
-      "div",
-      {
+        theme,
         className: "atlas-panel atlas-empty",
-        "data-theme": props.theme || "dark",
-        children: /* @__PURE__ */ jsxs21("div", { className: "viewer", children: [
-          (tools.length > 0 || props.reportControl) && /* @__PURE__ */ jsxs21("div", { className: "atlas-overlay-top", children: [
-            tools.length > 0 && /* @__PURE__ */ jsxs21(Island, { label: "Diagram navigation", className: "island-start", children: [
-              props.leading && /* @__PURE__ */ jsx26("div", { className: "island-leading", children: props.leading }),
-              props.leading && props.comparisonControls && /* @__PURE__ */ jsx26(IslandDivider, {}),
-              props.comparisonControls
-            ] }),
-            props.reportControl && /* @__PURE__ */ jsx26(Island, { label: "Diagram tools", className: "island-end", children: props.reportControl })
+        "data-theme": theme,
+        children: /* @__PURE__ */ jsxs20("div", { className: "viewer", children: [
+          (props.leading || props.sections) && /* @__PURE__ */ jsxs20("div", { className: overlayClass(props.sections), children: [
+            props.sections && /* @__PURE__ */ jsx29("div", { className: "atlas-overlay-sections", children: props.sections }),
+            props.leading && /* @__PURE__ */ jsx29(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx29("div", { className: "island-leading", children: props.leading }) })
           ] }),
-          /* @__PURE__ */ jsxs21("div", { className: "atlas-empty-message", children: [
-            /* @__PURE__ */ jsx26("h3", { children: props.payload.model.title }),
-            /* @__PURE__ */ jsx26("p", { children: "No entities in this model." })
-          ] }),
-          /* @__PURE__ */ jsx26(
-            ProvenanceBadge,
+          /* @__PURE__ */ jsx29(
+            EmptyState2,
             {
-              document: props.provenanceDocument || props.payload.model.document
+              className: "atlas-empty-message",
+              title: payload.model.title,
+              description: "No entities in this model."
             }
           )
         ] })
       }
     );
   }
-  return /* @__PURE__ */ jsx26(AtlasPanelContent, { ...props });
+  return /* @__PURE__ */ jsx29(
+    AtlasPanelContent,
+    {
+      ...props,
+      payload,
+      review,
+      identity: props.payload.family || payload.model.id
+    }
+  );
 }
 function AtlasPanelContent({
   payload,
@@ -4467,38 +5878,41 @@ function AtlasPanelContent({
   onReference,
   focus = null,
   leading,
+  sections,
   fullscreen = false,
   onFullscreenChange,
-  comparisonControls,
-  reportControl,
-  provenanceDocument
+  inspectorWidth,
+  onInspectorWidthChange,
+  review = null,
+  identity
 }) {
-  const { model, views, snippets } = payload;
-  const [viewKey, setViewKey] = useState14(views[0].key);
-  const [fields, setFields] = useState14(false), [selected, setSelected] = useState14(null);
-  const [hidden, setHidden] = useState14(false), [learning, setLearning] = useState14(false);
-  const [focusRequest, setFocusRequest] = useState14(null);
-  const camera = useRef11(null), zoomStore = useMemo10(createZoomStore, []);
-  const viewerRef = useRef11(null), topRef = useRef11(null);
+  const { model, views, snippets, learning: guide = null } = payload;
+  const [viewKey, setViewKey] = useState13(views[0].key);
+  const [fields, setFields] = useState13(true), [selected, setSelected] = useState13(null);
+  const [hidden, setHidden] = useState13(false), [learning, setLearning] = useState13(false);
+  const [focusRequest, setFocusRequest] = useState13(null);
+  const [member, setMember] = useState13(null);
+  const camera = useRef12(null), zoomStore = useMemo10(createZoomStore, []);
+  const viewerRef = useRef12(null), topRef = useRef12(null);
   const fitInsets = useOverlayInsets(viewerRef, topRef);
   const density = useToolbarDensity(
     topRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!comparisonControls}`
+    identity,
+    `${views.map((v) => v.key).join()}:${!!review}`
   );
-  const lastFocus = useRef11(null), inspectorId = useId4();
-  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
-    previewEnabled: !hidden,
-    previewVisible: !!selected || learning
-  });
+  const lastFocus = useRef12(null), inspectorId = useId3();
   const view = views.find((v) => v.key === viewKey) || views[0];
   const diagram = fields ? view.diagramFields : view.diagram;
-  const index = useMemo10(
+  const index2 = useMemo10(
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups]
   );
-  const inspected = inspectedTarget(preview, selected), element = index.getElement(inspected);
-  const open = !hidden && (!!element || learning);
-  const select = useCallback5(
+  const [overview, setOverview] = useState13(overviewByDefault);
+  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
+    previewEnabled: !hidden && !(review && overview && !selected && !learning),
+    previewVisible: !!selected || learning
+  });
+  const select = useCallback6(
     (target) => {
       clearHover();
       setSelected((old) => sameTarget(old, target) ? old : target);
@@ -4506,30 +5920,50 @@ function AtlasPanelContent({
     },
     [clearHover]
   );
-  const choose = useCallback5(
+  const choose = useCallback6(
     (id) => {
-      const next = inspectionTarget(model, index, views, viewKey, id);
+      const next = inspectionTarget(model, index2, views, viewKey, id);
       if (!next) return;
       setViewKey(next.viewKey);
       select(next.target);
+      setMember(next.memberId || null);
       if (next.nodeId) setFocusRequest({ id: next.nodeId });
+      else if (next.nodeIds) setFocusRequest({ ids: next.nodeIds });
     },
-    [index, model, views, viewKey, select]
+    [index2, model, views, viewKey, select]
   );
-  useEffect9(() => {
+  const changes = useChangeReview({
+    review,
+    model,
+    views,
+    selected,
+    overview,
+    setOverview,
+    choose,
+    select,
+    hover,
+    onShowPanel: () => {
+      setHidden(false);
+      setLearning(false);
+    }
+  });
+  const inspected = inspectedTarget(preview, selected), element = index2.getElement(inspected);
+  const showOverview = !!changes && overview && !element && !learning;
+  const open = !hidden && (!!element || learning || showOverview);
+  useEffect10(() => {
     select(null);
     setViewKey(views[0].key);
     setFocusRequest(null);
     lastFocus.current = null;
-  }, [model.id, select]);
-  useEffect9(() => {
+  }, [identity, select]);
+  useEffect10(() => {
     const visible = selected?.kind === "node" ? diagram.nodes : selected?.kind === "edge" ? diagram.edges : diagram.generalizationGroups || [];
-    if (selected && (!index.getElement(selected) || !visible.some((item) => item.id === selected.id) && !(selected.kind === "edge" && diagram.generalizationGroups?.some(
+    if (selected && (!index2.getElement(selected) || !visible.some((item) => item.id === selected.id) && !(selected.kind === "edge" && diagram.generalizationGroups?.some(
       (g) => g.memberIds.includes(selected.id)
     ))))
       select(null);
-  }, [index, diagram, selected, select]);
-  useEffect9(() => {
+  }, [index2, diagram, selected, select]);
+  useEffect10(() => {
     if (sameTarget(lastFocus.current, focus)) return;
     lastFocus.current = focus;
     if (!focus) return;
@@ -4537,43 +5971,53 @@ function AtlasPanelContent({
       setViewKey(focus.id);
     else choose(focus.id);
   }, [focus, choose, views]);
-  useLayoutEffect11(() => {
+  const inspector = useRef12(null);
+  const showing = learning ? "learning" : selected ? `${selected.kind}:${selected.id}` : showOverview ? "overview" : "";
+  useLayoutEffect12(() => {
+    if (inspector.current) inspector.current.scrollTop = 0;
+  }, [showing]);
+  const resize = useInspectorWidth({
+    viewerRef,
+    panelRef: inspector,
+    width: inspectorWidth,
+    onChange: onInspectorWidthChange
+  });
+  const settledWidth = resize.resizing ? null : resize.width;
+  useLayoutEffect12(() => {
     if (open && selected?.kind === "node")
       camera.current?.revealNode(selected.id);
-  }, [open]);
-  useEffect9(() => {
+  }, [open, settledWidth]);
+  const latestChanges = useRef12(null);
+  latestChanges.current = changes;
+  useEffect10(() => {
     const escape = (e) => {
-      if (e.key === "Escape" && e.target.closest?.(".atlas-panel"))
-        select(null);
+      if (e.key !== "Escape" || !e.target.closest?.(".atlas-panel")) return;
+      if (e.target.closest(".inspector")) latestChanges.current?.returnFocus();
+      select(null);
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [select]);
-  const meta = model.document;
-  const context = meta?.context || { records: [], links: [] };
-  const contextIds = /* @__PURE__ */ new Set([
-    inspected?.id,
-    ...inspected?.kind === "node" ? element?.attributes.map((a) => a.id) || [] : []
-  ]);
-  const linked = context.records.filter(
-    (r) => context.links.some(
-      (l) => contextIds.has(l.elementId) && l.recordId === r.id
-    )
-  );
+  const guided = !!guide;
+  useEffect10(() => {
+    if (!guided) setLearning(false);
+  }, [guided]);
   const showTabs = views.length > 1;
-  const hasStart = !!leading || showTabs || !!comparisonControls;
-  return /* @__PURE__ */ jsx26("div", { className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs21("div", { ref: viewerRef, className: `viewer${open ? " inspecting" : ""}`, children: [
-    /* @__PURE__ */ jsxs21(
-      "div",
-      {
-        className: `atlas-overlay-top${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
-        ref: topRef,
-        children: [
-          hasStart && /* @__PURE__ */ jsxs21(Island, { label: "Diagram navigation", className: "island-start", children: [
-            leading && /* @__PURE__ */ jsx26("div", { className: "island-leading", children: leading }),
-            leading && (showTabs || comparisonControls) && /* @__PURE__ */ jsx26(IslandDivider, {}),
-            showTabs && /* @__PURE__ */ jsx26(
-              Tabs,
+  const hasStart = !!leading || showTabs || !!changes;
+  return /* @__PURE__ */ jsx29(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs20(
+    "div",
+    {
+      ref: viewerRef,
+      className: `viewer${open ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`,
+      style: resize.style,
+      children: [
+        /* @__PURE__ */ jsxs20("div", { className: overlayClass(sections, density), ref: topRef, children: [
+          sections && /* @__PURE__ */ jsx29("div", { className: "atlas-overlay-sections", children: sections }),
+          hasStart && /* @__PURE__ */ jsxs20(Island, { label: "Diagram navigation", className: "island-start", children: [
+            leading && /* @__PURE__ */ jsx29("div", { className: "island-leading", children: leading }),
+            leading && (showTabs || changes) && /* @__PURE__ */ jsx29(IslandDivider, {}),
+            showTabs && /* @__PURE__ */ jsx29(
+              ViewSwitcher,
               {
                 items: views,
                 compact: density > 0,
@@ -4585,159 +6029,128 @@ function AtlasPanelContent({
                 }
               }
             ),
-            showTabs && comparisonControls && /* @__PURE__ */ jsx26(IslandDivider, {}),
-            comparisonControls
+            showTabs && changes && /* @__PURE__ */ jsx29(IslandDivider, {}),
+            changes?.controls(open && showOverview)
           ] }),
-          /* @__PURE__ */ jsxs21(Island, { label: "Diagram tools", className: "island-end", children: [
-            /* @__PURE__ */ jsx26(ConceptSearch, { classes: model.classes, onChoose: choose }),
-            /* @__PURE__ */ jsx26(IslandDivider, {}),
-            /* @__PURE__ */ jsx26(
-              ToggleButton,
+          /* @__PURE__ */ jsxs20(Island, { label: "Diagram tools", className: "island-end", children: [
+            /* @__PURE__ */ jsx29(ConceptSearch, { classes: model.classes, onChoose: choose }),
+            /* @__PURE__ */ jsx29(
+              ToolButton,
               {
-                className: "icon",
+                label: "Fields",
+                tooltip: fields ? "Hide attributes" : "Show attributes",
                 pressed: fields,
-                "aria-label": "Fields",
-                title: "Show attributes",
+                icon: /* @__PURE__ */ jsx29(TableRows, {}),
                 onClick: () => {
                   setFocusRequest(null);
                   setFields((v) => !v);
-                },
-                children: /* @__PURE__ */ jsx26(TableIcon, { size: 16 })
+                }
               }
             ),
-            /* @__PURE__ */ jsx26(
+            /* @__PURE__ */ jsx29(
               CameraControls,
               {
                 zoomStore,
+                compact: density > 2,
                 onZoom: (factor) => camera.current?.zoomBy(factor),
                 onReset: () => camera.current?.reset(),
                 onFit: () => camera.current?.fit()
               }
             ),
-            /* @__PURE__ */ jsx26(IslandDivider, {}),
-            (!meta || meta.profile === "ontouml") && /* @__PURE__ */ jsx26(
-              ToggleButton,
+            /* @__PURE__ */ jsx29(IslandDivider, {}),
+            guided && /* @__PURE__ */ jsx29(
+              ToolButton,
               {
-                className: "icon",
+                label: "Understand the model",
                 pressed: learning && open,
-                "aria-label": "Understand model",
-                title: "Understand model",
+                icon: /* @__PURE__ */ jsx29(School, {}),
                 onClick: () => {
                   clearHover();
                   setHidden(false);
-                  setLearning((v) => !v);
-                },
-                children: /* @__PURE__ */ jsx26(BookIcon, { size: 16 })
+                  setLearning((v) => !(v && open));
+                }
               }
             ),
-            reportControl,
-            /* @__PURE__ */ jsx26(
-              IconButton,
+            /* @__PURE__ */ jsx29(
+              ToolButton,
               {
                 label: hidden ? "Show details" : "Hide details",
                 "aria-controls": inspectorId,
                 "aria-expanded": open,
-                onClick: () => setHidden((v) => !v),
-                children: hidden ? /* @__PURE__ */ jsx26(SidebarExpandIcon, { size: 16 }) : /* @__PURE__ */ jsx26(SidebarCollapseIcon, { size: 16 })
+                icon: hidden ? /* @__PURE__ */ jsx29(RightPanelOpen, {}) : /* @__PURE__ */ jsx29(RightPanelClose, {}),
+                onClick: () => setHidden((v) => !v)
               }
             ),
-            onFullscreenChange && /* @__PURE__ */ jsx26(
-              IconButton,
+            onFullscreenChange && /* @__PURE__ */ jsx29(
+              ToolButton,
               {
                 label: fullscreen ? "Exit fullscreen" : "Enter fullscreen",
-                "aria-pressed": fullscreen,
-                onClick: () => onFullscreenChange(!fullscreen),
-                children: fullscreen ? /* @__PURE__ */ jsx26(ScreenNormalIcon, { size: 16 }) : /* @__PURE__ */ jsx26(ScreenFullIcon, { size: 16 })
+                variant: "secondary",
+                pressed: fullscreen,
+                icon: fullscreen ? /* @__PURE__ */ jsx29(FullscreenExit, {}) : /* @__PURE__ */ jsx29(Fullscreen, {}),
+                onClick: () => onFullscreenChange(!fullscreen)
               }
             )
           ] })
-        ]
-      }
-    ),
-    /* @__PURE__ */ jsx26(
-      DiagramCanvas,
-      {
-        ref: camera,
-        diagram,
-        selected,
-        hovered,
-        focusRequest,
-        fitInsets,
-        onSelect: select,
-        onZoom: zoomStore.set,
-        onHover: hover,
-        onClearHover: clearHover
-      }
-    ),
-    /* @__PURE__ */ jsx26(ProvenanceBadge, { document: provenanceDocument || meta }),
-    /* @__PURE__ */ jsxs21(
-      Panel,
-      {
-        id: inspectorId,
-        className: "inspector",
-        title: null,
-        label: "Model details",
-        open,
-        closeLabel: "Hide details",
-        onClose: () => setHidden(true),
-        onPointerEnter: keepHover,
-        onPointerLeave: () => hover(null),
-        children: [
-          open && learning && /* @__PURE__ */ jsx26(LearningLibrary, { model, onInspect: choose }),
-          open && !learning && element && inspected.kind === "node" && /* @__PURE__ */ jsx26(
-            ConceptDetails,
-            {
-              concept: element,
-              model,
-              snippets
-            }
-          ),
-          open && !learning && element && inspected.kind === "edge" && /* @__PURE__ */ jsx26(
-            RelationDetails,
-            {
-              relation: element,
-              model,
-              snippets,
-              onChoose: choose
-            }
-          ),
-          open && !learning && element && inspected.kind === "group" && /* @__PURE__ */ jsx26(
-            GeneralizationSetDetails,
-            {
-              group: element,
-              model,
-              snippets,
-              onChoose: choose
-            }
-          ),
-          open && !learning && linked.length > 0 && /* @__PURE__ */ jsxs21("section", { className: "atlas-context", "aria-label": "Planning references", children: [
-            /* @__PURE__ */ jsx26("h2", { children: "Planning references" }),
-            linked.map((record) => /* @__PURE__ */ jsxs21("details", { children: [
-              /* @__PURE__ */ jsx26("summary", { children: record.title || record.kind }),
-              /* @__PURE__ */ jsx26("p", { children: record.text }),
-              onReference && typeof record.path === "string" && /* @__PURE__ */ jsxs21(
-                "button",
-                {
-                  type: "button",
-                  className: "btn-sm",
-                  onClick: () => onReference(record),
-                  children: [
-                    "Open ",
-                    record.kind
-                  ]
-                }
-              )
-            ] }, record.id))
-          ] })
-        ]
-      }
-    )
-  ] }) });
+        ] }),
+        /* @__PURE__ */ jsx29(
+          DiagramCanvas,
+          {
+            ref: camera,
+            diagram,
+            selected,
+            hovered,
+            focusRequest,
+            fitInsets,
+            onSelect: select,
+            onZoom: zoomStore.set,
+            onHover: hover,
+            onClearHover: clearHover
+          }
+        ),
+        /* @__PURE__ */ jsx29(
+          Panel,
+          {
+            ref: inspector,
+            id: inspectorId,
+            className: "inspector",
+            title: learning ? "Understand the model" : showOverview ? "Changes" : null,
+            toolbar: !learning && element && changes ? changes.navigation : null,
+            label: learning ? "Model guide" : showOverview ? "Changes in this proposal" : "Model details",
+            open,
+            closeLabel: "Hide details",
+            onClose: () => setHidden(true),
+            resizer: resize.separator,
+            onPointerEnter: keepHover,
+            onPointerLeave: () => hover(null),
+            children: open && /* @__PURE__ */ jsx29(
+              InspectorContent,
+              {
+                learning,
+                element,
+                inspected,
+                member: sameTarget(inspected, selected) ? member : null,
+                model,
+                views,
+                snippets,
+                guide,
+                changes,
+                showOverview,
+                onChoose: choose,
+                onReference
+              }
+            )
+          }
+        )
+      ]
+    }
+  ) });
 }
 
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { jsx as jsx27, jsxs as jsxs22 } from "react/jsx-runtime";
+import { Button as Button9, EmptyState as EmptyState3 } from "@envsemble/envui";
+import { jsx as jsx30 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -4752,11 +6165,16 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsxs22("main", { className: "viewer-error", role: "alert", children: [
-        /* @__PURE__ */ jsx27("h1", { children: "The model could not be displayed" }),
-        /* @__PURE__ */ jsx27("p", { children: "Rebuild the viewer from the model and check its validation report." }),
-        /* @__PURE__ */ jsx27("button", { onClick: () => location.reload(), children: "Reload" })
-      ] });
+      return /* @__PURE__ */ jsx30("main", { className: "viewer-error", children: /* @__PURE__ */ jsx30(
+        EmptyState3,
+        {
+          tone: "error",
+          headingLevel: 1,
+          title: "The model could not be displayed",
+          description: "Rebuild the viewer from the model and check its validation report.",
+          action: /* @__PURE__ */ jsx30(Button9, { variant: "secondary", onClick: () => location.reload(), children: "Reload" })
+        }
+      ) });
     return this.props.children;
   }
 };
@@ -4764,10 +6182,8 @@ export {
   AtlasMark,
   AtlasPanel,
   DiagramCanvas,
-  ElementLearning,
+  DiagramViewer,
   LearningLibrary,
-  Lesson,
-  OntoUMLViewer,
   ProvenanceBadge,
   ProvenanceLabel,
   UMLDiagram,
@@ -4775,6 +6191,7 @@ export {
   UMLNode,
   UMLRelation,
   ViewerErrorBoundary,
+  changeCount,
   describeProvenance,
   formatCaptureDate
 };

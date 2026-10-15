@@ -1,22 +1,28 @@
-# Database snapshots
+# Database capture
 
-Capture is explicit, read only, and frozen. Atlas reads catalogs rather than application rows. Another capture creates another identified document; it never updates an existing baseline. Use a source identity consistently to keep table/column IDs stable. Imported HTML preserves capture claims without rechecking the database.
+A database capture is an entity diagram of a database's declared schema. Capture is explicit and read only: Atlas reads catalogs, never application rows, and writes the diagram; a later capture is another file and never updates an earlier one. Keep a source's identity the same so its tables keep their names from one capture to the next. [Diagrams](diagrams.md#captures) describes the `atlas capture` command and what a capture holds.
 
-| Adapter    | Checked versions/prerequisites                                                                                                        | Consistency and scope                                                                                                                                                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PostgreSQL | PostgreSQL 17; Node 24 recommended; `pg` bundled; explicit connection environment variable and schema names; USAGE/catalog visibility | Repeatable-read read-only transaction, 10-second query budget; ordinary tables in selected schemas. Missing schemas fail. Insufficient table access is partial.                                                                                       |
-| SQLite     | SQLite 3.45–3.x; Node 24+ `node:sqlite`; readable existing database file                                                              | One read transaction in `main`; all tables or explicit names. Missing file/table fails without creating a file.                                                                                                                                       |
-| Local D1   | Wrangler 4.x installed separately in a consumer; tested 4.148.0/workerd 1.20261006.1; explicit config and binding                     | Two equal metadata passes, always partial consistency. Required catalogs are probed; `sqlite_version()` is unavailable and no SQLite version is asserted. Local simulation does not certify production. No cloud account discovery or remote command. |
+| Adapter    | Checked versions and prerequisites                                                                                                                  | Consistency and scope                                                                                                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PostgreSQL | PostgreSQL 17; Node 24 recommended; `pg` bundled; the connection in an environment variable and explicit schema names; USAGE and catalog visibility | A repeatable-read, read-only transaction with a 10-second query budget; ordinary tables in the selected schemas. A missing schema fails; insufficient table access is partial.                                      |
+| SQLite     | SQLite 3.45–3.x through Node 24's `node:sqlite`; an existing, readable database file                                                                | One read transaction in `main`; all tables or the ones named. A missing file or table fails without creating a file.                                                                                                |
+| Local D1   | Wrangler 4.x installed separately (tested with 4.148.0); an explicit configuration and binding                                                      | Two equal metadata passes, always partial consistency. `sqlite_version()` is unavailable, so no SQLite version is asserted. A local simulation does not certify production. No account discovery or remote command. |
 
-Tables, ordered columns/types/defaults/nullability, primary/unique keys, composite foreign keys, check/constraint SQL, indexes and triggers are retained. Relation counts use declared supported keys and nullable participation and an unconditional unique key contained in the referencing columns. Composite PostgreSQL MATCH FULL differs from SIMPLE. SQLite uses its effective SIMPLE behavior. Names do not create foreign keys; partial/expression indexes do not create unique cardinalities. Unknown ends display `?`. SQLite custom collations or external unique-index targets and incompatible affinities prevent full inference; PostgreSQL differing types/collations, domains or nondefault unique-index operators prevent a one-to-one claim. These cases produce partial diagnostics.
+## How a schema becomes an entity diagram
 
-Views, virtual/shadow tables, PostgreSQL partitions/inheritance/foreign tables, domains, unsupported index semantics, external references and trigger invariants produce explicit partial coverage. Excluded tables are named in diagnostics; their contents are omitted. SQL definitions describe declarations; Atlas does not infer application invariants or whether a deferred constraint currently holds. SQLite foreign-key enforcement is recorded as connection metadata, not a runtime guarantee. SQLite nullable legacy primary keys, INTEGER rowid aliases (including the DESC exception), STRICT/WITHOUT ROWID and generated columns are distinguished.
+- Each ordinary table is an entity with its columns in order and their declared types. A column that cannot be null is mandatory, `*`; primary key columns are marked `<<PK>>` above the `--` separator. PostgreSQL schemas are packages; SQLite and D1 have one namespace and none.
+- Each foreign key to a captured table is a crow's-foot relation from the table it refers to, labelled with its columns, which are marked `<<FK>>`; a key that shares a column with the primary key marks none, and the primary key keeps `<<PK>>`. Its ends count the rows referred to per referring row (one, or zero or one when a column may be null) and the referring rows per row referred to (zero or more, or zero or one when a unique key covers the referring columns).
+- Counts follow only from supported declared keys: names never create foreign keys, and partial or expression indexes never make a count unique. Where a count cannot be established (SQLite custom collations, incompatible affinities, unique indexes outside the capture; PostgreSQL differing types or collations, domains, non-default operators or unvalidated constraints), it is drawn as loosely as a crow's foot allows and a diagnostic says why. Composite PostgreSQL MATCH FULL keys differ from SIMPLE; SQLite behaves as SIMPLE.
+- A foreign key to a table outside the capture is not drawn; a diagnostic names it, and the table's SQL shows it.
+- Defaults, unique keys, indexes, checks, generated columns and triggers are not drawn; each table's snippet holds its SQL definition (SQLite) or its constraints, indexes and triggers (PostgreSQL), up to twelve lines. Its evidence is its catalog entry, or the reference the configuration names for it.
 
-Limits: 200 tables/views, 4,000 columns, 8 MiB metadata; additional index/constraint limits fail explicitly. The 200-table SQLite fixture must capture within five seconds excluding engine startup and layout. A failed capture saves no document. Capture metadata contains version, date, safe source alias, scope, coverage, consistency and semantic fingerprint; hashes are integrity checks, not signatures. No connection string is stored. Optional migration/source references are explicitly supplied, unverified correspondence.
+Views, virtual and shadow tables, PostgreSQL partitions, inheritance and foreign tables, domains, unsupported index semantics, external references and trigger invariants give partial coverage, and excluded tables are named in the diagnostics. SQL definitions describe declarations; Atlas does not infer application invariants or whether a deferred constraint currently holds. SQLite's foreign key enforcement is recorded as connection metadata, not as a guarantee.
 
-## Agent and CLI
+Limits: 200 tables or views, 4,000 columns and 8 MiB of metadata; further index and constraint limits fail explicitly. The 200-table SQLite fixture captures within five seconds, not counting engine start-up. A failed capture writes nothing. No connection string is stored.
 
-Store a JSON configuration inside the workspace, matching [database-source-schema.json](../packages/diagrams/schemas/database-source-schema.json). Paths are relative to that file except an optional `wranglerJS`, which is relative to the workspace. Secrets are supplied only via the named environment variable.
+## Configuration
+
+Keep the configuration with the database or the code it belongs to. Paths are relative to the configuration file; secrets come only from the named environment variable.
 
 ```json
 {
@@ -34,7 +40,8 @@ Store a JSON configuration inside the workspace, matching [database-source-schem
   "adapter": "sqlite",
   "identity": "orders-local",
   "file": "orders.sqlite",
-  "tables": ["customer", "orders"]
+  "tables": ["customer", "orders"],
+  "references": [{ "table": "orders", "file": "migrations/001_orders.sql" }]
 }
 ```
 
@@ -48,6 +55,6 @@ Store a JSON configuration inside the workspace, matching [database-source-schem
 }
 ```
 
-Call `atlas_capture_database` with `{"file":"source.json","workId":"work-0008"}` through MCP, or `atlas model capture_database --root ./workspace --input request.json`. The returned handle supports inspect, validate, prepare and export. A human can run the same CLI and inspect the result in the Atlas app. Database tables show captured columns, keys and SQL in the inspector. No diagram editing UI is needed.
+See [the configuration schema](../packages/diagrams/schemas/database-source-schema.json). The library's `captureSQLite`, `capturePostgres`, `captureD1` (with any `queryBatch` executor, such as one for a remote D1) and `captureFromConfig` return the diagram's text.
 
-For local verification set `ATLAS_TEST_POSTGRES` to a disposable PostgreSQL 17 connection and run `node --test packages/diagrams/tests/database.test.cjs`. The test creates and removes only uniquely named fixture schemas. SQLite and real local Wrangler D1 fixtures run by default. [Cloudflare documents local execution, JSON results and multiple SQL statements](https://developers.cloudflare.com/d1/wrangler-commands/#d1-execute).
+For local verification, set `ATLAS_TEST_POSTGRES` to a disposable PostgreSQL 17 connection and run `node --test packages/diagrams/tests/database.test.cjs`; the test creates and removes only uniquely named fixture schemas. The SQLite and local Wrangler D1 fixtures run by default. [Cloudflare documents local execution, JSON results and multiple SQL statements](https://developers.cloudflare.com/d1/wrangler-commands/#d1-execute).

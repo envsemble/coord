@@ -1,25 +1,83 @@
 # Agent interface
 
-Atlas exposes the same operations through `createWorkspace(root).execute(name, arguments)`, the `atlas model` JSON commands, and the `atlas mcp` stdio server. Model data persists independently of the app or an agent session under `.atlas/models`. Immutable revision files live under `.atlas/history`; prepared scenes/results and exports are separate output files. Keep model/history files when moving a workspace. No hosted AI or HTTP model service is required.
+Agents reach Atlas through a plugin for their harness: an MCP server for planning state, two skills, and hooks that run without the agent having to remember anything. One plugin serves Claude Code and Codex, and harnesses that run them, such as T3 Code, load it too. Everything runs on the agent's computer through the [`atlas` command](command.md); no hosted service or API key is involved.
 
-[Install the atlas command](../README.md#install-the-atlas-command) from a checkout (`npm link --workspace @envsemble/atlas-cli`), or use `npx atlas` inside it. Run `atlas model tools` for the authoritative JSON schemas. Command operation names omit the MCP `atlas_` prefix:
+## The plugin
+
+The plugin lives in [`plugin/`](../plugin) with a manifest for each harness (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), the MCP server's configuration (`.mcp.json`), the hooks (`hooks/hooks.json`) and the skills (`skills/`). The repository is its marketplace: `.claude-plugin/marketplace.json` for Claude Code and `.agents/plugins/marketplace.json` for Codex, both named `atlas`, so the plugin is `atlas@atlas`.
+
+[`atlas setup`](command.md#setup) installs it into each harness on the PATH. By hand, from the checkout:
 
 ```sh
-atlas model create --root /workspace --input create-request.json
-atlas model inspect --root /workspace --input inspect-request.json
-atlas model revise --root /workspace --input revision-request.json
-atlas model export --root /workspace --input export-request.json
-atlas mcp --root /workspace
+claude plugin marketplace add <checkout>
+claude plugin install atlas@atlas
+codex plugin marketplace add <checkout>
+codex plugin add atlas@atlas
 ```
 
-A create request is `{ "input": { "project": <standard OntoUML exchange project>, "title": "Design", "workId": "work-0008" } }`. Structural profiles instead supply `profile` and `model` as documented in [architecture.md](architecture.md). An inspect/export/validate/prepare request is `{ "handle": "<returned handle>" }`. Load/import takes a workspace-relative `file`. Load preserves an existing JSON document's revision and is idempotent; import creates a new imported revision. Importing a different document with an already stored semantic identity reports a conflict rather than overwriting it.
+The plugin calls `atlas` from the PATH, so [install the command](command.md#install) first. Start a new session after installing. Claude Code reads the plugin from the checkout in place; Codex installs a copy, which `codex plugin add atlas@atlas` (or `atlas setup`) refreshes after the checkout changes.
 
-A revision takes the returned `expectedRevision` and either envelope `changes`, whole-model replacement, or an `operations` batch. Each operation identifies `collection`, `action` (`upsert` or `delete`), `id`, and an upsert `value` with the same ID. OntoUML uses the exchange `elements` collection. Structural profiles use `nodes`, `relations`, `generalizations`, and `generalizationSets`. Apply all related reference/property/ownership changes in one batch: validation occurs before writing anything. A failed batch or stale revision leaves the current document intact. Model edits cannot change retained captures or profile. Store locks prevent overlapping writers; abandoned locks with demonstrably absent processes recover on restart, while ambiguous locks report `WORKSPACE_BUSY`.
+### Skills
 
-Configure an MCP client with command `node` and args `[/absolute/path/to/atlas/packages/cli/bin/atlas.js, mcp, --root, /workspace]`. This form works on every platform and is required on Windows, where `npm link` installs only `atlas.cmd` and `atlas.ps1` shims that clients spawning a process directly cannot launch; JSON paths may use forward slashes. On Linux and macOS, command `atlas` with args `[mcp, --root, /workspace]` also works once the command is linked. In a shell, `atlas mcp --root /workspace` works everywhere. Server stdout contains only MCP messages; failures are structured tool errors. Capture/comparison tools appear as their adapters are delivered. The planning skill is [atlas-model](../skills/atlas-model/SKILL.md).
+| Skill                                                        | What it is for                                                                                                                                                                        | Invocation           |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| [atlas](../plugin/skills/atlas/SKILL.md)                     | Planning: finding the planning folder, the design interview, recording plans, glossaries, decisions and knowledge, setting up and organizing planning folders, and offering diagrams. | Automatic or by name |
+| [atlas-implement](../plugin/skills/atlas-implement/SKILL.md) | Implementing a selected plan in full: starting it with its steps, keeping them current, review, bringing PRs to readiness and closing the work.                                       | By name only         |
 
-Inspection/validation default to 25 entries (maximum 100), with focused `elementId` inspection and `offset` pagination. Preparation writes a payload locally and returns `payloadFile`; the full scene does not enter the agent context. Responses exceeding 16 KiB become `resultFile` references. Files stay inside the configured root, including symlink resolution; exports cannot overwrite semantic storage and existing differing outputs require a new filename. Model files are limited to 32 MiB; import inputs to 64 MiB. `atlas model validate` findings exit 1, malformed operations/errors exit 2. Ontology findings remain inspectable and exportable, with their coverage limits visible.
+Invoke a skill by name with `/atlas-implement` in Claude Code or `$atlas-implement` in Codex. `atlas-implement` declares that it runs only when invoked, for both harnesses: `disable-model-invocation: true` in its `SKILL.md` and `allow_implicit_invocation: false` in its `agents/openai.yaml`. The skills name no model or provider. The planning templates a new planning folder starts from are in [`plugin/skills/atlas/assets/planning`](../plugin/skills/atlas/assets/planning), with the plan and ledger contract in [`PLANS.md`](../plugin/skills/atlas/assets/planning/PLANS.md).
 
-The capability tests use an actual MCP SDK client and a separate CLI process, then restart the server and reopen the exported HTML. A 100-node warm inspect/validate fixture targets under one second; layout/compiler startup and HTML bundling have separate budgets. These measurements bound tested workloads, not arbitrary repository sizes.
+## MCP tools
 
-For design iteration, use `atlas_proposal`, then `atlas_revise` and `atlas_compare`. `atlas_merge` takes explicit `ancestorHandle`, `leftHandle` and `rightHandle`; inspect its conflicts before `atlas_resolve_merge` with named choices and `expectedRevision`. `atlas_adopt_snapshot` retains a newer capture without replacing proposed facts. `atlas_map` adds an authored cross-layer link with a reason and explicit target element. See [comparison.md](comparison.md) for identity, ancestry, conflict and presentation rules. These operations share the same persisted handles and response budgets.
+`atlas mcp` serves the planning-state operations over stdio; the plugin starts it as the `atlas` server. The tools are the same operations as the [`atlas work` commands](command.md#planning-state), run in-process:
+
+| Tool                                                 | What it does                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `where`                                              | The projects that register a checkout's repository: each planning folder (an absolute path in the home) with its name, and the active work for its repositories with their steps and `blocked`.                                                                           |
+| `work_status`                                        | A work item's plan statuses and dates, ledger steps, `blocked` and a summary of its statistics.                                                                                                                                                                           |
+| `work_create`                                        | Creates and registers a work item: the next free number, `active/NNNN-slug/plan.md` with a draft header, and its `planning.json` entry.                                                                                                                                   |
+| `work_accept`                                        | Records that the user accepted the design.                                                                                                                                                                                                                                |
+| `work_start`                                         | Starts implementing an accepted plan: in progress, and a ledger with the agreed steps (at least one) and the plan's Git revision.                                                                                                                                         |
+| `step_add`, `step_set`, `step_rename`, `step_remove` | Change the ledger's steps; removing one needs the reason, which goes into the ledger.                                                                                                                                                                                     |
+| `work_block`                                         | Sets the ledger's `blocked`, or clears it without a reason.                                                                                                                                                                                                               |
+| `work_close`                                         | Closes finished work: refused with the open items unless its ledger has steps, every one done, and nothing is blocked; then complete, and moved to `archive/`.                                                                                                            |
+| `work_archive`                                       | Moves work to `archive/` without closing it: `superseded` (with the work that replaces it, which alone implies it) or `abandoned` (with the reason), which becomes the plan's design status, the reason going into the ledger. A reason without a disposition is refused. |
+| `work_reopen`                                        | Brings archived work back to `active/` with new steps.                                                                                                                                                                                                                    |
+
+Every tool but `where` takes an optional `planningFolder` (an absolute path) and `cwd` (the checkout the agent works in); without them, the server uses the planning folder of the folder the session started in. When several projects register the checkout's repository, the tools need the project's `planningFolder` (a work item only one of them registers names its project), and the [atlas skill](../plugin/skills/atlas/SKILL.md) tells the agent to ask the user which project to plan in. A refusal is a tool error naming the reason and any open items, which the agent can act on. The server's instructions tell the agent to ask the user before creating a work item and to edit prose directly.
+
+Only planning state has tools. Plan bodies, ledger notes, glossaries, ADRs, knowledge and diagrams are files the agent edits like any other; anything that can be a skill is not a tool. The tools never commit: the agent commits planning changes itself.
+
+To configure an MCP client by hand, start `atlas mcp` (on Windows, `node <checkout>/packages/cli/bin/atlas.js mcp`). Its stdout carries only MCP messages.
+
+## Hooks
+
+The plugin runs `atlas hook <event>` on four events. Each reads the event's JSON from stdin, and never fails the session: a failure is noted in the home's `logs/hooks.log`.
+
+| Event          | What Atlas does                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SessionStart` | Tells the agent each project that registers its checkout's repository (its name and planning folder, an absolute path), its active work with each item's statuses, progress, steps being done and anything blocked, and how to plan: ask before opening a work item, change state through the tools, edit prose and diagrams as files. With several projects, it asks the agent to have the user choose the one to plan in. A checkout with no project gets nothing. |
+| `PostToolUse`  | After a file edit (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`, or a patch) or an Atlas tool call: checks every edited file in the home's planning folders (those with a `planning.json`; other files in the home are left alone) with the same rules as `atlas check`, and hands any problems back so the agent fixes them; and links the session to the work item the file belongs to or the tool was called on.                                                  |
+| `Stop`         | Records a statistics report for each work item linked to the session, measured from the session's log since its previous report there, or since the session was linked to the work item.                                                                                                                                                                                                                                                                             |
+| `SubagentStop` | The same when one of the session's subagents stops, so its work is counted while the session goes on.                                                                                                                                                                                                                                                                                                                                                                |
+
+The links live in the [home database](command.md#the-atlas-home) (a session and the work items it touched), with when each was made; hooks running at once change them in transactions of their own. A session that edits the plan of accepted work is amending the design, so its next report counts as planning; otherwise the stage follows the plan's design status. [Progress and statistics](progress-and-statistics.md) explains what a report holds and how Atlas counts it.
+
+## The home and how agents reach it
+
+All planning folders live in the **Atlas home**, `~/.atlas/planning/<name>` (or under `ATLAS_HOME`), each its own Git repository and each a **project**: named by the `name` in its `planning.json` (else the folder's name) and covering one repository or several. A repository may belong to several projects, all equal. [The command reference](command.md#the-atlas-home) lists what else the home holds.
+
+An agent usually works in a product checkout or a worktree elsewhere, so its harness has to let it write into the home. `atlas setup` grants the home once, to every session: as an additional directory in Claude Code (`permissions.additionalDirectories`) and as a writable root in Codex (`[sandbox_workspace_write] writable_roots`). The agent then edits planning files at their absolute paths from any checkout. The MCP server runs outside the harness's sandbox, so the tools' own writes do not depend on that grant.
+
+`atlas home` lists the projects, and `atlas home adopt <folder>` moves an existing planning folder into the home. New projects are made in the app (File › New Project…), or by an agent with the atlas skill.
+
+## How a checkout finds its planning folder
+
+A checkout belongs to a planning folder in the home when:
+
+- **its Git remote** is registered as a repository's `remote` in that folder's `planning.json`. Remotes compare by host, owner and name, so `git@github.com:owner/repo.git` and `https://github.com/owner/repo` match;
+- or, for a repository registered without a remote, its absolute `path` is the checkout;
+- or the session works inside the planning folder itself.
+
+Only active projects in the home match: hidden and archived projects (such as a planning folder split into several projects) never do. A project the app lists outside the home, from before it, is not found by agents at all; move it into the home first (**Move into the Atlas home** in its context menu, or `atlas home adopt <folder>`).
+
+A worktree has its checkout's remotes, so it finds the same folder wherever it is. The active work shown is the work under `active/` for the matching repositories. When several projects match, `where` and the session context list them all by name; an operation on a work item uses the one that registers it, and otherwise needs the project's planning folder: the agent asks the user which project to plan in. When none matches, it asks for the planning folder explicitly. `atlas where` shows the result for the current folder.

@@ -7,7 +7,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import atlas from '@envsemble/atlas-diagrams';
 import { findChromium, launchChromium } from './headlessChromium.ts';
 import { exportPlan } from './planExport.ts';
 
@@ -25,13 +24,12 @@ function fixture(root: string) {
   const work = path.join(root, 'active/0001-checkout');
   mkdirSync(path.join(work, 'evidence'), { recursive: true });
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'shop', name: 'Shop' }], work_items: [{ id: 'work-0001', path: 'active/0001-checkout', repositories: ['shop'], current_plan: 'active/0001-checkout/plan.md' }] }, null, 2));
-  writeFileSync(path.join(work, 'plan.md'), ['---', 'schema_version: 1', 'kind: plan', 'id: work-0001', 'title: ' + JSON.stringify(hostileTitle), 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Checkout', '', '## Data model', '', 'Orders have lines. See the [hostile notes](evidence/hostile.md).', ''].join('\n'));
+  writeFileSync(path.join(work, 'plan.md'), ['---', 'schema_version: 1', 'kind: plan', 'id: work-0001', 'title: ' + JSON.stringify(hostileTitle), 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Checkout', '', '## Data model', '', '[Orders](orders.puml#Order) have lines. See the [hostile notes](evidence/hostile.md).', ''].join('\n'));
   writeFileSync(path.join(work, 'evidence/hostile.md'), hostileMarkdown);
   writeFileSync(path.join(work, 'evidence/page.html'), '<!doctype html><script>window.__pwned = "html attachment"</script><p>Attached page</p>');
   writeFileSync(path.join(work, 'evidence/photo.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" onload="window.parent.__pwned=\'svg\'"><script>window.parent.__pwned = "svg script"</script><rect width="10" height="10" fill="red"/></svg>');
   writeFileSync(path.join(work, 'evidence/binary.bin'), Buffer.from([0, 1, 2, 255]));
-  const model = { type: 'StructuralModel', nodes: [{ id: 'order', name: 'Order', attributes: [] }, { id: 'line', name: 'OrderLine', attributes: [] }], relations: [{ id: 'lines', name: 'lines', sourceId: 'order', targetId: 'line', sourceMultiplicity: '1', targetMultiplicity: '0..*' }], generalizations: [], generalizationSets: [] };
-  atlas.createWorkspace(work).save(atlas.createDocument({ id: 'atlas-orders', profile: 'code', title: 'Orders <img src=x onerror="window.__pwned=\'model\'">', model: model as never, workId: 'work-0001', context: { records: [{ id: 'data', kind: 'plan', title: 'Data model', text: 'Orders have lines.', path: 'plan.md', section: 'Data model' }], links: [{ elementId: 'order', recordId: 'data' }] } }));
+  writeFileSync(path.join(work, 'orders.puml'), '@startuml\ntitle Orders\nclass Order\nclass OrderLine\nOrder "1" *-- "0..*" OrderLine : lines\n@enduml\n');
 }
 
 test('the export opens offline in Chromium, makes no requests and runs no embedded content', { skip: !findChromium() && 'no Chromium-based browser installed' }, async t => {
@@ -50,9 +48,10 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
   await page.waitFor(`document.querySelector('.work-header h1')`);
   assert.equal(await page.evaluate('document.querySelector(".work-header h1").textContent'), hostileTitle);
   await page.waitFor(`document.querySelector('.diagram-card')`);
-  assert.equal(await page.evaluate('document.querySelectorAll("script").length'), 3);
+  // envUI's theme startup script, the two inert payloads and the viewer: nothing the content adds.
+  assert.equal(await page.evaluate('document.querySelectorAll("script").length'), 4);
 
-  // Hostile Markdown is shown as text: no elements, handlers or remote images.
+  // Hostile Markdown renders no elements, handlers or remote images: envUI's Markdown ignores raw HTML.
   await page.evaluate(`location.hash = 'tab=files&file=evidence%2Fhostile.md'`);
   await page.waitFor(`document.querySelector('.reader-name strong')?.textContent === 'hostile.md'`);
   const prose = await page.evaluate<{ text: string; images: string[]; frames: number; links: string[]; handlers: number }>(`(() => {
@@ -61,7 +60,8 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
       frames: document.querySelectorAll('iframe, object, embed').length, links: [...prose.querySelectorAll('a')].map(a => a.getAttribute('href')),
       handlers: document.querySelectorAll('[onerror], [onload], [onclick]').length };
   })()`);
-  assert.match(prose.text, /<script>window.__pwned = "markdown script"<\/script>/);
+  assert.doesNotMatch(prose.text, /window\.__pwned/, 'raw HTML is ignored, not rendered or shown');
+  assert.match(prose.text, /Hostile notes/);
   assert.equal(prose.frames, 0);
   assert.equal(prose.handlers, 0);
   assert.ok(prose.images.every(src => src.startsWith('blob:')), 'only exported images are shown: ' + prose.images.join(', '));
@@ -80,13 +80,13 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
 
   // Diagrams render with the shared viewer and respond to selection.
   await page.evaluate(`location.hash = 'tab=diagrams'`);
-  await page.waitFor(`document.querySelector('.atlas-panel [data-element-kind="node"][data-element-id="order"]')`);
+  await page.waitFor(`document.querySelector('.atlas-panel [data-element-kind="node"][data-element-id="Order"]')`);
   await new Promise(resolve => setTimeout(resolve, 1000)); // let the camera settle after fitting
-  const box = await page.evaluate<{ x: number; y: number }>(`(() => { const rect = document.querySelector('[data-element-kind="node"][data-element-id="order"]').getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; })()`);
+  const box = await page.evaluate<{ x: number; y: number }>(`(() => { const rect = document.querySelector('[data-element-kind="node"][data-element-id="Order"]').getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; })()`);
   const hit = await page.evaluate<string>(`document.elementFromPoint(${box.x}, ${box.y})?.closest('[data-node-id]')?.getAttribute('data-node-id') ?? document.elementFromPoint(${box.x}, ${box.y})?.outerHTML.slice(0, 200)`);
-  assert.equal(hit, 'order', 'the node is visible at its centre');
+  assert.equal(hit, 'Order', 'the node is visible at its centre');
   await page.click(box.x, box.y);
-  await page.waitFor(`document.querySelector('[data-element-kind="node"][data-element-id="order"]').getAttribute('class').includes('selected')`);
+  await page.waitFor(`document.querySelector('[data-element-kind="node"][data-element-id="Order"]').getAttribute('class').includes('selected')`);
   await page.waitFor(`document.querySelector('.atlas-panel .inspector.open')?.textContent.includes('Order')`);
 
   assert.equal(await pwned(), undefined, 'no embedded content ran');

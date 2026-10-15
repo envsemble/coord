@@ -1,13 +1,8 @@
-const fs = require("node:fs");
 const path = require("node:path");
-const { randomUUID } = require("node:crypto");
 const { promisify } = require("node:util");
 const { execFile } = require("node:child_process");
-const {
-  createSnapshot,
-  createDocument,
-  fingerprint,
-} = require("../document/document.cjs");
+const { fingerprint } = require("../fingerprint.cjs");
+const { entityDiagram } = require("./write.cjs");
 const LIMITS = { tables: 200, columns: 4000, bytes: 8 * 1024 * 1024 };
 const identifier = (part) => encodeURIComponent(String(part));
 function sourceOptions(options) {
@@ -16,11 +11,6 @@ function sourceOptions(options) {
     (typeof options.title !== "string" || options.title.length > 300)
   )
     throw new Error("CAPTURE_LIMIT: capture title exceeds 300 characters");
-  if (
-    options?.workId &&
-    (typeof options.workId !== "string" || options.workId.length > 128)
-  )
-    throw new Error("CAPTURE_LIMIT: work identity exceeds 128 characters");
   if (
     !options ||
     !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(options.identity || "")
@@ -54,6 +44,9 @@ function ids(engine, identity) {
 const sameColumns = (a, b) =>
   a.length === b.length &&
   [...a].sort().every((value, i) => value === [...b].sort()[i]);
+// The capture as an entity diagram with its header. Each table cites its
+// catalog entry (or the reference the configuration names for it), with its
+// SQL definition, indexes and triggers as its snippet.
 function finish(engine, options, model, diagnostics, source, consistency) {
   if (
     model.nodes.length > LIMITS.tables ||
@@ -64,8 +57,7 @@ function finish(engine, options, model, diagnostics, source, consistency) {
     throw new Error(
       "CAPTURE_LIMIT: selected schema exceeds 200 tables, 4000 columns or 8 MiB",
     );
-  model.nodes.sort((a, b) => a.id.localeCompare(b.id, "en"));
-  model.relations.sort((a, b) => a.id.localeCompare(b.id, "en"));
+  for (const d of diagnostics) delete d.elementId;
   const capture = {
     capturedAt: new Date().toISOString(),
     adapter: {
@@ -87,9 +79,9 @@ function finish(engine, options, model, diagnostics, source, consistency) {
       diagnostics,
     },
     consistency,
-    schemaFingerprint: fingerprint(model),
     limitations: [
       "Declared metadata only; no application rows or runtime invariants were inspected.",
+      "Keys, nullability and foreign keys are drawn; defaults, unique keys, indexes, checks and triggers are in each table's snippet.",
       ...(engine === "d1"
         ? [
             "Local D1 is a simulation; matching metadata passes do not prove transactional or production consistency.",
@@ -97,54 +89,65 @@ function finish(engine, options, model, diagnostics, source, consistency) {
         : []),
     ],
   };
-  const snapshot = createSnapshot({ profile: "database", model, capture });
-  const evidence = {
-    sources: [],
-    elements: {},
-    unknowns: [...capture.limitations, ...diagnostics.map((d) => d.message)],
-  };
-  for (const node of model.nodes) {
-    const sourceId = `catalog:${node.id}`;
-    evidence.sources.push({
-      id: sourceId,
-      file: `${node.namespace}.${node.name}`,
-      title: `${node.name} catalog`,
-      claim:
-        "Observed database catalog metadata; SQL definitions are retained in this snapshot.",
-    });
-    evidence.elements[node.id] = {
-      status: "observed",
-      evidence: [sourceId],
-      primarySource: sourceId,
+  const postgres = engine === "postgresql";
+  const tables = model.nodes.map((node) => {
+    const name = postgres
+      ? node.name.slice(node.namespace.length + 1)
+      : node.name;
+    const catalog = `${node.namespace}.${name}`;
+    const primary = new Set(node.keys.find((k) => k.primary)?.columns || []);
+    const reference = (options.references || []).find(
+      (r) => (!r.schema || r.schema === node.namespace) && r.table === name,
+    );
+    const definitions = [
+      node.definition,
+      ...(node.constraints || []).map(
+        (c) => `CONSTRAINT ${c.name} ${c.definition}`,
+      ),
+      ...(node.indexes || []).map((i) => i.definition),
+      ...(node.triggers || []).map((t) => t.sql || t.definition),
+    ].filter(Boolean);
+    return {
+      id: node.id,
+      name,
+      package: postgres ? node.namespace : null,
+      columns: node.attributes.map((a) => ({
+        name: a.name,
+        type: a.type,
+        notNull: a.nullable === false,
+        primaryKey: primary.has(a.name),
+      })),
+      evidence: reference
+        ? {
+            file: reference.file,
+            title: reference.title || `${name} schema reference`,
+            claim:
+              "Reference supplied in the source configuration; its correspondence with the captured database is not verified.",
+            ...(reference.url ? { url: reference.url } : {}),
+          }
+        : { file: catalog, title: `${name} catalog` },
+      ...(definitions.length
+        ? {
+            snippet: {
+              language: "sql",
+              file: catalog,
+              // As a code snippet, at most twelve lines.
+              code: definitions
+                .map((d) => (/;\s*$/.test(d) ? d : `${d};`))
+                .join("\n")
+                .split("\n")
+                .slice(0, 12)
+                .join("\n"),
+            },
+          }
+        : {}),
     };
-    for (const reference of (options.references || []).filter(
-      (r) =>
-        (!r.schema || r.schema === node.namespace) &&
-        (r.table === node.name || `${r.schema}.${r.table}` === node.name),
-    )) {
-      const refId = `reference:${fingerprint(reference).slice(0, 20)}`;
-      if (!evidence.sources.some((r) => r.id === refId))
-        evidence.sources.push({
-          id: refId,
-          file: reference.file,
-          title: reference.title || "Schema/migration reference",
-          claim:
-            "Reference supplied in source configuration; correspondence with the captured database is not verified.",
-          ...(reference.url ? { url: reference.url } : {}),
-        });
-      evidence.elements[node.id].evidence.push(refId);
-    }
-  }
-  return createDocument({
-    id: `capture-${randomUUID()}`,
+  });
+  return entityDiagram({
     title: options.title || `${options.identity} schema`,
-    profile: "database",
-    state: "snapshot",
-    model,
-    snapshots: [snapshot],
-    baselineId: snapshot.id,
-    ...(options.workId ? { workId: options.workId } : {}),
-    evidence,
+    capture,
+    tables,
+    foreignKeys: model.relations,
   });
 }
 const emptyModel = () => ({
@@ -362,9 +365,11 @@ function sqliteModel(engine, options, batches) {
         ),
         to = parts.map((p, i) =>
           p.to
-            ? target?.attributes.find(
-                (a) => sqliteName(a.name) === sqliteName(p.to),
-              )?.name || null
+            ? target
+              ? target.attributes.find(
+                  (a) => sqliteName(a.name) === sqliteName(p.to),
+                )?.name || null
+              : p.to
             : target?.keys.find((k) => k.primary)?.columns[i] || null,
         );
       const foreignKey = {
@@ -590,60 +595,9 @@ function localD1Executor(options) {
     return report.map((result) => result.results);
   };
 }
-async function captureFromConfig(workspace, configFile, workId) {
-  let config;
-  try {
-    config = JSON.parse(workspace.readFile(configFile).replace(/^\uFEFF/, ""));
-  } catch {
-    throw new Error(
-      "CAPTURE_CONFIG: source configuration is unavailable or malformed",
-    );
-  }
-  const validate = require("ajv/dist/2020");
-  const schema = require("../../schemas/database-source-schema.json");
-  const validator = new validate({ strict: false }).compile(schema);
-  if (!validator(config))
-    throw new Error(
-      "CAPTURE_CONFIG: source configuration does not match database-source v1",
-    );
-  const base = path.dirname(configFile);
-  const common = { ...config, ...(workId ? { workId } : {}) };
-  if (config.adapter === "sqlite")
-    return captureSQLite({
-      ...common,
-      file: workspace.resolve(path.join(base, config.file)),
-    });
-  if (config.adapter === "postgresql") {
-    if (
-      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(config.connectionEnv || "") ||
-      !process.env[config.connectionEnv]
-    )
-      throw new Error(
-        "CAPTURE_PREREQUISITE: configured PostgreSQL connection environment variable is unavailable",
-      );
-    return require("./postgres.cjs").capturePostgres({
-      ...common,
-      connectionString: process.env[config.connectionEnv],
-    });
-  }
-  if (config.adapter === "d1-local") {
-    const options = {
-      ...common,
-      config: workspace.resolve(path.join(base, config.config)),
-      execution: "wrangler-local",
-    };
-    if (options.wranglerJS)
-      options.wranglerJS = workspace.resolve(options.wranglerJS);
-    return captureD1({ ...options, queryBatch: localD1Executor(options) });
-  }
-  throw new Error(
-    "CAPTURE_CONFIG: supported database adapters are sqlite, postgresql and d1-local",
-  );
-}
 module.exports = {
   captureSQLite,
   captureD1,
-  captureFromConfig,
   localD1Executor,
   sourceOptions,
   ids,

@@ -145,3 +145,64 @@ export function appendRegistryEntries(source: string, key: string, entries: Json
   if (!isDeepStrictEqual(after, expected)) throw new RegistryFormatError('planning.json could not be extended without changing its format.');
   return result;
 }
+
+/**
+ * Return `source` with members of the entry whose `id` is `id` in the top-level array `key` set to
+ * new values, each written in place of the old value; every other byte stays. Only members the
+ * entry already has can be changed. Throws when the result would not parse to exactly the original
+ * registry with those values changed.
+ */
+export function updateRegistryEntry(source: string, key: string, id: string, changes: Record<string, Json>): string {
+  const bom = source.startsWith(BOM) ? 1 : 0;
+  const root = scan(source, bom);
+  if (root.kind !== 'object' || skip(source, root.end) !== source.length) throw new RegistryFormatError('planning.json must be one JSON object.');
+  const array = root.members.find(item => item.key === key)?.value;
+  if (!array || array.kind !== 'array') throw new RegistryFormatError(`planning.json needs a ${key} array.`);
+  const index = array.items.findIndex(item => item.kind === 'object' && item.members.some(member => member.key === 'id' && source.slice(member.value.start, member.value.end) === JSON.stringify(id)));
+  if (index < 0) throw new RegistryFormatError(`planning.json has no ${key} entry ${id}.`);
+  const entry = array.items[index];
+  const style: Style = { eol: source.includes('\r\n') ? '\r\n' : '\n', unit: '  ' };
+  // Replace from the end, so earlier offsets stay valid.
+  const replacements = Object.entries(changes).map(([name, value]) => {
+    const member = entry.members.find(item => item.key === name);
+    if (!member) throw new RegistryFormatError(`The ${key} entry ${id} has no ${name} to change.`);
+    return { member, text: format(value, member.value, source, lineIndent(source, member.keyStart), style) };
+  }).sort((a, b) => b.member.value.start - a.member.value.start);
+  let result = source;
+  for (const { member, text } of replacements) result = result.slice(0, member.value.start) + text + result.slice(member.value.end);
+  const before = JSON.parse(source.slice(bom)) as Record<string, Record<string, Json>[]>;
+  const expected = { ...before, [key]: before[key].map((item, position) => position === index ? { ...item, ...changes } : item) };
+  let after: unknown;
+  try { after = JSON.parse(result.slice(bom)); } catch { throw new RegistryFormatError('planning.json could not be changed without changing its format.'); }
+  if (!isDeepStrictEqual(after, expected)) throw new RegistryFormatError('planning.json could not be changed without changing its format.');
+  return result;
+}
+
+/**
+ * Return `source` with the registry's top-level `name` set: its value replaced where it is, or a
+ * new member after `schema_version` (else first) in the style of its neighbours.
+ */
+export function setRegistryName(source: string, name: string): string {
+  const offset = source.startsWith(BOM) ? 1 : 0;
+  const root = scan(source, offset);
+  if (root.kind !== 'object') throw new RegistryFormatError('planning.json must be an object.');
+  const existing = root.members.find(member => member.key === 'name');
+  let result: string;
+  if (existing) result = source.slice(0, existing.value.start) + JSON.stringify(name) + source.slice(existing.value.end);
+  else if (!root.members.length) result = source.slice(0, root.start) + JSON.stringify({ name }) + source.slice(root.end);
+  else {
+    const after = root.members.find(member => member.key === 'schema_version') ?? null;
+    const first = root.members[0];
+    const colon = source.slice(first.keyEnd, first.value.start);
+    if (after) {
+      const separator = root.members.length > 1 ? source.slice(root.members[0].value.end, root.members[1].keyStart) : ',' + (multiline(source, root) ? (source.includes('\r\n') ? '\r\n' : '\n') + lineIndent(source, first.keyStart) : ' ');
+      result = source.slice(0, after.value.end) + separator + JSON.stringify('name') + colon + JSON.stringify(name) + source.slice(after.value.end);
+    } else {
+      const separator = root.members.length > 1 ? source.slice(first.value.end, root.members[1].keyStart) : ', ';
+      result = source.slice(0, first.keyStart) + JSON.stringify('name') + colon + JSON.stringify(name) + separator + source.slice(first.keyStart);
+    }
+  }
+  const parsed = JSON.parse(result.slice(offset)) as { name?: unknown };
+  if (parsed.name !== name || !isDeepStrictEqual({ ...parsed, name: undefined }, { ...JSON.parse(source.slice(offset)), name: undefined })) throw new RegistryFormatError('planning.json could not be changed safely.');
+  return result;
+}

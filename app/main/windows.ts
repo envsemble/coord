@@ -1,23 +1,52 @@
-// One window per planning folder, like VS Code. Opening a folder that is already open focuses
-// its window; a window without a folder (the welcome window) is reused for the first folder
-// opened from it. Each window has its own in-memory session, so its `atlas:` file protocol can
-// only ever see that window's folder.
-import { realpath, stat } from 'node:fs/promises';
-import path from 'node:path';
-import { BrowserWindow, dialog, screen, session as electronSession, shell, type Session } from 'electron';
-import { inspectPlanningRoot, RecentPlanningRoots, samePlatformPath } from '@envsemble/atlas-planning';
-import type { EventChannel, FolderChange, MenuCommand, RecentFolder, WindowInfo } from '../shared/contract.ts';
+// Each window shows the projects of one computer: this one, or another computer this app paired
+// with. Its tabs show things of those projects side by side, each tab of one project, and the window
+// follows each project's folder on that computer's Atlas host as its tabs need it. Windows and their
+// tabs are kept in the home database, so they open again at the next start. Each window has its own
+// in-memory session, so its `atlas:` file protocol can only ever see the projects it follows.
+import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
+import type { HomeDatabase } from '@envsemble/atlas-planning';
+import type { AccessState, ClientStatus, FolderState, HostClient, Project, ProjectRepository, ProjectState } from '@envsemble/atlas-host';
+import type { EventChannel, MenuCommand, WindowInfo } from '../shared/contract.ts';
 import { AtlasError } from './errors.ts';
-import { FolderSession } from './folder.ts';
+import type { Connections } from './connections.ts';
+import { FolderView } from './folderView.ts';
 import type { RotatingLog } from './log.ts';
 import { createProtocolHandler, originOf, rendererOrigin, scheme } from './protocol.ts';
-import type { Bounds, StateStore } from './state.ts';
+import { defaultSize, type Bounds, type DesktopState, type WindowRow } from './state.ts';
+
+/** envUI's canvas colour in the window's theme, shown until the page paints. */
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
+
+/** The height of the title bar the window draws itself, with its line, at 100% zoom. */
+export const titleBarHeight = 40;
+/**
+ * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
+ * colour, and as tall as the bar above its line. envUI's title bar takes their height (the window
+ * controls overlay's environment variables) and draws its line below them, so the line runs under
+ * them too; scaled by 150%, the system's buttons reach one device pixel lower, which an odd height
+ * leaves clear. Zoomed in, they grow with the bar; zoomed out, the bar keeps its height and so do
+ * they.
+ */
+export const titleBarOverlay = (zoom = 1) => {
+  const height = Math.round((titleBarHeight - 1) * Math.max(1, zoom));
+  return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
+};
+/**
+ * Where a person's press starts, which a page cannot fake: a mouse button, a key (one raw or cooked
+ * key-down per press; not its repeats) or a touch. Releases and the characters a key types do not
+ * count, so each press allows one command.
+ */
+const pressStarts = new Set(['mouseDown', 'rawKeyDown', 'keyDown', 'touchStart']);
+/** macOS keeps its traffic lights, centred in the title bar; elsewhere the overlay draws minimize, maximize and close. */
+const titleBar = () => process.platform === 'darwin'
+  ? { titleBarStyle: 'hidden' as const, titleBarOverlay: true, trafficLightPosition: { x: 14, y: 13 } }
+  : { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() };
 
 export interface WindowContext {
-  state: StateStore;
+  state: DesktopState;
+  database: HomeDatabase;
   log: RotatingLog;
-  recents: RecentPlanningRoots;
-  dataBase?: string;
+  connections: Connections;
   version: string;
   preload: string;
   icon?: string;
@@ -25,10 +54,8 @@ export interface WindowContext {
   devUrl: string | null;
   rendererDirectory: string;
   devTools: boolean;
-  onRecentsChanged(): void;
 }
 
-const defaultSize = { width: 1280, height: 820 };
 const allowedExternal = new Set(['https:', 'http:', 'mailto:']);
 
 export function externalUrl(value: string): string | null {
@@ -43,20 +70,39 @@ let partitions = 0;
 export class AtlasWindow {
   readonly win: BrowserWindow;
   readonly session: Session;
-  folder: FolderSession | null = null;
+  /** The window's row in the home database. */
+  readonly rowId: number;
+  /** The computer whose projects the window shows: a paired computer's host ID, or null for this one. */
+  computer: string | null;
+  /** The projects' folders the window follows, by folder ID. */
+  readonly views = new Map<string, FolderView>();
+  /** Projects whose folder is still being followed: a request for one waits for it. */
+  private readonly opening = new Map<string, Promise<void>>();
+  /** The projects of the window's computer as last listed, with their rows in the home database. */
+  private listed = new Map<string, { project: Project; rowId: number }>();
+  /** The highest revision this window has shown: a project followed again continues above it, so the window never ignores fresh data. */
+  private revisionFloor = 0;
   private readonly manager: WindowManager;
   private crashes: number[] = [];
   private boundsTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When the person last pressed, typed or tapped in this window. */
+  private lastActivation = 0;
+  /** A question or dialog a page's command opened in this window: one at a time. */
+  private asking = false;
+  /** Set as the window starts closing, before it leaves the window list. */
+  closing = false;
 
-  constructor(manager: WindowManager, bounds: Partial<Bounds> | undefined, maximized: boolean) {
+  constructor(manager: WindowManager, row: WindowRow, computer: string | null) {
     this.manager = manager;
+    this.rowId = row.id;
+    this.computer = computer;
     const context = manager.context;
     this.session = electronSession.fromPartition('atlas-window-' + ++partitions, { cache: false });
     this.harden();
     this.win = new BrowserWindow({
-      ...defaultSize, ...visibleBounds(bounds),
-      minWidth: 640, minHeight: 420, show: false, backgroundColor: '#22272e', title: 'Atlas',
-      icon: context.icon, autoHideMenuBar: false,
+      ...defaultSize, ...visibleBounds(row.bounds),
+      minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Atlas',
+      icon: context.icon, ...titleBar(),
       webPreferences: {
         preload: context.preload, session: this.session,
         contextIsolation: true, sandbox: true, nodeIntegration: false, nodeIntegrationInWorker: false, nodeIntegrationInSubFrames: false,
@@ -64,25 +110,42 @@ export class AtlasWindow {
         navigateOnDragDrop: false, spellcheck: false, safeDialogs: true, devTools: context.devTools,
       },
     });
-    if (maximized) this.win.maximize();
-    this.win.once('ready-to-show', () => { this.win.show(); context.log.info('Window ready', { folder: this.folder?.root ?? null }); });
+    if (row.maximized) this.win.maximize();
+    this.win.once('ready-to-show', () => { this.win.show(); context.log.info('Window ready', { computer: this.computer }); });
     this.win.on('page-title-updated', event => event.preventDefault());
     this.win.on('resize', () => this.scheduleBounds());
     this.win.on('move', () => this.scheduleBounds());
     this.guardNavigation();
     this.win.webContents.on('render-process-gone', (_event, details) => this.recover(details.reason));
-    this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { folder: this.folder?.root ?? null }));
-    this.win.on('close', () => { this.saveBounds(); });
+    this.win.webContents.on('input-event', (_event, input) => {
+      if (pressStarts.has(input.type) && !input.modifiers?.includes('isautorepeat')) this.lastActivation = performance.now();
+    });
+    this.win.webContents.on('unresponsive', () => context.log.warn('Window unresponsive', { computer: this.computer }));
+    // The mouse's back and forward buttons over the title bar's empty space reach only the window
+    // (Windows and Linux); the page, which also gets them elsewhere, ignores the repeat.
+    this.win.on('app-command', (_event, command) => {
+      if (command === 'browser-backward') this.send('menu:command', 'goBack');
+      else if (command === 'browser-forward') this.send('menu:command', 'goForward');
+    });
+    this.win.on('close', () => { this.closing = true; this.saveBounds(); });
     this.win.on('closed', () => manager.closed(this));
+    this.updateTitle();
   }
 
   get id() { return this.win.id; }
+  /** The name of the computer the window shows. */
+  get computerName() { return this.computer === null ? this.manager.context.connections.localName : this.manager.context.connections.name(this.computer); }
+  /** The connection to the window's computer. */
+  client(): HostClient {
+    const { connections } = this.manager.context;
+    return this.computer === null ? connections.local : connections.client(this.computer);
+  }
 
   /** Lock this window's session down: our protocol only, no remote requests, no permissions. */
   private harden() {
     const { context } = this.manager;
     const session = this.session;
-    session.protocol.handle(scheme, createProtocolHandler({ rendererDirectory: context.devUrl ? null : context.rendererDirectory, planningRoot: () => this.folder?.root ?? null }));
+    session.protocol.handle(scheme, createProtocolHandler({ rendererDirectory: context.devUrl ? null : context.rendererDirectory, planningFile: (folderId, relative) => this.views.get(folderId)?.file(relative) ?? null }));
     // Copying text (the viewer's copy buttons) is the only permission a window gets.
     const allowed = (permission: string) => permission === 'clipboard-sanitized-write';
     session.setPermissionRequestHandler((_contents, permission, callback) => callback(allowed(permission)));
@@ -109,13 +172,13 @@ export class AtlasWindow {
       if (own(url)) return;
       event.preventDefault();
       const external = externalUrl(url);
-      if (external) void shell.openExternal(external);
+      if (external) void this.openExternal(external).catch(() => undefined);
     });
     contents.on('will-redirect', (event, url) => { if (!own(url)) event.preventDefault(); });
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(({ url }) => {
       const external = externalUrl(url);
-      if (external) void shell.openExternal(external);
+      if (external) void this.openExternal(external).catch(() => undefined);
       return { action: 'deny' };
     });
   }
@@ -125,42 +188,224 @@ export class AtlasWindow {
     void (context.devUrl ? this.win.loadURL(context.devUrl) : this.win.loadURL(rendererOrigin + '/index.html'));
   }
 
-  /** Bind (or rebind) this window to a planning folder and start reading it. */
-  async bind(root: string) {
-    const { context } = this.manager;
-    this.folder?.close();
-    const folder = new FolderSession(root, {
-      dataBase: context.dataBase, log: context.log,
-      onChange: change => { if (this.folder === folder) this.send('planning:changed', change); },
-    });
-    this.folder = folder;
+  // ---- Projects --------------------------------------------------------------------------------
+
+  /**
+   * The projects of the window's computer, in their order. This computer's are its host's, rows of
+   * the same database; a paired computer's order and state are this app's own rows of them.
+   */
+  async projects(): Promise<Project[]> {
+    const { connections, database } = this.manager.context;
+    const computer = this.computer;
+    const listed = await this.client().request('projects.list', {}, { timeout: 20000 });
+    let projects: { project: Project; rowId: number }[];
+    if (computer === null) {
+      projects = listed.flatMap(project => { const row = database.projectByFolder(project.path); return row ? [{ project, rowId: row.id }] : []; });
+    } else {
+      const connectionId = connections.idOf(computer);
+      projects = listed.map(project => {
+        const row = database.addProject(project.path, project.name, connectionId);
+        if (row.name !== project.name) database.updateProject(row.id, { name: project.name });
+        return { project, rowId: row.id };
+      });
+      const rows = new Map(database.projects(connectionId).map(row => [row.id, row]));
+      projects = projects.map(({ project, rowId }) => ({ project: { ...project, position: rows.get(rowId)!.position, state: rows.get(rowId)!.state }, rowId }))
+        .sort((a, b) => a.project.position - b.project.position);
+    }
+    if (computer === this.computer) this.listed = new Map(projects.map(entry => [entry.project.folderId, entry]));
+    return projects.map(entry => entry.project);
+  }
+  /** A project's row in the home database, by its folder ID (listed again when it is not known yet). */
+  async projectRow(folderId: string): Promise<number> {
+    if (!this.listed.has(folderId)) await this.projects();
+    const entry = this.listed.get(folderId);
+    if (!entry) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
+    return entry.rowId;
+  }
+  /** A project's row among the projects last listed, without listing them again; null when it is not among them. */
+  listedRow(folderId: string): number | null { return this.listed.get(folderId)?.rowId ?? null; }
+  /** The project rows whose saved tabs the page loaded (ui:load): saving replaces only theirs. */
+  readonly tabsLoaded = new Set<number>();
+  /** The rows of the projects last listed. */
+  listedRows(): number[] { return [...this.listed.values()].map(entry => entry.rowId); }
+  /** The folder ID of a project row, among the projects last listed. */
+  folderOf(rowId: number): string | null {
+    for (const [folderId, entry] of this.listed) if (entry.rowId === rowId) return folderId;
+    return null;
+  }
+  async createProject(name: string, repositories: ProjectRepository[]): Promise<Project> {
+    const created = await this.client().request('projects.create', { name, repositories }, { timeout: 60000 });
+    return (await this.projects()).find(project => project.folderId === created.folderId) ?? created;
+  }
+  /**
+   * Change a project: on this computer through its host, so every device sees it. On a paired
+   * computer, a new name goes to its host (it is in the planning folder), while hiding, archiving
+   * and the order are this app's own.
+   */
+  async updateProject(folderId: string, change: { name?: string; state?: ProjectState; position?: number }): Promise<Project> {
+    const { database } = this.manager.context;
+    if (this.computer === null) await this.client().request('projects.update', { folderId, ...change });
+    else {
+      if (change.name !== undefined) await this.client().request('projects.update', { folderId, name: change.name });
+      const rowId = await this.projectRow(folderId);
+      if (change.state !== undefined || change.position !== undefined) database.updateProject(rowId, { state: change.state, position: change.position });
+      this.manager.projectsChanged(this.computer);
+    }
+    const project = (await this.projects()).find(entry => entry.folderId === folderId);
+    if (!project) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
+    return project;
+  }
+
+  /**
+   * Move a project outside its computer's Atlas home into it. It keeps its row (on a paired computer,
+   * this app's row follows its new folder), so its order, state and saved tabs stay; every window
+   * showing that computer follows it under its new folder ID.
+   */
+  async adoptProject(folderId: string): Promise<Project> {
+    const rowId = await this.projectRow(folderId);
+    const moved = await this.client().request('projects.adopt', { folderId }, { timeout: 120000 });
+    if (this.computer !== null) this.manager.context.database.updateProject(rowId, { folder: moved.path });
+    this.manager.projectMoved(this.computer, folderId, moved.folderId);
+    return (await this.projects()).find(project => project.folderId === moved.folderId) ?? moved;
+  }
+  /**
+   * A project of the window's computer moved under a new folder ID: the folder it left is no longer
+   * followed, and its row (with its saved tabs) goes by the new ID until the projects are listed
+   * again. The page moves its tabs and history.
+   */
+  projectMoved(from: string, to: string) {
+    const view = this.views.get(from);
+    if (view) { this.views.delete(from); this.revisionFloor = Math.max(this.revisionFloor, view.revision); view.close(); }
+    const entry = this.listed.get(from);
+    if (entry) { this.listed.delete(from); this.listed.set(to, { ...entry, project: { ...entry.project, folderId: to } }); }
+    this.send('projects:changed', { hostId: this.computer, moved: { from, to } });
+  }
+
+  /** A project's folder, followed from now on (its changes reach the window). */
+  async open(folderId: string): Promise<FolderView> {
+    const known = this.views.get(folderId);
+    // A request while the project is still opening waits for it, so it never asks before the host follows it.
+    if (known) { await this.opening.get(folderId); return known; }
+    const view = new FolderView(this.client(), folderId, this.computer === null ? null : { hostId: this.computer, hostName: this.computerName }, this.revisionFloor);
+    this.views.set(folderId, view);
+    const ready = (async () => {
+      try { view.update(await view.client.follow(folderId)); }
+      catch (error) {
+        this.manager.context.log.warn('Project could not open', { folderId, message: (error as Error).message });
+        view.failed((error as Error).message);
+      }
+    })();
+    this.opening.set(folderId, ready);
+    try { await ready; } finally { if (this.opening.get(folderId) === ready) this.opening.delete(folderId); }
+    return view;
+  }
+  /**
+   * Stop following a project's folder: the page shows nothing of it any more. The host keeps it while
+   * another window on the same connection follows it.
+   */
+  closeProject(folderId: string) {
+    const view = this.views.get(folderId);
+    if (!view) return;
+    this.views.delete(folderId);
+    this.letGo(view);
+  }
+  private letGo(view: FolderView) {
+    this.revisionFloor = Math.max(this.revisionFloor, view.revision);
+    if (!this.manager.all().some(other => other !== this && other.views.get(view.folderId)?.client === view.client)) view.close();
+  }
+  /** A project's folder for a request: followed, and readable. */
+  async readable(folderId: string): Promise<FolderView> {
+    const view = await this.open(folderId);
+    if (view.status === 'missing' || (view.status === 'invalid' && view.error)) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This project cannot be read.');
+    return view;
+  }
+  /** Let every project go (the window shows another computer, or closes); other windows keep those they follow. */
+  private release() {
+    for (const view of this.views.values()) this.letGo(view);
+    this.views.clear();
+    this.listed.clear();
+    this.tabsLoaded.clear();
+  }
+
+  /** Show another computer's projects: the window lets this one's go and starts again. */
+  showComputer(hostId: string | null) {
+    this.release();
+    this.computer = hostId;
+    this.manager.context.state.updateWindow(this.rowId, { connectionId: hostId === null ? null : this.manager.context.connections.idOf(hostId) });
+    if (hostId !== null) this.client();
     this.updateTitle();
-    const saved = context.state.folder(root);
-    if (saved?.bounds && !this.win.isVisible()) this.win.setBounds(visibleBounds(saved.bounds));
-    await folder.start().catch(error => context.log.error('Folder could not start', error));
-    this.updateTitle();
+    this.load();
+  }
+
+  /** The window buttons follow the theme and the page zoom (macOS keeps its own traffic lights). */
+  updateTitleBar() {
+    if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
+  }
+
+  /** View › Zoom: half a zoom level a step, as Chromium's own, from 25% to 471%; the title bar keeps up. */
+  zoom(change: 'in' | 'out' | 'reset') {
+    if (this.win.isDestroyed()) return;
+    const contents = this.win.webContents;
+    contents.setZoomLevel(change === 'reset' ? 0 : Math.min(8.5, Math.max(-7.5, contents.getZoomLevel() + (change === 'in' ? 0.5 : -0.5))));
+    this.updateTitleBar();
+  }
+
+  /**
+   * Whether the person pressed, typed or tapped in the window just now, using that press up: each
+   * press allows one command. Paste, which reads the clipboard, needs one.
+   */
+  takeActivation(within = 2000) {
+    const fresh = this.lastActivation > 0 && performance.now() - this.lastActivation <= within;
+    if (fresh) this.lastActivation = 0;
+    return fresh;
+  }
+
+  /**
+   * Commands a page could misuse (quitting, opening windows, remote access, leaving for the browser)
+   * run at once right after a person's press. Without one (a compromised page, but also a screen
+   * reader's click, which makes no input event), Atlas asks in a system dialog the page cannot
+   * answer. One question or dialog at a time.
+   */
+  async confirm(message: string, action: string, detail?: string): Promise<boolean> {
+    return this.takeActivation() || this.ask(message, action, detail);
+  }
+
+  /**
+   * Asks in a system dialog the page cannot answer, press or not. Creating a pairing link, which hands
+   * the computer to whoever uses it, always asks. One question or dialog at a time.
+   */
+  async ask(message: string, action: string, detail?: string): Promise<boolean> {
+    if (this.win.isDestroyed()) return false;
+    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    this.asking = true;
+    try {
+      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Atlas', message, detail, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
+      return response === 0 && !this.win.isDestroyed();
+    } finally { this.asking = false; }
+  }
+
+  /** Opens a web or mail address in the system's browser, after a person's press or their answer. */
+  async openExternal(address: string) {
+    if (await this.confirm('Open this address in your browser?', 'Open', address)) await shell.openExternal(address);
+  }
+
+  /** Dialogs a page opens (choosing a file) come one at a time, so a page cannot pile them up. */
+  async oneDialog<T>(open: () => Promise<T>): Promise<T> {
+    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    this.asking = true;
+    try { return await open(); } finally { this.asking = false; }
   }
 
   updateTitle() {
-    this.win.setTitle(this.folder ? this.folder.name + ' — Atlas' : 'Atlas');
-    if (this.folder) this.win.setRepresentedFilename?.(this.folder.root);
+    if (this.win.isDestroyed()) return;
+    this.win.setTitle(this.computer === null ? 'Atlas' : this.computerName + ' — Atlas');
   }
 
   info(): WindowInfo {
-    const folder = this.folder;
-    return {
-      folder: folder ? { root: folder.root, name: folder.name } : null,
-      status: folder?.status ?? null, error: folder?.error ?? null, notice: folder?.notice ?? null, revision: folder?.revision ?? 0,
-      version: this.manager.context.version, platform: process.platform,
-    };
+    return { computer: { hostId: this.computer, name: this.computerName }, version: this.manager.context.version, platform: process.platform, devTools: this.manager.context.devTools };
   }
 
-  requireFolder(): FolderSession {
-    if (!this.folder) throw new AtlasError('no-folder', 'Open a planning folder first.');
-    return this.folder;
-  }
-
-  send(channel: EventChannel, payload: FolderChange | MenuCommand) {
+  send(channel: EventChannel, payload: unknown) {
     if (!this.win.isDestroyed()) this.win.webContents.send(channel, payload);
   }
 
@@ -176,15 +421,14 @@ export class AtlasWindow {
   }
   private saveBounds() {
     if (this.boundsTimer) { clearTimeout(this.boundsTimer); this.boundsTimer = null; }
-    if (!this.folder || this.win.isDestroyed()) return;
-    const bounds = this.win.getNormalBounds();
-    this.manager.context.state.updateFolder(this.folder.root, { bounds: { x: Math.round(bounds.x), y: Math.round(bounds.y), width: Math.round(bounds.width), height: Math.round(bounds.height) }, maximized: this.win.isMaximized() });
+    if (this.win.isDestroyed()) return;
+    this.manager.context.state.updateWindow(this.rowId, { bounds: this.win.getNormalBounds(), maximized: this.win.isMaximized() });
   }
 
   /** A crashed renderer reloads; its tabs come back from the saved window state. */
   private recover(reason: string) {
     const { log } = this.manager.context;
-    log.error('Window renderer gone', { reason, folder: this.folder?.root ?? null });
+    log.error('Window renderer gone', { reason, computer: this.computer });
     if (reason === 'clean-exit' || this.win.isDestroyed()) return;
     const now = Date.now();
     this.crashes = [...this.crashes.filter(time => now - time < 60000), now];
@@ -199,10 +443,7 @@ export class AtlasWindow {
     });
   }
 
-  close() {
-    this.folder?.close();
-    this.folder = null;
-  }
+  close() { this.release(); }
 }
 
 /** Keep restored windows on a connected display. */
@@ -225,134 +466,109 @@ export class WindowManager {
   all() { return [...this.windows.values()]; }
   fromId(id: number) { return this.windows.get(id); }
   focused() { const win = BrowserWindow.getFocusedWindow(); return win ? this.windows.get(win.id) : this.all().at(-1); }
-  /** At quit, the open folder windows are restored next time. Closing windows one by one keeps the last one. */
-  setQuitting() {
-    if (this.quitting) return;
-    this.quitting = true;
-    if (this.windows.size) this.context.state.setWindows(this.all().flatMap(window => window.folder ? [window.folder.root] : []));
-  }
+  /** At quit, the open windows stay in the database and open again next time; closing one by hand forgets it. */
+  setQuitting() { this.quitting = true; }
 
-  /** A new window, optionally for a folder. */
-  async create(root: string | null) {
-    const saved = root ? this.context.state.folder(root) : undefined;
-    const window = new AtlasWindow(this, saved?.bounds, saved?.maximized ?? false);
+  /** A new window on a computer (null: this one), or one saved in the database. */
+  create(hostId: string | null, saved?: WindowRow) {
+    const { connections, state } = this.context;
+    const row = saved ?? (() => {
+      const bounds = { x: 0, y: 0, ...defaultSize };
+      const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+      bounds.x = Math.round(display.x + (display.width - bounds.width) / 2); bounds.y = Math.round(display.y + (display.height - bounds.height) / 2);
+      const id = state.addWindow(hostId === null ? null : connections.idOf(hostId), bounds);
+      return state.windows().find(window => window.id === id)!;
+    })();
+    const window = new AtlasWindow(this, row, hostId);
     this.windows.set(window.id, window);
-    // Read the folder while the renderer starts; the renderer waits for the first change event.
-    const binding = root ? window.bind(root) : null;
+    if (hostId !== null) { try { connections.client(hostId); } catch { /* Forgotten meanwhile: the window says so. */ } }
     window.load();
-    await binding;
-    this.rememberOpen();
     return window;
   }
 
-  /**
-   * Open a planning folder: focus the window that has it, reuse an empty window, or open a new one.
-   * - picker: the folder must be a valid planning folder; problems are explained in a dialog.
-   * - command-line: the folder must exist; a broken planning.json shows in its window, with Locate… and Close.
-   * - restore: restored folders open even when missing, so their window can offer Locate… and Close.
-   */
-  async open(input: string, options: { from?: AtlasWindow; mode: 'picker' | 'command-line' | 'restore' }) {
-    let root: string;
-    try {
-      if (options.mode === 'picker') root = (await inspectPlanningRoot(input)).path;
-      else if (options.mode === 'command-line') {
-        root = await realpath(input).catch(() => { throw new Error('This folder does not exist: ' + input); });
-        if (!(await stat(root)).isDirectory()) throw new Error('Choose a folder, not a file: ' + input);
-      } else root = await realpath(input).catch(() => path.resolve(input));
-    } catch (error) {
-      this.context.log.warn('Folder not opened', { input, error: (error as Error).message });
-      if (options.mode !== 'restore') await this.explain(options.from, 'This folder cannot be opened as a planning folder.', (error as Error).message + '\n\nA planning folder has a planning.json registry (schema version 1). Use the atlas-bootstrap skill to create one.');
-      return null;
+  /** The windows saved in the database (those open when Atlas quit), or one new window. */
+  restore() {
+    const { connections } = this.context;
+    for (const row of this.context.state.windows()) {
+      const hostId = row.connectionId === null ? null : connections.hostIdFor(row.connectionId);
+      this.create(hostId, row);
     }
-    const existing = this.all().find(window => window.folder && samePlatformPath(window.folder.root, root));
-    if (existing) { existing.focus(); await this.remember(root); return existing; }
-    const empty = options.from && !options.from.folder ? options.from : undefined;
-    let window: AtlasWindow;
-    if (empty) {
-      const binding = empty.bind(root);
-      empty.load();
-      await binding;
-      window = empty;
-    } else window = await this.create(root);
-    await this.remember(root);
-    this.rememberOpen();
+    if (!this.windows.size) this.create(null);
+  }
+
+  /** Show another computer's projects in this window, or in a new one. */
+  switchComputer(window: AtlasWindow, hostId: string | null, newWindow: boolean) {
+    if (newWindow) return this.create(hostId);
+    if (window.computer === hostId) return window;
+    const left = window.computer;
+    window.showComputer(hostId);
+    this.releaseUnused(left);
     return window;
   }
-
-  /** Point a window whose folder moved at its new location. */
-  async locate(window: AtlasWindow) {
-    const choice = await dialog.showOpenDialog(window.win, { title: 'Locate the planning folder', properties: ['openDirectory'] });
-    if (choice.canceled || !choice.filePaths[0]) return;
-    let root: string;
-    try { root = (await inspectPlanningRoot(choice.filePaths[0])).path; } catch (error) {
-      await this.explain(window, 'This folder cannot be opened as a planning folder.', (error as Error).message);
-      return;
-    }
-    const existing = this.all().find(other => other !== window && other.folder && samePlatformPath(other.folder.root, root));
-    if (existing) { existing.focus(); window.win.close(); return; }
-    const previous = window.folder?.root;
-    if (previous) {
-      // Carry the window's tabs and sidebar over to the new location.
-      this.context.state.updateFolder(root, { ui: this.context.state.ui(previous) });
-      await this.context.recents.forget(previous);
-    }
-    const binding = window.bind(root);
-    window.load();
-    await binding;
-    await this.remember(root);
-    this.rememberOpen();
+  /** The connection to a paired computer closes once no window shows it. */
+  private releaseUnused(hostId: string | null) {
+    if (hostId && !this.all().some(other => other.computer === hostId)) this.context.connections.release(hostId);
   }
 
-  async chooseFolder(from?: AtlasWindow) {
-    const choice = from ? await dialog.showOpenDialog(from.win, { title: 'Open a planning folder', properties: ['openDirectory'] }) : await dialog.showOpenDialog({ title: 'Open a planning folder', properties: ['openDirectory'] });
-    if (choice.canceled || !choice.filePaths[0]) return null;
-    return this.open(choice.filePaths[0], { from, mode: 'picker' });
+  /** A computer's projects changed: the windows showing it list them again. */
+  projectsChanged(hostId: string | null) {
+    for (const window of this.all()) if (window.computer === hostId) window.send('projects:changed', { hostId });
   }
 
-  async recents(): Promise<RecentFolder[]> {
-    const list = await this.context.recents.list();
-    return Promise.all(list.map(async item => {
-      const available = await stat(item).then(info => info.isDirectory(), () => false);
-      let workItems: number | null = null;
-      if (available) workItems = await inspectPlanningRoot(item).then(info => info.workItems, () => null);
-      return { path: item, name: path.basename(item) || item, parent: path.dirname(item), workItems, available };
-    }));
+  /** A project of a computer moved under a new folder ID: the windows showing that computer follow it. */
+  projectMoved(hostId: string | null, from: string, to: string) {
+    for (const window of this.all()) if (window.computer === hostId) window.projectMoved(from, to);
   }
-
-  async openRecent(root: string, from?: AtlasWindow) {
-    if (!(await this.context.recents.list()).some(item => samePlatformPath(item, root))) throw new AtlasError('invalid-argument', 'This folder is not in the recent list.');
-    const opened = await this.open(root, { from, mode: 'picker' });
-    if (!opened && !(await stat(root).then(() => true, () => false))) {
-      await this.context.recents.forget(root);
-      this.context.onRecentsChanged();
+  /** A folder event from a host reaches the windows following that project. */
+  folderChanged(client: HostClient, state: FolderState) {
+    for (const window of this.all()) {
+      const view = window.views.get(state.folderId);
+      if (!view || view.client !== client) continue;
+      view.update(state);
+      window.send('planning:changed', { project: state.folderId, ...view.change() });
     }
   }
-  async clearRecents() {
-    await this.context.recents.clear();
-    this.context.onRecentsChanged();
+  /** A connection's status reaches the windows reading through it. */
+  connectionChanged(client: HostClient, status: ClientStatus, detail: string | null) {
+    const hostId = client === this.context.connections.local ? null : this.context.connections.hostIdOf(client);
+    for (const window of this.all()) {
+      if (window.computer !== hostId) continue;
+      // Once the computer answers again, its projects are listed again.
+      if (status === 'connected') window.send('projects:changed', { hostId });
+      for (const view of window.views.values()) {
+        if (view.client !== client) continue;
+        view.connection(status, detail);
+        window.send('planning:changed', { project: view.folderId, ...view.change() });
+      }
+    }
+  }
+  /** Remote access changed on a computer (devices, listening): every window may show it. */
+  accessChanged(hostId: string | null, state: AccessState) {
+    for (const window of this.all()) window.send('access:changed', { hostId, state });
   }
 
-  sendMenu(command: MenuCommand) {
-    const window = this.focused();
+  sendMenu(command: MenuCommand, focusedOnly = false) {
+    const focused = BrowserWindow.getFocusedWindow();
+    const window = focusedOnly ? (focused ? this.windows.get(focused.id) : undefined) : this.focused();
     if (window) { window.focus(); window.send('menu:command', command); }
   }
 
-  closed(window: AtlasWindow) {
-    window.close();
-    this.windows.delete(window.id);
-    if (!this.quitting && this.windows.size) this.rememberOpen();
+  /** Pairing again replaced a computer's connection: its windows start again through the new one. */
+  rebindRemote(hostId: string) {
+    for (const window of this.all()) if (window.computer === hostId) window.showComputer(hostId);
+  }
+  /** Forget a paired computer: windows showing it show this computer instead; its rows go with it. */
+  forgetComputer(hostId: string) {
+    for (const window of this.all()) if (window.computer === hostId) window.showComputer(null);
+    this.context.connections.forget(hostId);
   }
 
-  private rememberOpen() {
-    if (this.quitting) return;
-    this.context.state.setWindows(this.all().flatMap(window => window.folder ? [window.folder.root] : []));
-  }
-  private async remember(root: string) {
-    await this.context.recents.remember(root);
-    this.context.onRecentsChanged();
-  }
-  private async explain(window: AtlasWindow | undefined, message: string, detail: string) {
-    const options = { type: 'warning' as const, title: 'Atlas', message, detail, buttons: ['OK'] };
-    if (window && !window.win.isDestroyed()) await dialog.showMessageBox(window.win, options); else await dialog.showMessageBox(options);
+  closed(window: AtlasWindow) {
+    const left = window.computer;
+    window.close();
+    this.windows.delete(window.id);
+    // A window closed by hand is forgotten; at quit, and when the last one closes, the windows stay for the next start.
+    if (!this.quitting && this.windows.size) this.context.state.removeWindow(window.rowId);
+    this.releaseUnused(left);
   }
 }

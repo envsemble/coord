@@ -1,6 +1,6 @@
 {
   "name": "atlas",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Plans, models and shared understanding for agents and the people they work with",
   "repository": {
@@ -21,12 +21,15 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @envsemble/atlas-app",
+    "dev:home": "node scripts/dev-home.mjs",
     "dev:diagrams": "npm run dev --workspace @envsemble/atlas-diagrams",
+    "dev:envui": "node scripts/dev-envui.mjs",
+    "envui:unlink": "node scripts/dev-envui.mjs --unlink",
     "preview": "npm run preview --workspace @envsemble/atlas-diagrams",
     "build": "npm run build --workspaces --if-present",
     "package": "npm run package --workspace @envsemble/atlas-app",
     "test": "npm test --workspaces --if-present",
-    "test:skills": "node --test \"skills/tests/*.test.mjs\"",
+    "test:skills": "node --test \"plugin/tests/*.test.mjs\"",
     "test:e2e": "npm run test:e2e --workspace @envsemble/atlas-app",
     "format": "npm run format --workspace @envsemble/atlas-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "npm run format:check --workspace @envsemble/atlas-diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
@@ -34,8 +37,6 @@
     "check": "npm run check --workspace @envsemble/atlas-diagrams",
     "check:package": "npm run check:package --workspace @envsemble/atlas-diagrams",
     "check:performance": "npm run check:performance --workspace @envsemble/atlas-diagrams",
-    "check:review": "npm run check:review --workspace @envsemble/atlas-app",
-    "review:example": "node packages/diagrams/scripts/review-example.cjs",
     "release:assemble": "node scripts/release.cjs",
     "check:release": "node scripts/check-release.cjs"
   },

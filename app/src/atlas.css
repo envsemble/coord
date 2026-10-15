@@ -1,0 +1,385 @@
+/* Atlas on envUI: the layout of Atlas's own regions. Colours, type, controls and their states come
+   from envUI components and tokens; nothing here restyles an envUI component's insides. */
+
+html, body, #root { min-block-size: 100%; }
+body { margin: 0; }
+.muted { color: var(--color-text-muted); }
+.spacer { flex: 1; }
+.row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+/* Work status and tones: GitHub's issue colours on envUI's tone tokens. */
+.status-icon { inline-size: 1.125rem; block-size: 1.125rem; flex: none; color: var(--color-tone-neutral); }
+.status-icon[data-tone='success'], .status-text[data-tone='open'] { color: var(--color-tone-success); }
+.status-icon[data-tone='done'], .status-text[data-tone='done'] { color: var(--color-tone-done); }
+.status-icon[data-tone='danger'], .status-text[data-tone='danger'] { color: var(--color-tone-danger); }
+.status-icon[data-tone='warning'], .status-text[data-tone='attention'] { color: var(--color-tone-warning); }
+.status-icon[data-tone='neutral'], .status-text[data-tone='muted'] { color: var(--color-tone-neutral); }
+
+/* A window that is starting, or reading its folder. */
+.page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
+
+/* The title bar: the logo, the menus and the computer at the start; search, record health and the
+   theme at the end, before the window buttons the system draws. */
+.title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+/* In a narrow window the menus and arrows keep their width; the computer's name gives way. */
+.title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
+.title-bar-start > .computer-trigger { min-inline-size: 0; }
+.title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
+/* Back and forward, close together after the menus. */
+.history-buttons { display: flex; align-items: center; }
+.computer-trigger { max-inline-size: 16rem; }
+
+/* The workbench: tabs stick at the top of the shell's content area, which scrolls the page below them. */
+.workbench-body { --atlas-tabs-height: 0rem; --atlas-sticky-top: calc(var(--app-sticky-top) + var(--atlas-tabs-height)); position: relative; min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
+.workbench-body.has-tabs { --atlas-tabs-height: 2.5rem; }
+.workbench-tabs { position: sticky; inset-block-start: var(--app-sticky-top); z-index: 10; background: var(--color-canvas); }
+.workbench-page > .folder-error { margin-block-end: var(--space-4); }
+.workbench-page { flex: 1; min-inline-size: 0; padding: var(--space-6) var(--space-7) var(--space-9); }
+.workbench-page:has(> .work-page) { padding-block-start: 0; }
+/* A diagram fills the content area below the tabs. */
+.workbench-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
+.workbench-body.is-filled .workbench-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
+/* The filled body does not scroll, so its tabs stay where they are instead of sticking. */
+.workbench-body.is-filled .workbench-tabs { position: relative; inset-block-start: auto; }
+.search-button { min-inline-size: 13rem; justify-content: flex-start; }
+.search-button-label { flex: 1; text-align: start; }
+/* Narrow windows keep the title bar on one line: the search button drops its keys, then its label. */
+@media (max-width: 72rem) {
+  .search-button { min-inline-size: 0; }
+  .search-button-keys { display: none; }
+}
+@media (max-width: 60rem) {
+  .search-button-label { display: none; }
+}
+.health-button.has-errors { color: var(--color-tone-danger); }
+.health-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.health-list li { display: flex; gap: var(--space-2); align-items: flex-start; }
+.health-icon { flex: none; margin-block-start: 0.125rem; color: var(--color-tone-warning); }
+.health-list li[data-level='error'] .health-icon { color: var(--color-tone-danger); }
+
+/* The sidebar's projects: a strip with the search and New Project at the top, then the projects as
+   cards, which scroll below it, the hidden and archived ones in a group after them. */
+.workbench .env-app-navigation { justify-items: stretch; padding-block-end: var(--space-2); }
+/* A quiet strip: the search, only its icon and placeholder at rest, and New Project beside it. */
+.project-strip { display: flex; align-items: center; gap: var(--space-1); min-inline-size: 0; }
+/* The field (the class is on its input) takes the room, so New Project ends where the cards end. */
+.project-strip > .env-text-field { flex: 1 1 auto; min-inline-size: 0; }
+.project-strip > :last-child { margin-inline-start: auto; }
+.project-icons { display: grid; gap: var(--space-1); }
+.project-cards { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-1) var(--env-sidebar-inset, var(--space-3)) var(--space-4); }
+.project-list { display: grid; gap: var(--space-2); }
+.project-list-state { padding: var(--space-2); }
+/* A card in the sidebar's own text size: repositories and age, the name, then facts, as in T3 Code's
+   thread cards. The name's button covers the card; the corner action sits above it and replaces the
+   age while the pointer or focus is on the card. */
+.project-card.env-card { position: relative; display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-large, 1rem); font: var(--type-body-small); transition: background-color var(--motion-duration-fast) var(--motion-ease); }
+.project-card:hover { background: var(--env-surface-hover); }
+.project-card[data-selected] { background: var(--color-navigation-selected); color: var(--color-on-navigation-selected); }
+.project-card:has(.project-card-open:focus-visible) { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; }
+.project-card-open { overflow: hidden; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: start; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.project-card-open:focus-visible { outline: none; }
+.project-card-open::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.project-card-line { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; color: var(--color-text-muted); }
+/* Dimmed by colour, not opacity: opacity would put the line under the card's open button, Hide included. */
+.project-card[data-selected] .project-card-line { color: color-mix(in srgb, currentColor 80%, transparent); }
+.project-card-repositories, .project-card-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-card-repositories { flex: 1 1 auto; min-inline-size: 0; }
+.project-card-age { flex: none; margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+/* The corner action is a quiet button of its own, its icon and label with a soft fill under the pointer, above the card's open button. */
+.project-card-action.env-button { position: relative; z-index: 1; display: none; flex: none; gap: var(--space-1); min-block-size: 0; block-size: 1.75rem; margin-block: -0.375rem; margin-inline-start: auto; padding-inline: var(--space-2) var(--space-3); font: inherit; font-weight: 500; }
+.project-card-action.env-button .env-symbol, .project-card-action.env-button svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; }
+.project-card:is(:hover, :focus-within) .project-card-action.env-button { display: inline-flex; }
+.project-card:is(:hover, :focus-within) .project-card-age { display: none; }
+.project-card-fact { display: inline-flex; align-items: center; gap: 0.125rem; font-variant-numeric: tabular-nums; }
+.project-card-fact .env-symbol, .project-card-fact svg, .project-details-work .env-symbol, .project-details-work svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; flex: none; }
+.project-card-fact[data-tone='blocked'], .project-details-work [data-tone='blocked'] > svg, .project-details-work [data-tone='blocked'] > .env-symbol { color: var(--color-tone-danger); }
+.project-card-fact[data-tone='implementing'], .project-details-work [data-tone='implementing'] > svg, .project-details-work [data-tone='implementing'] > .env-symbol { color: var(--color-tone-success); }
+.project-card-live { display: inline-flex; margin-inline-start: auto; padding: 0.25rem; }
+/* An agent at work: a green dot that breathes, still when motion is reduced. */
+.project-live-dot { display: inline-block; flex: none; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--color-tone-success); box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tone-success) 50%, transparent); animation: project-live 1.8s var(--motion-ease) infinite; }
+@keyframes project-live { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tone-success) 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 0.375rem transparent; } }
+@media (prefers-reduced-motion: reduce) { .project-live-dot { animation: none; } }
+.project-card[data-state='archived'], .project-card[data-state='hidden'] { opacity: 0.85; }
+/* A card's details, on hover: the name, the folder and repositories, then the work that needs eyes. */
+.project-details { display: grid; gap: var(--space-2); min-inline-size: 0; font: var(--type-body-small); }
+.project-details-name { margin: 0; font-weight: 600; }
+.project-details-line { display: flex; align-items: center; gap: var(--space-2); margin: 0; overflow-wrap: anywhere; }
+.project-details-line > svg, .project-details-line > .env-symbol { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
+.project-details-work { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-2) 0 0; border-block-start: 0.0625rem solid var(--color-border); list-style: none; }
+.project-details-work li { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.project-details-work [data-tone='live'] .project-live-dot { margin-inline: 0.25rem; }
+.project-details-id { flex: none; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.project-details-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-details-live { flex: none; margin-inline-start: auto; color: var(--color-tone-success); }
+.project-group { display: grid; gap: var(--space-2); }
+.project-group > summary { padding: var(--space-2); border-radius: var(--radius-standard); color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; cursor: pointer; }
+.project-group > summary:hover { background: var(--color-surface-hover, transparent); }
+.project-group > summary:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: -0.125rem; }
+/* A new project's repositories: remote, name and ID side by side. */
+.project-repositories { display: grid; gap: var(--space-3); margin: 0; padding: 0; border: 0; }
+.project-repositories > legend { margin-block-end: var(--space-2); padding: 0; font-weight: 600; }
+.project-repository { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
+.project-repositories > .env-button { justify-self: start; }
+
+/* A project's page: its heading and folder, then its work, statistics and activity as sections. */
+.project-page { gap: var(--space-8); }
+.project-header { display: grid; gap: var(--space-1); }
+.project-path { overflow-wrap: anywhere; }
+.page-section { display: grid; gap: var(--space-4); align-content: start; min-inline-size: 0; }
+
+/* The file panel slides in over the page from the right, with the project's files. */
+.file-dock { position: fixed; inset: calc(var(--topbar-height) + var(--atlas-tabs-height)) 0 0 0; z-index: 20; }
+.file-dock .explorer { block-size: auto; min-block-size: 0; padding-block-end: var(--space-3); }
+
+/* The explorer: the project's name, then its files. */
+.explorer { display: flex; flex-direction: column; block-size: 100%; min-block-size: 0; }
+.explorer-header { display: flex; align-items: center; gap: var(--space-1); min-block-size: var(--control-height-compact); padding: var(--space-2) var(--space-2) var(--space-1) var(--space-4); }
+.explorer-title { flex: 1; min-inline-size: 0; margin: 0; overflow: hidden; color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; letter-spacing: 0.04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
+.explorer-tree { flex: 1; min-block-size: 0; }
+.explorer-folder, .explorer-file { color: var(--color-icon); }
+.explorer-diagram { color: var(--color-tone-accent); }
+
+/* Pages in tabs */
+.page { display: grid; gap: var(--space-5); align-content: start; max-inline-size: 76rem; margin-inline: auto; }
+.page-header, .page-heading-row { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+/* Page and section toolbars use compact controls, like the title bar. */
+.page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
+.section-toolbar > :first-child { margin-inline-end: auto; }
+.work-search { inline-size: min(22rem, 100%); }
+.page-empty { padding-block: var(--space-8); }
+
+/* Rows that open one thing: the row's main link or button covers the row (envUI's interactive row
+   and its data-row-target), so a press anywhere on it opens that; the row's other controls, and
+   details with a tooltip, stay above it. */
+.work-row .diagram-count { position: relative; }
+.work-row :is(.blocked-reason, .work-row-steps, .work-row-updated) { position: relative; cursor: pointer; }
+
+/* Work list */
+.work-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.work-row-meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
+.blocked-reason { max-inline-size: 36rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The steps being worked on: at most two lines; the work page lists them all. */
+.work-row-focus { display: -webkit-box; margin: var(--space-1) 0 0; overflow: hidden; color: var(--color-text-muted); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.work-row-side { display: flex; align-items: center; gap: var(--space-4); color: var(--color-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.work-row-steps, .diagram-count { display: inline-flex; align-items: center; gap: var(--space-2); }
+.diagram-count { color: inherit; }
+
+/* Ledger steps: done in the "completed" tone, in progress in the "open" tone, over the work left. */
+.step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--radius-standard); background: var(--color-surface-muted); }
+.step-bar-done { background: var(--color-tone-done); }
+.step-bar-doing { background: var(--color-tone-success); }
+.step-bar-compact { inline-size: 4rem; block-size: 0.375rem; }
+.ledger-progress { display: grid; gap: var(--space-2); }
+.ledger-progress-summary { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.ledger-steps { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.ledger-step { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--font-size-body-small); }
+.step-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-tone-neutral); }
+.step-icon[data-status='done'] { color: var(--color-tone-done); }
+.step-icon[data-status='doing'] { color: var(--color-tone-success); }
+.ledger-step-done span { color: var(--color-text-muted); }
+.ledger-step-doing span { font-weight: 600; }
+
+/* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
+.work-page { --atlas-gutter: var(--space-3); display: grid; align-content: start; }
+/* An island like the diagram's: a pane pill with their hairline and shadow. */
+.diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--color-text-primary) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--color-canvas-dark) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--color-canvas-dark) 28%, transparent); }
+@container (max-width: 40rem) {
+  .work-page { --atlas-gutter: var(--space-2); }
+}
+.work-header { display: grid; gap: var(--space-3); padding-block-end: var(--space-5); }
+.work-header-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.work-number { color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
+.work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
+.work-main { min-inline-size: 0; }
+/* The side column stays where it starts, below the tabs, whatever the page does: it is held at the
+   offset it has at the top of the page, and scrolls on its own when taller than the room below the
+   tabs, with its scrollbar shown while the pointer is over it. It keeps its scrolling to itself only
+   when it has something to scroll, so a wheel over a short column still moves the page. */
+.about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--space-2); padding-block-end: var(--space-6); }
+.about:is(:hover, :focus-within) { scrollbar-color: var(--color-border-strong) transparent; }
+.about[data-scrolls] { overscroll-behavior: contain; }
+.about-section { display: grid; gap: var(--space-2); }
+.about-ledger { margin: 0; }
+.about-ledger a { display: inline-flex; align-items: center; gap: var(--space-2); }
+.about-heading { display: block; }
+.about-note { color: var(--color-text-muted); font-weight: 400; }
+.about-current { margin: 0; }
+.about-next { margin: 0; padding-inline-start: var(--space-5); }
+.about-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
+.about-commits { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
+.about-commits li { display: flex; gap: var(--space-2); }
+.about-commits li > div { display: grid; min-inline-size: 0; }
+.about-commit-icon { flex: none; margin-block-start: 0.125rem; color: var(--color-icon); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font-size: var(--font-size-body-small); }
+.facts > div { display: contents; }
+.facts dt { color: var(--color-text-muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+@container (max-width: 62rem) {
+  .work-layout { grid-template-columns: minmax(0, 1fr); }
+  .about { position: static; max-block-size: none; overflow: visible; }
+}
+/* The diagrams section takes the rest of the window. */
+.work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
+
+/* Reader */
+.reader { min-inline-size: 0; }
+.reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--space-5) var(--space-6) var(--space-6); }
+.reader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5); border-block-end: 0.0625rem solid var(--color-border-strong); }
+.reader-name { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.reader-loading { display: grid; place-content: center; padding-block: var(--space-8); }
+.prose :is(h1, h2, h3, h4, h5, h6) { scroll-margin-block-start: calc(var(--atlas-sticky-top, var(--app-sticky-top, 0px)) + var(--space-4)); }
+.prose img { max-inline-size: 100%; }
+.external-icon { inline-size: 0.75em; block-size: 0.75em; margin-inline-start: 0.125em; vertical-align: baseline; }
+.outside-reference { border-block-end: 0.0625rem dashed var(--color-text-quiet); cursor: help; }
+.source-text { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--font-size-body-small); white-space: pre-wrap; overflow-wrap: anywhere; }
+.attachment img { max-inline-size: 100%; }
+.file-page { max-inline-size: 64rem; }
+.file-surface { overflow: hidden; }
+.diagram-cards { display: grid; gap: var(--space-3); margin-block: var(--space-3) var(--space-5); }
+.diagram-card-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.diagram-card-icon { color: var(--color-tone-accent); }
+.diagram-card-elements { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: 0; }
+.element-chip { padding: 0; border: 0; background: none; color: var(--color-link); font: inherit; font-size: var(--font-size-body-small); cursor: pointer; }
+.element-chip:hover { text-decoration: underline; }
+.element-chip:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+
+/* The diagrams tab: the canvas fills the panel. */
+.diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
+/* Full view covers the window below its title bar, which keeps the window buttons and moves the window. */
+.diagrams.fullscreen { position: fixed; inset: var(--topbar-height) 0 0 0; z-index: 100; min-block-size: 0; border: 0; background: var(--color-canvas); }
+.diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
+.diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--space-6); background: var(--color-canvas); }
+.diagrams-state > * { max-inline-size: 30rem; }
+.diagram-problems { margin: var(--space-3) 0 0; padding-inline-start: 1.25rem; text-align: start; }
+/* While a diagram loads, the switcher and the picker are where the diagram's overlay puts them. */
+.diagrams-islands { position: absolute; inset-block-start: var(--atlas-gutter); inset-inline-start: var(--atlas-gutter); z-index: 5; display: grid; justify-items: start; gap: var(--space-2); }
+@container (max-width: 40rem) {
+  .diagrams-islands { gap: var(--space-1); }
+}
+.diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: 40; display: grid; gap: var(--space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
+.model-picker-button { min-inline-size: 0; max-inline-size: min(28rem, 60vw); }
+.model-picker-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long title gives way; the model's origin stays whole beside it. */
+.model-picker-button > .env-badge { flex: none; }
+
+/* Activity */
+.activity-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.activity-work { font-size: var(--font-size-body-small); }
+.changed-files { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-block-start: var(--space-1); }
+.file-chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0; border: 0; background: none; color: var(--color-link); font: inherit; font-size: var(--font-size-body-small); cursor: pointer; }
+.file-chip:disabled { color: var(--color-text-quiet); cursor: default; }
+.file-chip:not(:disabled):hover { text-decoration: underline; }
+.file-chip:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.activity-meta { display: grid; justify-items: end; gap: var(--space-1); color: var(--color-text-muted); font-size: var(--font-size-body-small); white-space: nowrap; }
+
+/* Statistics */
+.statistics-body { display: grid; gap: var(--space-5); padding-block-start: var(--space-5); }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-3); }
+.stat { display: grid; gap: var(--space-1); }
+.stat-label, .stat-note { color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.stat-value { font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The work column keeps room for a title: a narrow window scrolls the table sideways rather than squeezing it to a letter a line. */
+.work-statistics-table :is(td, th):first-child { min-inline-size: 16rem; }
+.work-statistics-table td:first-child a { overflow-wrap: normal; }
+.work-statistics-table :is(td, th):not(:first-child) { white-space: nowrap; }
+.work-cell, .model-cell { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.cell-note { display: block; color: var(--color-text-muted); }
+.count-cell { display: inline-flex; align-items: center; gap: var(--space-2); }
+.mini-bar { inline-size: 5rem; block-size: 0.375rem; overflow: hidden; border-radius: var(--radius-standard); background: var(--color-surface-muted); }
+.mini-bar > span { display: block; block-size: 100%; background: var(--color-tone-accent); }
+.table-more { display: flex; justify-content: center; }
+.info-body { display: grid; gap: var(--space-2); }
+.info-body p { margin: 0; }
+
+/* AI models: a provider's mark in its brand colour, or in the text colour beside a chart's colours. */
+.model-name { display: inline-flex; align-items: center; gap: 0.375rem; min-inline-size: 0; max-inline-size: 100%; vertical-align: bottom; }
+.model-name-text { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider-mark { flex: none; inline-size: 1.0625em; block-size: 1.0625em; color: var(--color-text-muted); }
+.provider-mark[data-provider='anthropic'] { color: light-dark(#d97757, #e3896a); }
+.provider-mark[data-provider='openai'] { color: var(--color-text-primary); }
+.provider-mark[data-provider='mistral'] { color: light-dark(#f2550f, #ff7a3d); }
+.provider-mark[data-provider='deepseek'] { color: light-dark(#4d6bfe, #7d93ff); }
+.provider-mark[data-plain] { color: inherit; }
+/* A value that says more on hover and focus. */
+.detailed { border-radius: 0.25rem; text-decoration: underline dotted var(--color-text-quiet); text-underline-offset: 0.25em; cursor: help; }
+.detailed:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; }
+.breakdown { display: grid; grid-template-columns: auto auto; row-gap: 0.125rem; margin: 0; font-variant-numeric: tabular-nums; }
+.breakdown > div { display: contents; }
+.breakdown dd { margin: 0; padding-inline-start: var(--space-4); text-align: end; white-space: nowrap; }
+.breakdown-total > * { padding-block-start: 0.25rem; border-block-start: 0.0625rem solid currentColor; font-weight: 600; }
+.breakdown-note { display: grid; gap: var(--space-2); }
+.breakdown-note p { margin: 0; }
+/* A work item's statistics in its About sidebar, like a repository's: the model, then a fact a line. */
+.work-statistics { display: grid; gap: var(--space-3); font-size: var(--font-size-body-small); }
+.work-statistics-model { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.125rem var(--space-2); }
+.work-statistics-model .provider-mark { inline-size: 1.125rem; block-size: 1.125rem; }
+.work-statistics-primary { font-size: var(--font-size-body); font-weight: 600; }
+.work-statistics-others { grid-column: 2; color: var(--color-text-muted); }
+.work-statistics-others .nowrap { white-space: nowrap; }
+.work-statistics-facts { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.work-statistics-facts li { display: flex; align-items: center; gap: var(--space-2); }
+.work-statistics-facts strong { font-weight: 600; }
+.work-statistics-icon { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
+
+/* The scatter chart. Series colours are categorical slots, set per theme. */
+/* light-dark() follows the colour scheme envUI's theme sets. */
+.env-theme { --atlas-chart-1: light-dark(#2a6ccc, #3987e5); --atlas-chart-2: light-dark(#c4501d, #d95926); --atlas-chart-3: light-dark(#127a57, #199e70); --atlas-chart-other: light-dark(#6e7781, #8b949e); }
+.chart-box { display: grid; gap: var(--space-2); }
+.chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0 0 var(--space-2); padding: 0; list-style: none; font-size: var(--font-size-body-small); }
+.chart-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
+.chart-swatch { display: inline-block; flex: none; inline-size: 0.625rem; block-size: 0.625rem; border-radius: 50%; }
+.chart-frame { position: relative; border-radius: var(--radius-standard); }
+.chart-frame:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.25rem; }
+.chart-frame svg { display: block; overflow: visible; }
+.chart-grid { stroke: var(--color-border-strong); stroke-opacity: 0.5; stroke-width: 1; shape-rendering: crispEdges; }
+.chart-axis { stroke: var(--color-border-strong); stroke-width: 1; shape-rendering: crispEdges; }
+.chart-tick { font-size: 0.6875rem; fill: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.chart-dot { stroke: var(--color-pane); stroke-width: 2; }
+.chart-dot.active { stroke: var(--color-text-primary); }
+.chart-tooltip { position: absolute; z-index: 10; display: grid; gap: 0.125rem; inline-size: 13rem; padding: var(--space-2) var(--space-3); font-size: var(--font-size-body-small); color: var(--color-text-primary); background: var(--color-popup); border: 0.0625rem solid var(--color-popup-border); border-radius: var(--radius-standard); pointer-events: none; }
+.chart-tooltip strong { font-size: var(--font-size-body); }
+.chart-tooltip-series { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); }
+.chart-key { display: inline-block; inline-size: 0.75rem; block-size: 0.125rem; border-radius: 0.0625rem; }
+
+/* Lists of folders and computers */
+.row-link { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.row-link:disabled { cursor: default; color: var(--color-text-muted); }
+.row-link:not(:disabled):hover .row-link-title { text-decoration: underline; }
+.row-link:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.25rem; border-radius: 0.25rem; }
+.row-link-title { font-weight: 600; }
+.row-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+/* Dialogs */
+.dialog-form { display: grid; gap: var(--space-4); }
+/* About Atlas: the mark beside the name. */
+.about-dialog-title { display: inline-flex; align-items: center; gap: var(--space-3); }
+.dialog-subtitle { margin-block: var(--space-2) 0; }
+.dialog-error { margin: 0; color: var(--color-tone-danger); }
+.dialog-note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.import-diagrams { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.import-diagrams li { display: flex; align-items: center; gap: var(--space-2); }
+.access-section { display: grid; gap: var(--space-3); }
+.access-fields { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: var(--space-3); align-items: end; }
+.access-status { margin: 0; font-size: var(--font-size-body-small); color: var(--color-text-muted); }
+.access-status[data-state='on'] { color: var(--color-tone-success); }
+.access-status[data-state='error'] { color: var(--color-tone-danger); }
+.pairing { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.pairing-qr { inline-size: 10rem; block-size: 10rem; padding: var(--space-2); border-radius: var(--radius-standard); background: var(--color-white); }
+.pairing-text { display: grid; gap: var(--space-2); min-inline-size: 0; }
+.pairing-text p { margin: 0; }
+.pairing-link { overflow-wrap: anywhere; }
+.pairing-form { display: grid; gap: var(--space-3); }
+.pairing-permissions { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
+.field-legend { margin-block-end: var(--space-1); padding: 0; font-weight: 600; }
+.pairing-permission { display: flex; gap: var(--space-2); margin: 0; }
+.pairing-permission > span { display: grid; }
+.pairing-permission-icon { flex: none; color: var(--color-tone-success); }
+
+/* A project that cannot be read: its path and what is wrong. */
+.folder-problem-path { display: block; overflow-wrap: anywhere; }
+.folder-problem-path { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--font-size-body-small); }
+
+@media (prefers-reduced-motion: reduce) {
+  .step-bar > span { transition: none; }
+}

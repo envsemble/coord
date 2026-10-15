@@ -1,70 +1,138 @@
 import { elementClass, interactionProps, sameTarget } from "./interaction";
 
-const typeColors = {
-  kind: "#0550ae",
-  role: "#953800",
-  relator: "#8250df",
-  phase: "#116329",
-  event: "#cf222e",
-  mode: "#0a3069",
+// A proposal's marks are drawn with presentation attributes, so they survive
+// static exports and the bitmap backdrop; the theme supplies the colours.
+export const CHANGE_COLORS = {
+  added: "var(--change-added,#1a7f37)",
+  modified: "var(--change-modified,#9a6700)",
+  removed: "var(--change-removed,#cf222e)",
 };
-const typeBackgrounds = {
-  kind: "#ddedff",
-  role: "#fff0df",
-  relator: "#f0e5ff",
-  phase: "#e1f2e4",
-  event: "#ffe5e2",
-  mode: "#e0f3f5",
-};
-const colorFamilies = {
-  subkind: "kind",
-  collective: "kind",
-  quantity: "kind",
-  category: "kind",
-  mixin: "kind",
-  roleMixin: "role",
-  phaseMixin: "phase",
-  quality: "mode",
-};
+const CHANGE_TAGS = { added: "New", modified: "Changed", removed: "Removed" };
+const MEMBER_GLYPHS = { added: "+", modified: "~", removed: "−" };
+export const isChanged = (status) => !!CHANGE_COLORS[status];
+
+// A described element or member shows its description as its tooltip.
+const Tooltip = ({ text }) => (text ? <title>{text}</title> : null);
+
+/** A member row's text, marked when a proposal adds, changes or removes it. */
+function MemberText({ member, x, y, method }) {
+  const status = isChanged(member.changeStatus) ? member.changeStatus : null;
+  // An operation's signature, an object's slot value, an enum's literal, or
+  // an attribute with its type and count.
+  const text = method
+    ? member.type
+    : member.slot
+      ? `${member.name} = ${member.type}`
+      : !member.type
+        ? member.name
+        : `${member.name} : ${member.type}${member.multiplicity ? ` [${member.multiplicity}]` : ""}`;
+  if (!status)
+    return (
+      <text x={x} y={y}>
+        <Tooltip text={member.description} />
+        {text}
+      </text>
+    );
+  return (
+    <g className="member-change" data-change={status}>
+      <text
+        x={x - 9}
+        y={y}
+        textAnchor="middle"
+        fill={CHANGE_COLORS[status]}
+        fontWeight="700"
+      >
+        {MEMBER_GLYPHS[status]}
+      </text>
+      <text
+        x={x}
+        y={y}
+        fill={CHANGE_COLORS[status]}
+        textDecoration={status === "removed" ? "line-through" : undefined}
+      >
+        <Tooltip text={member.description} />
+        {text}
+      </text>
+    </g>
+  );
+}
 
 export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
   const header = node.attributes.length || methods.length ? 66 : node.height;
-  // Stereotypes such as "type alias" must become valid custom property names.
-  const color = String(
-    colorFamilies[node.stereotype] || node.stereotype || "none",
-  ).replace(/[^\w-]/g, "-");
+  const change = isChanged(node.changeStatus) ? node.changeStatus : null;
+  const tag = change && CHANGE_TAGS[change];
+  const tagWidth = tag ? tag.length * 6.4 + 12 : 0;
   return (
     <g
       id={`${idPrefix}node-${node.id}`}
-      className={elementClass("node", node.id, focus, selected)}
+      className={`${elementClass("node", node.id, focus, selected)}${change ? " changed" : ""}`}
       data-name={node.name}
       data-node-id={node.id}
       data-element-kind="node"
       data-element-id={node.id}
       data-change={node.changeStatus}
-      aria-label={node.name}
+      aria-label={tag ? `${node.name}, ${tag.toLowerCase()}` : node.name}
       aria-pressed={handlers ? sameTarget(target, selected) : undefined}
       transform={`translate(${node.x} ${node.y})`}
       {...interactionProps(target, handlers)}
     >
+      <Tooltip text={node.description} />
+      {change && (
+        <rect
+          className="node-ring"
+          x="-5"
+          y="-5"
+          width={node.width + 10}
+          height={node.height + 10}
+          rx="6"
+          fill="none"
+          stroke="transparent"
+          strokeWidth="2.5"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
       <rect
         className="node-box"
         width={node.width}
         height={node.height}
         rx="3"
-        fill={`var(--node-${color},${typeBackgrounds[color] || "var(--surface,#f6f8fa)"})`}
-        stroke="var(--diagram-border,#818b98)"
-        strokeWidth="1.25"
+        fill="var(--surface,#f6f8fa)"
+        stroke={
+          change ? CHANGE_COLORS[change] : "var(--diagram-border,#818b98)"
+        }
+        strokeWidth={change ? "2.25" : "1.25"}
+        strokeDasharray={change === "removed" ? "6 4" : undefined}
         vectorEffect="non-scaling-stroke"
       />
+      {tag && (
+        <g className="change-tag" transform="translate(7 7)">
+          <rect
+            width={tagWidth}
+            height="17"
+            rx="8.5"
+            fill={CHANGE_COLORS[change]}
+            fillOpacity="0.16"
+          />
+          <text
+            x={tagWidth / 2}
+            y="12.5"
+            textAnchor="middle"
+            fill={CHANGE_COLORS[change]}
+            fontSize="10.5"
+            fontWeight="600"
+          >
+            {tag}
+          </text>
+        </g>
+      )}
       {node.stereotype && (
         <text
           x={node.width / 2}
           y={header / 2 - 10}
           textAnchor="middle"
-          fill={`var(--type-${color},${typeColors[color] || "var(--diagram-muted,#59636e)"})`}
+          fill="var(--diagram-muted,#59636e)"
           fontSize="11.5"
         >
           «{node.stereotype}»
@@ -78,18 +146,10 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
         fontSize="15"
         fontWeight="600"
         fontStyle={node.isAbstract ? "italic" : undefined}
+        textDecoration={change === "removed" ? "line-through" : undefined}
       >
         {node.name}
       </text>
-      {node.changeStatus && node.changeStatus !== "unchanged" && (
-        <text x="8" y="15" fill="var(--text)" fontSize="12">
-          {node.changeStatus === "added"
-            ? "+"
-            : node.changeStatus === "removed"
-              ? "−"
-              : "Δ"}
-        </text>
-      )}
       {(node.attributes.length > 0 || methods.length > 0) && (
         <>
           <path
@@ -102,10 +162,12 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             fontSize="12"
           >
             {node.attributes.map((attribute, i) => (
-              <text key={attribute.id || i} x="14" y={85 + i * 20}>
-                {attribute.name} : {attribute.type}
-                {attribute.multiplicity ? ` [${attribute.multiplicity}]` : ""}
-              </text>
+              <MemberText
+                key={attribute.id || i}
+                member={attribute}
+                x={14}
+                y={85 + i * 20}
+              />
             ))}
           </g>
           {methods.length > 0 && (
@@ -120,18 +182,18 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                 fontSize="12"
               >
                 {methods.map((method, i) => (
-                  <text
+                  <MemberText
                     key={method.id || i}
-                    x="14"
+                    member={method}
+                    method
+                    x={14}
                     y={
                       (node.attributes.length
                         ? 97 + node.attributes.length * 20
                         : 85) +
                       i * 20
                     }
-                  >
-                    {method.type}
-                  </text>
+                  />
                 ))}
               </g>
             </>

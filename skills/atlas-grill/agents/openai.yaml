@@ -1,6 +1,0 @@
-interface:
-  display_name: "Atlas Grill"
-  short_description: "Clarify designs and record understanding as it settles"
-  default_prompt: "Use $atlas-grill to clarify this design and record the settled plan and domain language."
-policy:
-  allow_implicit_invocation: true

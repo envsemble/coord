@@ -1,0 +1,15 @@
+@startuml
+title One undergraduate enrollment
+' atlas scenario ../enrollment.puml expected valid
+object "ada : Person" as ada {
+  name = "Ada"
+}
+object "mit : Institution" as mit {
+  name = "MIT"
+}
+object "e1 : UndergraduateEnrollment" as e1 {
+  startedOn = 2026-09-01
+}
+e1 -- ada : learner
+e1 -- mit : school
+@enduml

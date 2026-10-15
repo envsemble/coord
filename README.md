@@ -1,176 +1,97 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/atlas-banner-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="assets/atlas-banner-light.svg">
-  <img alt="Atlas — Models for shared understanding" src="assets/atlas-banner-light.svg" width="1200">
+  <img alt="Atlas — Models for shared understanding" src="assets/atlas-banner-light.svg" width="560">
 </picture>
 
 [![CI](https://github.com/envsemble/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/atlas/actions/workflows/ci.yml)
-[![Version 0.6.0](https://img.shields.io/badge/version-0.6.0-blue)](CHANGELOG.md)
+[![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-blue)](CHANGELOG.md)
 [![Node 24](https://img.shields.io/badge/Node-24-43853d)](docs/releases.md)
 [![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)
 
-Atlas keeps plans, decisions and models in a place both a coding agent and its human can read. Plans, ledgers, glossaries, ADRs and evidence live in a versioned `planning` folder. Next to each plan, the agent keeps models: dated captures of database or class structure, and the conceptual UML/OntoUML proposals built on them. The human reads all of it in the Atlas desktop app. The agent edits through the `atlas` command, its MCP server and the Atlas skills.
+Atlas keeps plans, decisions and diagrams where both a coding agent and its human can read them. Plans, ledgers, glossaries, ADRs and evidence live in versioned planning folders in the Atlas home on your computer. The agent works on them through the Atlas plugin for its harness: planning-state tools, two skills, and hooks that check its edits and measure its work without being asked. The human follows along in the Atlas desktop app.
 
-[Start](#start) · [The atlas command](#install-the-atlas-command) · [Skills](skills/README.md) · [App](app/README.md) · [Agent interface](docs/agent-interface.md) · [Embedding](docs/embedding.md) · [Export/reopen](docs/portable-documents.md) · [Comparison](docs/comparison.md) · [Learning reports](docs/learning-reports.md) · [PR/MR review](docs/review-ci.md)
+[Get started](#get-started) · [App guide](app/README.md) · [Agent interface](docs/agent-interface.md) · [The atlas command](docs/command.md) · [Progress and statistics](docs/progress-and-statistics.md) · [Remote access](docs/remote-access.md) · [All documentation](docs/README.md)
 
-![The Atlas desktop app showing an agent's proposed change to captured code in its work item's Diagrams view](app/assets/atlas-desktop.jpg)
+![The Atlas desktop app: project cards in the sidebar, one with a live dot while an agent works on it and its details open beside it, and the project's page with its work and statistics](app/assets/atlas-desktop.jpg)
 
-| Part                                          | What it does                                                                                                                                           |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [App](app/README.md)                          | The desktop app for Windows and Linux: one window per planning folder with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams. |
-| [`atlas` command](#install-the-atlas-command) | Model tools, the MCP server, planning checks, plan export and import, and consultation logging, for agents and scripts.                                |
-| [Skills](skills/README.md)                    | Seven `atlas-*` agent skills for setting up, grilling, implementing, recording and organizing plans, and for modeling.                                 |
-| [Diagram package](packages/diagrams)          | Captures, validates, lays out and renders models, and exports self-contained offline HTML. Used by the app and the command.                            |
-| [Planning reader](packages/planning)          | The planning-folder reader shared by the app and the command, including [plan export and import](docs/plan-export.md).                                 |
+| Part                                 | What it does                                                                                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [App](app/README.md)                 | The desktop app for Windows and Linux: your projects side by side, each with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams. |
+| [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas` and `atlas-implement` skills, and the hooks.                                     |
+| [`atlas` command](docs/command.md)   | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.               |
+| [Diagram package](packages/diagrams) | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.        |
+| [Planning reader](packages/planning) | The planning-folder reader and planning operations shared by the app, the host and the command, including [plan export and import](docs/plan-export.md). |
+| [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, to the devices you pair.                                 |
 
-## Start
+## Get started
 
-Use **Node 24**, npm and Git. Java extraction also needs **JDK 21**, and PostgreSQL capture needs a supported PostgreSQL 17 schema.
+Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for Envsemble's private envUI package; [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run) shows how. Java capture also needs a **JDK 21** or newer, and PostgreSQL capture needs a supported PostgreSQL 17 schema.
 
-Install the desktop app from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both. Then use **File › Open Folder…** to open a planning folder; each folder gets its own window.
+1. **Install the `atlas` command** from a clone of this repository, and set Atlas up for your agents:
 
-To run it from a checkout:
+   ```sh
+   npm ci
+   npm link --workspace @envsemble/atlas-cli
+   atlas setup
+   ```
 
-```sh
-npm ci
-npm run dev -- /path/to/planning
-```
+   `atlas setup` creates the Atlas home (`~/.atlas`), lets Claude Code and Codex sessions edit planning files in it from any checkout, and installs the Atlas plugin into each of them. Start a new agent session afterwards. If you copied earlier Atlas skills (`atlas-*`) into `~/.claude/skills` or `~/.codex/skills`, remove them: the plugin replaces them. The [command reference](docs/command.md) covers every command and the home.
 
-`npm run dev` starts the app with hot reload; the folder is optional. Plans, models and statistics stay local, and no model service or API key is needed. The [app guide](app/README.md) covers its windows, explorer, tabs, diagrams and usage statistics.
+2. **Create a project.** A project is a planning folder in the home, covering one repository or several. Create one in the app with **File › New Project…**, or ask your agent to set up planning for your repository with the `atlas` skill. Either registers the repository's Git remote, which is how every checkout and worktree of it finds the project. `atlas home adopt <folder>` moves a planning folder you already have into the home.
+3. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from the clone with `npm run dev`.
+4. **Open your projects.** The sidebar shows the projects in the home as cards: what is blocked, being implemented or still a draft, and a live dot while an agent works on one. Each opens as a page with its work, statistics and activity, and its plans, diagrams and files open in tabs beside those of the other projects. Atlas follows changes as the agent writes them.
 
-Each work item keeps its models in its own folder (`<work>/.atlas/`), so a plan, its ledger and its diagrams move together. Plans show a card under every heading a diagram explains, and each diagram is labelled **Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**.
+Plans, diagrams and statistics stay on your computer unless you turn on remote access. No model service or API key is needed.
 
-### Share a plan
+## The plugin and its skills
 
-`atlas plan export <work-id>` writes the whole work item (plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history) to one `.atlas-plan.html` file. Anyone can open it in a browser to read the plan offline, with the app's look and interactive diagrams; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds a received export to a planning folder as new work under the next free number, after a preview (`--dry-run` previews only); it rewrites the work's identity, clears references to work elsewhere and leaves the folder passing `atlas planning check`. See [plan export](docs/plan-export.md).
+The [plugin](docs/agent-interface.md) gives an agent everything Atlas needs from it:
 
-## Install the atlas command
+- **At session start**, the project for its checkout, its planning folder and the active work there.
+- **MCP tools** for planning state: find the project, create, accept, start, block, close, archive and reopen work, and keep the ledger's steps. Plan bodies, glossaries, decisions and diagrams are files the agent edits directly.
+- **Checks** of every planning file it edits, with the problems handed back to fix.
+- **Statistics** measured from its session whenever it stops: time, tokens, models and subagents, as planning or implementation.
 
-One `atlas` command covers the model tools, the MCP server, planning checks and consultation logging. It needs only Node 24. From a checkout:
+| Skill                                                     | Purpose                                                                                                                                                                                                             |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [atlas](plugin/skills/atlas/SKILL.md)                     | Plan with the agent: it recognizes work big enough to plan, asks before opening a work item, interviews you, and records the plan, glossary and decisions. It also sets up projects and organizes planning folders. |
+| [atlas-implement](plugin/skills/atlas-implement/SKILL.md) | Implement a selected plan in full, through review and CI, and close the work. It runs only when invoked by name.                                                                                                    |
 
-```sh
-npm ci
-npm link --workspace @envsemble/atlas-cli
-atlas --version
-```
+The skills work in Codex and Claude Code and name no model or provider. A standalone skill for carrying existing PRs through review and CI, [babysit-pr](extras/babysit-pr/SKILL.md), is not part of the plugin: copy `extras/babysit-pr` into `~/.claude/skills` or `~/.codex/skills` to use it.
 
-`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @envsemble/atlas-cli` removes it. Inside the checkout, `npx atlas …` works without linking. On Windows the link is a `.cmd`/`.ps1` shim that only shells can run, so configure MCP clients with `node <checkout>/packages/cli/bin/atlas.js mcp --root <workspace>` (see the [agent interface](docs/agent-interface.md)).
+## How work moves through Atlas
 
-```text
-atlas model <operation> --root <workspace> [--input <request.json|->]
-atlas model review --input <request.json|->
-atlas model tools
-atlas model job <init|validate|build> ...
-atlas mcp --root <workspace>
-atlas planning check <planning-root>
-atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
-atlas plan import <file> [--planning-dir <dir>] [--dry-run]
-atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
-```
+1. **Plan.** When you design something or ask for something large, the agent asks whether to open a work item, then interviews you and records the plan, its glossary and its decisions as they settle. You accept the plan.
+2. **Implement.** With `/atlas-implement` (`$atlas-implement` in Codex), the agent starts the accepted plan with its steps, marks each `doing` and `done` as it goes, and delivers through pull requests with review and CI. It closes the work once every step is done.
+3. **Follow along.** Atlas shows every work item's progress and the steps left, its plan, ledger and decisions, recent commits, and the diagrams that explain it, updating as files change.
 
-Model commands print JSON and exit 2 for input failures and 1 for blocking findings. `atlas planning check` is read-only and exits 0 when valid, 1 on errors and 2 on usage errors. `atlas plan export` and `atlas plan import` exit 0 on success, 1 for an invalid export or a refused folder and 2 on usage errors; import never commits. `atlas usage log` always exits 0, so a logging problem never fails an agent's task; unrecorded reports leave a coverage marker and a note on stderr.
+   ![A work item in Atlas: its plan with a diagram card under the heading it explains, and beside it the progress through its steps, a link to its ledger, its dates and its statistics](assets/work-item.jpg)
 
-Usage statistics and recent planning folders live in the per-user **Atlas data folder**: `%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux, or `ATLAS_DATA_DIR` when set. Statistics are kept per planning folder under `usage/<hash of its canonical path>/`; nothing is written into planning folders.
+4. **Learn from it.** The agent keeps the decisions and lessons worth reusing. A project's statistics show each work item's agent time, tokens and subagents for planning and for implementation, and compares completed work by model over time, so you can see how a new model does on your work.
 
-## Skills
+[Progress and statistics](docs/progress-and-statistics.md) explains the ledger's steps, what the hooks measure and how Atlas counts it.
 
-The [Atlas skills](skills/README.md) work in Codex and Claude Code and name no model or provider. Install them next to the `atlas` command:
+## Share and connect
 
-| Skill                                       | Purpose                                                                      |
-| ------------------------------------------- | ---------------------------------------------------------------------------- |
-| [atlas-bootstrap](skills/atlas-bootstrap)   | Create or adopt a planning repository with governance and explicit scope.    |
-| [atlas-organize](skills/atlas-organize)     | Organize retained plans and evidence without losing originals.               |
-| [atlas-grill](skills/atlas-grill)           | Clarify a design and record shared understanding as it settles.              |
-| [atlas-implement](skills/atlas-implement)   | Implement an explicitly selected plan through review and CI.                 |
-| [atlas-record](skills/atlas-record)         | Retain useful outcomes, decisions and scoped knowledge.                      |
-| [atlas-babysit-pr](skills/atlas-babysit-pr) | Carry existing PRs through the repository's review gate and current-head CI. |
-| [atlas-model](skills/atlas-model)           | Capture, author, revise, validate and reopen models while planning.          |
+- **Share a plan.** `atlas plan export <work-id>` (or **File › Export Plan…**) writes the whole work item to one `.atlas-plan.html` file: plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history. Anyone can open it in a browser to read the plan offline; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds it to another planning folder as new work. See [plan export](docs/plan-export.md).
+- **Work on another computer.** **File › Remote Access…** lets your other devices work on this computer's projects as if they were local: turn it on, choose the Tailscale address and create a pairing link.
+  - On the other device, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes).
+  - The computer menu in the title bar then switches between computers, each with its projects.
+  - `atlas serve` does the same without the app.
 
-`atlas-implement` and `atlas-babysit-pr` run only when invoked by name.
+  See [remote access](docs/remote-access.md).
 
-## Models
+## Diagrams
 
-Capture declared database or class structure as a dated baseline, author a conceptual proposal over it, inspect the semantic changes and export a reopenable offline HTML document of the model. To share a plan with its models, use a [plan export](docs/plan-export.md). The viewer is read-only; the agent edits through the library, the command or MCP.
+A diagram is a `.puml` file in a work item, in Atlas's subset of PlantUML: a class diagram of concepts or code, an entity diagram of a database, or an object diagram of example instances. The agent writes and edits diagrams like any file, and links each from the plan under the heading it explains; the hooks check them after every edit. `atlas capture` writes captures of TypeScript and Java code (through the compiler) and of SQLite, PostgreSQL and local D1 databases, frozen and dated. A proposal starts as a copy of a capture and shows an intended change, and a capture taken after implementing a plan compares with the one taken before. Atlas lays out and draws every diagram itself, in the app, in plan exports and in offline HTML. See [diagrams](docs/diagrams.md).
 
-![Atlas viewer with colored entities, named generalization sets and a focused inspector](assets/viewer-dark.jpg)
+![An agent's proposal in its change view, dark theme: new and changed classes and relations marked on the canvas with their attributes, unchanged ones faded, and the Changes list beside it with each changed type's members summarized](assets/comparison-dark.jpg)
 
-| Adapter                                | Supported input                                                               | Fidelity / limits                                                                                                       |
-| -------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [PostgreSQL](docs/database-capture.md) | PostgreSQL 17; explicit schemas, read-only repeatable-read capture            | Catalog tables, columns, keys and supported declared constraints; metadata visibility must be sufficient.               |
-| [SQLite](docs/database-capture.md)     | SQLite 3.45+ (<4) through Node 24; main namespace                             | Declared schema with affinity/collation/count limits; captures never read application rows.                             |
-| [D1](docs/database-capture.md)         | Separately tested local Wrangler path; explicit query executor for remote use | Repeated matching metadata passes, with weaker consistency disclosed; no account discovery or deployment.               |
-| [TypeScript](docs/code-capture.md)     | Packaged 6.0.3 compiler; explicit tsconfig/projects and dependencies          | Named declarations, own members, inheritance/realization/type use; dynamic/framework behavior remains outside coverage. |
-| [Java](docs/code-capture.md)           | JDK 21; explicit files/classpath; processing disabled                         | Compiler declarations, records, own members and declared type use; no build scripts or annotation processors.           |
+## Develop
 
-Bounds: database 200 tables / 4,000 columns / 8 MiB metadata; code eight projects / 200 selected files / 500 declarations / 4,000 members / 8 MiB selected text, with additional compiler-input limits. Missing prerequisites fail explicitly; exclusions or unresolved facts disclose partial coverage. Unknown runtime counts use `?`. Imported provenance remains a retained claim, not a new verification.
+[Contributing](CONTRIBUTING.md) covers the layout of this repository, the development servers and the checks CI runs. CI runs them on Linux and Windows, including the packaged app's end-to-end tests, and builds versioned [release ZIPs](docs/releases.md). No release is published or deployed.
 
-- Standard [OntoUML exchange JSON](https://github.com/OntoUML/ontouml-schema) and versioned [Atlas documents](docs/architecture.md) keep model semantics separate from scenes and UI.
-- The [atlas command and stdio MCP server](docs/agent-interface.md) persist models under `.atlas`, enforce expected revisions and return focused bounded results.
-- [Proposals](docs/comparison.md) retain frozen baselines. Baseline/Changes share positions; three-way conflicts remain explicit until resolved. Cross-layer mappings are authored links.
-- In the app, elements link to the plan passages, glossary entries, decisions and code evidence they explain, and plans link back to them.
-- [Learning reports](docs/learning-reports.md) include walkthroughs, finite scenario checks, glossary, source dates, coverage, SVG diagrams and printing. Exported HTML can be imported and revised later.
-
-![Agent proposal compared with its captured baseline: Baseline and Changes modes, and a change list grouping added and modified elements with before and after values and linked rationale](assets/comparison-dark.jpg)
-
-`npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/` with React/Vite live updates. `npm run build` produces `packages/diagrams/index.html`, `packages/diagrams/downloads/` and the reusable React module; the HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no internet or model service. The enrollment example includes valid instances and counterexamples; the R5 example in [index.html](packages/diagrams/index.html) uses pinned public Season 3 sources and preserves three ontology findings for investigation.
-
-```sh
-node packages/diagrams/scripts/build-enrollment.cjs artifacts/enrollment --report
-```
-
-### Library and React
-
-Inside Atlas, the app and the command use the private `@envsemble/atlas-diagrams` workspace package directly. Elsewhere, create a local package with `npm pack` in `packages/diagrams`, then install the tarball. Core Node APIs use CommonJS or default ESM import:
-
-```js
-import atlas from "@envsemble/atlas-diagrams";
-const document = atlas.importDocument(exportedHtml);
-const proposal = atlas.createProposal(document);
-const payload = (
-  await atlas.prepareViewer({ document: proposal, includeArtifacts: false })
-).payload;
-const built = await atlas.buildViewer({ document: proposal });
-atlas.writeViewer(built, "./site");
-```
-
-```jsx
-import {
-  AtlasPanel,
-  ViewerErrorBoundary,
-} from "@envsemble/atlas-diagrams/react";
-import "@envsemble/atlas-diagrams/embedded.css";
-
-<ViewerErrorBoundary>
-  <AtlasPanel
-    payload={payload}
-    theme="dark"
-    onReference={openPlanningPassage}
-  />
-</ViewerErrorBoundary>;
-```
-
-Size the host container; React 19.3 is a peer dependency. [Embedding](docs/embedding.md) documents focus, theme, updates and containment. [Viewer behavior](docs/viewer.md) covers smooth local camera movement, amber focus, hideable details, Shiki previews and generic orthogonal layout.
-
-## Validate and distribute
-
-The validator integrates the official schema with reference/ownership/count checks and a documented subset of OntoUML rules. It does not establish domain accuracy or full ontology model checking. [Rule coverage](docs/architecture.md) and [finite-example limits](docs/learning-reports.md) remain visible. Guidance paraphrases the [OntoUML specification](https://ontouml.readthedocs.io/en/latest/).
-
-```sh
-npm run format:check
-npm run check:types
-npm test
-npm run test:skills
-npm run build
-npm run check
-npm run check:package
-npm run check:performance
-npm run check:review
-npm run review:example -- artifacts/review
-npm run check:release
-```
-
-Full database tests require `ATLAS_TEST_POSTGRES` pointing to a disposable PostgreSQL 17 fixture. CI runs these checks on Linux and Windows and builds revision-labelled [review artifacts](docs/review-ci.md) and versioned [release ZIPs](docs/releases.md). No release is published or deployed. Clean-package checks exercise Node/React, actual TS/Java capture and offline output; export/reopen has dedicated fixtures.
-
-[Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Release instructions](docs/releases.md) · [Repository history maps](docs/history/README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[Changelog](CHANGELOG.md) · [Release instructions](docs/releases.md) · [Repository history maps](docs/history/README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Source is currently private / `UNLICENSED`. This is a source-use status, not an open-source license. Editable branding lives in `assets/` (the app and viewer icon in `packages/diagrams/assets/`); dependency licenses and attributed example excerpts remain preserved.

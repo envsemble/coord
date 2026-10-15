@@ -1,36 +1,26 @@
-/* Plan export page: the app's work page without its sidebar. */
-.plan-export { max-width: none; min-height: 100vh; }
-.export-banner { align-items: center; }
-.export-banner > div { flex: 1; min-width: 0; }
-.export-banner code { font-size: 12px; padding: 2px 4px; background: var(--bgColor-neutral-muted); border-radius: 6px; }
-.export-mark { display: inline-flex; color: var(--fgColor-muted); }
-
-/* An export is a scrolling page, not the app's workbench, so it keeps the page layout, the
-   Diagrams section's viewport height and the work item's Files tab here. */
-.plan-export { min-width: 0; padding: 24px var(--content-padding); }
-.plan-export .work-page { max-width: none; margin: 0; padding: 0; }
-.plan-export > *:not(.work-page), .plan-export .work-page > *:not(.diagrams) { max-width: 1248px; margin-left: auto; margin-right: auto; }
-.plan-export .diagrams { flex: none; min-height: 0; height: max(520px, calc(100dvh - var(--diagram-top, 200px))); margin: 0 calc(-1 * var(--content-padding)) -24px; border-top: 0; }
-.plan-export .diagrams.fullscreen { height: auto; margin: 0; }
-.files-tab { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 16px; align-items: start; }
-.file-tree { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 32px); min-width: 0; }
-.tree, .tree ul { margin: 0; padding: 0; list-style: none; }
-.tree { overflow: auto; scrollbar-width: thin; }
-.tree-item { display: flex; align-items: center; gap: 6px; width: 100%; height: 32px; padding: 0 8px; font-size: 14px; text-align: left; color: var(--fgColor-default); background: transparent; border: 0; border-radius: 6px; }
-.tree-item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-item > svg { color: var(--fgColor-muted); }
-.tree-item:hover { background: var(--control-transparent-bgColor-hover); }
-.tree-item.selected { position: relative; background: var(--control-transparent-bgColor-selected, var(--bgColor-neutral-muted)); }
-.tree-item.selected::after { content: ''; position: absolute; top: 6px; bottom: 6px; left: 0; width: 4px; background: var(--borderColor-accent-emphasis); border-radius: 6px; }
-.tree-item .tree-folder-icon { color: var(--treeViewItem-leadingVisual-iconColor-rest, var(--fgColor-accent)); }
-.tree-empty { padding: 8px; margin: 0; font-size: 13px; }
-@media (max-width: 1180px) {
-  .tab-files .work-layout { grid-template-columns: minmax(0, 1fr); }
-  .tab-files .about { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 24px; }
-  .tab-files .about-section { border-top: 0; padding-top: 0; }
-  .files-tab { grid-template-columns: 220px minmax(0, 1fr); }
+/* Plan export page: the app's work page without its window. Layout only; envUI draws the rest.
+   Without the app's title bar and tabs, the section switcher sticks to the top of the page. */
+.plan-export { min-block-size: 100dvh; padding: var(--space-5) var(--space-6) 0; container-type: inline-size; }
+.plan-export .work-page { --topbar-height: 0rem; --app-sticky-top: 0rem; --atlas-tabs-height: 0rem; }
+/* The switcher sits as far in from the window's edge as the diagrams' islands, which span the page. */
+.plan-export .section-switcher-bar { margin-inline-start: calc(var(--atlas-gutter) - var(--space-6)); max-inline-size: calc(100% + var(--space-6) - var(--atlas-gutter)); }
+.plan-export .section-switcher-bar::before { inline-size: calc(100cqw + 2 * var(--space-6)); }
+/* The switcher's island also holds the theme, after a divider like the diagrams' islands have. */
+.plan-export .section-switcher { align-items: center; gap: var(--space-1); }
+.section-switcher-divider { flex: none; inline-size: 0.0625rem; block-size: 1.25rem; margin-inline: var(--space-1); background: var(--color-border-strong); }
+.export-banner { max-inline-size: 84rem; margin: 0 auto var(--space-3); }
+/* An export is a scrolling page, not the app's workbench: the diagrams take the window's height below the notice. */
+.plan-export .diagrams { flex: none; min-block-size: 0; block-size: max(32rem, calc(100dvh - var(--diagram-top, 12rem))); margin-inline: calc(-1 * var(--space-6)); }
+.plan-export .diagrams.fullscreen { block-size: auto; margin: 0; }
+.files-tab { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+/* The file tree sticks below the section switcher. */
+.file-tree { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: flex; flex-direction: column; gap: var(--space-2); block-size: calc(100dvh - var(--atlas-sticky-top) - 2 * var(--space-4)); min-inline-size: 0; }
+.file-tree-view { flex: 1; min-block-size: 0; }
+.tree-empty { margin: 0; padding: var(--space-2); }
+@container (max-width: 62rem) {
+  .files-tab { grid-template-columns: 14rem minmax(0, 1fr); }
 }
-@media (max-width: 720px) {
+@media (max-width: 45rem) {
   .files-tab { grid-template-columns: minmax(0, 1fr); }
-  .file-tree { position: static; max-height: 240px; }
+  .file-tree { position: static; block-size: 16rem; }
 }

@@ -1,108 +1,138 @@
-import type { ReactNode } from 'react';
-import { AlertIcon, BookIcon, GitCommitIcon, TasklistIcon, WorkflowIcon } from './icons';
-import type { Document, Snapshot, Target, Work, WorkSection } from './types';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Badge, Breadcrumbs, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
+import { Code } from '@envsemble/envui/content';
+import { CommitIcon, LedgerIcon, PlanIcon } from './icons';
+import type { Document, Snapshot, Target, Work } from './types';
 import { defaultDocument, primaryDocuments } from './work';
-import { viewTarget, workTarget } from './targets';
+import { ledgerTarget, projectTarget, workTarget } from './targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
-import { Blankslate, Counter, Label, StateLabel } from './ui';
+import { RepositoryBadge, StatusBadge } from './ui';
 import { Reader, useReferences } from './Reader';
-import { AtlasWorkPanel } from './AtlasWorkPanel';
+import { LedgerSteps } from './LedgerProgress';
+import { WorkStatisticsSummary } from './WorkStatisticsSummary';
 import { TargetLink, useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
 
-export function Breadcrumb({ items }: { items: { label: ReactNode; target?: Target }[] }) {
-  return <nav className="breadcrumb" aria-label="Breadcrumb"><ol>{items.map((item, index) => <li key={index}>{item.target ? <TargetLink target={item.target}>{item.label}</TargetLink> : <span aria-current="page">{item.label}</span>}</li>)}</ol></nav>;
+/** A trail of targets; the last item is the current page. */
+export function Trail({ items }: { items: { label: ReactNode; target?: Target }[] }) {
+  const { open } = useWorkbench();
+  return <Breadcrumbs className="breadcrumb" items={items.map(item => ({ label: item.label, onClick: item.target ? () => open(item.target!, { pin: true }) : undefined }))} />;
 }
 
-/** The section a target opens: explicit, else the plan before implementation and the ledger after. */
-export function workSection(target: Pick<WorkTarget, 'section'>, work: Work): WorkSection {
-  const { plan, ledger } = primaryDocuments(work);
-  if (target.section === 'diagrams') return 'diagrams';
-  if (target.section === 'plan' && plan) return 'plan';
-  if (target.section === 'ledger' && ledger) return 'ledger';
-  const preferred = defaultDocument(work);
-  if (preferred && preferred.path === ledger?.path) return 'ledger';
-  if (plan) return 'plan';
-  if (ledger) return 'ledger';
-  return 'diagrams';
+function AboutSection({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
+  return <section className="about-section">
+    <Text as="h2" variant="section-heading" className="about-heading">{title}{note && <span className="about-note"> · {note}</span>}</Text>
+    {children}
+  </section>;
 }
 
-function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
+/**
+ * Mark an element while it is taller than its box (`data-scrolls`), so its styles can keep its
+ * scrolling to itself only when it has something to scroll.
+ */
+function useScrollsMark<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const mark = () => element.toggleAttribute('data-scrolls', element.scrollHeight > element.clientHeight + 1);
+    const observer = new ResizeObserver(mark);
+    observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+    mark();
+    return () => observer.disconnect();
+  });
+  return ref;
+}
+
+/**
+ * The side column: the work's progress, then the link that shows its ledger in place of the plan (or
+ * the plan again), its dates, statistics and recent activity. It stays where it is while the page
+ * scrolls, and scrolls on its own.
+ */
+function About({ work, snapshot, showing }: { work: Work; snapshot: Snapshot; showing: 'plan' | 'ledger' }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
-  const hasStatus = Boolean(progress && (progress.current || progress.next.length || progress.blocked));
+  const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   const commits = snapshot.history.filter(entry => entry.workIds.includes(work.id)).slice(0, 5);
-  return <aside className="about" aria-label="About this work">
-    {issues.length > 0 && <div className={'flash ' + (issues.some(issue => issue.level === 'error') ? 'flash-danger' : 'flash-warning')}><AlertIcon size={16} /><div>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</div></div>}
-    {hasStatus && progress && <section className="about-section">
-      <h2>Status{progress.updated && <span className="muted" title={absoluteDate(progress.updated)}> · {relativeDate(progress.updated)}</span>}</h2>
-      {progress.blocked && <p className="about-blocked"><strong>Blocked:</strong> {progress.blocked}</p>}
-      {progress.current && <p className="about-current">{progress.current}</p>}
-      {progress.next.length > 0 && <><h3>Next</h3><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
-    </section>}
-    <section className="about-section">
-      <h2>About</h2>
-      {dates.length > 0 && <dl className="about-dates">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}</dl>}
-      <p className="about-path muted" title={work.path}>{work.path}</p>
-    </section>
-    {commits.length > 0 && <section className="about-section">
-      <h2>Recent activity</h2>
-      <ul className="about-commits">{commits.map(entry => <li key={entry.id}><GitCommitIcon size={16} /><div><span className="commit-title">{entry.title}</span><span className="muted"><code>{entry.id.slice(0, 7)}</code> · <span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span></div></li>)}</ul>
-    </section>}
+  const statistics = work.statistics;
+  const { plan, ledger } = primaryDocuments(work);
+  // The other of the plan and the ledger, shown in place of the one on the page.
+  const other = showing === 'ledger' ? plan && <TargetLink target={workTarget(work.id)}><PlanIcon />Plan</TargetLink>
+    : ledger && <TargetLink target={ledgerTarget(work.id)}><LedgerIcon />Ledger</TargetLink>;
+  const switcher = other && <p className="about-ledger">{other}</p>;
+  const column = useScrollsMark<HTMLElement>();
+  return <aside ref={column} className="about" aria-label="About this work">
+    {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
+    {hasStatus && progress && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
+      {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
+      {progress.steps ? <LedgerSteps steps={progress.steps} /> : <>
+        {progress.current && <p className="about-current">{progress.current}</p>}
+        {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
+      </>}
+      {switcher}
+    </AboutSection>}
+    {!(hasStatus && progress) && switcher}
+    {dates.length > 0 && <AboutSection title="About">
+      <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}</dl>
+    </AboutSection>}
+    {statistics && (statistics.reports > 0 || statistics.planRevisions !== null) && <AboutSection title="Statistics" note={statistics.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
+      <WorkStatisticsSummary work={work} statistics={statistics} />
+    </AboutSection>}
+    {commits.length > 0 && <AboutSection title="Recent activity">
+      <ul className="about-commits">{commits.map(entry => <li key={entry.id}><CommitIcon className="about-commit-icon" /><div><span className="commit-title">{entry.title}</span><span className="muted"><Code appearance="subtle">{entry.id.slice(0, 7)}</Code> · <span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span></div></li>)}</ul>
+    </AboutSection>}
   </aside>;
 }
 
+/**
+ * A work item: its plan (or, without one, its ledger or first document), or its ledger in the plan's
+ * place, with the title as its heading and the work number; beside it the work's progress with the
+ * link between the plan and the ledger, its dates, statistics and recent activity. Diagrams open from
+ * their cards in the plan.
+ */
 export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
-  const { retarget } = useWorkbench();
-  const section = workSection(target, work);
+  const { projectName } = useWorkbench();
   const { plan, ledger } = primaryDocuments(work);
+  const showing = target.view === 'ledger' && ledger ? 'ledger' : 'plan';
+  const reading: Document | undefined = showing === 'ledger' ? ledger : plan ?? defaultDocument(work);
   const status = workStatus(work);
   const note = designNote(work);
-  const reading: Document | undefined = section === 'plan' ? plan : section === 'ledger' ? ledger : undefined;
-  const references = useReferences(reading, work.id, section !== 'diagrams' && reading?.format === 'markdown');
-  const sections: { id: WorkSection; label: string; icon: ReactNode; count?: number; hidden?: boolean }[] = [
-    { id: 'plan', label: 'Plan', icon: <TasklistIcon size={16} />, hidden: !plan },
-    { id: 'ledger', label: 'Ledger', icon: <BookIcon size={16} />, hidden: !ledger },
-    { id: 'diagrams', label: 'Diagrams', icon: <WorkflowIcon size={16} />, count: work.diagrams ?? 0 },
-  ];
-  return <div className={'work-page tab-' + section}>
-    <div className="work-page-head">
-      <Breadcrumb items={[{ label: 'Work', target: viewTarget('work') }, { label: workNumber(work.id) }]} />
-      <header className="work-header">
-        <h1>{work.title}</h1>
-        <div className="work-header-meta">
-          <StateLabel status={status} />
-          {work.location === 'archived' && <Label tone="attention">Archived</Label>}
-          {note && <Label>{note}</Label>}
-          {work.repositories.map(id => <Label key={id} tone="muted">{id}</Label>)}
-        </div>
-      </header>
-      <nav className="underline-nav" aria-label="Work sections">
-        {sections.filter(item => !item.hidden).map(item => <a key={item.id} href="#" className={section === item.id ? 'selected' : ''} aria-current={section === item.id ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); retarget(workTarget(work.id, item.id, item.id === 'diagrams' ? { diagram: target.diagram ?? null } : {})); }}>
-          {item.icon}<span>{item.label}</span>{item.count !== undefined && item.count > 0 && <Counter>{item.count}</Counter>}
-        </a>)}
-      </nav>
+  const references = useReferences(reading, work.id, reading?.format === 'markdown');
+  return <div className="work-page">
+    <div className="work-layout">
+      <div className="work-main">
+        <Trail items={showing === 'ledger' ? [{ label: projectName, target: projectTarget() }, { label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Ledger' }]
+          : [{ label: projectName, target: projectTarget() }, { label: workNumber(work.id) }]} />
+        <header className="work-header">
+          <Text as="h1" variant="page-heading">{work.title}</Text>
+          <div className="work-header-meta">
+            <span className="work-number">{workNumber(work.id)}</span>
+            <StatusBadge status={status} />
+            {work.location === 'archived' && <Badge tone="warning">Archived</Badge>}
+            {note && <Badge>{note}</Badge>}
+            {work.repositories.map(id => <RepositoryBadge key={id} id={id} />)}
+          </div>
+        </header>
+        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} />
+          : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
+      </div>
+      <About work={work} snapshot={snapshot} showing={showing} />
     </div>
-    {section === 'diagrams' ? <AtlasWorkPanel key={work.id} work={work} snapshot={snapshot} target={target} />
-      : <div className="work-layout">
-        <div className="work-main">
-          {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} />
-            : <div className="box"><Blankslate title="Nothing to read here">This work item has no plan or ledger.</Blankslate></div>}
-        </div>
-        <About work={work} snapshot={snapshot} />
-      </div>}
   </div>;
 }
 
 export function FileView({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
+  const { projectName } = useWorkbench();
   const owner = snapshot.work.find(work => work.id === file.workId);
   const references = useReferences(file, file.workId, file.format === 'markdown' && (Boolean(file.workId) || file.category === 'knowledge'));
   return <div className="page file-page">
-    <Breadcrumb items={[...(owner ? [{ label: workNumber(owner.id) + ' ' + owner.title, target: workTarget(owner.id) }] : []), { label: file.path }]} />
-    <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} toolbar references={references} showWork={!file.workId} />
+    <Trail items={[{ label: projectName, target: projectTarget() }, ...(owner ? [{ label: workNumber(owner.id) + ' ' + owner.title, target: workTarget(owner.id) }] : []), { label: file.path }]} />
+    <Surface className="file-surface" padding={0}>
+      <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} toolbar references={references} showWork={!file.workId} />
+    </Surface>
   </div>;
 }
