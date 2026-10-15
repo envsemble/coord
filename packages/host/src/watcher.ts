@@ -12,6 +12,10 @@ export interface WatchOptions {
   onChange(paths: string[]): void;
   onError(error: Error): void;
   presenceInterval?: number;
+  /** Folders (relative paths) never watched, in place of `ignoredPath`. */
+  ignore?(relative: string): boolean;
+  /** Which changes count, in place of `relevantChange`. */
+  relevant?(relative: string | null): boolean;
 }
 
 function samePlatformName(first: string, second: string) {
@@ -38,6 +42,29 @@ export function ignoredPath(relative: string): boolean {
   if (normalized === '.git/objects' || normalized.startsWith('.git/objects/')) return true;
   if (normalized.startsWith('.atlas-import')) return true;
   return normalized.split('/').some(part => part === 'node_modules' || part === '__pycache__') || /(?:^|\/)\.atlas\/(?:prepared|results|exports)(?:\/|$)/.test(normalized);
+}
+
+const homeIgnored = new Set(['.git', 'node_modules', '__pycache__', 'diagrams', 'evidence']);
+/** Folders in the home's planning folder never watched for the project list: Git's, dependencies, diagrams and evidence. */
+export function ignoredInHome(relative: string): boolean {
+  return relative.replaceAll('\\', '/').split('/').some(part => homeIgnored.has(part) || part.startsWith('.atlas'));
+}
+/**
+ * Whether a change in the home's planning folder (a path relative to it, `<project>/…`) can change
+ * the project list's summaries: its planning.json, a plan or a ledger. A project folder, or a work
+ * folder in `active/` or `archive/`, is `folders`: it counts when folders came, went or moved (some
+ * systems report a folder whenever a file in it changes). Another Markdown file `maybe` does, when
+ * its project registers it as a work item's plan.
+ */
+export function projectListChange(relative: string | null): boolean | 'folders' | 'maybe' {
+  if (relative === null || relative === '') return true;
+  const parts = relative.replaceAll('\\', '/').split('/').filter(Boolean);
+  if (ignoredInHome(parts.join('/'))) return false;
+  const name = parts.at(-1)!;
+  if (parts.length === 2 && name === 'planning.json') return true;
+  if (name === 'plan.md' || name === 'ledger.md') return true;
+  if (parts.length === 1 || (parts.length <= 3 && (parts[1] === 'active' || parts[1] === 'archive'))) return 'folders';
+  return /\.md$/i.test(name) ? 'maybe' : false;
 }
 
 export function createCoalescer(flush: (paths: string[]) => void, debounce = 200, maxWait = 1500) {
@@ -83,9 +110,9 @@ interface TreeWatcher { close(): void }
 type Changed = (relative: string | null) => void;
 
 /** Windows and macOS: the platform's own recursive watcher. */
-function recursiveTree(root: string, system: WatchSystem, changed: Changed, failed: (error: Error) => void): TreeWatcher {
+function recursiveTree(root: string, system: WatchSystem, changed: Changed, failed: (error: Error) => void, ignored: (relative: string) => boolean): TreeWatcher {
   // `ignore` (Node 24) keeps ignored folders' events out.
-  const ignore = (candidate: string) => ignoredPath(path.isAbsolute(candidate) ? path.relative(root, candidate) : candidate);
+  const ignore = (candidate: string) => ignored(path.isAbsolute(candidate) ? path.relative(root, candidate) : candidate);
   const watcher = system.watch(root, { recursive: true, persistent: false, ignore }, (_event, filename) => changed(filename));
   watcher.on('error', failed);
   return { close: () => { try { watcher.close(); } catch { /* Already closed. */ } } };
@@ -97,7 +124,7 @@ function recursiveTree(root: string, system: WatchSystem, changed: Changed, fail
  * the inotify watch limit) and leaves part of the tree unwatched; here any failure ends watching
  * and is reported, so the folder is rescanned instead.
  */
-function perFolderTree(root: string, system: WatchSystem, changed: Changed, failed: (error: Error) => void): TreeWatcher {
+function perFolderTree(root: string, system: WatchSystem, changed: Changed, failed: (error: Error) => void, ignored: (relative: string) => boolean): TreeWatcher {
   const watchers = new Map<string, Pick<FSWatcher, 'close' | 'on'>>();
   let stopped = false;
   const stop = () => {
@@ -115,7 +142,7 @@ function perFolderTree(root: string, system: WatchSystem, changed: Changed, fail
     }
   };
   const add = (folder: string) => {
-    if (stopped || watchers.has(folder) || (folder && ignoredPath(folder))) return;
+    if (stopped || watchers.has(folder) || (folder && ignored(folder))) return;
     const absolute = path.join(root, folder);
     const watcher = system.watch(absolute, { persistent: false }, (event, filename) => {
       if (stopped) return;
@@ -144,11 +171,12 @@ function perFolderTree(root: string, system: WatchSystem, changed: Changed, fail
 export function watchFolder(root: string, options: WatchOptions, system: WatchSystem = nodeWatchSystem): FolderWatcher {
   const coalescer = createCoalescer(options.onChange, options.debounce, options.maxWait);
   let closed = false;
-  const changed: Changed = relative => { if (!closed && relevantChange(relative)) coalescer.add(relative ?? ''); };
+  const relevant = options.relevant ?? relevantChange;
+  const changed: Changed = relative => { if (!closed && relevant(relative)) coalescer.add(relative ?? ''); };
   const failed = (error: Error) => { if (!closed) queueMicrotask(() => options.onError(error)); };
   let tree: TreeWatcher | null = null;
   try {
-    tree = (system.platform === 'linux' ? perFolderTree : recursiveTree)(root, system, changed, failed);
+    tree = (system.platform === 'linux' ? perFolderTree : recursiveTree)(root, system, changed, failed, options.ignore ?? ignoredPath);
   } catch (error) {
     failed(error as Error);
   }

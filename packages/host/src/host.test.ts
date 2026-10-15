@@ -396,6 +396,35 @@ test('a project whose planning.json cannot be read is listed without a summary',
   assert.deepEqual(listed.map(project => [project.name, project.summary === null]).sort(), [['Northwind', false], ['broken', true]]);
 });
 
+test('plan and ledger edits in a project no window has open reach the project list, once they settle', async t => {
+  const { host, origin, planning } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await owner.connection.request('projects.list', {});
+  const work = (list: Project[], id: string) => list.find(project => project.name === 'Northwind')?.summary?.active.find(item => item.id === id);
+  const settle = () => new Promise(resolve => setTimeout(resolve, 1500));
+  const plan = path.join(planning, 'active/0001-saved-payment-methods/plan.md');
+  // A plan's header: its summary.
+  writeFileSync(plan, readFileSync(plan, 'utf8').replace('title: Saved payment methods\n', 'title: Saved payment methods\nsummary: "Cards saved at checkout."\n'));
+  await until(() => owner.lists.some(list => work(list, 'work-0001')?.summary === 'Cards saved at checkout.'), 10000, () => owner.lists.length);
+  // A ledger's step.
+  const ledger = path.join(planning, 'active/0001-saved-payment-methods/ledger.md');
+  const before = work(owner.lists.at(-1)!, 'work-0001')!.steps!.done;
+  writeFileSync(ledger, readFileSync(ledger, 'utf8').replace(/status: (?:todo|doing)/, 'status: done'));
+  await until(() => work(owner.lists.at(-1)!, 'work-0001')!.steps!.done === before + 1, 10000, () => owner.lists.length);
+  await settle();
+  // Other files of the project change nothing the list shows.
+  const told = owner.lists.length;
+  writeFileSync(path.join(planning, 'active/0001-saved-payment-methods/CONTEXT.md'), '# Glossary\n\nChanged.\n');
+  writeFileSync(path.join(planning, 'notes.txt'), 'notes\n');
+  await settle();
+  assert.equal(owner.lists.length, told, 'an unrelated edit is not told');
+  // A burst of changes (a checkout rewriting many files) is one listing.
+  for (let index = 0; index < 40; index++) writeFileSync(plan, readFileSync(plan, 'utf8').replace(/summary: ".*"/, `summary: "Burst ${index}."`));
+  await until(() => work(owner.lists.at(-1)!, 'work-0001')?.summary === 'Burst 39.', 10000, () => owner.lists.length);
+  await settle();
+  assert.equal(owner.lists.length, told + 1, 'one listing for the burst');
+});
+
 test('a project made outside the app appears when its planning.json comes, a moment after its folder', async t => {
   const { host, origin, data } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);

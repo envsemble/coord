@@ -7,7 +7,7 @@
 // with the owner, and managing pairings with the devices granted it. Every request is authenticated
 // and every method's scope is checked first.
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { watch, type FSWatcher } from 'node:fs';
+import { watch } from 'node:fs';
 import { mkdir, open, readdir, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, Server } from 'node:http';
 import { isIPv4, isIPv6 } from 'node:net';
@@ -33,6 +33,7 @@ import {
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
 import { FolderRegistry, pathKey } from './folders.ts';
+import { ignoredInHome, projectListChange, watchFolder } from './watcher.ts';
 import { exportFileName } from './planExportName.ts';
 import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
@@ -144,7 +145,7 @@ export class Host {
   /** Network changes run one at a time, so overlapping updates cannot leave a listener behind. */
   private networkQueue: Promise<void> = Promise.resolve();
   /** Watches the home's planning folder, where projects appear. */
-  private projectsWatcher: FSWatcher | null = null;
+  private projectsWatcher: { close(): void } | null = null;
   private projectsTimer: ReturnType<typeof setTimeout> | null = null;
   /** Folders in the home's planning folder that are not planning folders, by name, with how often the projects were listed again for them. */
   private readonly unfinishedProjects = new Map<string, number>();
@@ -579,17 +580,62 @@ export class Host {
     this.projectsLookAgain = setTimeout(() => { this.projectsLookAgain = null; this.projectsChanged(); }, 250 * 2 ** fewest);
     this.projectsLookAgain.unref?.();
   }
-  /** Folders appearing in or leaving the home's planning folder are projects coming and going. */
+  /**
+   * Watch the home's planning folder for what the project list shows: folders appearing in or
+   * leaving it are projects coming and going, and a project's planning.json, its plans and ledgers
+   * and work moving between active/ and archive/ change its summary, whether or not a window has the
+   * project open. Changes are told once they settle, so a burst (a Git checkout) is one listing.
+   * Should the whole tree become unwatchable, the folder's own entries are still watched.
+   */
   private watchProjects() {
     const base = homePlanningDirectory(this.options.home);
     void mkdir(base, { recursive: true }).then(() => {
       if (this.stopped) return;
-      try {
-        this.projectsWatcher = watch(base, () => this.projectsChanged());
-        void this.lookForUnfinishedProjects(true);
-        this.projectsWatcher.on('error', error => { this.options.log.warn('The projects folder is not watched', { message: error.message }); this.projectsWatcher?.close(); this.projectsWatcher = null; });
-      } catch (error) { this.options.log.warn('The projects folder is not watched', { message: (error as Error).message }); }
+      const shallow = () => {
+        try {
+          const watcher = watch(base, () => this.projectsChanged());
+          watcher.on('error', error => { this.options.log.warn('The projects folder is not watched', { message: error.message }); watcher.close(); });
+          this.projectsWatcher = { close: () => watcher.close() };
+        } catch (error) { this.options.log.warn('The projects folder is not watched', { message: (error as Error).message }); }
+      };
+      this.projectsWatcher = watchFolder(base, {
+        debounce: 300, maxWait: 5000, ignore: ignoredInHome, relevant: relative => projectListChange(relative) !== false,
+        onChange: paths => { void this.projectListChanged(base, paths); },
+        onError: error => {
+          this.options.log.warn('The projects folder is watched only for projects coming and going', { message: error.message });
+          this.projectsWatcher?.close();
+          if (!this.stopped) shallow();
+        },
+      });
+      void this.lookForUnfinishedProjects(true);
+      void this.projectFolders(base).then(shape => { this.folderShape ??= shape; });
     }, () => undefined);
+  }
+  /** The folders of the home's planning folder and of each project's active/ and archive/, as one text to compare. */
+  private async projectFolders(base: string) {
+    const names = async (folder: string) => (await readdir(folder, { withFileTypes: true }).catch(() => [])).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+    const projects = await names(base);
+    return JSON.stringify(await Promise.all(projects.map(async name => [name, await names(path.join(base, name, 'active')), await names(path.join(base, name, 'archive'))])));
+  }
+  private folderShape: string | null = null;
+  /** Changed paths in the home's planning folder: list the projects again when one of them is shown in the list. */
+  private async projectListChanged(base: string, paths: string[]) {
+    const changes = paths.map(projectListChange);
+    let changed = changes.includes(true);
+    // A folder reported: only folders coming, going or moving count (the shape is kept current either way).
+    if (changes.includes('folders')) {
+      const shape = await this.projectFolders(base);
+      if (shape !== this.folderShape) { this.folderShape = shape; changed = true; }
+    }
+    // Another Markdown file counts when its project registers it as a work item's plan.
+    for (const [index, relative] of paths.entries()) {
+      if (changed) break;
+      if (changes[index] !== 'maybe') continue;
+      const [project, ...rest] = relative.replaceAll('\\', '/').split('/').filter(Boolean);
+      const registry = await readRegistry(path.join(base, project)).catch(() => null);
+      changed = registry?.work_items.some(item => typeof item?.current_plan === 'string' && item.current_plan === rest.join('/')) ?? false;
+    }
+    if (changed) this.projectsChanged();
   }
 
   // ---- Folders and access ----------------------------------------------------------------------
