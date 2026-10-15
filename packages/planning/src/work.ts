@@ -73,7 +73,8 @@ function stepTitles(values: unknown, label = 'Steps'): string[] {
   return titles;
 }
 
-async function writeText(file: string, text: string) {
+/** Write a file whole or not at all: a temporary file beside it, renamed over it. */
+export async function writeText(file: string, text: string) {
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
     await writeFile(temporary, text, { flag: 'wx' });
@@ -219,8 +220,11 @@ export function planningLedger(workId: string, title: string, today: string) {
     '---', '', '# Ledger: ' + title, '', '## Progress', '', `- ${today}: work created; planning started.`, '',
   ].join('\n');
 }
-/** Whether the work's implementation has started: its steps from then on are implementation steps. */
-const implementing = (loaded: Loaded) => ['in_progress', 'partial', 'complete'].includes(String(loaded.planMetadata.implementation_status));
+/**
+ * Whether the work is past planning, so new steps are implementation steps: only work whose
+ * implementation is not_started, with no implementation step in its ledger, is still being planned.
+ */
+const implementing = (loaded: Loaded) => loaded.planMetadata.implementation_status !== 'not_started' || (loaded.ledgerSteps ?? []).some(step => step.phase !== 'planning');
 
 /**
  * Create and register a work item: the next unused number across active, archived and registered
@@ -328,6 +332,7 @@ export async function startWork(root: string, workId: string, request: { steps: 
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; accept it before implementation starts.`);
   if (loaded.planMetadata.implementation_status === 'complete') throw new WorkError('The implementation is already complete; reopen the work instead.');
+  if (loaded.planMetadata.implementation_status === 'in_progress') throw new WorkError('The implementation has started already; add steps with step_add instead.');
   if (loaded.ledgerSteps?.some(step => step.phase !== 'planning')) throw new WorkError('The work already has implementation steps; change its steps instead.');
   const taken = titles.filter(title => loaded.ledgerSteps?.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');

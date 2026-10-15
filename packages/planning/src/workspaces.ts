@@ -12,12 +12,14 @@ import { slugOf, WorkError } from './work.ts';
 
 /** A repository a project covers: its ID in planning.json, its name, its Git remote, and, without one, its checkout's absolute path. */
 export interface ProjectRepository { id: string; name: string; remote: string | null; path?: string }
-/** The Git checkouts found in a workspace folder. */
-export interface WorkspaceScan { folder: string; repositories: ProjectRepository[] }
+/** The Git checkouts found in a workspace folder, and those skipped because Git did not answer for them. */
+export interface WorkspaceScan { folder: string; repositories: ProjectRepository[]; skipped: SkippedCheckout[] }
 
 /** The most workspace folders a project lists. */
 export const workspaceLimit = 20;
-const skipped = new Set(['node_modules', '__pycache__', 'dist', 'build']);
+const ignoredFolders = new Set(['node_modules', '__pycache__', 'dist', 'build']);
+/** How many checkouts are asked about at once. */
+const concurrency = 8;
 
 /** Workspace folders as a project lists them: absolute, without trailing separators, each once. */
 export function checkedWorkspaces(folders: unknown): string[] {
@@ -33,19 +35,38 @@ export function checkedWorkspaces(folders: unknown): string[] {
   return checked;
 }
 
-const git = (folder: string, args: string[]) => runProgram('git', ['-C', folder, ...args], { windowsHide: true, timeout: 15000 }).then(result => result.stdout, () => null);
+const git = (folder: string, args: string[]) => runProgram('git', ['-C', folder, ...args], { windowsHide: true, timeout: 15000 });
 
+/** A folder with a `.git` that Git did not answer for (it timed out, or refused the folder as another user's), with why. */
+export interface SkippedCheckout { folder: string; reason: string }
 interface Checkout { folder: string; worktree: boolean; common: string; remote: string | null }
-/** The checkout at `folder` (it has a `.git`), with the repository it belongs to and its preferred remote; null when Git does not take it for one. */
-async function checkoutAt(folder: string): Promise<Checkout | null> {
+/** The checkout at `folder` (it has a `.git`), with the repository it belongs to and its preferred remote; null without a `.git`. */
+async function checkoutAt(folder: string): Promise<Checkout | SkippedCheckout | null> {
   const entry = await stat(path.join(folder, '.git')).catch(() => null);
   if (!entry) return null;
-  const common = await git(folder, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-  if (common === null || !common.trim()) return null;
-  const urls = (await git(folder, ['config', '--get-regexp', '^remote\\..*\\.url$']) ?? '').split(/\r?\n/)
+  let common: string;
+  try { common = (await git(folder, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).stdout.trim(); }
+  catch (error) { return { folder, reason: firstLine(error) }; }
+  if (!common) return { folder, reason: 'Git did not name its repository' };
+  // Without remotes, `git config --get-regexp` finds nothing and fails.
+  const urls = (await git(folder, ['config', '--get-regexp', '^remote\\..*\\.url$']).then(result => result.stdout, () => '')).split(/\r?\n/)
     .map(line => /^remote\.(.+)\.url\s+(.+)$/.exec(line.trim())).filter((match): match is RegExpExecArray => match !== null);
   const preferred = urls.find(match => match[1] === 'origin') ?? urls[0];
-  return { folder, worktree: entry.isFile(), common: path.resolve(common.trim()), remote: preferred ? remoteWithoutCredentials(preferred[2].trim()) : null };
+  return { folder, worktree: entry.isFile(), common: path.resolve(common), remote: preferred ? remoteWithoutCredentials(preferred[2].trim()) : null };
+}
+const firstLine = (error: unknown) => {
+  const failure = error as { stderr?: unknown; message?: unknown };
+  const text = [failure?.stderr, failure?.message].find((value): value is string => typeof value === 'string' && value.trim() !== '') ?? 'Git failed';
+  return text.trim().split(/\r?\n/)[0].replace(/^fatal: /, '').slice(0, 300);
+};
+/** `run` over `items`, at most `limit` at a time, keeping their order. */
+async function limited<T, R>(items: T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) { const index = next++; results[index] = await run(items[index]); }
+  }));
+  return results;
 }
 
 /**
@@ -88,8 +109,10 @@ export async function scanWorkspace(folder: string): Promise<WorkspaceScan> {
   if (!info.isDirectory()) throw new WorkError(`${resolved} is not a folder.`);
   let entries;
   try { entries = await readdir(resolved, { withFileTypes: true }); } catch (error) { throw new WorkError(`The folder ${resolved} cannot be read: ${(error as NodeJS.ErrnoException).code ?? (error as Error).message}.`); }
-  const folders = [resolved, ...entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && !skipped.has(entry.name)).map(entry => path.join(resolved, entry.name)).sort((a, b) => a.localeCompare(b))];
-  const checkouts = (await Promise.all(folders.map(checkoutAt))).filter((checkout): checkout is Checkout => checkout !== null);
+  const folders = [resolved, ...entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && !ignoredFolders.has(entry.name)).map(entry => path.join(resolved, entry.name)).sort((a, b) => a.localeCompare(b))];
+  const answers = (await limited(folders, concurrency, checkoutAt)).filter(answer => answer !== null);
+  const checkouts = answers.filter((answer): answer is Checkout => 'common' in answer);
+  const skippedCheckouts = answers.filter((answer): answer is SkippedCheckout => 'reason' in answer);
   // The repository's own checkout names it rather than one of its worktrees; the folder itself comes first.
   checkouts.sort((a, b) => Number(a.folder !== resolved) - Number(b.folder !== resolved) || Number(a.worktree) - Number(b.worktree));
   const repositories = new Set<string>(), found: ProjectRepository[] = [];
@@ -99,12 +122,17 @@ export async function scanWorkspace(folder: string): Promise<WorkspaceScan> {
     repositories.add(common);
     found.push({ id: identityOf(checkout), name: path.basename(checkout.folder) || checkout.folder, remote: checkout.remote, ...checkout.remote === null && { path: checkout.folder } });
   }
-  return { folder: resolved, repositories: newRepositories([], found) };
+  return { folder: resolved, repositories: newRepositories([], found), skipped: skippedCheckouts };
 }
 
-/** The repositories in several workspace folders, each once. */
-export async function scanWorkspaces(folders: string[]): Promise<ProjectRepository[]> {
-  const repositories: ProjectRepository[] = [];
-  for (const scan of await Promise.all(folders.map(scanWorkspace))) repositories.push(...newRepositories(repositories, scan.repositories));
-  return repositories;
+/** The repositories in several workspace folders, each once and each with an ID of its own, and the checkouts skipped. */
+export async function scanWorkspaces(folders: string[]): Promise<{ repositories: ProjectRepository[]; skipped: SkippedCheckout[] }> {
+  const repositories: ProjectRepository[] = [], skipped: SkippedCheckout[] = [];
+  // One folder after another, so at most `concurrency` Git processes run at once.
+  for (const folder of folders) {
+    const scan = await scanWorkspace(folder);
+    repositories.push(...newRepositories(repositories, scan.repositories));
+    skipped.push(...scan.skipped);
+  }
+  return { repositories, skipped };
 }

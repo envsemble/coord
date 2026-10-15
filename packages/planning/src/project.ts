@@ -9,8 +9,8 @@ import { folderKey, HomeDatabase, projectOf, type ProjectRow } from './database.
 import { appendRegistryEntries, setRegistryMember } from './registryText.ts';
 import { runProgram } from './run.ts';
 import { homePlanningDirectory } from './storage.ts';
-import { slugOf, WorkError } from './work.ts';
-import { checkedWorkspaces, newRepositories, scanWorkspaces, type ProjectRepository } from './workspaces.ts';
+import { slugOf, WorkError, writeText } from './work.ts';
+import { checkedWorkspaces, newRepositories, scanWorkspaces, type ProjectRepository, type SkippedCheckout } from './workspaces.ts';
 
 export type { ProjectRepository };
 /** The template files by their path in a new planning folder. */
@@ -60,11 +60,29 @@ const git = (folder: string, args: string[]) => runProgram('git', ['-C', folder,
  * `git init` and an initial commit (as the user's Git identity, else as Atlas). It becomes the last
  * of the home's projects.
  */
-export async function createProject(database: HomeDatabase, request: { name: string; workspaces?: string[]; repositories?: ProjectRepository[] }, templates: ProjectTemplates): Promise<ProjectRow> {
+export async function createProject(database: HomeDatabase, request: { name: string; workspaces?: string[]; repositories?: ProjectRepository[] }, templates: ProjectTemplates): Promise<ProjectRow & { skipped: SkippedCheckout[] }> {
   const workspaces = checkedWorkspaces(request.workspaces ?? []);
-  checkedProject(request.name, request.repositories ?? []);
-  const { name, repositories } = checkedProject(request.name, request.repositories ?? await scanWorkspaces(workspaces));
+  checkedProject(request.name, []);
   if (!templates['planning.json']) throw new WorkError('The planning templates are not available.');
+  let given: unknown = request.repositories, skipped: SkippedCheckout[] = [];
+  if (given === undefined) ({ repositories: given, skipped } = await scanWorkspaces(workspaces));
+  else if (Array.isArray(given) && given.every(item => typeof item?.id === 'string')) {
+    let listed = given as ProjectRepository[];
+    // A checkout without a remote comes back from the app's preview without its path: this scan has it.
+    if (workspaces.length && listed.some(item => !item.remote && !item.path)) {
+      const scan = await scanWorkspaces(workspaces);
+      skipped = scan.skipped;
+      const local = scan.repositories.filter(item => item.remote === null && item.path);
+      listed = listed.map(item => {
+        if (item.remote || item.path) return item;
+        const found = local.find(entry => entry.id === item.id) ?? local.find(entry => entry.name === item.name);
+        return found ? { ...item, path: found.path } : item;
+      });
+    }
+    // Previews of several folders may give two repositories one ID: each gets its own.
+    given = newRepositories([], listed);
+  }
+  const { name, repositories } = checkedProject(request.name, given);
   const base = homePlanningDirectory(database.home);
   await mkdir(base, { recursive: true });
   const slug = slugOf(name) === 'work' && !/work/i.test(name) ? 'project' : slugOf(name);
@@ -88,28 +106,36 @@ export async function createProject(database: HomeDatabase, request: { name: str
     await rm(folder, { recursive: true, force: true }).catch(() => undefined);
     throw new WorkError(`The project could not be created: ${(error as Error).message}`);
   }
-  return projectOf(database, folder);
+  return { ...await projectOf(database, folder), skipped };
 }
 
 /**
  * Set a project's workspace folders in its planning.json, keeping the file's formatting, and register
- * the repositories found in the folders it did not cover before (never removing one). Returns the
- * folders and the repositories added.
+ * the repositories found in the folders it did not cover before (never removing one). The folders
+ * are scanned first; the registry is then read again and replaced whole, and refused when it changed
+ * meanwhile, so nothing registered at the same time is lost. Returns the folders, the repositories
+ * added and the checkouts skipped.
  */
-export async function setProjectWorkspaces(root: string, folders: string[]): Promise<{ workspaces: string[]; added: ProjectRepository[] }> {
+export async function setProjectWorkspaces(root: string, folders: string[]): Promise<{ workspaces: string[]; added: ProjectRepository[]; skipped: SkippedCheckout[] }> {
   const workspaces = checkedWorkspaces(folders);
   const file = path.join(root, 'planning.json');
-  let text: string, registry: { workspaces?: unknown; repositories?: unknown };
-  try { text = await readFile(file, 'utf8'); registry = JSON.parse(text.replace(/^﻿/, '')); }
-  catch (error) { throw new WorkError(`The project's planning.json cannot be read: ${(error as Error).message}`); }
-  const before = new Set((Array.isArray(registry.workspaces) ? registry.workspaces : []).flatMap(item => typeof item === 'string' ? [folderKey(path.resolve(item))] : []));
-  const found = await scanWorkspaces(workspaces.filter(folder => !before.has(folderKey(folder))));
-  const added = newRepositories(Array.isArray(registry.repositories) ? registry.repositories : [], found);
+  const read = async () => {
+    try { const text = await readFile(file, 'utf8'); return { text, registry: JSON.parse(text.replace(/^﻿/, '')) as { workspaces?: unknown; repositories?: unknown } }; }
+    catch (error) { throw new WorkError(`The project's planning.json cannot be read: ${(error as Error).message}`); }
+  };
+  const covered = (registry: { workspaces?: unknown }) => new Set((Array.isArray(registry.workspaces) ? registry.workspaces : []).flatMap(item => typeof item === 'string' ? [folderKey(path.resolve(item))] : []));
+  const before = covered((await read()).registry);
+  const scan = await scanWorkspaces(workspaces.filter(folder => !before.has(folderKey(folder))));
+  const { text, registry } = await read();
+  const added = newRepositories(Array.isArray(registry.repositories) ? registry.repositories : [], scan.repositories);
   let next: string;
   try {
     next = setRegistryMember(text, 'workspaces', workspaces, ['name', 'schema_version']);
     if (added.length) next = appendRegistryEntries(next, 'repositories', added.map(registered));
   } catch (error) { throw new WorkError(`The project's workspace folders could not be set: ${(error as Error).message}`); }
-  if (next !== text) await writeFile(file, next);
-  return { workspaces, added };
+  if (next !== text) {
+    if (await readFile(file, 'utf8') !== text) throw new WorkError('planning.json changed meanwhile; the workspace folders were not set. Try again.');
+    await writeText(file, next);
+  }
+  return { workspaces, added, skipped: scan.skipped };
 }

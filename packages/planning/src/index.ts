@@ -29,5 +29,5 @@ export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type File
 export { adoptPlanningFolder, type Adopted } from './adopt.ts';
 export { projectSummary, type ProjectSummary, type ProjectWork, type ProjectWorkState } from './projectSummary.ts';
 export { createProject, readTemplates, setProjectWorkspaces, type ProjectTemplates } from './project.ts';
-export { checkedWorkspaces, scanWorkspace, scanWorkspaces, workspaceLimit, type ProjectRepository, type WorkspaceScan } from './workspaces.ts';
+export { checkedWorkspaces, scanWorkspace, scanWorkspaces, workspaceLimit, type ProjectRepository, type SkippedCheckout, type WorkspaceScan } from './workspaces.ts';
 export { setRegistryMember, setRegistryName } from './registryText.ts';

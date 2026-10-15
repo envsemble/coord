@@ -70,7 +70,7 @@ test('atlas mcp serves the planning-state tools over stdio, resolving the planni
     const made = await call('project_create', { name: 'Shop work', workspaces: [directory] });
     assert.equal(made.isError, undefined, made.content?.[0].text);
     const planningFolder = path.join(home, 'planning', 'shop-work');
-    assert.deepEqual(made.structuredContent, { name: 'Shop work', planningFolder, workspaces: [directory], repositories: [{ id: 'shop', name: 'shop', remote: 'https://github.com/example/shop.git' }] });
+    assert.deepEqual(made.structuredContent, { name: 'Shop work', planningFolder, workspaces: [directory], repositories: [{ id: 'shop', name: 'shop', remote: 'https://github.com/example/shop.git' }], skipped: [] });
     assert.ok(existsSync(path.join(planningFolder, '.git')) && existsSync(path.join(planningFolder, 'PLANS.md')));
     assert.ok(withDatabase(home, database => database.projects().some(project => project.name === 'Shop work' && project.folder === planningFolder)), 'its row in the home database');
     assert.deepEqual(((await call('where', {})).structuredContent as { matches: { project: string }[] }).matches.map(match => match.project), ['Shop work']);

@@ -82,7 +82,7 @@ test('atlas project create makes a project covering workspace folders, which the
   const created = run('project', 'create', '--name', 'Shop work', '--workspace', '.', '--json');
   assert.equal(created.status, 0, created.stderr);
   const planningFolder = path.join(home, 'planning', 'shop-work');
-  assert.deepEqual(JSON.parse(created.stdout), { name: 'Shop work', planningFolder, workspaces: [directory], repositories: [{ id: 'shop', name: 'shop', remote: 'https://github.com/example/shop.git' }] });
+  assert.deepEqual(JSON.parse(created.stdout), { name: 'Shop work', planningFolder, workspaces: [directory], repositories: [{ id: 'shop', name: 'shop', remote: 'https://github.com/example/shop.git' }], skipped: [] });
   for (const file of ['AGENTS.md', 'PLANS.md', 'README.md', 'plan-frontmatter.md', '.gitattributes', '.git']) assert.ok(existsSync(path.join(planningFolder, file)), file);
   assert.match(git(planningFolder, 'log', '--format=%s'), /^Create the Shop work project/);
   assert.equal(atlas(['planning', 'check', planningFolder], { env }).status, 0);

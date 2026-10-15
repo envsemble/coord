@@ -41,7 +41,7 @@ const tools: Tool[] = [
   },
   {
     name: 'project_create',
-    description: "Create a project in the Atlas home: a planning folder made from Atlas's templates, as its own Git repository, covering the workspace folders given (a session in one of them belongs to the project) and registering the Git checkouts in them (each folder itself and the folders directly inside it; worktrees count as their repository), unless repositories are given. Ask the user before creating one, and check with where that no project already covers the work. Returns its name, planning folder, workspace folders and repositories.",
+    description: "Create a project in the Atlas home: a planning folder made from Atlas's templates, as its own Git repository, covering the workspace folders given (a session in one of them belongs to the project) and registering the Git checkouts in them (each folder itself and the folders directly inside it; worktrees count as their repository), unless repositories are given. Ask the user before creating one, and check with where that no project already covers the work. Returns its name, planning folder, workspace folders and repositories, and the checkouts skipped because Git did not answer for them (tell the user).",
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['name', 'workspaces'], properties: {
         name: { type: 'string', description: "The project's name." },

@@ -279,7 +279,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   // The project's name, which the app shows; the folder's own name without it.
   if (Object.hasOwn(registry, 'name') && (typeof registry.name !== 'string' || !registry.name.trim() || registry.name.length > 100)) errors.push('name must be a nonempty string of at most 100 characters when supplied');
   // The workspace folders the project covers on this computer: a session in one belongs to it.
-  if (Object.hasOwn(registry, 'workspaces') && (!Array.isArray(registry.workspaces) || registry.workspaces.some(item => typeof item !== 'string' || !item.trim() || !path.isAbsolute(item)))) errors.push('workspaces must be an array of absolute folder paths when supplied');
+  if (Object.hasOwn(registry, 'workspaces') && (!Array.isArray(registry.workspaces) || registry.workspaces.some(item => typeof item !== 'string' || !item.trim() || !(path.win32.isAbsolute(item) || path.posix.isAbsolute(item))))) errors.push('workspaces must be an array of absolute folder paths when supplied');
   if (errors.length) return { errors, warnings };
   const repositories = registry.repositories as unknown[], workItems = registry.work_items as unknown[];
 

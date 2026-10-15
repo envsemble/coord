@@ -177,6 +177,8 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
     if (depth) via.add('workspace');
     const within = inside(root, resolvedCwd);
     if (within) via.add('inside');
+    // Inside the planning folder counts as a workspace folder of its own depth: a broader workspace folder around it does not win.
+    const level = Math.max(depth, within ? root.split(/[\\/]+/).filter(Boolean).length : 0);
     for (const repository of registry.repositories) {
       if (typeof repository?.id !== 'string') continue;
       const remote = typeof repository.remote === 'string' ? normalizeRemote(repository.remote) : null;
@@ -192,9 +194,9 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
     if (!via.size) continue;
     const scope = new Set(repositories);
     const scoped = work.filter((_, index) => !scope.size || (Array.isArray(active[index].repositories) && (active[index].repositories as unknown[]).some(id => scope.has(id as string))));
-    candidates.push({ planningFolder: root, project, via: [...via], repositories, work: scoped, depth });
+    candidates.push({ planningFolder: root, project, via: [...via], repositories, work: scoped, depth: level });
   }
-  // A workspace folder decides: only the projects with the deepest one the session is in match.
+  // A workspace folder (or the planning folder itself) decides: only the projects with the deepest one the session is in match.
   const deepest = Math.max(0, ...candidates.map(candidate => candidate.depth));
   const matches = candidates.filter(candidate => candidate.depth === deepest).map(({ depth: _, ...match }) => match);
   for (const project of projects) project.match = matches.some(match => match.planningFolder === project.planningFolder);
