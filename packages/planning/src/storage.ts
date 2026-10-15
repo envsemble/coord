@@ -167,9 +167,13 @@ export async function migrateLegacyData(home: string, legacy: string): Promise<L
   return result;
 }
 
-/** Create the home and its planning folder. Never throws: an unwritable home shows up where it is used. */
+/**
+ * Create the home (owner-only on POSIX: its database holds secrets) and its planning folder. Never
+ * throws: an unwritable home shows up where it is used.
+ */
 export async function prepareHome(options: { override?: string; environment?: NodeJS.ProcessEnv; home?: string } = {}) {
   const home = atlasHome(options.override, options.environment ?? process.env, options.home);
+  await mkdir(home, { recursive: true, mode: 0o700 }).catch(() => undefined);
   await mkdir(homePlanningDirectory(home), { recursive: true }).catch(() => undefined);
   return { home };
 }

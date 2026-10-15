@@ -2,6 +2,7 @@
 // belongs to the planning folders whose registry names one of its Git remotes, to the planning
 // folder it is inside, and, for a repository without a remote, to the one whose absolute `path`
 // hint is the checkout. Worktrees share their repository's remotes, so they resolve the same way.
+// Only active projects match: hidden and archived ones (such as a folder split into others) do not.
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from './check.ts';
@@ -9,7 +10,7 @@ import { ledgerStatus, stepCounts, stepSummary } from './ledger.ts';
 import { samePlatformPath } from './planningRoots.ts';
 import { runProgram } from './run.ts';
 import { atlasHome, homePlanningFolders } from './storage.ts';
-import { planningName } from './database.ts';
+import { folderKey, inactiveProjectFolders, planningName } from './database.ts';
 import type { LedgerStep } from './types.ts';
 
 export interface ActiveWork {
@@ -113,8 +114,10 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
   const found = await checkoutOf(resolvedCwd);
   const remotes = new Set((found?.remotes ?? []).map(normalizeRemote).filter((value): value is string => value !== null));
   const matches: PlanningMatch[] = [];
+  const inactive = inactiveProjectFolders(home);
   for (const folder of await homePlanningFolders(home)) {
     const root = await realpath(folder).catch(() => folder);
+    if (inactive.has(folderKey(root))) continue;
     let registry;
     try { registry = await readRegistry(root); } catch { continue; }
     const via = new Set<PlanningMatch['via'][number]>();

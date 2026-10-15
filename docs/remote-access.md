@@ -149,7 +149,7 @@ The loopback listener accepts only the owner credential, and only from this comp
 - **Device tokens** are 32 random bytes.
   - The host stores only their SHA-256 hash, with what the device may do, in its [home database](command.md#the-atlas-home), and compares hashes in constant time.
   - The connecting device stores its token in its home database, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted.
-  - The database is written with owner-only permissions on Linux; on Windows, the home is in your user profile.
+  - On macOS and Linux, Atlas creates the home readable by you only (0700) and the database and its `-wal` and `-shm` files as 0600, and tightens database files an earlier version left readable when it opens them. On Windows, the home is in your user profile, whose permissions keep other users out.
 - **What a device can reach** is what Atlas reaches on that computer, as the user who runs it:
   - the files inside the planning folders in its Atlas home;
   - new projects it creates there, and project names it changes;

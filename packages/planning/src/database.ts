@@ -5,7 +5,7 @@
 // the planning folders. Every process opens it in WAL mode with a busy timeout, so they take turns
 // writing; short-lived ones (the command, a hook) open it for one operation and close it again.
 // The schema's version is the database's user_version; each migration runs once, in order.
-import { mkdirSync, realpathSync } from 'node:fs';
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync, realpathSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -73,6 +73,21 @@ export interface ProjectRow { id: number; connectionId: string | null; name: str
 export const folderKey = (value: string, platform: NodeJS.Platform = process.platform) => platform === 'win32' || platform === 'darwin' ? value.toLowerCase() : value;
 
 type Row = Record<string, unknown>;
+
+/**
+ * The database holds secrets (the host's, device hashes, connection tokens), so on POSIX the home is
+ * created 0700 and the database 0600 before SQLite opens it; its -wal and -shm files take the
+ * database's mode, and files an earlier Atlas left readable are tightened. On Windows the home is in
+ * the user's profile, whose permissions suffice.
+ */
+function ownerOnly(home: string, file: string) {
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  if (process.platform === 'win32') return;
+  if (!existsSync(file)) closeSync(openSync(file, 'a', 0o600));
+  for (const name of [file, file + '-wal', file + '-shm']) {
+    try { chmodSync(name, 0o600); } catch { /* Not there. */ }
+  }
+}
 const projectRow = (row: Row): ProjectRow => ({
   id: Number(row.id), connectionId: (row.connection_id as string | null) ?? null, name: String(row.name), folder: String(row.folder),
   position: Number(row.position), state: row.state as ProjectState, createdAt: String(row.created_at),
@@ -95,7 +110,7 @@ export class HomeDatabase {
   private constructor(home: string) {
     this.home = home;
     this.file = path.join(home, databaseName);
-    mkdirSync(home, { recursive: true });
+    ownerOnly(home, this.file);
     this.db = new DatabaseSync(this.file, { timeout: 10000 });
     try {
       this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA synchronous = NORMAL;');
@@ -211,6 +226,17 @@ export async function canonicalProjectFolder(folder: string) {
 }
 export function canonicalProjectFolderSync(folder: string) {
   try { return realpathSync.native(folder); } catch { return path.resolve(folder); }
+}
+
+/**
+ * The folders (as folderKey) of this computer's projects that are hidden or archived, read from the
+ * home's database when it has one: they do not match checkouts. A folder without a row is active.
+ */
+export function inactiveProjectFolders(home: string): Set<string> {
+  if (!existsSync(path.join(home, databaseName))) return new Set();
+  try {
+    return withDatabase(home, database => new Set(database.projects().filter(project => project.state !== 'active').map(project => folderKey(project.folder))));
+  } catch { return new Set(); }
 }
 
 /**

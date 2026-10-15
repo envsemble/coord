@@ -2,13 +2,13 @@
 // the migration of the files Atlas kept in its home before it.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DatabaseVersionError, HomeDatabase, planningName, schemaVersion, withDatabase, withDatabaseAsync } from './database.ts';
 import { migrateHomeFiles, pendingHomeFiles } from './homeMigration.ts';
-import { legacyUsageSchema, statisticsDirectory } from './storage.ts';
+import { legacyUsageSchema, prepareHome, statisticsDirectory } from './storage.ts';
 import { usageSummary } from './telemetry.ts';
 
 function temporary(t: TestContext) {
@@ -37,6 +37,27 @@ test('the database is created with the accepted schema, and refuses a newer one'
   raw.exec(`PRAGMA user_version = ${schemaVersion + 1}`);
   raw.close();
   assert.throws(() => HomeDatabase.open(home), DatabaseVersionError);
+});
+
+test('the home and its database are owner-only on POSIX', { skip: process.platform === 'win32' && 'Windows profile permissions apply' }, async t => {
+  const directory = temporary(t);
+  const mode = (file: string) => statSync(file).mode & 0o777;
+  const home = path.join(directory, 'home');
+  await prepareHome({ override: home });
+  assert.equal(mode(home), 0o700);
+  withDatabase(home, database => database.setSetting('theme', 'dark'));
+  const file = path.join(home, 'atlas.db');
+  for (const name of [file, file + '-wal', file + '-shm']) if (existsSync(name)) assert.equal(mode(name), 0o600, name);
+  // A database an earlier Atlas left readable is tightened when it is opened.
+  const other = path.join(directory, 'other');
+  mkdirSync(other);
+  const raw = new DatabaseSync(path.join(other, 'atlas.db'));
+  raw.exec('PRAGMA journal_mode = WAL; CREATE TABLE x (y);');
+  chmodSync(path.join(other, 'atlas.db'), 0o644);
+  for (const suffix of ['-wal', '-shm']) if (existsSync(path.join(other, 'atlas.db' + suffix))) chmodSync(path.join(other, 'atlas.db' + suffix), 0o644);
+  withDatabase(other, database => database.setSetting('theme', 'dark'));
+  raw.close();
+  for (const suffix of ['', '-wal', '-shm']) if (existsSync(path.join(other, 'atlas.db' + suffix))) assert.equal(mode(path.join(other, 'atlas.db' + suffix)), 0o600, suffix);
 });
 
 test('projects keep their order and state, and a paired computer\'s rows are kept apart', async t => {

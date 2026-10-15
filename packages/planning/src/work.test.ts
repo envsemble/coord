@@ -257,6 +257,15 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   assert.deepEqual(several.matches.map(match => match.project), ['main', 'Coord']);
   await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects register this checkout's repository: main \(.*\), Coord \(.*\)\. Ask the user which project to plan in/);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home, work: 'work-0001' }), root, 'a work item only one of them registers names its project');
+  // Hidden and archived projects do not match; a folder without a project row is active.
+  const coord = realpathSync(path.join(home, 'planning', 'unrelated'));
+  withDatabase(home, database => database.addProject(coord, 'Coord', null, 'archived'));
+  assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['main']);
+  assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
+  withDatabase(home, database => database.updateProject(database.projectByFolder(coord)!.id, { state: 'hidden' }));
+  assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['main']);
+  withDatabase(home, database => database.addProject(root, 'main', null, 'hidden'));
+  assert.deepEqual((await findPlanning(shop, { home })).matches, []);
 });
 
 test('atlas check attributes findings to the files asked about and runs registered checkers', async t => {
