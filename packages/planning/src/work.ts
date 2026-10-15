@@ -212,12 +212,12 @@ export const summaryLimit = 1000;
 /** The steps every work item starts with, designing it until the user accepts the plan; agents rename them to fit the work. */
 export const planningSteps = ['Understand the request', 'Settle the design', 'Write the plan', 'Accepted'];
 
-/** A new work item's ledger: the planning steps, the first one under way. */
-export function planningLedger(workId: string, title: string, today: string) {
+/** A new work item's ledger: its planning steps (by default the usual ones, the first under way). */
+export function planningLedger(workId: string, title: string, today: string, steps = planningSteps.map((step, index) => ({ title: step, status: index ? 'todo' : 'doing' })), note = 'work created; planning started.') {
   return [
     '---', 'schema_version: 2', 'kind: ledger', 'work_id: ' + workId, `updated: "${today}"`, 'blocked: null', 'steps:',
-    ...planningSteps.flatMap((step, index) => ['  - title: ' + JSON.stringify(step), '    status: ' + (index ? 'todo' : 'doing'), '    phase: planning']),
-    '---', '', '# Ledger: ' + title, '', '## Progress', '', `- ${today}: work created; planning started.`, '',
+    ...steps.flatMap(step => ['  - title: ' + JSON.stringify(step.title), '    status: ' + step.status, '    phase: planning']),
+    '---', '', '# Ledger: ' + title, '', '## Progress', '', `- ${today}: ${note}`, '',
   ].join('\n');
 }
 /**
@@ -373,6 +373,16 @@ function find(steps: LedgerStep[], title: unknown) {
 export async function addSteps(root: string, workId: string, titles: string[], options: OperationOptions = {}) {
   const added = stepTitles(titles);
   if (!added.length) throw new WorkError('Give at least one step to add.');
+  // Work still being planned without a ledger (created before ledgers began with planning steps)
+  // gets one, with these as its planning steps.
+  const unledgered = await load(root, workId);
+  if (unledgered.ledgerText === null && !implementing(unledgered) && locationOf(unledgered.entry.path) === 'active') {
+    const today = dateOf(options);
+    const title = typeof unledgered.planMetadata.title === 'string' && unledgered.planMetadata.title.trim() ? unledgered.planMetadata.title.trim() : workId;
+    const ledger = await writeLedger(unledgered, planningLedger(workId, title, today, added.map(step => ({ title: step, status: 'todo' })), 'planning steps added.'));
+    const plan = await writePlan(unledgered, {}, today);
+    return result(unledgered.root, workId, [ledger, plan]);
+  }
   return changeLedger(root, workId, options, (steps, loaded) => {
     const taken = added.filter(title => steps.some(step => step.title === title));
     if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '.');

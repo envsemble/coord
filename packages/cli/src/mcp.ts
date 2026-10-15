@@ -81,7 +81,7 @@ const tools: Tool[] = [
     inputSchema: object({ work, steps: { ...titles('The agreed steps, in order.'), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
   },
   {
-    name: 'step_add', description: 'Add steps (todo) when agreed scope gains them: before implementation starts they are planning steps, after work_start implementation steps.',
+    name: 'step_add', description: 'Add steps (todo) when agreed scope gains them: before implementation starts they are planning steps (a draft from before planning steps gets its ledger this way), after work_start implementation steps.',
     inputSchema: object({ work, steps: titles('New step titles.') }, ['work', 'steps']), run: (root, input) => addSteps(root, input.work!, input.steps as string[]),
   },
   {

@@ -1,7 +1,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { validatePlanning } from './check.ts';
@@ -174,9 +174,21 @@ test('the design is accepted, then implementation starts with a ledger that reco
   await assert.rejects(startWork(root, 'nonsense', { steps: ['A'] }, today), /such as work-0001/);
 });
 
+test('a draft from before planning steps gets its ledger from its first planning steps', async t => {
+  const root = planningFolder(temporary(t));
+  const added = await addSteps(root, 'work-0001', ['Settle the refunds', 'Accepted'], today);
+  assert.deepEqual(added.steps, [{ title: 'Settle the refunds', status: 'todo', phase: 'planning' }, { title: 'Accepted', status: 'todo', phase: 'planning' }]);
+  const folder = readdirSync(path.join(root, 'active')).find(name => name.startsWith('0001'))!;
+  assert.match(readFileSync(path.join(root, 'active', folder, 'ledger.md'), 'utf8'), /planning steps added/);
+  assert.deepEqual(errorsOf(root), []);
+  assert.deepEqual((await addSteps(root, 'work-0001', ['Write the plan'], today)).steps.map(step => step.title), ['Settle the refunds', 'Accepted', 'Write the plan']);
+  await acceptWork(root, 'work-0001', today);
+  const started = await startWork(root, 'work-0001', { steps: ['Build'] }, today);
+  assert.deepEqual(started.steps.map(step => step.status), ['done', 'done', 'done', 'todo']);
+});
+
 test('steps are added, set, renamed and removed with a reason, and blocked is set and cleared', async t => {
   const root = planningFolder(temporary(t));
-  await assert.rejects(addSteps(root, 'work-0001', ['X'], today), /no ledger yet/);
   await acceptWork(root, 'work-0001', today);
   await startWork(root, 'work-0001', { steps: ['Build'] }, today);
   const added = await addSteps(root, 'work-0001', ['Test', 'Ship'], { today: '2026-10-15' });
