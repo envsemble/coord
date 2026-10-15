@@ -158,7 +158,6 @@ body { margin: 0; }
 .work-page { --atlas-gutter: var(--space-3); display: grid; align-content: start; }
 /* An island like the diagram's: a pane pill with their hairline and shadow. */
 .diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--color-text-primary) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--color-canvas-dark) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--color-canvas-dark) 28%, transparent); }
-.diagram-plan-link { max-inline-size: 20rem; }
 @container (max-width: 40rem) {
   .work-page { --atlas-gutter: var(--space-2); }
 }

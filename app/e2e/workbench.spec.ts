@@ -87,13 +87,16 @@ test('a work item opens on its plan, shows its ledger in the plan\'s place from 
   await ledgerLink.click();
   await window.locator('.work-main .breadcrumb').getByRole('button', { name: '#0001' }).click();
   await expect(trailEnd(window)).toHaveText('#0001');
-  // A diagram opens from its card in the plan, in a tab of its own, with a way back to the plan.
+  // A diagram opens from its card in the plan, in a tab of its own, its controls first at the top
+  // left (no button back to the plan: Back, or the plan's tab, returns to it).
   await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
   await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
   await expect(activeTab(window)).toContainText('Saved payment methods');
+  await expect(window.locator('.diagrams .atlas-overlay-sections')).toHaveCount(0);
+  await expect(window.locator('.diagrams .island-start .model-picker-button')).toBeVisible();
   // The project's page, the plan and the diagram.
   await expect(tabs(window)).toHaveCount(3);
-  await window.getByRole('button', { name: 'Saved payment methods', exact: true }).click();
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   // A row's diagram count opens its first diagram.
   await tabs(window).filter({ hasText: 'Northwind' }).click();

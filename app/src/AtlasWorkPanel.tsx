@@ -4,14 +4,12 @@ import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
 import type { DiagramEntry, Target, Work } from './types';
 import { api } from './api';
-import { diagramTarget, workTarget } from './targets';
+import { diagramTarget } from './targets';
 import { selectDiagram } from './diagramSelection';
 import { elementId, modelSummary } from '@envsemble/atlas-planning/provenance';
 import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
-import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { DiagramIcon } from './icons';
-import { workNumber } from './format';
 import { ProvenanceBadge } from './ui';
 import { useWorkbench } from './workbenchContext';
 
@@ -91,11 +89,11 @@ function Problems({ diagram }: { diagram: DiagramEntry }) {
 /**
  * A work item's diagram, one of its `.puml` files, in a tab of its own. A capture and the proposals
  * over it arrive together, laid out once, so choosing another of them shows it at once in the same
- * panel, with nothing moving; another diagram loads. A way back to the work item's plan comes first,
- * at the top left.
+ * panel, with nothing moving; another diagram loads. Its controls start at the top left; the way
+ * back to the plan is the tab's history or the plan's own tab.
  */
 export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTarget }) {
-  const { project, open, retarget, revision, inspectorWidth, setInspectorWidth } = useWorkbench();
+  const { project, retarget, revision, inspectorWidth, setInspectorWidth } = useWorkbench();
   const { theme } = useThemePreference();
   const [diagrams, setDiagrams] = useState<DiagramEntry[] | null>(null);
   const [listError, setListError] = useState('');
@@ -146,9 +144,6 @@ export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTa
   }, [fullscreen]);
 
   const select = (next: string) => retarget(diagramTarget(work.id, next));
-  const sections = <Surface tone="pane" corners="pill" padding={1} density="compact" className="diagrams-island">
-    <Button variant="text" startIcon={<ArrowBack />} className="diagram-plan-link" onClick={() => open(workTarget(work.id), { pin: true })} title={'The plan of ' + workNumber(work.id) + ' ' + work.title}>{work.title}</Button>
-  </Surface>;
   const picker = listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={loaded?.payloads ?? new Map()} open={pickerOpen} onOpenChange={setPickerOpen} onSelect={select} /> : null;
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
@@ -159,12 +154,11 @@ export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTa
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
         <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: elementId(payload.model, target.element) } : null}
-          leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
+          leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>
       : <>
         <div className="diagrams-islands">
-          {sections}
           {picker && <Surface tone="pane" corners="pill" padding={1} density="compact" className="diagrams-island">{picker}</Surface>}
         </div>
         {!diagrams ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
