@@ -133,20 +133,21 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await goHome(viewer);
   await expect(hubRows(viewer)).toHaveCount(4);
 
-  // A project created from here is made on that computer, and both see it.
-  // (It covers a folder there, typed in: it cannot be browsed for from here.)
-  const workspace = temporaryDirectory('atlas-e2e-workspace-');
-  folders.push(workspace);
+  // A project created from here is made on that computer, and both see it. Its workspace folders
+  // are paths there, chosen in Atlas there: here it gets a name only, and its folders are not changed.
   await openProjects(viewer);
   await viewer.getByRole('button', { name: 'New project', exact: true }).click();
   const create = viewer.getByRole('dialog', { name: 'New project' });
   await create.getByLabel('Name').fill('Coord');
+  await expect(create.getByLabel('Folder')).toHaveCount(0);
   await expect(create.getByRole('button', { name: 'Browse…' })).toHaveCount(0);
-  await create.getByLabel('Folder').fill(workspace);
-  await expect(create).toContainText('when it creates the project');
+  await expect(create).toContainText(`Its workspace folders are on ${name}: choose them in Atlas there`);
   await create.getByRole('button', { name: 'Create' }).click();
   await expectProjects(viewer, ['Northwind', 'Coord']);
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
+  expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'coord', 'planning.json'), 'utf8')).workspaces ?? []).toEqual([]);
+  await expect(projectRow(viewer, 'Coord').getByRole('button', { name: 'Add folder…' })).toHaveCount(0);
+  await expect(projectRow(viewer, 'Coord')).toContainText(`Folders are chosen in Atlas on ${name}.`);
   // (The owner's Remote Access dialog stays open, so its projects are read through its bridge.)
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord']);
   // Renaming goes to that computer (the name is in the project's planning.json)...

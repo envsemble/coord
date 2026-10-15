@@ -122,9 +122,8 @@ The app follows Electron's security checklist (the desktop-only decision is work
 - Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
 - Commands a page could misuse wait for the person. The main process sees their clicks, key presses and taps in the window, which a page cannot fake:
   - Each press allows one such command.
-  - Pasting from a page (rather than with Ctrl+V) reads the clipboard, so it runs only within two seconds of one (Ctrl+V always works).
-  - These also run at once after one:
-    - exiting, and closing the last window;
+  - These run at once after one:
+    - exiting;
     - opening a window or the logs;
     - turning remote access on or moving it to another address, and pairing with another computer;
     - opening a web address in the browser.

@@ -65,19 +65,21 @@ const rehypePlugins = [rehypeHeadingIds];
 // A plan's request shows folded.
 const planPlugins = [rehypeHeadingIds, rehypeFoldRequests];
 
-/** A folded section's state, for the heading that toggles it. */
-const FoldContext = createContext<{ open: boolean; toggle(): void } | null>(null);
+/**
+ * The folded sections the reader opened, by their heading's id. The reader keeps them, outside the
+ * document's rendering, so they stay open while the document is drawn again as its folder changes.
+ */
+const FoldsContext = createContext<{ open: ReadonlySet<string>; toggle(id: string): void } | null>(null);
 /** A plan's request, folded until its heading is pressed. */
-function FoldedSection({ children }: { children?: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const fold = useMemo(() => ({ open, toggle: () => setOpen(value => !value) }), [open]);
-  return <FoldContext.Provider value={fold}><section className="request-fold" data-open={open || undefined}>{children}</section></FoldContext.Provider>;
+function FoldedSection({ id, children }: { id: string; children?: ReactNode }) {
+  const open = useContext(FoldsContext)?.open.has(id) ?? false;
+  return <section className="request-fold" data-open={open || undefined}>{children}</section>;
 }
 /** The heading of a folded section: one press opens or closes it. */
-function FoldToggle({ children }: { children?: ReactNode }) {
-  const fold = useContext(FoldContext);
-  if (!fold) return children;
-  return <button type="button" className="request-fold-toggle" aria-expanded={fold.open} onClick={fold.toggle}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
+function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
+  const folds = useContext(FoldsContext);
+  if (!folds || !id) return children;
+  return <button type="button" className="request-fold-toggle" aria-expanded={folds.open.has(id)} onClick={() => folds.toggle(id)}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
 }
 
 export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle, plan = false }: {
@@ -88,6 +90,8 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   const { project, open, notify, remote, sibling, openPath } = useWorkbench();
   const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
+  const [openFolds, setOpenFolds] = useState<ReadonlySet<string>>(new Set());
+  const folds = useMemo(() => ({ open: openFolds, toggle: (id: string) => setOpenFolds(current => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; }) }), [openFolds]);
   const [error, setError] = useState('');
   function scrollToHeading(target: string) {
     const nodes = Array.from(article.current?.querySelectorAll<HTMLElement>('[id]') ?? []);
@@ -154,12 +158,12 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
       const attached = id?.startsWith(headingPrefix) ? diagramCards.sections.get(id.slice(headingPrefix.length)) : undefined;
       const repeated = level === 1 && hideTitle !== undefined && text(node).trim() === hideTitle.trim();
       const toggles = Boolean((node as { properties?: { dataFoldToggle?: unknown } } | undefined)?.properties?.dataFoldToggle);
-      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, toggles ? <FoldToggle>{children}</FoldToggle> : children)}{attached && <DiagramCards items={attached} showWork={showWork} />}</>;
+      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, toggles ? <FoldToggle id={id}>{children}</FoldToggle> : children)}{attached && <DiagramCards items={attached} showWork={showWork} />}</>;
     };
     return {
       ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])),
       section: ({ node: _node, children, ...props }: ComponentProps<'section'> & { node?: unknown }) =>
-        (props as Record<string, unknown>)['data-fold'] ? <FoldedSection>{children}</FoldedSection> : <section {...props}>{children}</section>,
+        typeof (props as Record<string, unknown>)['data-fold'] === 'string' ? <FoldedSection id={(props as Record<string, string>)['data-fold']}>{children}</FoldedSection> : <section {...props}>{children}</section>,
       a: ({ href = '', children, id }: { href?: string; children?: ReactNode; id?: string }) => {
         const target = destination(href);
         if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></a>;
@@ -193,7 +197,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
-        <Markdown inlineCode="subtle" rehypePlugins={plan ? planPlugins : rehypePlugins} components={components}>{content.body}</Markdown>
+        <FoldsContext.Provider value={folds}><Markdown inlineCode="subtle" rehypePlugins={plan ? planPlugins : rehypePlugins} components={components}>{content.body}</Markdown></FoldsContext.Provider>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
       : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(project, file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}

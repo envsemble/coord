@@ -12,7 +12,7 @@ import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atla
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
 import { defaultUiState, invokeChannels, limits, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectChangeRequest, type Result, type ThemePreference, type UiState } from '../shared/contract.ts';
-import { absolutePath, argumentsOf, array, boolean, command, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
+import { argumentsOf, array, boolean, command, diagramPath, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import type { FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
@@ -28,7 +28,7 @@ const computer = nullable(hostId);
 const deviceId = string({ min: 34, max: 34, pattern: /^d-[a-f0-9]{32}$/ });
 const pairingLink = string({ min: 3, max: 2048 });
 const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
-const workspaces = array(absolutePath, limits.workspaces);
+const workspaces = array(folderPath, limits.workspaces);
 const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(workspaces) });
 
 /** Import previews belong to the window that chose the file. */
@@ -70,10 +70,6 @@ async function sendImport(folder: FolderView, file: string) {
   return value;
 }
 
-/** A page cannot fake a person's input: Paste, which reads the clipboard, waits for one. */
-function requireActivation(window: AtlasWindow) {
-  if (!window.takeActivation()) throw new AtlasError('forbidden', 'Paste needs a click or a key press in the window. Ctrl+V pastes too.');
-}
 /** A command a page could misuse runs after a person's press, or once they confirm it. */
 async function confirmed(window: AtlasWindow, message: string, action: string, detail?: string) {
   if (!(await window.confirm(message, action, detail))) throw new AtlasError('cancelled', 'Cancelled.');
@@ -121,6 +117,8 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   const row = placeRow(ui.place);
   const projectId = row ? window.listedRow(row.project) : null;
   const rows = row && projectId !== null ? [{ projectId, kind: row.kind, target: row.target, active: true }] : [];
+  // A project listed since the layout loaded (made meanwhile) has its place replaced from now on too.
+  if (projectId !== null) window.placesLoaded.add(projectId);
   // The window may have moved to another computer meanwhile: this place is no longer its own.
   if (window.computer === computer) state.saveTabs(window.rowId, computer === null ? null : connections.idOf(computer), rows, [...window.placesLoaded]);
 }
@@ -134,7 +132,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'projects:create': { args: [projectName, workspaces], handle: (window, name: string, folders: string[]) => remoteErrors(window.createProject(name, folders)) },
     // A folder on this computer: on another computer's projects, the folder is only found as the project is created there.
     'projects:scan': {
-      args: [absolutePath],
+      args: [folderPath],
       handle: (window, folder: string) => {
         if (window.computer !== null) throw new AtlasError('unavailable', 'Folders on another computer are not looked into before the project is created.');
         return remoteErrors(owner().request('projects.scan', { folder }));
@@ -191,19 +189,11 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         const contents = window.win.webContents;
         const devTools = manager.context.devTools;
         switch (name) {
-          // A page cannot open windows without end, quit (also by closing the last window) or pile up
+          // A page cannot open windows without end, quit or pile up
           // dialogs: these follow a person's press or their answer to Atlas's question.
           case 'newWindow': await confirmed(window, 'Open a new Atlas window?', 'Open'); manager.create(window.computer); return;
-          case 'closeWindow': if (manager.all().filter(other => !other.closing && !other.win.isDestroyed()).length <= 1) await confirmed(window, 'Close the last window and exit Atlas?', 'Close'); window.win.close(); return;
           case 'quit': await confirmed(window, 'Exit Atlas?', 'Exit'); app.quit(); return;
           case 'openLogs': await confirmed(window, 'Open the folder with Atlas’s logs?', 'Open'); actions.openLogs(); return;
-          // Edit acts on the window's focused element, as the native Edit menu does.
-          case 'undo': contents.undo(); return;
-          case 'redo': contents.redo(); return;
-          case 'cut': contents.cut(); return;
-          case 'copy': contents.copy(); return;
-          case 'paste': requireActivation(window); contents.paste(); return;
-          case 'selectAll': contents.selectAll(); return;
           case 'zoomIn': window.zoom('in'); return;
           case 'zoomOut': window.zoom('out'); return;
           case 'resetZoom': window.zoom('reset'); return;

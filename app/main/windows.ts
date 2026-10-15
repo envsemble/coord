@@ -195,9 +195,12 @@ export class AtlasWindow {
    * the same database; a paired computer's order and state are this app's own rows of them.
    */
   async projects(): Promise<Project[]> {
-    const { connections, database } = this.manager.context;
     const computer = this.computer;
-    const listed = await this.client().request('projects.list', {}, { timeout: 20000 });
+    return this.list(await this.client().request('projects.list', {}, { timeout: 20000 }), computer);
+  }
+  /** The projects as the window's computer listed them (`computer`, the one asked), with this app's rows of them. */
+  list(listed: Project[], computer = this.computer): Project[] {
+    const { connections, database } = this.manager.context;
     let projects: { project: Project; rowId: number }[];
     if (computer === null) {
       projects = listed.flatMap(project => { const row = database.projectByFolder(project.path); return row ? [{ project, rowId: row.id }] : []; });
@@ -511,9 +514,12 @@ export class WindowManager {
     if (hostId && !this.all().some(other => other.computer === hostId)) this.context.connections.release(hostId);
   }
 
-  /** A computer's projects changed: the windows showing it list them again. */
-  projectsChanged(hostId: string | null) {
-    for (const window of this.all()) if (window.computer === hostId) window.send('projects:changed', { hostId });
+  /**
+   * A computer's projects changed: the windows showing it get them as its host listed them (`listed`,
+   * when the host sent them), or list them again.
+   */
+  projectsChanged(hostId: string | null, listed?: Project[]) {
+    for (const window of this.all()) if (window.computer === hostId) window.send('projects:changed', { hostId, ...listed && { projects: window.list(listed) } });
   }
 
   /** A project of a computer moved under a new folder ID: the windows showing that computer follow it. */

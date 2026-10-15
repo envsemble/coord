@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argumentsOf, command, diagramPath, place, relativePath, target, uiState, ValidationError, viewEvent, workId } from './validate.ts';
+import { argumentsOf, command, diagramPath, folderPath, place, relativePath, target, uiState, ValidationError, viewEvent, workId } from './validate.ts';
 import { defaultUiState } from './contract.ts';
 
 const project = 'f-' + 'a'.repeat(32);
@@ -19,7 +19,7 @@ test('identifiers, commands and view events have exact shapes', () => {
   assert.equal(diagramPath('diagrams/checkout-capture.puml'), 'diagrams/checkout-capture.puml');
   for (const bad of ['../../planning.json.puml', 'diagrams/../../x.puml', '/x.puml', 'C:/x.puml', 'plan.md']) assert.throws(() => diagramPath(bad), bad);
   assert.equal(command('newWindow'), 'newWindow');
-  for (const gone of ['closeFolder', 'locate', 'openFolder', 'exit']) assert.throws(() => command(gone), /must be one of/, gone);
+  for (const gone of ['closeFolder', 'locate', 'openFolder', 'exit', 'closeWindow', 'undo', 'paste', 'selectAll']) assert.throws(() => command(gone), /must be one of/, gone);
   assert.deepEqual(viewEvent({ id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12', extra: 'dropped' }), { id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12' });
   assert.throws(() => viewEvent({ id: 'x', path: 'README.md', session: 'abcdefgh-2', contentHash: null }));
 });
@@ -56,4 +56,9 @@ test('window state is checked deeply', () => {
   assert.equal('inspectorWidth' in uiState(defaultUiState), false);
   assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 20 }), /inspectorWidth/);
   assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 480.5 }), /inspectorWidth/);
+});
+
+test('a workspace folder is a full path of the computer', () => {
+  for (const good of ['C:\\Dev\\atlas-workspace', 'c:/dev/coord', '\\\\server\\share\\work', '/home/me/work']) assert.equal(folderPath(good), good);
+  for (const bad of ['', 'relative/folder', 'C:relative', '..\\up', 'x'.repeat(5000), 'C:\\a\0b', 42, null]) assert.throws(() => folderPath(bad), ValidationError, String(bad));
 });
