@@ -45,7 +45,7 @@ function freePort(): Promise<number> {
   });
 }
 /** A host on a home of its own, with the fixture as its project `planning`. */
-async function start(t: TestContext, options: { data?: string; loopbackPort?: number } = {}) {
+async function start(t: TestContext, options: { data?: string; loopbackPort?: number; listingTimeout?: number } = {}) {
   const data = options.data ?? realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-data-')));
   const planning = path.join(data, 'planning', 'planning');
   cpSync(fixture, planning, { recursive: true });
@@ -446,6 +446,28 @@ test('listings for clients run one at a time, so an older and slower one never a
   assert.deepEqual(owner.lists.map(list => list[0].name), ['Northwind 1', 'Northwind 2'], 'the newer listing last');
 });
 
+test('a listing that hangs is given up, so later changes still reach clients, and its late result is dropped', async t => {
+  const { host, origin } = await start(t, { listingTimeout: 300 });
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await owner.connection.request('projects.list', {});
+  const original = host.projects.bind(host);
+  let calls = 0, release = () => {};
+  host.projects = async (summaries?: boolean) => {
+    const call = ++calls;
+    // The first never answers until released (a project on a share that does not answer).
+    if (summaries && call === 1) await new Promise<void>(resolve => { release = resolve; });
+    return (await original(summaries)).map(project => ({ ...project, name: project.name + ' ' + call }));
+  };
+  const changed = () => (host as unknown as { projectsChanged(): void }).projectsChanged();
+  changed();
+  await new Promise(resolve => setTimeout(resolve, 450));
+  changed();
+  await until(() => owner.lists.length >= 1, 5000, () => owner.lists.length);
+  release();
+  await new Promise(resolve => setTimeout(resolve, 500));
+  assert.deepEqual(owner.lists.map(list => list[0].name), ['Northwind 2']);
+});
+
 test('a project outside the home is watched for its plans and ledgers, and again once its folder is replaced', async t => {
   const { host, origin, data } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
@@ -467,6 +489,13 @@ test('a project outside the home is watched for its plans and ledgers, and again
   await new Promise(resolve => setTimeout(resolve, 4000));
   say('Watched again.');
   await until(() => summary() === 'Watched again.', 15000, () => owner.lists.length);
+  // Hidden, it is no longer watched (on Windows, a watch keeps the folders above it from being renamed).
+  const watched = () => (host as unknown as { outsideWatches: Map<string, unknown> }).outsideWatches.size;
+  assert.equal(watched(), 1);
+  const shop = (await owner.connection.request('projects.list', {})).find(project => project.path === realpathSync.native(outside))!;
+  await owner.connection.request('projects.update', { folderId: shop.folderId, state: 'hidden' });
+  await owner.connection.request('projects.list', {});
+  assert.equal(watched(), 0);
 });
 
 test('a project made outside the app appears when its planning.json comes, a moment after its folder', async t => {

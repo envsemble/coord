@@ -58,6 +58,8 @@ export interface HostOptions {
   loopbackPort?: number;
   /** How often connections are checked for life (tests shorten it). */
   heartbeat?: number;
+  /** How long a listing for clients may take before the next one goes ahead without it (60 s). */
+  listingTimeout?: number;
   /** Milliseconds between checks of the work agents are working on, for the projects' live dots (15 s). */
   liveCheck?: number;
 }
@@ -150,6 +152,8 @@ export class Host {
   /** The listing being sent to clients, and whether another is wanted once it is done. */
   private listing: Promise<void> | null = null;
   private listAgain = false;
+  /** The listing whose result may still reach clients. */
+  private listingTurn = 0;
   private projectsTimer: ReturnType<typeof setTimeout> | null = null;
   /** Folders in the home's planning folder that are not planning folders, by name, with how often the projects were listed again for them. */
   private readonly unfinishedProjects = new Map<string, number>();
@@ -559,13 +563,20 @@ export class Host {
       this.projectsTimer = null;
       if (!this.connections.size || this.stopped) return;
       // One listing at a time, so an older and slower one never reaches clients after a newer one.
+      // One that hangs (a project on an unreachable share) is given up after a while: the queue moves
+      // on, and its late result is dropped.
       if (this.listing) { this.listAgain = true; return; }
-      this.listing = this.projects(true).then(projects => { if (!this.stopped) for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined)
-        .then(() => this.lookForUnfinishedProjects())
-        .finally(() => {
-          this.listing = null;
-          if (this.listAgain) { this.listAgain = false; this.projectsChanged(); }
-        });
+      const turn = ++this.listingTurn;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const run = this.projects(true).then(projects => { if (!this.stopped && turn === this.listingTurn) for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined)
+        .then(() => turn === this.listingTurn ? this.lookForUnfinishedProjects() : undefined);
+      const late = new Promise<void>(resolve => { timer = setTimeout(resolve, this.options.listingTimeout ?? 60_000); timer.unref?.(); });
+      this.listing = Promise.race([run, late]).finally(() => {
+        clearTimeout(timer);
+        this.listingTurn++;
+        this.listing = null;
+        if (this.listAgain) { this.listAgain = false; this.projectsChanged(); }
+      });
     }, 300);
     this.projectsTimer.unref?.();
   }
@@ -600,10 +611,12 @@ export class Host {
     this.projectsWatcher = new ProjectListWatch(homePlanningDirectory(this.options.home), true, { log: this.options.log, changed: () => this.projectsChanged() });
     void mkdir(homePlanningDirectory(this.options.home), { recursive: true }).then(() => this.lookForUnfinishedProjects(true), () => undefined);
   }
-  /** Watch the listed projects outside the home that are not archived, and stop watching the rest. */
+  /** Watch the listed active projects outside the home, and stop watching the rest. */
   private watchOutsideProjects(rows: ProjectRow[]) {
     if (this.stopped) return;
-    const wanted = new Map(rows.filter(row => row.state !== 'archived' && !this.inHome(row.folder)).map(row => [folderKey(row.folder), row.folder]));
+    // Only active ones: on Windows a watched folder, and the folders above it, cannot be renamed while
+    // it is watched, so a hidden or archived project's folder is left free.
+    const wanted = new Map(rows.filter(row => row.state === 'active' && !this.inHome(row.folder)).map(row => [folderKey(row.folder), row.folder]));
     for (const [key, watcher] of this.outsideWatches) if (!wanted.has(key)) { watcher.close(); this.outsideWatches.delete(key); }
     for (const [key, folder] of wanted) if (!this.outsideWatches.has(key)) this.outsideWatches.set(key, new ProjectListWatch(folder, false, { log: this.options.log, changed: () => this.projectsChanged() }));
   }
