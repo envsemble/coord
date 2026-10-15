@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { cp, mkdir, readdir, readFile, rename, rm, rmdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { canonicalProjectFolder, folderKey, projectOf, type HomeDatabase, type ProjectRow } from './database.ts';
+import { canonicalProjectFolder, folderKey, isPlanningFolder, projectOf, type HomeDatabase, type ProjectRow } from './database.ts';
 import { homePlanningFolders, statisticsDirectory } from './storage.ts';
 
 /** What a migration did, as paths relative to the home. */
@@ -29,7 +29,6 @@ const homeFiles = ['host/access.json', 'connections.json', 'host/folders.json', 
 
 const exists = (target: string) => stat(target).then(() => true, () => false);
 const isFolder = (target: string) => stat(target).then(info => info.isDirectory(), () => false);
-const isPlanningFolder = (folder: string) => stat(path.join(folder, 'planning.json')).then(info => info.isFile(), () => false);
 async function readJson(file: string): Promise<unknown> { return JSON.parse((await readFile(file, 'utf8')).replace(/^﻿/, '')); }
 const text = (value: unknown, max = 4096) => typeof value === 'string' && value.length > 0 && value.length <= max ? value : null;
 const parseRemoteRoot = (root: string) => /^atlas-remote:([a-zA-Z0-9-]{8,64})\/(f-[a-f0-9]{32})$/.exec(root);

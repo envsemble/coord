@@ -6,7 +6,7 @@
 // are imported into the database and deleted from the folder (not committed).
 import { cp, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { HomeDatabase, planningName, projectOf } from './database.ts';
+import { HomeDatabase, planningName } from './database.ts';
 import { importLegacyUsage } from './homeMigration.ts';
 import { updateRegistryEntry } from './registryText.ts';
 import { importStatisticsFiles, type StatisticsImport } from './statistics.ts';
@@ -44,27 +44,39 @@ export async function adoptPlanningFolder(folder: string, options: { name?: stri
   // Document use from before the database was kept by the folder's path.
   const usage = await statisticsDirectory(from, home);
   await mkdir(base, { recursive: true });
-  try { await rename(from, to); }
-  catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'EPERM' || code === 'EBUSY') throw new WorkError(`${from} could not be moved (${code}): close programs that have it open, such as an editor, a terminal or Atlas, and try again.`);
-    if (code !== 'EXDEV') throw error;
-    await cp(from, to, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
-    await rm(from, { recursive: true, force: true });
-  }
-  if (text !== source) await writeFile(path.join(to, 'planning.json'), text);
-  const moved = await realpath(to);
+  const target = path.join(await realpath(base), name);
   const database = HomeDatabase.open(home);
   try {
-    // The folder's project, if it had one, moves with it; otherwise it becomes one.
-    const known = database.projectByFolder(from);
-    if (known) database.updateProject(known.id, { folder: moved, name: await planningName(moved) });
-    const project = await projectOf(database, moved);
-    if (await exists(usage)) {
-      await importLegacyUsage(database, project.id, usage);
-      await rm(usage, { recursive: true, force: true });
+    // Before anything moves, the folder's project (or a new one) takes the new path. A row left for
+    // the target path (its folder is gone) is reused when the folder has no project, else replaced.
+    const projectName = await planningName(from);
+    const project = database.transaction(() => {
+      const known = database.projectByFolder(from), stale = database.projectByFolder(target);
+      if (known && stale && stale.id !== known.id) database.removeProject(stale.id);
+      const row = known ?? stale;
+      if (!row) return database.addProject(target, projectName);
+      database.updateProject(row.id, { folder: target, name: projectName, ...row === stale && { state: 'active' as const } });
+      return database.project(row.id)!;
+    });
+    if (await exists(usage)) await importLegacyUsage(database, project.id, usage);
+    try { await rename(from, to); }
+    catch (error) {
+      // Nothing moved: the project keeps the folder where it is.
+      database.updateProject(project.id, { folder: from });
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EPERM' || code === 'EBUSY') throw new WorkError(`${from} could not be moved (${code}): close programs that have it open, such as an editor, a terminal or Atlas, and try again.`);
+      if (code !== 'EXDEV') throw error;
+      await cp(from, to, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
+      database.updateProject(project.id, { folder: target });
+      await rm(from, { recursive: true, force: true });
     }
-    const statistics = await importStatisticsFiles(database, moved);
-    return { from, to: moved, project: project.name, rewritten, statistics };
+    await rm(usage, { recursive: true, force: true });
+    if (text !== source) await writeFile(path.join(to, 'planning.json'), text);
+    const moved = await realpath(to);
+    if (moved !== target) database.updateProject(project.id, { folder: moved });
+    let statistics: StatisticsImport;
+    try { statistics = await importStatisticsFiles(database, moved); }
+    catch (error) { throw new WorkError(`${from} moved to ${moved}, but its statistics files could not be imported (${(error as Error).message}). Run atlas setup to import them.`); }
+    return { from, to: moved, project: projectName, rewritten, statistics };
   } finally { database.close(); }
 }

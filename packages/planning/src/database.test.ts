@@ -6,7 +6,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { DatabaseVersionError, HomeDatabase, planningName, schemaVersion, withDatabase, withDatabaseAsync } from './database.ts';
+import { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, planningName, projectOf, schemaVersion, withDatabase, withDatabaseAsync } from './database.ts';
+import { recordAgentCollectionGap } from './consultation.ts';
 import { migrateHomeFiles, pendingHomeFiles } from './homeMigration.ts';
 import { legacyUsageSchema, prepareHome, statisticsDirectory } from './storage.ts';
 import { usageSummary } from './telemetry.ts';
@@ -87,6 +88,25 @@ test('projects keep their order and state, and a paired computer\'s rows are kep
     database.db.prepare("DELETE FROM connection WHERE id = 'c1'").run();
     assert.deepEqual(database.projects('c1'), []);
   });
+});
+
+test('only planning folders become projects: never a mistyped or missing path', async t => {
+  const directory = temporary(t);
+  const home = path.join(directory, 'home');
+  const plain = path.join(directory, 'plain');
+  mkdirSync(plain);
+  await withDatabaseAsync(home, async database => {
+    await assert.rejects(projectOf(database, path.join(directory, 'missing')), NotPlanningFolderError);
+    await assert.rejects(projectOf(database, plain), NotPlanningFolderError);
+    const root = planningFolder(path.join(directory, 'planning'), 'Shop');
+    assert.equal((await projectOf(database, root)).name, 'Shop');
+    // A project whose folder is briefly not a planning folder keeps its row.
+    rmSync(path.join(root, 'planning.json'));
+    assert.equal((await projectOf(database, root)).name, 'Shop');
+  });
+  await recordAgentCollectionGap(path.join(directory, 'mistyped'), home);
+  assert.deepEqual(withDatabase(home, database => database.projects().map(project => project.name)), ['Shop']);
+  assert.equal(withDatabase(home, database => (database.db.prepare('SELECT count(*) AS n FROM collection_gap').get() as { n: number }).n), 0);
 });
 
 test('the home\'s files are imported once, and set aside', async t => {

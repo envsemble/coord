@@ -6,7 +6,7 @@
 // writing; short-lived ones (the command, a hook) open it for one operation and close it again.
 // The schema's version is the database's user_version; each migration runs once, in order.
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, realpathSync } from 'node:fs';
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { atlasHome } from './storage.ts';
@@ -239,11 +239,22 @@ export function inactiveProjectFolders(home: string): Set<string> {
   } catch { return new Set(); }
 }
 
+/** Whether a folder is a planning folder: it has a planning.json. */
+export const isPlanningFolder = (folder: string) => stat(path.join(folder, 'planning.json')).then(info => info.isFile(), () => false);
+
+export class NotPlanningFolderError extends Error {
+  constructor(folder: string) { super(folder + ' has no planning.json; it is not a planning folder.'); this.name = 'NotPlanningFolderError'; }
+}
+
 /**
  * The project of a planning folder on this computer, added (named from its registry) when it has
- * none yet: statistics and sessions are kept by project, wherever the folder is.
+ * none yet: statistics and sessions are kept by project, wherever the folder is. A folder that is
+ * not a planning folder (a mistyped or missing path) gets no project: NotPlanningFolderError.
  */
 export async function projectOf(database: HomeDatabase, folder: string): Promise<ProjectRow> {
   const canonical = await canonicalProjectFolder(folder);
-  return database.projectByFolder(canonical) ?? database.addProject(canonical, await planningName(canonical));
+  const known = database.projectByFolder(canonical);
+  if (known) return known;
+  if (!await isPlanningFolder(canonical)) throw new NotPlanningFolderError(canonical);
+  return database.addProject(canonical, await planningName(canonical));
 }

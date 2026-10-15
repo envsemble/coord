@@ -4,7 +4,7 @@
 export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './planning.ts';
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 export { atlasAppRunning, atlasHome, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, statisticsDirectory, type LegacyMigration } from './storage.ts';
-export { DatabaseVersionError, HomeDatabase, canonicalProjectFolder, databaseName, folderKey, planningName, projectOf, schemaVersion, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState } from './database.ts';
+export { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, canonicalProjectFolder, canonicalProjectFolderSync, databaseName, folderKey, isPlanningFolder, planningName, projectOf, schemaVersion, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState } from './database.ts';
 export { importLegacyUsage, migrateHomeFiles, pendingHomeFiles, type HomeMigration } from './homeMigration.ts';
 export { recordCollectionGap, recordView, usageSummary, type CollectionSource, type ViewEvent } from './telemetry.ts';
 export { samePlatformPath } from './planningRoots.ts';

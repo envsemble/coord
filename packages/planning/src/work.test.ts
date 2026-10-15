@@ -348,3 +348,29 @@ test('a planning folder is adopted into the home with its path hints made absolu
   rmSync(path.join(other, '.git'), { recursive: true, force: true });
   await assert.rejects(adoptPlanningFolder(other, { home }), /not the top of a Git repository/);
 });
+
+test('adopting reconciles a stale project row for the target path before the folder moves', async t => {
+  const directory = temporary(t);
+  const home = path.join(directory, 'home');
+  // A row left for <home>/planning/kept, whose folder is gone, and a project for the folder being adopted.
+  const target = path.join(home, 'planning', 'kept');
+  mkdirSync(path.dirname(target), { recursive: true });
+  const stale = path.join(realpathSync(path.dirname(target)), 'kept');
+  const root = planningFolder(path.join(directory, 'first'));
+  const [staleId, ownId] = withDatabase(home, database => [database.addProject(stale, 'Old', null, 'archived').id, database.addProject(realpathSync(root), 'main').id]);
+  const adopted = await adoptPlanningFolder(root, { home, name: 'kept' });
+  withDatabase(home, database => {
+    assert.equal(database.projectByFolder(adopted.to)?.id, ownId, 'the folder keeps its own project');
+    assert.equal(database.project(staleId), null, 'the stale row is replaced');
+  });
+  // Without a project of its own, the folder takes over the stale row, active again.
+  const second = planningFolder(path.join(directory, 'second'));
+  const otherStale = path.join(realpathSync(path.dirname(target)), 'again');
+  const reused = withDatabase(home, database => database.addProject(otherStale, 'Old', null, 'hidden').id);
+  const again = await adoptPlanningFolder(second, { home, name: 'again' });
+  withDatabase(home, database => {
+    const project = database.projectByFolder(again.to)!;
+    assert.equal(project.id, reused);
+    assert.equal(project.state, 'active');
+  });
+});
