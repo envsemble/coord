@@ -32,8 +32,9 @@ const headingLevel = (node: HeadingNode) => node.type === 'element' && /^h[1-6]$
 export const isRequestHeading = (heading: string) => /^request(?:\s*\(.*\))?$/i.test(heading.trim());
 /**
  * Fold the sections of a plan that record the request: each heading "Request" (at any level), with
- * everything up to the next heading of its level or above, becomes a section marked `data-fold`, its
- * heading marked `data-fold-toggle`, for the reader to show folded with the heading as its toggle.
+ * everything up to the next heading of its level or above, becomes a section marked `data-fold` with
+ * the heading's id, which names it, and its heading is marked `data-fold-toggle`, for the reader to
+ * show the section folded with the heading as its toggle.
  */
 export function rehypeFoldRequests() {
   return (tree: HeadingNode) => {
@@ -46,7 +47,7 @@ export function rehypeFoldRequests() {
       heading.properties = { ...heading.properties, dataFoldToggle: true };
       const section = [heading];
       while (index + 1 < children.length && !(headingLevel(children[index + 1]) && headingLevel(children[index + 1]) <= level)) section.push(children[++index]);
-      folded.push({ type: 'element', tagName: 'section', properties: { className: ['request-fold'], dataFold: 'request' }, children: section });
+      folded.push({ type: 'element', tagName: 'section', properties: { className: ['request-fold'], dataFold: String(heading.properties.id ?? 'request') }, children: section });
     }
     tree.children = folded;
   };

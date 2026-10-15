@@ -4,7 +4,7 @@
 // file of a project, or one of the menu's pages (Projects, Statistics). The file panel slides in over
 // a project's page from the right with the files of its project.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Button, EmptyState, IconButton, Kbd, Notice, PanelDock, PanelDockHeader, Popover, Select, Spinner, TitleBar, Tooltip, useToast, WindowFrame, type PanelDockMode } from '@envsemble/envui';
+import { Button, EmptyState, IconButton, Kbd, Notice, PanelDock, PanelDockHeader, Popover, Select, Spinner, Text, TitleBar, Tooltip, useToast, WindowFrame, type PanelDockMode } from '@envsemble/envui';
 import { ThemeMenu } from './ThemeMenu';
 import { ErrorIcon, FolderOpenIcon, SearchIcon, StatisticsIcon, WarningIcon } from './icons';
 import type { ImportPreview, MenuCommand } from '../shared/contract';
@@ -22,7 +22,7 @@ import { AtlasWorkPanel } from './AtlasWorkPanel';
 import { Hub, type HubFilters } from './Hub';
 import { ProjectsPage, type ProjectActions } from './ProjectsPage';
 import { Statistics } from './StatisticsPage';
-import { Gone } from './Pages';
+import { Gone, Page } from './Pages';
 import { modifierKey, TitleBarStart, type WorkbenchMenus } from './AppMenu';
 import { revealIds } from './explorerModel';
 import { WorkbenchContext, type Notify, type WorkbenchApi } from './workbenchContext';
@@ -48,11 +48,20 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // ---- The computer's projects, and the folders the window follows ------------------------------
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [projectsError, setProjectsError] = useState('');
+  /** List the projects again; the latest listing wins. */
+  const listProjects = useRef(() => {});
   useEffect(() => {
     let current = true;
-    const load = () => api.projects().then(next => { if (current) { setProjects(next); setProjectsError(''); } }, error => { if (current) { setProjects(previous => previous ?? []); setProjectsError((error as Error).message); } });
-    void load();
-    const off = api.onProjectsChanged(() => { void load(); });
+    let asked = 0;
+    const listed = (next: Project[]) => { setProjects(next); setProjectsError(''); };
+    const load = () => {
+      const ask = ++asked;
+      api.projects().then(next => { if (current && ask === asked) listed(next); }, error => { if (current && ask === asked) { setProjects(previous => previous ?? []); setProjectsError((error as Error).message); } });
+    };
+    listProjects.current = load;
+    load();
+    // The host's own listing comes with the change, when it has one; a listing on its way is older.
+    const off = api.onProjectsChanged(change => { if (change.projects) { asked++; listed(change.projects); } else load(); });
     return () => { current = false; off(); };
   }, []);
   const [folders, setFolders] = useState<Record<string, Folder>>({});
@@ -138,9 +147,22 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // The project of the plan last open, for the Statistics page.
   const lastProject = useRef<string | null>(projectPlace?.project ?? null);
   if (projectPlace) lastProject.current = projectPlace.project;
-  // The hub follows every active project's folder too, so their plans' changes reach it.
-  const watching = useMemo(() => isPage(place) && place.page === 'hub' ? (projects ?? []).filter(project => project.state === 'active').map(project => project.folderId) : [], [place, projects]);
-  const wanted = useMemo(() => [...new Set([...reading ? [reading] : [], ...watching])], [reading, watching]);
+  // The hub filtered to a project follows its folder, so its plans' changes reach it. The hub of
+  // every project follows none (each folder followed is a session of its own on the host): it lists
+  // the projects again each time it shows and as the window comes forward.
+  const watching = isPage(place) && place.page === 'hub' ? place.project : null;
+  const hubShown = isPage(place) && place.page === 'hub';
+  const starting = useRef(true);
+  useEffect(() => {
+    if (!hubShown) return;
+    // (The window lists them as it starts anyway.)
+    if (!starting.current) listProjects.current();
+    const again = () => listProjects.current();
+    window.addEventListener('focus', again);
+    return () => window.removeEventListener('focus', again);
+  }, [hubShown]);
+  useEffect(() => { starting.current = false; }, []);
+  const wanted = useMemo(() => [...new Set([reading, watching].filter((project): project is string => Boolean(project)))], [reading, watching]);
   const wantedRef = useRef(wanted);
   wantedRef.current = wanted;
   useEffect(() => { follow(wanted); }, [wanted, follow]);
@@ -300,7 +322,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   }, []);
   const projectActions = useMemo<ProjectActions>(() => ({
     update: updateProject,
-    change: (project, change) => { updateProject(project, change).catch(error => notify((error as Error).message, 'danger')); },
+    change: (project, change) => updateProject(project, change).catch(error => notify((error as Error).message, 'danger')),
     // The project comes back under a new folder ID, which every window showing it follows.
     adopt: project => {
       api.adoptProject(project.folderId).then(moved => {
@@ -480,11 +502,13 @@ function ScrollMemory({ scroller: element, shown, scrollKey: key, anchored, entr
 /** What the window shows of a project, in its scope: a plan, a diagram, a file or its statistics; or why it cannot. */
 function ProjectContent({ place, folder, project, scope, statisticsControls }: { place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; statisticsControls: ReactNode }) {
   const change = folder?.change;
+  // The Statistics page keeps its heading and project picker above why it shows nothing yet.
+  const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" heading={<div className="page-heading-row"><Text as="h1" variant="page-heading">Statistics</Text><span className="spacer" />{statisticsControls}</div>}>{state}</Page> : state;
   if (change?.status === 'missing' || (!folder?.snapshot && (change?.status === 'invalid' || folder?.failure))) {
-    return <EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
-      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />;
+    return frame(<EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
+      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />);
   }
-  if (!scope || !folder?.snapshot) return <div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>;
+  if (!scope || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
   const snapshot = folder.snapshot;
   let content;
   if (isPage(place)) content = <Statistics snapshot={snapshot} controls={statisticsControls} />;

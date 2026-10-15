@@ -230,16 +230,6 @@ body { margin: 0; }
 /* A long title gives way; the model's origin stays whole beside it. */
 .model-picker-button > .env-badge { flex: none; }
 
-/* Activity */
-.activity-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.activity-work { font-size: var(--font-size-body-small); }
-.changed-files { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-block-start: var(--space-1); }
-.file-chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0; border: 0; background: none; color: var(--color-link); font: inherit; font-size: var(--font-size-body-small); cursor: pointer; }
-.file-chip:disabled { color: var(--color-text-quiet); cursor: default; }
-.file-chip:not(:disabled):hover { text-decoration: underline; }
-.file-chip:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
-.activity-meta { display: grid; justify-items: end; gap: var(--space-1); color: var(--color-text-muted); font-size: var(--font-size-body-small); white-space: nowrap; }
-
 /* Statistics */
 .statistics-body { display: grid; gap: var(--space-5); padding-block-start: var(--space-5); }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-3); }
