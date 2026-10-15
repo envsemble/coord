@@ -166,8 +166,13 @@ body { margin: 0; }
 .work-number { color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
 .work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
 .work-main { min-inline-size: 0; }
-/* The side column stays in view and scrolls on its own when it is taller than the room below the tabs. */
-.about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-4) * 2); overflow-y: auto; scrollbar-width: thin; padding-inline-end: var(--space-2); padding-block-end: var(--space-4); }
+/* The side column stays where it starts, below the tabs, whatever the page does: it is held at the
+   offset it has at the top of the page, and scrolls on its own when taller than the room below the
+   tabs, with its scrollbar shown while the pointer is over it. It keeps its scrolling to itself only
+   when it has something to scroll, so a wheel over a short column still moves the page. */
+.about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--space-2); padding-block-end: var(--space-6); }
+.about:is(:hover, :focus-within) { scrollbar-color: var(--color-border-strong) transparent; }
+.about[data-scrolls] { overscroll-behavior: contain; }
 .about-section { display: grid; gap: var(--space-2); }
 .about-ledger { margin: 0; }
 .about-ledger a { display: inline-flex; align-items: center; gap: var(--space-2); }

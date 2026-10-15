@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Badge, Breadcrumbs, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import { CommitIcon, LedgerIcon, PlanIcon } from './icons';
@@ -29,8 +29,28 @@ function AboutSection({ title, note, children }: { title: ReactNode; note?: Reac
 }
 
 /**
+ * Mark an element while it is taller than its box (`data-scrolls`), so its styles can keep its
+ * scrolling to itself only when it has something to scroll.
+ */
+function useScrollsMark<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const mark = () => element.toggleAttribute('data-scrolls', element.scrollHeight > element.clientHeight + 1);
+    const observer = new ResizeObserver(mark);
+    observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+    mark();
+    return () => observer.disconnect();
+  });
+  return ref;
+}
+
+/**
  * The side column: the work's progress, then the link that shows its ledger in place of the plan (or
- * the plan again), its dates, statistics and recent activity. It scrolls on its own, beside the page.
+ * the plan again), its dates, statistics and recent activity. It stays where it is while the page
+ * scrolls, and scrolls on its own.
  */
 function About({ work, snapshot, showing }: { work: Work; snapshot: Snapshot; showing: 'plan' | 'ledger' }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
@@ -44,7 +64,8 @@ function About({ work, snapshot, showing }: { work: Work; snapshot: Snapshot; sh
   const other = showing === 'ledger' ? plan && <TargetLink target={workTarget(work.id)}><PlanIcon />Plan</TargetLink>
     : ledger && <TargetLink target={ledgerTarget(work.id)}><LedgerIcon />Ledger</TargetLink>;
   const switcher = other && <p className="about-ledger">{other}</p>;
-  return <aside className="about" aria-label="About this work">
+  const column = useScrollsMark<HTMLElement>();
+  return <aside ref={column} className="about" aria-label="About this work">
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
     {hasStatus && progress && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
