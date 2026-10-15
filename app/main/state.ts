@@ -61,16 +61,16 @@ export class DesktopState {
   /** A window closed: it and its tabs go. */
   removeWindow(id: number) { this.database.db.prepare('DELETE FROM "window" WHERE id = ?').run(id); }
 
-  /** A window's tabs of the projects of one computer (connectionId null: this one), in their order. */
+  /** A window's tabs of the projects of one computer (connectionId null: this one), in their order, as many as a window holds. */
   tabs(windowId: number, connectionId: string | null): TabRow[] {
-    return (this.database.db.prepare('SELECT tab.* FROM tab JOIN project ON project.id = tab.project_id WHERE window_id = ? AND project.connection_id IS ? ORDER BY tab.position, tab.id').all(windowId, connectionId) as Row[])
+    return (this.database.db.prepare('SELECT tab.* FROM tab JOIN project ON project.id = tab.project_id WHERE window_id = ? AND project.connection_id IS ? ORDER BY tab.position, tab.id LIMIT ?').all(windowId, connectionId, limits.tabs) as Row[])
       .map(row => ({ projectId: Number(row.project_id), kind: row.kind as TabKind, target: (row.target as string | null) ?? null, active: Boolean(row.active) }));
   }
   /**
    * Replace a window's tabs of the projects whose saved tabs it loaded (`loaded`, project rows of one
    * computer). Its tabs of projects it could not list then (their computer did not answer, or their
-   * folder was briefly not a planning folder) stay, after these, for when they are listed again; so
-   * do its tabs of other computers, for when it shows them again.
+   * folder was briefly not a planning folder) stay, after these, for when they are listed again, as
+   * many as fit in a window; so do its tabs of other computers, for when it shows them again.
    */
   saveTabs(windowId: number, connectionId: string | null, tabs: TabRow[], loaded: number[]) {
     this.database.transaction(() => {
@@ -80,7 +80,7 @@ export class DesktopState {
       db.prepare('DELETE FROM tab WHERE window_id = ? AND project_id IN (SELECT id FROM project WHERE connection_id IS ?)').run(windowId, connectionId);
       const insert = db.prepare('INSERT INTO tab (window_id, project_id, position, kind, target, active) VALUES (?, ?, ?, ?, ?, ?)');
       const active = tabs.some(tab => tab.active);
-      [...tabs, ...kept.map(tab => ({ ...tab, active: tab.active && !active }))].forEach((tab, index) => insert.run(windowId, tab.projectId, index, tab.kind, tab.target, tab.active ? 1 : 0));
+      [...tabs, ...kept.map(tab => ({ ...tab, active: tab.active && !active }))].slice(0, limits.tabs).forEach((tab, index) => insert.run(windowId, tab.projectId, index, tab.kind, tab.target, tab.active ? 1 : 0));
     });
   }
 }

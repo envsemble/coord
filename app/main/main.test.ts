@@ -73,6 +73,14 @@ test('windows, their tabs per computer and the shared settings are kept in the h
     assert.deepEqual(state.tabs(window, null).map(tab => [tab.projectId, tab.kind, tab.active]), [[local.id, 'work', true], [missing.id, 'file', false]], 'the missing folder keeps its tab, no longer active');
     state.saveTabs(window, null, [], [local.id, missing.id]);
     assert.deepEqual(state.tabs(window, null), [], 'once loaded, closing them removes them');
+    // Twenty tabs kept for a folder not listed, then forty of another project: a window holds forty,
+    // its own first, so its saves keep passing once the folder is listed again.
+    const tab = (projectId: number, index: number) => ({ projectId, kind: 'file' as const, target: `{"path":"${index}.md"}`, active: false });
+    state.saveTabs(window, null, Array.from({ length: 20 }, (_, index) => tab(missing.id, index)), [missing.id]);
+    state.saveTabs(window, null, Array.from({ length: 40 }, (_, index) => tab(local.id, index)), [local.id]);
+    assert.deepEqual(state.tabs(window, null).map(tab => tab.projectId), Array(40).fill(local.id));
+    database.db.prepare('INSERT INTO tab (window_id, project_id, position, kind, target, active) VALUES (?, ?, 99, \'project\', NULL, 0)').run(window, missing.id);
+    assert.equal(state.tabs(window, null).length, 40, 'a window never loads more than it can save');
     state.removeWindow(window);
     assert.deepEqual([state.windows(), state.tabs(window, null)], [[], []], 'a closed window goes with its tabs');
   } finally { database.close(); rmSync(directory, { recursive: true, force: true }); }

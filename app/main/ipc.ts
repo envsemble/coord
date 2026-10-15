@@ -373,7 +373,8 @@ export function registerIpc(manager: WindowManager, actions: { openLogs(): void;
         return { ok: true, value: await (channel.handle as (window: AtlasWindow, ...args: unknown[]) => unknown)(window, ...args) ?? null };
       } catch (error) {
         const { value, expected } = toErrorValue(error);
-        manager.context.log.write(expected ? 'info' : 'error', 'Request failed: ' + name, expected ? value : error);
+        // A window saves its layout on its own and does not show a failure, so the log does.
+        manager.context.log.write(!expected ? 'error' : name === 'ui:save' ? 'warn' : 'info', 'Request failed: ' + name, expected ? value : error);
         return { ok: false, error: value };
       }
     });
