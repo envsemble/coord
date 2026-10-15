@@ -52,7 +52,7 @@ export function setSteps(text: string, steps: readonly LedgerStep[]): string {
   while (first >= 0 && last + 1 < lines.length && /^(?:[ \t]|-|$)/.test(lines[last + 1])) last++;
   const indent = (first >= 0 ? lines.slice(first + 1, last + 1).map(line => /^( *)- /.exec(line)?.[1]).find(value => value !== undefined) : undefined) ?? '  ';
   const written = steps.length
-    ? ['steps:', ...steps.flatMap(step => [`${indent}- title: ${JSON.stringify(step.title)}`, `${indent}  status: ${step.status}`])]
+    ? ['steps:', ...steps.flatMap(step => [`${indent}- title: ${JSON.stringify(step.title)}`, `${indent}  status: ${step.status}`, ...step.phase ? [`${indent}  phase: ${step.phase}`] : []])]
     : ['steps: []'];
   const next = first >= 0 ? [...lines.slice(0, first), ...written, ...lines.slice(last + 1)] : [...lines, ...written];
   return text.slice(0, found.start) + next.join(found.eol) + text.slice(found.end);

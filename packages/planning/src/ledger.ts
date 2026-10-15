@@ -1,5 +1,6 @@
 // The ledger status header (PLANS.md, "Ledger status"). Version 2 holds the agreed steps of the
-// work, each todo, doing or done, so progress and the work left can be shown. Version 1 (current
+// work, each todo, doing or done, so progress and the work left can be shown: the planning steps
+// (`phase: planning`) from the work's creation, then the implementation steps (no phase). Version 1 (current
 // focus and a list of next steps) stays readable as legacy. Both the YAML reader (planning.ts) and
 // the restricted checker (check.ts) validate headers here, so they cannot disagree. No imports:
 // the app window and the plan export viewer use this module too.
@@ -8,7 +9,8 @@ import type { LedgerStep, LedgerStepStatus, StepCounts, WorkProgress } from './t
 export const ledgerStepStatuses: readonly LedgerStepStatus[] = ['todo', 'doing', 'done'];
 const version1Fields = ['schema_version', 'kind', 'work_id', 'updated', 'current', 'next', 'blocked'];
 const version2Fields = ['schema_version', 'kind', 'work_id', 'updated', 'blocked', 'steps'];
-const stepFields = ['title', 'status'];
+const stepFields = ['title', 'status', 'phase'];
+const phases = ['planning', 'implementation'];
 
 /** A ledger header that does not follow the contract; the message says what is wrong. */
 export class LedgerStatusError extends Error {
@@ -44,10 +46,11 @@ function steps(value: unknown): LedgerStep[] {
     if (typeof entry.title !== 'string') throw new LedgerStatusError(at + ' title must be a quoted string.');
     if (!text(entry.title)) throw new LedgerStatusError(at + ' needs a nonempty title.');
     if (typeof entry.status !== 'string' || !(ledgerStepStatuses as readonly string[]).includes(entry.status)) throw new LedgerStatusError(at + ' status must be todo, doing or done.');
+    if (Object.hasOwn(entry, 'phase') && !phases.includes(entry.phase as string)) throw new LedgerStatusError(at + ' phase must be planning or implementation.');
     const title = entry.title.trim();
     if (titles.has(title)) throw new LedgerStatusError('Ledger step titles must be unique: ' + title + '.');
     titles.add(title);
-    return { title, status: entry.status as LedgerStepStatus };
+    return { title, status: entry.status as LedgerStepStatus, ...entry.phase === 'planning' && { phase: 'planning' as const } };
   });
 }
 

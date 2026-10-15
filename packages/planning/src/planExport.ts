@@ -15,6 +15,7 @@ import type { Provenance } from './provenance.ts';
 import { describeFiles, isDiagram } from './diagrams.ts';
 import { appendRegistryEntries, RegistryFormatError } from './registryText.ts';
 import { acquireImportLock, ImportLockBusyError } from './importLock.ts';
+import { localDate, planningLedger } from './work.ts';
 import type { Work } from './types.ts';
 
 const { version: atlasVersion } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
@@ -563,6 +564,11 @@ async function removeLeftovers(root: string): Promise<number> {
 function decodeText(bytes: Buffer) {
   try { return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes); } catch { return null; }
 }
+/** A plan's design_status, or null when its header cannot be read. */
+function designOf(bytes: Buffer) {
+  const text = decodeText(bytes);
+  try { return text === null ? null : parseFrontmatter(text)?.design_status ?? null; } catch { return null; }
+}
 /** The metadata header of a Markdown text: offsets of its block, or null. */
 function header(text: string) {
   const bom = text.startsWith(BOM) ? 1 : 0;
@@ -728,6 +734,10 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
       const text = original === null ? null : rewriteField(original, 'work_id', source.workId, target.workId);
       if (text !== null) { await write('ledger.md', text); rewrites.push({ file: 'ledger.md', field: 'work_id', from: source.workId, to: target.workId }); }
       else notes.push(`ledger.md has no work_id: ${source.workId} status line, so it was kept as exported.`);
+    } else if (target.path.startsWith('active/') && source.currentPlan && designOf(contents.get(source.currentPlan)!) === 'draft') {
+      // A draft without a ledger is planned from here, as new work is: with the planning steps.
+      await writeFile(path.join(temporary, 'ledger.md'), planningLedger(target.workId, source.title, localDate()), { flag: 'wx' });
+      notes.push('The draft had no ledger; it got one with the planning steps.');
     }
 
     const provenanceName = provenanceFileName(contents.keys());

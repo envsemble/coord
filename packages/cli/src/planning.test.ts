@@ -21,12 +21,12 @@ test('a checkout finds its planning folder in the home and drives a work item th
   assert.equal(json('work', 'accept', 'work-0002').designStatus, 'accepted');
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plan');
   const started = json('work', 'start', 'work-0002', '--step', 'Build', '--step', 'Review');
-  assert.deepEqual(started.steps.map((step: { title: string }) => step.title), ['Build', 'Review']);
+  assert.deepEqual(started.steps.map((step: { title: string; status: string }) => [step.title, step.status]), [['Understand the request', 'done'], ['Settle the design', 'done'], ['Write the plan', 'done'], ['Accepted', 'done'], ['Build', 'todo'], ['Review', 'todo']], 'after the planning steps, done on acceptance');
   assert.deepEqual(started.warnings, [], 'the plan was committed');
-  assert.equal(json('work', 'step', 'add', 'work-0002', 'Ship', 'Announce').steps.length, 4);
-  assert.equal(json('work', 'step', 'set', 'work-0002', 'Build', 'doing').steps[0].status, 'doing');
-  assert.equal(json('work', 'step', 'rename', 'work-0002', 'Announce', 'Tell people').steps[3].title, 'Tell people');
-  assert.equal(json('work', 'step', 'remove', 'work-0002', 'Tell people', '--reason', 'Not needed').steps.length, 3);
+  assert.equal(json('work', 'step', 'add', 'work-0002', 'Ship', 'Announce').steps.length, 8);
+  assert.equal(json('work', 'step', 'set', 'work-0002', 'Build', 'doing').steps[4].status, 'doing');
+  assert.equal(json('work', 'step', 'rename', 'work-0002', 'Announce', 'Tell people').steps[7].title, 'Tell people');
+  assert.equal(json('work', 'step', 'remove', 'work-0002', 'Tell people', '--reason', 'Not needed').steps.length, 7);
   assert.equal(json('work', 'block', 'work-0002', 'Waiting for review').blocked, 'Waiting for review');
 
   const refused = run('work', 'close', 'work-0002');

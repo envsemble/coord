@@ -63,7 +63,7 @@ const tools: Tool[] = [
   },
   {
     name: 'work_create',
-    description: 'Create and register a work item: the next free number, active/NNNN-slug/plan.md with a draft plan header (with its summary), and its planning.json entry. Ask the user before creating one: only work big enough to plan needs it. Then write the plan body in plan.md directly, and keep the summary in its header current as the work moves.',
+    description: 'Create and register a work item: the next free number, active/NNNN-slug/plan.md with a draft plan header (with its summary), a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted), and its planning.json entry. Ask the user before creating one: only work big enough to plan needs it. Then write the plan body in plan.md directly, keep the summary in its header current as the work moves, and keep the planning steps true while designing (rename, add or remove them to fit the work).',
     inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, repositories: titles('Registered repository IDs the work applies to. Omit them to use the repositories your checkout is.'), slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' } }, ['title']),
     run: async (root, input) => {
       let repositories = input.repositories as string[] | undefined;
@@ -72,16 +72,16 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'work_accept', description: 'Record that the user accepted the design: design_status accepted, accepted_at today. Only when the user has agreed to the plan.',
+    name: 'work_accept', description: 'Record that the user accepted the design: design_status accepted, accepted_at today, and every planning step done. Only when the user has agreed to the plan.',
     inputSchema: object({ work }, ['work']), run: (root, input) => acceptWork(root, input.work!),
   },
   {
     name: 'work_start',
-    description: 'Start implementing an accepted plan: implementation in progress, and a ledger with these steps (one per meaningful deliverable or milestone, all todo) and the plan\'s Git revision. Commit the plan first.',
+    description: 'Start implementing an accepted plan: implementation in progress, these steps (one per meaningful deliverable or milestone, all todo) after the planning steps in the ledger, and the plan\'s Git revision. Commit the plan first.',
     inputSchema: object({ work, steps: { ...titles('The agreed steps, in order.'), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
   },
   {
-    name: 'step_add', description: 'Add steps (todo) to the end of the ledger, when agreed scope gains them.',
+    name: 'step_add', description: 'Add steps (todo) when agreed scope gains them: before implementation starts they are planning steps, after work_start implementation steps.',
     inputSchema: object({ work, steps: titles('New step titles.') }, ['work', 'steps']), run: (root, input) => addSteps(root, input.work!, input.steps as string[]),
   },
   {
