@@ -52,9 +52,14 @@ if (refusal) {
 } else {
   await prepareHome();
   const waiting = (process.env.ATLAS_HOME ? null : await moveLegacyData()) ?? await homeFilesBusy();
+  let database: HomeDatabase | null = null;
   if (waiting) refuseHome(waiting);
   else {
-    const database = HomeDatabase.open(dataDirectory);
+    try { database = HomeDatabase.open(dataDirectory); } catch (error) {
+      refuseHome(`Atlas cannot open its home database: ${(error as Error).message}`);
+    }
+  }
+  if (database) {
     // What Atlas kept in its home before the database moves into it, before the host starts.
     const migration = await migrateHomeFiles(database);
     if (migration.imported.length || migration.failed.length) log.info('Moved the home\'s files into its database', { ...migration });
@@ -92,7 +97,7 @@ async function moveLegacyData(): Promise<string | null> {
 
 /** Leave without touching the home's settings while the old data folder's wait to be moved. */
 function refuseHome(reason: string) {
-  log.warn('Not started: the old data folder has not moved into the home', { reason });
+  log.warn('Not started: the home is not ready', { reason });
   process.stderr.write(reason + '\n');
   void app.whenReady().then(async () => {
     await dialog.showMessageBox({ type: 'warning', title: 'Atlas', message: 'Atlas cannot start yet', detail: reason, buttons: ['Close'] });
