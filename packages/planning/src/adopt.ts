@@ -67,7 +67,7 @@ export async function adoptPlanningFolder(folder: string, options: { name?: stri
       return database.project(row.id)!;
     });
     if (await exists(usage)) await importLegacyUsage(database, project.id, usage);
-    try { await rename(from, to); }
+    try { await renameSoon(from, to); }
     catch (error) {
       // Nothing moved: the project keeps the folder where it is.
       database.updateProject(project.id, { folder: from });
@@ -87,4 +87,19 @@ export async function adoptPlanningFolder(folder: string, options: { name?: stri
     catch (error) { throw new WorkError(`${from} moved to ${moved}, but its statistics files could not be imported (${(error as Error).message}). Run atlas setup to import them.`); }
     return { from, to: moved, project: projectName, rewritten, statistics, reused };
   } finally { database.close(); }
+}
+
+/**
+ * Rename a folder, trying again for a couple of seconds while Windows refuses because something has
+ * it open for a moment (Atlas listing its projects reads the folder and runs Git in it, for one).
+ */
+async function renameSoon(from: string, to: string) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await rename(from, to); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if ((code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES') || attempt >= 10) throw error;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
 }
