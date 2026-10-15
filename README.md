@@ -5,7 +5,7 @@
 </picture>
 
 [![CI](https://github.com/envsemble/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/atlas/actions/workflows/ci.yml)
-[![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-blue)](CHANGELOG.md)
+[![Version 0.7.1](https://img.shields.io/badge/version-0.7.1-blue)](CHANGELOG.md)
 [![Node 24](https://img.shields.io/badge/Node-24-43853d)](docs/releases.md)
 [![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)
 
