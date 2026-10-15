@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveLink, siblingProject, siblingReference } from './links.ts';
 import type { Document, Work } from './types.ts';
-import { documentTarget, ledgerTarget, scrollKey, tabId, workTarget } from './targets.ts';
+import { documentTarget, hubPlace, ledgerTarget, placeId, scrollKey, statisticsPlace, workTarget } from './targets.ts';
 
 const file = { path: 'active/0001-example/docs/decision.md' } as Document;
 const work = { path: 'active/0001-example', id: 'work-0001' } as Work;
@@ -20,10 +20,11 @@ test('links to a plan open the work item, to its ledger the work item showing th
   assert.deepEqual(documentTarget(nested, owner, 'déjà-vu--choices'), { kind: 'file', path: nested.path, anchor: 'déjà-vu--choices' });
   assert.deepEqual(documentTarget(knowledge, undefined, 'api_contract'), { kind: 'file', path: 'knowledge/terms.md', anchor: 'api_contract' });
   const project = 'f-' + 'a'.repeat(32);
-  assert.equal(tabId(project, documentTarget(plan, owner, 'a')), tabId(project, documentTarget(plan, owner)), 'a plan has one tab, wherever it was opened');
-  assert.equal(tabId(project, documentTarget(ledger, owner)), tabId(project, documentTarget(plan, owner)), "the ledger shows in the plan's tab");
-  assert.notEqual(tabId(project, documentTarget(nested, owner)), tabId(project, documentTarget(plan, owner)));
-  assert.notEqual(tabId(project, documentTarget(plan, owner)), tabId('f-' + 'b'.repeat(32), documentTarget(plan, owner)), 'another project, another tab');
+  const id = (target: ReturnType<typeof documentTarget>, of = project) => placeId({ project: of, target });
+  assert.equal(id(documentTarget(plan, owner, 'a')), id(documentTarget(plan, owner)), 'a plan is one thing, wherever it was opened');
+  assert.equal(id(documentTarget(ledger, owner)), id(documentTarget(plan, owner)), "the ledger shows in the plan's place");
+  assert.notEqual(id(documentTarget(nested, owner)), id(documentTarget(plan, owner)));
+  assert.notEqual(id(documentTarget(plan, owner)), id(documentTarget(plan, owner), 'f-' + 'b'.repeat(32)), 'another project, another thing');
 });
 
 test('the plan and the ledger of a work item keep their own scroll positions', () => {
@@ -31,6 +32,10 @@ test('the plan and the ledger of a work item keep their own scroll positions', (
   assert.equal(scrollKey({ project, target: ledgerTarget('work-0001') }), project + ':work:work-0001:ledger');
   assert.equal(scrollKey({ project, target: workTarget('work-0001') }), project + ':work:work-0001');
   assert.equal(scrollKey({ project, target: ledgerTarget('work-0001', 'provenance') }), scrollKey({ project, target: ledgerTarget('work-0001') }), 'a heading is a place in the same document');
+  // The hub is one page whatever it is filtered to, which keeps its own position.
+  assert.equal(placeId(hubPlace(project)), placeId(hubPlace()));
+  assert.notEqual(scrollKey(hubPlace(project)), scrollKey(hubPlace()));
+  assert.notEqual(scrollKey(statisticsPlace(project)), scrollKey(hubPlace(project)));
 });
 
 test('parent traversal cannot clamp escaped references onto retained root documents', () => {

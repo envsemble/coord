@@ -1,23 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, shownPlace, showPlace, startHistory, step, type History } from './history.ts';
-import { diagramTarget, fileTarget, ledgerTarget, projectTarget, workTarget, type Place } from './targets.ts';
-import type { UiState } from './types.ts';
+import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, startHistory, step, type History } from './history.ts';
+import { diagramTarget, fileTarget, hubPlace, ledgerTarget, projectsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from './targets.ts';
+import type { Target } from './types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
-const at = (target: Place['target'], project = shop): Place => ({ project, target });
-const page = at(projectTarget());
+const at = (target: Target, project = shop): ProjectPlace => ({ project, target });
+const hub = hubPlace();
 const plan = at(workTarget('work-0001'));
 const other = at(workTarget('work-0001'), coord);
 const notes = at(fileTarget('knowledge/notes.md'));
 
-test('each new thing shown follows the current entry; the same thing again adds nothing', () => {
-  let history = startHistory(page);
+test('each new place shown follows the current entry; the same place again adds nothing', () => {
+  let history = startHistory(hub);
   assert.equal(canGoBack(history), false);
   history = record(history, plan);
   history = record(history, at(workTarget('work-0001', null)));
   history = record(history, other);
-  assert.deepEqual(history, { entries: [page, plan, other], ids: [0, 1, 2], index: 2, next: 3 });
+  assert.deepEqual(history, { entries: [hub, plan, other], ids: [0, 1, 2], index: 2, next: 3 });
   assert.equal(currentEntry(history), 2);
   assert.equal(canGoBack(history), true);
   assert.equal(canGoForward(history), false);
@@ -28,12 +28,26 @@ test('each new thing shown follows the current entry; the same thing again adds 
   assert.equal(samePlace(plan, at(ledgerTarget('work-0001'))), false, "a work item's plan and its ledger are two places");
   assert.equal(samePlace(plan, at({ kind: 'work', work: 'work-0001', anchor: null, view: null })), true);
   assert.equal(record(startHistory(plan), at(ledgerTarget('work-0001'))).entries.length, 2, 'showing the ledger in place is a step back to the plan');
-  assert.equal(samePlace(page, at(projectTarget())), true);
-  assert.equal(samePlace(null, null), true);
+});
+
+test("the hub's project filter, the Projects page and a project's statistics are places too", () => {
+  assert.equal(samePlace(hub, hubPlace()), true);
+  assert.equal(samePlace(hub, hubPlace(shop)), false, 'filtering the hub to a project is a step');
+  assert.equal(samePlace(hubPlace(shop), hubPlace(shop)), true);
+  assert.equal(samePlace(statisticsPlace(shop), statisticsPlace(coord)), false);
+  assert.equal(samePlace(statisticsPlace(shop), hubPlace(shop)), false);
+  assert.equal(samePlace(projectsPlace(), projectsPlace()), true);
+  assert.equal(samePlace(hub, plan), false);
+  assert.equal(samePlace(plan, hub), false);
+  // From a plan, its breadcrumb's project, then back to the plan and back to the hub.
+  let history = record(record(startHistory(hub), plan), hubPlace(shop));
+  assert.deepEqual(history.entries, [hub, plan, hubPlace(shop)]);
+  history = step(history, -1)!.history;
+  assert.deepEqual(step(history, -1)!.place, hub);
 });
 
 test('going back and forward moves through the entries; showing something new drops what was ahead', () => {
-  let history: History = { entries: [page, plan, other], ids: [0, 1, 2], index: 2, next: 3 };
+  let history: History = { entries: [hub, plan, other], ids: [0, 1, 2], index: 2, next: 3 };
   const back = step(history, -1)!;
   assert.deepEqual(back.place, plan);
   history = step(back.history, -1)!.history;
@@ -46,12 +60,12 @@ test('going back and forward moves through the entries; showing something new dr
   assert.equal(record(history, plan), history);
   history = record(history, notes);
   // The new entry has an id of its own, never the dropped entry's.
-  assert.deepEqual(history, { entries: [page, plan, notes], ids: [0, 1, 3], index: 2, next: 4 });
+  assert.deepEqual(history, { entries: [hub, plan, notes], ids: [0, 1, 3], index: 2, next: 4 });
   assert.equal(step(history, 1), null);
 });
 
 test('the history keeps its latest entries', () => {
-  let history = startHistory(page);
+  let history = startHistory(hub);
   for (let index = 0; index < historyLimit + 10; index++) history = record(history, at(fileTarget(`file-${index}.md`)));
   assert.equal(history.entries.length, historyLimit);
   assert.equal(history.index, historyLimit - 1);
@@ -59,25 +73,6 @@ test('the history keeps its latest entries', () => {
   assert.deepEqual(history.entries[0], at(fileTarget('file-10.md')));
   assert.equal(history.ids.length, historyLimit);
   assert.equal(currentEntry(history), historyLimit + 10);
-});
-
-const ui = (tabs: UiState['tabs']): UiState => ({ sidebar: { visible: true, width: 280 }, tabs });
-
-test('an entry shows again as its open tab, or as a preview tab when its tab was closed', () => {
-  const opened = ui({ items: [{ id: shop + ':work:work-0001', project: shop, target: plan.target, preview: false }, { id: shop + ':file:knowledge/notes.md', project: shop, target: notes.target, preview: true }], active: shop + ':file:knowledge/notes.md' });
-  assert.deepEqual(shownPlace(opened), notes);
-  // Nothing shown leaves the tabs, none active.
-  const none = showPlace(opened, null);
-  assert.deepEqual(none.tabs.items, opened.tabs.items);
-  assert.equal(shownPlace(none), null);
-  // An open tab becomes active at the entry's place, and a kept tab stays kept.
-  const tab = showPlace(none, plan);
-  assert.equal(tab.tabs.active, shop + ':work:work-0001');
-  assert.deepEqual(tab.tabs.items.map(item => [item.id, item.preview]), [[shop + ':work:work-0001', false], [shop + ':file:knowledge/notes.md', true]]);
-  // A closed tab opens again as a preview, which replaces the current preview.
-  const reopened = showPlace(tab, at(fileTarget('README.md'), coord));
-  assert.deepEqual(reopened.tabs.items.map(item => [item.id, item.preview]), [[shop + ':work:work-0001', false], [coord + ':file:README.md', true]]);
-  assert.equal(reopened.tabs.active, coord + ':file:README.md');
 });
 
 const key = (key: string, modifiers: { alt?: boolean; ctrl?: boolean; meta?: boolean; shift?: boolean } = {}) =>
@@ -98,10 +93,11 @@ test('Alt+← and Alt+→ go back and forward, ⌘[ and ⌘] on macOS, and so do
   assert.equal(keyStep(key('BrowserForward'), 'darwin'), 1);
 });
 
-test('a project moved under a new folder ID takes its tabs and history along', () => {
+test('a project moved under a new folder ID takes the place shown and the history along', () => {
   const moved = 'f-' + 'c'.repeat(32);
-  const shown = ui({ items: [{ id: shop + ':project', project: shop, target: projectTarget(), preview: false }, { id: coord + ':work:work-0001', project: coord, target: workTarget('work-0001'), preview: false }], active: shop + ':project' });
-  const { ui: next, history } = moveProject({ ui: shown, history: record(startHistory(other), page) }, shop, moved);
-  assert.deepEqual(next.tabs, { items: [{ id: moved + ':project', project: moved, target: projectTarget(), preview: false }, shown.tabs.items[1]], active: moved + ':project' });
-  assert.deepEqual(history.entries, [other, at(projectTarget(), moved)]);
+  const places: Place[] = [other, hubPlace(shop), statisticsPlace(shop), plan];
+  const { ui, history } = moveProject({ ui: { place: plan }, history: places.slice(1).reduce(record, startHistory(places[0])) }, shop, moved);
+  assert.deepEqual(ui.place, at(workTarget('work-0001'), moved));
+  assert.deepEqual(history.entries, [other, hubPlace(moved), statisticsPlace(moved), at(workTarget('work-0001'), moved)]);
+  assert.deepEqual(moveProject({ ui: { place: hub }, history: startHistory(projectsPlace()) }, shop, moved), { ui: { place: hub }, history: startHistory(projectsPlace()) });
 });

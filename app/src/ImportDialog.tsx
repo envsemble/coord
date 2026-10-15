@@ -5,7 +5,7 @@ import { DiagramIcon } from './icons';
 import { absoluteDate, bytes, workNumber } from './format';
 
 /** The preview shown before an import writes anything. */
-export function ImportDialog({ preview, onConfirm, onCancel }: { preview: ImportPreview; onConfirm(): Promise<void>; onCancel(): void }) {
+export function ImportDialog({ preview, project, onConfirm, onCancel }: { preview: ImportPreview; project: string; onConfirm(): Promise<void>; onCancel(): void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const confirm = async () => {
@@ -21,7 +21,7 @@ export function ImportDialog({ preview, onConfirm, onCancel }: { preview: Import
   ];
   return <Dialog open onOpenChange={open => { if (!open && !busy) onCancel(); }} pending={busy} className="import-dialog"
     title={`Import “${preview.title}”`}
-    description="The plan is added as new work in this project. Nothing is committed; review and commit the files yourself."
+    description={`The plan is added as new work in ${project}. Nothing is committed; review and commit the files yourself.`}
     closeLabel="Cancel" actions={<Button variant="primary" onClick={() => void confirm()} pending={busy}>Import</Button>}>
     <dl className="facts import-facts">{rows.filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     {preview.diagrams.length > 0 && <><Text as="h3" variant="section-heading" className="dialog-subtitle">Diagrams</Text><ul className="import-diagrams">{preview.diagrams.map((title, index) => <li key={index}><DiagramIcon />{title}</li>)}</ul></>}

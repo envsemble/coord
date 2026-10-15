@@ -1,10 +1,10 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Badge, Breadcrumbs, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
+import { Badge, Breadcrumbs, Button, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
-import { CommitIcon, LedgerIcon, PlanIcon } from './icons';
+import { CommitIcon, DownloadIcon, LedgerIcon, PlanIcon } from './icons';
 import type { Document, Snapshot, Target, Work } from './types';
 import { defaultDocument, primaryDocuments } from './work';
-import { ledgerTarget, projectTarget, workTarget } from './targets';
+import { hubPlace, ledgerTarget, workTarget } from './targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
 import { RepositoryBadge, StatusBadge } from './ui';
@@ -15,10 +15,10 @@ import { TargetLink, useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
 
-/** A trail of targets; the last item is the current page. */
+/** A trail of targets, after the project (which leads to its plans in the hub); the last item is the current page. */
 export function Trail({ items }: { items: { label: ReactNode; target?: Target }[] }) {
-  const { open } = useWorkbench();
-  return <Breadcrumbs className="breadcrumb" items={items.map(item => ({ label: item.label, onClick: item.target ? () => open(item.target!, { pin: true }) : undefined }))} />;
+  const { open, go, project, projectName } = useWorkbench();
+  return <Breadcrumbs className="breadcrumb" items={[{ label: projectName, onClick: () => go(hubPlace(project)) }, ...items.map(item => ({ label: item.label, onClick: item.target ? () => open(item.target!) : undefined }))]} />;
 }
 
 function AboutSection({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
@@ -95,18 +95,18 @@ function About({ work, snapshot, showing }: { work: Work; snapshot: Snapshot; sh
  * their cards in the plan.
  */
 export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
-  const { projectName } = useWorkbench();
+  const { listed, exportPlan } = useWorkbench();
   const { plan, ledger } = primaryDocuments(work);
   const showing = target.view === 'ledger' && ledger ? 'ledger' : 'plan';
   const reading: Document | undefined = showing === 'ledger' ? ledger : plan ?? defaultDocument(work);
   const status = workStatus(work);
   const note = designNote(work);
+  const summary = listed(work.id)?.summary;
   const references = useReferences(reading, work.id, reading?.format === 'markdown');
   return <div className="work-page">
     <div className="work-layout">
       <div className="work-main">
-        <Trail items={showing === 'ledger' ? [{ label: projectName, target: projectTarget() }, { label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Ledger' }]
-          : [{ label: projectName, target: projectTarget() }, { label: workNumber(work.id) }]} />
+        <Trail items={showing === 'ledger' ? [{ label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Ledger' }] : [{ label: workNumber(work.id) }]} />
         <header className="work-header">
           <Text as="h1" variant="page-heading">{work.title}</Text>
           <div className="work-header-meta">
@@ -115,9 +115,12 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
             {work.location === 'archived' && <Badge tone="warning">Archived</Badge>}
             {note && <Badge>{note}</Badge>}
             {work.repositories.map(id => <RepositoryBadge key={id} id={id} />)}
+            <span className="spacer" />
+            <Button variant="text" className="work-export" startIcon={<DownloadIcon />} onClick={() => exportPlan(work.id)}>Export Plan…</Button>
           </div>
+          {summary && <p className="work-summary">{summary}</p>}
         </header>
-        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} />
+        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
       <About work={work} snapshot={snapshot} showing={showing} />
@@ -126,11 +129,10 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
 }
 
 export function FileView({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
-  const { projectName } = useWorkbench();
   const owner = snapshot.work.find(work => work.id === file.workId);
   const references = useReferences(file, file.workId, file.format === 'markdown' && (Boolean(file.workId) || file.category === 'knowledge'));
   return <div className="page file-page">
-    <Trail items={[{ label: projectName, target: projectTarget() }, ...(owner ? [{ label: workNumber(owner.id) + ' ' + owner.title, target: workTarget(owner.id) }] : []), { label: file.path }]} />
+    <Trail items={[...(owner ? [{ label: workNumber(owner.id) + ' ' + owner.title, target: workTarget(owner.id) }] : []), { label: file.path }]} />
     <Surface className="file-surface" padding={0}>
       <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} toolbar references={references} showWork={!file.workId} />
     </Surface>

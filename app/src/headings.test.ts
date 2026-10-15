@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Markdown } from '@envsemble/envui/content';
 import { sectionAnchors } from '@envsemble/atlas-planning/headings';
-import { findHeadingId, headingPrefix, rehypeHeadingIds, type HeadingNode } from './headings.ts';
+import { findHeadingId, headingPrefix, isRequestHeading, rehypeFoldRequests, rehypeHeadingIds, type HeadingNode } from './headings.ts';
 import { resolveLink } from './links.ts';
 import type { Document } from './types.ts';
 
@@ -70,4 +70,18 @@ test('the anchors diagram links name are the ids the reader draws, footnote numb
     const drawn = [...html.matchAll(/ id="planning-heading-([^"]*)"/g)].map(match => match[1].replaceAll('&amp;', '&'));
     assert.deepEqual([...sectionAnchors(markdown)], drawn, markdown);
   }
+});
+
+test("a plan's request folds: its heading at any level, up to the next heading of its level or above", () => {
+  for (const heading of ['Request', 'request', 'Request (Jacob, 2026-10-14)', ' Request (Jacob) ']) assert.equal(isRequestHeading(heading), true, heading);
+  for (const heading of ['Requests', 'The request', 'Request: the user', 'Requested changes']) assert.equal(isRequestHeading(heading), false, heading);
+  const markdown = '# Plan\n\nIntro.\n\n## Request (Jacob, 2026-10-14)\n\n> Make it so.\n\n### Asked later\n\nMore words.\n\n## Decided\n\nDone.\n\n### Request\n\nNested.\n';
+  const html = renderToStaticMarkup(createElement(Markdown, { rehypePlugins: [rehypeHeadingIds, rehypeFoldRequests], children: markdown }));
+  const sections = [...html.matchAll(/<section class="request-fold" data-fold="request">(.*?)<\/section>/gs)].map(match => match[1]);
+  assert.equal(sections.length, 2);
+  assert.match(sections[0], /^<h2 id="planning-heading-request-jacob-2026-10-14" data-fold-toggle="true">Request \(Jacob, 2026-10-14\)<\/h2>.*Make it so.*Asked later.*More words/s);
+  assert.doesNotMatch(sections[0], /Decided/);
+  assert.match(sections[1], /^<h3 id="planning-heading-request" data-fold-toggle="true">Request<\/h3>.*Nested/s);
+  assert.match(html, /<h1[^>]*>Plan<\/h1>.*Intro.*<section/s, 'everything else stays as it was');
+  assert.match(html, /<\/section>\s*<h2 id="planning-heading-decided">Decided<\/h2>/);
 });

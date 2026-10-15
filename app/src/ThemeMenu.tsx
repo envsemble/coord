@@ -1,7 +1,7 @@
 // The app's theme: the operating system's, light or dark. Main keeps the choice for every window and
 // applies it as Electron's native theme; envUI follows it through prefers-color-scheme.
 import { useCallback, useState } from 'react';
-import { IconButton, Menu, MenuRadioGroup, MenuRadioItem, MenuSubmenu, useThemePreference } from '@envsemble/envui';
+import { IconButton, Menu, MenuRadioGroup, MenuRadioItem, useThemePreference } from '@envsemble/envui';
 import { BrightnessAuto } from '@envsemble/envui/icons/BrightnessAuto';
 import { DarkMode } from '@envsemble/envui/icons/DarkMode';
 import { LightMode } from '@envsemble/envui/icons/LightMode';
@@ -37,12 +37,4 @@ export function ThemeMenu() {
     trigger={<IconButton variant="text" icon={theme === 'dark' ? <DarkMode /> : <LightMode />} aria-label="Theme" />}>
     <ThemeChoices preference={preference} choose={choose} />
   </Menu>;
-}
-
-/** View › Theme. */
-export function ThemeSubmenu() {
-  const { preference, refresh, choose } = useThemeChoice();
-  return <MenuSubmenu label="Theme" onOpenChange={open => { if (open) refresh(); }}>
-    <ThemeChoices preference={preference} choose={choose} />
-  </MenuSubmenu>;
 }

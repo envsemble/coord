@@ -1,20 +1,18 @@
-// The frame of a view: a page heading (or, as a section of the project page, a section heading)
-// with its controls, and the repository filter.
+// The frame of a page: its heading with its controls, its toolbar, and the repository filter.
 import type { ReactNode } from 'react';
 import { EmptyState, Select, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import { ErrorIcon } from './icons';
 import type { Snapshot } from './types';
 
-export function Page({ title, heading, toolbar, children, className = '', section = false }: { title?: ReactNode; heading?: ReactNode; toolbar?: ReactNode; children: ReactNode; className?: string; section?: boolean }) {
-  const Frame = section ? 'section' : 'div';
-  return <Frame className={(section ? 'page-section ' : 'page ') + className} aria-label={section && typeof title === 'string' ? title : undefined}>
+export function Page({ title, heading, toolbar, children, className = '' }: { title?: ReactNode; heading?: ReactNode; toolbar?: ReactNode; children: ReactNode; className?: string }) {
+  return <div className={'page ' + className}>
     {(title || heading) && <header className="page-header">
-      {heading ?? <Text as={section ? 'h2' : 'h1'} variant={section ? 'section-heading' : 'page-heading'}>{title}</Text>}
+      {heading ?? <Text as="h1" variant="page-heading">{title}</Text>}
     </header>}
     {toolbar && <div className="page-toolbar">{toolbar}</div>}
     {children}
-  </Frame>;
+  </div>;
 }
 
 export interface RepositoryFilter { repository: string; setRepository(value: string): void }

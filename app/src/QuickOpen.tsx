@@ -1,79 +1,69 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CommandPalette, type CommandPaletteItem } from '@envsemble/envui';
 import { DiagramIcon, FileIcon } from './icons';
-import type { DiagramIndexEntry, Project, Snapshot } from './types';
+import type { DiagramIndexEntry, Project, Snapshot, Target } from './types';
 import { api } from './api';
 import { rankItems, type QuickItem } from './quickMatch';
+import { hubGroups, hubItems, hubStatus } from './hubPlans';
 import { diagramTarget, fileTarget, workTarget, type Place } from './targets';
-import { workStatus } from './status';
 import { workNumber } from './format';
 import { StatusIcon } from './ui';
 
 interface Entry extends QuickItem { place: Place; icon: ReactNode }
-const groups: Record<string, string> = { work: 'Work', diagram: 'Diagrams', file: 'Files' };
+const groups: Record<string, string> = { work: 'Plans', diagram: 'Diagrams', file: 'Files' };
 
 /**
- * Ctrl+P: jump to any work item, document or diagram by name, in the projects of the window's
- * computer (their snapshots as read so far; diagrams are listed as they arrive). In "work" mode it
- * picks a work item.
+ * Ctrl+P: jump to a plan of any active project of the window's computer (from the project list), or
+ * to a diagram or document of the open plan's project (`open`, with its snapshot; diagrams are
+ * listed as they arrive).
  */
-export function QuickOpen({ projects, snapshots, mode = 'all', placeholder, onPick, onClose }: {
-  projects: Project[]; snapshots: Record<string, Snapshot>; mode?: 'all' | 'work'; placeholder?: string;
-  onPick(place: Place, pin: boolean): void; onClose(): void;
+export function QuickOpen({ projects, open, onPick, onClose }: {
+  projects: Project[]; open: { project: string; snapshot: Snapshot } | null; onPick(place: Place): void; onClose(): void;
 }) {
   const [query, setQuery] = useState('');
-  const [diagrams, setDiagrams] = useState<Record<string, DiagramIndexEntry[]>>({});
-  const read = projects.filter(project => snapshots[project.folderId]);
+  const [diagrams, setDiagrams] = useState<DiagramIndexEntry[]>([]);
+  const project = open?.project ?? null;
   useEffect(() => {
-    if (mode !== 'all') return;
+    if (!project) return;
     let current = true;
-    for (const project of read) {
-      if (diagrams[project.folderId]) continue;
-      api.diagramIndex(project.folderId).then(items => { if (current) setDiagrams(previous => ({ ...previous, [project.folderId]: items })); }).catch(() => undefined);
-    }
+    api.diagramIndex(project).then(items => { if (current) setDiagrams(items); }).catch(() => undefined);
     return () => { current = false; };
-  }, [mode, read.map(project => project.folderId).join(' ')]);
+  }, [project]);
 
   const entries = useMemo(() => {
-    const several = read.length > 1;
-    const all: Entry[] = [];
-    for (const project of read) {
-      const snapshot = snapshots[project.folderId];
-      const of = (detail: string) => several ? project.name + ' · ' + detail : detail;
-      const place = (target: Place['target']): Place => ({ project: project.folderId, target });
+    // Every plan of the active projects, and of the open one whatever its state, in the hub's order.
+    const listed = [...hubItems(projects, null), ...project && projects.find(item => item.folderId === project)?.state !== 'active' ? hubItems(projects, project) : []];
+    const all: Entry[] = hubGroups(listed, 'all', '').flatMap(group => group.items).map(({ project: owner, work }) => ({
+      id: owner.folderId + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id),
+      place: { project: owner.folderId, target: workTarget(work.id) }, icon: <StatusIcon status={hubStatus(work)} decorative />,
+    }));
+    if (open) {
+      const { snapshot } = open;
+      const place = (target: Target): Place => ({ project: open.project, target });
       const titles = new Map(snapshot.work.map(work => [work.id, work.title]));
-      all.push(...[...snapshot.work].sort((a, b) => b.id.localeCompare(a.id)).map(item => ({
-        id: project.folderId + ':work:' + item.id, kind: 'work' as const, label: item.title, detail: of(workNumber(item.id) + ' · ' + item.path), place: place(workTarget(item.id)),
-        icon: <StatusIcon status={workStatus(item)} decorative />,
-      })));
-      if (mode === 'work') continue;
       // A diagram is listed once, by its title; its file is not listed again.
-      const listed = diagrams[project.folderId] ?? [];
-      const paths = new Set(listed.map(item => snapshot.work.find(work => work.id === item.workId)?.path + '/' + item.path));
-      all.push(...listed.map(item => ({
-        id: project.folderId + ':diagram:' + item.workId + ':' + item.path, kind: 'diagram' as const, label: item.title,
-        detail: of([workNumber(item.workId) + ' ' + (titles.get(item.workId) ?? ''), item.provenance.label].filter(Boolean).join(' · ')),
+      const paths = new Set(diagrams.map(item => snapshot.work.find(work => work.id === item.workId)?.path + '/' + item.path));
+      all.push(...diagrams.map(item => ({
+        id: open.project + ':diagram:' + item.workId + ':' + item.path, kind: 'diagram' as const, label: item.title,
+        detail: [workNumber(item.workId) + ' ' + (titles.get(item.workId) ?? ''), item.provenance.label].filter(Boolean).join(' · '),
         place: place(diagramTarget(item.workId, item.path)), icon: <DiagramIcon />,
       })));
-      all.push(...snapshot.documents.filter(file => !paths.has(file.path)).map(file => ({ id: project.folderId + ':file:' + file.path, kind: 'file' as const, label: file.name, detail: of(file.path), place: place(fileTarget(file.path)), icon: <FileIcon /> })));
+      all.push(...snapshot.documents.filter(file => !paths.has(file.path)).map(file => ({ id: open.project + ':file:' + file.path, kind: 'file' as const, label: file.name, detail: file.path, place: place(fileTarget(file.path)), icon: <FileIcon /> })));
     }
-    // Work first, then diagrams, then files, across the projects.
-    const order = ['work', 'diagram', 'file'];
-    return all.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
-  }, [read, snapshots, diagrams, mode]);
+    return all;
+  }, [projects, project, open, diagrams]);
   const results = useMemo(() => rankItems(entries, query), [entries, query]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
   // Without a query the list reads best grouped; a query ranks across kinds.
   // The name read out includes the path, so many plan.md files stay apart.
   const items: CommandPaletteItem[] = results.map(entry => ({ id: entry.id, label: entry.label, textValue: entry.label + ', ' + entry.detail, detail: entry.detail, icon: entry.icon, group: query ? undefined : groups[entry.kind] }));
 
-  return <CommandPalette open onOpenChange={open => { if (!open) onClose(); }} className="quick-open" aria-label={mode === 'work' ? 'Choose a work item' : 'Quick open'}
-    query={query} onQueryChange={setQuery} items={items} placeholder={placeholder ?? 'Go to a work item, document or diagram'} emptyLabel="No matches"
-    footer={mode === 'all' ? 'Enter opens a preview tab · Ctrl+Enter keeps it open' : undefined}
-    onSelect={(item, { modifier }) => {
+  return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="quick-open" aria-label="Quick open"
+    query={query} onQueryChange={setQuery} items={items} placeholder={open ? 'Go to a plan, or a document or diagram of this project' : 'Go to a plan'} emptyLabel="No matches"
+    onSelect={item => {
       const entry = byId.get(item.id);
       if (!entry) return;
       onClose();
-      onPick(entry.place, mode === 'work' || modifier);
+      onPick(entry.place);
     }} />;
 }
