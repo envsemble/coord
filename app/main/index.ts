@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
-import { hostRunning, type Project } from '@envsemble/atlas-host';
+import { hostRunning } from '@envsemble/atlas-host';
 import { atlasHome, HomeDatabase, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
 import { Connections } from './connections.ts';
@@ -19,6 +19,7 @@ import { scheme } from './protocol.ts';
 import { DesktopState } from './state.ts';
 import { WindowManager } from './windows.ts';
 import type { AboutInfo } from '../shared/contract.ts';
+import { isProjectListing } from '../shared/validate.ts';
 
 // Atlas keeps its state in the Atlas home (~/.atlas, shared with the `atlas` command). Electron's
 // own files and Chromium's caches stay in Electron's per-user folder, except for a home chosen with
@@ -152,7 +153,8 @@ function start(database: HomeDatabase) {
       if (event === 'folder.changed') { manager.folderChanged(client, data as never); return; }
       const hostId = client === connections.local ? null : connections.hostIdOf(client);
       if (client !== connections.local && hostId === null) return;
-      if (event === 'projects.changed') manager.projectsChanged(hostId, (data as { projects: Project[] }).projects);
+      // A listing that does not read as one (from another computer's host, say) is asked for again instead.
+      if (event === 'projects.changed') { const listed = (data as { projects?: unknown } | null)?.projects; manager.projectsChanged(hostId, isProjectListing(listed) ? listed : undefined); }
       else if (event === 'access.changed') manager.accessChanged(hostId, data as never);
     },
     onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
