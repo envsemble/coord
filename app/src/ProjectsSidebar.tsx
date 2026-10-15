@@ -1,12 +1,16 @@
 // The sidebar's projects: those of the computer the window shows, in their order, as cards that each
-// open the project's page, below a strip with a search over them and New Project; hidden and archived
+// open the project's page and say what is going on in it (its repositories, when it last changed, its
+// active, blocked and implementing work and the model that reported last), below a strip with a search over them and New Project; hidden and archived
 // projects wait in a group below the cards, closed until opened. A project's context menu renames
 // it, moves it, and hides, archives or shows it again; projects are never deleted here. A project
 // outside the Atlas home (from before it) is marked, and its menu moves it into the home. While the
 // sidebar shows icons only, each project is an icon.
 import { useState, type ReactNode } from 'react';
 import { Button, Card, ContextMenu, Dialog, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, SearchField, Spinner, Text, Tooltip, useSidebarCompact } from '@envsemble/envui';
-import { AddIcon, ArchiveIcon, CloseIcon, FolderIcon } from './icons';
+import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, FolderIcon, InProgressIcon } from './icons';
+import { ProviderMark } from './AiModel';
+import { aiModel } from './aiModels';
+import { absoluteDate, plural, shortAge } from './format';
 import type { Project, ProjectRepository, ProjectState } from './types';
 import { api } from './api';
 
@@ -23,18 +27,31 @@ export interface ProjectActions {
 const stateLabels: Record<ProjectState, string> = { active: 'Active', hidden: 'Hidden', archived: 'Archived' };
 const projectIcon = (project: Project) => project.state === 'archived' ? <ArchiveIcon /> : <FolderIcon />;
 const projectTitle = (project: Project) => project.path + (project.outsideHome ? ' (outside the Atlas home: agents do not find it until it is moved in)' : '');
-/** What a card says below the name: where the project stands, when that is not simply active in the home. */
+/** Where a project stands, when that is not simply active in the home. */
 const projectNote = (project: Project) => [project.outsideHome && 'Outside the Atlas home', project.state !== 'active' && stateLabels[project.state]].filter(Boolean).join(' · ');
 
-/** One project as a card: it opens its page; its context menu is the list's. */
+/**
+ * One project as a card, in the text size of the rest of the sidebar: its repositories and when it
+ * last changed, its name, then its active work, how much of it is blocked and being implemented, and
+ * the mark of the model that reported last. It opens its page; its context menu is the list's.
+ */
 function ProjectCard({ project, selected, actions }: { project: Project; selected: boolean; actions: ProjectActions }) {
+  const summary = project.summary ?? null;
   const note = projectNote(project);
+  const model = summary?.model ? aiModel(summary.model) : null;
   return <Card as="button" type="button" className="project-card" data-project={project.folderId} data-state={project.state} aria-current={selected ? 'page' : undefined}
     title={projectTitle(project)} onClick={() => actions.open(project)}>
-    <span className="project-card-icon" aria-hidden="true">{projectIcon(project)}</span>
-    <span className="project-card-text">
-      <span className="project-card-name">{project.name}</span>
+    <span className="project-card-line project-card-context">
+      <span className="project-card-repositories">{summary?.repositories.length ? summary.repositories.join(' · ') : project.path.split(/[\\/]/).at(-1)}</span>
+      {summary?.updated && <span className="project-card-age" title={'Last changed ' + absoluteDate(summary.updated)}>{shortAge(summary.updated)}</span>}
+    </span>
+    <span className="project-card-name">{project.name}</span>
+    <span className="project-card-line project-card-facts">
       {note && <span className="project-card-note">{note}</span>}
+      {summary && <span>{summary.active ? summary.active + ' active' : 'No active work'}</span>}
+      {summary && summary.blocked > 0 && <span className="project-card-fact" data-tone="blocked" title={plural(summary.blocked, 'blocked work item')}><BlockedIcon />{summary.blocked}</span>}
+      {summary && summary.implementing > 0 && <span className="project-card-fact" data-tone="implementing" title={summary.implementing + ' being implemented'}><InProgressIcon />{summary.implementing}</span>}
+      {model && <span className="project-card-model" title={'Last reported by ' + model.name}><ProviderMark provider={model.provider} /></span>}
     </span>
   </Card>;
 }

@@ -189,6 +189,11 @@ export class HomeDatabase {
     });
   }
   /** Change a project's cached name, state or position; a new position moves the others along. */
+  /** The model of a project's latest work report that names one, or null. */
+  lastModel(projectId: number): string | null {
+    const row = this.db.prepare('SELECT model FROM work_report WHERE project_id = ? AND model IS NOT NULL ORDER BY at DESC, id DESC LIMIT 1').get(projectId) as { model: string } | undefined;
+    return row?.model ?? null;
+  }
   updateProject(id: number, change: { name?: string; state?: ProjectState; position?: number; folder?: string }) {
     this.transaction(() => {
       const project = this.project(id);

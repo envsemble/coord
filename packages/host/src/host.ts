@@ -19,13 +19,13 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
-import { adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, resolveDocument, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates } from '@envsemble/atlas-planning';
+import { adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, resolveDocument, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates } from '@envsemble/atlas-planning';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
   type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Project, type Scope,
+  type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
@@ -536,7 +536,7 @@ export class Host {
     this.projectsTimer = setTimeout(() => {
       this.projectsTimer = null;
       if (!this.connections.size || this.stopped) return;
-      void this.projects().then(projects => { for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined);
+      void this.projects(true).then(projects => { for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined);
     }, 300);
     this.projectsTimer.unref?.();
   }
@@ -568,18 +568,23 @@ export class Host {
    * The computer's projects in their order: every planning folder in the home is one (a folder that
    * appears becomes the last), with its name read again from its planning.json; projects whose
    * folder is no longer a planning folder are left out. Projects outside the home (from before it)
-   * are listed too, marked, until they are moved in.
+   * are listed too, marked, until they are moved in. The list clients show has each project's summary.
    */
-  async projects(): Promise<Project[]> {
+  async projects(summaries = false): Promise<Project[]> {
     for (const folder of await homePlanningFolders(this.options.home)) await projectOf(this.database, folder);
-    const listed: Project[] = [];
+    const listed: ProjectRow[] = [];
     for (const row of this.database.projects()) {
       if (!await isPlanningFolder(row.folder)) continue;
       const name = await planningName(row.folder);
       if (name !== row.name) this.database.updateProject(row.id, { name });
-      listed.push(this.project({ ...row, name }));
+      listed.push({ ...row, name });
     }
-    return listed;
+    if (!summaries) return listed.map(row => this.project(row));
+    return Promise.all(listed.map(async row => ({ ...this.project(row), summary: await this.summaryOf(row) })));
+  }
+  /** What a project's card says: from its planning folder, with the model that reported last. */
+  private async summaryOf(row: ProjectRow): Promise<ProjectSummary | null> {
+    try { return { ...await projectSummary(row.folder), model: this.database.lastModel(row.id) }; } catch { return null; }
   }
   /** A project by its folder's ID. */
   private async projectRow(folderId: string): Promise<ProjectRow> {
@@ -686,7 +691,7 @@ export class Host {
     switch (method) {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
-      case 'projects.list': return this.projects() as never;
+      case 'projects.list': return this.projects(true) as never;
       case 'projects.create': { const { name, repositories } = p as Methods['projects.create']['params']; return this.createProject(name, repositories) as never; }
       case 'projects.update': return this.updateProject(p as Methods['projects.update']['params']) as never;
       case 'projects.adopt': return this.adoptProject((p as { folderId: string }).folderId) as never;

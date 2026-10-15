@@ -37,7 +37,13 @@ export type ProjectState = 'active' | 'hidden' | 'archived';
  * identifies it in every request about its folder. A project from before the home (`outsideHome`)
  * is listed until it is moved into the home; agents do not find it until then.
  */
-export interface Project { folderId: string; name: string; path: string; position: number; state: ProjectState; outsideHome: boolean }
+export interface Project {
+  folderId: string; name: string; path: string; position: number; state: ProjectState; outsideHome: boolean;
+  /** What the project's card says about it (the project list has it; null when its folder could not be read). */
+  summary?: ProjectSummary | null;
+}
+/** A project's repositories, its active, blocked and implementing work, its last change, and the model that reported last. */
+export interface ProjectSummary { repositories: string[]; active: number; blocked: number; implementing: number; updated: string | null; model: string | null }
 /** A repository a new project covers: its ID in planning.json, its name and its Git remote. */
 export interface ProjectRepository { id: string; name: string; remote: string | null }
 

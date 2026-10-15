@@ -66,15 +66,23 @@ body { margin: 0; }
 .project-cards { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-1) var(--env-sidebar-inset, var(--space-3)) var(--space-4); }
 .project-list { display: grid; gap: var(--space-2); }
 .project-list-state { padding: var(--space-2); }
-.project-card.env-card { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-large, 1rem); }
+/* A card in the sidebar's own text size: context and age, the name, then facts, as in T3 Code's thread cards. */
+.project-card.env-card { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-large, 1rem); font: var(--type-body-small); }
 .project-card[aria-current='page'] { background: var(--color-navigation-selected); color: var(--color-on-navigation-selected); }
 .project-card[aria-current='page']:hover { background: var(--color-navigation-selected); }
-.project-card-icon { display: grid; flex: none; place-items: center; inline-size: 2rem; block-size: 2rem; border-radius: var(--radius-standard); background: var(--color-canvas); color: var(--color-navigation-icon); }
-.project-card[aria-current='page'] .project-card-icon { color: inherit; }
-.project-card-text { display: grid; min-inline-size: 0; }
+.project-card-line { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; color: var(--color-text-muted); }
+.project-card[aria-current='page'] .project-card-line { color: inherit; opacity: 0.8; }
+.project-card-repositories, .project-card-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-card-repositories { flex: 1 1 auto; min-inline-size: 0; }
+.project-card-age { flex: none; margin-inline-start: auto; font-variant-numeric: tabular-nums; }
 .project-card-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.project-card-note { overflow: hidden; color: var(--color-text-muted); font: var(--type-body-small); text-overflow: ellipsis; white-space: nowrap; }
-.project-card[aria-current='page'] .project-card-note { color: inherit; opacity: 0.8; }
+.project-card-facts { flex-wrap: nowrap; }
+.project-card-fact { display: inline-flex; align-items: center; gap: 0.125rem; font-variant-numeric: tabular-nums; }
+.project-card-fact .env-symbol, .project-card-fact svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; }
+.project-card-fact[data-tone='blocked'] { color: var(--color-tone-danger); }
+.project-card-fact[data-tone='implementing'] { color: var(--color-tone-success); }
+.project-card-model { display: inline-flex; margin-inline-start: auto; }
+.project-card-model .provider-mark { inline-size: 1rem; block-size: 1rem; }
 .project-card[data-state='archived'], .project-card[data-state='hidden'] { opacity: 0.85; }
 .project-group { display: grid; gap: var(--space-2); }
 .project-group > summary { padding: var(--space-2); border-radius: var(--radius-standard); color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; cursor: pointer; }
