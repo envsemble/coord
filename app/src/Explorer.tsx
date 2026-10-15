@@ -1,13 +1,13 @@
-// The planning folder's files in the sidebar: work folders with their status and plan title, and
-// files; a work item's diagram files open as its diagrams. A click previews an item in a tab; a
-// double click or Enter keeps it.
+// A project's files in the file panel: work folders with their status and plan title, and files; a
+// work item's diagram files open as its diagrams. A click previews an item in a tab; a double click
+// or Enter keeps it.
 import { useMemo } from 'react';
 import { IconButton, MenuItem, MenuSeparator, Tooltip, Tree, type TreeItem } from '@envsemble/envui';
 import { CollapseAllIcon, DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from './icons';
-import type { Document, Snapshot, Target, Work } from './types';
+import type { Document, Snapshot, Target } from './types';
 import { api } from './api';
 import { buildIndex, fileId, folderId, revealIds, visibleRows, type ExplorerRow } from './explorerModel';
-import { documentTarget, fileTarget, isDiagramFile, workTarget } from './targets';
+import { diagramTarget, documentTarget, fileTarget, isDiagramFile, workTarget } from './targets';
 import { workStatus } from './status';
 import { workNumber } from './format';
 import { StatusIcon } from './ui';
@@ -17,10 +17,10 @@ import { useWorkbench } from './workbenchContext';
 export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): { id: string; reveal: string[] } | null {
   if (!target) return null;
   if (target.kind === 'file') return { id: fileId(target.path), reveal: revealIds(target.path) };
-  if (target.kind === 'work') {
+  if (target.kind === 'work' || target.kind === 'diagram') {
     const work = snapshot.work.find(item => item.id === target.work);
     if (!work) return null;
-    if (target.section === 'diagrams' && target.diagram) { const path = work.path + '/' + target.diagram; return { id: fileId(path), reveal: revealIds(path) }; }
+    if (target.kind === 'diagram' && target.path) { const path = work.path + '/' + target.path; return { id: fileId(path), reveal: revealIds(path) }; }
     return { id: folderId(work.path), reveal: revealIds(work.path) };
   }
   return null;
@@ -28,10 +28,10 @@ export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): {
 
 type Row = TreeItem & { row: ExplorerRow };
 
-export function Explorer({ snapshot, folderName, expanded, setExpanded, selected, onExportPlan }: {
-  snapshot: Snapshot; folderName: string; expanded: string[]; setExpanded(next: string[]): void; selected: string | null; onExportPlan(work: Work): void;
+export function Explorer({ snapshot, expanded, setExpanded, selected }: {
+  snapshot: Snapshot; expanded: string[]; setExpanded(next: string[]): void; selected: string | null;
 }) {
-  const { open, notify, remote } = useWorkbench();
+  const { project, projectName, open, notify, remote, exportPlan } = useWorkbench();
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
   const rows = useMemo(() => visibleRows(index, expandedSet).map(row => treeItem(row)), [index, expandedSet]);
@@ -49,7 +49,7 @@ export function Explorer({ snapshot, folderName, expanded, setExpanded, selected
       case 'file': open(fileOpens(row.file!), { pin }); break;
     }
   };
-  const reveal = (path: string) => { api.reveal(path).catch(error => notify((error as Error).message, 'warning')); };
+  const reveal = (path: string) => { api.reveal(project, path).catch(error => notify((error as Error).message, 'warning')); };
   // A folder on another computer has no files here to reveal.
   const revealItem = (path: string) => remote ? null : <MenuItem onClick={() => reveal(path)}>Reveal in File Explorer</MenuItem>;
   const collapseAll = <MenuItem disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</MenuItem>;
@@ -57,10 +57,10 @@ export function Explorer({ snapshot, folderName, expanded, setExpanded, selected
     const row = item?.row;
     const entries = !row ? null
       : row.kind === 'work' ? <>
-        <MenuItem onClick={() => open(workTarget(row.work!.id), { pin: true })}>Open Overview</MenuItem>
-        <MenuItem disabled={!row.work!.diagrams} onClick={() => open(workTarget(row.work!.id, 'diagrams'), { pin: true })}>Open Diagrams</MenuItem>
+        <MenuItem onClick={() => open(workTarget(row.work!.id), { pin: true })}>Open Plan</MenuItem>
+        <MenuItem disabled={!row.work!.diagrams} onClick={() => open(diagramTarget(row.work!.id), { pin: true })}>Open Diagrams</MenuItem>
         <MenuSeparator />
-        <MenuItem onClick={() => onExportPlan(row.work!)}>Export Plan…</MenuItem>
+        <MenuItem onClick={() => exportPlan(row.work!.id)}>Export Plan…</MenuItem>
         {!remote && <><MenuSeparator />{revealItem(row.path!)}</>}
       </>
       : row.kind === 'folder' ? revealItem(row.path!)
@@ -74,15 +74,15 @@ export function Explorer({ snapshot, folderName, expanded, setExpanded, selected
     return <>{entries}{entries && <MenuSeparator />}{collapseAll}</>;
   };
 
-  // The folder's name heads its files; File › Open Recent switches folders.
+  // The project's name heads its files.
   return <div className="explorer">
     <div className="explorer-header">
-      <h2 className="explorer-title" title={remote ? `${folderName} on ${remote.hostName}` : snapshot.root}>{folderName}</h2>
+      <h3 className="explorer-title" title={remote ? `${projectName} on ${remote.hostName}` : snapshot.root}>{projectName}</h3>
       <Tooltip content="Collapse all folders">
         <IconButton variant="text" icon={<CollapseAllIcon />} aria-label="Collapse all folders" disabled={!expanded.length} onClick={() => setExpanded([])} />
       </Tooltip>
     </div>
-    <Tree<Row> className="explorer-tree" items={rows} aria-label="Planning folder" selectedId={selected} density="compact"
+    <Tree<Row> className="explorer-tree" items={rows} aria-label={'Files of ' + projectName} selectedId={selected} density="compact"
       onOpen={(item, { preview }) => activate(item, preview)}
       onExpandedChange={(item, value) => setOpen(item.id, value)}
       contextMenu={menu} />

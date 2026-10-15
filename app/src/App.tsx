@@ -1,108 +1,62 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ComputerFolder, ComputerRef, Snapshot, UiState, WindowInfo } from './types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { UiState, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
-import { EmptyState, Spinner, useToast, WindowFrame } from '@envsemble/envui';
+import { EmptyState, Spinner, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
+import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import { ErrorIcon } from './icons';
-import { FolderProblem, Welcome } from './Welcome';
 import { Workbench } from './Workbench';
 import { ConnectDialog } from './ConnectDialog';
 import { RemoteAccessDialog } from './RemoteAccessDialog';
-import { FolderBrowser } from './FolderBrowser';
-import { AppActionsContext, ComputersDialog, currentFolder, FoldersDialog, type AppActions } from './Computers';
-import { WindowTitleBar } from './AppMenu';
+import { AppActionsContext, ComputersDialog, type AppActions } from './Computers';
 import { AboutDialog } from './AboutDialog';
 
-type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'about' } | { kind: 'folders'; computer: ComputerRef; isCurrent?: (folder: ComputerFolder) => boolean }
-  | { kind: 'browse'; computer: ComputerRef & { hostId: string }; near: string | null } | null;
+type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'about' } | null;
 
 /**
- * One window shows one planning folder, on this computer or another one. The folder is read in
- * the main process; this component follows its state (loading, ready, unreadable, missing) and
- * refetches the snapshot when the folder changes. Without a folder, the window shows a computer's
- * folder list.
+ * One window shows the projects of one computer, this one or another one. Main reads them; this
+ * component waits for the window's facts and its saved layout, then shows the workbench, and draws
+ * the dialogs every window has: pairing, remote access, the computers and About.
  */
 export default function App() {
   const [info, setInfo] = useState<WindowInfo | null>(null);
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [ui, setUi] = useState<UiState | null>(null);
   const [failure, setFailure] = useState('');
-  // Pairing, remote access, the folder browser and About work in every window.
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const toast = useToast();
   const warn = useCallback((message: string) => { toast.show({ message, variant: 'info' }); }, [toast]);
-  const computer = info?.computer ?? null;
   const actions = useMemo<AppActions>(() => ({
     connect: () => setDialog({ kind: 'connect' }),
     remoteAccess: () => setDialog({ kind: 'access' }),
-    browse: (target, near = null) => { if (target.hostId !== null) setDialog({ kind: 'browse', computer: { hostId: target.hostId, name: target.name }, near }); },
     manageComputers: () => setDialog({ kind: 'computers' }),
-    manageFolders: (target, isCurrent) => setDialog({ kind: 'folders', computer: target, isCurrent }),
+    // The workbench, which shows the new project, opens its dialog.
+    newProject: () => undefined,
     about: () => setDialog({ kind: 'about' }),
   }), []);
-  // File › Open Folder… in a window on another computer browses it, beside the folder the window shows.
-  const near = snapshot && info?.folder ? snapshot.root : null;
-  const showsWorkbench = Boolean(info?.folder && snapshot && info.status !== 'missing');
   useEffect(() => api.onMenu(command => {
     if (command === 'connectRemote') actions.connect();
     else if (command === 'remoteAccess') actions.remoteAccess();
-    else if (command === 'browseFolder' && computer) actions.browse(computer, near);
-    else if (command === 'manageFolders' && info) actions.manageFolders(info.computer, info.folder ? currentFolder(info, info.folder.root) : undefined);
     else if (command === 'about') actions.about();
-    // The workbench saves its layout before it closes its folder; other pages close it at once.
-    else if (command === 'closeFolder' && info?.folder && !showsWorkbench) void api.command('closeFolder').catch(() => undefined);
-  }), [actions, computer, near, info, showsWorkbench]);
-  const latest = useRef(0);
+  }), [actions]);
 
-  const refresh = useCallback(async (revision: number) => {
-    latest.current = Math.max(latest.current, revision);
-    try {
-      const next = await api.snapshot();
-      if (revision >= latest.current) { setSnapshot(next); setFailure(''); }
-    } catch (error) { if (revision >= latest.current) setFailure((error as Error).message); }
+  useEffect(() => {
+    api.info().then(setInfo, error => setFailure((error as Error).message));
+    api.loadUi().then(setUi, () => setUi(defaultUiState));
   }, []);
-
-  useEffect(() => {
-    // Subscribe before asking for the state, so no change can slip in between.
-    const off = api.onChanged(change => {
-      setInfo(current => current ? { ...current, status: change.status, error: change.error, notice: change.notice, revision: change.revision } : current);
-      // The workbench closes while the folder is missing; it reopens with the tabs saved since.
-      if (change.status === 'missing') setUi(null);
-      if (change.status === 'ready') void refresh(change.revision);
-    });
-    void api.info().then(next => {
-      setInfo(current => current && current.revision > next.revision ? current : next);
-      if (next.folder && next.status === 'ready') void refresh(next.revision);
-    }).catch(error => setFailure((error as Error).message));
-    return off;
-  }, [refresh]);
-
-  useEffect(() => {
-    if (!showsWorkbench || ui) return;
-    api.loadUi().then(setUi).catch(() => setUi(defaultUiState));
-  }, [showsWorkbench, ui]);
-
-  useEffect(() => {
-    document.title = info?.folder ? info.folder.name + ' — Atlas' : 'Atlas';
-  }, [info?.folder]);
+  useEffect(() => { document.title = info && info.computer.hostId !== null ? info.computer.name + ' — Atlas' : 'Atlas'; }, [info]);
 
   const close = () => setDialog(null);
+  const computer = info?.computer ?? null;
   const dialogs = <>
-    {dialog?.kind === 'connect' && <ConnectDialog onClose={close} onBrowse={target => setDialog({ kind: 'browse', computer: target, near: null })} />}
+    {dialog?.kind === 'connect' && <ConnectDialog onClose={close} />}
     {dialog?.kind === 'access' && computer && <RemoteAccessDialog onClose={close} computer={computer} />}
-    {dialog?.kind === 'browse' && <FolderBrowser computer={dialog.computer} near={dialog.near} onClose={close} />}
     {dialog?.kind === 'computers' && computer && <ComputersDialog current={computer} onClose={close} />}
-    {dialog?.kind === 'folders' && <FoldersDialog computer={dialog.computer} isCurrent={dialog.isCurrent} onClose={close} />}
     {dialog?.kind === 'about' && <AboutDialog onClose={close} onError={warn} />}
   </>;
-  let content;
-  if (!info) content = failure ? <main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main> : <main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>;
-  else if (!info.folder) content = <Welcome info={info} />;
-  else if (info.status === 'missing' || (info.status === 'invalid' && !snapshot)) content = <FolderProblem info={info} />;
-  else if (!snapshot || !ui) content = <main className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + info.folder.name + (info.remote ? ' on ' + info.remote.hostName : '')} /><span className="page-state-label">Reading {info.folder.name}{info.remote ? ' on ' + info.remote.hostName : ''}…</span></main>;
-  else content = <Workbench info={info} snapshot={snapshot} initialUi={ui} />;
-  // The window draws its own title bar: the workbench's shell has one; every other page gets this one,
-  // with the page scrolling below it.
-  const framed = content.type === Workbench ? content : <WindowFrame titleBar={<WindowTitleBar info={info} onError={warn} />}>{content}</WindowFrame>;
-  return <AppActionsContext.Provider value={actions}>{framed}{dialogs}</AppActionsContext.Provider>;
+  const content = info && ui ? <Workbench info={info} initialUi={ui} />
+    : <WindowFrame titleBar={<TitleBar className="window-title-bar" start={<span className="title-bar-brand"><AtlasMark size={20} label="" /></span>} />}>
+      {failure ? <main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main>
+        : <main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>}
+    </WindowFrame>;
+  return <AppActionsContext.Provider value={actions}>{content}{dialogs}</AppActionsContext.Provider>;
 }

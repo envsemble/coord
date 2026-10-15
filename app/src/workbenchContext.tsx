@@ -2,21 +2,30 @@ import { createContext, useContext, type MouseEvent, type ReactNode } from 'reac
 import { Link } from '@envsemble/envui';
 import type { Snapshot, Target } from './types';
 
-export interface OpenOptions { pin?: boolean }
+/** `project`: open it in another project of the window's computer than the one shown (by folder ID). */
+export interface OpenOptions { pin?: boolean; project?: string }
 export type Notify = (message: string, tone?: 'info' | 'warning' | 'danger') => void;
+/** What a tab's content works with: its project, read, and the window's ways to show more. */
 export interface WorkbenchApi {
+  /** The project, by its folder ID. */
+  project: string;
+  /** Its name. */
+  projectName: string;
   snapshot: Snapshot;
-  /** Increases whenever the folder changes on disk; views refetch what they show. */
+  /** Increases whenever the project's folder changes on disk; views refetch what they show. */
   revision: number;
+  /** Show a target of this project (or of the one given) in a tab. */
   open(target: Target, options?: OpenOptions): void;
   /** Change what the active tab shows within the same item; this pins the tab. */
   retarget(target: Target): void;
   notify: Notify;
-  /** Set when the folder is on another computer: it only reads, and its files are not on this one. */
+  /** Set when the project is on another computer: its files are not on this one. */
   remote: { hostId: string; hostName: string } | null;
-  /** The width the reader gave a diagram's details in this folder, kept with its layout; null for the default. */
+  /** The width the reader gave a diagram's details, kept with the window's layout; null for the default. */
   inspectorWidth: number | null;
   setInspectorWidth(width: number): void;
+  /** Export a work item's plan to a file. */
+  exportPlan(work: string): void;
 }
 
 export const WorkbenchContext = createContext<WorkbenchApi | null>(null);
@@ -27,8 +36,7 @@ export function useWorkbench(): WorkbenchApi {
   return value;
 }
 
-/** A link that opens a target in a tab; Ctrl/Cmd-click (or middle click) opens it pinned. */
-/** A link to a target; `rowTarget` makes it cover its interactive row (envUI), without being dragged away as a link. */
+/** A link to a target; `rowTarget` makes it cover its interactive row (envUI), without being dragged away as a link. Ctrl/Cmd-click (or middle click) opens it pinned. */
 export function TargetLink({ target, children, className, title, id, underline = false, rowTarget = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean; rowTarget?: boolean }) {
   const { open } = useWorkbench();
   const activate = (event: MouseEvent) => {

@@ -6,17 +6,17 @@ import { samePath } from './links';
 import { documentTarget, workTarget } from './targets';
 import { absoluteDate, relativeDate, workNumber } from './format';
 import { TargetLink, useWorkbench } from './workbenchContext';
-import { Page, RepositorySelect, type RepositoryFilter } from './Pages';
+import { Page } from './Pages';
 
-/** The folder's Git history: each commit, the work it touched and the files it changed. */
-export function Activity({ snapshot, repository, setRepository }: RepositoryFilter & { snapshot: Snapshot }) {
+/** The project's Git history: each commit, the work it touched and the files it changed. */
+export function Activity({ snapshot, repository }: { snapshot: Snapshot; repository: string }) {
   const { open } = useWorkbench();
   const same = (a: string, b: string) => samePath(a, b, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths);
   const find = (path: string) => snapshot.documents.find(document => same(document.path, path));
   const owner = (id: string | null) => snapshot.work.find(work => work.id === id);
   const entries = snapshot.history.filter(entry => repository === 'all' || entry.repositories.includes(repository) || entry.files.some(file => { const document = find(file); return document?.workId === null && document.repositories.includes(repository); }));
   const titles = new Map(snapshot.work.map(work => [work.id, work.title]));
-  return <Page title="Activity" toolbar={<RepositorySelect snapshot={snapshot} repository={repository} setRepository={setRepository} />}>
+  return <Page section title="Activity">
     {!snapshot.gitAvailable ? <EmptyState className="page-empty" icon={<CommitIcon />} title="No Git history" description="This planning folder is not its own Git repository." />
       : entries.length ? <GroupedRows className="activity-list" aria-label="Commits">{entries.map(entry => <Row className="activity-row" key={entry.id}
         title={<span className="activity-title"><strong>{entry.title}</strong>{entry.workIds.map(id => <TargetLink key={id} className="activity-work" target={workTarget(id)} title={titles.get(id)}>{workNumber(id)}</TargetLink>)}</span>}

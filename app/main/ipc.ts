@@ -1,7 +1,7 @@
 // The fixed list of messages a window may send. Each channel declares a validator per argument;
 // calls with the wrong number or shape of arguments, from a subframe, or from a page that is not
-// the Atlas renderer are rejected. Results and errors cross back as structured values. Planning
-// requests go to the host of the computer the window's folder is on, this one or a paired one.
+// the Atlas renderer are rejected. Results and errors cross back as structured values. Requests
+// about a project go to the host of the window's computer, this one or a paired one.
 import { createReadStream } from 'node:fs';
 import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -11,8 +11,8 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas-host';
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
-import { invokeChannels, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Result, type ThemePreference } from '../shared/contract.ts';
-import { absolutePath, argumentsOf, boolean, command, diagramPath, folderId, ipAddress, nullable, object, pairingCode, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
+import { invokeChannels, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectRepository, type ProjectState, type Result, type TabState, type ThemePreference, type UiState } from '../shared/contract.ts';
+import { argumentsOf, array, boolean, command, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, relativePath, string, target as tabTarget, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import type { FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
@@ -27,6 +27,8 @@ const computer = nullable(hostId);
 const deviceId = string({ min: 34, max: 34, pattern: /^d-[a-f0-9]{32}$/ });
 const pairingLink = string({ min: 3, max: 2048 });
 const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
+const repository: Validator<ProjectRepository> = object<ProjectRepository>({ id: string({ min: 1, max: 64, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ }), name: deviceText(100), remote: nullable(string({ min: 1, max: 500 })) });
+const projectChange = object<{ name?: string; state?: ProjectState; position?: number }>({ name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)) });
 
 /** Import previews belong to the window that chose the file. */
 const pendingImports = new Map<string, { window: number; folder: FolderView }>();
@@ -38,16 +40,18 @@ export async function dropImports(matches: (entry: { window: number; folder: Fol
   }
 }
 
-/** Reveal a file or folder inside the window's planning folder on this computer (never outside it, never hidden parts). */
-async function revealInside(folder: FolderView, relative: string) {
-  if (folder.remote) throw new AtlasError('forbidden', 'Files of a planning folder on another computer cannot be shown in a folder here.');
-  const root = folder.root;
+/** Reveal a file or folder inside a project's folder on this computer (never outside it, never hidden parts). */
+async function revealInside(window: AtlasWindow, project: string, relative: string) {
+  if (window.computer !== null) throw new AtlasError('forbidden', 'Files of a project on another computer cannot be shown in a folder here.');
+  await window.readable(project);
+  const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
+  if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
   try { shell.showItemInFolder(await resolveDocument(root, relative)); return; } catch { /* Perhaps a folder. */ }
   const base = await realpath(root);
   const candidate = await realpath(path.resolve(base, relative)).catch(() => null);
   const inside = candidate ? path.relative(base, candidate) : '..';
   if (!candidate || inside.startsWith('..') || path.isAbsolute(inside) || inside.split(path.sep).some(part => part.startsWith('.')) || !(await lstat(candidate)).isDirectory()) {
-    throw new AtlasError('forbidden', 'Only files and folders inside the open planning folder can be shown.');
+    throw new AtlasError('forbidden', 'Only files and folders inside the project\'s folder can be shown.');
   }
   shell.showItemInFolder(candidate);
 }
@@ -78,27 +82,66 @@ function pairingHost(link: string, code: string | null) {
   try { return new URL(parsePairing(link, code ?? undefined).origin).host; } catch (error) { throw hostError(error); }
 }
 
+/** A window's layout as the database keeps it: the shared settings, its sidebar's width, and its tabs of its computer's projects. */
+async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<UiState> {
+  const { state, connections } = manager.context;
+  const row = state.windows().find(entry => entry.id === window.rowId);
+  const connectionId = window.computer === null ? null : connections.idOf(window.computer);
+  await window.projects().catch(() => []);
+  const items: TabState[] = [];
+  let active: string | null = null;
+  for (const tab of state.tabs(window.rowId, connectionId)) {
+    const project = window.folderOf(tab.projectId);
+    if (!project) continue;
+    let target;
+    try { target = tabTarget({ kind: tab.kind, ...tab.target && JSON.parse(tab.target) }); } catch { continue; }
+    const id = String(items.length);
+    items.push({ id, project, target, preview: false });
+    if (tab.active) active = id;
+  }
+  const inspectorWidth = state.inspectorWidth;
+  return { sidebar: { visible: state.sidebarVisible, width: row?.sidebarWidth ?? 280 }, tabs: { items, active }, ...inspectorWidth !== null && { inspectorWidth } };
+}
+async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) {
+  const { state, connections } = manager.context;
+  const computer = window.computer;
+  state.setSidebarVisible(ui.sidebar.visible);
+  state.setInspectorWidth(ui.inspectorWidth ?? null);
+  state.updateWindow(window.rowId, { sidebarWidth: ui.sidebar.width });
+  const rows = [];
+  for (const tab of ui.tabs.items) {
+    const projectId = await window.projectRow(tab.project).catch(() => null);
+    if (projectId === null) continue;
+    const { kind, ...rest } = tab.target;
+    rows.push({ projectId, kind, target: kind === 'project' ? null : JSON.stringify(rest), active: tab.id === ui.tabs.active });
+  }
+  // The window may have moved to another computer meanwhile: these tabs are no longer its own.
+  if (window.computer === computer) state.saveTabs(window.rowId, computer === null ? null : connections.idOf(computer), rows);
+}
+
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
-  const folder = (window: AtlasWindow): FolderView => {
-    const view = window.requireFolder();
-    if (!view.folderId) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This planning folder cannot be read.');
-    return view;
-  };
   const { connections } = manager.context;
   const owner = (): HostClient => connections.local;
   return {
     'window:info': { args: [], handle: window => window.info() },
-    'planning:snapshot': { args: [], handle: window => { const view = folder(window); return view.request('folder.snapshot', { folderId: view.folderId }); } },
-    'planning:document': { args: [relativePath], handle: (window, file: string) => { const view = folder(window); return view.request('folder.document', { folderId: view.folderId, path: file }); } },
-    'planning:diagrams': { args: [workId], handle: (window, work: string) => { const view = folder(window); return view.request('folder.diagrams', { folderId: view.folderId, work }); } },
-    'planning:diagram': { args: [workId, diagramPath], handle: (window, work: string, file: string) => { const view = folder(window); return view.request('folder.diagram', { folderId: view.folderId, work, path: file }); } },
-    'planning:references': { args: [nullable(workId), relativePath], handle: (window, work: string | null, file: string) => { const view = folder(window); return view.request('folder.references', { folderId: view.folderId, work, path: file }); } },
-    'planning:diagramIndex': { args: [], handle: window => { const view = folder(window); return view.request('folder.diagramIndex', { folderId: view.folderId }); } },
-    // Views count in the document use of the computer the folder is on.
-    'usage:view': { args: [viewEvent], handle: async (window, event) => { const view = folder(window); await view.request('folder.recordView', { folderId: view.folderId, event }); } },
-    'ui:load': { args: [], handle: window => manager.context.state.ui(window.requireFolder().root) },
-    'ui:save': { args: [uiState], handle: (window, state) => { manager.context.state.updateFolder(window.requireFolder().root, { ui: state }); } },
-    'shell:reveal': { args: [relativePath], handle: (window, file: string) => revealInside(folder(window), file) },
+    'projects:list': { args: [], handle: window => remoteErrors(window.projects()) },
+    'projects:create': {
+      args: [projectName, array(repository, 50)],
+      handle: async (window, name: string, repositories: ProjectRepository[]) => remoteErrors(window.createProject(name, repositories)),
+    },
+    'projects:update': { args: [folderId, projectChange], handle: (window, project: string, change: { name?: string; state?: ProjectState; position?: number }) => remoteErrors(window.updateProject(project, change)) },
+    'project:open': { args: [folderId], handle: async (window, project: string) => (await window.open(project)).change() },
+    'planning:snapshot': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.snapshot', { folderId: project }) },
+    'planning:document': { args: [folderId, relativePath], handle: async (window, project: string, file: string) => (await window.readable(project)).request('folder.document', { folderId: project, path: file }) },
+    'planning:diagrams': { args: [folderId, workId], handle: async (window, project: string, work: string) => (await window.readable(project)).request('folder.diagrams', { folderId: project, work }) },
+    'planning:diagram': { args: [folderId, workId, diagramPath], handle: async (window, project: string, work: string, file: string) => (await window.readable(project)).request('folder.diagram', { folderId: project, work, path: file }) },
+    'planning:references': { args: [folderId, nullable(workId), relativePath], handle: async (window, project: string, work: string | null, file: string) => (await window.readable(project)).request('folder.references', { folderId: project, work, path: file }) },
+    'planning:diagramIndex': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.diagramIndex', { folderId: project }) },
+    // Views count in the document use of the computer the project is on.
+    'usage:view': { args: [folderId, viewEvent], handle: async (window, project: string, event) => { await (await window.readable(project)).request('folder.recordView', { folderId: project, event }); } },
+    'ui:load': { args: [], handle: window => loadUi(manager, window) },
+    'ui:save': { args: [uiState], handle: (window, state: UiState) => saveUi(manager, window, state) },
+    'shell:reveal': { args: [folderId, relativePath], handle: (window, project: string, file: string) => revealInside(window, project, file) },
     'shell:openExternal': {
       args: [url],
       handle: async (window, value: string) => {
@@ -122,9 +165,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         switch (name) {
           // A page cannot open windows without end, quit (also by closing the last window) or pile up
           // dialogs: these follow a person's press or their answer to Atlas's question.
-          case 'newWindow': await confirmed(window, 'Open a new Atlas window?', 'Open'); await manager.create(null); return;
-          case 'locate': await manager.locate(window); return;
-          case 'closeFolder': void dropImports(entry => entry.window === window.id); manager.closeFolder(window); return;
+          case 'newWindow': await confirmed(window, 'Open a new Atlas window?', 'Open'); manager.create(window.computer); return;
           case 'closeWindow': if (manager.all().filter(other => !other.closing && !other.win.isDestroyed()).length <= 1) await confirmed(window, 'Close the last window and exit Atlas?', 'Close'); window.win.close(); return;
           case 'quit': await confirmed(window, 'Exit Atlas?', 'Exit'); app.quit(); return;
           case 'openLogs': await confirmed(window, 'Open the folder with Atlas’s logs?', 'Open'); actions.openLogs(); return;
@@ -145,9 +186,9 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'plan:export': {
-      args: [workId],
-      handle: async (window, work: string) => {
-        const view = folder(window);
+      args: [folderId, workId],
+      handle: async (window, project: string, work: string) => {
+        const view = await window.readable(project);
         const prepared = await view.request('plan.exportPrepare', { folderId: view.folderId, work });
         try {
           if (prepared.warnings.length) {
@@ -172,9 +213,9 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'plan:importChoose': {
-      args: [],
-      handle: async window => {
-        const view = folder(window);
+      args: [folderId],
+      handle: async (window, project: string) => {
+        const view = await window.readable(project);
         const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] }));
         if (choice.canceled || !choice.filePaths[0]) return null;
         const file = choice.filePaths[0];
@@ -199,8 +240,8 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [token],
       handle: async (window, key: string) => {
         const pending = pendingImports.get(key);
-        const view = folder(window);
-        if (!pending || pending.window !== window.id || pending.folder !== view) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
+        if (!pending || pending.window !== window.id || window.views.get(pending.folder.folderId) !== pending.folder) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
+        const view = pending.folder;
         pendingImports.delete(key);
         // The explicit user action that writes into the planning folder; nothing is committed.
         try { return await view.request('plan.importConfirm', { folderId: view.folderId, token: key }, { timeout: 600000 }); }
@@ -218,32 +259,23 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'computers:switch': {
       args: [computer, boolean],
       handle: async (window, id: string | null, newWindow: boolean) => {
+        if (id !== null && !connections.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
         if (newWindow) await confirmed(window, 'Open that computer in a new window?', 'Open');
-        await manager.switchComputer(id, window, newWindow);
+        void dropImports(entry => entry.window === window.id);
+        manager.switchComputer(window, id, newWindow);
       },
     },
-    'folders:list': { args: [computer], handle: (_window, id: string | null) => remoteErrors(manager.foldersOf(id)) },
-    'folders:open': {
-      args: [computer, absolutePath, boolean],
-      handle: async (window, id: string | null, folderPath: string, newWindow: boolean) => {
-        if (newWindow) await confirmed(window, 'Open that folder in a new window?', 'Open');
-        await remoteErrors(manager.openOn(id, folderPath, window, newWindow ? 'never' : 'always'));
-      },
-    },
-    'folders:choose': { args: [boolean], handle: async (window, newWindow: boolean) => { await manager.chooseFolder(window, newWindow ? 'never' : 'always'); } },
-    'folders:browse': { args: [hostId, nullable(absolutePath)], handle: (_window, id: string, folderPath: string | null) => remoteErrors(manager.browse(id, folderPath)) },
-    'folders:remove': { args: [computer, folderId], handle: (_window, id: string | null, folder: string) => remoteErrors(manager.removeFolder(id, folder)) },
     'remote:pair': {
       args: [pairingLink, nullable(pairingCode)],
       handle: async (window, link: string, code: string | null) => {
-        await confirmed(window, `Pair with the Atlas at ${pairingHost(link, code)}?`, 'Pair', 'This app can then work on that computer\'s planning folders.');
+        await confirmed(window, `Pair with the Atlas at ${pairingHost(link, code)}?`, 'Pair', 'This app can then work on that computer\'s projects.');
         const paired = await remoteErrors(connections.pair(link, code ?? undefined));
-        // Windows already showing this computer's folders read through the new pairing.
+        // Windows already showing this computer read through the new pairing.
         manager.rebindRemote(paired.hostId!);
         return paired;
       },
     },
-    'remote:forget': { args: [hostId], handle: (window, id: string) => manager.forgetComputer(id, window) },
+    'remote:forget': { args: [hostId], handle: (_window, id: string) => manager.forgetComputer(id) },
     // Remote access of a computer: this one's (settings too), or a paired one's when this app may manage access there.
     'access:state': { args: [computer], handle: (_window, id: string | null) => remoteErrors(connections.use(id, client => client.request('access.state', {}))) },
     'access:update': {
@@ -265,7 +297,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       handle: async (window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
         // A computer no longer paired fails here, before the question.
         if (id !== null && !connections.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
-        const detail = granted.manageAccess ? 'A device that uses it can work on the planning folders and manage who else has access.' : 'A device that uses it can work on the planning folders.';
+        const detail = granted.manageAccess ? 'A device that uses it can work on the projects and manage who else has access.' : 'A device that uses it can work on the projects.';
         if (!(await window.ask(`Create a pairing link for ${id === null ? 'this computer' : connections.name(id)}?`, 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
         const link = await remoteErrors(connections.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
         const qrSvg = link.url ? await QRCode.toString(link.url, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }) : null;

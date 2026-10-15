@@ -1,19 +1,17 @@
-import { useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Badge, Breadcrumbs, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
-import { CommitIcon } from './icons';
-import type { Document, Snapshot, Target, Work, WorkSection } from './types';
+import { CommitIcon, LedgerIcon } from './icons';
+import type { Document, Snapshot, Target, Work } from './types';
 import { defaultDocument, primaryDocuments } from './work';
-import { workTarget } from './targets';
+import { fileTarget, projectTarget, workTarget } from './targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
 import { RepositoryBadge, StatusBadge } from './ui';
 import { Reader, useReferences } from './Reader';
-import { AtlasWorkPanel } from './AtlasWorkPanel';
 import { LedgerSteps } from './LedgerProgress';
-import { WorkSections, type SectionOption } from './WorkSections';
 import { WorkStatisticsSummary } from './WorkStatisticsSummary';
-import { useWorkbench } from './workbenchContext';
+import { TargetLink, useWorkbench } from './workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
 
@@ -21,19 +19,6 @@ type WorkTarget = Extract<Target, { kind: 'work' }>;
 export function Trail({ items }: { items: { label: ReactNode; target?: Target }[] }) {
   const { open } = useWorkbench();
   return <Breadcrumbs className="breadcrumb" items={items.map(item => ({ label: item.label, onClick: item.target ? () => open(item.target!, { pin: true }) : undefined }))} />;
-}
-
-/** The section a target opens: explicit, else the plan before implementation and the ledger after. */
-export function workSection(target: Pick<WorkTarget, 'section'>, work: Work): WorkSection {
-  const { plan, ledger } = primaryDocuments(work);
-  if (target.section === 'diagrams') return 'diagrams';
-  if (target.section === 'plan' && plan) return 'plan';
-  if (target.section === 'ledger' && ledger) return 'ledger';
-  const preferred = defaultDocument(work);
-  if (preferred && preferred.path === ledger?.path) return 'ledger';
-  if (plan) return 'plan';
-  if (ledger) return 'ledger';
-  return 'diagrams';
 }
 
 function AboutSection({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
@@ -50,7 +35,9 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   const commits = snapshot.history.filter(entry => entry.workIds.includes(work.id)).slice(0, 5);
   const statistics = work.statistics;
+  const { ledger } = primaryDocuments(work);
   return <aside className="about" aria-label="About this work">
+    {ledger && <p className="about-ledger"><TargetLink target={fileTarget(ledger.path)}><LedgerIcon />Ledger</TargetLink></p>}
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
     {hasStatus && progress && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
@@ -72,34 +59,20 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
 }
 
 /**
- * A work item: its sections (Plan, Ledger, Diagrams) in a compact switcher at the top left, at the
- * same spot for every section, then the section. Reading sections show the title as their heading,
- * with the work number, and the switcher floats over them as they scroll; the diagrams take the
- * whole content area, with the switcher first in their overlay.
+ * A work item: its plan (or, without one, its ledger or first document) with the title as its
+ * heading and the work number, and beside it the work's progress, dates, statistics and recent
+ * activity, with a link to its ledger. Diagrams open from their cards in the plan.
  */
 export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
-  const { retarget } = useWorkbench();
-  const section = workSection(target, work);
-  const { plan, ledger } = primaryDocuments(work);
+  const { projectName } = useWorkbench();
+  const reading: Document | undefined = primaryDocuments(work).plan ?? defaultDocument(work);
   const status = workStatus(work);
   const note = designNote(work);
-  const reading: Document | undefined = section === 'plan' ? plan : section === 'ledger' ? ledger : undefined;
-  const references = useReferences(reading, work.id, section !== 'diagrams' && reading?.format === 'markdown');
-  const switcherFocus = useRef(false);
-  const sections: (SectionOption & { hidden?: boolean })[] = [
-    { value: 'plan', label: 'Plan', hidden: !plan },
-    { value: 'ledger', label: 'Ledger', hidden: !ledger },
-    { value: 'diagrams', label: 'Diagrams', count: work.diagrams ?? 0 },
-  ];
-  const switcher = <WorkSections options={sections.filter(item => !item.hidden)} value={section} focusMemory={switcherFocus}
-    onChange={value => retarget(workTarget(work.id, value, value === 'diagrams' ? { diagram: target.diagram ?? null } : {}))} />;
-  if (section === 'diagrams') return <div className="work-page section-diagrams">
-    <AtlasWorkPanel key={work.id} work={work} target={target} sections={switcher} />
-  </div>;
-  return <div className={'work-page section-' + section}>
-    <div className="section-switcher-bar">{switcher}</div>
+  const references = useReferences(reading, work.id, reading?.format === 'markdown');
+  return <div className="work-page">
     <div className="work-layout">
       <div className="work-main">
+        <Trail items={[{ label: projectName, target: projectTarget() }, { label: workNumber(work.id) }]} />
         <header className="work-header">
           <Text as="h1" variant="page-heading">{work.title}</Text>
           <div className="work-header-meta">
@@ -111,7 +84,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
           </div>
         </header>
         {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} />
-          : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan or ledger." />}
+          : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
       <About work={work} snapshot={snapshot} />
     </div>
@@ -119,10 +92,11 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
 }
 
 export function FileView({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
+  const { projectName } = useWorkbench();
   const owner = snapshot.work.find(work => work.id === file.workId);
   const references = useReferences(file, file.workId, file.format === 'markdown' && (Boolean(file.workId) || file.category === 'knowledge'));
   return <div className="page file-page">
-    <Trail items={[...(owner ? [{ label: workNumber(owner.id) + ' ' + owner.title, target: workTarget(owner.id) }] : []), { label: file.path }]} />
+    <Trail items={[{ label: projectName, target: projectTarget() }, ...(owner ? [{ label: workNumber(owner.id) + ' ' + owner.title, target: workTarget(owner.id) }] : []), { label: file.path }]} />
     <Surface className="file-surface" padding={0}>
       <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} toolbar references={references} showWork={!file.workId} />
     </Surface>
