@@ -364,7 +364,11 @@ test('a project covers workspace folders: their checkouts are found, registered 
   await assert.rejects(owner.connection.request('projects.scan', { folder: path.join(data, 'missing') }), (error: HostRequestError) => error.code === 'invalid-argument' && /does not exist/.test(error.message));
   await assert.rejects(device.connection.request('projects.scan', { folder: workspace }), (error: HostRequestError) => error.code === 'forbidden', 'a folder on this computer is the app\'s to look at');
   // Made from the folder: its checkouts are registered, one without a remote by its path.
-  const web = await device.connection.request('projects.create', { name: 'Web', workspaces: [workspace] });
+  // A paired device may not choose folders on this computer: refused before any path is looked at.
+  const forbidden = (error: HostRequestError) => error.code === 'forbidden' && !error.message.includes(data);
+  await assert.rejects(device.connection.request('projects.create', { name: 'Web', workspaces: [path.join(data, 'missing')] }), forbidden);
+  await assert.rejects(device.connection.request('projects.create', { name: 'Web', workspaces: [workspace] }), forbidden);
+  const web = await owner.connection.request('projects.create', { name: 'Web', workspaces: [workspace] });
   assert.deepEqual(web.workspaces, [workspace]);
   const registry = () => JSON.parse(readFileSync(path.join(web.path, 'planning.json'), 'utf8'));
   assert.deepEqual([registry().workspaces, registry().repositories], [[workspace], [{ id: 'scratch', name: 'scratch', path: path.join(workspace, 'scratch') }, { id: 'web', name: 'web', remote: 'https://github.com/example/web.git' }]]);
@@ -374,7 +378,11 @@ test('a project covers workspace folders: their checkouts are found, registered 
   assert.deepEqual(updated.workspaces, [workspace, more]);
   assert.deepEqual(registry().repositories.map((item: { id: string }) => item.id), ['scratch', 'web', 'api']);
   assert.deepEqual((await projectNamed(owner.connection, 'Web')).workspaces, [workspace, more]);
-  await assert.rejects(owner.connection.request('projects.update', { folderId: web.folderId, workspaces: [path.join(data, 'missing')] }), (error: HostRequestError) => error.code === 'invalid-argument');
+  // A refused change changes nothing, not even the name sent with it; a device may not change the folders.
+  await assert.rejects(owner.connection.request('projects.update', { folderId: web.folderId, name: 'Renamed', workspaces: [path.join(data, 'missing')] }), (error: HostRequestError) => error.code === 'invalid-argument');
+  assert.equal(registry().name, 'Web');
+  await assert.rejects(device.connection.request('projects.update', { folderId: web.folderId, workspaces: [] }), forbidden);
+  assert.equal((await device.connection.request('projects.update', { folderId: web.folderId, name: 'Web site' })).name, 'Web site', 'the rest it may change');
   assert.deepEqual((await projectNamed(owner.connection)).workspaces, [], 'a project without workspace folders has none');
 });
 

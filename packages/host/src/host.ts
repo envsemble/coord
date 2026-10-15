@@ -656,29 +656,37 @@ export class Host {
     try {
       const row = await createProject(this.database, params, await this.options.templates());
       this.options.log.info('Project created', { folder: row.folder });
+      if (row.skipped.length) this.options.log.warn('Checkouts skipped in the workspace folders', { skipped: row.skipped });
       this.projectsChanged();
       return this.project(row);
     } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
+  }
+  /** Refuse a request only the app on this computer may make, before it touches any path. */
+  private ownerOnly(connection: Connection, what: string) {
+    if (!connection.owner) throw new HostError('forbidden', `Only the Atlas app on ${this.access.name} may ${what}.`);
   }
   /** The Git checkouts in a folder, as a new project would register them. */
   private async scanFolder(folder: string): Promise<WorkspaceScan> {
     try {
       const scan = await scanWorkspace(folder);
+      if (scan.skipped.length) this.options.log.warn('Checkouts skipped in a folder', { skipped: scan.skipped });
       return { folder: scan.folder, repositories: scan.repositories.map(({ id, name, remote }): ProjectRepository => ({ id, name, remote })) };
     } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
   }
   private async updateProject(params: Methods['projects.update']['params']): Promise<Project> {
     const row = await this.projectRow(params.folderId);
+    // The workspace folders first: when they are refused, nothing has changed.
+    if (params.workspaces !== undefined) {
+      try {
+        const { added, skipped } = await setProjectWorkspaces(row.folder, params.workspaces);
+        this.options.log.info('Project folders set', { folder: row.folder, workspaces: params.workspaces.length, repositories: added.length });
+        if (skipped.length) this.options.log.warn('Checkouts skipped in the workspace folders', { skipped });
+      } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
+    }
     if (params.name !== undefined && params.name !== row.name) {
       const file = path.join(row.folder, 'planning.json');
       try { await writeFile(file, setRegistryName(await readFile(file, 'utf8'), params.name)); }
       catch (error) { throw new HostError('unavailable', `The project could not be renamed: ${(error as Error).message}`); }
-    }
-    if (params.workspaces !== undefined) {
-      try {
-        const { added } = await setProjectWorkspaces(row.folder, params.workspaces);
-        this.options.log.info('Project folders set', { folder: row.folder, workspaces: params.workspaces.length, repositories: added.length });
-      } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
     }
     this.database.updateProject(row.id, { name: params.name, state: params.state, position: params.position });
     this.projectsChanged();
@@ -759,9 +767,18 @@ export class Host {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
       case 'projects.list': return this.projects(true) as never;
-      case 'projects.create': return this.createProject(p as Methods['projects.create']['params']) as never;
+      // Workspace folders are paths on this computer, which it scans: the app's to choose, like projects.scan.
+      case 'projects.create': {
+        const params = p as Methods['projects.create']['params'];
+        if (params.workspaces.length) this.ownerOnly(connection, 'choose the folders a project covers');
+        return this.createProject(params) as never;
+      }
       case 'projects.scan': return this.scanFolder((p as Methods['projects.scan']['params']).folder) as never;
-      case 'projects.update': return this.updateProject(p as Methods['projects.update']['params']) as never;
+      case 'projects.update': {
+        const params = p as Methods['projects.update']['params'];
+        if (params.workspaces !== undefined) this.ownerOnly(connection, 'choose the folders a project covers');
+        return this.updateProject(params) as never;
+      }
       case 'projects.adopt': return this.adoptProject((p as { folderId: string }).folderId) as never;
       case 'folders.subscribe': {
         const { folderId } = p as { folderId: string };
