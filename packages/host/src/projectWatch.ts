@@ -22,7 +22,8 @@ export interface ProjectWatchOptions {
 
 /** A folder's identity: the same folder until it is replaced; null while it is missing. */
 async function identityOf(folder: string) {
-  const info = await stat(folder).catch(() => null);
+  // NTFS file IDs exceed what a number holds exactly.
+  const info = await stat(folder, { bigint: true }).catch(() => null);
   return info?.isDirectory() ? `${info.dev}:${info.ino}` : null;
 }
 const folderNames = async (folder: string) => (await readdir(folder, { withFileTypes: true }).catch(() => [])).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
@@ -36,6 +37,8 @@ export class ProjectListWatch {
   private stable: ReturnType<typeof setTimeout> | null = null;
   private failures = 0;
   private closed = false;
+  /** Each start's number: a start overtaken by a later one while it waited makes no watcher. */
+  private generation = 0;
 
   readonly root: string;
   private readonly home: boolean;
@@ -57,11 +60,14 @@ export class ProjectListWatch {
   }
 
   private async start() {
+    const generation = ++this.generation;
     if (this.closed) return;
     if (this.home) await mkdir(this.root, { recursive: true }).catch(() => undefined);
-    this.identity = await identityOf(this.root);
-    this.shape = await this.folders();
-    if (this.closed) return;
+    const identity = await identityOf(this.root), shape = await this.folders();
+    if (this.closed || generation !== this.generation) return;
+    this.identity = identity;
+    this.shape = shape;
+    this.watcher?.close();
     this.watcher = watchFolder(this.root, {
       debounce: 300, maxWait: 5000,
       ignore: relative => ignoredInHome(this.inHome(relative)),
