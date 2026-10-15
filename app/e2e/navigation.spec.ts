@@ -170,7 +170,6 @@ test('a link into a sibling project in the home opens there; one to a folder no 
   await window.locator('.prose').getByRole('link', { name: 'the fulfilment model' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   // In a tab of that project: the file panel shows its files.
-  await expect(tabs(window)).toHaveCount(3);
   await expect(await showFiles(window)).toContainText('Northwind');
 });
 

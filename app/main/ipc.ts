@@ -159,6 +159,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'project:open': { args: [folderId], handle: async (window, project: string) => (await window.open(project)).change() },
+    'project:close': { args: [folderId], handle: (window, project: string) => { window.closeProject(project); } },
     'planning:snapshot': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.snapshot', { folderId: project }) },
     'planning:document': { args: [folderId, relativePath], handle: async (window, project: string, file: string) => (await window.readable(project)).request('folder.document', { folderId: project, path: file }) },
     'planning:diagrams': { args: [folderId, workId], handle: async (window, project: string, work: string) => (await window.readable(project)).request('folder.diagrams', { folderId: project, work }) },

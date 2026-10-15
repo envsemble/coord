@@ -282,6 +282,17 @@ export class AtlasWindow {
     }
     return view;
   }
+  /**
+   * Stop following a project's folder: the page shows nothing of it any more. The host keeps it while
+   * another window on the same connection follows it.
+   */
+  closeProject(folderId: string) {
+    const view = this.views.get(folderId);
+    if (!view) return;
+    this.views.delete(folderId);
+    this.revisionFloor = Math.max(this.revisionFloor, view.revision);
+    if (!this.manager.all().some(other => other !== this && other.views.get(folderId)?.client === view.client)) view.close();
+  }
   /** A project's folder for a request: followed, and readable. */
   async readable(folderId: string): Promise<FolderView> {
     const view = await this.open(folderId);

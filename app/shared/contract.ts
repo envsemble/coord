@@ -17,7 +17,7 @@ export type {
 
 export const invokeChannels = [
   'window:info',
-  'projects:list', 'projects:create', 'projects:update', 'projects:adopt', 'project:open',
+  'projects:list', 'projects:create', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
   'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
@@ -167,6 +167,8 @@ export interface AtlasBridge {
   adoptProject(project: string): Promise<Result<Project>>;
   /** Start following a project's folder; its state now, and changes as planning:changed. */
   openProject(project: string): Promise<Result<FolderChange>>;
+  /** Stop following a project's folder (no tab shows it, and quick open is closed). */
+  closeProject(project: string): Promise<Result<void>>;
   snapshot(project: string): Promise<Result<Snapshot>>;
   document(project: string, path: string): Promise<Result<DocumentContent>>;
   /** A work item's diagram files. */

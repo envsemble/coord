@@ -87,6 +87,13 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       }, error => setFolder(project, folder => ({ ...folder, failure: (error as Error).message })));
     }
   }, [refresh, setFolder]);
+  /** Stop following a project's folder: nothing in the window shows it. */
+  const unfollow = useCallback((project: string) => {
+    if (!following.current.delete(project)) return;
+    latest.current.delete(project);
+    setFolders(current => { const { [project]: _gone, ...rest } = current; return rest; });
+    api.closeProject(project).catch(() => undefined);
+  }, []);
   const snapshots = useMemo(() => Object.fromEntries(Object.entries(folders).flatMap(([project, folder]) => folder.snapshot ? [[project, folder.snapshot]] : [])), [folders]);
 
   // ---- The layout and the history of what the window showed --------------------------------------
@@ -119,6 +126,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   }, [ui]);
 
   const active = ui.tabs.items.find(tab => tab.id === ui.tabs.active);
+  const tabsShown = useRef(new Set<string>());
+  tabsShown.current = new Set(ui.tabs.items.map(tab => tab.project));
   const activeProject = active?.project ?? null;
   // The projects the tabs show are followed.
   useEffect(() => { follow([...new Set(ui.tabs.items.map(tab => tab.project))]); }, [ui.tabs.items, follow]);
@@ -155,6 +164,14 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
 
   // ---- Commands -----------------------------------------------------------------------------------
   const [quickOpen, setQuickOpen] = useState<null | { mode: 'all' | 'work'; placeholder?: string; onPick(place: Place, pin: boolean): void }>(null);
+  // Projects followed for quick open, or for tabs since closed, are let go a moment after nothing shows them.
+  const quickOpenShown = quickOpen !== null;
+  useEffect(() => {
+    if (quickOpenShown) return;
+    const shown = new Set(ui.tabs.items.map(tab => tab.project));
+    const timer = window.setTimeout(() => { for (const project of [...following.current]) if (!shown.has(project)) unfollow(project); }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [quickOpenShown, ui.tabs.items, unfollow]);
   const [importing, setImporting] = useState<ImportPreview | null>(null);
   const [newProject, setNewProject] = useState(false);
   const [renaming, setRenaming] = useState<Project | null>(null);
@@ -313,15 +330,18 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const projectOf = (folderId: string) => projects?.find(project => project.folderId === folderId);
   /** Open a path of a project (read first when the window does not have it yet) as a tab of what it is. */
   const openPath = useCallback(async (project: string, path: string, anchor: string | null, options: OpenOptions = {}) => {
+    // Followed while it is read; let go again unless a tab of it opens.
+    follow([project]);
+    const release = () => { if (!tabsShown.current.has(project)) unfollow(project); };
     try {
       const snapshot = snapshots[project] ?? await api.snapshot(project);
       const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : work ? workTarget(work.id, anchor) : null;
-      if (!target) { notify('This document is not in ' + (projectOf(project)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
+      if (!target) { release(); notify('This document is not in ' + (projectOf(project)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
       openPlace({ project, target }, options.pin ?? false);
-    } catch (error) { notify((error as Error).message, 'warning'); }
-  }, [snapshots, projects, openPlace, notify]);
+    } catch (error) { release(); notify((error as Error).message, 'warning'); }
+  }, [snapshots, projects, openPlace, notify, follow, unfollow]);
   /** What a tab's content works with, for its project. */
   const scope = useCallback((project: string, snapshot: Snapshot, revision: number): WorkbenchApi => ({
     project, projectName: projects?.find(item => item.folderId === project)?.name ?? snapshot.name, snapshot, revision,
