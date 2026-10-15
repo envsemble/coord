@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **The hub:** the app opens on one list of every plan of every project, blocked and in progress first, then drafts, each with its project, a one-line summary, its progress and a live dot while an agent works on it; filter by project and state, or search. A plan opens in one click. The projects sidebar, the project page and the tab rail are gone: a window shows one place, with back and forward, Ctrl+P and New Window for a second.
+- **One menu** in the title bar replaces File, Edit, View and Help; every shortcut still works. Projects and Statistics are pages opened from it; Export Plan… sits on the plan's page.
+- **Plan pages:** the plan's summary leads the page, and a "Request" section shows folded.
+- **Planning steps:** a work item's ledger exists from its creation, with planning steps (understand the request, settle the design, write the plan, accepted) that agents keep true; accepting marks them done and starting appends the implementation steps. Atlas shows them in one list, planning steps in their own color.
+- **Plan summaries:** plans carry a `summary` header, a few plain sentences on what the work is and where it stands; `atlas check` warns when an active plan has none, and `where` and the hub show it.
+- **Workspace folders:** a project covers workspace folders (`workspaces` in planning.json); an agent session in one of them belongs to that project, before any match by Git remote. A project is created from a name and a folder, in the app, by an agent with the new `project_create` tool, or with `atlas project create`; Atlas registers the Git checkouts it finds there. Only the app on the computer itself may choose a project's folders.
+- **New projects appear at once:** a project created outside the app shows up without a restart.
+
 ## 0.7.1 — Skills by name and work across projects — 2026-10-15
 
 - **Three skills, triggered by name:** `atlas` triggers on its own (the word Atlas, designing, work big enough to plan, recording or bringing projects up to date) and now covers work across projects; `atlas-grill` is back, the questioning workflow in rounds, used when the user says "atlas grill", "grill" or "grill me"; `atlas-implement` is used when the user says "atlas implement" and no longer needs its command. In Claude Code they are `/atlas:atlas`, `/atlas:atlas-grill` and `/atlas:atlas-implement`; in Codex `$atlas`, `$atlas-grill` and `$atlas-implement`.
