@@ -10,7 +10,7 @@
 // it into the home. While the sidebar shows icons only, each project is an icon.
 import { useState, type ReactNode } from 'react';
 import { Button, Card, ContextMenu, Dialog, HoverCard, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, SearchField, Spinner, Text, Tooltip, useSidebarCompact } from '@envsemble/envui';
-import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, DraftIcon, FolderIcon, InProgressIcon, NewProjectIcon } from './icons';
+import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, DraftIcon, FolderIcon, HideIcon, InProgressIcon, NewProjectIcon, RestoreIcon, ShowIcon } from './icons';
 import { absoluteDate, shortAge, workNumber } from './format';
 import type { Project, ProjectRepository, ProjectState, ProjectWork } from './types';
 import { api } from './api';
@@ -33,7 +33,8 @@ const projectNote = (project: Project) => [project.outsideHome && 'Outside the A
 /** The repositories a card has room for: the first three, then how many more. */
 const repositoryLine = (repositories: string[]) => repositories.slice(0, 3).join(' · ') + (repositories.length > 3 ? ' +' + (repositories.length - 3) : '');
 /** The corner action of a card: Hide for an active project, else bringing it back. */
-const cornerAction = (project: Project) => project.state === 'active' ? { label: 'Hide', state: 'hidden' as const } : { label: project.state === 'archived' ? 'Restore' : 'Show', state: 'active' as const };
+const cornerAction = (project: Project) => project.state === 'active' ? { label: 'Hide', icon: <HideIcon />, state: 'hidden' as const }
+  : project.state === 'archived' ? { label: 'Restore', icon: <RestoreIcon />, state: 'active' as const } : { label: 'Show', icon: <ShowIcon />, state: 'active' as const };
 
 type Counted = Exclude<ProjectWork['state'], 'other'>;
 const stateIcons: Record<Counted, ReactNode> = { blocked: <BlockedIcon />, implementing: <InProgressIcon />, draft: <DraftIcon /> };
@@ -90,7 +91,7 @@ function ProjectCard({ project, selected, actions }: { project: Project; selecte
     <span className="project-card-line project-card-context">
       <span className="project-card-repositories">{summary?.repositories.length ? repositoryLine(summary.repositories) : project.path.split(/[\\/]/).at(-1)}</span>
       {summary?.updated && <span className="project-card-age">{shortAge(summary.updated)}</span>}
-      <Button variant="quiet" className="project-card-action" onClick={() => actions.update(project, { state: corner.state })}>{corner.label}</Button>
+      <Button variant="quiet" className="project-card-action" startIcon={corner.icon} onClick={() => actions.update(project, { state: corner.state })}>{corner.label}</Button>
     </span>
     <button type="button" className="project-card-open" aria-current={selected ? 'page' : undefined} onClick={() => actions.open(project)}>{project.name}</button>
     <span className="project-card-line project-card-facts">

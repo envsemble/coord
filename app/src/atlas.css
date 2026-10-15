@@ -84,7 +84,9 @@ body { margin: 0; }
 .project-card-repositories, .project-card-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-card-repositories { flex: 1 1 auto; min-inline-size: 0; }
 .project-card-age { flex: none; margin-inline-start: auto; font-variant-numeric: tabular-nums; }
-.project-card-action.env-button { position: relative; z-index: 1; display: none; flex: none; min-block-size: 0; block-size: 1.5rem; margin-block: -0.25rem; margin-inline-start: auto; padding-inline: var(--space-2); font: inherit; }
+/* The corner action is a quiet button of its own, its icon and label with a soft fill under the pointer, above the card's open button. */
+.project-card-action.env-button { position: relative; z-index: 1; display: none; flex: none; gap: var(--space-1); min-block-size: 0; block-size: 1.75rem; margin-block: -0.375rem; margin-inline-start: auto; padding-inline: var(--space-2) var(--space-3); font: inherit; font-weight: 500; }
+.project-card-action.env-button .env-symbol, .project-card-action.env-button svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; }
 .project-card:is(:hover, :focus-within) .project-card-action.env-button { display: inline-flex; }
 .project-card:is(:hover, :focus-within) .project-card-age { display: none; }
 .project-card-fact { display: inline-flex; align-items: center; gap: 0.125rem; font-variant-numeric: tabular-nums; }

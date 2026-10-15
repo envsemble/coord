@@ -38,5 +38,8 @@ export { SkipNext as SupersededIcon } from '@envsemble/envui/icons/SkipNext';
 export { TaskAlt as WorkIcon } from '@envsemble/envui/icons/TaskAlt';
 export { UnfoldLess as CollapseAllIcon } from '@envsemble/envui/icons/UnfoldLess';
 export { Upload as UploadIcon } from '@envsemble/envui/icons/Upload';
+export { Unarchive as RestoreIcon } from '@envsemble/envui/icons/Unarchive';
+export { Visibility as ShowIcon } from '@envsemble/envui/icons/Visibility';
+export { VisibilityOff as HideIcon } from '@envsemble/envui/icons/VisibilityOff';
 export { Warning as WarningIcon } from '@envsemble/envui/icons/Warning';
 export { Devices as DevicesIcon } from '@envsemble/envui/icons/Devices';
