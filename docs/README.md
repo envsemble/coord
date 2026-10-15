@@ -2,9 +2,9 @@
 
 ## Using Atlas
 
-- [App guide](../app/README.md): install the desktop app, windows and folders, the layout, records and progress, statistics, diagrams, security and diagnostics.
+- [App guide](../app/README.md): install the desktop app, projects and windows, the layout, records and progress, statistics, diagrams, security and diagnostics.
 - [Progress and statistics](progress-and-statistics.md): the ledger's steps, what the hooks measure, and how Atlas counts agent time, tokens, subagents and plan revisions for planning and implementation.
-- [Remote access](remote-access.md): work on another computer's planning folders; pairing, the computer menu and File › Open Recent, `atlas serve`, security and privacy.
+- [Remote access](remote-access.md): work on another computer's projects; pairing, the computer menu, `atlas serve`, security and privacy.
 - [Plan export](plan-export.md): share a whole work item as one offline HTML file, and import it elsewhere.
 
 ## For agents

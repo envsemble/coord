@@ -1,8 +1,8 @@
 # Atlas desktop app
 
-![An agent's proposed change to captured code, full-bleed in the Diagrams view of a work item, with the explorer on the left](assets/atlas-desktop.jpg)
+![The Atlas window: the computer's projects in the sidebar, tabs of plans, documents and diagrams above the page, and a diagram open in its tab](assets/atlas-desktop.jpg)
 
-Atlas is a desktop app for a planning repository: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, work and usage statistics and each plan's diagrams. Each planning folder opens in its own window. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
+Atlas is a desktop app for a planning repository: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, work and usage statistics and each plan's diagrams. Every window lists the computer's projects (each a planning folder in the Atlas home) in its sidebar and shows their plans, documents and diagrams in tabs side by side. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 
 ## Install
 
@@ -86,7 +86,7 @@ The window is envUI's application shell, and it draws its own title bar:
 - **A work item** shows its plan, with its status, number (**#0001**) and an About column: the ledger's progress and steps, a link to the ledger itself, any blocker, dates, statistics and recent commits.
 - **Opening things:** a project in the sidebar opens its page; a work item's row opens its plan from anywhere on the row, and its diagram count opens its diagrams. A diagram opens from its card in the plan, from a link, from Files or from quick open, in a tab of its own for the work item. Links between records open their target in a tab (Ctrl+click keeps it).
 - **Back and forward** step through what the window showed: project pages, each work item at its heading, diagrams and files. Use the arrows in the title bar, Alt+← and Alt+→ (⌘[ and ⌘] on macOS), a keyboard's or mouse's back and forward buttons, or **View › Back** and **Forward**. A tab that was closed opens again as a preview, where it was, and a document left for one of its headings is where it was before the jump. The mouse's buttons also work over the title bar; with a menu or dialog open they only close it. Fields keep Alt+← and Alt+→. The history lasts while the window shows its computer.
-- **Quick open** (Ctrl+P, or **Search**) jumps to any project, work item, diagram or file of the computer's projects by name; Enter previews, Ctrl+Enter keeps the tab.
+- **Quick open** (Ctrl+P, or **Search**) finds a work item, diagram or document by name in the computer's active projects (and in the project of the tab you are in, when it is hidden or archived); Enter previews, Ctrl+Enter keeps the tab. Projects themselves open from the sidebar.
 
 | Shortcut | Action |
 | --- | --- |
