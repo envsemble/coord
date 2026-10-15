@@ -1,17 +1,17 @@
 ---
 name: atlas
-description: Plan work with Atlas. Find this checkout's project and its planning folder, clarify designs through an interview, record plans, glossaries, decisions, outcomes and reusable knowledge, change work items through the Atlas tools, set up or organize a planning folder, and offer diagrams when domain concepts are in play. Use when the user designs something, asks for work big enough to plan, or wants something recorded; small direct coding tasks need none of it.
+description: "Atlas planning: projects with their plans, ledgers, decisions, glossaries and diagrams in the Atlas home. Use whenever the user mentions Atlas, a project, a work item, a plan or a ledger; when they design something or ask for work big enough to plan; when they want something recorded, reviewed or brought up to date, in one project or across all of them. Small, direct coding tasks need none of it."
 ---
 
 # Atlas
 
-Atlas keeps plans in projects: each a planning folder, a Git repository in the Atlas home (`~/.atlas/planning/<name>`), named by the `name` in its `planning.json` and covering one repository or several. A repository may belong to several projects. This skill plans, records and organizes work there. Implementing an accepted plan is the explicit [atlas-implement](../atlas-implement/SKILL.md) workflow; accepting a plan does not start it.
+Atlas keeps plans in projects: each a planning folder, a Git repository in the Atlas home (`~/.atlas/planning/<name>`), named by the `name` in its `planning.json` and covering one repository or several. A repository may belong to several projects. This skill plans, records and organizes work there, in one project or across all of them. Two workflows build on it, each run when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md), the questioning in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md), implementing an accepted plan; accepting a plan does not start it.
 
 ## Find the planning folder
 
-At session start Atlas names the project for this checkout, its planning folder (an absolute path) and its active work. Without that context, call the Atlas tool `where` (or run `atlas where`): a checkout belongs to the projects whose `planning.json` registers its Git remote. A location the user gives wins. When several projects match and the work does not already name one, **ask the user which project to plan in**, and pass its planning folder to the Atlas tools (`planningFolder`). Read that folder's own `AGENTS.md`, `PLANS.md` and `planning.json` before changing anything; they govern, and the bundled [governance](assets/planning/AGENTS.md) and [plan contract](assets/planning/PLANS.md) are the defaults they start from.
+At session start Atlas names the projects that register this checkout's Git remote, with their planning folders (absolute paths) and active work; when none does, it lists every active project in the home instead. Without that context, call the Atlas tool `where` (or run `atlas where`): it lists every active project in the home with its folder, repositories and active work, and marks as matches the projects whose `planning.json` registers this checkout's remote. A location the user gives wins. When several projects match and the work does not already name one, **ask the user which project to plan in**, and pass its planning folder to the Atlas tools (`planningFolder`). Read that folder's own `AGENTS.md`, `PLANS.md` and `planning.json` before changing anything; they govern, and the bundled [governance](assets/planning/AGENTS.md) and [plan contract](assets/planning/PLANS.md) are the defaults they start from.
 
-No match: offer to [set up a project](#set-up-a-project), or to register this repository's remote in an existing one. Ordinary coding never waits for planning.
+No match: when the work belongs to a listed project, offer to register this repository's remote there; otherwise offer to [set up a project](#set-up-a-project). A request about Atlas itself or about several projects is [work across projects](#work-across-projects). Ordinary coding never waits for planning.
 
 ## When to plan
 
@@ -19,7 +19,7 @@ Plan when the user is designing something, or asks for work whose requirements, 
 
 ## Interview and record
 
-Use [the interview method](references/INTERVIEW.md) and [domain modeling](references/DOMAIN-MODELING.md), which links the [glossary](references/CONTEXT-FORMAT.md) and [ADR](references/ADR-FORMAT.md) formats. Find facts yourself; put only genuine decisions to the user, with your recommendation, and wait. Settled answers stay settled.
+Find facts yourself; put only genuine decisions to the user, with your recommendation, and wait. Settled answers stay settled. [Domain modeling](references/DOMAIN-MODELING.md) keeps the language sharp and links the [glossary](references/CONTEXT-FORMAT.md) and [ADR](references/ADR-FORMAT.md) formats. When the user asks to be grilled, the questioning runs as [atlas-grill](../atlas-grill/SKILL.md): rounds over a design tree until nothing is left open.
 
 Record as understanding settles, not only at the end:
 
@@ -61,6 +61,16 @@ Hooks run them: after each edit in the home, Atlas checks the planning files you
 ## Set up a project
 
 The user can create a project in the Atlas app (File › New Project…). Otherwise, with their agreement, create `<home>/planning/<name>` (`atlas home` prints the home and its projects), run `git init` there and copy in the bundled templates (Atlas checks edits there once `planning.json` is in place): [AGENTS.md](assets/planning/AGENTS.md), [PLANS.md](assets/planning/PLANS.md), [README.md](assets/planning/README.md), [planning.json](assets/planning/planning.json), [plan-frontmatter.md](assets/planning/plan-frontmatter.md) and, when no attributes policy exists, [.gitattributes](assets/planning/.gitattributes). Set the project's `name` in `planning.json`, and register each participating repository with a stable `id`, a `name` and its `remote`, which is how checkouts find the project. Run `atlas check <folder>` and commit the baseline. A planning folder elsewhere moves into the home with `atlas home adopt <folder>` (or **Move into the Atlas home** in the app); until it does, agents do not find it, even when the app lists it. Hidden and archived projects are not found either.
+
+## Work across projects
+
+When no project registers the folder the session is in, or the user asks to review, organize or bring Atlas up to date:
+
+1. **List the projects** with `where`. The user's request says which to go through; otherwise go through every active one.
+2. **Go through each project's active work:** its `planning.json`, and for every active work item its plan, `work_status` and ledger.
+3. **Reconcile them with what actually happened.** The evidence is the Git history of the project's repositories (branches, merges, tags), their PRs where the hosting service is reachable, the planning folder's own history and, when the harness offers one, its thread or session history (the conversations that planned or implemented the work). Look for steps done but still open, merged PRs and outcomes the ledger lacks, decisions settled in a conversation but missing from the plan, work finished or replaced but still active, and a stale `blocked`. Rely on Git and the PRs when no conversation history is available, and say so.
+4. **Update what the evidence settles:** ledger notes citing their evidence (commit, PR, date), steps the evidence shows done, links. **Ask before consequential changes** (closing, archiving, reopening, removing steps, rewriting a plan's decisions, opening work), each with its evidence and your recommendation, one project at a time.
+5. **Commit** each planning folder's changes in its own Git, and end with a short account per project: what changed, and what awaits the user.
 
 ## Organize legacy material
 
