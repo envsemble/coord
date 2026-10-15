@@ -1,6 +1,6 @@
 # Atlas desktop app
 
-![The Atlas window: the computer's projects in the sidebar, tabs of plans, documents and diagrams above the page, and a diagram open in its tab](assets/atlas-desktop.jpg)
+![The Atlas window: the computer's projects as cards in the sidebar, one with a live dot and its details open beside it, and the project's page with its work and statistics in a tab](assets/atlas-desktop.jpg)
 
 Atlas is a desktop app for a planning repository: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, work and usage statistics and each plan's diagrams. Every window lists the computer's projects (each a planning folder in the Atlas home) in its sidebar and shows their plans, documents and diagrams in tabs side by side. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 

@@ -13,11 +13,11 @@ Atlas keeps plans, decisions and diagrams where both a coding agent and its huma
 
 [Get started](#get-started) · [App guide](app/README.md) · [Agent interface](docs/agent-interface.md) · [The atlas command](docs/command.md) · [Progress and statistics](docs/progress-and-statistics.md) · [Remote access](docs/remote-access.md) · [All documentation](docs/README.md)
 
-![The Atlas desktop app showing an agent's proposed change to captured code in its work item's Diagrams view](app/assets/atlas-desktop.jpg)
+![The Atlas desktop app: project cards in the sidebar, one with a live dot while an agent works on it and its details open beside it, and the project's page with its work and statistics](app/assets/atlas-desktop.jpg)
 
 | Part                                 | What it does                                                                                                                                             |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [App](app/README.md)                 | The desktop app for Windows and Linux: one window per planning folder with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams.   |
+| [App](app/README.md)                 | The desktop app for Windows and Linux: your projects side by side, each with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams. |
 | [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas` and `atlas-implement` skills, and the hooks.                                     |
 | [`atlas` command](docs/command.md)   | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.               |
 | [Diagram package](packages/diagrams) | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.        |
@@ -40,7 +40,7 @@ Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for E
 
 2. **Create a project.** A project is a planning folder in the home, covering one repository or several. Create one in the app with **File › New Project…**, or ask your agent to set up planning for your repository with the `atlas` skill. Either registers the repository's Git remote, which is how every checkout and worktree of it finds the project. `atlas home adopt <folder>` moves a planning folder you already have into the home.
 3. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from the clone with `npm run dev`.
-4. **Open your projects.** The sidebar lists the projects in the home; each opens as a page with its work, statistics and activity, and its plans, diagrams and files open in tabs beside those of the other projects. Atlas follows changes as the agent writes them.
+4. **Open your projects.** The sidebar shows the projects in the home as cards: what is blocked, being implemented or still a draft, and a live dot while an agent works on one. Each opens as a page with its work, statistics and activity, and its plans, diagrams and files open in tabs beside those of the other projects. Atlas follows changes as the agent writes them.
 
 Plans, diagrams and statistics stay on your computer unless you turn on remote access. No model service or API key is needed.
 
@@ -65,6 +65,9 @@ The skills work in Codex and Claude Code and name no model or provider. A standa
 1. **Plan.** When you design something or ask for something large, the agent asks whether to open a work item, then interviews you and records the plan, its glossary and its decisions as they settle. You accept the plan.
 2. **Implement.** With `/atlas-implement` (`$atlas-implement` in Codex), the agent starts the accepted plan with its steps, marks each `doing` and `done` as it goes, and delivers through pull requests with review and CI. It closes the work once every step is done.
 3. **Follow along.** Atlas shows every work item's progress and the steps left, its plan, ledger and decisions, recent commits, and the diagrams that explain it, updating as files change.
+
+   ![A work item in Atlas: its plan with a diagram card under the heading it explains, and beside it the progress through its steps, a link to its ledger, its dates and its statistics](assets/work-item.jpg)
+
 4. **Learn from it.** The agent keeps the decisions and lessons worth reusing. A project's statistics show each work item's agent time, tokens and subagents for planning and for implementation, and compares completed work by model over time, so you can see how a new model does on your work.
 
 [Progress and statistics](docs/progress-and-statistics.md) explains the ledger's steps, what the hooks measure and how Atlas counts it.
@@ -83,7 +86,7 @@ The skills work in Codex and Claude Code and name no model or provider. A standa
 
 A diagram is a `.puml` file in a work item, in Atlas's subset of PlantUML: a class diagram of concepts or code, an entity diagram of a database, or an object diagram of example instances. The agent writes and edits diagrams like any file, and links each from the plan under the heading it explains; the hooks check them after every edit. `atlas capture` writes captures of TypeScript and Java code (through the compiler) and of SQLite, PostgreSQL and local D1 databases, frozen and dated. A proposal starts as a copy of a capture and shows an intended change, and a capture taken after implementing a plan compares with the one taken before. Atlas lays out and draws every diagram itself, in the app, in plan exports and in offline HTML. See [diagrams](docs/diagrams.md).
 
-![An agent proposal in its change view: new and changed classes and relations marked on the canvas, unchanged ones faded, and the Changes list beside it with each changed type's members summarized](assets/comparison-dark.jpg)
+![An agent's proposal in its change view, dark theme: new and changed classes and relations marked on the canvas with their attributes, unchanged ones faded, and the Changes list beside it with each changed type's members summarized](assets/comparison-dark.jpg)
 
 ## Develop
 
