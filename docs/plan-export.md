@@ -28,7 +28,7 @@ Both JSON elements are inert data; every `<` in them is written as the JSON esca
 {
   "format": "atlas/plan-export",
   "version": 1,
-  "atlasVersion": "0.7.1",
+  "atlasVersion": "0.8.0",
   "exportedAt": "2026-10-10T12:00:00.000Z",
   "source": {
     "planningFolder": "planning",

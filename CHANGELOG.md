@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 — The plans hub — 2026-10-16
 
 - **The hub:** the app opens on one list of every plan of every project, blocked and in progress first, then drafts, each with its project, a one-line summary, its progress and a live dot while an agent works on it; filter by project and state, or search. A plan opens in one click. The projects sidebar, the project page and the tab rail are gone: a window shows one place, with back and forward, Ctrl+P and New Window for a second.
 - **One menu** in the title bar replaces File, Edit, View and Help; every shortcut still works. Projects and Statistics are pages opened from it; Export Plan… sits on the plan's page.

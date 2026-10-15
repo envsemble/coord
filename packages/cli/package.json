@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/atlas-cli",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "description": "The atlas command: planning-state operations, captures, the MCP server, harness hooks and setup, checks, consultation logging, work statistics and the headless host",
   "repository": {
