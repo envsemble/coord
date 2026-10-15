@@ -9,7 +9,7 @@
 [![Node 24](https://img.shields.io/badge/Node-24-43853d)](docs/releases.md)
 [![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)
 
-Atlas keeps plans, decisions and diagrams where both a coding agent and its human can read them. Plans, ledgers, glossaries, ADRs and evidence live in versioned planning folders in the Atlas home on your computer. The agent works on them through the Atlas plugin for its harness: planning-state tools, two skills, and hooks that check its edits and measure its work without being asked. The human follows along in the Atlas desktop app.
+Atlas keeps plans, decisions and diagrams where both a coding agent and its human can read them. Plans, ledgers, glossaries, ADRs and evidence live in versioned planning folders in the Atlas home on your computer. The agent works on them through the Atlas plugin for its harness: planning-state tools, three skills, and hooks that check its edits and measure its work without being asked. The human follows along in the Atlas desktop app.
 
 [Get started](#get-started) · [App guide](app/README.md) · [Agent interface](docs/agent-interface.md) · [The atlas command](docs/command.md) · [Progress and statistics](docs/progress-and-statistics.md) · [Remote access](docs/remote-access.md) · [All documentation](docs/README.md)
 
@@ -18,7 +18,7 @@ Atlas keeps plans, decisions and diagrams where both a coding agent and its huma
 | Part                                 | What it does                                                                                                                                             |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [App](app/README.md)                 | The desktop app for Windows and Linux: your projects side by side, each with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams. |
-| [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas` and `atlas-implement` skills, and the hooks.                                     |
+| [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas`, `atlas-grill` and `atlas-implement` skills, and the hooks.                      |
 | [`atlas` command](docs/command.md)   | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.               |
 | [Diagram package](packages/diagrams) | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.        |
 | [Planning reader](packages/planning) | The planning-folder reader and planning operations shared by the app, the host and the command, including [plan export and import](docs/plan-export.md). |
@@ -53,17 +53,20 @@ The [plugin](docs/agent-interface.md) gives an agent everything Atlas needs from
 - **Checks** of every planning file it edits, with the problems handed back to fix.
 - **Statistics** measured from its session whenever it stops: time, tokens, models and subagents, as planning or implementation.
 
-| Skill                                                     | Purpose                                                                                                                                                                                                             |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [atlas](plugin/skills/atlas/SKILL.md)                     | Plan with the agent: it recognizes work big enough to plan, asks before opening a work item, interviews you, and records the plan, glossary and decisions. It also sets up projects and organizes planning folders. |
-| [atlas-implement](plugin/skills/atlas-implement/SKILL.md) | Implement a selected plan in full, through review and CI, and close the work. It runs only when invoked by name.                                                                                                    |
+| Skill                                                     | Purpose                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [atlas](plugin/skills/atlas/SKILL.md)                     | Plan with the agent: it recognizes work big enough to plan, asks before opening a work item, interviews you, and records the plan, glossary and decisions. It also sets up projects, organizes planning folders, and reviews projects and brings them up to date across all of them. It triggers on its own when you mention Atlas or plan something. |
+| [atlas-grill](plugin/skills/atlas-grill/SKILL.md)         | Be grilled: the agent interviews you in rounds, one decision at a time with its recommendation, until the design is settled, recording it as it goes. Say "atlas grill" or "grill me".                                                                                                                                                                |
+| [atlas-implement](plugin/skills/atlas-implement/SKILL.md) | Implement an accepted plan end to end, through review and PRs, and close the work. Say "atlas implement"; ordinary coding never triggers it.                                                                                                                                                                                                          |
+
+Invoke a skill by its command: `/atlas:atlas`, `/atlas:atlas-grill` and `/atlas:atlas-implement` in Claude Code, `$atlas`, `$atlas-grill` and `$atlas-implement` in Codex.
 
 The skills work in Codex and Claude Code and name no model or provider. A standalone skill for carrying existing PRs through review and CI, [babysit-pr](extras/babysit-pr/SKILL.md), is not part of the plugin: copy `extras/babysit-pr` into `~/.claude/skills` or `~/.codex/skills` to use it.
 
 ## How work moves through Atlas
 
-1. **Plan.** When you design something or ask for something large, the agent asks whether to open a work item, then interviews you and records the plan, its glossary and its decisions as they settle. You accept the plan.
-2. **Implement.** With `/atlas-implement` (`$atlas-implement` in Codex), the agent starts the accepted plan with its steps, marks each `doing` and `done` as it goes, and delivers through pull requests with review and CI. It closes the work once every step is done.
+1. **Plan.** When you design something or ask for something large, the agent asks whether to open a work item, then interviews you (in rounds, when you say "atlas grill") and records the plan, its glossary and its decisions as they settle. You accept the plan.
+2. **Implement.** When you say "atlas implement" (or use `/atlas:atlas-implement`, `$atlas-implement` in Codex), the agent starts the accepted plan with its steps, marks each `doing` and `done` as it goes, and delivers through pull requests with review and CI. It closes the work once every step is done.
 3. **Follow along.** Atlas shows every work item's progress and the steps left, its plan, ledger and decisions, recent commits, and the diagrams that explain it, updating as files change.
 
    ![A work item in Atlas: its plan with a diagram card under the heading it explains, and beside it the progress through its steps, a link to its ledger, its dates and its statistics](assets/work-item.jpg)
