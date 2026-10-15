@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, shownPlace, showPlace, startHistory, step, type History } from './history.ts';
-import { diagramTarget, fileTarget, projectTarget, workTarget, type Place } from './targets.ts';
+import { diagramTarget, fileTarget, ledgerTarget, projectTarget, workTarget, type Place } from './targets.ts';
 import type { UiState } from './types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
@@ -25,6 +25,9 @@ test('each new thing shown follows the current entry; the same thing again adds 
   assert.equal(samePlace(at(fileTarget('a.md')), at(fileTarget('a.md', 'intro'))), false);
   assert.equal(samePlace(at(diagramTarget('work-0001', 'd.puml')), at(diagramTarget('work-0001', 'd.puml', 'Order'))), false);
   assert.equal(samePlace(plan, other), false);
+  assert.equal(samePlace(plan, at(ledgerTarget('work-0001'))), false, "a work item's plan and its ledger are two places");
+  assert.equal(samePlace(plan, at({ kind: 'work', work: 'work-0001', anchor: null, view: null })), true);
+  assert.equal(record(startHistory(plan), at(ledgerTarget('work-0001'))).entries.length, 2, 'showing the ledger in place is a step back to the plan');
   assert.equal(samePlace(page, at(projectTarget())), true);
   assert.equal(samePlace(null, null), true);
 });

@@ -8,6 +8,8 @@ import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, originOf } from './protocol.ts';
 import { HomeDatabase } from '@envsemble/atlas-planning';
 import { DesktopState } from './state.ts';
+import { target as tabTarget } from '../shared/validate.ts';
+import type { Target } from '../shared/contract.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'atlas-main-'));
 
@@ -73,6 +75,10 @@ test('windows, their tabs per computer and the shared settings are kept in the h
     assert.deepEqual(state.tabs(window, null).map(tab => [tab.projectId, tab.kind, tab.active]), [[local.id, 'work', true], [missing.id, 'file', false]], 'the missing folder keeps its tab, no longer active');
     state.saveTabs(window, null, [], [local.id, missing.id]);
     assert.deepEqual(state.tabs(window, null), [], 'once loaded, closing them removes them');
+    // A work item's tab showing its ledger loads back showing it, saved and read as the window does.
+    const { kind, ...rest } = { kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' } satisfies Target;
+    state.saveTabs(window, null, [{ projectId: local.id, kind, target: JSON.stringify(rest), active: true }], [local.id]);
+    assert.deepEqual(state.tabs(window, null).map(saved => tabTarget({ kind: saved.kind, ...saved.target && JSON.parse(saved.target) })), [{ kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' }]);
     // Twenty tabs kept for a folder not listed, then forty of another project: a window holds forty,
     // its own first, so its saves keep passing once the folder is listed again.
     const tab = (projectId: number, index: number) => ({ projectId, kind: 'file' as const, target: `{"path":"${index}.md"}`, active: false });

@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeAllTabs, closeTab, keyTabs, openTab, pinTab, restoreTabs, retarget } from './tabs.ts';
-import { diagramTarget, documentTarget, fileTarget, projectTarget, workTarget } from './targets.ts';
+import { diagramTarget, documentTarget, fileTarget, ledgerTarget, projectTarget, workTarget } from './targets.ts';
 import { buildIndex, folderId, revealIds, visibleRows } from './explorerModel.ts';
 import { fuzzyScore, rankItems } from './quickMatch.ts';
-import type { Document, Work } from './types.ts';
+import { projectMatches } from './ProjectsSidebar.tsx';
+import type { Document, Project, Work } from './types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
 
@@ -46,6 +47,11 @@ test('tabs of different projects sit side by side, and Close All Tabs closes the
   // Saved tabs get their ids again, and duplicates go.
   const saved = { items: [{ id: '0', project: shop, target: projectTarget(), preview: false }, { id: '1', project: shop, target: projectTarget(), preview: false }, { id: '2', project: coord, target: fileTarget('a.md'), preview: false }], active: '2' };
   assert.deepEqual(keyTabs(saved), { items: [{ id: shop + ':project', project: shop, target: projectTarget(), preview: false }, { id: coord + ':file:a.md', project: coord, target: fileTarget('a.md'), preview: false }], active: coord + ':file:a.md' });
+  // The ledger shows in its plan's tab, in place of the plan, and a saved tab showing it loads back showing it.
+  const ledger = openTab(tabs, shop, ledgerTarget('work-0001'), false);
+  assert.deepEqual([ledger.items.length, ledger.active, ledger.items[2].target], [5, shop + ':work:work-0001', ledgerTarget('work-0001')]);
+  assert.deepEqual(retarget(ledger, shop + ':work:work-0001', shop, workTarget('work-0001')).items[2].target, workTarget('work-0001'), 'and Plan shows the plan there again');
+  assert.deepEqual(keyTabs({ items: [{ id: '0', project: shop, target: ledgerTarget('work-0001'), preview: false }], active: '0' }), { items: [{ id: shop + ':work:work-0001', project: shop, target: ledgerTarget('work-0001'), preview: false }], active: shop + ':work:work-0001' });
   // Tabs that waited for their computer join those the window has: only of projects it has none of.
   const shown = openTab({ items: [], active: null }, shop, fileTarget('b.md'), true);
   const restored = restoreTabs(shown, saved);
@@ -67,6 +73,12 @@ test('the file panel shows folders before files and real names, and a diagram fi
   assert.deepEqual(revealIds('active/0001-x/docs/adr.md'), ['d:active/0001-x/docs', 'd:active/0001-x', 'd:active']);
   assert.deepEqual(documentTarget(document('active/0001-x/order.puml', 'work-0001'), work, 'Order'), diagramTarget('work-0001', 'order.puml', 'Order'));
   assert.deepEqual(documentTarget(document('active/0001-x/order.puml', 'work-0001'), undefined), fileTarget('active/0001-x/order.puml'));
+});
+
+test("the sidebar's search matches every word in a project's name or folder, ignoring case", () => {
+  const project = { folderId: shop, name: 'Coord platform', path: '/home/me/.atlas/planning/coord-web', position: 0, state: 'active', outsideHome: false } as Project;
+  for (const query of ['', '  ', 'coord', 'PLATFORM', 'platform coord', 'coord-web', 'atlas  web']) assert.equal(projectMatches(project, query), true, query);
+  for (const query of ['shop', 'coord shop', 'platforms']) assert.equal(projectMatches(project, query), false, query);
 });
 
 test('quick open matches characters in order and ranks names first', () => {

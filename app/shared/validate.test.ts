@@ -35,6 +35,9 @@ test('tabs show a project\'s page, a plan, a diagram or a file, and nothing else
   assert.deepEqual(target({ kind: 'work', work: 'work-0001', section: 'ledger' }), { kind: 'work', work: 'work-0001' }, 'sections are gone');
   assert.deepEqual(target({ kind: 'diagram', work: 'work-0001', path: null }), { kind: 'diagram', work: 'work-0001', path: null });
   assert.equal((target({ kind: 'diagram', work: 'work-0001', path: 'diagrams/order.puml', element: 'Order' }) as { element?: string }).element, 'Order');
+  assert.deepEqual(target({ kind: 'work', work: 'work-0001', anchor: 'provenance', view: 'ledger' }), { kind: 'work', work: 'work-0001', anchor: 'provenance', view: 'ledger' }, 'a work item shows its ledger in place of the plan');
+  assert.deepEqual(target({ kind: 'work', work: 'work-0001', view: null }), { kind: 'work', work: 'work-0001', view: null });
+  for (const view of ['plan', 'diagrams', 'Ledger', 1]) assert.throws(() => target({ kind: 'work', work: 'work-0001', view }), /view/, String(view));
   for (const bad of [{ kind: 'view', view: 'work' }, { kind: 'diagram', work: 'work-0001', path: '../../planning.json' }, { kind: 'file', path: '../secret' }]) assert.throws(() => target(bad), JSON.stringify(bad));
 });
 
