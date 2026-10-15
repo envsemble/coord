@@ -368,6 +368,7 @@ test('a project covers workspace folders: their checkouts are found, registered 
   const forbidden = (error: HostRequestError) => error.code === 'forbidden' && !error.message.includes(data);
   await assert.rejects(device.connection.request('projects.create', { name: 'Web', workspaces: [path.join(data, 'missing')] }), forbidden);
   await assert.rejects(device.connection.request('projects.create', { name: 'Web', workspaces: [workspace] }), forbidden);
+  await assert.rejects(device.connection.request('projects.create', { name: 'Web' } as never), (error: HostRequestError) => error.code === 'invalid-argument', 'the folders are part of the request');
   const web = await owner.connection.request('projects.create', { name: 'Web', workspaces: [workspace] });
   assert.deepEqual(web.workspaces, [workspace]);
   const registry = () => JSON.parse(readFileSync(path.join(web.path, 'planning.json'), 'utf8'));
