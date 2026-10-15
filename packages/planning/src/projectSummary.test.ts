@@ -28,7 +28,7 @@ function planningFolder(root: string) {
     work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('active/0004'), item('active/0005'), item('active/0006', '../outside/plan.md'), item('archive/0007'), item('active/0008'), item('active/0009'), item('archive/0010'), item('archive/0011')],
   }));
   write(path.join(root, 'active/0001/plan.md'), plan('in_progress', 'title: Saved cards\nsummary: "Cards saved at checkout. Half done."\nupdated: "2026-10-03"\n'));
-  write(path.join(root, 'active/0001/ledger.md'), ledger(null, 'steps:\n  - title: "Store"\n    status: done\n  - title: "Show"\n    status: doing\n'));
+  write(path.join(root, 'active/0001/ledger.md'), ledger(null, 'steps:\n  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Store"\n    status: done\n  - title: "Show"\n    status: doing\n'));
   write(path.join(root, 'archive/0010/plan.md'), plan('complete', 'title: Wish list\ndesign_status: accepted\nupdated: null\ncompleted_at: "2026-09-20"\n'));
   write(path.join(root, 'archive/0011/plan.md'), plan('partial', 'title: Coupons\ndesign_status: abandoned\nupdated: "2026-09-30"\n'));
   write(path.join(root, 'active/0002/plan.md'), plan('in_progress'));
@@ -50,12 +50,12 @@ test('a project\'s summary lists its active work with where each item stands, an
   const root = path.join(temporary(t), 'shop');
   planningFolder(root);
   const none = { summary: null, steps: null, updated: null, outcome: null };
-  const unstepped = { steps: { done: 0, total: 0 } };
+  const unstepped = { steps: { done: 0, total: 0, planning: { done: 0, total: 0 } } };
   const other = (id: string, title = id.slice(-4), more = {}) => ({ id, title, state: 'other', blocked: null, ...none, ...more });
   assert.deepEqual(await projectSummary(root), {
     repositories: ['shop', 'web'],
     active: [
-      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 1, total: 2 }, updated: '2026-10-03', outcome: null },
+      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null },
       { id: 'work-0002', title: '0002', state: 'blocked', blocked: 'Waiting for the acquirer', ...none, ...unstepped },
       { id: 'work-0003', title: '0003', state: 'blocked', blocked: 'Waiting for review', ...none, ...unstepped },
       other('work-0004', '0004', unstepped), other('work-0005'), other('work-0006'),
@@ -81,11 +81,13 @@ test('a project\'s last change is its planning folder\'s last commit', async t =
   assert.equal((await projectSummary(root)).updated, '2026-10-01T12:00:00+02:00');
 });
 
-test('a folder without a readable registry has an empty summary', async t => {
+test('a folder without a readable registry has no summary, and odd entries in one count as nothing', async t => {
   const root = temporary(t);
-  assert.deepEqual(await projectSummary(path.join(root, 'missing')), { repositories: [], active: [], closed: [], updated: null });
+  await assert.rejects(projectSummary(path.join(root, 'missing')));
   write(path.join(root, 'broken', 'planning.json'), '{ "repositories": ');
-  assert.deepEqual(await projectSummary(path.join(root, 'broken')), { repositories: [], active: [], closed: [], updated: null });
+  await assert.rejects(projectSummary(path.join(root, 'broken')));
+  write(path.join(root, 'list', 'planning.json'), '[]');
+  await assert.rejects(projectSummary(path.join(root, 'list')), /not an object/);
   write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ repositories: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001' }, { id: 'work-0001', path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
   assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null }], closed: [], updated: null });
 });

@@ -17,7 +17,6 @@ export function defaultDocument(work: Work): Document | undefined {
 export type StepPhase = 'planning' | 'implementation';
 /**
  * A ledger step's phase: planning when its header says `phase: planning`, else implementation (as
- * every step was before ledgers had planning steps). Read defensively: the step entries may not
- * carry the phase yet.
+ * every step was before ledgers had planning steps).
  */
-export const stepPhase = (step: LedgerStep): StepPhase => (step as LedgerStep & { phase?: unknown }).phase === 'planning' ? 'planning' : 'implementation';
+export const stepPhase = (step: LedgerStep): StepPhase => step.phase === 'planning' ? 'planning' : 'implementation';

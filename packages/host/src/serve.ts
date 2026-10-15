@@ -51,7 +51,7 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
     await host.stop();
     if (problem) throw new Error(problem);
     if (holder === impostorHolder) throw new Error('Another program holds the name of Atlas\'s remote access lock, so remote access stays off. Restarting the computer frees it.');
-    throw new Error(`Remote access on this computer is managed by ${holder}. Use File › Remote Access… there, or quit it first.`);
+    throw new Error(`Remote access on this computer is managed by ${holder}. Use Remote Access… in the menu (☰) there, or quit it first.`);
   }
   const state = await host.accessState();
   if (!state.status.listening) { await host.stop(); throw new Error(state.status.error ?? 'Remote access could not start.'); }
@@ -86,7 +86,7 @@ async function printLink(host: Host, out: ServeOutput, manageAccess: boolean): P
   out.stdout(await QRCode.toString(link.url!, { type: 'terminal', small: true, errorCorrectionLevel: 'M' }));
   out.stdout(`Pairing link (valid for 5 minutes, once${manageAccess ? '; grants Manage access' : ''}): ` + link.url);
   out.stdout('Code only: ' + link.code);
-  out.stdout('In Atlas on the other computer, choose File › Connect to Another Atlas… and paste the link. The device can then use every project on this computer.');
+  out.stdout('In Atlas on the other computer, choose Connect to Another Atlas… in the menu (☰) and paste the link. The device can then use every project on this computer.');
   return link;
 }
 

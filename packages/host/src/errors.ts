@@ -28,5 +28,5 @@ export function toErrorValue(error: unknown): { value: HostErrorValue; expected:
   if (error instanceof HostError) return { value: { code: error.code, message: error.message }, expected: true };
   if (error instanceof PlanningError) return { value: { code: byStatus[error.status] ?? 'invalid-argument', message: error.message }, expected: true };
   if (error instanceof PlanExportError) return { value: { code: exportCodes[error.code] ?? 'invalid-argument', message: error.message }, expected: true };
-  return { value: { code: 'internal', message: 'Atlas could not complete this request. Details are in the log (Help › Open Logs).' }, expected: false };
+  return { value: { code: 'internal', message: 'Atlas could not complete this request. Details are in the log (Open Logs, in the menu).' }, expected: false };
 }

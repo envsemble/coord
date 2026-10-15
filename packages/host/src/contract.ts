@@ -59,8 +59,8 @@ export interface ProjectWork {
   blocked: string | null;
   /** The plan's `summary` header: a few plain sentences on what the work is and where it stands. */
   summary: string | null;
-  /** The ledger's steps, done and in all; null without a ledger. */
-  steps: { done: number; total: number } | null;
+  /** The ledger's steps, done and in all, and among them the planning steps (`phase: planning`); null without a ledger. */
+  steps: { done: number; total: number; planning: { done: number; total: number } } | null;
   /** When the plan last changed: its `updated` header, else its `completed_at` (a date, YYYY-MM-DD). */
   updated: string | null;
   /** How closed work ended: its `implementation_status` complete, or the plan's `design_status` superseded or abandoned. */

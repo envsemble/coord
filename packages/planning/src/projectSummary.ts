@@ -2,7 +2,8 @@
 // it plans for, its work (each item's title, summary, steps, last change and where it stands: active
 // work blocked, being implemented, a draft plan or otherwise, and closed work with how it ended), and
 // when the folder last changed. It reads the registry and the headers of plans and ledgers only, and
-// asks Git for the last commit; anything unreadable counts as nothing rather than failing the list.
+// asks Git for the last commit. A registry that cannot be read is an error, which the list shows as
+// a project it could not read; anything unreadable within it counts as nothing.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from './check.ts';
@@ -21,8 +22,8 @@ export interface ProjectWork {
   blocked: string | null;
   /** The plan's `summary` header. */
   summary: string | null;
-  /** The ledger's steps, done and in all; null without a ledger that lists steps. */
-  steps: { done: number; total: number } | null;
+  /** The ledger's steps, done and in all, and among them the planning steps; null without a ledger that lists steps. */
+  steps: { done: number; total: number; planning: { done: number; total: number } } | null;
   /** When the plan last changed: its `updated` header, else its `completed_at`. */
   updated: string | null;
   /** How closed work ended: superseded or abandoned (the plan's design_status), else complete; null while open. */
@@ -59,18 +60,20 @@ async function workOf(root: string, entry: { id: string; path: string; title?: u
   const state: ProjectWorkState = closed ? 'closed' : blocked ? 'blocked' : implementation === 'in_progress' ? 'implementing'
     : !['partial', 'complete'].includes(String(implementation)) && design === 'draft' ? 'draft' : 'other';
   const outcome = !closed ? null : design === 'superseded' || design === 'abandoned' ? design : implementation === 'complete' ? 'complete' : null;
-  const steps = Array.isArray(ledger?.steps) ? (ledger.steps as { status?: unknown }[]) : null;
+  const steps = Array.isArray(ledger?.steps) ? (ledger.steps as { status?: unknown; phase?: unknown }[]) : null;
+  const counted = (list: { status?: unknown }[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
   return {
     id: entry.id, title: text(planHeader?.title) ?? text(entry.title) ?? entry.path.split('/').at(-1)!, state, blocked,
-    summary: text(planHeader?.summary), steps: steps && { done: steps.filter(step => step?.status === 'done').length, total: steps.length },
+    summary: text(planHeader?.summary), steps: steps && { ...counted(steps), planning: counted(steps.filter(step => step?.phase === 'planning')) },
     updated: text(planHeader?.updated) ?? text(planHeader?.completed_at), outcome,
   };
 }
 
-/** A planning folder's summary for the project list. */
+/** A planning folder's summary for the project list; throws when its planning.json cannot be read. */
 export async function projectSummary(root: string): Promise<ProjectSummary> {
-  let registry: { repositories?: unknown; work_items?: unknown } = {};
-  try { const source = await readFile(path.join(root, 'planning.json'), 'utf8'); registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source); } catch { /* an empty summary */ }
+  const source = await readFile(path.join(root, 'planning.json'), 'utf8');
+  const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { repositories?: unknown; work_items?: unknown } | null;
+  if (!registry || typeof registry !== 'object' || Array.isArray(registry)) throw new Error('planning.json is not an object.');
   const repositories = (Array.isArray(registry.repositories) ? registry.repositories : [])
     .filter(entry => typeof entry?.id === 'string' && entry.path !== '.').map(entry => entry.id as string);
   const entries = (Array.isArray(registry.work_items) ? registry.work_items : []).filter(entry => typeof entry?.id === 'string' && typeof entry.path === 'string');

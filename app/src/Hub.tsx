@@ -31,7 +31,7 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
     </span>}
     detail={work.summary ? <span className="hub-row-summary" title={work.summary}>{work.summary}</span> : undefined}
     action={<span className="hub-row-side">
-      {steps && <span className="hub-row-steps" title={`${steps.done} of ${steps.total} steps done`}><StepBar counts={{ total: steps.total, done: steps.done, doing: 0, todo: steps.total - steps.done, remaining: steps.total - steps.done }} compact /><span>{steps.done}/{steps.total}</span></span>}
+      {steps && <span className="hub-row-steps" title={`${steps.done} of ${steps.total} steps done`}><StepBar counts={{ total: steps.total, done: steps.done, doing: 0, todo: steps.total - steps.done, remaining: steps.total - steps.done }} planning={{ done: steps.planning.done, doing: 0 }} compact /><span>{steps.done}/{steps.total}</span></span>}
       {item.live && <span className="hub-row-live" role="img" aria-label="An agent is working on it"><span className="project-live-dot" /></span>}
       {work.updated && <span className="hub-row-updated" title={'Changed ' + absoluteDate(work.updated)}>{relativeDate(work.updated)}</span>}
     </span>} />;

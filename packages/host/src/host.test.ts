@@ -387,6 +387,15 @@ test('a project covers workspace folders: their checkouts are found, registered 
   assert.deepEqual((await projectNamed(owner.connection)).workspaces, [], 'a project without workspace folders has none');
 });
 
+test('a project whose planning.json cannot be read is listed without a summary', async t => {
+  const { host, origin, data } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  mkdirSync(path.join(data, 'planning', 'broken'));
+  writeFileSync(path.join(data, 'planning', 'broken', 'planning.json'), '{ "name": "Broken", ');
+  const listed = await owner.connection.request('projects.list', {});
+  assert.deepEqual(listed.map(project => [project.name, project.summary === null]).sort(), [['Northwind', false], ['broken', true]]);
+});
+
 test('a project made outside the app appears when its planning.json comes, a moment after its folder', async t => {
   const { host, origin, data } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);

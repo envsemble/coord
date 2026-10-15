@@ -4,7 +4,7 @@ Remote access lets you work on another computer's projects from Atlas on this on
 
 Pairing is for **your own devices**. A paired device can do what Atlas does on that computer:
 
-- see and open its projects (the planning folders in its Atlas home), rename them and create new ones (choosing the workspace folders a project covers, which are paths on that computer, stays with the Atlas app there);
+- see its projects (the planning folders in its Atlas home) and open their plans, rename projects and create new ones (choosing the workspace folders a project covers, which are paths on that computer, stays with the Atlas app there);
 - import and export plans;
 - have its views counted in that computer's document use.
 
@@ -14,7 +14,7 @@ Remote access is off by default. It works while Atlas (or `atlas serve`) runs on
 
 ## Turn it on
 
-Choose **File › Remote Access…** on the computer whose folders you want to reach:
+Choose **Remote Access…** in the menu (☰) on the computer whose folders you want to reach:
 
 1. **Allow paired devices to connect to this computer** turns the network listener on or off. The change applies at once. Turning it on, or moving it to another address, asks first when it does not follow your click or key press, for example with a screen reader.
 2. **Reach this computer via** picks the address the host listens on:
@@ -46,21 +46,21 @@ On Windows, the first time the host listens on a network address, Windows Defend
 
 ## Connect from another device
 
-On the other device, choose **File › Connect to Another Atlas…** (also in the computer menu) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Then **Show** that computer: the window's sidebar lists its projects.
+On the other device, choose **Connect to Another Atlas…** in the menu (☰) or the computer menu, and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Then **Show** that computer: the window's hub lists its plans.
 
 ## Work on another computer
 
-Each window says where it works: the **computer menu** (the computer's name in the title bar, after the back and forward arrows and the menus) and the projects in the sidebar.
+Each window says where it works: the **computer menu** (the computer's name in the title bar, after the back and forward arrows and the menu) and the plans its hub lists.
 
 - **The computer menu** lists this computer and every computer this one is paired with. Computers that do not answer are marked **Offline**.
-  - Choosing a computer works on it in this window: the sidebar lists its projects, and the tabs are the ones this window last had open there.
+  - Choosing a computer works on it in this window: the hub lists its plans.
   - **Connect to Another Atlas…** pairs with one more.
   - **Manage Computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
-- **The projects** are the planning folders in that computer's Atlas home, in the same sidebar as this computer's. **File › New Project…** creates one there, and **Rename…** changes a project's name in its `planning.json` there, for every device. The order of the projects and whether one is hidden or archived are this device's own.
+- **The projects** are the planning folders in that computer's Atlas home, on the **Projects** page (in the menu) as this computer's are. **New project** there creates one on that computer, and **Rename…** changes a project's name in its `planning.json` there, for every device; choosing the workspace folders a project covers, which are paths on that computer, stays with Atlas there. The order of the projects and whether one is hidden or archived are this device's own.
 
 A window on another computer shows the computer's name in its title (`desk — Atlas`). Everything works as it does locally:
 
-- the work list, plans, ledgers, statistics, diagrams and quick open;
+- the hub, plans, ledgers, statistics, diagrams and search;
 - **Export Plan…**, which saves the export on this device;
 - **Import Plan…**, which sends the chosen file to that computer and adds the plan to the project there.
 
@@ -73,11 +73,11 @@ Windows showing another computer reopen on the next start while the computer is 
 - A window restored at start while its computer is unreachable shows its projects as soon as the computer answers.
 - When the device is revoked, the window says so. Pair again with a new link, and the computer's windows read through the new pairing.
 
-What each device shows stays its own: its windows, their tabs, scrolling and the sidebar, and the order and state of the projects. A project's name, its planning folder and its document use belong to the computer.
+What each device shows stays its own: its windows, the places they show, scrolling, and the order and state of the projects. A project's name, its planning folder and its document use belong to the computer.
 
 ### Managing access from another device
 
-A device paired with **Manage access** can manage that computer's pairings from its own windows. In a window on that computer, **File › Remote Access…** creates pairing links (with the same label and Manage access choice) and lists and revokes devices. It also shows how that computer is reached: its addresses and whether it listens. The settings for how the computer is reached stay with Atlas on that computer, or with `atlas serve` there.
+A device paired with **Manage access** can manage that computer's pairings from its own windows. In a window on that computer, **Remote Access…** in the menu (☰) creates pairing links (with the same label and Manage access choice) and lists and revokes devices. It also shows how that computer is reached: its addresses and whether it listens. The settings for how the computer is reached stay with Atlas on that computer, or with `atlas serve` there.
 
 ## Without the desktop app: atlas serve
 
