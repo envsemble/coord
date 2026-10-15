@@ -21,6 +21,17 @@ export function atlasHome(override?: string, environment: NodeJS.ProcessEnv = pr
   return chosen ? expand(chosen, home) : path.join(home, '.atlas');
 }
 
+/**
+ * Under the test runner (scripts/test-home.mjs sets ATLAS_TEST_FORBIDDEN_HOME), a home that is the
+ * user's own throws, so a test that loses its temporary home fails instead of touching real data.
+ */
+export function guardTestHome(home: string) {
+  const forbidden = process.env.ATLAS_TEST_FORBIDDEN_HOME;
+  if (!forbidden) return;
+  const same = (a: string, b: string) => process.platform === 'win32' || process.platform === 'darwin' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
+  if (same(home, forbidden)) throw new Error(`A test reached the user's own Atlas home (${home}); give it a temporary one.`);
+}
+
 /** Where planning folders live in the home: `<home>/planning/<name>`. */
 export function homePlanningDirectory(home: string) {
   return path.join(home, 'planning');
@@ -173,6 +184,7 @@ export async function migrateLegacyData(home: string, legacy: string): Promise<L
  */
 export async function prepareHome(options: { override?: string; environment?: NodeJS.ProcessEnv; home?: string } = {}) {
   const home = atlasHome(options.override, options.environment ?? process.env, options.home);
+  guardTestHome(home);
   await mkdir(home, { recursive: true, mode: 0o700 }).catch(() => undefined);
   await mkdir(homePlanningDirectory(home), { recursive: true }).catch(() => undefined);
   return { home };

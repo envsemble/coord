@@ -9,7 +9,7 @@ import { chmodSync, closeSync, existsSync, mkdirSync, openSync, realpathSync } f
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { atlasHome } from './storage.ts';
+import { atlasHome, guardTestHome } from './storage.ts';
 
 export const databaseName = 'atlas.db';
 
@@ -108,6 +108,7 @@ export class HomeDatabase {
   readonly db: DatabaseSync;
 
   private constructor(home: string) {
+    guardTestHome(home);
     this.home = home;
     this.file = path.join(home, databaseName);
     ownerOnly(home, this.file);

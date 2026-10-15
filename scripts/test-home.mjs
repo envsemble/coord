@@ -2,8 +2,11 @@
 // run chose one, ATLAS_HOME is a new temporary folder, which test files and the commands they start
 // inherit, and which is removed when the run ends.
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+
+// Whatever a test does, the user's own home stays out of reach: opening it throws (see guardTestHome).
+process.env.ATLAS_TEST_FORBIDDEN_HOME ??= path.join(homedir(), ".atlas");
 
 if (!process.env.ATLAS_HOME) {
   const home = mkdtempSync(path.join(tmpdir(), "atlas-test-home-"));
