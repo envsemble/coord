@@ -343,7 +343,7 @@ export class Host {
       if (!c.res.headers.get('Content-Security-Policy')) c.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
     });
     app.get(routes.host, c => c.json(this.descriptor));
-    app.get('/pair', c => c.html('<!doctype html><meta charset="utf-8"><title>Atlas</title><p>This is an Atlas pairing link. It works in Atlas, not in a browser: in Atlas on the other computer, choose <b>File › Connect to Another Atlas…</b> and paste this link.</p>'));
+    app.get('/pair', c => c.html('<!doctype html><meta charset="utf-8"><title>Atlas</title><p>This is an Atlas pairing link. It works in Atlas, not in a browser: in Atlas on the other computer, choose <b>Connect to Another Atlas…</b> in the menu (☰) and paste this link.</p>'));
     app.post(routes.pair, bodyLimit({ maxSize: 4096, onError: c => c.json({ code: 'invalid-argument', message: 'The request is too large.' }, 413) }), async c => {
       // Devices pair over the remote access address, never through the app's own loopback port.
       if (listener.local) return c.json({ code: 'not-found', message: 'Not found.' }, 404);

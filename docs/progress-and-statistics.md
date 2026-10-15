@@ -33,7 +33,7 @@ Each step is `todo`, `doing` or `done`; a planning step has `phase: planning`, a
 
 In the app:
 
-- the **work list** shows, for each work item, the step being worked on and a small progress bar with done and total steps;
+- the **hub** shows, for each plan, a small progress bar with done and total steps, the planning steps in their own colour;
 - a work item's **About** sidebar shows the bar, the steps done and left, each step with its status, and any blocker;
 - [plan exports](plan-export.md) show the same.
 
@@ -75,7 +75,7 @@ From the reports and the planning folder's Git history, Atlas works out, per wor
 | **Plan revisions** | Commits that changed the main plan after it was added, up to its completion date. Renames are followed, so moving the plan to the archive is not a revision.                                                                                                                                                                                                                                                                             |
 | **Steps**          | Done and total steps from the ledger.                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-A project's page shows them in its **Statistics** section, chosen with a segmented control like the work list's filter. **Work** lists every work item with these figures, its agent time and tokens in a column per stage, with totals and the median plan revisions of completed work. **Models over time** compares completed work by implementing model: a chart plots agent time, tokens, plan revisions or steps for each completed work item at its completion date, and a table gives each model's medians, so you can see how a new model compares with the ones before it. A work item's About sidebar sums up its own statistics: the model with its provider's mark, the agent time and tokens of each stage (on hover or focus, how much was measured and since when, and the tokens by kind), the subagents and the plan revisions.
+The **Statistics** page (in the menu) shows them, one project at a time. **Work** lists every work item with these figures, its agent time and tokens in a column per stage, with totals and the median plan revisions of completed work. **Models over time** compares completed work by implementing model: a chart plots agent time, tokens, plan revisions or steps for each completed work item at its completion date, and a table gives each model's medians, so you can see how a new model compares with the ones before it. A work item's About sidebar sums up its own statistics: the model with its provider's mark, the agent time and tokens of each stage (on hover or focus, how much was measured and since when, and the tokens by kind), the subagents and the plan revisions.
 
 ### What the numbers mean
 
