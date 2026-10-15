@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createCoalescer, ignoredPath, nodeWatchSystem, relevantChange, watchFolder, type WatchSystem } from './watcher.ts';
+import { createCoalescer, ignoredInHome, ignoredPath, nodeWatchSystem, projectListChange, relevantChange, watchFolder, type WatchSystem } from './watcher.ts';
 
 /** An in-memory folder tree with fake per-folder watchers, as Linux's watcher sees it. */
 function linuxSystem(root: string, initial: string[], options: { failOnWatch?: number } = {}) {
@@ -157,4 +157,16 @@ test('the folder watcher sees atomic saves and its own folder disappearing', asy
     watcher.close();
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('in the home, only what the project list shows counts: registries, plans, ledgers and folders', () => {
+  for (const [relative, change] of [
+    ['shop/planning.json', true], ['shop/active/0001-cart/plan.md', true], ['shop/archive/0002-old/ledger.md', true], [null, true],
+    ['shop', 'folders'], ['shop/active', 'folders'], ['shop/archive/0002-old', 'folders'],
+    ['shop/active/0001-cart/CONTEXT.md', 'maybe'], ['shop/legacy/plan-notes.md', 'maybe'],
+    ['shop/active/0001-cart/diagrams/orders.puml', false], ['shop/active/0001-cart/evidence/plan.md', false], ['shop/.git/HEAD', false], ['shop/.git/index', false],
+    ['shop/notes.txt', false], ['shop/knowledge/planning.json', false], ['shop\\active\\0001-cart\\ledger.md', true],
+  ] as const) assert.equal(projectListChange(relative), change, String(relative));
+  for (const folder of ['shop/.git', 'shop/.git/objects', 'shop/active/0001/diagrams', 'shop/active/0001/evidence', 'shop/node_modules', 'shop/.atlas-import-1']) assert.ok(ignoredInHome(folder), folder);
+  for (const folder of ['shop', 'shop/active', 'shop/active/0001', 'shop/knowledge']) assert.ok(!ignoredInHome(folder), folder);
 });
