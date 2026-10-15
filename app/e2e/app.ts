@@ -3,6 +3,8 @@
 // unpacked copy with the inspector fuse on (release/e2e), which Playwright needs to drive the app.
 // The suite drives release/e2e; release.spec.ts starts the release build itself. Set
 // ATLAS_E2E_EXECUTABLE to drive another build, or ATLAS_E2E_UNPACKAGED=1 to run out/ with Electron.
+// The app's windows open off screen and never take focus, so a run stays out of the way of whoever
+// works at the computer; ATLAS_E2E_VISIBLE=1 shows them where the app puts them, to watch a run.
 import { execFileSync, spawnSync, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -103,19 +105,40 @@ function electronBinary(): string {
   return createRequire(import.meta.url)('electron') as unknown as string;
 }
 
+const visible = process.env.ATLAS_E2E_VISIBLE === '1';
+/** Chromium keeps painting a window off screen as it does one on screen, instead of treating it as hidden. */
+const offScreenSwitches = visible ? [] : ['--disable-features=CalculateNativeWinOcclusion', '--disable-backgrounding-occluded-windows'];
+
+/**
+ * Keep the app's windows out of the way: each shows without taking focus, off screen, and never
+ * maximizes or comes forward. Done before the first window shows (it shows once its page has loaded).
+ */
+async function keepOffScreen(app: ElectronApplication) {
+  await app.evaluate(({ BrowserWindow }) => {
+    const away = (window: InstanceType<typeof BrowserWindow>) => { if (!window.isDestroyed()) window.setPosition(-32000, -32000); };
+    const prototype = BrowserWindow.prototype;
+    prototype.show = function (this: InstanceType<typeof BrowserWindow>) { away(this); this.showInactive(); };
+    prototype.focus = function () {};
+    prototype.maximize = function () {};
+    prototype.moveTop = function () {};
+    for (const window of BrowserWindow.getAllWindows()) away(window);
+  });
+}
+
 export interface Launched { app: ElectronApplication; window: Page; dataDirectory: string; ownsData: boolean; process: ChildProcess }
 
 export async function launch(options: { dataDirectory?: string; args?: string[]; executable?: string; ownsData?: boolean } = {}): Promise<Launched> {
   const ownsData = options.ownsData ?? !options.dataDirectory;
   const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
   const env = environment(dataDirectory);
-  const extra = options.args ?? [];
+  const extra = [...offScreenSwitches, ...options.args ?? []];
   // Playwright adds --no-sandbox on Linux unless told to keep the sandbox; Atlas refuses to run without it.
   const common = { args: extra, env, chromiumSandbox: true };
   const app = options.executable ? await electron.launch({ ...common, executablePath: options.executable })
     : process.env.ATLAS_E2E_UNPACKAGED === '1'
     ? await electron.launch({ ...common, args: [appDirectory, ...extra], cwd: appDirectory })
     : await electron.launch({ ...common, executablePath: packagedExecutable() });
+  if (!visible) await keepOffScreen(app);
   // When the app never opens a window, say why: its output and its own log.
   let output = '';
   app.process().stdout?.on('data', chunk => { output += chunk; });
