@@ -345,6 +345,11 @@ test('node names stay centred in their boxes below 100% zoom', async () => {
   // The measurement looks for light text on a dark box.
   await window.emulateMedia({ colorScheme: 'dark' });
   await openDiagrams(window, 'Checkout · proposed payment methods');
+  // Attributes show by default; the measurement reads a header-only box, so they are hidden here.
+  const fields = window.locator('.diagrams').getByRole('button', { name: 'Fields', exact: true });
+  await expect(fields).toHaveAttribute('aria-pressed', 'true');
+  await fields.click();
+  await expect(fields).toHaveAttribute('aria-pressed', 'false');
   const zoom =window.getByRole('button', { name: /^Zoom \d+%/ });
   for (const step of ['fit', 'out'] as const) {
     // The canvas's own zoom-out key (the toolbar may fold its zoom buttons away in a narrow window).
