@@ -75,14 +75,18 @@ function ProjectDetails({ project }: { project: Project }) {
  * (Hide, or Show and Restore, in that corner while the pointer or focus is on the card), its name, then
  * its active work with how much is blocked, being implemented or a draft plan, and a live dot while an
  * agent works on it. The name is the button that opens the project's page and covers the card; resting
- * on the card shows its details. Its context menu is the list's.
+ * on the card shows its details, until the card is pressed: the details then stay closed until the
+ * pointer leaves it, so they never cover the page it just opened. Its context menu is the list's.
  */
 function ProjectCard({ project, selected, actions }: { project: Project; selected: boolean; actions: ProjectActions }) {
   const summary = project.summary ?? null;
   const note = projectNote(project);
   const corner = cornerAction(project);
   const live = summary?.live ?? [];
-  const card = <Card className="project-card" data-project={project.folderId} data-state={project.state} data-selected={selected || undefined}>
+  const [details, setDetails] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const card = <Card className="project-card" data-project={project.folderId} data-state={project.state} data-selected={selected || undefined}
+    onPointerDown={() => { setPressed(true); setDetails(false); }} onPointerLeave={() => setPressed(false)}>
     <span className="project-card-line project-card-context">
       <span className="project-card-repositories">{summary?.repositories.length ? repositoryLine(summary.repositories) : project.path.split(/[\\/]/).at(-1)}</span>
       {summary?.updated && <span className="project-card-age">{shortAge(summary.updated)}</span>}
@@ -96,7 +100,9 @@ function ProjectCard({ project, selected, actions }: { project: Project; selecte
       {live.length > 0 && <span className="project-card-live" role="img" aria-label={'Agent working on ' + live.map(item => workNumber(item.workId)).join(', ')}><span className="project-live-dot" /></span>}
     </span>
   </Card>;
-  return <HoverCard trigger={card} side="right" align="start" width="wide"><ProjectDetails project={project} /></HoverCard>;
+  return <HoverCard trigger={card} side="right" align="start" width="wide" open={details && !pressed} onOpenChange={open => setDetails(open && !pressed)}>
+    <ProjectDetails project={project} />
+  </HoverCard>;
 }
 
 /** The project a context menu was opened on, by the element it was opened on. */
