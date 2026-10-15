@@ -4,7 +4,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writ
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { withDatabase } from '@envsemble/atlas-planning';
-import { atlas, command, homeWithPlanning, planText, reportsIn, temporary, usageIn, write } from './testing.ts';
+import { atlas, command, environment, homeWithPlanning, planText, reportsIn, temporary, usageIn, write } from './testing.ts';
 
 const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
 interface LinkRow { workId: string; amending: boolean; planningFolder: string; linked: string }
@@ -40,7 +40,7 @@ test('hooks give the session its planning context, check and link planning edits
   /** Whether the database has the session's agent in a turn (the app's live dot). */
   const working = () => withDatabase(base.ATLAS_HOME!, database => Number((database.db.prepare('SELECT working FROM session WHERE id = ?').get(session) as { working: number }).working));
 
-  // SessionStart: the project, its planning folder and active work, and how to plan; nothing outside a registered checkout.
+  // SessionStart: the project, its planning folder and active work, and how to plan; outside a registered checkout, the home's projects.
   const started = hook('SessionStart', { source: 'startup' });
   assert.equal(started.hookSpecificOutput.hookEventName, 'SessionStart');
   const context: string = started.hookSpecificOutput.additionalContext;
@@ -48,7 +48,13 @@ test('hooks give the session its planning context, check and link planning edits
   assert.ok(!context.includes('Several projects'), context);
   assert.ok(context.includes('- work-0001 "Cart" (draft, not_started): no ledger yet. Plan: ' + path.join(root, 'active', '0001-cart', 'plan.md')), context);
   assert.match(context, /ask before opening a work item/);
-  assert.equal(atlas(['hook', 'SessionStart'], { env, input: JSON.stringify({ session_id: session, cwd: temporary(t) }) }).stdout, '');
+  const elsewhere = temporary(t);
+  const outside: string = JSON.parse(atlas(['hook', 'SessionStart'], { env, input: JSON.stringify({ session_id: session, cwd: elsewhere }) }).stdout).hookSpecificOutput.additionalContext;
+  assert.equal(outside, [
+    `Atlas: no project registers this folder (${realpathSync.native(elsewhere)}). Active projects in the Atlas home:`,
+    `- "shop-planning": ${realpathSync.native(root)} (1 active work item)`,
+    "When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's repositories and active work.",
+  ].join('\n'));
 
   // PostToolUse: a valid edit of a draft plan links the session, without amending.
   const plan = path.join(root, 'active', '0001-cart', 'plan.md');
@@ -164,6 +170,15 @@ test('a session in a checkout that several projects register is told to ask whic
   const where = JSON.parse(atlas(['where', '--cwd', checkout], { env }).stdout);
   assert.deepEqual(where.matches.map((match: { project: string }) => match.project), ['Coord', 'shop-planning']);
   assert.ok(root);
+});
+
+test('a session in an empty Atlas home is told there are no projects and how to make one', t => {
+  const directory = temporary(t);
+  const home = path.join(directory, 'home');
+  const started = atlas(['hook', 'SessionStart'], { env: { ...environment, ATLAS_HOME: home }, input: JSON.stringify({ session_id: session, cwd: directory }) });
+  assert.equal(started.status, 0);
+  const context: string = JSON.parse(started.stdout).hookSpecificOutput.additionalContext;
+  assert.equal(context, `Atlas: no project registers this folder (${realpathSync.native(directory)}), and the Atlas home (${home}) has no projects yet; when the user wants to plan, make one with the app (File › New Project…), the atlas skill, or atlas home adopt <folder>.`);
 });
 
 test('a hook never breaks the session: bad input prints nothing, exits 0 and is logged', t => {

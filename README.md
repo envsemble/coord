@@ -48,8 +48,8 @@ Plans, diagrams and statistics stay on your computer unless you turn on remote a
 
 The [plugin](docs/agent-interface.md) gives an agent everything Atlas needs from it:
 
-- **At session start**, the project for its checkout, its planning folder and the active work there.
-- **MCP tools** for planning state: find the project, create, accept, start, block, close, archive and reopen work, and keep the ledger's steps. Plan bodies, glossaries, decisions and diagrams are files the agent edits directly.
+- **At session start**, the project for its checkout, its planning folder and the active work there; outside any project, the projects in the home, to ask which one the work belongs to.
+- **MCP tools** for planning state: find the project (or list them all), create, accept, start, block, close, archive and reopen work, and keep the ledger's steps. Plan bodies, glossaries, decisions and diagrams are files the agent edits directly.
 - **Checks** of every planning file it edits, with the problems handed back to fix.
 - **Statistics** measured from its session whenever it stops: time, tokens, models and subagents, as planning or implementation.
 
