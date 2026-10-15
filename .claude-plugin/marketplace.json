@@ -1,0 +1,12 @@
+{
+  "name": "atlas",
+  "owner": { "name": "envsemble" },
+  "metadata": { "description": "The Atlas plugin for Claude Code and Codex" },
+  "plugins": [
+    {
+      "name": "atlas",
+      "source": "./plugin",
+      "description": "Atlas planning for agents: planning-state tools, session context, checks of planning edits and work statistics."
+    }
+  ]
+}

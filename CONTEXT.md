@@ -1,45 +1,53 @@
-# Atlas models
+# Atlas diagrams
 
-Atlas connects an agent's evidence-backed domain models to a read-only viewer and learning experience. This glossary covers the diagram package (`packages/diagrams`); the planning vocabulary lives in the planning contract the [atlas-bootstrap skill](skills/atlas-bootstrap/assets/planning/PLANS.md) installs.
+Atlas draws the diagrams that explain a plan. This glossary covers the diagram package (`packages/diagrams`) and [diagrams](docs/diagrams.md); the planning vocabulary lives in the planning contract the `atlas` skill installs.
 
 ## Language
 
-**Modeling job**:
-A user's modeling question together with the source projects to inspect and the resulting model artifacts.
-_Avoid_: Diagram task, AI session
+**Diagram**:
+A file in a work item, written in Atlas's subset of PlantUML: a class, entity or object diagram that Atlas renders with its own viewer.
+_Avoid_: Model document, diagram script
 
-**Source project**:
-A codebase or other source collection inspected as evidence for a domain model; several source projects may inform one model.
-_Avoid_: OntoUML project, diagram
+**Subset**:
+The PlantUML that Atlas accepts: class, entity and object diagrams without layout, styling, notes or the preprocessor. Anything outside it is an error at its line.
+_Avoid_: Dialect, PlantUML profile
 
-**OntoUML project**:
-The standard exchange object containing a domain model's identified elements and packages.
-_Avoid_: Source project, custom diagram format
+**Capture**:
+A diagram Atlas generates from code (through the compiler) or from a database's catalog at a stated date, with its source, coverage and fingerprint in its header. Frozen once written.
+_Avoid_: Snapshot, import
 
-**Model evidence**:
-Source observations, interpretation rationale, and unresolved questions attached to model identities.
-_Avoid_: Proof, recovered ontology
+**Proposal**:
+A diagram that starts as a copy of a capture (or another diagram) and is edited to show an intended change. Several proposals of one diagram are alternatives.
+_Avoid_: Revision, draft model
 
-**View**:
-A chosen subset of model identities presented together without changing their meanings.
-_Avoid_: Separate ontology, model copy
+**Scenario**:
+An object diagram of example instances, assessed against the class diagram it names, with the outcome it is expected to have.
+_Avoid_: Test case, walkthrough
+
+**Family**:
+A diagram and everything compared with it, directly or through another member: its proposals and later captures. The viewer lays a family out once, so its members keep their classes in the same places.
+_Avoid_: Version set
+
+**Identity**:
+What a comparison matches by: an element's PlantUML name, a member's `Element.name`, a relation's kind, ends and label. A renamed element is a removal and an addition.
+_Avoid_: ID, handle
+
+**Evidence**:
+Where an element, member or relation is declared, and a short excerpt of its source, written as `' atlas evidence` and `' atlas snippet` lines above it.
+_Avoid_: Proof, source record
+
+**Description**:
+One short sentence of what an element or member is for, written as an `' atlas description` line above it. The viewer shows it in the details and as the element's tooltip; the rationale stays in the plan.
+_Avoid_: Note, comment
+
+**Coverage**:
+Whether a capture read everything in its scope (`complete`) or left something out (`partial`), with the diagnostics that say what.
+_Avoid_: Accuracy, validation
 
 **Diagram scene**:
-The positions, orthogonal routes, and labels used to display a view.
-_Avoid_: Semantic model, diagram script
+The positions, orthogonal routes and labels Atlas lays out to display a diagram.
+_Avoid_: Semantic model, layout hints
 
-**Generalization set**:
-A named group of inheritances with a shared supertype and explicit completeness and disjointness constraints. A complete, disjoint set is a partition; other combinations are generalization sets too.
-_Avoid_: Partition for every set, joint constraint
-
-**Joined inheritance**:
-Several inheritances drawn with a shared branch and one arrow to their supertype. Joining lines alone says nothing about whether subtype membership is complete or disjoint.
-_Avoid_: Automatic partition, merged identities
-
-**Validation finding**:
-A reported violation of an implemented structural or ontology rule, with its affected identity and explanation.
-_Avoid_: Domain fact, proof of correctness
-
-**Learning guidance**:
-A model-specific explanation or question that helps a reader assess an interpretation and its evidence.
-_Avoid_: Automatic answer, model repair
+**Change view**:
+A proposal, or a capture compared with an earlier one, drawn with what it removes kept in place and every change marked.
+_Avoid_: Diff, baseline view

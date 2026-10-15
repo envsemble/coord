@@ -1,15 +1,19 @@
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { close, launch, planningFixture, removeDirectory, type Launched } from './app';
+import { close, launchProject, type Launched } from './app';
 
 let launched: Launched | undefined;
-let folder: string;
+/** The project's folder ID, as the bridge names it. */
+let project: string;
 test.beforeEach(async () => {
-  folder = planningFixture();
-  launched = await launch({ folder });
-  await expect(launched.window.locator('.work-row')).toHaveCount(3);
+  launched = await launchProject();
+  project = await launched.window.evaluate(async () => {
+    const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { folderId: string }[] }> } }).atlas.projects();
+    return result.value[0].folderId;
+  });
+  // Opening the project was a person's press; the commands below come without one.
+  await launched.window.waitForTimeout(2100);
 });
-test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(path.dirname(folder)); });
+test.afterEach(async () => { await close(launched); launched = undefined; });
 
 test('the window is isolated and sandboxed, with a strict content security policy', async () => {
   const { window: atlasWindow, app } = launched!;
@@ -37,7 +41,7 @@ test('the window is isolated and sandboxed, with a strict content security polic
   expect(inline).toBeNull();
 });
 
-test('messages are checked: wrong arguments and paths outside the folder are refused with structured errors', async () => {
+test('messages are checked: wrong arguments, unknown projects and paths outside a project are refused with structured errors', async () => {
   const { window: atlasWindow, app } = launched!;
   // Commands a page could misuse ask first without a person's press; the person declines here.
   await app.evaluate(({ dialog }) => {
@@ -45,14 +49,17 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
     (globalThis as unknown as { asked: string[] }).asked = asked;
     dialog.showMessageBox = (async (_window: unknown, options: { message: string }) => { asked.push(options.message); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
-  const results = await atlasWindow.evaluate(async () => {
+  const results = await atlasWindow.evaluate(async folderId => {
     const bridge = (window as unknown as { atlas: unknown }).atlas as Record<string, (...args: unknown[]) => Promise<unknown>>;
     return {
-      traversal: await bridge.document('../outside.md'),
-      absolute: await bridge.document('C:/Windows/win.ini'),
-      hidden: await bridge.document('active/0001-saved-payment-methods/.atlas/models/m-024410515ef6611f71e02bdc.json'),
-      wrongType: await bridge.models(42),
-      badHandle: await bridge.model('work-0001', '../../planning.json'),
+      traversal: await bridge.document(folderId, '../outside.md'),
+      absolute: await bridge.document(folderId, 'C:/Windows/win.ini'),
+      hidden: await bridge.document(folderId, 'active/0001-saved-payment-methods/.atlas/plan.md'),
+      wrongType: await bridge.diagrams(folderId, 42),
+      noProject: await bridge.snapshot('not a folder id'),
+      otherProject: await bridge.snapshot('f-' + '0'.repeat(32)),
+      badDiagram: await bridge.diagram(folderId, 'work-0001', '../../planning.json'),
+      notDiagram: await bridge.diagram(folderId, 'work-0001', 'plan.md'),
       command: await bridge.command('openFolder'),
       // Pasting (which reads the clipboard) needs a person's click or key press; quitting, closing
       // the last window and opening windows or the logs ask first.
@@ -67,11 +74,12 @@ test('messages are checked: wrong arguments and paths outside the folder are ref
       pair: await bridge.pairRemote('http://127.0.0.1:9/#token=abc', null),
       web: await bridge.openExternal('https://example.com/'),
       external: await bridge.openExternal('file:///C:/Windows/System32/calc.exe'),
-      ok: await bridge.document('README.md').then(value => (value as { ok: boolean }).ok),
+      ok: await bridge.document(folderId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };
-  });
-  for (const key of ['traversal', 'absolute', 'wrongType', 'badHandle', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
+  }, project);
+  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
+  expect(results.otherProject).toMatchObject({ ok: false });
   expect(results.paste).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   for (const key of ['quit', 'closeWindow', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([
@@ -93,7 +101,7 @@ test('each press allows one command a page could misuse, and not its release or 
     dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { log.push('asked ' + (options.detail ?? '')); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
   const open = (name: string) => atlasWindow.evaluate(async url => { await (window as unknown as { atlas: { openExternal(url: string): Promise<unknown> } }).atlas.openExternal(url); }, `https://example.com/${name}`);
-  const title = (await atlasWindow.locator('.explorer-title').boundingBox())!;
+  const title = (await atlasWindow.locator('.project-page h1').boundingBox())!;
   await atlasWindow.mouse.move(title.x + 4, title.y + title.height / 2);
   await atlasWindow.mouse.down();
   await open('press');
@@ -117,31 +125,32 @@ test('each press allows one command a page could misuse, and not its release or 
   expect(await app.evaluate(() => (globalThis as unknown as { pressLog: string[] }).pressLog)).toEqual([
     'opened https://example.com/press', 'asked https://example.com/release',
     'opened https://example.com/key', 'asked https://example.com/repeat', 'asked https://example.com/key-release',
-    'asked A device that uses it can work on the planning folders.',
+    'asked A device that uses it can work on the projects.',
   ]);
 });
 
-test('the file protocol serves only this window’s folder, and the window cannot navigate away or open windows', async () => {
+test('the file protocol serves only the projects this window follows, and the window cannot navigate away or open windows', async () => {
   const { window: atlasWindow, app } = launched!;
   // Requests through the window's own session, as its pages make them.
-  const status = await app.evaluate(async ({ BrowserWindow }) => {
+  const status = await app.evaluate(async ({ BrowserWindow }, folderId) => {
     const session = BrowserWindow.getAllWindows()[0].webContents.session;
     const get = (url: string) => session.fetch(url).then(response => response.status, () => 'blocked');
     return {
-      readme: await get('atlas://planning/README.md'),
-      escape: await get('atlas://planning/..%2F..%2Fsecret.txt'),
-      hidden: await get('atlas://planning/active/0001-saved-payment-methods/.atlas/models/m-024410515ef6611f71e02bdc.json'),
+      readme: await get(`atlas://planning/${folderId}/README.md`),
+      escape: await get(`atlas://planning/${folderId}/..%2F..%2Fsecret.txt`),
+      hidden: await get(`atlas://planning/${folderId}/active/0001-saved-payment-methods/.atlas/plan.md`),
+      unfollowed: await get('atlas://planning/f-' + '0'.repeat(32) + '/README.md'),
       app: await get('atlas://app/index.html'),
       appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
       other: await get('atlas://elsewhere/README.md'),
     };
-  });
-  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, app: 200, appEscape: 404, other: 404 });
+  }, project);
+  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404 });
   // The page itself cannot reach the network or read planning files with fetch.
-  const page = await atlasWindow.evaluate(async () => ({
+  const page = await atlasWindow.evaluate(async folderId => ({
     remote: await fetch('https://example.com/').then(() => 'loaded', () => 'blocked'),
-    planning: await fetch('atlas://planning/README.md').then(() => 'loaded', () => 'blocked'),
-  }));
+    planning: await fetch(`atlas://planning/${folderId}/README.md`).then(() => 'loaded', () => 'blocked'),
+  }), project);
   expect(page).toEqual({ remote: 'blocked', planning: 'blocked' });
   // Web links go to the system browser; record them instead of starting one. A page that sends the
   // window there on its own (no click) is asked about first; the person allows one and declines one.

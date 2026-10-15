@@ -3,16 +3,18 @@
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
 import type { DocumentContent, PlanImportResult, PlanningIndex, Usage } from '@envsemble/atlas-planning';
-import type { Provenance } from '@envsemble/atlas-planning/provenance';
+import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '@envsemble/atlas-planning/diagrams';
+
+export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 3;
+export const protocolVersion = 5;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
  * computer; only managing who else may pair is a separate grant.
- * - `computer`: what the Atlas app can do on this computer: browse its folders, open any planning
- *   folder, read it, import and export plans, and count document use. Every paired device has it.
+ * - `computer`: what the Atlas app can do on this computer: list, create and change its projects,
+ *   read them, import and export plans, and count document use. Every paired device has it.
  * - `access:manage`: create pairing links, list and revoke paired devices. A device has it when its
  *   pairing link granted it.
  * - `owner`: everything, including the remote-access settings. Only the desktop app on the same
@@ -28,43 +30,33 @@ export interface HostDescriptor { protocol: number; hostId: string; name: string
 
 export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
 export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number }
+export type ProjectState = 'active' | 'hidden' | 'archived';
 /**
- * One planning folder in the computer's folder list: every folder opened on this computer, from any
- * device or the command line, newest first. Every device sees the same list.
+ * A project of this computer: a planning folder in its Atlas home, with its name (from its
+ * planning.json, else the folder's), its place in the computer's order and its state. `folderId`
+ * identifies it in every request about its folder. A project from before the home (`outsideHome`)
+ * is listed until it is moved into the home; agents do not find it until then.
  */
-export interface ComputerFolder {
-  folderId: string; path: string; name: string;
-  /** When anyone last opened it; null for one carried over from before the list existed. */
-  openedAt: string | null;
-  /** False when the folder is gone (moved or deleted); it stays listed, marked missing, until removed. */
-  available: boolean;
-  workItems: number | null;
+export interface Project {
+  folderId: string; name: string; path: string; position: number; state: ProjectState; outsideHome: boolean;
+  /** What the project's card says about it (the project list has it; null when its folder could not be read). */
+  summary?: ProjectSummary | null;
 }
-/** A folder on the computer, as the folder browser shows it. */
-export interface BrowseEntry { name: string; path: string; planning: boolean }
-/** A folder's subfolders, or, for a null path, where browsing starts (the home folder and the drives). */
-export interface BrowseResult { path: string | null; parent: string | null; planning: boolean; folders: BrowseEntry[]; truncated: boolean }
+/** An active work item on a project's card: its title, where it stands, and its blocker. */
+export interface ProjectWork { id: string; title: string; state: 'blocked' | 'implementing' | 'draft' | 'other'; blocked: string | null }
+/**
+ * A project's repositories, its active work, its last change, and the work agents are working on now
+ * (`since`: when the session was last seen).
+ */
+export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; updated: string | null; live: { workId: string; since: string }[] }
+/** A repository a new project covers: its ID in planning.json, its name and its Git remote. */
+export interface ProjectRepository { id: string; name: string; remote: string | null }
 
 export interface Snapshot extends PlanningIndex {
   usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
 }
-export interface ModelExplains { path: string | null; reference: string; section: string | null; title: string | null }
-export interface CatalogEntry {
-  handle: string; title: string; revision: string; profile: string; state: string; capturedAt: string | null; coverage: string | null; imported: boolean;
-  provenance: Provenance; explains: ModelExplains[];
-  /**
-   * Models laid out together share it: a capture and the proposals over its snapshot. `folder.model`
-   * answers for one of them with the others' payloads too (as `siblings`), and names with their
-   * revisions those it serves alone, as they cannot be laid out with the others (as `apart`).
-   * Absent from older hosts.
-   */
-  family?: string | null;
-}
-export interface Catalog { models: CatalogEntry[]; issues: string[]; invalidHandles: string[] }
-export interface ModelReference { handle: string; workId: string; title: string; elementId: string | null; elementName: string | null; label: string; section: string | null; provenance: Provenance }
-export interface DiagramIndexEntry { workId: string; handle: string; title: string; provenance: Provenance }
 export interface ViewEventInput { id: string; path: string; session: string; contentHash: string | null }
 
 export interface PreparedExport { token: string; bytes: number; warnings: string[]; fileName: string }
@@ -99,19 +91,26 @@ export interface SessionInfo { hostId: string; name: string; version: string; sc
 /** Every request: its parameters, its result, and the scope it needs. */
 export interface Methods {
   'host.session': { params: Record<string, never>; result: SessionInfo };
-  'folders.list': { params: Record<string, never>; result: ComputerFolder[] };
-  /** `remember: false` reopens a folder without moving it on the folder list (a reconnection, a restored window). */
-  'folders.open': { params: { path: string; remember?: boolean }; result: FolderState };
-  'folders.remove': { params: { folderId: string }; result: null };
-  'folders.browse': { params: { path: string | null }; result: BrowseResult };
+  /** The computer's projects (the planning folders in its home), in their order. */
+  'projects.list': { params: Record<string, never>; result: Project[] };
+  /** A new project: a planning folder in the home made from the templates, as its own Git repository. */
+  'projects.create': { params: { name: string; repositories: ProjectRepository[] }; result: Project };
+  /** Rename a project (its planning.json's name), hide, archive or show it, or move it in the order. */
+  'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number }; result: Project };
+  /** Move a project outside the home into it, with its statistics; it keeps its place, state and tabs, under a new folder ID. */
+  'projects.adopt': { params: { folderId: string }; result: Project };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
   'folders.unsubscribe': { params: { folderId: string }; result: null };
   'folder.snapshot': { params: { folderId: string }; result: Snapshot };
   'folder.document': { params: { folderId: string; path: string }; result: DocumentContent };
-  'folder.models': { params: { folderId: string; work: string }; result: Catalog };
-  'folder.model': { params: { folderId: string; work: string; handle: string }; result: unknown };
-  'folder.references': { params: { folderId: string; work: string | null; path: string }; result: ModelReference[] };
-  'folder.diagrams': { params: { folderId: string }; result: DiagramIndexEntry[] };
+  /** A work item's diagrams: its `.puml` files, by their paths in the work folder. */
+  'folder.diagrams': { params: { folderId: string; work: string }; result: DiagramEntry[] };
+  /** A diagram's viewer payload, with the payloads of the rest of its family (`siblings`), laid out together. */
+  'folder.diagram': { params: { folderId: string; work: string; path: string }; result: unknown };
+  /** The diagrams a document links to, under the headings the links sit under. */
+  'folder.references': { params: { folderId: string; work: string | null; path: string }; result: DiagramReference[] };
+  /** Every diagram of the folder, for quick open. */
+  'folder.diagramIndex': { params: { folderId: string }; result: DiagramIndexEntry[] };
   'folder.recordView': { params: { folderId: string; event: ViewEventInput }; result: null };
   'plan.exportPrepare': { params: { folderId: string; work: string }; result: PreparedExport };
   'plan.exportDrop': { params: { token: string }; result: null };
@@ -129,18 +128,18 @@ export type MethodName = keyof Methods;
 
 export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'host.session': 'computer',
-  'folders.list': 'computer',
-  'folders.open': 'computer',
-  'folders.remove': 'computer',
-  'folders.browse': 'computer',
+  'projects.list': 'computer',
+  'projects.create': 'computer',
+  'projects.update': 'computer',
+  'projects.adopt': 'computer',
   'folders.subscribe': 'computer',
   'folders.unsubscribe': 'computer',
   'folder.snapshot': 'computer',
   'folder.document': 'computer',
-  'folder.models': 'computer',
-  'folder.model': 'computer',
-  'folder.references': 'computer',
   'folder.diagrams': 'computer',
+  'folder.diagram': 'computer',
+  'folder.references': 'computer',
+  'folder.diagramIndex': 'computer',
   'folder.recordView': 'computer',
   'plan.exportPrepare': 'computer',
   'plan.exportDrop': 'computer',
@@ -159,8 +158,8 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
 /** Events the host pushes to a connection. */
 export interface Events {
   'folder.changed': FolderState;
-  /** The computer's folder list changed (a folder was opened or removed). */
-  'folders.changed': { folders: ComputerFolder[] };
+  /** The computer's projects changed (one was added, renamed, hidden, archived or moved). */
+  'projects.changed': { projects: Project[] };
   /** Remote access changed: sent to connections that may manage access. */
   'access.changed': AccessState;
 }

@@ -72,7 +72,7 @@ export const DiagramCanvas = memo(
       <main
         ref={canvasRef}
         id="canvas"
-        aria-label="Interactive OntoUML diagram"
+        aria-label="Interactive diagram"
         onPointerLeave={() => onHover(null)}
       >
         <div className="canvas-grid" aria-hidden="true" />

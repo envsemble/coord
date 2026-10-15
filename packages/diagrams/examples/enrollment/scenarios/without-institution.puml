@@ -1,0 +1,9 @@
+@startuml
+title An enrollment without its institution
+' atlas scenario ../enrollment.puml expected invalid
+object "ada : Person" as ada
+object "e1 : GraduateEnrollment" as e1 {
+  thesisTitle = "Proof nets"
+}
+e1 -- ada : learner
+@enduml

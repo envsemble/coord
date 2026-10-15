@@ -1,10 +1,10 @@
 // The Atlas host and its client. The desktop app runs the host in a utility process and connects
 // to it as the owner; `atlas serve` runs it without the app; paired devices connect as clients.
 export { Host, acceptableHost, type HostOptions } from './host.ts';
-export { AccessStore, newPairingCode, normalizeCode } from './access.ts';
+export { AccessStore, hostRunning, newPairingCode, normalizeCode } from './access.ts';
 export { hostAddresses, inSharedRange, isPrivate } from './addresses.ts';
 export { HostClient, HostRequestError, describeHost, pairWithHost, parsePairing, type ClientOptions, type ClientStatus } from './client.ts';
-export { FolderRegistry, canonicalFolder, folderIdOf, pathKey } from './folders.ts';
+export { FolderRegistry, folderIdOf, pathKey } from './folders.ts';
 export { HostError, toErrorValue, type Logger } from './errors.ts';
 export { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 export { exportFileName } from './planExportName.ts';

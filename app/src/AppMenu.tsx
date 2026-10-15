@@ -1,39 +1,32 @@
-// The window's title bar: the logo, File, Edit, View and Help, back and forward, and the computer the
+// The window's title bar: the logo, back and forward, File, Edit, View and Help, and the computer the
 // window works on. On macOS the system's menu bar holds the menus instead (main's application menu),
 // and the traffic lights take the start of the title bar.
-import { useRef, type ReactNode } from 'react';
-import { IconButton, Menubar, MenubarMenu, MenuItem, MenuSeparator, TitleBar, Tooltip, type MenubarMenuOpenChangeDetails } from '@envsemble/envui';
+import { useRef } from 'react';
+import { IconButton, Menubar, MenubarMenu, MenuItem, MenuSeparator, Tooltip, type MenubarMenuOpenChangeDetails } from '@envsemble/envui';
 import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
-import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import type { AppCommand } from '../shared/contract';
-import type { ComputerFolder, ViewName, WindowInfo } from './types';
+import type { WindowInfo } from './types';
 import { api, AtlasError } from './api';
-import { viewLabels } from './targets';
-import { ComputerMenu, openFolderOn, RecentFolders, useAppActions } from './Computers';
-import { ThemeMenu, ThemeSubmenu } from './ThemeMenu';
+import { ComputerMenu, useAppActions } from './Computers';
+import { ThemeSubmenu } from './ThemeMenu';
 
-/** What the workbench adds to the menus: back and forward, its tabs, pages, sidebar and plans. */
+/** What the workbench adds to the menus: back and forward, its tabs, the sidebar, the file panel and plans. */
 export interface WorkbenchMenus {
   goBack(): void;
   goForward(): void;
   canGoBack: boolean;
   canGoForward: boolean;
   quickOpen(): void;
-  showPage(view: ViewName): void;
-  showExplorer(): void;
+  toggleFiles(): void;
+  filesVisible: boolean;
   toggleSidebar(): void;
   sidebarVisible: boolean;
   closeTab(): void;
+  closeAllTabs(): void;
   canCloseTab: boolean;
   importPlan(): void;
   exportPlan(): void;
-  /** File › Close Folder, after saving the window's layout. */
-  closeFolder(): void;
-  /** The folder this window shows, in its computer's folder list. */
-  isCurrent(folder: ComputerFolder): boolean;
-  /** Where Open Folder… starts browsing on another computer. */
-  near: string | null;
 }
 
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
@@ -43,9 +36,8 @@ const historyKeys = (platform: string) => platform === 'darwin'
   ? { back: '⌘[', forward: '⌘]', backKeys: 'Meta+[ BrowserBack', forwardKeys: 'Meta+] BrowserForward' }
   : { back: 'Alt+←', forward: 'Alt+→', backKeys: 'Alt+ArrowLeft BrowserBack', forwardKeys: 'Alt+ArrowRight BrowserForward' };
 
-export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; workbench?: WorkbenchMenus; onError(message: string): void }) {
+export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
   const actions = useAppActions();
-  const computer = info.computer;
   const mod = modifierKey(info.platform);
   const history = historyKeys(info.platform);
   // Edit acts on what had focus before the menubar took it: focus moves back there before the command runs.
@@ -65,20 +57,16 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
   return <Menubar aria-label="Application menu" accessKeys className="app-menubar">
     <MenubarMenu label="File" accessKey="F">
       <MenuItem shortcut={mod + '+Shift+N'} onClick={run('newWindow')}>New Window</MenuItem>
-      <MenuSeparator />
-      <MenuItem shortcut={mod + '+O'} onClick={() => openFolderOn(computer, actions, onError, workbench?.near ?? null)}>Open Folder…</MenuItem>
-      <RecentFolders computer={computer} isCurrent={workbench?.isCurrent} onError={onError} />
-      <MenuItem disabled={!info.folder} onClick={workbench?.closeFolder ?? run('closeFolder')}>Close Folder</MenuItem>
+      <MenuItem onClick={actions.newProject}>New Project…</MenuItem>
       <MenuSeparator />
       <MenuItem onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
       <MenuItem onClick={actions.remoteAccess}>Remote Access…</MenuItem>
-      {workbench && <>
-        <MenuSeparator />
-        <MenuItem onClick={workbench.importPlan}>Import Plan…</MenuItem>
-        <MenuItem onClick={workbench.exportPlan}>Export Plan…</MenuItem>
-      </>}
       <MenuSeparator />
-      {workbench && <MenuItem shortcut={mod + '+W'} disabled={!workbench.canCloseTab} onClick={workbench.closeTab}>Close Tab</MenuItem>}
+      <MenuItem onClick={workbench.importPlan}>Import Plan…</MenuItem>
+      <MenuItem onClick={workbench.exportPlan}>Export Plan…</MenuItem>
+      <MenuSeparator />
+      <MenuItem shortcut={mod + '+W'} disabled={!workbench.canCloseTab} onClick={workbench.closeTab}>Close Tab</MenuItem>
+      <MenuItem disabled={!workbench.canCloseTab} onClick={workbench.closeAllTabs}>Close All Tabs</MenuItem>
       <MenuItem shortcut={mod + '+Shift+W'} onClick={run('closeWindow')}>Close Window</MenuItem>
       <MenuSeparator />
       <MenuItem onClick={run('quit')}>Exit</MenuItem>
@@ -94,18 +82,14 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
       <MenuItem shortcut={mod + '+A'} onClick={edit('selectAll')}>Select All</MenuItem>
     </MenubarMenu>
     <MenubarMenu label="View" accessKey="V">
-      {workbench && <>
-        <MenuItem shortcut={history.back} disabled={!workbench.canGoBack} onClick={workbench.goBack}>Back</MenuItem>
-        <MenuItem shortcut={history.forward} disabled={!workbench.canGoForward} onClick={workbench.goForward}>Forward</MenuItem>
-        <MenuSeparator />
-        <MenuItem shortcut={mod + '+P'} onClick={workbench.quickOpen}>Search…</MenuItem>
-        <MenuSeparator />
-        {(['work', 'activity', 'statistics'] as const).map(view => <MenuItem key={view} onClick={() => workbench.showPage(view)}>{viewLabels[view]}</MenuItem>)}
-        <MenuSeparator />
-        <MenuItem shortcut={mod + '+Shift+E'} onClick={workbench.showExplorer}>Explorer</MenuItem>
-        <MenuItem shortcut={mod + '+B'} onClick={workbench.toggleSidebar}>{workbench.sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}</MenuItem>
-        <MenuSeparator />
-      </>}
+      <MenuItem shortcut={history.back} disabled={!workbench.canGoBack} onClick={workbench.goBack}>Back</MenuItem>
+      <MenuItem shortcut={history.forward} disabled={!workbench.canGoForward} onClick={workbench.goForward}>Forward</MenuItem>
+      <MenuSeparator />
+      <MenuItem shortcut={mod + '+P'} onClick={workbench.quickOpen}>Search…</MenuItem>
+      <MenuSeparator />
+      <MenuItem shortcut={mod + '+Shift+E'} onClick={workbench.toggleFiles}>{workbench.filesVisible ? 'Hide Files' : 'Show Files'}</MenuItem>
+      <MenuItem shortcut={mod + '+B'} onClick={workbench.toggleSidebar}>{workbench.sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}</MenuItem>
+      <MenuSeparator />
       <ThemeSubmenu />
       <MenuSeparator />
       <MenuItem shortcut={mod + '++'} onClick={run('zoomIn')}>Zoom In</MenuItem>
@@ -127,11 +111,11 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
   </Menubar>;
 }
 
-/** The start of the title bar after the logo: the menus (except on macOS), back and forward in a folder's window, and the computer. */
-export function TitleBarStart({ info, workbench, onError }: { info: WindowInfo; workbench?: WorkbenchMenus; onError(message: string): void }) {
+/** The start of the title bar after the logo: back and forward, the menus (except on macOS), and the computer. */
+export function TitleBarStart({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
+    <HistoryButtons platform={info.platform} workbench={workbench} />
     {info.platform !== 'darwin' && <AppMenubar info={info} workbench={workbench} onError={onError} />}
-    {workbench && <HistoryButtons platform={info.platform} workbench={workbench} />}
     <ComputerMenu current={info.computer} onError={onError} />
   </div>;
 }
@@ -147,14 +131,4 @@ function HistoryButtons({ platform, workbench }: { platform: string; workbench: 
       <IconButton variant="text" icon={<ArrowForward />} aria-label="Forward" aria-keyshortcuts={keys.forwardKeys} aria-disabled={!workbench.canGoForward || undefined} onClick={() => { if (workbench.canGoForward) workbench.goForward(); }} />
     </Tooltip>
   </div>;
-}
-
-/** The title bar of a window without the workbench: its welcome page, a folder problem, loading. */
-export function WindowTitleBar({ info, onError, end }: { info: WindowInfo | null; onError(message: string): void; end?: ReactNode }) {
-  return <TitleBar className="window-title-bar"
-    start={<>
-      <span className="title-bar-brand"><AtlasMark size={20} label="" /></span>
-      {info && <TitleBarStart info={info} onError={onError} />}
-    </>}
-    end={<>{end}{info && <ThemeMenu />}</>} />;
 }

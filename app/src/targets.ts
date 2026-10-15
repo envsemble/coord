@@ -1,32 +1,46 @@
-// What a tab shows. Tabs are identified by what they show, so opening something that already
-// has a tab focuses that tab (and updates its position, such as a heading or a diagram).
-import type { Document, Target, ViewName, Work, WorkSection } from './types';
+// What a tab shows of its project. Tabs are identified by their project and what they show, so
+// opening something that already has a tab focuses that tab (and updates its position, such as a
+// heading or a diagram's element). A work item's diagrams share one tab, which switches between
+// them in place.
+import type { Document, Target, Work } from './types';
+import { workRelative } from '@envsemble/atlas-planning/paths';
 
-export function tabId(target: Target): string {
+/** A shown thing: what, of which project (by its folder ID). */
+export interface Place { project: string; target: Target }
+
+export function tabId(project: string, target: Target): string {
   switch (target.kind) {
-    case 'view': return 'view:' + target.view;
-    case 'work': return 'work:' + target.work;
-    case 'file': return 'file:' + target.path;
+    case 'project': return project + ':project';
+    case 'work': return project + ':work:' + target.work;
+    case 'diagram': return project + ':diagram:' + target.work;
+    case 'file': return project + ':file:' + target.path;
   }
 }
 
-export const viewTarget = (view: ViewName): Target => ({ kind: 'view', view });
-export const workTarget = (work: string, section: WorkSection | null = null, extra: { diagram?: string | null; element?: string | null; anchor?: string | null } = {}): Target =>
-  ({ kind: 'work', work, section, diagram: extra.diagram ?? null, element: extra.element ?? null, anchor: extra.anchor ?? null });
+export const projectTarget = (): Target => ({ kind: 'project' });
+export const workTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor });
+/** A work item's ledger, shown in its tab in place of the plan. */
+export const ledgerTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor, view: 'ledger' });
+/** A work item's diagram by its path in the work folder (null: its first), at an element. */
+export const diagramTarget = (work: string, path: string | null = null, element: string | null = null): Target => ({ kind: 'diagram', work, path, element });
 export const fileTarget = (path: string, anchor: string | null = null): Target => ({ kind: 'file', path, anchor });
 
-/** Where a link to a document goes: a work item's plan and ledger open in its overview, anything else as a file. */
+export const isDiagramFile = (path: string) => /\.puml$/i.test(path);
+
+/**
+ * Where a link to a document goes: a work item's plan opens as the work item, its ledger in the work
+ * item in place of the plan, its diagram files as its diagrams (an anchor naming an element),
+ * anything else as a file.
+ */
 export function documentTarget(file: Document, work: Work | undefined, anchor: string | null = null): Target {
-  if (work && file.path === work.currentPlan) return workTarget(work.id, 'plan', { anchor });
-  if (work && file.path === work.ledger) return workTarget(work.id, 'ledger', { anchor });
+  if (work && file.path === work.currentPlan) return workTarget(work.id, anchor);
+  if (work && file.path === work.ledger) return ledgerTarget(work.id, anchor);
+  if (work && isDiagramFile(file.path)) return diagramTarget(work.id, workRelative(file.path, work.path), anchor || null);
   return fileTarget(file.path, anchor);
 }
 
-export const viewLabels: Record<ViewName, string> = { work: 'Work', activity: 'Activity', statistics: 'Statistics' };
-
-/** What a tab's scroll position belongs to: its view, its work item and section, or its file. */
-export function scrollKey(target: Target): string {
-  if (target.kind === 'view') return 'view:' + target.view;
-  if (target.kind === 'work') return 'work:' + target.work + ':' + (target.section ?? '');
-  return 'file:' + target.path;
+/** What a tab's scroll position belongs to: its project's page, a work item's plan or ledger, a diagram, or a file. */
+export function scrollKey(place: Place): string {
+  const { target } = place;
+  return place.project + ':' + (target.kind === 'project' ? 'project' : target.kind === 'file' ? 'file:' + target.path : target.kind === 'work' ? 'work:' + target.work + (target.view ? ':' + target.view : '') : 'diagram:' + target.work + ':' + (target.path ?? ''));
 }

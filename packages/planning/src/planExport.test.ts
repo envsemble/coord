@@ -7,11 +7,11 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { hostname, release, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import atlas, { type AtlasDocument, type ViewerPayload } from '@envsemble/atlas-diagrams';
+import atlas, { type ViewerPayload } from '@envsemble/atlas-diagrams';
 import { parse } from 'parse5';
 import { validatePlanning, parseFrontmatter } from './check.ts';
 import { loadPlanning } from './planning.ts';
-import { AtlasCatalog } from './atlas.ts';
+import { DiagramCatalog } from './diagrams.ts';
 import { PlanExportError, exportPlan, importPlan, planExportPathProblem, planExportTesting, planImportTarget, readPlanExport, type PlanExportErrorCode } from './planExport.ts';
 
 const BOM = String.fromCharCode(0xfeff);
@@ -36,8 +36,14 @@ function snapshot(root: string) {
   return new Map(files(root).map(name => [name, readFileSync(path.join(root, name))]));
 }
 const plan = (id: string, title: string, extra = '') => ['---', 'schema_version: 1', 'kind: plan', `id: ${id}`, `title: "${title}"`, 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', `# ${title}`, '', extra].join('\n');
-const graph = (name: string) => ({ type: 'StructuralModel', nodes: [{ id: 'order', name, attributes: [{ id: 'order-id', name: 'id', type: 'integer' }] }, { id: 'line', name: 'OrderLine', attributes: [] }], relations: [{ id: 'lines', name: 'lines', sourceId: 'order', targetId: 'line', sourceMultiplicity: '1', targetMultiplicity: '0..*' }], generalizations: [], generalizationSets: [] });
-const record = (id: string, recordPath: string, section: string) => ({ id, kind: 'plan' as const, title: section, text: 'Passage', path: recordPath, section });
+const ORDERS = '@startuml\ntitle Orders\nclass Order {\n  id : integer\n}\nclass OrderLine\nOrder "1" *-- "0..*" OrderLine : lines\n@enduml\n';
+/** A database capture of the orders table, as Atlas writes one. */
+function captured() {
+  const { diagram } = atlas.parseDiagram('@startuml\ntitle Captured orders\nentity orders {\n  *id : integer <<PK>>\n}\n@enduml\n');
+  diagram!.capture = { capturedAt: '2026-10-01T10:00:00Z', adapter: { id: 'fixture', version: '1' }, source: { kind: 'sqlite', identity: 'shop', scope: ['main'] }, coverage: { status: 'complete', diagnostics: [] }, limitations: [] };
+  return atlas.formatDiagram(diagram!);
+}
+const proposed = () => captured().replace(/^' atlas capture .*\n' atlas fingerprint .*\n/m, "' atlas proposal captured.puml\n").replace('title Captured orders', 'title Proposed orders').replace('  *id : integer <<PK>>\n', '  *id : integer <<PK>>\n  --\n  note : text\n');
 
 /** A self-contained planning folder with binary evidence and diagrams with history. */
 function fixture(root: string) {
@@ -49,7 +55,7 @@ function fixture(root: string) {
     { id: 'work-0001', path: 'active/0001-checkout', repositories: ['shop'], current_plan: 'active/0001-checkout/plan.md' },
     { id: 'work-0002', path: 'archive/0002-legacy', repositories: [], current_plan: null },
   ] }, null, 2).replace(/\[\n\s+"shop"\n\s+\]/g, '["shop"]').replace(/\[\]/g, '[]') + '\n');
-  writeFileSync(path.join(work, 'plan.md'), BOM + plan('work-0001', 'Checkout', '## Data model\n\nSee the [glossary](CONTEXT.md#orders) and ![photo](evidence/photo.png).\n'));
+  writeFileSync(path.join(work, 'plan.md'), BOM + plan('work-0001', 'Checkout', '## Data model\n\nSee the [glossary](CONTEXT.md#orders), the [orders](diagrams/orders.puml#Order) and ![photo](evidence/photo.png).\n'));
   writeFileSync(path.join(work, 'ledger.md'), BOM + '---\r\nschema_version: 1\r\nkind: ledger\r\nwork_id: "work-0001"\r\nupdated: "2026-10-02"\r\ncurrent: "Building it"\r\nnext: []\r\nblocked: null\r\n---\r\n\r\n# Ledger\r\n');
   writeFileSync(path.join(work, 'CONTEXT.md'), '# Glossary\n\n## Orders\n\n**Order**: what a customer buys.\n');
   writeFileSync(path.join(work, 'docs/adr/0001-orders.md'), '# Keep orders\n');
@@ -57,20 +63,11 @@ function fixture(root: string) {
   writeFileSync(path.join(work, 'evidence/bytes.bin'), Buffer.from(Array.from({ length: 512 }, (_, index) => index % 256)));
   writeFileSync(path.join(work, 'evidence/notes.txt'), 'line one\r\nline two\r\n\u00e9\u4e2d\r\n');
   writeFileSync(path.join(root, 'archive/0002-legacy/README.md'), '# Legacy notes\n');
-  const workspace = atlas.createWorkspace(work);
-  // An authored model with two revisions.
-  const first = atlas.createDocument({ id: 'atlas-orders', profile: 'code', title: 'Orders', model: graph('Order') as never, workId: 'work-0001', context: { records: [record('data', 'plan.md', 'Data model')], links: [{ elementId: 'order', recordId: 'data' }] } });
-  workspace.save(first);
-  const second = atlas.reviseDocument(first, { title: 'Orders, revised', reason: 'Name the revision' });
-  workspace.save(second, first.revision.id);
-  // A captured snapshot that must stay a snapshot.
-  const capture = atlas.createSnapshot({ profile: 'database', model: graph('Order') as never, capture: { capturedAt: '2026-10-01T10:00:00Z', adapter: { id: 'fixture', version: '1' }, source: { kind: 'sqlite', identity: 'shop', scope: ['main'] }, coverage: { status: 'complete', diagnostics: [] } } as never });
-  workspace.save(atlas.createDocument({ id: 'atlas-captured', profile: 'database', state: 'snapshot', title: 'Captured orders', model: graph('Order') as never, snapshots: [capture], baselineId: capture.id, workId: 'work-0001' }));
-  // A model whose records reach the work folder through the planning root.
-  workspace.save(atlas.createDocument({ id: 'atlas-rooted', profile: 'code', title: 'Rooted references', model: graph('Order') as never, workId: 'work-0001', context: { records: [record('a', '../../active/0001-checkout/CONTEXT.md#orders', 'Orders'), record('b', 'active/0001-checkout/plan.md', 'Data model'), record('c', '../../knowledge/shared.md', 'Shared')], links: [] } }));
-  // An unassigned captured snapshot whose reference must move without making it a proposal.
-  const unassigned = atlas.createSnapshot({ profile: 'database', model: graph('Order') as never, capture: { capturedAt: '2026-10-01T10:00:00Z', adapter: { id: 'fixture', version: '1' }, source: { kind: 'sqlite', identity: 'shop', scope: ['main'] }, coverage: { status: 'complete', diagnostics: [] } } as never });
-  workspace.save(atlas.createDocument({ id: 'atlas-unassigned', profile: 'database', state: 'snapshot', title: 'Unassigned capture', model: graph('Order') as never, snapshots: [unassigned], baselineId: unassigned.id, context: { records: [record('p', '../../active/0001-checkout/plan.md', 'Data model')], links: [] } }));
+  // Diagrams: an authored class diagram, a database capture and a proposal over it.
+  mkdirSync(path.join(work, 'diagrams'));
+  writeFileSync(path.join(work, 'diagrams/orders.puml'), ORDERS);
+  writeFileSync(path.join(work, 'diagrams/captured.puml'), captured());
+  writeFileSync(path.join(work, 'diagrams/proposed.puml'), proposed());
   return work;
 }
 
@@ -81,34 +78,17 @@ function payloadOf(html: string) {
 
 function assertRoundTrip(sourceWork: string, targetWork: string, from: string, to: string, currentPlan: string | null) {
   const source = snapshot(sourceWork), target = snapshot(targetWork);
-  const sourceModels = new Map<string, AtlasDocument>();
   for (const [name, bytes] of source) {
-    if (/^\.atlas\/(?:results|prepared|exports)\//.test(name)) continue;
+    if (/^\.atlas\/(?:results|prepared|exports)\//.test(name) || name === '.atlas/statistics.jsonl') continue;
     assert.ok(target.has(name), `${name} was imported`);
     const imported = target.get(name)!;
     if (name === currentPlan || name === 'ledger.md') {
       const field = name === 'ledger.md' ? 'work_id' : 'id';
       assert.equal(parseFrontmatter(imported.toString('utf8'))?.[field], to, `${name} ${field} is rewritten`);
       assert.equal(imported.toString('utf8').replace(to, from), bytes.toString('utf8'), `${name} differs only in its identity`);
-    } else if (/^\.atlas\/models\/m-[a-f0-9]{24}\.json$/.test(name)) {
-      const before = JSON.parse(bytes.toString('utf8')) as AtlasDocument, after = JSON.parse(imported.toString('utf8')) as AtlasDocument;
-      sourceModels.set(name, before);
-      assert.equal(after.workId, before.workId === from ? to : before.workId, 'only models of the exported work are reassigned');
-      assert.equal(after.state, before.state, 'a snapshot stays a snapshot');
-      assert.equal(after.revision.parentId, before.revision.id, 'the rewrite is a recorded revision');
-      assert.equal(after.revision.reason, 'Imported as ' + to);
-      const strip = ({ workId: _work, revision: _revision, context: _context, ...rest }: AtlasDocument) => rest;
-      assert.deepEqual(strip(after), strip(before), `${name} keeps every other field`);
-      assert.deepEqual(after.context.links, before.context.links);
     } else assert.deepEqual(imported, bytes, `${name} is byte-for-byte identical`);
   }
-  const extra = [...target.keys()].filter(name => !source.has(name));
-  const history = extra.filter(name => name.startsWith('.atlas/history/'));
-  assert.equal(history.length, sourceModels.size, 'one new history entry per reassigned model');
-  assert.deepEqual(extra.filter(name => !name.startsWith('.atlas/history/')), ['evidence/import-provenance.json']);
-  // The imported models load with intact revision integrity.
-  const workspace = atlas.createWorkspace(targetWork);
-  for (const [name, before] of sourceModels) assert.equal(workspace.load(path.posix.basename(name, '.json')).workId, before.workId === from ? to : before.workId);
+  assert.deepEqual([...target.keys()].filter(name => !source.has(name)), ['evidence/import-provenance.json']);
 }
 
 test('exports the whole work folder and imports it losslessly as new work', async t => {
@@ -133,7 +113,7 @@ test('exports the whole work folder and imports it losslessly as new work', asyn
   assert.equal(preview.manifest.source.workId, 'work-0001');
   assert.equal(preview.files.length, exported.manifest.files.length);
   assert.equal(preview.totalBytes, exported.manifest.files.reduce((sum, file) => sum + file.size, 0));
-  assert.deepEqual(preview.diagrams.map(item => item.provenance.kind).sort(), ['authored', 'authored', 'generated', 'generated']);
+  assert.deepEqual(preview.diagrams.map(item => [item.path, item.title, item.provenance.kind]), [['diagrams/captured.puml', 'Captured orders', 'generated'], ['diagrams/orders.puml', 'Orders', 'authored'], ['diagrams/proposed.puml', 'Proposed orders', 'proposal']]);
 
   const registry = readFileSync(path.join(target, 'planning.json'), 'utf8');
   assert.deepEqual(await planImportTarget(target, preview.manifest), { workId: 'work-0003', path: 'active/0003-checkout' });
@@ -151,29 +131,21 @@ test('exports the whole work folder and imports it losslessly as new work', asyn
   assert.match(after.slice(prefix, after.length - suffix), /^,\n {4}\{\n {6}"id": "work-0003",\n {6}"path": "active\/0003-checkout",\n {6}"repositories": \["shop"\],\n {6}"current_plan": "active\/0003-checkout\/plan.md"\n {4}\}$/);
   assert.deepEqual(validatePlanning(target), { errors: [], warnings: ['work_items[1]: legacy repository scope is unknown', 'work_items[1]: main plan is unidentified'] });
 
-  // Planning-root-relative references now point into the new folder, through the same revision.
-  const rooted = readdirSync(path.join(target, 'active/0003-checkout/.atlas/models')).map(name => JSON.parse(readFileSync(path.join(target, 'active/0003-checkout/.atlas/models', name), 'utf8')) as AtlasDocument).find(document => document.title === 'Rooted references')!;
-  assert.deepEqual(rooted.context.records.map(item => item.path), ['CONTEXT.md#orders', 'plan.md', undefined], 'references outside the work folder are removed');
   const provenance = JSON.parse(readFileSync(path.join(target, 'active/0003-checkout/evidence/import-provenance.json'), 'utf8'));
   assert.deepEqual(provenance.source, { planningFolder: 'source', workId: 'work-0001', title: 'Checkout', location: 'active', path: 'active/0001-checkout' });
   assert.deepEqual(provenance.export, { exportedAt: now.toISOString(), atlasVersion: exported.manifest.atlasVersion, importedWith: exported.manifest.atlasVersion });
-  assert.equal(provenance.recordPathRewrites.length, 4);
-  assert.deepEqual(provenance.recordPathRewrites.find((item: { to: string | null }) => item.to === null), { file: provenance.recordPathRewrites.find((item: { to: string | null }) => item.to === null).file, recordId: 'c', from: '../../knowledge/shared.md', to: null, reason: 'points outside the work folder' });
-  const capture = readdirSync(path.join(target, 'active/0003-checkout/.atlas/models')).map(name => JSON.parse(readFileSync(path.join(target, 'active/0003-checkout/.atlas/models', name), 'utf8')) as AtlasDocument).find(document => document.title === 'Unassigned capture')!;
-  assert.deepEqual([capture.state, capture.workId, capture.context.records[0].path], ['snapshot', undefined, 'plan.md']);
   assert.ok(readFileSync(path.join(target, 'active/0003-checkout/plan.md')).subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])), 'the plan keeps its byte order mark');
   assert.ok(readFileSync(path.join(target, 'active/0003-checkout/ledger.md')).subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])), 'the ledger keeps its byte order mark');
-  assert.equal(provenance.identityRewrites.filter((item: { field: string }) => item.field === 'workId').length, 3);
+  assert.deepEqual(provenance.identityRewrites.map((item: { field: string }) => item.field), ['id', 'work_id']);
 
   // The app's reader shows the imported work and its diagrams.
   const index = await loadPlanning(target);
   const work3 = index.work.find(item => item.id === 'work-0003')!;
   assert.equal(work3.title, 'Checkout');
   assert.equal(work3.progress?.current, 'Building it');
-  const listed = new AtlasCatalog(target).list(index, 'work-0003');
-  assert.deepEqual(listed.issues, []);
-  assert.equal(listed.models.length, 4);
-  assert.equal(listed.models.find(model => model.title === 'Captured orders')?.provenance.kind, 'generated');
+  const listed = await new DiagramCatalog(target).list(index, 'work-0003');
+  assert.deepEqual(listed.map(diagram => [diagram.path, diagram.valid]), [['diagrams/captured.puml', true], ['diagrams/orders.puml', true], ['diagrams/proposed.puml', true]]);
+  assert.equal((await new DiagramCatalog(target).references(index, 'work-0003', 'active/0003-checkout/plan.md'))[0].element, 'Order');
 });
 
 test('keeps the archive location, takes the next free number and imports twice as two items', async t => {
@@ -247,7 +219,7 @@ test('rejects tampered, unsafe, duplicated and unknown exports before writing an
   await assertRejected(t, variant(copy => { copy.source.repositories[0].name = 'Shop' + String.fromCharCode(0x85); }), 'FORMAT', /control characters/);
   await assertRejected(t, variant(copy => { copy.source.planningFolder = 'x' + ESC + '[31m'; }), 'FORMAT');
   await assertRejected(t, variant(copy => { plan(copy).path = 'evidence/' + String.fromCharCode(0x9b) + '2J.md'; }), 'PATH');
-  await assertRejected(t, variant(copy => { copy.source.currentPlan = '.atlas/models/' + copy.files.find((file: { path: string }) => file.path.startsWith('.atlas/models/')).path.split('/').pop(); }), 'FORMAT', /Markdown/);
+  await assertRejected(t, variant(copy => { copy.source.currentPlan = 'diagrams/orders.puml'; }), 'FORMAT', /Markdown/);
   await assertRejected(t, variant(copy => { copy.source.currentPlan = 'evidence/notes.txt'; }), 'FORMAT', /Markdown/);
   await assertRejected(t, variant(copy => { plan(copy).size = 400 * 1024 * 1024; }), 'LIMIT');
   await assertRejected(t, variant(copy => { copy.version = 2; }), 'VERSION');
@@ -256,7 +228,7 @@ test('rejects tampered, unsafe, duplicated and unknown exports before writing an
   await assertRejected(t, variant(copy => { copy.source.path = '../outside'; }), 'PATH');
   await assertRejected(t, html.replace('</body>', `<script id="atlas-plan-export" type="application/json">{}</script></body>`), 'FORMAT', /more than one/);
   await assertRejected(t, html.replace('<script id="atlas-plan-export" type="application/json">', '<script id="atlas-plan-export" type="text/javascript">'), 'FORMAT', /inert/);
-  await assertRejected(t, '<!doctype html><title>x</title><script id="atlas-document" type="application/json">{}</script>', 'FORMAT', /single-model export/);
+  await assertRejected(t, '<!doctype html><title>x</title><script id="atlas-diagram" type="application/json">{}</script>', 'FORMAT', /one diagram, not a plan export/);
   await assertRejected(t, '<!doctype html><p>Not an export</p>', 'FORMAT');
   await assertRejected(t, new Uint8Array([0xff, 0xfe, 0x3c]), 'FORMAT');
   await assertRejected(t, html.replace('"format":"atlas/plan-export"', '"format":'), 'FORMAT');
@@ -267,7 +239,7 @@ test('refuses a target that is not a valid planning repository', async t => {
   fixture(source);
   const { html } = await exportPlan(source, 'work-0001', { now });
   const empty = temporary(t, 'plan-import-empty-');
-  await assert.rejects(importPlan(empty, html), (error: unknown) => error instanceof PlanExportError && error.code === 'TARGET' && /atlas-bootstrap/.test(error.message));
+  await assert.rejects(importPlan(empty, html), (error: unknown) => error instanceof PlanExportError && error.code === 'TARGET' && /the atlas skill/.test(error.message));
   assert.deepEqual(readdirSync(empty), []);
   const broken = temporary(t, 'plan-import-broken-');
   writeFileSync(path.join(broken, 'planning.json'), '{"schema_version": 2}');
@@ -468,57 +440,45 @@ test('refuses an export too large for an import to read', async t => {
   assert.throws(() => readPlanExport(Buffer.from(html)), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
 });
 
-test('names the exported diagram chips as the app does', async t => {
+test('carries the diagrams with the links to them, drawn as the app draws them', async t => {
   const source = temporary(t);
   const work = fixture(source);
-  const model = { type: 'StructuralModel', nodes: [{ id: 'checkout', name: 'CheckoutService', attributes: [] }, { id: 'vault', name: 'PaymentMethodVault', attributes: [] }], relations: [{ id: 'uses', name: 'declared type use', stereotype: 'dependency', sourceId: 'checkout', targetId: 'vault', sourceMultiplicity: '?', targetMultiplicity: '?' }, { id: 'stores', name: 'stores cards in', sourceId: 'checkout', targetId: 'vault', sourceMultiplicity: '1', targetMultiplicity: '0..*' }], generalizations: [], generalizationSets: [] };
-  atlas.createWorkspace(work).save(atlas.createDocument({ id: 'atlas-uses', profile: 'code', title: 'Uses', model: model as never, workId: 'work-0001', context: { records: [record('flow', 'plan.md', 'Data model')], links: [{ elementId: 'uses', recordId: 'flow' }, { elementId: 'stores', recordId: 'flow' }] } }));
+  writeFileSync(path.join(work, 'CONTEXT.md'), '# Glossary\n\n## Orders\n\n**Order**: what a customer buys. [Lines](diagrams/orders.puml#OrderLine)\n');
   const { html } = await exportPlan(source, 'work-0001', { now });
-  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { title: string; references: { elementName: string | null }[] }[] };
-  // A relation whose name says nothing more reads as its ends; a named one keeps its name.
-  assert.deepEqual(view.diagrams.find(diagram => diagram.title === 'Uses')!.references.map(item => item.elementName), ['CheckoutService → PaymentMethodVault', 'stores cards in']);
+  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { path: string; title: string; payload: ViewerPayload | null; references: { path: string; section: string | null; element: string | null }[] }[] };
+  const orders = view.diagrams.find(diagram => diagram.path === 'diagrams/orders.puml')!;
+  assert.equal(orders.title, 'Orders');
+  assert.equal(orders.payload!.model.document?.path, 'diagrams/orders.puml');
+  assert.deepEqual(orders.references, [{ path: 'CONTEXT.md', section: 'orders', element: 'OrderLine' }, { path: 'plan.md', section: 'data-model', element: 'Order' }]);
 });
 
-/**
- * OntoUML proposals over one authored model: two add a class each, and the last a three-way
- * relation, which the viewer cannot draw. One project grows, so its stages share their IDs.
- */
-function conceptualProposals(workId: string) {
-  const project = new atlas.Project(), root = project.packageBuilder().root().name('Orders').build();
-  const stage = () => JSON.parse(JSON.stringify(project));
-  const add = (name: string) => root.classBuilder().kind().name(name).build();
-  const [order, line, product] = ['Order', 'Line', 'Product'].map(add);
-  const base = stage();
-  add('Refund');
-  const refunds = stage();
-  add('Credit');
-  const credits = stage();
-  root.naryRelationBuilder().members(order, line, product).name('Three way').build();
-  const threeWay = stage();
-  const authored = atlas.createDocument({ id: 'conceptual', title: 'Orders', profile: 'ontouml', model: base, workId });
-  const proposal = (id: string, title: string, model: unknown) => atlas.reviseDocument(atlas.createProposal(authored, { id, title }), { model: model as AtlasDocument['model'] });
-  return [proposal('refunds', 'Refunds', refunds), proposal('credits', 'Credits', credits), proposal('three-way', 'Three-way', threeWay)];
-}
-
-test('lays a family out together, and exports a member it cannot draw undrawn', async t => {
+test('lays a family out together, and exports a diagram it cannot draw undrawn', async t => {
   const source = temporary(t);
   const work = fixture(source);
-  const proposals = conceptualProposals('work-0001');
-  const workspace = atlas.createWorkspace(work);
-  for (const document of proposals) workspace.save(document);
+  writeFileSync(path.join(work, 'diagrams/alternative.puml'), proposed().replace('title Proposed orders', 'title Alternative').replace('note : text', 'memo : text'));
+  writeFileSync(path.join(work, 'diagrams/broken.puml'), '@startuml\nclass A\nclass B\nA -up-> B\n@enduml\n');
   const { html, warnings } = await exportPlan(source, 'work-0001', { now });
-  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { title: string; file: string; payload: ViewerPayload | null; error: string | null }[] };
-  const [refunds, credits, threeWay] = proposals.map(document => view.diagrams.find(diagram => diagram.title === document.title)!);
-  // The two it can draw share one layout, so the viewer switches between them in place.
-  assert.equal(refunds.payload!.family, proposals[0].baselineId);
-  assert.equal(credits.payload!.family, proposals[0].baselineId);
-  const place = (payload: ViewerPayload, name: string) => {
-    const node = payload.comparison!.changeView!.views[0].diagram.nodes.find(item => item.name === name)!;
-    return [node.x, node.y];
-  };
-  for (const name of ['Order', 'Refund']) assert.deepEqual(place(credits.payload!, name), place(refunds.payload!, name));
-  // The third is exported, but not drawn.
-  assert.equal(threeWay.payload, null);
-  assert.match(threeWay.error!, /cannot be drawn: This renderer supports binary class relations/);
-  assert(warnings.includes(`The model ${threeWay.file} is exported but cannot be drawn in the viewer.`));
+  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { path: string; payload: ViewerPayload | null; error: string | null }[] };
+  const diagram = (name: string) => view.diagrams.find(item => item.path === 'diagrams/' + name)!;
+  // A capture and its proposals share one layout, so the viewer switches between them in place.
+  for (const name of ['captured.puml', 'proposed.puml', 'alternative.puml']) assert.equal(diagram(name).payload!.family, 'diagrams/captured.puml');
+  const place = (payload: ViewerPayload) => { const node = (payload.comparison?.changeView ?? payload).views[0].diagram.nodes.find(item => item.name === 'orders')!; return [node.x, node.y]; };
+  assert.deepEqual(place(diagram('alternative.puml').payload!), place(diagram('proposed.puml').payload!));
+  // A diagram with problems is exported, but not drawn.
+  assert.equal(diagram('broken.puml').payload, null);
+  assert.match(diagram('broken.puml').error!, /^Line 4: .*direction/);
+  assert(warnings.includes('The diagram diagrams/broken.puml is exported but cannot be drawn in the viewer.'));
+});
+
+test('a family that cannot be laid out leaves the other diagrams drawn', async t => {
+  const source = temporary(t);
+  fixture(source);
+  const prepare = atlas.prepareDiagrams;
+  t.mock.method(atlas, 'prepareDiagrams', (options: Parameters<typeof prepare>[0]) =>
+    !options?.paths || options.paths.includes('diagrams/captured.puml') ? Promise.reject(new Error('layout failed')) : prepare(options));
+  const { html, warnings } = await exportPlan(source, 'work-0001', { now });
+  const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { path: string; payload: ViewerPayload | null; error: string | null }[] };
+  const drawn = Object.fromEntries(view.diagrams.map(item => [item.path, item.payload !== null]));
+  assert.deepEqual(drawn, { 'diagrams/captured.puml': false, 'diagrams/orders.puml': true, 'diagrams/proposed.puml': false });
+  assert.deepEqual(warnings.filter(warning => /cannot be drawn/.test(warning)).length, 2);
 });

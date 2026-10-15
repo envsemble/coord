@@ -36,7 +36,7 @@ Out of scope:
 
 ## Current checkout
 
-Checkout authorises a one-off `CardSession` created by the acquirer's hosted fields and captures it at dispatch. Nothing card-related outlives that session. The captured TypeScript model of `shop` is the baseline the proposal below changes.
+Checkout authorises a one-off `CardSession` created by the acquirer's hosted fields and captures it at dispatch. Nothing card-related outlives that session. The [captured TypeScript model](diagrams/checkout-capture.puml) of `shop` is the baseline the proposal below changes: [CheckoutService](diagrams/checkout-capture.puml#CheckoutService), [PaymentGateway](diagrams/checkout-capture.puml#PaymentGateway), [CardSession](diagrams/checkout-capture.puml#CardSession) and [Payment](diagrams/checkout-capture.puml#Payment).
 
 ## Data model
 
@@ -46,12 +46,16 @@ Checkout authorises a one-off `CardSession` created by the acquirer's hosted fie
 - `Payment.savedPaymentMethodId` records which saved method paid, for support and refunds.
 - `PaymentMethodVault` is our port to the acquirer's vault. `PaymentGateway.authoriseWithToken` charges a token.
 
+The [proposed payment methods](diagrams/checkout-proposal.puml#SavedPaymentMethod) show [the token](diagrams/checkout-proposal.puml#PaymentToken), [the brand](diagrams/checkout-proposal.puml#CardBrand) and [the vault](diagrams/checkout-proposal.puml#PaymentMethodVault); the [alternative](diagrams/checkout-alternative.puml#Customer) keeps the methods on the customer.
+
 ## Checkout flow
 
 1. The customer picks a saved method; the default is preselected.
 2. `CheckoutService.placeOrderWithSavedMethod` reserves stock as today, then calls `authoriseWithToken`.
 3. If the acquirer answers `challenge_required`, the client completes 3-D Secure and checkout resumes with the same reservation. The 15-minute reservation hold covers this.
 4. A decline leaves the saved method in place. The customer can pick another or enter a new card.
+
+In the [proposal](diagrams/checkout-proposal.puml#CheckoutService): [PaymentGateway](diagrams/checkout-proposal.puml#PaymentGateway) and [AcquirerGateway](diagrams/checkout-proposal.puml#AcquirerGateway).
 
 ## Edge cases
 

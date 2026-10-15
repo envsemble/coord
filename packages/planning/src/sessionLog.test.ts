@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { harnessSessions, measureSession, sessionLogs, type SessionLogs } from './sessionLog.ts';
+import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type SessionLogs } from './sessionLog.ts';
 
 delete process.env.CLAUDE_CODE_SESSION_ID;
 delete process.env.CODEX_THREAD_ID;
@@ -95,11 +95,14 @@ test('helpers working at the same time count once; each model keeps its own time
   assert.equal(minutes(whole.agentMs), 50, 'the union of 0–30 and 10–50');
   assert.deepEqual(whole.models.map(model => [model.model, minutes(model.agentMs), model.input + model.cacheRead + model.cacheWrite + model.output]), [['claude-haiku-5-5', 40, 1196], ['claude-opus-5-5', 30, 4730]]);
   assert.equal(whole.mainModel, 'claude-opus-5-5', 'the main agent\'s model, though its helper worked longer');
+  assert.deepEqual(whole.subagents, [{ id: 'a0', model: 'claude-haiku-5-5', agentMs: 40 * 60000, tokens: 1196 }], 'the helper on its own');
   const later = await measure(logs, 20, 60);
   assert.equal(minutes(later.agentMs), 30, 'only (20, 60] counts');
   assert.deepEqual(later.models.map(model => [model.model, minutes(model.agentMs), model.output]), [['claude-haiku-5-5', 30, 20], ['claude-opus-5-5', 10, 70]], 'and only the responses in it');
+  assert.deepEqual(later.subagents, [{ id: 'a0', model: 'claude-haiku-5-5', agentMs: 30 * 60000, tokens: 623 }]);
+  assert.deepEqual((await measure(logs, 55, 60)).subagents, [], 'a helper that did nothing in the interval is not listed');
   const start = await measure(logs, null, 60);
-  assert.deepEqual([start.agentMs, start.models, start.mainModel], [0, [], 'claude-opus-5-5'], 'a first report is a starting point: only the model');
+  assert.deepEqual([start.agentMs, start.models, start.mainModel, start.subagents], [0, [], 'claude-opus-5-5', []], 'a first report is a starting point: only the model');
 });
 
 test('one response written as several lines counts once, by its last line; synthetic messages are not a model', async t => {
@@ -344,6 +347,35 @@ test('Codex: later parts of a thread continue it, and subagent threads that name
   assert.equal(minutes(result.agentMs), 40 - 20 + 45 - 41, '20–30 in the thread with 22–40 and 41–45 in its subagents; the stranger not at all');
   assert.deepEqual(result.models.map(model => [model.model, minutes(model.agentMs), model.input + model.cacheRead + model.output]), [['gpt-5-codex-mini', 22, 110], ['gpt-6.1-sol', 10, 630]]);
   assert.equal(result.mainModel, 'gpt-6.1-sol');
+  assert.deepEqual(result.subagents, [{ id: child, model: 'gpt-5-codex-mini', agentMs: 18 * 60000, tokens: 110 }, { id: grandchild, model: 'gpt-5-codex-mini', agentMs: 4 * 60000, tokens: 0 }], 'each helper thread on its own, nested ones too');
+});
+
+test('a hook\'s transcript path finds the session\'s logs beside it, in either harness', async t => {
+  const { claudeSession, rollout, config, codex: codexHome, root } = folders(t);
+  claudeSession([claude.prompt(0), claude.response(10, 'msg_1', 'claude-opus-5-5', undefined, 'end_turn')], [[claude.prompt(2, { isSidechain: true }), claude.response(5, 'msg_2', 'claude-haiku-5-5', undefined, 'end_turn')]]);
+  const project = path.join(config, 'projects', 'C--work-example');
+  for (const transcript of [path.join(project, session + '.jsonl'), path.join(project, session, 'subagents', 'agent-a0.jsonl')]) {
+    const logs = await transcriptLogs(transcript);
+    assert.deepEqual([logs?.harness, logs?.session, logs?.files.map(file => path.basename(file.file)).sort()], ['claude-code', session, [session + '.jsonl', 'agent-a0.jsonl'].sort()], transcript);
+    assert.deepEqual((await measure(logs, -1, 20)).subagents.map(agent => [agent.id, minutes(agent.agentMs)]), [['a0', 3]]);
+  }
+  const helper = '01a118ae-0000-7000-8000-000000000001';
+  const main = rollout(thread, [codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), codex.complete(10, 't1')]);
+  const child = rollout(helper, [codex.meta(helper, { session_id: thread, parent_thread_id: thread }), codex.started(1, 'h1'), codex.context(1, 'h1', 'gpt-5-codex-mini'), codex.complete(4, 'h1')]);
+  for (const transcript of [main, child]) {
+    const logs = await transcriptLogs(transcript);
+    assert.deepEqual([logs?.harness, logs?.session, logs?.requested], ['codex', thread, transcript === main ? thread : helper]);
+    assert.deepEqual((await measure(logs, -1, 20)).subagents.map(agent => [agent.id, minutes(agent.agentMs)]), [[helper, 3]]);
+  }
+  const archived = path.join(codexHome, 'archived_sessions');
+  mkdirSync(archived);
+  const old = '01a00000-0000-7000-8000-000000000005';
+  writeFileSync(path.join(archived, `rollout-2026-10-11T11-00-00-${old}.jsonl`), jsonl([codex.meta(old), codex.started(0, 'o1'), codex.complete(5, 'o1')]));
+  assert.equal((await transcriptLogs(path.join(archived, `rollout-2026-10-11T11-00-00-${old}.jsonl`)))?.files.length, 1, 'an archived rollout');
+  const loose = path.join(root, `rollout-2026-10-11T11-00-00-${old}.jsonl`);
+  writeFileSync(loose, jsonl([codex.meta(old), codex.started(0, 'o1'), codex.complete(5, 'o1')]));
+  assert.equal(minutes((await measure(await transcriptLogs(loose), -1, 20)).agentMs), 5, 'a rollout outside a Codex home is read alone');
+  for (const unusable of [path.join(root, 'notes.txt'), path.join(root, 'missing-0000-0000.jsonl'), path.join(project, 'short.jsonl')]) assert.equal(await transcriptLogs(unusable), null, unusable);
 });
 
 test('when both harnesses name a session, the one whose log was written last is measured', async t => {

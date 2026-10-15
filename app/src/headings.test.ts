@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Markdown } from '@envsemble/envui/content';
+import { sectionAnchors } from '@envsemble/atlas-planning/headings';
 import { findHeadingId, headingPrefix, rehypeHeadingIds, type HeadingNode } from './headings.ts';
 import { resolveLink } from './links.ts';
 import type { Document } from './types.ts';
@@ -50,5 +54,20 @@ test('GitHub punctuation fragments reach headings through local and cross-docume
       if (!href.startsWith('#')) assert.equal(destination.file, target);
       assert.equal(findHeadingId(destination.anchor!, ids(tree)), ids(tree)[index], href);
     }
+  }
+});
+
+test('the anchors diagram links name are the ids the reader draws, footnote numbers included', () => {
+  const documents = [
+    '# Plan\n\n## Orders\n\n## Orders\n\n## The `ledger_status` field\n\n## *Emphasis* with [a link](x) ![an image](y.png) <b>raw</b> <kbd>K</kbd>',
+    '## Title[^1]\n\nText.\n\n[^1]: A note.',
+    'Before[^b].\n\n## Title[^a]\n\n## Again [^b]\n\n## Title2\n\n[^a]: A.\n[^b]: B.\n\n    ## In a note\n\n[^unused]: Never drawn.\n\n    ## Not drawn',
+    '> [^q]: Quoted note.\n\n## Heading [^Q] and [^missing]',
+    'Orders\n======\n\nLines\n---\n\n## Footnotes\n\nSee[^1].\n\n[^1]: Note.',
+  ];
+  for (const markdown of documents) {
+    const html = renderToStaticMarkup(createElement(Markdown, { rehypePlugins: [rehypeHeadingIds], children: markdown }));
+    const drawn = [...html.matchAll(/ id="planning-heading-([^"]*)"/g)].map(match => match[1].replaceAll('&amp;', '&'));
+    assert.deepEqual([...sectionAnchors(markdown)], drawn, markdown);
   }
 });

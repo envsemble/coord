@@ -1,60 +1,115 @@
-// The window for one planning folder: envUI's application shell with its top bar as the window's
-// title bar (menus, the computer, search and the window buttons), the pages and the folder's files in
-// the sidebar, and the open documents as tabs above the page.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { AppShell, Button, Counter, DocumentTabs, Kbd, NavigationItem, Notice, Popover, useAppShell, useToast, type DocumentTab } from '@envsemble/envui';
+// A window: envUI's application shell with its top bar as the window's title bar (menus, the
+// computer, search, the file panel and the window buttons), the computer's projects in the sidebar,
+// and tabs above the page, each showing something of one project: its page, a plan, a diagram or a
+// file. Tabs of different projects sit side by side. The file panel slides in over the page from
+// the right with the files of the active tab's project.
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { AppShell, Button, DocumentTabs, EmptyState, IconButton, Kbd, Notice, PanelDock, PanelDockHeader, Popover, Spinner, Tooltip, useAppShell, useToast, type DocumentTab, type PanelDockMode } from '@envsemble/envui';
 import { ThemeMenu } from './ThemeMenu';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
-import { ActivityIcon, FileIcon, SearchIcon, StatisticsIcon, WarningIcon, WorkIcon } from './icons';
-import { limits, viewNames, type ImportPreview, type MenuCommand } from '../shared/contract';
-import type { Issue, Snapshot, Target, UiState, ViewName, WindowInfo, Work } from './types';
+import { DiagramIcon, ErrorIcon, FileIcon, FolderIcon, FolderOpenIcon, SearchIcon, WarningIcon, WorkIcon } from './icons';
+import { limits, type ImportPreview, type MenuCommand } from '../shared/contract';
+import type { FolderChange, Issue, Project, ProjectState, Snapshot, Target, UiState, WindowInfo } from './types';
 import { api, AtlasError } from './api';
-import { activateTab, closeTab, openTab, pinTab, retarget as retargetTab } from './tabs';
-import { scrollKey, viewLabels, viewTarget, workTarget } from './targets';
-import { canGoBack, canGoForward, currentEntry, keyStep, record, sameTarget, shownTarget, showTarget, startHistory, step } from './history';
+import { activateTab, closeAllTabs, closeTab, keyTabs, openTab, pinTab, restoreTabs, retarget as retargetTab } from './tabs';
+import { documentTarget, projectTarget, scrollKey, workTarget, type Place } from './targets';
+import { samePath, siblingProject } from './links';
+import { canGoBack, canGoForward, currentEntry, keyStep, moveProject, record, samePlace, shownPlace, showPlace, startHistory, step } from './history';
 import { workStatus } from './status';
 import { workNumber } from './format';
 import { StatusIcon } from './ui';
 import { Explorer, nodeForTarget } from './Explorer';
 import { QuickOpen } from './QuickOpen';
 import { ImportDialog } from './ImportDialog';
-import { WorkList } from './WorkList';
-import { FileView, WorkPage, workSection } from './WorkPage';
-import { Activity } from './Views';
-import { Statistics } from './StatisticsPage';
+import { FileView, WorkPage } from './WorkPage';
+import { AtlasWorkPanel } from './AtlasWorkPanel';
+import { ProjectPage, type WorkFilters } from './ProjectPage';
 import { Gone } from './Pages';
 import { modifierKey, TitleBarStart, type WorkbenchMenus } from './AppMenu';
-import { currentFolder } from './Computers';
-import { useWorkbench, WorkbenchContext, type Notify, type OpenOptions, type WorkbenchApi } from './workbenchContext';
+import { AppActionsContext, useAppActions } from './Computers';
+import { NewProjectDialog, ProjectCards, ProjectsNavigation, RenameProjectDialog, type ProjectActions } from './ProjectsSidebar';
+import { revealIds } from './explorerModel';
+import { WorkbenchContext, type Notify, type OpenOptions, type WorkbenchApi } from './workbenchContext';
 
-const viewIcons: Record<ViewName, ReactNode> = { work: <WorkIcon />, activity: <ActivityIcon />, statistics: <StatisticsIcon /> };
 const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+b': 'toggleSidebar', 'ctrl+w': 'closeTab', 'ctrl+shift+e': 'showExplorer' };
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+b': 'toggleSidebar', 'ctrl+w': 'closeTab', 'ctrl+shift+e': 'toggleFiles' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
 const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButtons)) || [...document.querySelectorAll(keepsHistoryButtons)].some(element => element.checkVisibility());
 
-/** What a target shows, a work item at the section it opens on: opening one and then choosing that section is one entry in the history. */
-function resolveTarget(target: Target, snapshot: Snapshot): Target {
-  const work = target.kind === 'work' ? snapshot.work.find(item => item.id === target.work) : undefined;
-  return work && target.kind === 'work' ? { ...target, section: workSection(target, work) } : target;
-}
+/** A project's folder as the window follows it: its state, and its snapshot once read. */
+interface Folder { change: FolderChange | null; snapshot: Snapshot | null; failure: string }
 
-export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; snapshot: Snapshot; initialUi: UiState }) {
-  // The layout and the history of what the window showed (back and forward) change together: each
-  // change of what shows is recorded, except a step back or forward.
-  const latestSnapshot = useRef(snapshot);
-  latestSnapshot.current = snapshot;
-  const [{ ui, history }, setWindowState] = useState(() => ({ ui: initialUi, history: startHistory(resolveTarget(shownTarget(initialUi), snapshot)) }));
+export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: UiState }) {
+  const toast = useToast();
+  const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, variant: toastVariants[tone] }); }, [toast]);
+  const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
+  const actions = useAppActions();
+
+  // ---- The computer's projects, and the folders the window follows ------------------------------
+  const [projects, setProjects] = useState<Project[] | null>(null);
+  const [projectsError, setProjectsError] = useState('');
+  /** The sidebar's search over the projects. */
+  const [projectQuery, setProjectQuery] = useState('');
+  useEffect(() => {
+    let current = true;
+    const load = () => api.projects().then(next => { if (current) { setProjects(next); setProjectsError(''); } }, error => { if (current) { setProjects(previous => previous ?? []); setProjectsError((error as Error).message); } });
+    void load();
+    const off = api.onProjectsChanged(() => { void load(); });
+    return () => { current = false; off(); };
+  }, []);
+  const [folders, setFolders] = useState<Record<string, Folder>>({});
+  const following = useRef(new Set<string>());
+  const latest = useRef(new Map<string, number>());
+  const setFolder = useCallback((project: string, change: (folder: Folder) => Folder) => setFolders(current => ({ ...current, [project]: change(current[project] ?? { change: null, snapshot: null, failure: '' }) })), []);
+  const refresh = useCallback(async (project: string, revision: number) => {
+    latest.current.set(project, Math.max(latest.current.get(project) ?? 0, revision));
+    try {
+      const snapshot = await api.snapshot(project);
+      if (revision >= (latest.current.get(project) ?? 0)) setFolder(project, folder => ({ ...folder, snapshot, failure: '' }));
+    } catch (error) { if (revision >= (latest.current.get(project) ?? 0)) setFolder(project, folder => ({ ...folder, failure: (error as Error).message })); }
+  }, [setFolder]);
+  useEffect(() => api.onChanged(change => {
+    if (!following.current.has(change.project)) return;
+    setFolder(change.project, folder => ({ ...folder, change }));
+    if (change.status === 'ready') void refresh(change.project, change.revision);
+  }), [refresh, setFolder]);
+  /** Follow projects' folders (their tabs show, or quick open searches them) and read them. */
+  const follow = useCallback((wanted: string[]) => {
+    for (const project of wanted) {
+      if (following.current.has(project)) continue;
+      following.current.add(project);
+      api.openProject(project).then(change => {
+        setFolder(project, folder => folder.change && folder.change.revision > change.revision ? folder : { ...folder, change });
+        if (change.status === 'ready') void refresh(project, change.revision);
+      }, error => setFolder(project, folder => ({ ...folder, failure: (error as Error).message })));
+    }
+  }, [refresh, setFolder]);
+  /** Stop following a project's folder: nothing in the window shows it. */
+  const unfollow = useCallback((project: string) => {
+    if (!following.current.delete(project)) return;
+    latest.current.delete(project);
+    setFolders(current => { const { [project]: _gone, ...rest } = current; return rest; });
+    api.closeProject(project).catch(() => undefined);
+  }, []);
+  const snapshots = useMemo(() => Object.fromEntries(Object.entries(folders).flatMap(([project, folder]) => folder.snapshot ? [[project, folder.snapshot]] : [])), [folders]);
+
+  // ---- The layout and the history of what the window showed --------------------------------------
+  // The layout and the history (back and forward) change together: each change of what shows is
+  // recorded, except a step back or forward.
+  const [{ ui, history }, setWindowState] = useState(() => {
+    const keyed = { ...initialUi, tabs: keyTabs(initialUi.tabs) };
+    return { ui: keyed, history: startHistory(shownPlace(keyed)) };
+  });
   const setUi = useCallback((change: (current: UiState) => UiState) => setWindowState(current => {
     const next = change(current.ui);
     if (next === current.ui) return current;
-    const shown = shownTarget(next);
-    return { ui: next, history: sameTarget(shown, shownTarget(current.ui)) ? current.history : record(current.history, resolveTarget(shown, latestSnapshot.current)) };
+    const shown = shownPlace(next);
+    return { ui: next, history: samePlace(shown, shownPlace(current.ui)) ? current.history : record(current.history, shown) };
   }), []);
   // A step back or forward from main (the menu, or the mouse's buttons over the title bar's empty
   // space), which the same press reaching the page a moment later repeats; any other step ends it.
@@ -63,118 +118,119 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     lastMenuStep.current = null;
     setWindowState(current => {
       const moved = step(current.history, by);
-      return moved ? { ui: showTarget(current.ui, moved.target), history: moved.history } : current;
+      return moved ? { ui: showPlace(current.ui, moved.place), history: moved.history } : current;
     });
   }, []);
-  const [quickOpen, setQuickOpen] = useState<null | { mode: 'all' | 'work'; placeholder?: string; onPick(target: Target, pin: boolean): void }>(null);
-  const [importing, setImporting] = useState<ImportPreview | null>(null);
-  const [repository, setRepository] = useState('all');
-  const [workSearch, setWorkSearch] = useState('');
-  const [location, setLocation] = useState('active');
-  const toast = useToast();
-  const page = useRef<HTMLDivElement>(null);
-  const scrollPositions = useRef(new Map<string, number>());
-  // Where each entry of the history was left, by the entry's id.
-  const entryPositions = useRef(new Map<number, number>());
-  const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
-  // When the mouse's back or forward button last went down on an open menu or dialog, which it closes.
-  const closingPress = useRef(0);
-  const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, variant: toastVariants[tone] }); }, [toast]);
-  const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
-
-  // Persist the sidebar, tabs and page for this folder (and for crash recovery), debounced; Close
-  // Folder saves at once, before the window lets the folder go.
-  const latestUi = useRef(ui);
-  latestUi.current = ui;
+  // A project moved into its computer's home, from this window or another: what shows of it follows its new folder ID.
+  useEffect(() => api.onProjectsChanged(({ moved }) => {
+    if (!moved) return;
+    unfollow(moved.from);
+    setWindowState(current => moveProject(current, moved.from, moved.to));
+  }), [unfollow]);
+  // Persist the layout, debounced.
   useEffect(() => {
     const timer = window.setTimeout(() => { api.saveUi(ui).catch(() => undefined); }, 250);
     return () => window.clearTimeout(timer);
   }, [ui]);
-  const closeFolder = useCallback(() => {
-    void api.saveUi(latestUi.current).catch(() => undefined).then(() => api.command('closeFolder')).catch(error => notify((error as Error).message, 'warning'));
-  }, [notify]);
 
-  // What the window shows: the active tab's document, or else the page (Work, Activity or Statistics).
   const active = ui.tabs.items.find(tab => tab.id === ui.tabs.active);
-  const shown: Target = active?.target ?? viewTarget(ui.page);
-  const setTabs = useCallback((change: (tabs: UiState['tabs']) => UiState['tabs']) => setUi(current => ({ ...current, tabs: change(current.tabs) })), []);
-  const showPage = useCallback((view: ViewName) => setUi(current => ({ ...current, page: view, tabs: { ...current.tabs, active: null } })), []);
-  // Views are pages: opening one shows it, leaving the tabs as they are.
-  const open = useCallback((target: Target, options: OpenOptions = {}) => {
-    if (target.kind === 'view') showPage(target.view);
-    else setTabs(tabs => openTab(tabs, target, options.pin ?? false));
-  }, [setTabs, showPage]);
-  const retarget = useCallback((target: Target) => {
-    if (target.kind === 'view') showPage(target.view);
-    else setTabs(tabs => tabs.active ? retargetTab(tabs, tabs.active, target) : openTab(tabs, target, true));
-  }, [setTabs, showPage]);
-  const setSidebar = useCallback((change: Partial<UiState['sidebar']>) => setUi(current => ({ ...current, sidebar: { ...current.sidebar, ...change } })), []);
-  const setInspectorWidth = useCallback((width: number) => setUi(current => current.inspectorWidth === width ? current : { ...current, inspectorWidth: width }), []);
+  const tabsShown = useRef(new Set<string>());
+  tabsShown.current = new Set(ui.tabs.items.map(tab => tab.project));
+  const activeProject = active?.project ?? null;
+  // The projects the tabs show are followed.
+  useEffect(() => { follow([...new Set(ui.tabs.items.map(tab => tab.project))]); }, [ui.tabs.items, follow]);
 
-  // Reveal the active tab's item in the explorer.
-  const node = nodeForTarget(active?.target, snapshot);
+  const setTabs = useCallback((change: (tabs: UiState['tabs']) => UiState['tabs']) => setUi(current => ({ ...current, tabs: change(current.tabs) })), [setUi]);
+  const openPlace = useCallback((place: Place, pin = false) => setTabs(tabs => openTab(tabs, place.project, place.target, pin)), [setTabs]);
+  // Tabs of projects whose computer had not answered as the window opened come once it lists them.
+  const restoring = useRef(Boolean(initialUi.pending));
   useEffect(() => {
-    if (!node?.reveal.length) return;
-    setUi(current => {
-      const missing = node.reveal.filter(id => !current.sidebar.expanded.includes(id));
-      return missing.length ? { ...current, sidebar: { ...current.sidebar, expanded: [...current.sidebar.expanded, ...missing].slice(-limits.expanded) } } : current;
+    if (!restoring.current || !projects?.length) return;
+    api.loadUi().then(loaded => {
+      if (!loaded.pending) restoring.current = false;
+      setTabs(tabs => restoreTabs(tabs, loaded.tabs));
+    }, () => undefined);
+  }, [projects, setTabs]);
+  const setSidebar = useCallback((change: Partial<UiState['sidebar']>) => setUi(current => ({ ...current, sidebar: { ...current.sidebar, ...change } })), [setUi]);
+  const setInspectorWidth = useCallback((width: number) => setUi(current => current.inspectorWidth === width ? current : { ...current, inspectorWidth: width }), [setUi]);
+
+  // ---- The file panel ---------------------------------------------------------------------------
+  const [files, setFiles] = useState<PanelDockMode | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, string[]>>({});
+  const activeSnapshot = activeProject ? folders[activeProject]?.snapshot ?? null : null;
+  const node = active && activeSnapshot ? nodeForTarget(active.target, activeSnapshot) : null;
+  // Reveal the active tab's item in the file panel.
+  useEffect(() => {
+    if (!activeProject || !node) return;
+    const reveal = active?.target.kind === 'file' ? revealIds(active.target.path) : node.reveal;
+    setExpanded(current => {
+      const open = current[activeProject] ?? [];
+      const missing = reveal.filter(id => !open.includes(id));
+      return missing.length ? { ...current, [activeProject]: [...open, ...missing] } : current;
     });
-  }, [node?.id]);
+  }, [activeProject, node?.id]);
 
-  const scrolled = scrollKey(resolveTarget(shown, snapshot));
-  // An entry shown again (a step back or forward) is where it was left, not at its heading again.
-  const revisit = entryPositions.current.has(currentEntry(history));
-  const anchored = shown.kind !== 'view' && Boolean(shown.anchor) && !revisit;
-  const placed: Target = shown.kind !== 'view' && shown.anchor && revisit ? { ...shown, anchor: null } : shown;
-  // Forget the positions of what no open tab, page or step back or forward shows.
+  // ---- Commands -----------------------------------------------------------------------------------
+  const [quickOpen, setQuickOpen] = useState<null | { mode: 'all' | 'work'; placeholder?: string; onPick(place: Place, pin: boolean): void }>(null);
+  // Projects followed for quick open, or for tabs since closed, are let go a moment after nothing shows them.
+  const quickOpenShown = quickOpen !== null;
   useEffect(() => {
-    const kept = new Set([...ui.tabs.items.map(tab => scrollKey(resolveTarget(tab.target, snapshot))), ...viewNames.map(view => scrollKey(viewTarget(view))), ...history.entries.map(scrollKey)]);
-    for (const key of [...scrollPositions.current.keys()]) if (!kept.has(key)) scrollPositions.current.delete(key);
-    const entries = new Set(history.ids);
-    for (const id of [...entryPositions.current.keys()]) if (!entries.has(id)) entryPositions.current.delete(id);
-  }, [ui.tabs.items, history.entries, history.ids, snapshot]);
+    if (quickOpenShown) return;
+    const shown = new Set(ui.tabs.items.map(tab => tab.project));
+    const timer = window.setTimeout(() => { for (const project of [...following.current]) if (!shown.has(project)) unfollow(project); }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [quickOpenShown, ui.tabs.items, unfollow]);
+  const [importing, setImporting] = useState<ImportPreview | null>(null);
+  const [newProject, setNewProject] = useState(false);
+  const [renaming, setRenaming] = useState<Project | null>(null);
+  const [workFilters, setWorkFilters] = useState<Record<string, { location: string; search: string }>>({});
 
-  const exportWork = useCallback(async (work: Work) => {
+  const exportWork = useCallback(async (project: string, work: string) => {
     try {
-      const result = await api.exportPlan(work.id);
-      if (result) notify(`Exported ${workNumber(work.id)} to ${result.path}` + (result.warnings.length ? ' — ' + result.warnings.join(' ') : ''), result.warnings.length ? 'warning' : 'info');
+      const result = await api.exportPlan(project, work);
+      if (result) notify(`Exported ${workNumber(work)} to ${result.path}` + (result.warnings.length ? ' — ' + result.warnings.join(' ') : ''), result.warnings.length ? 'warning' : 'info');
     } catch (error) { notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger'); }
   }, [notify]);
   const startImport = useCallback(async () => {
+    if (!activeProject) { notify('Open a project first: the plan is imported into the project of the tab you are in.', 'warning'); return; }
     try {
-      const preview = await api.chooseImport();
+      const preview = await api.chooseImport(activeProject);
       if (preview) setImporting(preview);
     } catch (error) {
       if ((error as AtlasError).code === 'cancelled') return;
       notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger');
     }
-  }, [notify]);
+  }, [activeProject, notify]);
+  const searchProjects = useCallback(() => { if (projects) follow(projects.filter(project => project.state === 'active').map(project => project.folderId)); }, [projects, follow]);
   const chooseExport = useCallback(() => {
-    const current = active?.target.kind === 'work' ? snapshot.work.find(work => work.id === (active.target as { work: string }).work)
-      : active?.target.kind === 'file' ? snapshot.work.find(work => work.id === snapshot.documents.find(file => file.path === (active.target as { path: string }).path)?.workId) : undefined;
-    if (current) void exportWork(current);
-    else setQuickOpen({ mode: 'work', placeholder: 'Choose a work item to export', onPick: target => { const work = snapshot.work.find(item => target.kind === 'work' && item.id === target.work); if (work) void exportWork(work); } });
-  }, [active, snapshot, exportWork]);
+    const target = active?.target;
+    const work = target?.kind === 'work' || target?.kind === 'diagram' ? target.work
+      : target?.kind === 'file' && activeSnapshot ? activeSnapshot.documents.find(file => file.path === target.path)?.workId ?? null : null;
+    if (active && work) { void exportWork(active.project, work); return; }
+    searchProjects();
+    setQuickOpen({ mode: 'work', placeholder: 'Choose a work item to export', onPick: place => { if (place.target.kind === 'work') void exportWork(place.project, place.target.work); } });
+  }, [active, activeSnapshot, exportWork, searchProjects]);
+  const closeAll = useCallback(() => setTabs(closeAllTabs), [setTabs]);
 
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
       // envUI's shell compacts a collapsing sidebar even while it holds focus.
       case 'toggleSidebar': setSidebar({ visible: !ui.sidebar.visible }); break;
-      case 'showExplorer': setSidebar({ visible: true }); window.setTimeout(() => document.querySelector<HTMLElement>('.explorer-tree [role="tree"], .explorer-tree[role="tree"]')?.focus(), 0); break;
-      case 'quickOpen': setQuickOpen({ mode: 'all', onPick: (target, pin) => open(target, { pin }) }); break;
+      case 'toggleFiles': setFiles(mode => mode === 'open' || mode === 'maximized' ? null : 'open'); break;
+      case 'quickOpen': searchProjects(); setQuickOpen({ mode: 'all', onPick: (place, pin) => openPlace(place, pin) }); break;
       case 'closeTab': setTabs(tabs => tabs.active ? closeTab(tabs, tabs.active) : tabs); break;
-      case 'openWorkList': showPage('work'); break;
-      case 'openActivity': showPage('activity'); break;
-      case 'openStatistics': showPage('statistics'); break;
+      case 'closeAllTabs': closeAll(); break;
+      case 'newProject': setNewProject(true); break;
       case 'importPlan': void startImport(); break;
       case 'exportPlan': chooseExport(); break;
-      case 'closeFolder': closeFolder(); break;
       case 'goBack': navigate(-1); break;
       case 'goForward': navigate(1); break;
     }
-  }, [ui.sidebar.visible, open, setTabs, setSidebar, showPage, startImport, chooseExport, closeFolder, navigate]);
+  }, [ui.sidebar.visible, openPlace, setTabs, setSidebar, searchProjects, startImport, chooseExport, closeAll, navigate]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
+  const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
+  const closingPress = useRef(0);
   useEffect(() => api.onMenu(command => {
     const last = lastShortcut.current;
     if (last && last.command === command && Date.now() - last.time < 300) return;
@@ -242,90 +298,170 @@ export function Workbench({ info, snapshot, initialUi }: { info: WindowInfo; sna
     };
   }, [navigate]);
 
-  const context = useMemo<WorkbenchApi>(() => ({ snapshot, revision: info.revision, open, retarget, notify, remote: info.remote, inspectorWidth: ui.inspectorWidth ?? null, setInspectorWidth }),
-    [snapshot, info.revision, open, retarget, notify, info.remote, ui.inspectorWidth, setInspectorWidth]);
+  // ---- Projects in the sidebar ----------------------------------------------------------------------
+  const updateProject = useCallback((project: Project, change: { name?: string; state?: ProjectState; position?: number }) =>
+    api.updateProject(project.folderId, change).then(updated => setProjects(current => current?.map(item => item.folderId === updated.folderId ? updated : item) ?? current)), []);
+  const projectActions = useMemo<ProjectActions>(() => ({
+    // A project's page opens as a kept tab: it is where its work starts.
+    open: project => openPlace({ project: project.folderId, target: projectTarget() }, true),
+    update: (project, change) => { updateProject(project, change).then(() => api.projects().then(setProjects), error => notify((error as Error).message, 'danger')); },
+    rename: project => setRenaming(project),
+    // The project comes back under a new folder ID, which every window showing it follows.
+    adopt: project => {
+      api.adoptProject(project.folderId).then(moved => {
+        notify(`Moved ${moved.name} into the Atlas home: ${moved.path}`);
+        return api.projects().then(setProjects);
+      }, error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'danger'); });
+    },
+    create: () => setNewProject(true),
+  }), [openPlace, updateProject, notify]);
+  // File › New Project… opens the dialog here, where the new project's page opens.
+  const windowActions = useMemo(() => ({ ...actions, newProject: () => setNewProject(true) }), [actions]);
 
-  const root = info.folder?.root ?? '';
+  // ---- What shows ---------------------------------------------------------------------------------
+  const page = useRef<HTMLDivElement>(null);
+  const scrollPositions = useRef(new Map<string, number>());
+  const entryPositions = useRef(new Map<number, number>());
+  const shown = shownPlace(ui);
+  const revisit = entryPositions.current.has(currentEntry(history));
+  const anchored = Boolean(shown && 'anchor' in shown.target && shown.target.anchor) && !revisit;
+  const placed: Place | null = shown && revisit && 'anchor' in shown.target && shown.target.anchor ? { ...shown, target: { ...shown.target, anchor: null } as Target } : shown;
+  // Forget the positions of what no open tab or step back or forward shows.
+  useEffect(() => {
+    const kept = new Set([...ui.tabs.items.map(tab => scrollKey(tab)), ...history.entries.flatMap(entry => entry ? [scrollKey(entry)] : [])]);
+    for (const key of [...scrollPositions.current.keys()]) if (!kept.has(key)) scrollPositions.current.delete(key);
+    const entries = new Set(history.ids);
+    for (const id of [...entryPositions.current.keys()]) if (!entries.has(id)) entryPositions.current.delete(id);
+  }, [ui.tabs.items, history.entries, history.ids]);
+
+  const projectOf = (folderId: string) => projects?.find(project => project.folderId === folderId);
+  /** Open a path of a project (read first when the window does not have it yet) as a tab of what it is. */
+  const openPath = useCallback(async (project: string, path: string, anchor: string | null, options: OpenOptions = {}) => {
+    // Followed while it is read; let go again unless a tab of it opens.
+    const release = () => { if (!tabsShown.current.has(project)) unfollow(project); };
+    try {
+      // Opened before it is followed, so the snapshot is asked for once the folder is open.
+      if (!snapshots[project]) await api.openProject(project);
+      follow([project]);
+      const snapshot = snapshots[project] ?? await api.snapshot(project);
+      const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
+      const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
+      const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : work ? workTarget(work.id, anchor) : null;
+      if (!target) { release(); notify('This document is not in ' + (projectOf(project)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
+      openPlace({ project, target }, options.pin ?? false);
+    } catch (error) { release(); notify((error as Error).message, 'warning'); }
+  }, [snapshots, projects, openPlace, notify, follow, unfollow]);
+  /** What a tab's content works with, for its project. */
+  const scope = useCallback((project: string, snapshot: Snapshot, revision: number): WorkbenchApi => ({
+    project, projectName: projects?.find(item => item.folderId === project)?.name ?? snapshot.name, snapshot, revision,
+    open: (target: Target, options: OpenOptions = {}) => openPlace({ project: options.project ?? project, target }, options.pin ?? false),
+    sibling: folder => siblingProject(projects ?? [], project, folder),
+    openPath: (other, path, anchor, options) => { void openPath(other, path, anchor, options); },
+    retarget: (target: Target) => setTabs(tabs => tabs.active ? retargetTab(tabs, tabs.active, project, target) : openTab(tabs, project, target, true)),
+    notify, remote: info.computer.hostId === null ? null : { hostId: info.computer.hostId, hostName: info.computer.name },
+    inspectorWidth: ui.inspectorWidth ?? null, setInspectorWidth, exportPlan: work => { void exportWork(project, work); },
+  }), [projects, openPlace, openPath, setTabs, notify, info.computer, ui.inspectorWidth, setInspectorWidth, exportWork]);
+  const activeFolder = activeProject ? folders[activeProject] : undefined;
+  const activeScope = useMemo(() => activeProject && activeFolder?.snapshot ? scope(activeProject, activeFolder.snapshot, activeFolder.change?.revision ?? 0) : null, [activeProject, activeFolder, scope]);
+
   const menus: WorkbenchMenus = {
     goBack: () => navigate(-1),
     goForward: () => navigate(1),
     canGoBack: canGoBack(history),
     canGoForward: canGoForward(history),
     quickOpen: () => runCommand('quickOpen'),
-    showPage,
-    showExplorer: () => runCommand('showExplorer'),
+    toggleFiles: () => runCommand('toggleFiles'),
+    filesVisible: files === 'open' || files === 'maximized',
     toggleSidebar: () => runCommand('toggleSidebar'),
     sidebarVisible: ui.sidebar.visible,
     closeTab: () => runCommand('closeTab'),
+    closeAllTabs: closeAll,
     canCloseTab: Boolean(active),
     importPlan: () => runCommand('importPlan'),
     exportPlan: () => runCommand('exportPlan'),
-    closeFolder,
-    isCurrent: currentFolder(info, root),
-    // File › Open Folder… on another computer browses it beside the folder this window shows.
-    near: snapshot.root,
   };
 
-  const tabs: DocumentTab[] = ui.tabs.items.map(tab => ({ id: tab.id, preview: tab.preview, ...describeTab(tab.target, snapshot) }));
-  const activeWork = active?.target.kind === 'work' ? snapshot.work.find(work => active.target.kind === 'work' && work.id === active.target.work) : undefined;
-  const fills = Boolean(activeWork && active?.target.kind === 'work' && workSection(active.target, activeWork) === 'diagrams');
-  const activeCount = snapshot.work.filter(work => work.location === 'active').length;
+  const tabs: DocumentTab[] = ui.tabs.items.map(tab => ({ id: tab.id, preview: tab.preview, ...describeTab(tab.target, folders[tab.project]?.snapshot ?? null, projectOf(tab.project)) }));
+  const fills = active?.target.kind === 'diagram' && Boolean(activeFolder?.snapshot);
+  // As tall as the room below the tabs allows.
+  const filePanel = files && activeScope ? [{ id: 'files', title: 'Files', label: 'Files', mode: files, active: true, icon: <FolderOpenIcon />, preferredWidth: 360, height: 100000, tooltip: 'Files of ' + activeScope.projectName }] : [];
 
-  return <WorkbenchContext.Provider value={context}>
-    <AppShell className="workbench" topbar="full" titleBar brand={<AtlasMark size={20} label="" />} navigationLabel="Atlas"
+  return <AppActionsContext.Provider value={windowActions}>
+    <AppShell className="workbench" topbar="full" titleBar brand={<AtlasMark size={20} label="" />} navigationLabel="Projects"
       context={<TitleBarStart info={info} workbench={menus} onError={warn} />}
       actions={<>
         <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
-        <Health issues={snapshot.issues} />
+        <Tooltip content={'Files (' + modifierKey(info.platform) + '+Shift+E)'} side="bottom">
+          <IconButton variant="text" className="files-button" icon={<FolderOpenIcon />} aria-label="Files" aria-pressed={menus.filesVisible} aria-keyshortcuts={(info.platform === 'darwin' ? 'Meta' : 'Control') + '+Shift+E'} onClick={() => runCommand('toggleFiles')} />
+        </Tooltip>
+        {activeFolder?.snapshot && <Health issues={activeFolder.snapshot.issues} open={work => activeProject && openPlace({ project: activeProject, target: workTarget(work) }, true)} />}
         <ThemeMenu />
       </>}
       collapsed={!ui.sidebar.visible} onCollapsedChange={collapsed => setSidebar({ visible: !collapsed })}
       resizable sidebarWidth={ui.sidebar.width} sidebarMinWidth={limits.sidebarMin} sidebarMaxWidth={limits.sidebarMax} onSidebarWidthChange={width => setSidebar({ width: Math.round(width) })}
-      navigation={viewNames.map(view => <NavigationItem key={view} icon={viewIcons[view]} selected={!active && ui.page === view} onClick={() => showPage(view)}
-        trailing={view === 'work' && activeCount > 0 ? <Counter value={activeCount} aria-label={activeCount + ' active work items'} /> : undefined}>{viewLabels[view]}</NavigationItem>)}
-      sidebarContent={<Explorer snapshot={snapshot} folderName={info.folder?.name ?? ''}
-        expanded={ui.sidebar.expanded} setExpanded={expanded => setSidebar({ expanded: expanded.slice(-limits.expanded) })} selected={node?.id ?? null} onExportPlan={work => void exportWork(work)} />}>
+      navigation={<ProjectsNavigation projects={projects} query={projectQuery} onQueryChange={setProjectQuery} selected={active?.target.kind === 'project' ? activeProject : null} actions={projectActions} />}
+      sidebarContent={<ProjectCards projects={projects} error={projectsError} query={projectQuery} selected={active?.target.kind === 'project' ? activeProject : null} actions={projectActions} />}>
       <div className={'workbench-body' + (fills ? ' is-filled' : '') + (tabs.length ? ' has-tabs' : '')}>
         {tabs.length > 0 && <DocumentTabs className="workbench-tabs" items={tabs} value={ui.tabs.active} aria-label="Open tabs"
-          onValueChange={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))} />}
-        {info.error && <Notice className="folder-error" tone="warning" announce title={info.remote ? `Atlas can’t read this planning folder on ${info.remote.hostName} right now.` : 'The planning folder can’t be read right now.'}>
-          {info.error} {info.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
-        </Notice>}
-        {info.notice && <Notice className="folder-error" tone="info">{info.notice}</Notice>}
+          onValueChange={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))}
+          onCloseAll={closeAll} />}
         <div ref={page} className="workbench-page">
-          <Shown key={active?.id ?? 'page:' + ui.page} target={placed} snapshot={snapshot} repository={repository} setRepository={setRepository}
-            work={{ location, setLocation, search: workSearch, setSearch: setWorkSearch }} />
+          <Shown key={active?.id ?? 'none'} place={placed} folder={activeFolder} project={activeProject ? projectOf(activeProject) : undefined} scope={activeScope}
+            work={activeProject ? filtersOf(workFilters, setWorkFilters, activeProject) : null} />
         </div>
-        <ScrollMemory shown={active?.id ?? 'page:' + ui.page} scrollKey={scrolled} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
+        <ScrollMemory shown={active?.id ?? 'none'} scrollKey={shown ? scrollKey(shown) : 'none'} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
+        {activeScope && <PanelDock className="file-dock" panels={filePanel} onModeChange={(_id, mode) => setFiles(mode)} onClose={() => setFiles(null)}>
+          {() => <WorkbenchContext.Provider value={activeScope}>
+            <PanelDockHeader title="Files" meta={activeScope.projectName} />
+            <Explorer snapshot={activeScope.snapshot} expanded={expanded[activeScope.project] ?? []} setExpanded={next => setExpanded(current => ({ ...current, [activeScope.project]: next }))} selected={node?.id ?? null} />
+          </WorkbenchContext.Provider>}
+        </PanelDock>}
       </div>
     </AppShell>
-    {quickOpen && <QuickOpen snapshot={snapshot} mode={quickOpen.mode} placeholder={quickOpen.placeholder} onPick={quickOpen.onPick} onClose={() => setQuickOpen(null)} />}
-    {importing && <ImportDialog preview={importing}
+    {quickOpen && projects && <QuickOpen projects={projects.filter(project => project.state === 'active' || project.folderId === activeProject)} snapshots={snapshots} mode={quickOpen.mode} placeholder={quickOpen.placeholder} onPick={quickOpen.onPick} onClose={() => setQuickOpen(null)} />}
+    {importing && activeProject && <ImportDialog preview={importing}
       onCancel={() => { void api.cancelImport(importing.token).catch(() => undefined); setImporting(null); }}
       onConfirm={async () => {
         const result = await api.confirmImport(importing.token);
         setImporting(null);
         notify(`Imported as ${workNumber(result.workId)} in ${result.path}. ${result.notes.join(' ')}`.trim());
-        open(workTarget(result.workId), { pin: true });
+        openPlace({ project: activeProject, target: workTarget(result.workId) }, true);
       }} />}
-  </WorkbenchContext.Provider>;
+    {newProject && <NewProjectDialog computer={info.computer.name} onClose={() => setNewProject(false)} onCreated={project => {
+      setProjects(current => current && !current.some(item => item.folderId === project.folderId) ? [...current, project] : current);
+      openPlace({ project: project.folderId, target: projectTarget() }, true);
+    }} />}
+    {renaming && <RenameProjectDialog project={renaming} onClose={() => setRenaming(null)} onRename={name => updateProject(renaming, { name })} />}
+  </AppActionsContext.Provider>;
 }
 
-function describeTab(target: Target, snapshot: Snapshot): Omit<DocumentTab, 'id' | 'preview'> {
-  if (target.kind === 'view') return { label: viewLabels[target.view], icon: viewIcons[target.view] };
-  if (target.kind === 'work') {
-    const work = snapshot.work.find(item => item.id === target.work);
-    const label = (work?.title ?? workNumber(target.work)) + (target.section === 'diagrams' ? ' · Diagrams' : '');
-    return { label, title: work ? workNumber(work.id) + ' · ' + work.path : target.work, icon: work ? <StatusIcon status={workStatus(work)} decorative /> : <WorkIcon /> };
+/** A project's work filters, kept while the window is open. */
+function filtersOf(all: Record<string, { location: string; search: string }>, set: (change: (current: Record<string, { location: string; search: string }>) => Record<string, { location: string; search: string }>) => void, project: string): WorkFilters {
+  const current = all[project] ?? { location: 'active', search: '' };
+  return {
+    location: current.location, search: current.search,
+    setLocation: location => set(previous => ({ ...previous, [project]: { ...current, ...previous[project], location } })),
+    setSearch: search => set(previous => ({ ...previous, [project]: { ...current, ...previous[project], search } })),
+  };
+}
+
+function describeTab(target: Target, snapshot: Snapshot | null, project: Project | undefined): Omit<DocumentTab, 'id' | 'preview'> {
+  const owner = project ? ' · ' + project.name : '';
+  if (target.kind === 'project') return { label: project?.name ?? snapshot?.name ?? 'Project', title: project?.path, icon: <FolderIcon /> };
+  if (target.kind === 'work' || target.kind === 'diagram') {
+    const work = snapshot?.work.find(item => item.id === target.work);
+    const diagram = target.kind === 'diagram' ? (target.path ?? '').split('/').at(-1)?.replace(/\.puml$/i, '') : null;
+    const label = target.kind === 'diagram' ? (diagram || 'Diagrams') + ' · ' + (work?.title ?? workNumber(target.work)) : work?.title ?? workNumber(target.work);
+    return { label, title: (work ? workNumber(work.id) + ' · ' + work.path : target.work) + owner, icon: target.kind === 'diagram' ? <DiagramIcon /> : work ? <StatusIcon status={workStatus(work)} decorative /> : <WorkIcon /> };
   }
-  return { label: target.path.split('/').at(-1) ?? target.path, title: target.path, icon: <FileIcon /> };
+  return { label: target.path.split('/').at(-1) ?? target.path, title: target.path + owner, icon: <FileIcon /> };
 }
 
 /**
- * Keep the scroll position of what each tab or page shows (its view, work section or file) while
- * switching, where it was last read; a tab that moves to another section or file starts at the top,
- * and one opened at a heading leaves the scrolling to the reader. A step back or forward finds its
- * entry where it was left instead. A document loads again after the switch, so a saved position is
+ * Keep the scroll position of what each tab shows (a project's page, a plan, a file) while
+ * switching, where it was last read; a tab that moves to another item starts at the top, and one
+ * opened at a heading leaves the scrolling to the reader. A step back or forward finds its entry
+ * where it was left instead. A document loads again after the switch, so a saved position is
  * reapplied as the content grows, until the user scrolls or three seconds pass, and nothing is saved
  * meanwhile. The shell's content area scrolls, below the title bar and the sticky tabs.
  */
@@ -382,48 +518,55 @@ function ScrollMemory({ shown, scrollKey: key, anchored, entry, content: content
   return null;
 }
 
-/** The page or document the window shows. */
-function Shown({ target, snapshot, repository, setRepository, work }: {
-  target: Target; snapshot: Snapshot; repository: string; setRepository(value: string): void;
-  work: { location: string; setLocation(value: string): void; search: string; setSearch(value: string): void };
-}) {
-  const filter = { repository, setRepository };
-  if (target.kind === 'view') {
-    if (target.view === 'activity') return <Activity snapshot={snapshot} {...filter} />;
-    if (target.view === 'statistics') return <Statistics snapshot={snapshot} {...filter} />;
-    return <WorkList snapshot={snapshot} {...filter} {...work} />;
+/** What the active tab shows, in its project's scope; or, without a tab, a way to start. */
+function Shown({ place, folder, project, scope, work }: { place: Place | null; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; work: WorkFilters | null }) {
+  if (!place) return <EmptyState className="page-empty workbench-empty" icon={<FolderIcon />} title="Open a project" description="Choose a project in the sidebar to see its work, statistics and activity, or press Ctrl+P to find a plan, a document or a diagram." />;
+  const change = folder?.change;
+  if (change?.status === 'missing' || (!folder?.snapshot && (change?.status === 'invalid' || folder?.failure))) {
+    return <EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
+      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />;
   }
-  if (target.kind === 'work') {
+  if (!scope || !folder?.snapshot) return <div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>;
+  const snapshot = folder.snapshot;
+  const { target } = place;
+  let content;
+  if (target.kind === 'project') content = <ProjectPage project={project} snapshot={snapshot} work={work!} />;
+  else if (target.kind === 'work' || target.kind === 'diagram') {
     const item = snapshot.work.find(entry => entry.id === target.work);
-    if (!item) return <Gone title="This work item is no longer registered" detail={target.work} />;
-    return <WorkPage work={item} snapshot={snapshot} target={target} />;
+    content = !item ? <Gone title="This work item is no longer registered" detail={target.work} />
+      : target.kind === 'work' ? <WorkPage work={item} snapshot={snapshot} target={target} />
+      : <div className="work-page section-diagrams"><AtlasWorkPanel key={item.id} work={item} target={target} /></div>;
+  } else {
+    const file = snapshot.documents.find(document => document.path === target.path);
+    content = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FileView file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
   }
-  const file = snapshot.documents.find(document => document.path === target.path);
-  if (!file) return <Gone title="This file no longer exists" detail={target.path} />;
-  return <FileView file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
+  return <WorkbenchContext.Provider value={scope}>
+    {change?.error && <Notice className="folder-error" tone="warning" announce title={scope.remote ? `Atlas can’t read this project on ${scope.remote.hostName} right now.` : 'This project can’t be read right now.'}>
+      {change.error} {scope.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
+    </Notice>}
+    {change?.notice && <Notice className="folder-error" tone="info">{change.notice}</Notice>}
+    {content}
+  </WorkbenchContext.Provider>;
 }
 
-/** The title bar's search: quick open for work items, files and diagrams. */
+/** The title bar's search: quick open for work items, documents and diagrams of every project. */
 function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
   return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
     <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>
   </Button>;
 }
 
-/** Record health: problems in the planning records, each linking to its work item. */
-function Health({ issues }: { issues: Issue[] }) {
+/** Record health of the active tab's project: problems in its planning records, each linking to its work item. */
+function Health({ issues, open }: { issues: Issue[]; open(work: string): void }) {
   if (!issues.length) return null;
   const errors = issues.some(issue => issue.level === 'error');
   const label = issues.length + ' record health ' + (issues.length === 1 ? 'note' : 'notes');
   return <Popover aria-label="Record health" title="Record health" width="wide"
     trigger={<Button variant="text" className={'health-button' + (errors ? ' has-errors' : '')} startIcon={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
-    {close => <HealthList issues={issues} onOpen={close} />}
+    {close => <ul className="health-list">{issues.map((issue, index) => <li key={index} data-level={issue.level}>
+      <WarningIcon className="health-icon" />
+      <span>{issue.workId && <><Button variant="text" underline className="health-link" onClick={() => { close(); open(issue.workId!); }}>{workNumber(issue.workId)}</Button>{' '}</>}{issue.message}</span>
+    </li>)}</ul>}
   </Popover>;
 }
-function HealthList({ issues, onOpen }: { issues: Issue[]; onOpen(): void }) {
-  const { open } = useWorkbench();
-  return <ul className="health-list">{issues.map((issue, index) => <li key={index} data-level={issue.level}>
-    <WarningIcon className="health-icon" />
-    <span>{issue.workId && <><Button variant="text" underline className="health-link" onClick={() => { onOpen(); open(workTarget(issue.workId!), { pin: true }); }}>{workNumber(issue.workId)}</Button>{' '}</>}{issue.message}</span>
-  </li>)}</ul>;
-}
+

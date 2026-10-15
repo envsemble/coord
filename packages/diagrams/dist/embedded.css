@@ -341,13 +341,6 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.atlas-panel .stereotype-swatch {
-  display: inline-block;
-  width: 0.75rem;
-  height: 0.75rem;
-  border: 0.0625rem solid;
-  border-radius: 0.1875rem;
-}
 .atlas-panel .detail-owner {
   color: var(--color-text-muted);
   font-weight: 400;
@@ -602,7 +595,8 @@
   overflow-wrap: anywhere;
 }
 .atlas-panel [data-change] > .change-line-text > .signature,.atlas-panel
-.member[data-change] > .signature {
+.member[data-change] > .signature,.atlas-panel
+.member[data-change] > .member-text > .signature {
   color: var(--change-color);
 }
 .atlas-panel .member[data-change="removed"] .signature,.atlas-panel
@@ -632,6 +626,16 @@
 }
 .atlas-panel .member > .signature {
   flex: 1;
+}
+/* A described member: its signature, and its description below it. */
+.atlas-panel .member-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.atlas-panel .member-description {
+  color: var(--color-text-muted);
 }
 .atlas-panel .member-list.marked .member:not([data-change]) {
   padding-inline-start: calc(1.125rem + var(--space-2));
@@ -998,18 +1002,6 @@
   --diagram-label: var(--color-text-primary);
   --diagram-muted: var(--color-text-muted);
   --diagram-attribute: var(--color-text-muted);
-  --node-kind: light-dark(#ddedff, #273e54);
-  --node-role: light-dark(#fff0df, #49382c);
-  --node-relator: light-dark(#f0e5ff, #403452);
-  --node-phase: light-dark(#e1f2e4, #2a4437);
-  --node-event: light-dark(#ffe5e2, #4d3236);
-  --node-mode: light-dark(#e0f3f5, #29434b);
-  --type-kind: light-dark(#0550ae, #6cb6ff);
-  --type-role: light-dark(#953800, #f69d50);
-  --type-relator: light-dark(#8250df, #dcbdfb);
-  --type-phase: light-dark(#116329, #8ddb8c);
-  --type-event: light-dark(#cf222e, #ff938a);
-  --type-mode: light-dark(#0a3069, #76e3ea);
   /* A proposal's changes: added, changed and removed elements. */
   --change-added: var(--color-tone-success);
   --change-modified: var(--color-tone-warning);

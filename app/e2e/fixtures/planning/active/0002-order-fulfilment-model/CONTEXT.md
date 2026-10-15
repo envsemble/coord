@@ -6,6 +6,8 @@ Concepts for getting a paid order from Northwind's warehouses to the customer.
 
 ### Orders
 
+In the [model](diagrams/fulfilment.puml#Order): [Seller](diagrams/fulfilment.puml#Seller), [Partially shipped](diagrams/fulfilment.puml#PartiallyShipped).
+
 **Order**:
 A customer's purchase from the seller, covering one or more order lines.
 _Avoid_: purchase, basket
@@ -18,6 +20,8 @@ _Avoid_: merchant, vendor
 An order with at least one dispatched shipment and lines that have no shipment yet.
 
 ### Shipments
+
+In the [model](diagrams/fulfilment.puml#Shipment): [Parcel](diagrams/fulfilment.puml#Parcel), [Carrier](diagrams/fulfilment.puml#Carrier), [Warehouse](diagrams/fulfilment.puml#Warehouse).
 
 **Shipment**:
 Goods for one order that leave one warehouse together.

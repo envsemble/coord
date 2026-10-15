@@ -1,0 +1,57 @@
+@startuml
+title Shop checkout
+' atlas capture {"capturedAt":"2026-10-14T19:22:17.114Z","adapter":{"id":"atlas-typescript","version":"1.0.0","compilerVersion":"6.0.3"},"source":{"kind":"typescript","identity":"shop","scope":["shop:src/checkout.ts","shop:src/payments.ts"],"projects":[{"identity":"shop","scope":["src/checkout.ts","src/payments.ts"],"revision":null,"pinnedSelectedFiles":false,"contentFingerprint":"13b663b245a9634fff4a357585ccf7c55ff9ec9a20a673414eec080bd2a70dd6","tsconfig":"tsconfig.json","configurationFingerprint":"d9536fe9c1200d3f71e0014348834c22be2232017add2c9b3bd0e8a75a8136e7","dependencyFingerprint":"a9f60f07674f9d8f50d89720320ad2b8e638d2ffddbcd539d005b2768698dbf7"}]},"coverage":{"status":"partial","diagnostics":[{"code":"EXTERNAL_TYPE","message":"shop:Gateway: type reference Promise<string> has no captured target"},{"code":"EXTERNAL_TYPE","message":"shop:LegacyGateway: type reference Promise<string> has no captured target"},{"code":"EXTERNAL_TYPE","message":"shop:Checkout: type reference Promise<string> has no captured target"}]},"consistency":{"kind":"compiler-read-with-content-recheck","metadataOnly":true},"limitations":["Named declarations and declared type use only; no runtime/reflection/framework mappings or conceptual multiplicities are inferred.","Type aliases are drawn as classes, which their snippets define; enums show their constants without their fields and operations; of the modifiers only visibility is drawn."]}
+' atlas fingerprint dae4b7b580686693061f2cc47c01be1e748d9d76b44a22946ef3ad6b6a4cc675
+
+package src {
+  ' atlas evidence {"file":"src/checkout.ts","line":10,"endLine":24,"repo":"shop"}
+  ' atlas snippet {"language":"typescript","startLine":10,"code":"export class Checkout {\n  lines: Line[] = [];\n  card?: string;\n  constructor(private readonly gateway: Gateway) {}\n  total(): number {\n    return this.lines.reduce(\n      (sum, line) => sum + line.price * line.quantity,\n      0,\n    );\n  }\n  pay(card: string): Promise<string> {\n    this.card = card;"}
+  class Checkout {
+    ' atlas evidence {"file":"src/checkout.ts","line":11}
+    lines : Line[]
+    ' atlas evidence {"file":"src/checkout.ts","line":12}
+    card : string [0..1]
+    ' atlas evidence {"file":"src/checkout.ts","line":13}
+    -gateway : Gateway
+    ' atlas evidence {"file":"src/checkout.ts","line":13}
+    constructor(gateway: Gateway)
+    ' atlas evidence {"file":"src/checkout.ts","line":14,"endLine":19}
+    total() : number
+    ' atlas evidence {"file":"src/checkout.ts","line":20,"endLine":23}
+    pay(card: string) : Promise<string>
+  }
+
+  ' atlas evidence {"file":"src/payments.ts","line":2,"endLine":4,"repo":"shop"}
+  ' atlas snippet {"language":"typescript","startLine":2,"code":"export interface Gateway {\n  charge(amount: number, token: string): Promise<string>;\n}"}
+  interface Gateway {
+    ' atlas evidence {"file":"src/payments.ts","line":3}
+    charge(amount: number, token: string) : Promise<string>
+  }
+
+  ' atlas evidence {"file":"src/payments.ts","line":7,"endLine":12,"repo":"shop"}
+  ' atlas snippet {"language":"typescript","startLine":7,"code":"export class LegacyGateway implements Gateway {\n  constructor(private readonly apiKey: string) {}\n  async charge(amount: number, token: string): Promise<string> {\n    return `${this.apiKey}:${token}:${amount}`;\n  }\n}"}
+  class LegacyGateway {
+    ' atlas evidence {"file":"src/payments.ts","line":8}
+    -apiKey : string
+    ' atlas evidence {"file":"src/payments.ts","line":8}
+    constructor(apiKey: string)
+    ' atlas evidence {"file":"src/payments.ts","line":9,"endLine":11}
+    charge(amount: number, token: string) : Promise<string>
+  }
+
+  ' atlas evidence {"file":"src/checkout.ts","line":3,"endLine":7,"repo":"shop"}
+  ' atlas snippet {"language":"typescript","startLine":3,"code":"export interface Line {\n  sku: string;\n  quantity: number;\n  price: number;\n}"}
+  interface Line {
+    ' atlas evidence {"file":"src/checkout.ts","line":4}
+    sku : string
+    ' atlas evidence {"file":"src/checkout.ts","line":5}
+    quantity : number
+    ' atlas evidence {"file":"src/checkout.ts","line":6}
+    price : number
+  }
+}
+
+Checkout ..> Gateway
+Checkout ..> Line
+LegacyGateway ..|> Gateway
+@enduml

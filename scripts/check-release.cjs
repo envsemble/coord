@@ -36,12 +36,10 @@ async function check() {
       assert.equal(hash(files[file.name]), file.sha256, file.name);
     assert.equal(first.manifest.format, "atlas/release");
     // Atlas is the only product name. Old names may appear only in the history
-    // maps, historical changelog entries and the skills' backup instructions.
+    // maps and historical changelog entries.
     const oldName = /work[t]rail|ontouml[- ]atla[s]/i;
     const mayNameOld = (name) =>
-      name.startsWith("docs/history/") ||
-      name === "CHANGELOG.md" ||
-      name === "skills/README.md";
+      name.startsWith("docs/history/") || name === "CHANGELOG.md";
     for (const [name, bytes] of Object.entries(files))
       if (
         /\.(?:[cm]?js|jsx|tsx?|json|md|html|css|svg|ya?ml|txt)$/.test(name) &&
@@ -52,13 +50,17 @@ async function check() {
           oldName,
           `${name} uses an old product name`,
         );
-    assert.equal(
-      require("../packages/diagrams/lib/index.cjs").importDocument(
-        files["enrollment.html"],
-      ).learning.scenarios.length,
-      4,
-    );
-    assert(files["r5.html"]);
+    // The enrollment example carries its scenarios; the shop's, its changes.
+    const embedded = (name) => {
+      const html = Buffer.from(files[name]).toString("utf8");
+      assert(html.includes('<script id="atlas-diagram"'), name);
+      const data = html.match(/^\s*(const MODEL=.*)\r?$/m)[1];
+      return new (require("node:vm").Script)(
+        `${data}\n;({LEARNING,COMPARISON})`,
+      ).runInNewContext({});
+    };
+    assert.equal(embedded("enrollment.html").LEARNING.scenarios.length, 4);
+    assert(embedded("shop.html").COMPARISON.changes.changes.length);
     assert(
       Object.keys(files).some((name) =>
         /^envsemble-atlas-diagrams-.+\.tgz$/.test(name),
@@ -66,8 +68,8 @@ async function check() {
       "Missing packed diagram package",
     );
     assert(files["packages/diagrams/assets/atlas-icon.svg"]);
-    assert(files["packages/diagrams/schemas/document-schema.json"]);
-    assert(files["packages/diagrams/examples/review/head.atlas.json"]);
+    assert(files["packages/diagrams/schemas/code-source-schema.json"]);
+    assert(files["packages/diagrams/examples/shop/diagrams/checkout.puml"]);
     assert(files["app/package.json"]);
     assert(files["app/src/App.tsx"]);
     assert(files["packages/planning/src/planning.ts"]);
@@ -101,7 +103,12 @@ async function check() {
       !Object.keys(files).some((name) => name.startsWith("app/vendor/")),
       "The app uses the workspace diagram package",
     );
-    assert(files["skills/atlas-model/SKILL.md"]);
+    assert(files["plugin/skills/atlas/SKILL.md"]);
+    assert(files["plugin/skills/atlas-implement/SKILL.md"]);
+    assert(files["plugin/.claude-plugin/plugin.json"]);
+    assert(files[".claude-plugin/marketplace.json"]);
+    assert(files[".agents/plugins/marketplace.json"]);
+    assert(files["extras/babysit-pr/SKILL.md"]);
     assert(files["assets/atlas-banner-dark.svg"]);
     assert(files["docs/history/skills-commit-map.txt"]);
     assert(files["docs/history/atlas-import-commit-map.txt"]);
@@ -116,7 +123,7 @@ async function check() {
       "Installed dependencies leaked into the release",
     );
     console.log(
-      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, skills, branding/docs/schemas and reopenable report; no local model data.",
+      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, plugin and skills, branding/docs/schemas and the example viewers with their diagrams; no local planning data.",
     );
   } finally {
     if (!path.resolve(stage).startsWith(path.resolve(os.tmpdir()) + path.sep))

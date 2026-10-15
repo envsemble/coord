@@ -1,13 +1,19 @@
-// Work statistics. Agents report each ledger transition with `atlas work report`, which appends one
-// JSON line to <work>/.atlas/statistics.jsonl: the time, the model and the step, and, when it could
-// read the agent's session log, the agent time and tokens measured since the session's previous
-// report. Without a measurement, agent time is estimated from the time between reports and tokens
-// are self-reported. Plan revisions come from the planning folder's Git history.
-import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
+// Work statistics. Agents report each ledger transition with `atlas work report` (and hooks report
+// when a session stops), which records one report in the home database, keyed by project and work
+// item: the time, the model, the step and the work item's stage, and, when it could read the agent's
+// session log, the agent time and tokens measured since the session's previous report, with the
+// subagents that worked. Without a measurement, agent time is estimated from the time between
+// reports and tokens are self-reported. Plan revisions come from the planning folder's Git history.
+//
+// Before the database, reports were lines of <work>/.atlas/statistics.jsonl (format version 1, every
+// field added since optional); `atlas setup` and `atlas home adopt` import such files once. A report
+// without a stage is from before stages were recorded: its stage is unknown.
+import { lstat, readdir, readFile, realpath, rm, rmdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { ModelUsage, TokenKinds, Work, WorkStatistics } from './types.ts';
+import type { ModelUsage, StageUsage, TokenKinds, Work, WorkStage, WorkStatistics } from './types.ts';
 import { runProgram as execute } from './run.ts';
-
+import { projectOf, withDatabase, type HomeDatabase } from './database.ts';
+import { normalizedLocation } from './planning.ts';
 
 /** Where a work item's reports live, relative to its folder. Plan exports leave it out. */
 export const statisticsFile = '.atlas/statistics.jsonl';
@@ -22,18 +28,29 @@ const historyLimit = 20000;
 export const stepLimit = 200;
 /** A measurement names at most this many models, so a report stays one short line. */
 export const measuredModelLimit = 8;
+/** And lists at most this many subagents, the busiest; it counts them all. */
+export const measuredSubagentLimit = 4;
+export const workStages: readonly WorkStage[] = ['planning', 'implementation'];
 
 /** One model's share of a measured interval. */
 export interface MeasuredModel extends TokenKinds { model: string; agentMs: number }
-/** What the session log showed for (since, at]: the agent's working time and each model's share. */
-export interface Measured { since: string; agentMs: number; models: MeasuredModel[] }
-/** Version 1 throughout: `measured` is optional, and versions that do not know it read the rest. */
-export interface StatisticsReport { version: 1; at: string; model: string; session: string | null; tokens: number | null; step: string | null; measured?: Measured }
-export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; at?: Date; measured?: Measured | null }
+/** One subagent's share of a measured interval: the model it worked with longest, its own busy time and its tokens. */
+export interface MeasuredSubagent { id: string; model: string | null; agentMs: number; tokens: number }
+/** The subagents that worked in a measured interval: how many, their busy time added up (each its own), their tokens, and the busiest. */
+export interface MeasuredSubagents { count: number; agentMs: number; tokens: number; agents: MeasuredSubagent[] }
+/**
+ * What the session log showed for (since, at]: the agent's working time (its subagents' included,
+ * parallel work once) and each model's share; and, when subagents worked, each subagent's own share.
+ */
+export interface Measured { since: string; agentMs: number; models: MeasuredModel[]; subagents?: MeasuredSubagents }
+/** Version 1 throughout: `stage` and `measured` are optional, and versions that do not know them read the rest. */
+export interface StatisticsReport { version: 1; at: string; model: string; session: string | null; tokens: number | null; step: string | null; stage?: WorkStage; measured?: Measured }
+export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; stage?: WorkStage | null; at?: Date; measured?: Measured | null }
 
 /** Model identifiers as harnesses show them, including bracketed variants such as `name[1m]`. */
 export const modelPattern = /^[A-Za-z0-9][A-Za-z0-9._:/@+\-[\]]{0,99}$/;
 const sessionPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const subagentPattern = /^[A-Za-z0-9_-][A-Za-z0-9._:-]{0,63}$/;
 /** Control characters, line separators and bidirectional overrides never appear in a step. */
 const unprintable = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 const timestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
@@ -47,6 +64,11 @@ function checkedTokens(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0 || value > 1e12) throw new StatisticsReportError('Tokens must be a whole number from 0 to 1,000,000,000,000.');
   return value;
+}
+function checkedStage(value: unknown): WorkStage | null {
+  if (value === null || value === undefined) return null;
+  if (!workStages.includes(value as WorkStage)) throw new StatisticsReportError('The stage must be planning or implementation.');
+  return value as WorkStage;
 }
 function checkedStep(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -97,7 +119,30 @@ function checkedMeasured(value: unknown, at: string, modelLimit: number): Measur
     return { model: model.model, agentMs: model.agentMs, input: model.input as number, cacheRead: model.cacheRead as number, cacheWrite: model.cacheWrite as number, output: model.output as number };
   });
   if (new Set(models.map(item => item.model)).size !== models.length) throw invalid('a model is listed twice');
-  return { since, agentMs: total, models };
+  const subagents = checkedSubagents(entry.subagents, Date.parse(at) - Date.parse(since), Number.isFinite(modelLimit) ? measuredSubagentLimit : modelLimit, invalid);
+  return subagents ? { since, agentMs: total, models, subagents } : { since, agentMs: total, models };
+}
+
+/** Subagents as a measurement records them: each within the interval, listed once, no more than counted. */
+function checkedSubagents(value: unknown, interval: number, limit: number, invalid: (detail: string) => StatisticsReportError): MeasuredSubagents | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) throw invalid('subagents is not an object');
+  const entry = value as Record<string, unknown>;
+  if (!whole(entry.count, 1e6)) throw invalid('subagents must be counted');
+  const count = entry.count;
+  if (!whole(entry.agentMs, count * interval)) throw invalid('the subagents\' agentMs must be whole milliseconds within the interval for each');
+  if (!whole(entry.tokens, 1e12)) throw invalid('the subagents\' tokens must be a whole number');
+  if (!Array.isArray(entry.agents) || entry.agents.length > Math.min(limit, count)) throw invalid(`subagents must list at most ${measuredSubagentLimit} of those counted`);
+  const agents = entry.agents.map((item: unknown): MeasuredSubagent => {
+    const agent = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+    if (typeof agent.id !== 'string' || !subagentPattern.test(agent.id)) throw invalid('each subagent needs its identifier');
+    if (agent.model !== null && (typeof agent.model !== 'string' || !modelPattern.test(agent.model))) throw invalid('a subagent\'s model must be its identifier or null');
+    if (!whole(agent.agentMs, interval)) throw invalid('a subagent\'s agentMs must be within the interval');
+    if (!whole(agent.tokens, 1e12)) throw invalid('a subagent\'s tokens must be a whole number');
+    return { id: agent.id, model: agent.model, agentMs: agent.agentMs, tokens: agent.tokens };
+  });
+  if (new Set(agents.map(item => item.id)).size !== agents.length) throw invalid('a subagent is listed twice');
+  return { count, agentMs: entry.agentMs, tokens: entry.tokens, agents };
 }
 
 /** Build a valid report line, or throw StatisticsReportError. */
@@ -107,14 +152,17 @@ export function createReport(input: ReportInput, modelLimit = measuredModelLimit
   if (session !== null && (typeof session !== 'string' || !sessionPattern.test(session))) throw new StatisticsReportError('The session must be an identifier: letters, digits and . _ : -, at most 128 characters.');
   const at = (input.at ?? new Date()).toISOString();
   const report: StatisticsReport = { version: 1, at, model: input.model, session, tokens: checkedTokens(input.tokens), step: checkedStep(input.step) };
+  const stage = checkedStage(input.stage);
+  if (stage) report.stage = stage;
   const measured = checkedMeasured(input.measured, at, modelLimit);
   if (measured) report.measured = measured;
   return report;
 }
 
 /**
- * Read one line; null when it is not a valid report (counted, never fatal). A measurement this
- * version cannot read is left out, and the rest of the report stays, as older versions read it.
+ * Read one line; null when it is not a valid report (counted, never fatal). A stage, subagents or
+ * measurement this version cannot read is left out, and the rest of the report stays, as older
+ * versions read it.
  */
 export function parseReport(line: string): StatisticsReport | null {
   if (line.length > lineLimit) return null;
@@ -124,15 +172,20 @@ export function parseReport(line: string): StatisticsReport | null {
   const entry = value as Record<string, unknown>;
   const at = utcTime(entry.at);
   if (entry.version !== 1 || !at) return null;
-  const fields: ReportInput = { model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, at: new Date(at) };
-  try { return createReport({ ...fields, measured: entry.measured as Measured | undefined }, Number.POSITIVE_INFINITY); }
-  catch {
-    if (entry.measured === undefined) return null;
-    try { return createReport(fields); } catch { return null; }
+  const stage = workStages.includes(entry.stage as WorkStage) ? entry.stage as WorkStage : null;
+  const fields: ReportInput = { model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, stage, at: new Date(at) };
+  const measured = entry.measured as Measured | undefined;
+  const attempts = measured === undefined ? [undefined] : [measured, typeof measured === 'object' && measured?.subagents !== undefined ? { ...measured, subagents: undefined } : null, undefined];
+  for (const attempt of attempts) {
+    if (attempt === null) continue;
+    try { return createReport({ ...fields, measured: attempt }, Number.POSITIVE_INFINITY); } catch { /* Read with less. */ }
   }
+  return null;
 }
 
 const sum = (kinds: TokenKinds) => kinds.input + kinds.cacheRead + kinds.cacheWrite + kinds.output;
+const noTokens = (): TokenKinds => ({ input: 0, cacheRead: 0, cacheWrite: 0, output: 0 });
+const noUsage = (): StageUsage => ({ reports: 0, agentMs: 0, tokens: null, tokenKinds: null });
 const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ input: (into?.input ?? 0) + kinds.input, cacheRead: (into?.cacheRead ?? 0) + kinds.cacheRead, cacheWrite: (into?.cacheWrite ?? 0) + kinds.cacheWrite, output: (into?.output ?? 0) + kinds.output });
 
 /**
@@ -147,6 +200,9 @@ const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ inp
  *   two hours passed, which is a break; and a session's self-reported token count is cumulative, so
  *   a report adds its increase over the previous one (a lower count means a new conversation under
  *   the same session and counts in full).
+ * What a report covers counts toward its stage (unknown for reports from before stages). Subagents
+ * are counted once per session however many reports list them; those a report counts without
+ * listing them (beyond the busiest four) are counted as new. Their time is each one's own, added up.
  */
 export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit<WorkStatistics, 'planRevisions'> {
   const sorted = [...reports].sort((a, b) => a.at.localeCompare(b.at));
@@ -157,9 +213,13 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     return entry;
   };
   const runs = new Map<string, { last: number; tokens: number | null; id: string }>();
-  let anonymous = 0, measuredMs = 0, estimatedMs = 0, measuredReports = 0;
+  const stages: Record<WorkStage | 'unknown', StageUsage> = { planning: noUsage(), implementation: noUsage(), unknown: noUsage() };
+  const subagents = new Set<string>();
+  let anonymous = 0, measuredMs = 0, estimatedMs = 0, measuredReports = 0, unlisted = 0, subagentMs = 0;
   let kinds: TokenKinds | null = null;
   for (const report of sorted) {
+    const stage = stages[report.stage ?? 'unknown'];
+    stage.reports++;
     const time = Date.parse(report.at);
     const key = report.session ? 'session:' + report.session : 'model:' + report.model;
     let run = runs.get(key);
@@ -179,8 +239,11 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
       const part = (value: number) => Math.round(value * share);
       measuredReports++;
       measuredMs += part(report.measured.agentMs);
+      stage.agentMs += part(report.measured.agentMs);
       // A measurement of no tokens is a known zero.
-      kinds ??= { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
+      kinds ??= noTokens();
+      stage.tokens ??= 0;
+      stage.tokenKinds ??= noTokens();
       for (const item of report.measured.models) {
         const counted = { input: part(item.input), cacheRead: part(item.cacheRead), cacheWrite: part(item.cacheWrite), output: part(item.output) };
         const used = model(item.model);
@@ -190,15 +253,28 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
         used.tokenKinds = added(used.tokenKinds, counted);
         used.sessions.add(run.id);
         kinds = added(kinds, counted);
+        stage.tokens += sum(counted);
+        stage.tokenKinds = added(stage.tokenKinds, counted);
+      }
+      const helpers = report.measured.subagents;
+      if (helpers && share > 0) {
+        subagentMs += part(helpers.agentMs);
+        for (const agent of helpers.agents) subagents.add(run.id + '\0' + agent.id);
+        unlisted += helpers.count - helpers.agents.length;
       }
     } else if (previous !== null && time - previous <= sessionGap) {
       estimatedMs += time - previous;
       entry.agentMs += time - previous;
+      stage.agentMs += time - previous;
     }
     if (report.tokens !== null) {
       // Self-reported tokens are known once a report has a starting point to measure from; a lone
       // report is not a cost. A measured report's own measurement counts instead.
-      if (run.tokens !== null && !report.measured) { entry.tokens += report.tokens < run.tokens ? report.tokens : report.tokens - run.tokens; entry.tokensKnown = true; }
+      if (run.tokens !== null && !report.measured) {
+        const increase = report.tokens < run.tokens ? report.tokens : report.tokens - run.tokens;
+        entry.tokens += increase; entry.tokensKnown = true;
+        stage.tokens = (stage.tokens ?? 0) + increase;
+      }
       run.tokens = report.tokens;
     }
     run.last = time;
@@ -209,74 +285,123 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
   return {
     reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, tokens, tokenKinds: kinds,
     agentMs: measuredMs + estimatedMs, measuredMs, estimatedMs, measuredReports,
+    stages, subagents: { count: subagents.size + unlisted, agentMs: subagentMs },
     firstReport: sorted[0]?.at ?? null, lastReport: sorted.at(-1)?.at ?? null,
   };
 }
 
-function inside(root: string, candidate: string) {
-  const relative = path.relative(root, candidate);
-  return relative !== '' && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+type Row = Record<string, unknown>;
+
+/** Record a report of a work item in the home database, with its measurement's models and subagents. */
+export function insertReport(database: HomeDatabase, projectId: number, workId: string, report: StatisticsReport) {
+  database.transaction(() => {
+    const measured = report.measured;
+    const { lastInsertRowid } = database.db.prepare('INSERT INTO work_report (project_id, work_id, at, stage, step, model, session, tokens, measured_since, agent_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(projectId, workId, report.at, report.stage ?? null, report.step, report.model, report.session, report.tokens, measured?.since ?? null, measured?.agentMs ?? null);
+    if (!measured) return;
+    const model = database.db.prepare('INSERT INTO report_model (report_id, model, agent_ms, input, cache_read, cache_write, output) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    for (const item of measured.models) model.run(lastInsertRowid, item.model, item.agentMs, item.input, item.cacheRead, item.cacheWrite, item.output);
+    const helpers = measured.subagents;
+    if (!helpers) return;
+    const subagent = database.db.prepare('INSERT INTO report_subagent (report_id, agent, model, agent_ms, tokens) VALUES (?, ?, ?, ?, ?)');
+    for (const agent of helpers.agents) subagent.run(lastInsertRowid, agent.id, agent.model, agent.agentMs, agent.tokens);
+    // A report line lists only the busiest subagents: the others it counted get rows of their own, with the rest of the time and tokens.
+    const unlisted = helpers.count - helpers.agents.length;
+    const restMs = Math.max(0, helpers.agentMs - helpers.agents.reduce((total, agent) => total + agent.agentMs, 0));
+    const restTokens = Math.max(0, helpers.tokens - helpers.agents.reduce((total, agent) => total + agent.tokens, 0));
+    for (let index = 0; index < unlisted; index++) subagent.run(lastInsertRowid, `unlisted-${lastInsertRowid}-${index + 1}`, null, index ? 0 : restMs, index ? 0 : restTokens);
+  });
 }
+
+/** The reports recorded for a project's work items (all of them, or the ones given), by work item, oldest first. */
+export function storedReports(database: HomeDatabase, projectId: number, workIds?: string[]): Map<string, StatisticsReport[]> {
+  const scope = workIds ? ' AND work_id IN (' + workIds.map(() => '?').join(',') + ')' : '';
+  const rows = database.db.prepare('SELECT * FROM work_report WHERE project_id = ?' + scope + ' ORDER BY at, id').all(projectId, ...(workIds ?? [])) as Row[];
+  const models = new Map<number, MeasuredModel[]>(), agents = new Map<number, MeasuredSubagent[]>();
+  const measuredIds = rows.filter(row => row.measured_since !== null).map(row => Number(row.id));
+  if (measuredIds.length) {
+    const list = measuredIds.join(',');
+    for (const row of database.db.prepare(`SELECT * FROM report_model WHERE report_id IN (${list}) ORDER BY id`).all() as Row[]) {
+      const entry: MeasuredModel = { model: String(row.model), agentMs: Number(row.agent_ms), input: Number(row.input), cacheRead: Number(row.cache_read), cacheWrite: Number(row.cache_write), output: Number(row.output) };
+      models.set(Number(row.report_id), [...models.get(Number(row.report_id)) ?? [], entry]);
+    }
+    for (const row of database.db.prepare(`SELECT * FROM report_subagent WHERE report_id IN (${list}) ORDER BY id`).all() as Row[]) {
+      const entry: MeasuredSubagent = { id: String(row.agent), model: (row.model as string | null) ?? null, agentMs: Number(row.agent_ms), tokens: Number(row.tokens) };
+      agents.set(Number(row.report_id), [...agents.get(Number(row.report_id)) ?? [], entry]);
+    }
+  }
+  const result = new Map<string, StatisticsReport[]>();
+  for (const row of rows) {
+    const id = Number(row.id);
+    const report: StatisticsReport = { version: 1, at: String(row.at), model: String(row.model ?? 'unknown'), session: (row.session as string | null) ?? null, tokens: row.tokens === null ? null : Number(row.tokens), step: (row.step as string | null) ?? null };
+    if (row.stage) report.stage = row.stage as WorkStage;
+    if (row.measured_since !== null) {
+      report.measured = { since: String(row.measured_since), agentMs: Number(row.agent_ms), models: models.get(id) ?? [] };
+      const helpers = agents.get(id);
+      if (helpers?.length) report.measured.subagents = { count: helpers.length, agentMs: helpers.reduce((total, agent) => total + agent.agentMs, 0), tokens: helpers.reduce((total, agent) => total + agent.tokens, 0), agents: helpers };
+    }
+    const workId = String(row.work_id);
+    result.set(workId, [...result.get(workId) ?? [], report]);
+  }
+  return result;
+}
+
+/** Whether the database has this report already: the same moment, model, session and step of the same work item. */
+function recorded(database: HomeDatabase, projectId: number, workId: string, report: StatisticsReport) {
+  return Boolean(database.db.prepare('SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND at = ? AND model IS ? AND session IS ? AND step IS ? LIMIT 1')
+    .get(projectId, workId, report.at, report.model, report.session, report.step));
+}
+
+/** What importing a planning folder's statistics files did; `files` relative to the planning folder. */
+export interface StatisticsImport { files: string[]; reports: number; invalid: number; problems: string[] }
 
 /**
- * A work folder's `.atlas` folder, when it is a real folder inside the planning folder: never a
- * symbolic link or junction that could lead reports elsewhere.
+ * Import the work statistics files of a planning folder (<work>/.atlas/statistics.jsonl, as Atlas
+ * wrote them before the home database) into the database, then delete them. Each report is added
+ * once, so an import that stopped half way can run again. Lines that are not valid reports are
+ * counted and dropped. A file that is a link, or too large, is left alone and named in `problems`.
+ * Nothing is committed: the planning folder's Git history keeps the files.
  */
-async function atlasFolder(root: string, work: Pick<Work, 'path'>, create: boolean): Promise<string | null> {
-  const resolvedRoot = await realpath(root);
-  const folder = await realpath(path.join(root, work.path)).catch(() => null);
-  if (!folder || !inside(resolvedRoot, folder)) throw new StatisticsReportError('The work folder is outside the planning folder.');
-  const directory = path.join(folder, '.atlas');
-  if (create) await mkdir(directory, { recursive: true });
-  const info = await lstat(directory).catch(() => null);
-  if (!info) return null;
-  if (info.isSymbolicLink() || !info.isDirectory()) throw new StatisticsReportError(work.path + '/.atlas is a link or not a folder; statistics are not read or written there.');
-  const actual = await realpath(directory);
-  if (!inside(resolvedRoot, actual)) throw new StatisticsReportError(work.path + '/.atlas leads outside the planning folder.');
-  return actual;
-}
-
-/** The reports recorded for one work item; invalid lines are counted, not fatal. */
-export async function readReports(root: string, work: Pick<Work, 'path'>): Promise<{ reports: StatisticsReport[]; invalid: number }> {
-  const directory = await atlasFolder(root, work, false).catch(() => null);
-  if (!directory) return { reports: [], invalid: 0 };
-  const file = path.join(directory, 'statistics.jsonl');
-  const info = await lstat(file).catch(() => null);
-  if (!info || !info.isFile() || info.size > fileLimit) return { reports: [], invalid: 0 };
-  const reports: StatisticsReport[] = [];
-  let invalid = 0;
-  for (const line of (await readFile(file, 'utf8')).split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    const report = parseReport(line);
-    if (report) reports.push(report); else invalid++;
-  }
-  return { reports, invalid };
-}
-
-/** Append a report to a work item's statistics file, creating `.atlas/` when needed. */
-export async function appendReport(root: string, work: Pick<Work, 'path'>, report: StatisticsReport) {
-  const directory = (await atlasFolder(root, work, true))!;
-  const file = path.join(directory, 'statistics.jsonl');
-  const existing = await lstat(file).catch(() => null);
-  if (existing && !existing.isFile()) throw new StatisticsReportError(statisticsFile + ' is a link or not a regular file; reports are not added to it.');
-  const line = JSON.stringify(report) + '\n';
-  const handle = await open(file, 'a+', 0o644);
-  try {
-    const info = await handle.stat();
-    if (!info.isFile()) throw new StatisticsReportError(statisticsFile + ' is not a regular file.');
-    if (info.size + Buffer.byteLength(line) + 1 > fileLimit) throw new StatisticsReportError(statisticsFile + ' would grow past 4 MB; reports are no longer added.');
-    // A file that does not end in a newline (an interrupted write, a hand edit) gets one first,
-    // so this report does not merge into the previous line.
-    let separator = '';
-    if (info.size > 0) {
-      const last = Buffer.alloc(1);
-      await handle.read(last, 0, 1, info.size - 1);
-      if (last[0] !== 0x0a) separator = '\n';
+export async function importStatisticsFiles(database: HomeDatabase, root: string): Promise<StatisticsImport> {
+  const result: StatisticsImport = { files: [], reports: 0, invalid: 0, problems: [] };
+  const canonical = await realpath(root);
+  let items: unknown[];
+  try { items = (JSON.parse((await readFile(path.join(canonical, 'planning.json'), 'utf8')).replace(/^﻿/, '')) as { work_items?: unknown[] }).work_items ?? []; }
+  catch { return result; }
+  if (!Array.isArray(items)) return result;
+  const project = await projectOf(database, canonical);
+  for (const item of items) {
+    const entry = item && typeof item === 'object' ? item as { id?: unknown; path?: unknown } : {};
+    if (typeof entry.id !== 'string' || typeof entry.path !== 'string') continue;
+    const location = normalizedLocation(entry.path);
+    if (location.split('/').includes('..') || path.isAbsolute(location)) continue;
+    const folder = path.join(canonical, location, '.atlas');
+    const file = path.join(folder, 'statistics.jsonl');
+    const relative = location + '/' + statisticsFile;
+    const info = await lstat(file).catch(() => null);
+    if (!info) continue;
+    if (!info.isFile() || (await lstat(folder)).isSymbolicLink()) { result.problems.push(relative + ' is a link or not a regular file; it was left as it is.'); continue; }
+    if (info.size > fileLimit) { result.problems.push(relative + ' is larger than 4 MB; it was left as it is.'); continue; }
+    const reports: StatisticsReport[] = [];
+    for (const line of (await readFile(file, 'utf8')).replace(/^﻿/, '').split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const report = parseReport(line);
+      if (report) reports.push(report); else result.invalid++;
     }
-    // One short write in append mode: concurrent reports never interleave.
-    await handle.appendFile(separator + line, 'utf8');
-  } finally { await handle.close(); }
-  return path.relative(await realpath(root), file).split(path.sep).join('/');
+    const workId = entry.id;
+    database.transaction(() => {
+      for (const report of reports) {
+        if (recorded(database, project.id, workId, report)) continue;
+        insertReport(database, project.id, workId, report);
+        result.reports++;
+      }
+    });
+    await rm(file, { force: true });
+    // The .atlas folder goes too when nothing else is in it.
+    if (!(await readdir(folder).catch(() => ['?'])).length) await rmdir(folder).catch(() => undefined);
+    result.files.push(relative);
+  }
+  return result;
 }
 
 interface Change { status: string; path: string; from: string | null }
@@ -374,13 +499,19 @@ export async function planRevisions(root: string, work: Pick<Work, 'id' | 'curre
   return result;
 }
 
-/** Statistics for every work item: reports from each work folder and plan revisions from Git. */
-export async function workStatistics(root: string, work: Pick<Work, 'id' | 'path' | 'currentPlan' | 'completed'>[]): Promise<Record<string, WorkStatistics>> {
+/** Statistics for every work item: its reports in the home database and its plan revisions from Git. */
+export async function workStatistics(root: string, work: Pick<Work, 'id' | 'path' | 'currentPlan' | 'completed'>[], options: { home?: string; database?: HomeDatabase | null } = {}): Promise<Record<string, WorkStatistics>> {
   const revisions = await planRevisions(root, work);
+  let reports = new Map<string, StatisticsReport[]>();
+  try {
+    const canonical = await realpath(root);
+    const read = (database: HomeDatabase) => {
+      const project = database.projectByFolder(canonical);
+      return project ? storedReports(database, project.id, work.map(item => item.id)) : new Map<string, StatisticsReport[]>();
+    };
+    reports = options.database ? read(options.database) : withDatabase(options.home, read);
+  } catch { /* Without the database, no reports are known. */ }
   const result: Record<string, WorkStatistics> = {};
-  await Promise.all(work.map(async item => {
-    const { reports, invalid } = await readReports(root, item).catch(() => ({ reports: [], invalid: 0 }));
-    result[item.id] = { ...summarizeReports(reports, invalid), planRevisions: revisions[item.id] ?? null };
-  }));
+  for (const item of work) result[item.id] = { ...summarizeReports(reports.get(item.id) ?? []), planRevisions: revisions[item.id] ?? null };
   return result;
 }

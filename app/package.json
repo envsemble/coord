@@ -1,7 +1,7 @@
 {
   "name": "@envsemble/atlas-app",
   "productName": "Atlas",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Atlas desktop app: plans, models and shared understanding for agents and the people they work with",
   "author": "envsemble",
@@ -21,10 +21,9 @@
     "dev": "node scripts/electron.mjs electron-vite dev --watch --",
     "build": "npm run check:types && electron-vite build",
     "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.atlasEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
-    "test": "tsx --test \"src/*.test.ts\" && node --test \"main/*.test.ts\" \"shared/*.test.ts\"",
+    "test": "tsx --import ../scripts/test-home.mjs --test \"src/*.test.ts\" && node --import ../scripts/test-home.mjs --test \"main/*.test.ts\" \"shared/*.test.ts\"",
     "test:e2e": "node scripts/electron.mjs playwright test",
-    "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "check:review": "node scripts/check-review.mjs"
+    "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",
@@ -35,7 +34,7 @@
     "@electron/fuses": "1.8.0",
     "@envsemble/atlas-host": "*",
     "@envsemble/atlas-planning": "*",
-    "@envsemble/envui": "0.5.0",
+    "@envsemble/envui": "0.6.0",
     "@playwright/test": "1.64.0",
     "@shikijs/langs": "4.5.0",
     "@shikijs/themes": "4.5.0",

@@ -29,3 +29,41 @@ export function resolveLink(href: string, source: string, documents: Document[],
     return {};
   }
 }
+
+/**
+ * A relative link out of the project's folder into a sibling folder in the Atlas home (projects sit
+ * side by side there, so `../../../atlas/active/0013-x/plan.md` from a plan reaches the Atlas
+ * project): the sibling's folder name, the path inside it, and the heading. Null for anything else,
+ * including a link that climbs above the home's planning folder.
+ */
+export function siblingReference(href: string, source: string): { folder: string; path: string; anchor: string | null } | null {
+  try {
+    const hash = href.indexOf('#');
+    const raw = (hash < 0 ? href : href.slice(0, hash)).split('?', 1)[0];
+    if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith('/') || raw.includes('\\')) return null;
+    const self = Symbol('project');
+    const segments: (string | symbol)[] = [self, ...source.split('/').slice(0, -1)];
+    for (const segment of decodeURIComponent(raw).split('/')) {
+      if (segment === '..') { if (!segments.length) return null; segments.pop(); }
+      else if (segment && segment !== '.') segments.push(segment);
+    }
+    const [folder, ...rest] = segments;
+    if (typeof folder !== 'string' || !rest.length || folder.startsWith('.')) return null;
+    return { folder, path: rest.join('/'), anchor: hash < 0 ? null : decodeURIComponent(href.slice(hash + 1)) || null };
+  } catch { return null; }
+}
+
+/** Split a project's path, from this computer or another, into its parent folder and its name. */
+function splitFolder(folder: string) {
+  const windows = /^[a-z]:[\\/]|^\\\\/i.test(folder);
+  const parts = folder.split(windows ? /[\\/]+/ : /\/+/).filter(Boolean);
+  const key = (value: string) => windows ? value.toLowerCase() : value;
+  return { parent: key(parts.slice(0, -1).join('/')), name: key(parts.at(-1) ?? ''), key };
+}
+/** The folder ID of the project listed in a sibling folder `name` of the given project's folder, if there is one. */
+export function siblingProject(projects: { folderId: string; path: string }[], project: string, name: string): string | null {
+  const own = projects.find(entry => entry.folderId === project);
+  if (!own) return null;
+  const { parent, key } = splitFolder(own.path);
+  return projects.find(entry => entry.folderId !== project && splitFolder(entry.path).parent === parent && splitFolder(entry.path).name === key(name))?.folderId ?? null;
+}

@@ -1,10 +1,14 @@
-// The atlas command. Model tools and the MCP server delegate to the diagram package;
-// planning checks and consultation logging use the shared planning reader.
+// The atlas command: the planning-state operations (also served over MCP by `atlas mcp`), checks,
+// the harness hooks and setup, plan export and import, consultation logging, work statistics and
+// the headless host.
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { PlanExportError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
+import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
+import { parseOptions, UsageError, type Output } from './args.ts';
+import { check, home, planningUsage, where, work } from './planning.ts';
+import { capture, CaptureError } from './capture.ts';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -12,21 +16,40 @@ const { version } = require('../package.json') as { version: string };
 export const usage = `Atlas ${version}
 
 Usage:
-  atlas model <operation> --root <workspace> [--input <request.json|->]
-  atlas model review --input <request.json|->
-  atlas model tools
-  atlas model job <init|validate|build> ...
-  atlas mcp --root <workspace>
+${planningUsage}
+  atlas capture <source.json> (--work <work-id> | --out <file>) [--name <name>] [--compares <capture.puml>] [--force] [--planning-dir <dir>]
+  atlas mcp
+  atlas hook <SessionStart|PostToolUse|Stop|SubagentStop>
+  atlas setup [--dry-run]
   atlas planning check <planning-root>
   atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
   atlas plan import <file> [--planning-dir <dir>] [--dry-run]
-  atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]
+  atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--home <dir>]
   atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
-  atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]
+  atlas serve [--address <ip>] [--port <n>] [--home <dir>]
   atlas --version
   atlas help
 
-Model commands print JSON and exit 2 for input failures, 1 for blocking findings.
+where finds the projects (planning folders in the Atlas home) that this checkout belongs to (by its
+Git remotes, by an absolute path hint, or by being inside one), with their names and active work;
+when several register its repository, the work commands need --planning-dir. The work
+commands change a work item's planning state: each prints the work item's status as JSON and exits
+0, 1 when it is refused (with the reason and any open items on stderr) and 2 on usage errors.
+They use the planning folder given by --planning-dir, else the one this checkout belongs to. They
+never commit. check checks plans, ledgers, the registry and diagrams of the files or planning
+folders given (default: this checkout's), warns about diagrams no document links, and exits 0
+when valid, 1 on errors. home lists the home's projects; home adopt moves a planning folder into
+the home, importing its old statistics files (the deletion is yours to commit).
+capture captures code or a database as the source configuration file describes (paths in it are
+relative to it) and writes the diagram into the work item's diagrams/<name>.puml (default name
+<identity>-<date>), or to --out; an existing file needs --force. --compares names an earlier
+capture this one is compared with. It prints the capture's summary as JSON and exits 0, 1 when
+the capture fails or is refused, and 2 on usage errors.
+mcp serves the planning-state operations to an agent harness over stdio. hook runs one harness
+hook (Claude Code or Codex) on the JSON it reads from stdin; it always exits 0. setup creates the
+Atlas home and its database (moving older settings and statistics into it), grants the home to
+Claude Code and Codex, and installs the Atlas plugin into each harness on PATH; --dry-run prints
+what it would do.
 planning check exits 0 when valid, 1 on errors and 2 on usage errors; it never writes.
 plan export writes one self-contained HTML file of a work item (default
 <slug>-<work-id>.atlas-plan.html in the current folder; an existing file needs --force).
@@ -36,60 +59,28 @@ planning folder given by --planning-dir, else the current folder, and exit 0 on 
 1 for an invalid export or a refused folder and 2 on usage errors.
 usage log exits 0 even when it cannot record, so a logging problem never fails the task (2 only for
 usage errors); it reports gaps on stderr.
-work report records a ledger transition: its time, the model and the step, as one line in
-<work>/.atlas/statistics.jsonl, which the app summarizes. Inside Claude Code or Codex it reads the
+work report records a ledger transition: its time, the model and the step, in the Atlas home's
+database under the planning folder's project, which the app summarizes. Inside Claude Code or Codex it reads the
 session, the model, and the agent's working time and tokens since the session's previous report
 from the session's own log on this computer; elsewhere give --model, and --session and --tokens
 (the tokens used so far in the session) when known. It always exits 0, except for usage errors
 (2), so reporting never fails the task.
-serve runs the Atlas host without the desktop app, so paired devices can browse this computer
-and open any planning folder on it; --folder puts folders on its folder list from the start. It
+serve runs the Atlas host without the desktop app, so paired devices can use this computer's
+projects (the planning folders in its home). It
 listens on this computer's Tailscale address unless --address names another (default port
 7346), prints a one-time pairing link with a QR code, and runs until stopped (Ctrl+C, or quit
 when interactive; manage prints a link that also grants Manage access).
-Usage statistics live in the Atlas data folder: ATLAS_DATA_DIR, else %APPDATA%\\Atlas on
-Windows or \${XDG_CONFIG_HOME:-~/.config}/Atlas on Linux.`;
+The Atlas home is ~/.atlas, or ATLAS_HOME: its planning/ folder holds the projects' planning
+folders, and Atlas keeps its database (atlas.db) and logs beside them.`;
 
-interface Output { stdout: (text: string) => void; stderr: (text: string) => void }
 const console_: Output = { stdout: text => process.stdout.write(text + '\n'), stderr: text => process.stderr.write(text + '\n') };
 
-class UsageError extends Error {
-  line: string;
-  constructor(message: string, line = '') { super(message); this.line = line; }
-}
 const checkUsage = 'Usage: atlas planning check <planning-root>';
 const exportUsage = 'Usage: atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]';
 const importUsage = 'Usage: atlas plan import <file> [--planning-dir <dir>] [--dry-run]';
-const logUsage = 'Usage: atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--data-dir <dir>]';
+const logUsage = 'Usage: atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--home <dir>]';
 const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]';
-const serveUsage = 'Usage: atlas serve [--folder <planning-root>]... [--address <ip>] [--port <n>] [--data-dir <dir>]';
-
-/** Parse `--name value`, `--name=value` and the variadic `--files a b c`, like the former argparse helpers. */
-function parseOptions(args: string[], spec: { values: string[]; lists?: string[]; flags?: string[] }, line: string) {
-  const positional: string[] = [];
-  const values: Record<string, string> = {};
-  const flags = new Set<string>();
-  const lists: Record<string, string[]> = {};
-  for (let index = 0; index < args.length; index++) {
-    const argument = args[index];
-    if (!argument.startsWith('--') || argument === '--') { positional.push(argument); continue; }
-    const [name, inline] = argument.slice(2).split(/=(.*)/s, 2) as [string, string | undefined];
-    if (spec.flags?.includes(name)) {
-      if (inline !== undefined) throw new UsageError(`argument --${name}: takes no value`, line);
-      flags.add(name);
-    } else if (spec.lists?.includes(name)) {
-      const items = inline !== undefined ? [inline] : [];
-      while (index + 1 < args.length && !args[index + 1].startsWith('-')) items.push(args[++index]);
-      if (!items.length) throw new UsageError(`argument --${name}: expected at least one argument`, line);
-      (lists[name] ??= []).push(...items);
-    } else if (spec.values.includes(name)) {
-      const value = inline ?? args[++index];
-      if (value === undefined || (inline === undefined && value.startsWith('--'))) throw new UsageError(`argument --${name}: expected one argument`, line);
-      values[name] = value;
-    } else throw new UsageError('unrecognized arguments: ' + argument, line);
-  }
-  return { positional, values, lists, flags };
-}
+const serveUsage = 'Usage: atlas serve [--address <ip>] [--port <n>] [--home <dir>]';
 
 function planningCheck(args: string[], out: Output) {
   if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(checkUsage); return 0; }
@@ -104,11 +95,11 @@ function planningCheck(args: string[], out: Output) {
 
 async function usageLog(args: string[], out: Output) {
   if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(logUsage); return 0; }
-  const { positional, values, lists } = parseOptions(args, { values: ['task', 'session', 'data-dir'], lists: ['files'] }, logUsage);
+  const { positional, values, lists } = parseOptions(args, { values: ['task', 'session', 'home'], lists: ['files'] }, logUsage);
   if (positional.length > 1) throw new UsageError('unrecognized arguments: ' + positional.slice(1).join(' '), logUsage);
   const missing = [positional.length ? '' : 'planning-root', lists.files ? '' : '--files'].filter(Boolean);
   if (missing.length) throw new UsageError('the following arguments are required: ' + missing.join(', '), logUsage);
-  const result = await logConsultation(positional[0], lists.files, { task: values.task, session: values.session, dataDir: values['data-dir'] });
+  const result = await logConsultation(positional[0], lists.files, { task: values.task, session: values.session, home: values.home });
   if (result.unavailable) out.stderr('Planning usage logging unavailable (' + result.unavailable + '); continue the task.');
   else {
     out.stdout(`{"reported_documents": ${result.recorded}, "unrecorded_documents": ${result.failed}}`);
@@ -130,7 +121,7 @@ async function workReport(args: string[], out: Output) {
     const result = await recordWorkReport(positional[0], values.work, { model: values.model ?? null, tokens: values.tokens === undefined ? null : Number(values.tokens), session: values.session ?? null, step: values.step ?? null });
     for (const warning of result.warnings) out.stderr('WARNING: ' + warning);
     const { report } = result, measured = report.measured;
-    out.stdout(JSON.stringify({ recorded: true, file: result.file, at: report.at, model: report.model, ...measured && { since: measured.since, agentMs: measured.agentMs, tokens: measured.models.reduce((sum, item) => sum + item.input + item.cacheRead + item.cacheWrite + item.output, 0) } }));
+    out.stdout(JSON.stringify({ recorded: true, project: result.project, at: report.at, model: report.model, ...measured && { since: measured.since, agentMs: measured.agentMs, tokens: measured.models.reduce((sum, item) => sum + item.input + item.cacheRead + item.cacheWrite + item.output, 0) } }));
   } catch (error) {
     out.stderr('Work statistics were not recorded (' + (error instanceof Error ? error.message : String(error)).replace(/\.$/, '') + '); continue the task.');
   }
@@ -139,14 +130,14 @@ async function workReport(args: string[], out: Output) {
 
 async function serveCommand(args: string[], out: Output) {
   if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(serveUsage); return 0; }
-  const { positional, values, lists } = parseOptions(args, { values: ['address', 'port', 'data-dir'], lists: ['folder'] }, serveUsage);
+  const { positional, values } = parseOptions(args, { values: ['address', 'port', 'home'] }, serveUsage);
   if (positional.length) throw new UsageError('unrecognized arguments: ' + positional.join(' '), serveUsage);
   if (values.port !== undefined && (!/^[0-9]+$/.test(values.port) || Number(values.port) < 1024 || Number(values.port) > 65535)) throw new UsageError('argument --port: expected a port from 1024 to 65535', serveUsage);
   if (values.address !== undefined && !/^[0-9a-fA-F:.]+$/.test(values.address)) throw new UsageError('argument --address: expected an IP address of this computer', serveUsage);
   const { serve } = await import('@envsemble/atlas-host/serve');
   let running;
   try {
-    running = await serve({ folders: (lists.folder ?? []).map(folder => path.resolve(folder)), address: values.address ?? null, port: values.port === undefined ? null : Number(values.port), dataDir: values['data-dir'] ?? null, version, interactive: Boolean(process.stdin.isTTY) }, out);
+    running = await serve({ address: values.address ?? null, port: values.port === undefined ? null : Number(values.port), home: values.home ?? null, version, interactive: Boolean(process.stdin.isTTY) }, out);
   } catch (error) { out.stderr('atlas: ' + (error as Error).message); return 1; }
   const stop = () => { void running.stop().then(() => process.exit(0)); };
   process.once('SIGINT', stop);
@@ -232,35 +223,37 @@ async function planImport(args: string[], out: Output) {
   return 0;
 }
 
-async function delegate(module: '@envsemble/atlas-diagrams/cli' | '@envsemble/atlas-diagrams/job-cli', args: string[]) {
-  const { run } = require(module) as { run: (args: string[]) => Promise<void> };
-  await run(args);
-  return typeof process.exitCode === 'number' ? process.exitCode : 0;
-}
-
-/** Run the command and return its exit code. The MCP server keeps running after this resolves. */
+/** Run the command and return its exit code. The MCP server and the host keep running after this resolves. */
 export async function main(args: string[], out: Output = console_): Promise<number> {
   const [command, subcommand, ...rest] = args;
   try {
     if (command === '--version' || command === '-v' || command === 'version') { out.stdout(version); return 0; }
     if (!command || ['help', '--help', '-h'].includes(command)) { out.stdout(usage); return 0; }
-    if (command === 'model') {
-      if (subcommand === 'job') return await delegate('@envsemble/atlas-diagrams/job-cli', rest);
-      if (subcommand === 'mcp' || subcommand === '--version') throw new UsageError(subcommand === 'mcp' ? 'use atlas mcp --root <workspace>' : 'use atlas --version');
-      return await delegate('@envsemble/atlas-diagrams/cli', subcommand === undefined ? [] : [subcommand, ...rest]);
-    }
-    if (command === 'mcp') return await delegate('@envsemble/atlas-diagrams/cli', ['mcp', ...args.slice(1)]);
+    // A hook never fails the session, whatever happens.
+    if (command === 'hook') { const { hook } = await import('./hook.ts'); return await hook(args.slice(1), out); }
+    if (command === 'mcp') { const { serveMcp } = await import('./mcp.ts'); return await serveMcp(args.slice(1), out); }
+    if (command === 'setup') { const { setup } = await import('./setup.ts'); return await setup(args.slice(1), out); }
+    if (command === 'where') return await where(args.slice(1), out);
+    if (command === 'check') return await check(args.slice(1), out);
+    if (command === 'capture') return await capture(args.slice(1), out);
+    if (command === 'home') return await home(args.slice(1), out);
     if (command === 'planning' && subcommand === 'check') return planningCheck(rest, out);
     if (command === 'plan' && subcommand === 'export') return await planExport(rest, printableOutput(out));
     if (command === 'plan' && subcommand === 'import') return await planImport(rest, printableOutput(out));
     if (command === 'usage' && subcommand === 'log') return await usageLog(rest, out);
     if (command === 'work' && subcommand === 'report') return await workReport(rest, printableOutput(out));
+    if (command === 'work') return await work(subcommand, rest, out);
     // The QR code is drawn with terminal colour codes; serve prints only local, trusted text.
     if (command === 'serve') return await serveCommand(args.slice(1), out);
     throw new UsageError(command === 'planning' || command === 'plan' || command === 'usage' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
-    if (error instanceof PlanExportError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
-    const failure = command === 'plan' ? systemFailure(error) : null;
+    if (error instanceof PlanExportError || error instanceof PlanningNotFoundError || error instanceof CaptureError || error instanceof DatabaseVersionError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
+    if (error instanceof WorkError) {
+      out.stderr('atlas: ' + printable(error.message));
+      for (const problem of error.problems) out.stderr('  - ' + printable(problem));
+      return 1;
+    }
+    const failure = ['plan', 'work', 'home', 'capture'].includes(command) ? systemFailure(error) : null;
     if (failure) { out.stderr('atlas: ' + printable(failure)); return 1; }
     if (!(error instanceof UsageError)) throw error;
     out.stderr(error.line || usage);

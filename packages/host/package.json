@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/atlas-host",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "The Atlas host: serves planning folders to the desktop app and to paired devices over an authenticated connection",
   "repository": {
@@ -22,7 +22,7 @@
     "./plan-worker": "./src/planWorker.ts"
   },
   "scripts": {
-    "test": "node --test \"src/*.test.ts\"",
+    "test": "node --import ../../scripts/test-home.mjs --test \"src/*.test.ts\"",
     "check:types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

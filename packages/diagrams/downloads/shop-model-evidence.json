@@ -1,0 +1,1248 @@
+{
+  "id": "diagrams/saved-methods.puml",
+  "title": "Saved payment methods",
+  "version": "",
+  "date": "",
+  "status": "",
+  "repositories": [],
+  "sources": [
+    {
+      "id": "source:Checkout",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "repo": "shop",
+      "line": 10
+    },
+    {
+      "id": "source:Checkout.lines",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 11
+    },
+    {
+      "id": "source:Checkout.gateway",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 13
+    },
+    {
+      "id": "source:Checkout.constructor(gateway:Gateway)",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 13
+    },
+    {
+      "id": "source:Checkout.total()",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 14
+    },
+    {
+      "id": "source:Checkout.pay(card:string)",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 20
+    },
+    {
+      "id": "source:Gateway",
+      "file": "src/payments.ts",
+      "title": "src/payments.ts",
+      "claim": "",
+      "repo": "shop",
+      "line": 2
+    },
+    {
+      "id": "source:Gateway.charge(amount:number,token:string)",
+      "file": "src/payments.ts",
+      "title": "src/payments.ts",
+      "claim": "",
+      "line": 3
+    },
+    {
+      "id": "source:LegacyGateway",
+      "file": "src/payments.ts",
+      "title": "src/payments.ts",
+      "claim": "",
+      "repo": "shop",
+      "line": 7
+    },
+    {
+      "id": "source:LegacyGateway.apiKey",
+      "file": "src/payments.ts",
+      "title": "src/payments.ts",
+      "claim": "",
+      "line": 8
+    },
+    {
+      "id": "source:LegacyGateway.constructor(apiKey:string)",
+      "file": "src/payments.ts",
+      "title": "src/payments.ts",
+      "claim": "",
+      "line": 8
+    },
+    {
+      "id": "source:LegacyGateway.charge(amount:number,token:string)",
+      "file": "src/payments.ts",
+      "title": "src/payments.ts",
+      "claim": "",
+      "line": 9
+    },
+    {
+      "id": "source:Vault",
+      "file": "src/vault.ts",
+      "title": "src/vault.ts",
+      "claim": ""
+    },
+    {
+      "id": "source:Line",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "repo": "shop",
+      "line": 3
+    },
+    {
+      "id": "source:Line.sku",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 4
+    },
+    {
+      "id": "source:Line.quantity",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 5
+    },
+    {
+      "id": "source:Line.price",
+      "file": "src/checkout.ts",
+      "title": "src/checkout.ts",
+      "claim": "",
+      "line": 6
+    }
+  ],
+  "classes": [
+    {
+      "id": "Checkout",
+      "name": "Checkout",
+      "stereotype": "class",
+      "description": "",
+      "evidence": [
+        "source:Checkout"
+      ],
+      "namespace": "src",
+      "attributes": [
+        {
+          "id": "Checkout.lines",
+          "name": "lines",
+          "type": "Line[]",
+          "multiplicity": null,
+          "evidence": [
+            "source:Checkout.lines"
+          ],
+          "primarySource": "source:Checkout.lines",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 11,
+            "endLine": 11
+          }
+        },
+        {
+          "id": "Checkout.savedMethod",
+          "name": "savedMethod",
+          "type": "SavedMethod",
+          "multiplicity": "0..1"
+        },
+        {
+          "id": "Checkout.gateway",
+          "name": "gateway",
+          "type": "Gateway",
+          "multiplicity": null,
+          "visibility": "-",
+          "evidence": [
+            "source:Checkout.gateway"
+          ],
+          "primarySource": "source:Checkout.gateway",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 13,
+            "endLine": 13
+          }
+        }
+      ],
+      "methods": [
+        {
+          "id": "Checkout.constructor(gateway:Gateway)",
+          "name": "constructor",
+          "type": "constructor(gateway: Gateway)",
+          "evidence": [
+            "source:Checkout.constructor(gateway:Gateway)"
+          ],
+          "primarySource": "source:Checkout.constructor(gateway:Gateway)",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 13,
+            "endLine": 13
+          }
+        },
+        {
+          "id": "Checkout.total()",
+          "name": "total",
+          "type": "total(): number",
+          "evidence": [
+            "source:Checkout.total()"
+          ],
+          "primarySource": "source:Checkout.total()",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 14,
+            "endLine": 19
+          }
+        },
+        {
+          "id": "Checkout.pay(card:string)",
+          "name": "pay",
+          "type": "pay(card: string): Promise<string>",
+          "evidence": [
+            "source:Checkout.pay(card:string)"
+          ],
+          "primarySource": "source:Checkout.pay(card:string)",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 20,
+            "endLine": 23
+          }
+        },
+        {
+          "id": "Checkout.payWithSaved(methodId:string)",
+          "name": "payWithSaved",
+          "type": "payWithSaved(methodId: string): Promise<string>"
+        }
+      ],
+      "primarySource": "source:Checkout",
+      "location": {
+        "file": "src/checkout.ts",
+        "startLine": 10,
+        "endLine": 24
+      }
+    },
+    {
+      "id": "Gateway",
+      "name": "Gateway",
+      "stereotype": "interface",
+      "description": "",
+      "evidence": [
+        "source:Gateway"
+      ],
+      "namespace": "src",
+      "attributes": [],
+      "methods": [
+        {
+          "id": "Gateway.charge(amount:number,token:string)",
+          "name": "charge",
+          "type": "charge(amount: number, token: string): Promise<string>",
+          "evidence": [
+            "source:Gateway.charge(amount:number,token:string)"
+          ],
+          "primarySource": "source:Gateway.charge(amount:number,token:string)",
+          "location": {
+            "file": "src/payments.ts",
+            "startLine": 3,
+            "endLine": 3
+          }
+        }
+      ],
+      "primarySource": "source:Gateway",
+      "location": {
+        "file": "src/payments.ts",
+        "startLine": 2,
+        "endLine": 4
+      }
+    },
+    {
+      "id": "LegacyGateway",
+      "name": "LegacyGateway",
+      "stereotype": "class",
+      "description": "",
+      "evidence": [
+        "source:LegacyGateway"
+      ],
+      "namespace": "src",
+      "attributes": [
+        {
+          "id": "LegacyGateway.apiKey",
+          "name": "apiKey",
+          "type": "string",
+          "multiplicity": null,
+          "visibility": "-",
+          "evidence": [
+            "source:LegacyGateway.apiKey"
+          ],
+          "primarySource": "source:LegacyGateway.apiKey",
+          "location": {
+            "file": "src/payments.ts",
+            "startLine": 8,
+            "endLine": 8
+          }
+        }
+      ],
+      "methods": [
+        {
+          "id": "LegacyGateway.constructor(apiKey:string)",
+          "name": "constructor",
+          "type": "constructor(apiKey: string)",
+          "evidence": [
+            "source:LegacyGateway.constructor(apiKey:string)"
+          ],
+          "primarySource": "source:LegacyGateway.constructor(apiKey:string)",
+          "location": {
+            "file": "src/payments.ts",
+            "startLine": 8,
+            "endLine": 8
+          }
+        },
+        {
+          "id": "LegacyGateway.charge(amount:number,token:string)",
+          "name": "charge",
+          "type": "charge(amount: number, token: string): Promise<string>",
+          "evidence": [
+            "source:LegacyGateway.charge(amount:number,token:string)"
+          ],
+          "primarySource": "source:LegacyGateway.charge(amount:number,token:string)",
+          "location": {
+            "file": "src/payments.ts",
+            "startLine": 9,
+            "endLine": 11
+          }
+        }
+      ],
+      "primarySource": "source:LegacyGateway",
+      "location": {
+        "file": "src/payments.ts",
+        "startLine": 7,
+        "endLine": 12
+      }
+    },
+    {
+      "id": "Vault",
+      "name": "Vault",
+      "stereotype": "interface",
+      "description": "Keeps the payment methods customers save.",
+      "evidence": [
+        "source:Vault"
+      ],
+      "namespace": "src",
+      "attributes": [],
+      "methods": [
+        {
+          "id": "Vault.save(customerId:string,token:string)",
+          "name": "save",
+          "type": "save(customerId: string, token: string): Promise<SavedMethod>"
+        },
+        {
+          "id": "Vault.methodsOf(customerId:string)",
+          "name": "methodsOf",
+          "type": "methodsOf(customerId: string): Promise<SavedMethod[]>"
+        }
+      ],
+      "primarySource": "source:Vault"
+    },
+    {
+      "id": "SavedMethod",
+      "name": "SavedMethod",
+      "stereotype": "class",
+      "description": "A card a customer saved, kept as a token.",
+      "evidence": [],
+      "namespace": "src",
+      "attributes": [
+        {
+          "id": "SavedMethod.id",
+          "name": "id",
+          "type": "string",
+          "multiplicity": null
+        },
+        {
+          "id": "SavedMethod.token",
+          "name": "token",
+          "type": "string",
+          "multiplicity": null
+        },
+        {
+          "id": "SavedMethod.last4",
+          "name": "last4",
+          "type": "string",
+          "multiplicity": null
+        }
+      ]
+    },
+    {
+      "id": "Line",
+      "name": "Line",
+      "stereotype": "interface",
+      "description": "",
+      "evidence": [
+        "source:Line"
+      ],
+      "namespace": "src",
+      "attributes": [
+        {
+          "id": "Line.sku",
+          "name": "sku",
+          "type": "string",
+          "multiplicity": null,
+          "evidence": [
+            "source:Line.sku"
+          ],
+          "primarySource": "source:Line.sku",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 4,
+            "endLine": 4
+          }
+        },
+        {
+          "id": "Line.quantity",
+          "name": "quantity",
+          "type": "number",
+          "multiplicity": null,
+          "evidence": [
+            "source:Line.quantity"
+          ],
+          "primarySource": "source:Line.quantity",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 5,
+            "endLine": 5
+          }
+        },
+        {
+          "id": "Line.price",
+          "name": "price",
+          "type": "number",
+          "multiplicity": null,
+          "evidence": [
+            "source:Line.price"
+          ],
+          "primarySource": "source:Line.price",
+          "location": {
+            "file": "src/checkout.ts",
+            "startLine": 6,
+            "endLine": 6
+          }
+        }
+      ],
+      "primarySource": "source:Line",
+      "location": {
+        "file": "src/checkout.ts",
+        "startLine": 3,
+        "endLine": 7
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "relation:Checkout:Gateway",
+      "name": "",
+      "stereotype": "dependency",
+      "sourceId": "Checkout",
+      "targetId": "Gateway",
+      "sourceMultiplicity": "",
+      "targetMultiplicity": "",
+      "description": "",
+      "evidence": []
+    },
+    {
+      "id": "relation:Checkout:Line",
+      "name": "",
+      "stereotype": "dependency",
+      "sourceId": "Checkout",
+      "targetId": "Line",
+      "sourceMultiplicity": "",
+      "targetMultiplicity": "",
+      "description": "",
+      "evidence": []
+    },
+    {
+      "id": "relation:Checkout:Vault",
+      "name": "",
+      "stereotype": "dependency",
+      "sourceId": "Checkout",
+      "targetId": "Vault",
+      "sourceMultiplicity": "",
+      "targetMultiplicity": "",
+      "description": "",
+      "evidence": []
+    },
+    {
+      "id": "relation:Checkout:SavedMethod:pays%20with",
+      "name": "pays with",
+      "stereotype": "",
+      "sourceId": "Checkout",
+      "targetId": "SavedMethod",
+      "sourceMultiplicity": "",
+      "targetMultiplicity": "0..1",
+      "navigable": true,
+      "description": "",
+      "evidence": []
+    },
+    {
+      "id": "relation:Vault:SavedMethod:keeps",
+      "name": "keeps",
+      "stereotype": "",
+      "sourceId": "Vault",
+      "targetId": "SavedMethod",
+      "sourceMultiplicity": "1",
+      "targetMultiplicity": "0..*",
+      "sourceAggregation": "COMPOSITE",
+      "description": "",
+      "evidence": []
+    }
+  ],
+  "generalizations": [
+    {
+      "id": "generalization:LegacyGateway:Gateway",
+      "specificId": "LegacyGateway",
+      "generalId": "Gateway",
+      "realization": true,
+      "evidence": []
+    }
+  ],
+  "partitions": [],
+  "constraints": [],
+  "unknowns": [],
+  "validation": {
+    "valid": true,
+    "schema": "atlas/plantuml",
+    "engines": [
+      {
+        "name": "Atlas PlantUML subset",
+        "version": "1",
+        "layer": "diagram"
+      }
+    ],
+    "issues": [],
+    "counts": {
+      "error": 0,
+      "warning": 0,
+      "info": 0
+    },
+    "limitations": [
+      "Checks cover Atlas's PlantUML subset and its model rules; they do not establish that the model is accurate."
+    ],
+    "modelCounts": {
+      "classes": 6,
+      "relations": 5,
+      "generalizations": 1
+    },
+    "diagrams": [
+      {
+        "view": "comparison",
+        "fields": false,
+        "valid": true,
+        "issues": [],
+        "multiplicityLabels": 3,
+        "maxMultiplicityDistance": 47,
+        "generalizationGroups": 0
+      },
+      {
+        "view": "comparison",
+        "fields": true,
+        "valid": true,
+        "issues": [],
+        "multiplicityLabels": 3,
+        "maxMultiplicityDistance": 47,
+        "generalizationGroups": 0
+      }
+    ]
+  },
+  "document": {
+    "id": "diagrams/saved-methods.puml",
+    "path": "diagrams/saved-methods.puml",
+    "profile": "code",
+    "state": "proposal",
+    "revision": {
+      "id": "7b11c892f1ed08d2",
+      "parentId": null,
+      "createdAt": "",
+      "reason": ""
+    },
+    "baselineId": "diagrams/checkout.puml",
+    "snapshots": [
+      {
+        "id": "diagrams/checkout.puml",
+        "profile": "code",
+        "capture": {
+          "capturedAt": "2026-10-14T19:22:17.114Z",
+          "adapter": {
+            "id": "atlas-typescript",
+            "version": "1.0.0",
+            "compilerVersion": "6.0.3"
+          },
+          "source": {
+            "kind": "typescript",
+            "identity": "shop",
+            "scope": [
+              "shop:src/checkout.ts",
+              "shop:src/payments.ts"
+            ],
+            "projects": [
+              {
+                "identity": "shop",
+                "scope": [
+                  "src/checkout.ts",
+                  "src/payments.ts"
+                ],
+                "revision": null,
+                "pinnedSelectedFiles": false,
+                "contentFingerprint": "13b663b245a9634fff4a357585ccf7c55ff9ec9a20a673414eec080bd2a70dd6",
+                "tsconfig": "tsconfig.json",
+                "configurationFingerprint": "d9536fe9c1200d3f71e0014348834c22be2232017add2c9b3bd0e8a75a8136e7",
+                "dependencyFingerprint": "a9f60f07674f9d8f50d89720320ad2b8e638d2ffddbcd539d005b2768698dbf7"
+              }
+            ]
+          },
+          "coverage": {
+            "status": "partial",
+            "diagnostics": [
+              {
+                "code": "EXTERNAL_TYPE",
+                "message": "shop:Gateway: type reference Promise<string> has no captured target"
+              },
+              {
+                "code": "EXTERNAL_TYPE",
+                "message": "shop:LegacyGateway: type reference Promise<string> has no captured target"
+              },
+              {
+                "code": "EXTERNAL_TYPE",
+                "message": "shop:Checkout: type reference Promise<string> has no captured target"
+              }
+            ]
+          },
+          "consistency": {
+            "kind": "compiler-read-with-content-recheck",
+            "metadataOnly": true
+          },
+          "limitations": [
+            "Named declarations and declared type use only; no runtime/reflection/framework mappings or conceptual multiplicities are inferred.",
+            "Type aliases are drawn as classes, which their snippets define; enums show their constants without their fields and operations; of the modifiers only visibility is drawn."
+          ]
+        }
+      }
+    ],
+    "context": {
+      "records": [],
+      "links": []
+    },
+    "comparison": {
+      "changes": {
+        "changes": [
+          {
+            "id": "change:bdbfd6e2d174a2fbca2adc5f",
+            "elementId": "Checkout",
+            "ownerId": null,
+            "kind": "modified",
+            "name": "Checkout",
+            "properties": [
+              {
+                "key": "attributes",
+                "before": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "Checkout.card"
+                    },
+                    {
+                      "$element": "Checkout.gateway"
+                    },
+                    {
+                      "$element": "Checkout.lines"
+                    }
+                  ]
+                },
+                "after": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "Checkout.gateway"
+                    },
+                    {
+                      "$element": "Checkout.lines"
+                    },
+                    {
+                      "$element": "Checkout.savedMethod"
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "methods",
+                "before": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "Checkout.constructor(gateway:Gateway)"
+                    },
+                    {
+                      "$element": "Checkout.pay(card:string)"
+                    },
+                    {
+                      "$element": "Checkout.total()"
+                    }
+                  ]
+                },
+                "after": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "Checkout.constructor(gateway:Gateway)"
+                    },
+                    {
+                      "$element": "Checkout.pay(card:string)"
+                    },
+                    {
+                      "$element": "Checkout.payWithSaved(methodId:string)"
+                    },
+                    {
+                      "$element": "Checkout.total()"
+                    }
+                  ]
+                }
+              }
+            ],
+            "before": {
+              "attributes": [
+                {
+                  "$element": "Checkout.card"
+                },
+                {
+                  "$element": "Checkout.gateway"
+                },
+                {
+                  "$element": "Checkout.lines"
+                }
+              ],
+              "id": "Checkout",
+              "methods": [
+                {
+                  "$element": "Checkout.constructor(gateway:Gateway)"
+                },
+                {
+                  "$element": "Checkout.pay(card:string)"
+                },
+                {
+                  "$element": "Checkout.total()"
+                }
+              ],
+              "name": "Checkout",
+              "namespace": "src",
+              "stereotype": "class"
+            },
+            "after": {
+              "attributes": [
+                {
+                  "$element": "Checkout.gateway"
+                },
+                {
+                  "$element": "Checkout.lines"
+                },
+                {
+                  "$element": "Checkout.savedMethod"
+                }
+              ],
+              "id": "Checkout",
+              "methods": [
+                {
+                  "$element": "Checkout.constructor(gateway:Gateway)"
+                },
+                {
+                  "$element": "Checkout.pay(card:string)"
+                },
+                {
+                  "$element": "Checkout.payWithSaved(methodId:string)"
+                },
+                {
+                  "$element": "Checkout.total()"
+                }
+              ],
+              "name": "Checkout",
+              "namespace": "src",
+              "stereotype": "class"
+            },
+            "rationale": [],
+            "evidence": {
+              "evidence": [
+                "source:Checkout"
+              ],
+              "primarySource": "source:Checkout"
+            }
+          },
+          {
+            "id": "change:9de0c9a920a6cc33af51f4e4",
+            "elementId": "Checkout.card",
+            "ownerId": "Checkout",
+            "kind": "removed",
+            "name": "card",
+            "properties": [],
+            "before": {
+              "id": "Checkout.card",
+              "multiplicity": "0..1",
+              "name": "card",
+              "type": "string"
+            },
+            "rationale": [],
+            "evidence": {
+              "evidence": [
+                "source:Checkout"
+              ],
+              "primarySource": "source:Checkout"
+            }
+          },
+          {
+            "id": "change:6ad984848120dccaa6328676",
+            "elementId": "Checkout.payWithSaved(methodId:string)",
+            "ownerId": "Checkout",
+            "kind": "added",
+            "name": "payWithSaved",
+            "properties": [],
+            "after": {
+              "id": "Checkout.payWithSaved(methodId:string)",
+              "name": "payWithSaved",
+              "type": "payWithSaved(methodId: string): Promise<string>"
+            },
+            "rationale": [],
+            "evidence": {
+              "evidence": [
+                "source:Checkout"
+              ],
+              "primarySource": "source:Checkout"
+            }
+          },
+          {
+            "id": "change:9da8d49a9e5d1517e4179df0",
+            "elementId": "Checkout.savedMethod",
+            "ownerId": "Checkout",
+            "kind": "added",
+            "name": "savedMethod",
+            "properties": [],
+            "after": {
+              "id": "Checkout.savedMethod",
+              "multiplicity": "0..1",
+              "name": "savedMethod",
+              "type": "SavedMethod"
+            },
+            "rationale": [],
+            "evidence": {
+              "evidence": [
+                "source:Checkout"
+              ],
+              "primarySource": "source:Checkout"
+            }
+          },
+          {
+            "id": "change:15720de4d472763144d155b2",
+            "elementId": "SavedMethod",
+            "ownerId": null,
+            "kind": "added",
+            "name": "SavedMethod",
+            "properties": [],
+            "after": {
+              "attributes": [
+                {
+                  "$element": "SavedMethod.id"
+                },
+                {
+                  "$element": "SavedMethod.last4"
+                },
+                {
+                  "$element": "SavedMethod.token"
+                }
+              ],
+              "description": "A card a customer saved, kept as a token.",
+              "id": "SavedMethod",
+              "name": "SavedMethod",
+              "namespace": "src",
+              "stereotype": "class"
+            },
+            "rationale": [],
+            "evidence": null
+          },
+          {
+            "id": "change:49c37f23d5bfca7682104209",
+            "elementId": "SavedMethod.id",
+            "ownerId": "SavedMethod",
+            "kind": "added",
+            "name": "id",
+            "properties": [],
+            "after": {
+              "id": "SavedMethod.id",
+              "multiplicity": null,
+              "name": "id",
+              "type": "string"
+            },
+            "rationale": [],
+            "evidence": null
+          },
+          {
+            "id": "change:4ca2e450826cc4906ffb2ca1",
+            "elementId": "SavedMethod.last4",
+            "ownerId": "SavedMethod",
+            "kind": "added",
+            "name": "last4",
+            "properties": [],
+            "after": {
+              "id": "SavedMethod.last4",
+              "multiplicity": null,
+              "name": "last4",
+              "type": "string"
+            },
+            "rationale": [],
+            "evidence": null
+          },
+          {
+            "id": "change:1a1db68dc3314170834d356c",
+            "elementId": "SavedMethod.token",
+            "ownerId": "SavedMethod",
+            "kind": "added",
+            "name": "token",
+            "properties": [],
+            "after": {
+              "id": "SavedMethod.token",
+              "multiplicity": null,
+              "name": "token",
+              "type": "string"
+            },
+            "rationale": [],
+            "evidence": null
+          },
+          {
+            "id": "change:d9dbf2d21f337bc67c0112b1",
+            "elementId": "Vault",
+            "ownerId": null,
+            "kind": "added",
+            "name": "Vault",
+            "properties": [],
+            "after": {
+              "attributes": [],
+              "description": "Keeps the payment methods customers save.",
+              "id": "Vault",
+              "methods": [
+                {
+                  "$element": "Vault.methodsOf(customerId:string)"
+                },
+                {
+                  "$element": "Vault.save(customerId:string,token:string)"
+                }
+              ],
+              "name": "Vault",
+              "namespace": "src",
+              "stereotype": "interface"
+            },
+            "rationale": [],
+            "evidence": {
+              "evidence": [
+                "source:Vault"
+              ],
+              "primarySource": "source:Vault"
+            }
+          },
+          {
+            "id": "change:1a41278cde3e45842551cb9c",
+            "elementId": "Vault.methodsOf(customerId:string)",
+            "ownerId": "Vault",
+            "kind": "added",
+            "name": "methodsOf",
+            "properties": [],
+            "after": {
+              "id": "Vault.methodsOf(customerId:string)",
+              "name": "methodsOf",
+              "type": "methodsOf(customerId: string): Promise<SavedMethod[]>"
+            },
+            "rationale": [],
+            "evidence": {
+              "evidence": [
+                "source:Vault"
+              ],
+              "primarySource": "source:Vault"
+            }
+          },
+          {
+            "id": "change:b3be5b0802b78db34e7795b8",
+            "elementId": "Vault.save(customerId:string,token:string)",
+            "ownerId": "Vault",
+            "kind": "added",
+            "name": "save",
+            "properties": [],
+            "after": {
+              "id": "Vault.save(customerId:string,token:string)",
+              "name": "save",
+              "type": "save(customerId: string, token: string): Promise<SavedMethod>"
+            },
+            "rationale": [],
+            "evidence": {
+              "evidence": [
+                "source:Vault"
+              ],
+              "primarySource": "source:Vault"
+            }
+          },
+          {
+            "id": "change:9183992cd8826301365c3ce1",
+            "elementId": "relation:Checkout:SavedMethod:pays%20with",
+            "ownerId": null,
+            "kind": "added",
+            "name": "pays with",
+            "properties": [],
+            "after": {
+              "id": "relation:Checkout:SavedMethod:pays%20with",
+              "name": "pays with",
+              "navigable": true,
+              "sourceId": "Checkout",
+              "sourceMultiplicity": "",
+              "stereotype": "",
+              "targetId": "SavedMethod",
+              "targetMultiplicity": "0..1"
+            },
+            "rationale": [],
+            "evidence": null
+          },
+          {
+            "id": "change:593b107bf4c37a45ae6262b7",
+            "elementId": "relation:Checkout:Vault",
+            "ownerId": null,
+            "kind": "added",
+            "name": "relation:Checkout:Vault",
+            "properties": [],
+            "after": {
+              "id": "relation:Checkout:Vault",
+              "name": "",
+              "sourceId": "Checkout",
+              "sourceMultiplicity": "",
+              "stereotype": "dependency",
+              "targetId": "Vault",
+              "targetMultiplicity": ""
+            },
+            "rationale": [],
+            "evidence": null
+          },
+          {
+            "id": "change:4682a6a49882bf21bac86e15",
+            "elementId": "relation:Vault:SavedMethod:keeps",
+            "ownerId": null,
+            "kind": "added",
+            "name": "keeps",
+            "properties": [],
+            "after": {
+              "id": "relation:Vault:SavedMethod:keeps",
+              "name": "keeps",
+              "sourceAggregation": "COMPOSITE",
+              "sourceId": "Vault",
+              "sourceMultiplicity": "1",
+              "stereotype": "",
+              "targetId": "SavedMethod",
+              "targetMultiplicity": "0..*"
+            },
+            "rationale": [],
+            "evidence": null
+          },
+          {
+            "id": "change:433f4a880c8d8bffa057af81",
+            "elementId": null,
+            "ownerId": null,
+            "kind": "modified",
+            "name": "Model contents",
+            "properties": [
+              {
+                "key": "nodes",
+                "before": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "Checkout"
+                    },
+                    {
+                      "$element": "Gateway"
+                    },
+                    {
+                      "$element": "LegacyGateway"
+                    },
+                    {
+                      "$element": "Line"
+                    }
+                  ]
+                },
+                "after": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "Checkout"
+                    },
+                    {
+                      "$element": "Gateway"
+                    },
+                    {
+                      "$element": "LegacyGateway"
+                    },
+                    {
+                      "$element": "Line"
+                    },
+                    {
+                      "$element": "SavedMethod"
+                    },
+                    {
+                      "$element": "Vault"
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "relations",
+                "before": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "relation:Checkout:Gateway"
+                    },
+                    {
+                      "$element": "relation:Checkout:Line"
+                    }
+                  ]
+                },
+                "after": {
+                  "present": true,
+                  "value": [
+                    {
+                      "$element": "relation:Checkout:Gateway"
+                    },
+                    {
+                      "$element": "relation:Checkout:Line"
+                    },
+                    {
+                      "$element": "relation:Checkout:SavedMethod:pays%20with"
+                    },
+                    {
+                      "$element": "relation:Checkout:Vault"
+                    },
+                    {
+                      "$element": "relation:Vault:SavedMethod:keeps"
+                    }
+                  ]
+                }
+              }
+            ],
+            "before": {
+              "generalizations": [
+                {
+                  "$element": "generalization:LegacyGateway:Gateway"
+                }
+              ],
+              "nodes": [
+                {
+                  "$element": "Checkout"
+                },
+                {
+                  "$element": "Gateway"
+                },
+                {
+                  "$element": "LegacyGateway"
+                },
+                {
+                  "$element": "Line"
+                }
+              ],
+              "relations": [
+                {
+                  "$element": "relation:Checkout:Gateway"
+                },
+                {
+                  "$element": "relation:Checkout:Line"
+                }
+              ],
+              "type": "StructuralModel"
+            },
+            "after": {
+              "generalizations": [
+                {
+                  "$element": "generalization:LegacyGateway:Gateway"
+                }
+              ],
+              "nodes": [
+                {
+                  "$element": "Checkout"
+                },
+                {
+                  "$element": "Gateway"
+                },
+                {
+                  "$element": "LegacyGateway"
+                },
+                {
+                  "$element": "Line"
+                },
+                {
+                  "$element": "SavedMethod"
+                },
+                {
+                  "$element": "Vault"
+                }
+              ],
+              "relations": [
+                {
+                  "$element": "relation:Checkout:Gateway"
+                },
+                {
+                  "$element": "relation:Checkout:Line"
+                },
+                {
+                  "$element": "relation:Checkout:SavedMethod:pays%20with"
+                },
+                {
+                  "$element": "relation:Checkout:Vault"
+                },
+                {
+                  "$element": "relation:Vault:SavedMethod:keeps"
+                }
+              ],
+              "type": "StructuralModel"
+            },
+            "rationale": [],
+            "evidence": null
+          }
+        ],
+        "counts": {
+          "added": 12,
+          "removed": 1,
+          "modified": 2
+        },
+        "limitations": [
+          "Stable identities only; no inference of cross-layer meaning. Layout and source locations are excluded."
+        ],
+        "baseRevision": "1c65d31e127eae52",
+        "proposedRevision": "7b11c892f1ed08d2",
+        "missingRationale": [
+          "Checkout",
+          "Checkout.card",
+          "Checkout.payWithSaved(methodId:string)",
+          "Checkout.savedMethod",
+          "SavedMethod",
+          "SavedMethod.id",
+          "SavedMethod.last4",
+          "SavedMethod.token",
+          "Vault",
+          "Vault.methodsOf(customerId:string)",
+          "Vault.save(customerId:string,token:string)",
+          "relation:Checkout:SavedMethod:pays%20with",
+          "relation:Checkout:Vault",
+          "relation:Vault:SavedMethod:keeps"
+        ]
+      }
+    }
+  }
+}

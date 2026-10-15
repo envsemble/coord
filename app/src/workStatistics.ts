@@ -1,10 +1,10 @@
 // What the Statistics page and a work item's About sidebar show about work: the model, agent time
-// and tokens from agent reports (atlas work report), plan revisions from Git, and ledger steps.
-// Pure, so it is unit-tested.
+// and tokens from agent reports (recorded by the hooks, or atlas work report), by stage, with the
+// subagents that worked, plan revisions from Git, and ledger steps. Pure, so it is unit-tested.
 import { stepCounts } from '@envsemble/atlas-planning/ledger';
-import type { TokenKinds } from '@envsemble/atlas-planning/types';
+import type { StageUsage, TokenKinds, WorkStage } from '@envsemble/atlas-planning/types';
 import type { ModelUsage, Snapshot, Work, WorkStatistics } from './types';
-import { absoluteDate, compactNumber, duration, median } from './format';
+import { absoluteDate, compactNumber, duration, median, plural } from './format';
 
 export type TrendMetric = 'tokens' | 'agentMs' | 'planRevisions' | 'steps';
 export const trendMetrics: { id: TrendMetric; label: string; unit: string }[] = [
@@ -42,6 +42,28 @@ export function tokenRows(usage: { tokens: number | null; tokenKinds: TokenKinds
 }
 /** The breakdown as one line, for titles and assistive technology. */
 export const tokenText = (usage: { tokens: number | null; tokenKinds: TokenKinds | null }) => tokenRows(usage).map(row => row.label + ' ' + compactNumber(row.value)).join(' · ');
+
+export type StageKey = WorkStage | 'unknown';
+export const stageLabels: Record<StageKey, string> = { planning: 'Planning', implementation: 'Implementation', unknown: 'Stage not recorded' };
+/** A stage's agent time and tokens, when reports of it exist. */
+export function stageUsage(statistics: Pick<WorkStatistics, 'stages'> | null, stage: StageKey): StageUsage | null {
+  const usage = statistics?.stages?.[stage];
+  return usage?.reports ? usage : null;
+}
+/** The stages a work item shows: those reported, with reports from before stages beside them; none when no report has a stage. */
+export function shownStages(statistics: Pick<WorkStatistics, 'stages'> | null): StageKey[] {
+  const known = (['planning', 'implementation'] as const).filter(stage => stageUsage(statistics, stage));
+  return known.length && stageUsage(statistics, 'unknown') ? [...known, 'unknown'] : known;
+}
+/** What a stage took: "1 h 30 min, 120K tokens". */
+export function stageShare(usage: StageUsage) {
+  return [duration(usage.agentMs), usage.tokens !== null ? compactNumber(usage.tokens) + ' tokens' : null].filter(Boolean).join(', ');
+}
+/** How many subagents worked and for how long, each its own time added up: "2 subagents, 18 min"; null when none was measured. */
+export function subagentShare(statistics: Pick<WorkStatistics, 'subagents'> | null) {
+  const subagents = statistics?.subagents;
+  return subagents?.count ? plural(subagents.count, 'subagent') + ', ' + duration(subagents.agentMs) : null;
+}
 
 /** The models besides the primary one that did something, most agent time first. */
 export function otherModels(statistics: Pick<WorkStatistics, 'models' | 'primaryModel'>): ModelUsage[] {

@@ -104,11 +104,11 @@ function AtlasPanelContent({
 }) {
   const { model, views, snippets, learning: guide = null } = payload;
   const [viewKey, setViewKey] = useState(views[0].key);
-  const [fields, setFields] = useState(false),
+  // Attributes show by default; the toolbar hides them.
+  const [fields, setFields] = useState(true),
     [selected, setSelected] = useState(null);
   const [hidden, setHidden] = useState(false),
-    [learning, setLearning] = useState(false),
-    [learningTab, setLearningTab] = useState(null);
+    [learning, setLearning] = useState(false);
   const [focusRequest, setFocusRequest] = useState(null);
   // A member asked for by a focus (such as a plan's link) is shown in its
   // owner's details.
@@ -253,8 +253,7 @@ function AtlasPanelContent({
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [select]);
-  const conceptual = !model.document || model.document.profile === "ontouml";
-  const guided = conceptual || !!guide;
+  const guided = !!guide;
   // A member without a guide closes the one another member showed.
   useEffect(() => {
     if (!guided) setLearning(false);
@@ -384,16 +383,9 @@ function AtlasPanelContent({
               views={views}
               snippets={snippets}
               guide={guide}
-              conceptual={conceptual}
               changes={changes}
               showOverview={showOverview}
-              learningTab={learningTab}
-              onLearningTab={setLearningTab}
               onChoose={choose}
-              onView={(key) => {
-                setViewKey(key);
-                setFocusRequest(null);
-              }}
               onReference={onReference}
             />
           )}

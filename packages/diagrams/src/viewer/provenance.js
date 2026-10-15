@@ -42,10 +42,13 @@ export function sourceKindLabel(kind) {
   );
 }
 
+// A capture's own snapshot (a capture compared with an earlier one names it
+// apart from its baseline), or what a proposal starts from.
 function baselineSnapshot(document) {
   const snapshots = Array.isArray(document.snapshots) ? document.snapshots : [];
+  const own = document.state === "snapshot" && document.captureId;
   return (
-    snapshots.find((s) => s.id === document.baselineId) ||
+    snapshots.find((s) => s.id === (own || document.baselineId)) ||
     (document.state === "snapshot" ? snapshots[0] : undefined)
   );
 }
@@ -101,13 +104,15 @@ export function describeProvenance(document) {
       kind: "authored",
       label: "Agent-authored",
       detail:
-        document.profile === "ontouml"
-          ? "Conceptual model"
-          : "Structural model",
+        document.profile === "object"
+          ? "Object diagram"
+          : document.profile === "class"
+            ? "Class diagram"
+            : document.profile === "database"
+              ? "Entity diagram"
+              : "Structural model",
       tone: "success",
     };
   } else return { kind: "unknown", label: "", detail: "", tone: "neutral" };
-  if (document.imported)
-    result.detail = result.detail ? `${result.detail} · Imported` : "Imported";
   return result;
 }

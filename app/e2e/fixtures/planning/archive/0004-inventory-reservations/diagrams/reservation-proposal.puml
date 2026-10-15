@@ -1,0 +1,46 @@
+@startuml
+title Inventory · reservation proposal
+' atlas proposal inventory-before.puml
+
+entity product {
+  *sku : TEXT <<PK>>
+  --
+  *name : TEXT
+  *unit_price_minor : INTEGER
+  *currency : TEXT
+}
+
+entity warehouse {
+  *id : INTEGER <<PK>>
+  --
+  *code : TEXT
+  *name : TEXT
+  *country : TEXT
+}
+
+entity stock_level {
+  *warehouse_id : INTEGER <<PK>>
+  *sku : TEXT <<PK>>
+  --
+  *on_hand : INTEGER
+  *updated_at : TEXT
+  *reserved : INTEGER
+}
+
+entity stock_reservation {
+  *id : TEXT <<PK>>
+  --
+  *order_id : TEXT
+  *warehouse_id : INTEGER <<FK>>
+  *sku : TEXT <<FK>>
+  *quantity : INTEGER
+  *status : TEXT
+  *expires_at : TEXT
+  *created_at : TEXT
+  released_at : TEXT
+}
+
+product ||--o{ stock_level : sku
+warehouse ||--o{ stock_level : warehouse_id
+stock_level ||--o{ stock_reservation : warehouse_id, sku
+@enduml

@@ -2,7 +2,7 @@
 // reports, plan revisions, ledger steps), how that changes as new models arrive, and how
 // documents are used.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button, Counter, EmptyState, IconButton, Notice, Popover, SegmentedControl, Select, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Tabs, Text } from '@envsemble/envui';
+import { Button, Counter, EmptyState, IconButton, Notice, Popover, SegmentedControl, Select, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import { InfoIcon, StatisticsIcon } from './icons';
 import type { Snapshot } from './types';
@@ -14,41 +14,43 @@ import { aiModel } from './aiModels';
 import { ModelName } from './AiModel';
 import { ScatterChart, type ChartSeries } from './components/ScatterChart';
 import { TargetLink, useWorkbench } from './workbenchContext';
-import { Page, RepositorySelect, type RepositoryFilter } from './Pages';
-import { agentTimeNote, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, tokenRows, tokenText, trendMetrics, workRows, type TrendMetric, type WorkRow } from './workStatistics';
+import { Page } from './Pages';
+import type { StageUsage } from '@envsemble/atlas-planning/types';
+import { colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, stageLabels, stageUsage, subagentShare, tokenRows, tokenText, trendMetrics, workRows, type StageKey, type TrendMetric, type WorkRow } from './workStatistics';
 
 type StatisticsTab = 'work' | 'models' | 'documents';
 const tabs: { id: StatisticsTab; label: string }[] = [{ id: 'work', label: 'Work' }, { id: 'models', label: 'Models over time' }, { id: 'documents', label: 'Document use' }];
 /** Categorical slots for the three models with the most recent completed work, set per theme in atlas.css. */
 const seriesColors = ['var(--atlas-chart-1)', 'var(--atlas-chart-2)', 'var(--atlas-chart-3)'];
 const otherColor = 'var(--atlas-chart-other)';
-const reportHint = <>Agents report each ledger transition with <Code appearance="subtle">atlas work report</Code>, as the <Code appearance="subtle">atlas-implement</Code> skill describes. Inside Claude Code or Codex, Atlas reads the model, agent time and tokens from the session's own log.</>;
+const reportHint = <>The Atlas plugin records them when an agent session that worked on a work item stops, reading the model, agent time and tokens from the session's own log. Run <Code appearance="subtle">atlas setup</Code> to install it; without it, agents report with <Code appearance="subtle">atlas work report</Code>.</>;
 
 const formatMetric = (metric: TrendMetric, value: number | null) => value === null ? '—'
   : metric === 'tokens' ? compactNumber(value) : metric === 'agentMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
 
-export function Statistics({ snapshot, repository, setRepository }: RepositoryFilter & { snapshot: Snapshot }) {
+export function Statistics({ snapshot, repository }: { snapshot: Snapshot; repository: string }) {
   const [tab, setTab] = useState<StatisticsTab>('work');
   const rows = useMemo(() => workRows(snapshot, repository), [snapshot, repository]);
   const usage = repository === 'all' ? snapshot.usage : snapshot.usageByRepository[repository];
   const body = tab === 'work' ? <WorkStatisticsTab rows={rows} /> : tab === 'models' ? <ModelsTab rows={rows} /> : <DocumentUse snapshot={snapshot} repository={repository} />;
-  return <Page className="statistics-page" heading={<div className="page-heading-row">
-    <Text as="h1" variant="page-heading">Statistics</Text>
+  return <Page section title="Statistics" className="statistics-page" heading={<div className="page-heading-row">
+    <Text as="h2" variant="section-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
-        <p>The model, agent time and tokens come from agent reports (<Code appearance="subtle">atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time the agent worked, from each prompt to the end of its turn, with its helpers' work at the same time counted once and the time it waited for a person left out. Tokens are then counted for each model, by kind.</p>
+        <p>The model, agent time and tokens come from reports the Atlas plugin records when an agent session stops (or, without the plugin, <Code appearance="subtle">atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time the agent worked, from each prompt to the end of its turn, with its helpers' work at the same time counted once and the time it waited for a person left out. Tokens are then counted for each model, by kind.</p>
         <p>Older reports, and agents whose log Atlas cannot read, are estimated: agent time adds up the time between a session's reports, leaving out breaks of more than two hours, and tokens are what the agent reported. The implementing model is the one that did most of the work.</p>
-        <p>Plan revisions count the commits that changed a plan after it was added, up to its completion, from this folder's Git history. Moving a plan to the archive is not a revision.</p>
+        <p>Agent time and tokens are split by the work item's stage when each report was made: planning until its plan is accepted, and while a session amends an accepted plan; implementation after. Reports from before stages were recorded show as "Stage not recorded". Each subagent counts once, with its own working time added up.</p>
+        <p>Plan revisions count the commits that changed a plan after it was added, up to its completion, from this project's Git history. Moving a plan to the archive is not a revision.</p>
         <p>The three models whose completed work is most recent each have a colour; other models share "Other". Durations of work items are calendar time between acceptance and completion, not engineering time.</p>
         <p>Agent reports of documents are self-reported consultation; views are documents opened in Atlas. Unreported access is unknown, and zero use does not mean a record has no value.</p>
         {usage && <p className="muted">Collecting agent reports {usage.agentSince ? 'since ' + absoluteDate(usage.agentSince) : '— not yet'} · views since {absoluteDate(usage.dashboardSince) || '—'}</p>}
       </div>
     </Popover>
-    <span className="spacer" />
-    <RepositorySelect snapshot={snapshot} repository={repository} setRepository={setRepository} />
   </div>}>
-    <Tabs className="statistics-nav" aria-label="Statistics sections" value={tab} onValueChange={value => { if (value) setTab(value as StatisticsTab); }}
-      items={tabs.map(item => ({ value: item.id, button: <Button variant="secondary">{item.label}</Button>, content: item.id === tab ? <div className="statistics-body">{body}</div> : null }))} />
+    {/* The same control as the work list's filter above it on the project page. */}
+    <SegmentedControl className="statistics-nav" aria-label="Statistics sections" value={tab} onValueChange={value => setTab(value as StatisticsTab)}
+      options={tabs.map(item => ({ value: item.id, label: item.label }))} />
+    <div className="statistics-body">{body}</div>
   </Page>;
 }
 
@@ -63,6 +65,7 @@ function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
   const completed = completedRows(rows).filter(row => row.statistics?.planRevisions !== null && row.statistics?.planRevisions !== undefined);
   const revisions = median(completed.map(row => row.statistics!.planRevisions!));
   const invalid = rows.reduce((sum, row) => sum + (row.statistics?.invalid ?? 0), 0);
+  const stages: StageKey[] = rows.some(row => stageUsage(row.statistics, 'unknown')) ? ['planning', 'implementation', 'unknown'] : ['planning', 'implementation'];
   return <>
     <div className="stats-grid">
       <StatsCard label="Work with reports" value={reported.length} note={'of ' + rows.length + ' work items'} />
@@ -74,14 +77,19 @@ function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
     {invalid > 0 && <Notice tone="warning">{invalid} {invalid === 1 ? 'line' : 'lines'} of statistics files are not valid reports and are ignored. <Code appearance="subtle">atlas planning check</Code> names the files.</Notice>}
     {rows.length ? <Table className="work-statistics-table" aria-label="Work statistics" stickyHeader>
       <TableHead><TableRow>
-        <TableHeaderCell>Work</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell><TableHeaderCell numeric>Plan revisions</TableHeaderCell><TableHeaderCell numeric>Steps</TableHeaderCell>
+        <TableHeaderCell>Work</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell>{stages.map(stage => <TableHeaderCell key={stage} numeric>{stageLabels[stage]}</TableHeaderCell>)}<TableHeaderCell numeric>Subagents</TableHeaderCell><TableHeaderCell numeric>Plan revisions</TableHeaderCell><TableHeaderCell numeric>Steps</TableHeaderCell>
       </TableRow></TableHead>
-      <TableBody>{rows.map(row => <WorkStatisticsRow key={row.work.id} row={row} />)}</TableBody>
+      <TableBody>{rows.map(row => <WorkStatisticsRow key={row.work.id} row={row} stages={stages} />)}</TableBody>
     </Table> : <EmptyState className="page-empty" title="No work here yet" />}
   </>;
 }
 
-function WorkStatisticsRow({ row }: { row: WorkRow }) {
+/** A stage's agent time, with its tokens below. */
+function StageCell({ usage }: { usage: StageUsage | null }) {
+  return <TableCell numeric title={usage?.tokens != null ? tokenText(usage) : undefined}>{usage ? <>{duration(usage.agentMs)}{usage.tokens !== null && <small className="cell-note">{compactNumber(usage.tokens)} tokens</small>}</> : '—'}</TableCell>;
+}
+
+function WorkStatisticsRow({ row, stages }: { row: WorkRow; stages: StageKey[] }) {
   const { work, statistics } = row;
   const status = workStatus(work);
   const primary = statistics?.models.find(model => model.model === statistics.primaryModel);
@@ -89,8 +97,8 @@ function WorkStatisticsRow({ row }: { row: WorkRow }) {
   return <TableRow interactive>
     <TableCell><span className="work-cell"><StatusIcon status={status} /><TargetLink target={workTarget(work.id)}>{work.title}</TargetLink></span><small className="cell-note">{workNumber(work.id)} · {status.label}{statistics?.lastReport ? ' · reported ' + relativeDate(statistics.lastReport) : ''}</small></TableCell>
     <TableCell>{primary ? <span className="model-cell"><ModelName model={primary.model} detail={modelShare(primary)} />{others.length > 0 && <span title={'Also ' + others.map(model => aiModel(model.model).name + (modelShare(model) ? ' (' + modelShare(model) + ')' : '')).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
-    <TableCell numeric title={statistics?.reports ? agentTimeNote(statistics) : undefined}>{statistics?.reports ? duration(statistics.agentMs) : '—'}</TableCell>
-    <TableCell numeric title={statistics?.tokens != null ? tokenText(statistics) : undefined}>{statistics?.tokens != null ? compactNumber(statistics.tokens) : '—'}</TableCell>
+    {stages.map(stage => <StageCell key={stage} usage={stageUsage(statistics, stage)} />)}
+    <TableCell numeric title={subagentShare(statistics) ?? undefined}>{statistics?.subagents?.count ? <>{statistics.subagents.count}<small className="cell-note">{duration(statistics.subagents.agentMs)}</small></> : '—'}</TableCell>
     <TableCell numeric title={statistics?.planRevisions == null ? 'Not in this folder\'s Git history' : work.completed ? 'Before completion' : 'So far'}>{statistics?.planRevisions ?? '—'}</TableCell>
     <TableCell numeric>{row.steps ? `${row.stepsDone}/${row.steps}` : '—'}</TableCell>
   </TableRow>;

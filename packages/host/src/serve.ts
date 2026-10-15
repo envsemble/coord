@@ -1,12 +1,12 @@
-// `atlas serve`: the host without the desktop app, so other computers can use this one's planning
-// folders (a server, or a desktop left running). Paired devices browse the computer and open any
-// planning folder; `--folder` puts folders on its folder list from the start. It listens on the
-// Tailscale address unless told otherwise, prints a pairing link with a QR code, and in a terminal
-// takes a few commands.
+// `atlas serve`: the host without the desktop app, so other computers can use this one's projects
+// (a server, or a desktop left running). It listens on the Tailscale address unless told otherwise,
+// prints a pairing link with a QR code, and in a terminal takes a few commands.
 import { Worker } from 'node:worker_threads';
 import { createInterface } from 'node:readline';
 import QRCode from 'qrcode';
-import { atlasDataDirectory } from '@envsemble/atlas-planning';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { legacyDataDirectory, legacySettings, pendingHomeFiles, prepareHome, readTemplates } from '@envsemble/atlas-planning';
 import { hostAddresses } from './addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
 import { impostorHolder } from './access.ts';
@@ -14,7 +14,7 @@ import { Host } from './host.ts';
 import type { WorkerLike } from './planWorkerClient.ts';
 import { listenAddress } from './validate.ts';
 
-export interface ServeOptions { folders: string[]; address: string | null; port: number | null; dataDir: string | null; version: string; interactive: boolean }
+export interface ServeOptions { address: string | null; port: number | null; home: string | null; version: string; interactive: boolean }
 export interface ServeOutput { stdout(text: string): void; stderr(text: string): void }
 
 /** Start serving; resolves with a stop function once the host listens, or throws a message for the user. */
@@ -28,10 +28,22 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
     warn: (message: string, detail?: unknown) => out.stderr('Warning: ' + message + (detail && typeof detail === 'object' && 'message' in detail ? ': ' + String((detail as { message: unknown }).message) : '')),
     error: (message: string, detail?: unknown) => out.stderr('Error: ' + message + (detail instanceof Error ? ': ' + detail.message : '')),
   };
+  // Serving from the default home before the old data folder's settings moved into it would give the
+  // home fresh ones, and the move would then set the user's own aside.
+  if (!options.home && !process.env.ATLAS_HOME && (await legacySettings(legacyDataDirectory())).length) {
+    throw new Error(`Atlas's settings are still in ${legacyDataDirectory()}. Run atlas setup to move them into the Atlas home first, or give --home.`);
+  }
+  const { home } = await prepareHome({ override: options.home ?? undefined });
+  // Likewise the files Atlas kept in the home before its database: setup imports them.
+  if ((await pendingHomeFiles(home)).some(name => !name.startsWith('usage/'))) {
+    throw new Error(`Atlas's settings in ${home} have not moved into its database yet. Run atlas setup first.`);
+  }
   const host = new Host({
-    dataDirectory: atlasDataDirectory(options.dataDir ?? undefined), version: options.version, log, owner: '`atlas serve`',
+    home, version: options.version, log, owner: '`atlas serve`',
     createPlanWorker: () => new Worker(new URL('./planWorker.ts', import.meta.url)) as unknown as WorkerLike,
-    folders: options.folders, networkOverride: { address, port: options.port ?? defaultPort },
+    networkOverride: { address, port: options.port ?? defaultPort },
+    // The planning templates the atlas skill bundles, in this checkout.
+    templates: () => readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../plugin/skills/atlas/assets/planning')),
   });
   await host.start();
   if (host.access.managedBy !== null) {
@@ -43,10 +55,10 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   }
   const state = await host.accessState();
   if (!state.status.listening) { await host.stop(); throw new Error(state.status.error ?? 'Remote access could not start.'); }
-  const listed = await host.computerFolders();
+  const listed = await host.projects();
   out.stdout(`Atlas host "${host.descriptor.name}" is serving this computer on http://${address.includes(':') ? '[' + address + ']' : address}:${state.status.port}.`);
-  out.stdout(listed.length ? `Its folder list has ${listed.length} planning ${listed.length === 1 ? 'folder' : 'folders'}:` : 'Its folder list is empty: paired devices can open any planning folder on this computer.');
-  for (const folder of listed.slice(0, 20)) out.stdout('  ' + folder.path + (folder.available ? '' : ' (missing)'));
+  out.stdout(listed.length ? `It has ${listed.length} ${listed.length === 1 ? 'project' : 'projects'}:` : `It has no projects yet: they are the planning folders in ${path.join(home, 'planning')}.`);
+  for (const project of listed.slice(0, 20)) out.stdout(`  ${project.name} (${project.path})${project.state === 'active' ? '' : ', ' + project.state}`);
   if (listed.length > 20) out.stdout(`  …and ${listed.length - 20} more.`);
   const link = await printLink(host, out, false);
   if (options.interactive) {
@@ -74,7 +86,7 @@ async function printLink(host: Host, out: ServeOutput, manageAccess: boolean): P
   out.stdout(await QRCode.toString(link.url!, { type: 'terminal', small: true, errorCorrectionLevel: 'M' }));
   out.stdout(`Pairing link (valid for 5 minutes, once${manageAccess ? '; grants Manage access' : ''}): ` + link.url);
   out.stdout('Code only: ' + link.code);
-  out.stdout('In Atlas on the other computer, choose File › Connect to Another Atlas… and paste the link. The device can then use every planning folder on this computer.');
+  out.stdout('In Atlas on the other computer, choose File › Connect to Another Atlas… and paste the link. The device can then use every project on this computer.');
   return link;
 }
 

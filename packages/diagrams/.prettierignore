@@ -3,3 +3,4 @@ downloads/
 schemas/
 package-lock.json
 examples/r5/source-evidence.json
+lib/plantuml/parser.cjs

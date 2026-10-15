@@ -2,7 +2,7 @@
 // host's own stored state. Validators return the checked value or throw ValidationError; unknown
 // object keys are dropped, never passed through. The desktop app reuses the generic ones for the
 // messages its windows send (app/shared/validate.ts).
-import type { AccessSettings, MethodName, Methods, PairRequest, ViewEventInput } from './contract.ts';
+import type { AccessSettings, MethodName, Methods, PairRequest, ProjectRepository, ViewEventInput } from './contract.ts';
 
 export class ValidationError extends Error {}
 export type Validator<T> = (value: unknown, at?: string) => T;
@@ -75,7 +75,8 @@ export function argumentsOf(validators: Validator<unknown>[], values: unknown[])
 export const relativePath = string({ min: 1, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+$/ });
 export const absolutePath = string({ min: 1, max: pathLimit });
 export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
-export const modelHandle = string({ min: 26, max: 26, pattern: /^m-[a-f0-9]{24}$/ });
+/** A diagram file's path in its work folder, relative and inside it. */
+export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
 export const folderId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
 export const token = string({ min: 16, max: 80, pattern: /^[a-zA-Z0-9-]+$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
@@ -108,18 +109,12 @@ export const listenAddress: Validator<string> = (value, at = '') => {
   if (/^(?:0\.0\.0\.0|::|(?:0{1,4}:){7}0{1,4}|::ffff:0\.0\.0\.0)$/i.test(address)) fail(at, 'one address of this computer, not every address');
   return address;
 };
-/** A folder on the host's computer: an absolute path (a drive or UNC path on Windows). */
-export const absoluteFolder: Validator<string> = (value, at = '') => {
-  const folder = absolutePath(value, at);
-  if (!/^(?:\/|[a-zA-Z]:[\\/]|\\\\)/.test(folder)) fail(at, 'an absolute folder path');
-  return folder;
-};
-
 const networkSettings = object<AccessSettings['network']>({ enabled: boolean, address: nullable(listenAddress), port });
 export const accessSettings: Validator<AccessSettings> = object<AccessSettings>({ network: networkSettings });
-/** Settings as the first version saved them, with the folders it shared (now carried into the folder list). */
-export const legacyAccessSettings: Validator<AccessSettings & { sharedFolders?: string[] }> = object<AccessSettings & { sharedFolders?: string[] }>({
-  network: networkSettings, sharedFolders: optional(array(absoluteFolder, 100)),
+/** A project's name: one line, at most 100 characters, not blank. */
+export const projectName = deviceText(100);
+const repositoryInput: Validator<ProjectRepository> = object<ProjectRepository>({
+  id: string({ min: 1, max: 64, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ }), name: deviceText(100), remote: nullable(string({ min: 1, max: 500, pattern: /^[^\u0000-\u001f\u007f-\u009f]+$/ })),
 });
 export const pairRequest: Validator<PairRequest> = object<PairRequest>({
   code: pairingCode,
@@ -130,18 +125,18 @@ const none = object<Record<string, never>>({});
 /** The parameters of every method, checked before its handler runs. */
 export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['params']> } = {
   'host.session': none,
-  'folders.list': none,
-  'folders.open': object({ path: absoluteFolder, remember: optional(boolean) }),
-  'folders.remove': object({ folderId }),
-  'folders.browse': object({ path: nullable(absoluteFolder) }),
+  'projects.list': none,
+  'projects.create': object({ name: projectName, repositories: array(repositoryInput, 50) }),
+  'projects.adopt': object({ folderId }),
+  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)) }),
   'folders.subscribe': object({ folderId }),
   'folders.unsubscribe': object({ folderId }),
   'folder.snapshot': object({ folderId }),
   'folder.document': object({ folderId, path: relativePath }),
-  'folder.models': object({ folderId, work: workId }),
-  'folder.model': object({ folderId, work: workId, handle: modelHandle }),
+  'folder.diagrams': object({ folderId, work: workId }),
+  'folder.diagram': object({ folderId, work: workId, path: diagramPath }),
   'folder.references': object({ folderId, work: nullable(workId), path: relativePath }),
-  'folder.diagrams': object({ folderId }),
+  'folder.diagramIndex': object({ folderId }),
   'folder.recordView': object({ folderId, event: viewEvent }),
   'plan.exportPrepare': object({ folderId, work: workId }),
   'plan.exportDrop': object({ token }),

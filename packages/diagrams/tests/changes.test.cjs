@@ -10,139 +10,74 @@ const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 const { relationLabel } = require("../lib/layout/layoutDiagram.cjs");
 const { loadComponents } = require("./load-components.cjs");
 
-const clone = (value) => JSON.parse(JSON.stringify(value));
-const id = (file, name) =>
-  `code:ts:shop:${encodeURIComponent(file)}:${encodeURIComponent(name)}`;
-const CHECKOUT = id("src/checkout/Checkout.ts", "Checkout");
-const GATEWAY = id("src/payments/Gateway.ts", "Gateway");
-const LEGACY = id("src/payments/Legacy.ts", "Legacy");
-const VAULT = id("src/payments/Vault.ts", "Vault");
-const uses = (source, target) => ({
-  id: `${source}:uses:${target}`,
-  name: "declared type use",
-  stereotype: "dependency",
-  sourceId: source,
-  targetId: target,
-  sourceMultiplicity: "?",
-  targetMultiplicity: "?",
-});
-const field = (owner, name, type, line) => ({
-  id: `${owner}:field%3A${name}%3A:0`,
-  name,
-  type,
-  modifiers: [],
-  optional: false,
-  ...(line
-    ? {
-        location: {
-          file: "src/checkout/Checkout.ts",
-          startLine: line,
-          endLine: line,
-        },
-      }
-    : {}),
-});
-
+const CHECKOUT = "Checkout",
+  LEGACY = "Legacy",
+  VAULT = "Vault";
+const at = (line, endLine) =>
+  `' atlas evidence ${JSON.stringify({ file: "src/checkout/Checkout.ts", line, ...(endLine ? { endLine } : {}) })}`;
+// A capture of checkout code, and a proposal of it: the vault replaces the
+// legacy payments, the total becomes money and checkout learns to pay.
 function captured() {
-  return atlas.createDocument({
-    id: "shop",
-    title: "Checkout",
-    profile: "code",
-    model: {
-      type: "StructuralModel",
-      nodes: [
-        {
-          id: CHECKOUT,
-          name: "Checkout",
-          kind: "class",
-          attributes: [
-            field(CHECKOUT, "gateway", "Gateway", 3),
-            field(CHECKOUT, "total", "number", 4),
-            field(CHECKOUT, "legacy", "Legacy", 5),
-          ],
-          methods: [],
-          location: {
-            file: "src/checkout/Checkout.ts",
-            startLine: 2,
-            endLine: 20,
-          },
-        },
-        {
-          id: GATEWAY,
-          name: "Gateway",
-          kind: "interface",
-          attributes: [],
-          methods: [],
-        },
-        {
-          id: LEGACY,
-          name: "Legacy",
-          kind: "class",
-          attributes: [],
-          methods: [],
-        },
-      ],
-      relations: [uses(CHECKOUT, GATEWAY), uses(CHECKOUT, LEGACY)],
-      generalizations: [],
-      generalizationSets: [],
-      constraints: [],
-    },
-    context: {
-      records: [
-        {
-          id: "plan-flow",
-          kind: "plan",
-          title: "Checkout flow",
-          path: "plan.md",
-          section: "Checkout flow",
-          text: "1. Pick a saved method.\n2. `Checkout.pay` charges the **vault** token.",
-        },
-      ],
-      links: [{ elementId: CHECKOUT, recordId: "plan-flow" }],
+  const { diagram } = atlas.parseDiagram(`@startuml
+title Checkout
+${at(2, 20)}
+class Checkout {
+  ${at(3)}
+  gateway : Gateway
+  ${at(4)}
+  total : number
+  ${at(5)}
+  legacy : Legacy
+}
+interface Gateway
+class Legacy
+Checkout ..> Gateway
+Checkout ..> Legacy
+@enduml
+`);
+  return atlas.formatDiagram({
+    ...diagram,
+    capture: {
+      capturedAt: "2026-10-08T10:00:00.000Z",
+      adapter: { id: "atlas-typescript", version: "1.0.0" },
+      source: { kind: "typescript", identity: "shop", scope: ["src"] },
+      coverage: { status: "complete", diagnostics: [] },
     },
   });
 }
-
-function proposed() {
-  const proposal = atlas.createProposal(captured());
-  const model = clone(proposal.model);
-  const checkout = model.nodes.find((n) => n.id === CHECKOUT);
-  checkout.attributes = checkout.attributes.filter((a) => a.name !== "legacy");
-  checkout.attributes.find((a) => a.name === "total").type = "Money";
-  checkout.attributes.push(field(CHECKOUT, "vault", "Vault"));
-  checkout.methods.push({
-    id: `${CHECKOUT}:method%3Apay%3Astring:0`,
-    name: "pay",
-    type: "pay(methodId: string): Promise<void>",
-    modifiers: [],
-    optional: false,
-  });
-  model.nodes = model.nodes.filter((n) => n.id !== LEGACY);
-  model.nodes.push({
-    id: VAULT,
-    name: "Vault",
-    kind: "interface",
-    attributes: [],
-    methods: [
-      {
-        id: `${VAULT}:method%3Asave:0`,
-        name: "save",
-        type: "save(): void",
-        modifiers: [],
-        optional: false,
-      },
+const PROPOSED = `@startuml
+title Checkout
+' atlas proposal capture.puml
+${at(2, 20)}
+class Checkout {
+  ${at(3)}
+  gateway : Gateway
+  ${at(4)}
+  total : Money
+  vault : Vault
+  pay(methodId: string) : Promise<void>
+}
+interface Gateway
+' atlas evidence {"file":"src/payments/Vault.ts"}
+interface Vault {
+  save() : void
+}
+Checkout ..> Gateway
+Checkout ..> Vault
+@enduml
+`;
+async function prepared(includeArtifacts = false) {
+  const { prepared } = await atlas.prepareDiagrams({
+    files: [
+      { path: "capture.puml", text: captured() },
+      { path: "proposal.puml", text: PROPOSED },
     ],
+    includeArtifacts,
   });
-  model.relations = [uses(CHECKOUT, GATEWAY), uses(CHECKOUT, VAULT)];
-  const context = clone(proposal.context);
-  context.links.push({ elementId: VAULT, recordId: "plan-flow" });
-  return atlas.reviseDocument(proposal, { model, context });
+  return prepared.get("proposal.puml");
 }
-
 async function preparedProposal() {
-  return (
-    await atlas.prepareViewer({ document: proposed(), includeArtifacts: false })
-  ).payload;
+  return (await prepared()).payload;
 }
 
 test("the change view keeps removed members in place and marks every change", async () => {
@@ -164,12 +99,12 @@ test("the change view keeps removed members in place and marks every change", as
     [["pay", "added"]],
   );
   assert.equal(
-    view.model.relations.find((r) => r.id === `${CHECKOUT}:uses:${VAULT}`)
+    view.model.relations.find((r) => r.id === "relation:Checkout:Vault")
       .changeStatus,
     "added",
   );
   assert.equal(
-    view.model.relations.find((r) => r.id === `${CHECKOUT}:uses:${GATEWAY}`)
+    view.model.relations.find((r) => r.id === "relation:Checkout:Gateway")
       .changeStatus,
     "unchanged",
   );
@@ -244,43 +179,7 @@ test("changes roll up per element: types with their members, then relations, wit
   assert.equal(described.members[0].location.startLine, 4);
 });
 
-test("a new declaration's intended file is decoded from its identity", () => {
-  const { decodeIdentity, elementFile, fileExists } = loadComponents(
-    "src/review/changes.js",
-  );
-  assert.deepEqual(decodeIdentity(VAULT), {
-    source: "code",
-    language: "ts",
-    repository: "shop",
-    file: "src/payments/Vault.ts",
-    name: "Vault",
-  });
-  assert.equal(
-    decodeIdentity("db:sqlite:inventory:main:stock_level").schema,
-    "main",
-  );
-  assert.equal(decodeIdentity("student"), null);
-  assert.equal(decodeIdentity("code:ts:shop:%E0%A4%A:x"), null);
-  assert.equal(elementFile({ id: VAULT }), "src/payments/Vault.ts");
-  assert.equal(
-    elementFile({ id: VAULT, location: { file: "src/other.ts" } }),
-    "src/other.ts",
-  );
-  const model = {
-    classes: [
-      {
-        id: CHECKOUT,
-        changeStatus: "modified",
-        location: { file: "src/checkout/Checkout.ts" },
-      },
-      { id: VAULT, changeStatus: "added" },
-    ],
-  };
-  assert(fileExists(model, "src/checkout/Checkout.ts"));
-  assert(!fileExists(model, "src/payments/Vault.ts"));
-});
-
-test("details explain a change: its members, where it lives, and why, without capture noise", async () => {
+test("details explain a change: its members and where it lives, without capture noise", async () => {
   const payload = await preparedProposal();
   const { rollupChanges } = loadComponents("src/review/changes.js");
   const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
@@ -308,10 +207,6 @@ test("details explain a change: its members, where it lives, and why, without ca
   assert(changed.includes("Where in code"));
   assert(changed.includes("src/checkout/Checkout.ts"));
   assert(changed.includes("lines 2–20"));
-  assert(changed.includes('aria-label="Open Plan › Checkout flow"'));
-  // Inline code survives, Markdown emphasis does not.
-  assert(changed.includes("<code>Checkout.pay</code>"));
-  assert(!changed.includes("**"));
   for (const noise of [
     "observed",
     "Capture ·",
@@ -320,6 +215,7 @@ test("details explain a change: its members, where it lives, and why, without ca
     "diagnostic",
   ])
     assert(!changed.includes(noise), noise);
+  // A new class says where it goes when its evidence names a file.
   const added = render(VAULT);
   assert(added.includes(">New<"));
   assert(added.includes("New interface with 1 method."));
@@ -336,13 +232,11 @@ test("details explain a change: its members, where it lives, and why, without ca
 
 test("panels show the Changes overview and step through changes; the report is gone", async () => {
   const payload = await preparedProposal();
-  const { payload: standalone } = await atlas.prepareViewer({
-    document: proposed(),
-  });
-  const { AtlasPanel, OntoUMLViewer } = loadComponents();
+  const { payload: standalone } = await prepared(true);
+  const { AtlasPanel, DiagramViewer } = loadComponents();
   for (const html of [
     renderToStaticMarkup(createElement(AtlasPanel, { payload })),
-    renderToStaticMarkup(createElement(OntoUMLViewer, standalone)),
+    renderToStaticMarkup(createElement(DiagramViewer, standalone)),
   ]) {
     assert(html.includes('aria-label="Changes, 5"'));
     assert(html.includes('aria-label="Fade unchanged elements"'));
@@ -379,10 +273,6 @@ test("panels show the Changes overview and step through changes; the report is g
     5,
   );
   assert(overview.includes('aria-current="true"'));
-  assert(
-    !overview.includes("1. Pick a saved method"),
-    "rationale stays out of the list",
-  );
   const navigation = renderToStaticMarkup(
     createElement(ChangeNavigation, {
       position: 1,
@@ -426,11 +316,14 @@ test("the canvas marks changes in its own geometry, so exports and the backdrop 
   assert(!plain.includes("-added") && !plain.includes("change-tag"));
 });
 
-test("unknown counts and generic dependency names add no labels to the canvas", async () => {
+test("unnamed dependencies and missing counts add no labels to the canvas", async () => {
   const payload = await preparedProposal();
   for (const view of payload.comparison.changeView.views)
     for (const edge of view.diagram.edges) assert.deepEqual(edge.labels, []);
-  assert.equal(relationLabel(uses("a", "b")), null);
+  assert.equal(
+    relationLabel({ name: "declared type use", stereotype: "dependency" }),
+    null,
+  );
   assert.equal(
     relationLabel({ name: "sku → sku", stereotype: "foreign key" }),
     "sku → sku",
@@ -444,34 +337,17 @@ test("unknown counts and generic dependency names add no labels to the canvas", 
     "«mediation»\nplaced with",
   );
   assert.equal(relationLabel({ name: "", stereotype: "" }), null);
-  // Known counts keep their labels, unknown ones are omitted and still valid.
-  const document = atlas.createDocument({
-    profile: "code",
-    model: {
-      type: "StructuralModel",
-      nodes: [
-        { id: "a", name: "A", attributes: [] },
-        { id: "b", name: "B", attributes: [] },
-      ],
-      relations: [
-        {
-          id: "ab",
-          name: "holds",
-          sourceId: "a",
-          targetId: "b",
-          sourceMultiplicity: "?",
-          targetMultiplicity: "0..*",
-        },
-      ],
-      generalizations: [],
-      generalizationSets: [],
-    },
+  // A count that is written keeps its label; one that is not adds none.
+  const { prepared: lean } = await atlas.prepareDiagrams({
+    files: [
+      {
+        path: "ab.puml",
+        text: '@startuml\nclass A\nclass B\nA -- "0..*" B : holds\n@enduml\n',
+      },
+    ],
   });
-  const { payload: lean } = await atlas.prepareViewer({
-    document,
-    includeArtifacts: false,
-  });
-  const edge = lean.views[0].diagram.edges[0];
+  const { payload: ab } = lean.get("ab.puml");
+  const edge = ab.views[0].diagram.edges[0];
   assert.deepEqual(
     edge.labels.map((l) => [l.kind, l.text]),
     [
@@ -480,7 +356,7 @@ test("unknown counts and generic dependency names add no labels to the canvas", 
     ],
   );
   assert.equal(
-    validateDiagram(lean.views[0].diagram, lean.model).multiplicityLabels,
+    validateDiagram(ab.views[0].diagram, ab.model).multiplicityLabels,
     1,
   );
 });
@@ -501,80 +377,61 @@ test("the layout and the viewer agree on known counts and uninformative names", 
       relationLabel({ name, stereotype: "" }) !== null,
       name,
     );
-  // OntoUML's default name gives way to the stereotype alone.
+  // A generic name gives way to the stereotype alone.
   assert.equal(
     relationLabel({ name: "Association", stereotype: "mediation" }),
     "«mediation»",
   );
 });
 
-test("model-level changes are listed under Model; the root's element lists are not", async () => {
-  const proposal = atlas.createProposal(captured());
-  const model = clone(proposal.model);
-  model.constraints = [[CHECKOUT, "A payment needs a saved method"]];
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
+// A class diagram and a proposal copied from it, prepared as a work folder
+// shows them: the proposal's payload, its change view and rolled-up changes.
+async function diagramProposal(base, proposal) {
+  const { prepared } = await atlas.prepareDiagrams({
+    files: [
+      { path: "base.puml", text: `@startuml\n${base}\n@enduml\n` },
+      {
+        path: "proposal.puml",
+        text: `@startuml\n' atlas proposal base.puml\n${proposal}\n@enduml\n`,
+      },
+    ],
   });
+  const payload = prepared.get("proposal.puml").payload;
   const view = payload.comparison.changeView;
   const { rollupChanges } = loadComponents("src/review/changes.js");
-  const rollup = rollupChanges(payload.comparison, view.model, view.views);
-  assert.deepEqual(
-    rollup.groups.map((g) => [g.label, g.elements.map((r) => r.name)]),
-    [["Model", ["Model"]]],
-  );
-  const [row] = rollup.rows;
-  assert.equal(row.target, null);
-  // A constraint reads as what the list gains, its identities as names.
-  assert.deepEqual(
-    row.summary.tokens.map((t) => `${t.status}:${t.text}`),
-    ["added:Checkout, A payment needs a saved method"],
-  );
-  // Nothing on the canvas changed: nothing to step to, but the change counts.
-  assert.deepEqual(rollup.navigable, []);
-  assert.equal(rollup.count, 1);
-  const { ChangesOverview } = loadComponents("src/review/ChangesOverview.jsx");
-  const html = renderToStaticMarkup(
-    createElement(ChangesOverview, { rollup, profile: "code", onSelect() {} }),
-  );
-  assert(html.includes("Compared with the code"));
-  assert(html.includes(">Model<"));
-  assert(!html.includes('<button type="button" class="change-row"'));
-});
+  return {
+    payload,
+    view,
+    rollup: rollupChanges(payload.comparison, view.model, view.views),
+  };
+}
+const ENROLLMENT = `class Person {
+  name : String
+}
+class Institution
+class Enrollment
+Enrollment "0..*" -- "1" Person : learner
+Enrollment "0..*" -- "1" Institution : school`;
 
-test("OntoUML proposals group each change under its class or relation, by name", async () => {
-  const {
-    createEnrollmentDocument,
-  } = require("../examples/enrollment/learning.cjs");
-  const proposal = atlas.createProposal(createEnrollmentDocument());
-  const model = clone(proposal.model);
-  const byId = new Map(model.elements.map((e) => [e.id, e]));
-  byId.get("person").name = { en: "Learner" };
-  const mediates = byId.get("mediates-person");
-  byId.get(mediates.properties[1]).cardinality = "0..1";
-  const institution = byId.get("institution");
-  model.elements.push({
-    ...clone(byId.get(mediates.properties[0])),
-    id: "institution-code",
-    name: { en: "code" },
-    propertyType: "person",
-    cardinality: "1",
-  });
-  institution.properties = [...institution.properties, "institution-code"];
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
+test("diagram proposals group each change under its class or relation, by name", async () => {
+  const { view, rollup } = await diagramProposal(
+    ENROLLMENT,
+    ENROLLMENT.replace(
+      "class Institution",
+      "class Institution {\n  code : String\n}",
+    )
+      .replace("name : String", "name : Text")
+      .replace('"1" Person : learner', '"0..1" Person : learner'),
+  );
   // A relation that kept its ends is drawn once, marked changed.
   assert.deepEqual(
     view.model.relations
-      .filter((r) => (r.originalId || r.id) === "mediates-person")
+      .filter(
+        (r) => (r.originalId || r.id) === "relation:Enrollment:Person:learner",
+      )
       .map((r) => r.changeStatus),
     ["modified"],
   );
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const rollup = rollupChanges(payload.comparison, view.model, view.views);
   assert.deepEqual(
     rollup.groups.map((g) => [
       g.label,
@@ -588,8 +445,8 @@ test("OntoUML proposals group each change under its class or relation, by name",
         "Changed",
         [
           "Institution: added code",
-          "Learner: modified name: Person → Learner",
-          "Enrollment → Learner: mediates · Learner end cardinality: 1 → 0..1",
+          "Person: modified name",
+          "Enrollment → Person: learner · targetMultiplicity: 1 → 0..1",
         ],
       ],
     ],
@@ -598,264 +455,6 @@ test("OntoUML proposals group each change under its class or relation, by name",
   assert.equal(rollup.count, 3);
 });
 
-test("a change no view draws is listed and counted, but not stepped to", async () => {
-  const node = (id, name) => ({ id, name, attributes: [] });
-  const base = atlas.createDocument({
-    id: "split",
-    title: "Split",
-    profile: "code",
-    model: {
-      type: "StructuralModel",
-      nodes: [node("a", "A"), node("b", "B")],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-      constraints: [],
-    },
-    views: [
-      { key: "left", label: "Left", nodeIds: ["a"] },
-      { key: "right", label: "Right", nodeIds: ["b"] },
-    ],
-  });
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  // A new class outside both views would add an all-elements view.
-  model.nodes[0].name = "Alpha";
-  model.relations.push({
-    id: "ab",
-    name: "holds",
-    sourceId: "a",
-    targetId: "b",
-    sourceMultiplicity: "1",
-    targetMultiplicity: "0..*",
-  });
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const rollup = rollupChanges(payload.comparison, view.model, view.views);
-  const relation = rollup.rows.find((r) => r.name === "Alpha → B");
-  assert.equal(relation.target, null);
-  assert.equal(relation.summary.note, "Not drawn in any view");
-  assert.deepEqual(
-    rollup.navigable.map((r) => r.name),
-    ["Alpha"],
-  );
-  assert.equal(rollup.count, 2);
-  const { ChangesOverview } = loadComponents("src/review/ChangesOverview.jsx");
-  const html = renderToStaticMarkup(
-    createElement(ChangesOverview, { rollup, profile: "code", onSelect() {} }),
-  );
-  assert(html.includes("Not drawn in any view"));
-  assert.match(html, /<li class="change-row static"[^>]*>.*?Alpha → B/);
-});
-
-test("a new Java class is proposed where its package's classes live", () => {
-  const { decodeIdentity, elementFile } = loadComponents(
-    "src/review/changes.js",
-  );
-  const java = (name) => `code:java:shop:${encodeURIComponent(name)}`;
-  assert.deepEqual(decodeIdentity(java("com.shop.Cart")), {
-    source: "code",
-    language: "java",
-    repository: "shop",
-    file: null,
-    name: "com.shop.Cart",
-  });
-  const model = {
-    classes: [
-      {
-        id: java("com.shop.Checkout"),
-        name: "com.shop.Checkout",
-        location: { file: "src/main/java/com/shop/Checkout.java" },
-      },
-    ],
-  };
-  const file = (name, within = model) =>
-    elementFile({ id: java(name) }, within);
-  assert.equal(file("com.shop.Cart"), "src/main/java/com/shop/Cart.java");
-  assert.equal(
-    file("com.shop.Checkout.Line"),
-    "src/main/java/com/shop/Checkout.java",
-  );
-  assert.equal(
-    file("com.billing.Invoice"),
-    "src/main/java/com/billing/Invoice.java",
-  );
-  assert.equal(file("com.shop.Cart", { classes: [] }), null);
-  const { WhatChanges } = loadComponents("src/viewer/DetailSections.jsx");
-  const render = (within) =>
-    renderToStaticMarkup(
-      createElement(WhatChanges, {
-        change: { status: "added", properties: [], members: [] },
-        element: { id: java("com.shop.Cart"), name: "Cart", attributes: [] },
-        model: within,
-        profile: "code",
-      }),
-    );
-  assert(
-    render(model).includes(
-      "Proposed in <code>src/main/java/com/shop/Cart.java</code> (a new file)",
-    ),
-  );
-  // Without a captured class to place it by, its identity still names it.
-  assert(
-    render({ classes: [] }).includes("Proposed as <code>com.shop.Cart</code>"),
-  );
-});
-
-test("a table's keys list each foreign key once, with its change", async () => {
-  const table = (id, columns) => ({
-    id,
-    name: id,
-    attributes: columns.map((c) => ({
-      id: `${id}.${c}`,
-      name: c,
-      type: "integer",
-    })),
-  });
-  const fk = (name, column, target) => ({
-    id: `orders:fk:${name}`,
-    name,
-    stereotype: "foreign key",
-    sourceId: "orders",
-    targetId: target,
-    sourceMultiplicity: "0..*",
-    targetMultiplicity: "1",
-    columns: [column],
-    targetColumns: ["id"],
-  });
-  const base = atlas.createDocument({
-    id: "shop",
-    title: "Shop",
-    profile: "database",
-    model: {
-      type: "StructuralModel",
-      nodes: [
-        table("orders", ["id", "created_by", "updated_by", "legacy_id"]),
-        table("users", ["id"]),
-        table("accounts", ["id"]),
-      ],
-      relations: [
-        fk("created_by_fkey", "created_by", "users"),
-        fk("updated_by_fkey", "updated_by", "users"),
-        fk("legacy_fkey", "legacy_id", "users"),
-      ],
-      generalizations: [],
-      generalizationSets: [],
-    },
-  });
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  model.relations = [
-    fk("created_by_fkey", "created_by", "users"),
-    fk("updated_by_fkey", "updated_by", "accounts"),
-  ];
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
-  const review = {
-    rollup: rollupChanges(payload.comparison, view.model, view.views),
-  };
-  const html = renderToStaticMarkup(
-    createElement(ConceptDetails, {
-      concept: view.model.classes.find((c) => c.id === "orders"),
-      model: view.model,
-      snippets: {},
-      review,
-      onReference() {},
-    }),
-  );
-  const keys = html.slice(html.indexOf(">Keys<"));
-  const rows = keys.slice(0, keys.indexOf("</ul>")).split("<li").slice(1);
-  assert.equal(rows.length, 3);
-  assert(rows[0].includes("created_by") && !rows[0].includes("data-change"));
-  assert(rows[1].includes('data-change="modified"'));
-  assert(
-    rows[1].includes('<del class="change-before">updated_by → users(id)</del>'),
-  );
-  assert(
-    rows[1].includes(
-      '<ins class="change-after">updated_by → accounts(id)</ins>',
-    ),
-  );
-  assert(
-    rows[2].includes('data-change="removed"') && rows[2].includes("legacy_id"),
-  );
-  // The relation's own change names the tables, not their identities.
-  const relation = review.rollup.rows.find(
-    (r) => r.label === "updated_by_fkey",
-  );
-  assert.equal(
-    relation.summary.text,
-    "updated_by_fkey · targetId: users → accounts",
-  );
-});
-
-const {
-  createEnrollmentDocument,
-} = require("../examples/enrollment/learning.cjs");
-// The enrollment example as an OntoUML baseline, with what a test adds to it:
-// an attribute on Institution, or a relation from Person to itself.
-function enrollment(...extensions) {
-  const base = createEnrollmentDocument();
-  const model = clone(base.model);
-  const byId = new Map(model.elements.map((e) => [e.id, e]));
-  const end = byId.get(byId.get("mediates-person").properties[0]);
-  for (const extend of extensions) extend(model, byId, end);
-  return atlas.reviseDocument(base, { model });
-}
-const withAttribute = (model, byId, end) => {
-  model.elements.push({
-    ...clone(end),
-    id: "institution-code",
-    name: { en: "code" },
-    propertyType: "person",
-    cardinality: "1",
-  });
-  const institution = byId.get("institution");
-  institution.properties = [...institution.properties, "institution-code"];
-};
-const withSelfRelation = (model, byId, end) => {
-  model.elements.push(
-    {
-      ...clone(byId.get("mediates-person")),
-      id: "knows",
-      name: { en: "knows" },
-      stereotype: null,
-      properties: ["knows-source", "knows-target"],
-    },
-    { ...clone(end), id: "knows-source", propertyType: "person" },
-    { ...clone(end), id: "knows-target", propertyType: "person" },
-  );
-  const root = model.elements.find((e) => e.type === "Package");
-  root.contents = [...root.contents, "knows"];
-};
-async function proposing(base, change, views = (v) => v) {
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  change(model, new Map(model.elements.map((e) => [e.id, e])));
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, {
-      model,
-      views: views(clone(proposal.views)),
-    }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  return {
-    payload,
-    view,
-    rollup: rollupChanges(payload.comparison, view.model, view.views),
-  };
-}
 const tokensOf = (row) =>
   row.summary.tokens.map((t) => `${t.status} ${t.text}`);
 function renderDetails({ view, rollup }, id) {
@@ -871,144 +470,71 @@ function renderDetails({ view, rollup }, id) {
   );
 }
 
-test("an OntoUML attribute's change reads by its name and type, never its element type", async () => {
-  const base = enrollment(withAttribute);
+test("an attribute's change reads by its name and type", async () => {
   const { describeClassChange } = loadComponents("src/review/changes.js");
-  const renamed = await proposing(base, (model, byId) => {
-    byId.get("institution-code").name = { en: "identifier" };
-  });
-  const institution = renamed.view.model.classes.find(
-    (c) => c.id === "institution",
+  const retyped = await diagramProposal(
+    ENROLLMENT,
+    ENROLLMENT.replace("name : String", "name : Text"),
   );
+  const person = retyped.view.model.classes.find((c) => c.id === "Person");
   assert.deepEqual(
-    describeClassChange(renamed.rollup, institution, "ontouml").members.map(
-      (m) => [m.status, m.previous, m.signature],
-    ),
-    [["modified", "code: Person", "identifier: Person"]],
+    describeClassChange(retyped.rollup, person, "class").members.map((m) => [
+      m.status,
+      m.previous,
+      m.signature,
+    ]),
+    [["modified", "name: String", "name: Text"]],
   );
-  const html = renderDetails(renamed, "institution");
   assert.match(
-    html,
-    /<del class="change-before">code: Person<\/del>.*<ins class="change-after">identifier: Person<\/ins>/,
+    renderDetails(retyped, "Person"),
+    /name<\/span>: <del class="change-before">String<\/del>.*<ins class="change-after">Text<\/ins>/,
   );
-  assert(!html.includes("Property"));
-  const counted = await proposing(base, (model, byId) => {
-    byId.get("institution-code").cardinality = "0..1";
-  });
-  const countedHtml = renderDetails(counted, "institution");
-  assert(!countedHtml.includes("Property"));
-  assert.match(
-    countedHtml,
-    /code: Person<\/code>.*cardinality: <del class="change-before">1<\/del>.*<ins class="change-after">0..1<\/ins>/,
+  const counted = await diagramProposal(
+    ENROLLMENT,
+    ENROLLMENT.replace("name : String", "name : String [0..1]"),
   );
-  const retyped = await proposing(base, (model, byId) => {
-    byId.get("institution-code").propertyType = "institution";
-  });
   assert.match(
-    renderDetails(retyped, "institution"),
-    /code<\/span>: <del class="change-before">Person<\/del>.*<ins class="change-after">Institution<\/ins>/,
+    renderDetails(counted, "Person"),
+    /name: String<\/code>.*multiplicity: <del class="change-before">none<\/del>.*<ins class="change-after">0..1<\/ins>/,
   );
 });
 
+const KNOWS = `${ENROLLMENT}
+Person "0..*" -- "0..*" Person : knows`;
 test("a relation changed in place is laid out once, also on one class, and the baseline keeps its own labels", async () => {
-  const base = enrollment(withSelfRelation);
-  for (const [change, before, after] of [
-    [
-      (m, byId) => (byId.get("knows").name = { en: "trusts" }),
-      "knows",
-      "trusts",
-    ],
-    [
-      (m, byId) => (byId.get("knows-target").cardinality = "0..1"),
-      "0..*",
-      "0..1",
-    ],
-  ]) {
-    const { payload, view, rollup } = await proposing(base, change);
-    assert.deepEqual(
-      view.model.relations
-        .filter((r) => (r.originalId || r.id) === "knows")
-        .map((r) => r.changeStatus),
-      ["modified"],
-    );
-    // The view that draws the relation, and its labels there.
-    const drawing = (views) =>
-      views.find((v) => v.diagram.edges.some((e) => e.id === "knows")).diagram;
-    const labels = (views) =>
-      drawing(views)
-        .edges.find((e) => e.id === "knows")
-        .labels.map((l) => l.text);
-    assert(labels(view.views).includes(after));
-    assert(labels(payload.comparison.baseline.views).includes(before));
-    validateDiagram(
-      drawing(payload.comparison.baseline.views),
-      payload.comparison.baseline.model,
-    );
-    assert(rollup.rows.find((r) => r.id === "knows").target);
-  }
-  // Its unnamed ends say which end changed.
-  const { rollup } = await proposing(base, (m, byId) => {
-    byId.get("knows-target").cardinality = "0..1";
-  });
-  assert.equal(
-    rollup.rows.find((r) => r.id === "knows").summary.text,
-    "knows · Person target end cardinality: 0..* → 0..1",
+  const id = "relation:Person:Person:knows";
+  const { payload, view, rollup } = await diagramProposal(
+    KNOWS,
+    KNOWS.replace(
+      'Person "0..*" -- "0..*" Person',
+      'Person "0..*" -- "0..1" Person',
+    ),
   );
-});
-
-test("a self-referencing foreign key whose delete rule changes opens, and its key says what changed", async () => {
-  const table = {
-    id: "category",
-    name: "category",
-    attributes: [
-      { id: "category.id", name: "id", type: "integer" },
-      { id: "category.parent_id", name: "parent_id", type: "integer" },
-    ],
-  };
-  const fk = (onDelete) => ({
-    id: "category:fk:parent",
-    name: "category_parent_id_fkey",
-    stereotype: "foreign key",
-    sourceId: "category",
-    targetId: "category",
-    sourceMultiplicity: "0..*",
-    targetMultiplicity: "0..1",
-    columns: ["parent_id"],
-    targetColumns: ["id"],
-    onDelete,
-  });
-  const base = atlas.createDocument({
-    id: "shop",
-    title: "Shop",
-    profile: "database",
-    model: {
-      type: "StructuralModel",
-      nodes: [table],
-      relations: [fk("NO ACTION")],
-      generalizations: [],
-      generalizationSets: [],
-    },
-  });
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  model.relations = [fk("CASCADE")];
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
   assert.deepEqual(
-    view.model.relations.map((r) => [r.id, r.changeStatus]),
-    [["category:fk:parent", "modified"]],
+    view.model.relations
+      .filter((r) => (r.originalId || r.id) === id)
+      .map((r) => r.changeStatus),
+    ["modified"],
   );
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const rollup = rollupChanges(payload.comparison, view.model, view.views);
-  const html = renderDetails({ view, rollup }, "category");
-  const keys = html.slice(html.indexOf(">Keys<"));
-  assert.match(
-    keys,
-    /parent_id<\/span> <span class="member-type">→ category\(id\)<\/span><\/code><span class="change-detail">onDelete: <del class="change-before">NO ACTION<\/del>.*<ins class="change-after">CASCADE<\/ins>/,
+  // The view that draws the relation, and its labels there.
+  const drawing = (views) =>
+    views.find((v) => v.diagram.edges.some((e) => e.id === id)).diagram;
+  const labels = (views) =>
+    drawing(views)
+      .edges.find((e) => e.id === id)
+      .labels.map((l) => l.text);
+  assert(labels(view.views).includes("0..1"));
+  assert(
+    labels(payload.comparison.baseline.views).filter((l) => l === "0..*")
+      .length === 2,
   );
+  validateDiagram(
+    drawing(payload.comparison.baseline.views),
+    payload.comparison.baseline.model,
+  );
+  const row = rollup.rows.find((r) => r.id === id);
+  assert(row.target);
+  assert.equal(row.summary.text, "knows · targetMultiplicity: 0..* → 0..1");
 });
 
 test("a changed relation's mark avoids its labels", async () => {
@@ -1022,640 +548,72 @@ test("a changed relation's mark avoids its labels", async () => {
   );
   assert(point && (point.x < 71 || point.x > 129), JSON.stringify(point));
   assert.equal(changeMarkPoint(["M0 0 L30 0"], []), null, "too short");
-  // A labelled OntoUML relation whose count changed carries its mark.
-  const { view } = await proposing(createEnrollmentDocument(), (m, byId) => {
-    byId.get(byId.get("mediates-person").properties[1]).cardinality = "0..1";
-  });
-  const svg = renderSVG(
-    view.views.find((v) =>
-      v.diagram.edges.some((e) => e.id === "mediates-person"),
-    ).diagram,
+  // A relation whose count changed carries its mark, on a route long enough
+  // to leave room beside its labels.
+  const order = [
+    "class Order",
+    "class Line",
+    "class Product",
+    'Order "1" -- "0..*" Line',
+    'Line "0..*" -- "1" Product',
+    'Order "0..*" -- "0..*" Product',
+  ].join("\n");
+  const { view } = await diagramProposal(
+    order,
+    order.replace('"0..*" -- "0..*" Product', '"0..*" -- "1..*" Product'),
   );
-  const start = svg.indexOf('data-edge="mediates-person"');
+  const id = "relation:Order:Product";
+  const svg = renderSVG(
+    view.views.find((v) => v.diagram.edges.some((e) => e.id === id)).diagram,
+  );
+  const start = svg.indexOf(`data-edge="${id}"`);
   assert(start > 0);
   const end = svg.indexOf("data-edge=", start + 1);
   assert(svg.slice(start, end).includes('class="edge-change-mark"'));
 });
 
-test("what moves between classes or packages is listed, by name, where it left and where it went", async () => {
-  const moved = await proposing(enrollment(withAttribute), (model, byId) => {
-    const institution = byId.get("institution"),
-      person = byId.get("person");
-    institution.properties = institution.properties.filter(
-      (id) => id !== "institution-code",
-    );
-    person.properties = [...person.properties, "institution-code"];
-  });
-  const row = (name) => moved.rollup.rows.find((r) => r.name === name);
-  assert.deepEqual(tokensOf(row("Institution")), ["removed code"]);
-  assert.deepEqual(tokensOf(row("Person")), ["added code"]);
-  const member = (id) =>
-    moved.view.model.classes
-      .find((c) => c.id === id)
-      .attributes.find((a) => a.id === "institution-code").changeStatus;
-  assert.equal(member("person"), "added");
-  assert.equal(member("institution"), "removed");
-  assert(renderDetails(moved, "person").includes("Moved from Institution"));
-  assert(renderDetails(moved, "institution").includes("Moved to Person"));
-  // Renamed on the way, it reads as before → after where it arrived.
-  const renamed = await proposing(enrollment(withAttribute), (model, byId) => {
-    const institution = byId.get("institution"),
-      person = byId.get("person");
-    institution.properties = institution.properties.filter(
-      (id) => id !== "institution-code",
-    );
-    person.properties = [...person.properties, "institution-code"];
-    byId.get("institution-code").name = { en: "identifier" };
-  });
-  assert.match(
-    renderDetails(renamed, "person"),
-    /<del class="change-before">code: Person<\/del>.*<ins class="change-after">identifier: Person<\/ins>.*Moved from Institution/,
+test("a class moved to another package says so", async () => {
+  const { rollup } = await diagramProposal(
+    ENROLLMENT,
+    ENROLLMENT.replace(
+      "class Institution",
+      "package people {\n  class Institution\n}",
+    ),
   );
-  // A class moved to a new package: the package and the move, under Model.
-  const packaged = await proposing(enrollment(), (model) => {
-    const root = model.elements.find((e) => e.type === "Package");
-    root.contents = [
-      ...root.contents.filter((id) => id !== "person"),
-      "people",
-    ];
-    model.elements.push({
-      ...clone(root),
-      id: "people",
-      name: { en: "People" },
-      contents: ["person"],
-    });
-  });
   assert.deepEqual(
-    packaged.rollup.groups.map((g) => [g.label, g.elements.map(tokensOf)]),
-    [
-      [
-        "Model",
-        [["added People package", "modified Person: Enrollment → People"]],
-      ],
-    ],
-  );
-  assert.equal(packaged.rollup.count, 1);
-});
-
-test("a foreign key whose columns change shows the key it was", async () => {
-  const table = (id, columns) => ({
-    id,
-    name: id,
-    attributes: columns.map((c) => ({
-      id: `${id}.${c}`,
-      name: c,
-      type: "integer",
-    })),
-  });
-  const fk = (column) => ({
-    id: "orders:fk:creator",
-    name: "orders_creator_fkey",
-    stereotype: "foreign key",
-    sourceId: "orders",
-    targetId: "users",
-    sourceMultiplicity: "0..*",
-    targetMultiplicity: "1",
-    columns: [column],
-    targetColumns: ["id"],
-  });
-  const base = atlas.createDocument({
-    id: "shop",
-    title: "Shop",
-    profile: "database",
-    model: {
-      type: "StructuralModel",
-      nodes: [
-        table("orders", ["id", "created_by", "creator_id"]),
-        table("users", ["id"]),
-      ],
-      relations: [fk("created_by")],
-      generalizations: [],
-      generalizationSets: [],
-    },
-  });
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  model.relations = [fk("creator_id")];
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const rollup = rollupChanges(payload.comparison, view.model, view.views);
-  const keys = renderDetails({ view, rollup }, "orders").split(">Keys<")[1];
-  assert.match(
-    keys,
-    /data-change="modified".*<del class="change-before">created_by → users\(id\)<\/del>.*<ins class="change-after">creator_id → users\(id\)<\/ins>/,
+    rollup.groups.map((g) => [g.label, g.elements.map(tokensOf)]),
+    [["Changed", [["modified namespace: none → people"]]]],
   );
 });
 
-test("a table's own foreign keys and SQL stay out of its summary, and the model's copies of them out of Model", async () => {
-  const definition = (columns) =>
-    `CREATE TABLE "orders" (${columns.map((c) => `"${c}" INTEGER`).join(", ")})`;
-  const orders = (columns, foreignKeys) => ({
-    id: "orders",
-    name: "orders",
-    kind: "table",
-    attributes: columns.map((c) => ({
-      id: `orders.${c}`,
-      name: c,
-      type: "INTEGER",
-    })),
-    definition: definition(columns),
-    foreignKeys,
-  });
-  const users = {
-    id: "users",
-    name: "users",
-    kind: "table",
-    attributes: [{ id: "users.id", name: "id", type: "INTEGER" }],
-  };
-  const base = atlas.createDocument({
-    id: "shop",
-    title: "Shop",
-    profile: "database",
-    model: {
-      type: "StructuralModel",
-      nodes: [orders(["id"], []), users],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-      constraints: [["orders", definition(["id"])]],
-    },
-  });
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  const key = { columns: ["user_id"], target: "users", targetColumns: ["id"] };
-  model.nodes[0] = orders(["id", "user_id"], [key]);
-  model.constraints = [["orders", definition(["id", "user_id"])]];
-  model.relations = [
-    {
-      id: "orders:fk:user",
-      name: "user_id → id",
-      stereotype: "foreign key",
-      sourceId: "orders",
-      targetId: "users",
-      sourceMultiplicity: "0..*",
-      targetMultiplicity: "1",
-      ...key,
-    },
-  ];
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const changes = rollupChanges(payload.comparison, view.model, view.views);
-  assert.deepEqual(
-    changes.groups.map((g) => g.label),
-    ["New", "Changed"],
-  );
-  assert.deepEqual(tokensOf(changes.rows.find((r) => r.name === "orders")), [
-    "modified definition changed",
-    "added user_id",
-  ]);
-});
-
-test("a new Java class is placed only by classes of its own repository", () => {
-  const { elementFile } = loadComponents("src/review/changes.js");
-  const java = (repository, name) =>
-    `code:java:${repository}:${encodeURIComponent(name)}`;
-  const model = {
-    classes: [
-      {
-        id: java("billing", "com.billing.Invoice"),
-        location: { file: "billing/src/main/java/com/billing/Invoice.java" },
-      },
-    ],
-  };
-  assert.equal(elementFile({ id: java("shop", "com.shop.Cart") }, model), null);
-  assert.equal(
-    elementFile({ id: java("billing", "com.billing.Refund") }, model),
-    "billing/src/main/java/com/billing/Refund.java",
-  );
-});
-
-// A database table as captures record it, with its keys, indexes and
-// foreign keys; `change` edits the proposal's copy of it.
-async function tableProposal(table, change, extra = {}) {
-  const users = {
-    id: "users",
-    name: "users",
-    kind: "table",
-    attributes: [{ id: "users.id", name: "id", type: "INTEGER" }],
-  };
-  const base = atlas.createDocument({
-    id: "shop",
-    title: "Shop",
-    profile: "database",
-    model: {
-      type: "StructuralModel",
-      nodes: [table, users],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-      ...extra,
-    },
-  });
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  change(model.nodes[0], model);
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  return {
-    view,
-    rollup: rollupChanges(payload.comparison, view.model, view.views),
-  };
+test("a table's keys list each foreign key once, with its change", async () => {
+  const tables = (updatedBy) => `entity orders {
+  *id : integer <<PK>>
+  --
+  *created_by : integer <<FK>>
+  *updated_by : integer <<FK>>
 }
-const ordersTable = () => ({
-  id: "orders",
-  name: "orders",
-  kind: "table",
-  attributes: ["id", "user_id", "created_at", "account_id"].map((c) => ({
-    id: `orders.${c}`,
-    name: c,
-    type: "INTEGER",
-  })),
-  keys: [
-    { name: "PRIMARY KEY", columns: ["id"], primary: true },
-    { name: "orders_user_key", columns: ["user_id"], primary: false },
-  ],
-  indexes: [
-    {
-      name: "idx_orders_user",
-      unique: false,
-      partial: false,
-      columns: ["user_id"],
-      definition: null,
-    },
-  ],
-  // Its target table is outside the capture, so no relation shows it.
-  foreignKeys: [
-    {
-      columns: ["account_id"],
-      target: "accounts",
-      targetColumns: ["id"],
-      onDelete: "NO ACTION",
-      onUpdate: "NO ACTION",
-      match: "SIMPLE",
-    },
-  ],
-});
-
-test("a table's changed keys and indexes read part by part, by name in the list", async () => {
-  const proposal = await tableProposal(ordersTable(), (orders) => {
-    orders.indexes[0] = {
-      ...orders.indexes[0],
-      unique: true,
-      columns: ["user_id", "created_at"],
-    };
-    orders.keys[0] = { ...orders.keys[0], columns: ["id", "created_at"] };
-    orders.keys[1] = { ...orders.keys[1], columns: ["user_id", "created_at"] };
-  });
-  const row = proposal.rollup.rows.find((r) => r.name === "orders");
-  assert.deepEqual(tokensOf(row), [
-    "modified index idx_orders_user",
-    "modified key PRIMARY KEY",
-    "modified key orders_user_key",
-  ]);
-  const html = renderDetails(proposal, "orders");
-  const changes = html.slice(html.indexOf("What changes"));
-  assert.match(
-    changes,
-    /key PRIMARY KEY<\/span> <del class="change-before">\(id\)<\/del>.*<ins class="change-after">\(id, created_at\)<\/ins>/,
+entity users {
+  *id : integer <<PK>>
+}
+entity accounts {
+  *id : integer <<PK>>
+}
+users ||--o{ orders : created_by
+${updatedBy} ||--o{ orders : updated_by`;
+  const { view, rollup } = await diagramProposal(
+    tables("users"),
+    tables("accounts"),
   );
-  assert.match(
-    changes,
-    /index idx_orders_user<\/span> <del class="change-before">\(user_id\)<\/del>.*<ins class="change-after">\(user_id, created_at\), unique<\/ins>/,
+  const keys = renderDetails({ view, rollup }, "orders").split(">Keys<")[1];
+  const rows = keys.slice(0, keys.indexOf("</ul>")).split("<li").slice(1);
+  assert(
+    rows.some((r) => r.includes("created_by") && !r.includes("data-change")),
   );
-  // The Keys section marks the unique key it changes.
-  const keys = html.split(">Keys<")[1];
-  assert.match(
-    keys,
-    /data-change="modified".*unique<\/span> <span class="member-type"><del class="change-before">\(user_id\)<\/del>.*<ins class="change-after">\(user_id, created_at\)<\/ins>/,
-  );
-});
-
-test("a foreign key no relation shows is the table's own change", async () => {
-  const proposal = await tableProposal(ordersTable(), (orders) => {
-    orders.foreignKeys[0] = { ...orders.foreignKeys[0], onDelete: "CASCADE" };
-  });
-  const row = proposal.rollup.rows.find((r) => r.name === "orders");
-  assert.deepEqual(tokensOf(row), [
-    "modified foreign key account_id → accounts(id)",
-  ]);
-  const html = renderDetails(proposal, "orders");
-  assert.match(
-    html,
-    /foreign key<\/span> <del class="change-before">account_id → accounts\(id\), on delete no action, on update no action<\/del>.*<ins class="change-after">account_id → accounts\(id\), on delete cascade, on update no action<\/ins>/,
-  );
-  // The table's keys list it too, marked changed.
-  assert.match(
-    html.split(">Keys<")[1],
-    /data-change="modified".*<ins class="change-after">account_id → accounts\(id\), on delete cascade/,
-  );
-  // One a relation shows stays out of the table's own changes.
-  const related = await tableProposal(
-    { ...ordersTable(), foreignKeys: [] },
-    (orders, model) => {
-      const key = {
-        columns: ["user_id"],
-        target: "users",
-        targetColumns: ["id"],
-      };
-      orders.foreignKeys = [key];
-      model.relations = [
-        {
-          id: "orders:fk:user",
-          name: "user_id → id",
-          stereotype: "foreign key",
-          sourceId: "orders",
-          targetId: "users",
-          sourceMultiplicity: "0..*",
-          targetMultiplicity: "1",
-          ...key,
-        },
-      ];
-    },
-  );
-  assert(!related.rollup.rows.some((r) => r.name === "orders"));
-});
-
-test("a list that is only reordered reads before → after", async () => {
-  const node = (modifiers) => ({
-    id: "checkout",
-    name: "Checkout",
-    kind: "class",
-    attributes: [],
-    modifiers,
-  });
-  const base = atlas.createDocument({
-    id: "shop",
-    title: "Shop",
-    profile: "code",
-    model: {
-      type: "StructuralModel",
-      nodes: [node(["abstract", "export"])],
-      relations: [],
-      generalizations: [],
-      generalizationSets: [],
-    },
-  });
-  const proposal = atlas.createProposal(base);
-  const model = clone(proposal.model);
-  model.nodes[0].modifiers = ["export", "abstract"];
-  const { payload } = await atlas.prepareViewer({
-    document: atlas.reviseDocument(proposal, { model }),
-    includeArtifacts: false,
-  });
-  const view = payload.comparison.changeView;
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const rollup = rollupChanges(payload.comparison, view.model, view.views);
-  assert.deepEqual(tokensOf(rollup.rows[0]), [
-    "modified modifiers: abstract, export → export, abstract",
-  ]);
-});
-
-test("a removed type counts only what goes with it, and says what moved", async () => {
-  // A campus with a code and a name, outside every view and walkthrough.
-  const withCampus = (model, byId, end) => {
-    model.elements.push(
-      {
-        ...clone(byId.get("institution")),
-        id: "campus",
-        name: { en: "Campus" },
-        properties: ["campus-code", "campus-name"],
-      },
-      {
-        ...clone(end),
-        id: "campus-code",
-        name: { en: "code" },
-        propertyType: null,
-      },
-      {
-        ...clone(end),
-        id: "campus-name",
-        name: { en: "name" },
-        propertyType: null,
-      },
-    );
-    const root = model.elements.find((e) => e.type === "Package");
-    root.contents = [...root.contents, "campus"];
-  };
-  const moved = await proposing(enrollment(withCampus), (model, byId) => {
-    // The campus goes with its name; its code moves to Person.
-    model.elements = model.elements.filter(
-      (e) => !["campus", "campus-name"].includes(e.id),
-    );
-    const root = model.elements.find((e) => e.type === "Package");
-    root.contents = root.contents.filter((id) => id !== "campus");
-    byId.get("person").properties = [
-      ...byId.get("person").properties,
-      "campus-code",
-    ];
-  });
-  const html = renderDetails(moved, "campus");
-  assert(html.includes("The kind is removed, with its 1 attribute."), html);
-  // Its row in the list names only what goes with it.
-  assert.equal(
-    moved.rollup.rows.find((r) => r.name === "Campus").summary.text,
-    "name",
-  );
-  assert(html.includes("code moved to Person."));
-  assert(renderDetails(moved, "person").includes("Moved from Campus"));
-});
-
-test("a part of a table reads by its columns, or its statement, and a change hidden from both by its fields", async () => {
-  const { describePart } = loadComponents("src/review/changes.js");
-  assert.equal(
-    describePart({
-      name: "chk_qty",
-      type: "c",
-      columns: ["qty"],
-      definition: "CHECK (qty > 0)",
-    }),
-    "CHECK (qty > 0)",
-  );
-  assert.equal(
-    describePart({
-      name: "idx_open",
-      unique: false,
-      partial: true,
-      columns: ["status"],
-      definition:
-        "CREATE INDEX idx_open ON orders (status) WHERE status = 'open'",
-    }),
-    "CREATE INDEX idx_open ON orders (status) WHERE status = 'open'",
-  );
-  const collated = await tableProposal(ordersTable(), (orders) => {
-    orders.indexes[0] = { ...orders.indexes[0], collations: ["NOCASE"] };
-  });
-  assert.match(
-    renderDetails(collated, "orders"),
-    /index idx_orders_user<\/span> <del class="change-before">\(user_id\); collations none<\/del>.*<ins class="change-after">\(user_id\); collations NOCASE<\/ins>/,
-  );
-});
-
-test("a table's foreign keys are told once: by the relation that shows them, or by the table", async () => {
-  const relation = (key, extra = {}) => ({
-    id: "orders:fk:user",
-    name: "user_id → id",
-    stereotype: "foreign key",
-    sourceId: "orders",
-    targetId: "users",
-    sourceMultiplicity: "0..*",
-    targetMultiplicity: "1",
-    ...key,
-    ...extra,
-  });
-  const key = {
-    columns: ["user_id"],
-    target: "users",
-    targetColumns: ["id"],
-    onDelete: "NO ACTION",
-    onUpdate: "NO ACTION",
-    match: "SIMPLE",
-  };
-  // Pointed from a captured table at one outside the capture: the relation
-  // goes, and the table's own key to the other table is listed in Keys.
-  const retargeted = await tableProposal(
-    { ...ordersTable(), foreignKeys: [key] },
-    (orders, model) => {
-      orders.foreignKeys = [{ ...key, target: "accounts" }];
-      model.relations = [];
-    },
-    { relations: [relation(key)] },
-  );
-  assert.deepEqual(
-    tokensOf(retargeted.rollup.rows.find((r) => r.name === "orders")),
-    ["added foreign key user_id → accounts(id)"],
-  );
-  const keys = renderDetails(retargeted, "orders").split(">Keys<")[1];
-  assert.match(
-    keys,
-    /data-change="added".*user_id<\/span> <span class="member-type">→ accounts\(id\)/,
-  );
-  // Two keys over the same columns to different tables stay two.
-  const twin = await tableProposal(
-    {
-      ...ordersTable(),
-      foreignKeys: [
-        { ...key, target: "accounts" },
-        { ...key, target: "legacy_users" },
-      ],
-    },
-    (orders) => {
-      orders.foreignKeys = [{ ...key, target: "accounts" }];
-    },
-  );
-  assert.deepEqual(
-    tokensOf(twin.rollup.rows.find((r) => r.name === "orders")),
-    ["removed foreign key user_id → legacy_users(id)"],
-  );
-  // So do two to the same table's different columns.
-  const columns = await tableProposal(
-    {
-      ...ordersTable(),
-      foreignKeys: [
-        { ...key, target: "accounts" },
-        { ...key, target: "accounts", targetColumns: ["legacy_id"] },
-      ],
-    },
-    (orders) => {
-      orders.foreignKeys = [{ ...key, target: "accounts" }];
-    },
-  );
-  assert.deepEqual(
-    tokensOf(columns.rollup.rows.find((r) => r.name === "orders")),
-    ["removed foreign key user_id → accounts(legacy_id)"],
-  );
-  // A key whose referenced columns are unknown is the same key with or
-  // without them.
-  const { partKey } = loadComponents("src/review/changes.js");
-  assert.equal(
-    partKey({ ...key, target: "accounts", targetColumns: [null] }),
-    partKey({ ...key, target: "accounts", targetColumns: undefined }),
-  );
-  // It reads without them.
-  const unknown = await tableProposal(
-    {
-      ...ordersTable(),
-      foreignKeys: [{ ...key, target: "accounts", targetColumns: [null] }],
-    },
-    (orders) => {
-      orders.foreignKeys = [];
-    },
-  );
-  assert.deepEqual(
-    tokensOf(unknown.rollup.rows.find((r) => r.name === "orders")),
-    ["removed foreign key user_id → accounts"],
-  );
-  // Nor does recording them as nulls or leaving them out change it.
-  const { itemChanges } = loadComponents("src/review/changes.js");
-  const unknownKey = { ...key, target: "accounts", targetColumns: [null] };
-  const { targetColumns: _unknown, ...withoutColumns } = unknownKey;
-  assert.deepEqual(
-    itemChanges({
-      before: { present: true, value: [unknownKey] },
-      after: { present: true, value: [withoutColumns] },
-    }),
-    [],
-  );
-  // PostgreSQL lists a foreign key as a constraint; its relation tells it.
-  const constraint = {
-    name: "orders_user_id_fkey",
-    type: "f",
-    columns: ["user_id"],
-    definition: "FOREIGN KEY (user_id) REFERENCES users(id)",
-  };
-  const postgres = await tableProposal(
-    { ...ordersTable(), foreignKeys: [], constraints: [] },
-    (orders, model) => {
-      orders.constraints = [constraint];
-      model.relations = [
-        relation(
-          { columns: ["user_id"], targetColumns: ["id"] },
-          {
-            id: "orders:fk:orders_user_id_fkey",
-            name: "orders_user_id_fkey",
-            definition: constraint.definition,
-          },
-        ),
-      ];
-    },
-  );
-  assert.deepEqual(
-    postgres.rollup.rows.map((r) => `${r.kind} ${r.status} ${r.name}`),
-    ["edge added orders → users"],
-  );
-});
-
-test("a key that changes only where its description is silent says how", async () => {
-  const origin = await tableProposal(
-    {
-      ...ordersTable(),
-      keys: [
-        { name: "PRIMARY KEY", columns: ["id"], primary: true },
-        {
-          name: "orders_user_key",
-          columns: ["user_id"],
-          primary: false,
-          origin: "u",
-        },
-      ],
-    },
-    (orders) => {
-      orders.keys[1] = { ...orders.keys[1], origin: "c" };
-    },
-  );
-  assert.match(
-    renderDetails(origin, "orders").split(">Keys<")[1],
-    /<del class="change-before">\(user_id\); origin u<\/del>.*<ins class="change-after">\(user_id\); origin c<\/ins>/,
-  );
+  // A key to another table is another key: the old one goes, the new comes.
+  const marked = (change, text) =>
+    rows.some((r) => r.includes(`data-change="${change}"`) && r.includes(text));
+  assert.equal(rows.length, 3);
+  assert(marked("added", "→ accounts(id)"));
+  assert(marked("removed", "→ users(id)"));
 });

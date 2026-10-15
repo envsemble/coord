@@ -1,5 +1,5 @@
 // Planning-folder records shared by the reader, the command and the app.
-export interface Repository { id: string; name: string; path?: string }
+export interface Repository { id: string; name: string; path?: string; remote?: string }
 export interface Document {
   path: string; name: string; title: string; size: number; modified: string;
   key: string; workId: string | null; repositories: string[]; category: string; format: string;
@@ -10,7 +10,7 @@ export interface Work {
   created: string | null; updated: string | null; accepted: string | null;
   completed: string | null; durationDays: number | null; documents: Document[];
   ledger?: string | null; progress?: WorkProgress | null;
-  /** Number of Atlas models in this work folder's `.atlas/models`. */
+  /** Number of diagram files (`.puml`) in this work folder. */
   diagrams?: number;
   /** Agent reports and plan revisions; absent where they were not read. */
   statistics?: WorkStatistics;
@@ -24,6 +24,18 @@ export interface ModelUsage {
   agentMs: number;
   tokens: number | null;
   /** Its measured tokens by kind; null when no session log measured it. */
+  tokenKinds: TokenKinds | null;
+}
+/**
+ * A work item's stage when a report was made: planning until its plan's design is accepted, and
+ * again while a session amends an accepted plan; implementation otherwise.
+ */
+export type WorkStage = 'planning' | 'implementation';
+/** The agent time and tokens of the reports of one stage, measured and estimated as for the work item. */
+export interface StageUsage {
+  reports: number; agentMs: number;
+  tokens: number | null;
+  /** Its measured tokens by kind; null when no report of the stage was measured. */
   tokenKinds: TokenKinds | null;
 }
 /**
@@ -50,6 +62,10 @@ export interface WorkStatistics {
   estimatedMs: number;
   /** Reports whose interval was measured from the session log. */
   measuredReports: number;
+  /** Agent time and tokens by stage; reports from before stages were recorded are unknown. */
+  stages: Record<WorkStage | 'unknown', StageUsage>;
+  /** Subagents measured at work: how many (each once), and their busy time added up, each its own. */
+  subagents: { count: number; agentMs: number };
   firstReport: string | null;
   lastReport: string | null;
   /** Commits that changed the main plan after it was added, up to completion or now; null without Git history. */
@@ -83,7 +99,10 @@ export interface Usage {
 }
 /** What the reader returns for one planning folder, before usage statistics are attached. */
 export interface PlanningIndex {
-  root: string; loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; repositories: Repository[]; work: Work[];
+  root: string;
+  /** The project's name: the registry's `name`, else the folder's own name. */
+  name: string;
+  loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; repositories: Repository[]; work: Work[];
   documents: Document[]; history: HistoryEntry[]; issues: Issue[]; gitAvailable: boolean;
 }
 export interface DocumentContent {

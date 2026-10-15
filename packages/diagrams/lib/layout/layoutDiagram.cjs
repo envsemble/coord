@@ -8,8 +8,8 @@ const {
 const { knownMultiplicity } = require("./multiplicity.cjs");
 const round = (n) => Number(n.toFixed(2));
 // Names that only repeat what a relation is: every captured type-use
-// dependency has the first, and OntoUML relations without a name of their own
-// the second. Repeated on each edge they say nothing the line does not.
+// dependency has the first, and some relations are named only the second.
+// Repeated on each edge they say nothing the line does not.
 const GENERIC_NAMES = new Set(["declared type use", "association"]);
 // Stereotypes the line style (a dependency's dashed open arrow) or the profile
 // (every relation between tables is a foreign key) already shows.
@@ -527,6 +527,7 @@ async function layoutDiagram(
           id: c.id,
           name: c.name,
           stereotype: c.stereotype,
+          ...(c.description ? { description: c.description } : {}),
           isAbstract: c.isAbstract ?? c.abstract,
           x: round(n.x),
           y: round(n.y),
@@ -570,6 +571,7 @@ async function layoutDiagram(
         sourceAggregation: data.sourceAggregation,
         targetAggregation: data.targetAggregation,
         targetMultiplicity: data.targetMultiplicity,
+        ...(data.navigable ? { navigable: true } : {}),
         paths: members
           ? members.map(({ route, group }) =>
               pathOf([

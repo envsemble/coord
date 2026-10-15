@@ -1,64 +1,43 @@
-// What a window shows: one planning folder on a host, this computer's own or another one's. The
-// window's requests go through the host connection; its state follows the host's folder events and
-// the connection's status. The revision counts up here, in main, so a host that restarted (and
-// counts from zero again) never makes the window ignore fresh data.
+// A project's folder as a window follows it, on a host: this computer's own or another one's. The
+// window's requests about it go through the host connection; its state follows the host's folder
+// events and the connection's status. The revision counts up here, in main, so a host that restarted
+// (and counts from zero again) never makes the window ignore fresh data.
 import type { ClientStatus, FolderState, HostClient } from '@envsemble/atlas-host';
 import type { FolderChange, FolderStatus } from '../shared/contract.ts';
-
-export interface FolderLocation {
-  client: HostClient;
-  folderId: string;
-  /** The folder's path on this computer, or `atlas-remote:<host>/<folder>` for another computer's. */
-  root: string;
-  name: string;
-  remote: { hostId: string; hostName: string } | null;
-  /** False when the folder could not be opened: the client does not follow it, so nothing will update it. */
-  following?: boolean;
-}
-
-/** The key a remote folder is remembered under (window restore, tabs and sidebar). */
-export function remoteRoot(hostId: string, folderId: string) { return `atlas-remote:${hostId}/${folderId}`; }
-export function parseRemoteRoot(root: string) {
-  const match = /^atlas-remote:([a-zA-Z0-9-]{8,64})\/(f-[a-f0-9]{32})$/.exec(root);
-  return match ? { hostId: match[1], folderId: match[2] } : null;
-}
 
 export class FolderView {
   readonly client: HostClient;
   readonly folderId: string;
-  readonly root: string;
-  name: string;
-  readonly remote: FolderLocation['remote'];
-  readonly following: boolean;
-  status: FolderStatus;
-  error: string | null;
-  private hostNotice: string | null;
+  /** Set when the project is on another computer. */
+  readonly remote: { hostId: string; hostName: string } | null;
+  status: FolderStatus = 'loading';
+  error: string | null = null;
+  private hostNotice: string | null = null;
   private connectionNotice: string | null = null;
   revision = 0;
   private closed = false;
 
-  constructor(location: FolderLocation, state: FolderState) {
-    this.client = location.client;
-    this.folderId = location.folderId;
-    this.root = location.root;
-    this.name = location.name || state.name;
-    this.remote = location.remote;
-    this.following = location.following ?? true;
-    this.status = state.status;
-    this.error = state.error;
-    this.hostNotice = state.notice;
+  constructor(client: HostClient, folderId: string, remote: FolderView['remote'], revision = 0) {
+    this.client = client;
+    this.folderId = folderId;
+    this.remote = remote;
+    this.revision = revision;
   }
 
-  get readOnly() { return this.remote !== null; }
   get notice() { return this.connectionNotice ?? this.hostNotice; }
   change(): FolderChange { return { revision: this.revision, status: this.status, error: this.error, notice: this.notice }; }
 
-  /** A folder event from the host. */
+  /** A folder event from the host, or its state when the window started following it. */
   update(state: FolderState) {
-    if (state.name) this.name = state.name;
     this.status = state.status;
     this.error = state.error;
     this.hostNotice = state.notice;
+    this.revision++;
+  }
+  /** It could not be followed: unreadable here until its computer answers again. */
+  failed(message: string) {
+    this.status = 'invalid';
+    this.error = message;
     this.revision++;
   }
   /** The connection's status: an unreachable host keeps the last good view with a notice; a refused one closes it. */

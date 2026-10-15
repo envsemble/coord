@@ -1,0 +1,45 @@
+{
+  "valid": true,
+  "schema": "atlas/plantuml",
+  "engines": [
+    {
+      "name": "Atlas PlantUML subset",
+      "version": "1",
+      "layer": "diagram"
+    }
+  ],
+  "issues": [],
+  "counts": {
+    "error": 0,
+    "warning": 0,
+    "info": 0
+  },
+  "limitations": [
+    "Checks cover Atlas's PlantUML subset and its model rules; they do not establish that the model is accurate."
+  ],
+  "modelCounts": {
+    "classes": 6,
+    "relations": 5,
+    "generalizations": 1
+  },
+  "diagrams": [
+    {
+      "view": "comparison",
+      "fields": false,
+      "valid": true,
+      "issues": [],
+      "multiplicityLabels": 3,
+      "maxMultiplicityDistance": 47,
+      "generalizationGroups": 0
+    },
+    {
+      "view": "comparison",
+      "fields": true,
+      "valid": true,
+      "issues": [],
+      "multiplicityLabels": 3,
+      "maxMultiplicityDistance": 47,
+      "generalizationGroups": 0
+    }
+  ]
+}

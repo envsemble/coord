@@ -1,16 +1,19 @@
 // Work statistics: report grouping, measured and estimated agent time and token arithmetic, plan
-// revisions from Git (following archive moves), recording with atlas work report (measuring a
-// synthetic session log), and how the reader and checker treat them.
+// revisions from Git (following archive moves), recording with atlas work report into the home
+// database (measuring a synthetic session log), importing old statistics files, and how the reader
+// summarizes them.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { validatePlanning } from './check.ts';
 import { loadPlanning } from './planning.ts';
 import { exportPlan } from './planExport.ts';
-import { createReport, fitStep, parseReport, planRevisions, summarizeReports, StatisticsReportError, type Measured, type StatisticsReport } from './statistics.ts';
+import { createReport, fitStep, importStatisticsFiles, parseReport, planRevisions, storedReports, summarizeReports, StatisticsReportError, type Measured, type MeasuredSubagents, type StatisticsReport } from './statistics.ts';
+import { withDatabase, withDatabaseAsync } from './database.ts';
+import type { WorkStage } from './types.ts';
 import { recordWorkReport } from './workReport.ts';
 
 // Reports made here never measure the developer's own session: no harness session, no logs at home.
@@ -26,6 +29,11 @@ const report = (minutes: number, model: string, tokens: number | null = null, se
 type Share = [model: string, minutes: number, tokens: [input: number, cacheRead: number, cacheWrite: number, output: number]];
 const measurement = (since: number, minutes: number, shares: Share[]): Measured => ({ since: at(since), agentMs: minutes * 60000, models: shares.map(([model, time, [input, cacheRead, cacheWrite, output]]) => ({ model, agentMs: time * 60000, input, cacheRead, cacheWrite, output })) });
 const measured = (minutes: number, model: string, session: string, since: number, agentMinutes: number, shares: Share[]): StatisticsReport => ({ ...report(minutes, model, null, session), measured: measurement(since, agentMinutes, shares) });
+/** A work item's reports in the test home's database. */
+const reportsOf = (root: string, workId: string) => withDatabase(undefined, database => {
+  const project = database.projectByFolder(realpathSync.native(root));
+  return project ? storedReports(database, project.id, [workId]).get(workId) ?? [] : [];
+});
 
 test('a session sums the time between its reports and counts tokens from its first report on', () => {
   const summary = summarizeReports([
@@ -59,7 +67,8 @@ test('a lower token count starts the session again, and out-of-order lines are s
   const summary = summarizeReports([report(20, 'model-a', 500, 's1'), report(0, 'model-a', 8000, 's1'), report(10, 'model-a', 9000, 's1')]);
   assert.equal(summary.tokens, 1000 + 500);
   assert.equal(summarizeReports([report(0, 'model-a', 7000, 's1')]).tokens, null, 'one report is a starting point only: its cost is unknown, not zero');
-  assert.deepEqual(summarizeReports([]), { reports: 0, invalid: 0, models: [], primaryModel: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, firstReport: null, lastReport: null });
+  const none = { reports: 0, agentMs: 0, tokens: null, tokenKinds: null };
+  assert.deepEqual(summarizeReports([]), { reports: 0, invalid: 0, models: [], primaryModel: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, stages: { planning: none, implementation: none, unknown: none }, subagents: { count: 0, agentMs: 0 }, firstReport: null, lastReport: null });
 });
 
 test('a measured report replaces the estimate for its interval, long gaps included; older reports keep the estimate', () => {
@@ -122,6 +131,67 @@ test('two agents of a session reporting at once measure from the same report: wh
     measured(80, 'claude-opus-5-5', session, 0, 80, [['claude-opus-5-5', 80, [0, 8000, 0, 800]]]),
   ]);
   assert.deepEqual([summary.agentMs / 60000, summary.tokens], [80, 6600 + 2200], 'the second counts its last 20 minutes, and a quarter of its tokens');
+});
+
+type Helper = [id: string, model: string | null, minutes: number, tokens: number];
+const helpers = (count: number, minutes: number, tokens: number, agents: Helper[]): MeasuredSubagents => ({ count, agentMs: minutes * 60000, tokens, agents: agents.map(([id, model, time, spent]) => ({ id, model, agentMs: time * 60000, tokens: spent })) });
+
+test('agent time and tokens add up by stage, and each subagent counts once however many reports list it', () => {
+  const session = '5752382d-8571-4733-a9e9-0db82c361b65';
+  const staged = (stage: WorkStage, entry: StatisticsReport, subagents?: MeasuredSubagents): StatisticsReport => ({ ...entry, stage, ...(subagents && { measured: { ...entry.measured!, subagents } }) });
+  const summary = summarizeReports([
+    // From before stages were recorded: estimated, with self-reported tokens.
+    report(0, 'model-alpha-2', 1000, 'session-b'), report(30, 'model-alpha-2', 4000, 'session-b'),
+    staged('planning', report(0, 'claude-opus-5-5', null, session)),
+    staged('planning', measured(60, 'claude-opus-5-5', session, 0, 50, [['claude-opus-5-5', 50, [0, 1000, 0, 100]]])),
+    staged('implementation', measured(120, 'claude-opus-5-5', session, 60, 40, [['claude-opus-5-5', 40, [0, 2000, 0, 200]], ['claude-haiku-5-5', 30, [0, 500, 0, 50]]]), helpers(2, 45, 550, [['a1', 'claude-haiku-5-5', 30, 550], ['a2', null, 15, 0]])),
+    // Another agent of the session at the same moment, from the same report: nothing new, no new subagent.
+    staged('implementation', measured(120, 'claude-opus-5-5', session, 60, 40, [['claude-opus-5-5', 40, [0, 2000, 0, 200]]]), helpers(1, 40, 0, [['a6', null, 40, 0]])),
+    // Six subagents, four listed: a1 again, three new, and two more unlisted.
+    staged('implementation', measured(180, 'claude-opus-5-5', session, 120, 30, [['claude-opus-5-5', 30, [0, 0, 0, 10]]]), helpers(6, 60, 0, [['a1', 'claude-haiku-5-5', 20, 0], ['a3', null, 10, 0], ['a4', null, 10, 0], ['a5', null, 10, 0]])),
+  ]);
+  assert.deepEqual(summary.stages, {
+    planning: { reports: 2, agentMs: 50 * 60000, tokens: 1100, tokenKinds: { input: 0, cacheRead: 1000, cacheWrite: 0, output: 100 } },
+    implementation: { reports: 3, agentMs: 70 * 60000, tokens: 2760, tokenKinds: { input: 0, cacheRead: 2500, cacheWrite: 0, output: 260 } },
+    unknown: { reports: 2, agentMs: 30 * 60000, tokens: 3000, tokenKinds: null },
+  });
+  assert.equal(summary.agentMs, 150 * 60000, 'the stages add up to the whole');
+  assert.equal(summary.tokens, 1100 + 2760 + 3000);
+  assert.deepEqual(summary.subagents, { count: 5 + 2, agentMs: (45 + 60) * 60000 }, 'a1 to a5 and the two unlisted; a6 came with an interval already covered');
+  // The same subagent identifier in another session is another subagent.
+  const other = summarizeReports([report(0, 'model-a', null, 's1'), measured(10, 'model-a', 's1', 0, 10, []), report(0, 'model-a', null, 's2'), measured(10, 'model-a', 's2', 0, 10, [])].map(entry => entry.measured ? staged('implementation', entry, helpers(1, 5, 0, [['a1', null, 5, 0]])) : entry));
+  assert.deepEqual(other.subagents, { count: 2, agentMs: 10 * 60000 });
+});
+
+test('stages and subagents are validated when written and read leniently: a line without a stage is from before stages', () => {
+  const valid = createReport({ model: 'model-a', at: new Date(at(60)), stage: 'implementation', measured: { ...measurement(0, 50, [['model-a', 50, [1, 2, 3, 4]]]), subagents: helpers(5, 100, 10, [['a1', 'model-a', 50, 10], ['a2', null, 50, 0]]) } });
+  assert.deepEqual(Object.keys(JSON.parse(JSON.stringify(valid))), ['version', 'at', 'model', 'session', 'tokens', 'step', 'stage', 'measured']);
+  assert.deepEqual(parseReport(JSON.stringify(valid)), valid);
+  assert.equal(parseReport(JSON.stringify(report(0, 'model-a')))!.stage, undefined, 'unknown');
+  assert.throws(() => createReport({ model: 'model-a', stage: 'review' as WorkStage }), StatisticsReportError);
+  assert.deepEqual(parseReport(JSON.stringify({ ...report(0, 'model-a'), stage: 'review' })), report(0, 'model-a'), 'a stage this version does not know is unknown');
+  const invalid: unknown[] = [
+    'yes', [], { ...helpers(1, 5, 0, []), count: -1 }, helpers(1, 61, 0, []), helpers(1, 5, -1, []), helpers(1, 5, 0, [['a1', null, 5, 0], ['a2', null, 5, 0]]),
+    helpers(2, 5, 0, [['a 1', null, 5, 0]]), helpers(2, 5, 0, [['a1', 'model a', 5, 0]]), helpers(2, 5, 0, [['a1', null, 61, 0]]), helpers(2, 5, 0, [['a1', null, 5, 0.5]]),
+    helpers(2, 5, 0, [['a1', null, 1, 0], ['a1', null, 1, 0]]), { ...helpers(1, 5, 0, []), agents: undefined },
+  ];
+  for (const subagents of invalid) {
+    const value = { ...measurement(0, 5, []), subagents } as Measured;
+    assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: value }), StatisticsReportError, JSON.stringify(subagents));
+    assert.deepEqual(parseReport(JSON.stringify({ ...report(60, 'model-a'), measured: value }))?.measured, measurement(0, 5, []), 'the measurement is read without them: ' + JSON.stringify(subagents));
+  }
+  // Reports list at most four subagents; one listing more, from a later version, is still read.
+  const five = helpers(5, 5, 0, ['a1', 'a2', 'a3', 'a4', 'a5'].map((id): Helper => [id, null, 1, 0]));
+  assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: { ...measurement(0, 5, []), subagents: five } }), StatisticsReportError);
+  assert.equal(parseReport(JSON.stringify({ ...report(60, 'model-a'), measured: { ...measurement(0, 5, []), subagents: five } }))?.measured?.subagents?.agents.length, 5);
+  // The longest of everything still fits the line older versions read (4,096 characters).
+  const longest = createReport({ model: 'model-a', session: 's'.repeat(128), step: '"'.repeat(200), stage: 'implementation', at: new Date(at(60)), measured: {
+    ...measurement(0, 50, Array.from({ length: 8 }, (_, index): Share => [String(index).repeat(100), 50, [1e12, 1e12, 1e12, 1e12]])),
+    subagents: { count: 1e6, agentMs: 1e6 * 3600000, tokens: 1e12, agents: Array.from({ length: 4 }, (_, index) => ({ id: String(index).repeat(64), model: String(index).repeat(100), agentMs: 3600000, tokens: 1e12 })) },
+  } });
+  const line = JSON.stringify(longest);
+  assert.ok(line.length <= 4096, 'longest line: ' + line.length);
+  assert.deepEqual(parseReport(line), longest);
 });
 
 test('reports are validated when written and when read', () => {
@@ -250,39 +320,20 @@ test('a new plan that Git pairs with another work item\'s rewritten plan does no
   ]), { 'work-0002': 4, 'work-0003': 0 });
 });
 
-test('reports are never written through a linked .atlas folder, and a file without a final newline gets one', async t => {
+test('a long step is shortened, and a step with doubled spaces is still the ledger\'s', async t => {
   const { root, register } = repository(t);
   const folder = 'active/0001-example';
   mkdirSync(path.join(root, folder), { recursive: true });
   register(folder);
   writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
-  mkdirSync(path.join(root, folder, '.atlas'));
-  writeFileSync(path.join(root, folder, '.atlas/statistics.jsonl'), JSON.stringify(report(0, 'model-a')));
-  await recordWorkReport(root, 'work-0001', { model: 'model-a' });
-  const lines = readFileSync(path.join(root, folder, '.atlas/statistics.jsonl'), 'utf8').split('\n').filter(Boolean);
-  assert.equal(lines.length, 2);
-  assert.ok(lines.every(line => parseReport(line)));
   const long = await recordWorkReport(root, 'work-0001', { model: 'model-a', step: 'x'.repeat(300) });
   assert.match(long.warnings.join(' '), /shortened to 200/);
   writeFileSync(path.join(root, folder, 'ledger.md'), ['---', 'schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: null', 'blocked: null', 'steps:', '  - title: "Build  the  thing"', '    status: doing', '---', ''].join('\n'));
   assert.deepEqual((await recordWorkReport(root, 'work-0001', { model: 'model-a', step: 'Build  the  thing' })).warnings, [], 'a title with double spaces is still the ledger\'s step');
-
-  // A junction (Windows, no rights needed) or a symbolic link to a folder outside.
-  const other = 'active/0002-other';
-  mkdirSync(path.join(root, other), { recursive: true });
-  const outside = mkdtempSync(path.join(tmpdir(), 'atlas-outside-'));
-  t.after(() => rmSync(outside, { recursive: true, force: true }));
-  symlinkSync(outside, path.join(root, other, '.atlas'), process.platform === 'win32' ? 'junction' : 'dir');
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [
-    { id: 'work-0001', path: folder, repositories: ['example'], current_plan: folder + '/plan.md' },
-    { id: 'work-0002', path: other, repositories: ['example'], current_plan: null },
-  ] }));
-  await assert.rejects(recordWorkReport(root, 'work-0002', { model: 'model-a' }), /link or not a folder/);
-  assert.deepEqual(readdirSync(outside), [], 'nothing was written outside');
-  assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('0002-other/.atlas: a link')));
+  assert.equal(reportsOf(root, 'work-0001').length, 2);
 });
 
-test('atlas work report appends to the work folder, which the reader summarizes and plan exports leave out', async t => {
+test('atlas work report records into the home database, which the reader summarizes; old statistics files are imported once', async t => {
   const { root, register } = repository(t);
   const folder = 'active/0001-example';
   mkdirSync(path.join(root, folder), { recursive: true });
@@ -290,26 +341,38 @@ test('atlas work report appends to the work folder, which the reader summarizes 
   writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
   writeFileSync(path.join(root, folder, 'ledger.md'), ['---', 'schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: null', 'blocked: null', 'steps:', '  - title: "Build it"', '    status: doing', '---', '', '# Ledger', ''].join('\n'));
   const first = await recordWorkReport(root, 'work-0001', { model: 'model-a', tokens: 1000, session: 's1', step: 'Build it', at: new Date(at(0)) });
-  assert.equal(first.file, folder + '/.atlas/statistics.jsonl');
+  assert.equal(first.project, path.basename(root), 'recorded under the folder\'s project, named after the folder');
   assert.deepEqual(first.warnings, []);
+  assert.ok(!existsSync(path.join(root, folder, '.atlas')), 'nothing is written into the planning folder');
   const second = await recordWorkReport(root, 'work-0001', { model: 'model-a', tokens: 3000, session: 's1', step: 'Ship it', at: new Date(at(45)) });
   assert.match(second.warnings[0], /not one of the ledger's steps/);
   await assert.rejects(recordWorkReport(root, 'work-0002', { model: 'model-a' }), /not a registered work item/);
   await assert.rejects(recordWorkReport(root, 'work-0001', { model: 'model a' }), StatisticsReportError);
-  assert.equal(readFileSync(path.join(root, first.file), 'utf8').trim().split('\n').length, 2);
-
-  appendFileSync(path.join(root, first.file), 'garbage\n');
+  assert.equal(reportsOf(root, 'work-0001').length, 2);
   const statistics = (await loadPlanning(root)).work[0].statistics!;
-  assert.deepEqual({ reports: statistics.reports, invalid: statistics.invalid, tokens: statistics.tokens, minutes: statistics.agentMs / 60000, model: statistics.primaryModel }, { reports: 2, invalid: 1, tokens: 2000, minutes: 45, model: 'model-a' });
+  assert.deepEqual({ reports: statistics.reports, tokens: statistics.tokens, minutes: statistics.agentMs / 60000, model: statistics.primaryModel }, { reports: 2, tokens: 2000, minutes: 45, model: 'model-a' });
   assert.equal(statistics.planRevisions, null, 'no Git history');
-  assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('statistics.jsonl: 1 line is not a valid statistics report')));
-  assert.deepEqual(validatePlanning(root).errors, []);
-  appendFileSync(path.join(root, first.file), JSON.stringify({ ...report(50, 'model-a', null, 's1'), measured: { since: at(60), agentMs: 0, models: [] } }) + '\n');
-  assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('statistics.jsonl: 1 report has a measurement that cannot be read; agent time there is estimated')));
-  assert.equal((await loadPlanning(root)).work[0].statistics?.reports, 3, 'the report itself still counts');
 
+  // A statistics file as Atlas wrote it before the database: imported once, then deleted.
+  const file = path.join(root, folder, '.atlas/statistics.jsonl');
+  mkdirSync(path.dirname(file));
+  const subagents: MeasuredSubagents = { count: 6, agentMs: 60000, tokens: 600, agents: [{ id: 'a1', model: 'model-b', agentMs: 30000, tokens: 100 }] };
+  writeFileSync(file, [JSON.stringify(report(50, 'model-a', null, 's1')), 'garbage', JSON.stringify({ ...measured(60, 'model-a', 's1', 50, 1, [['model-a', 1, [1, 2, 3, 4]]]), measured: { ...measurement(50, 1, [['model-a', 1, [1, 2, 3, 4]]]), subagents } })].join('\n') + '\n');
+  assert.deepEqual(validatePlanning(root).warnings.filter(warning => warning.includes('statistics')), [], 'atlas check no longer reads statistics files');
+  const imported = await withDatabaseAsync(undefined, database => importStatisticsFiles(database, root));
+  assert.deepEqual(imported, { files: [folder + '/.atlas/statistics.jsonl'], reports: 2, invalid: 1, problems: [] });
+  assert.ok(!existsSync(path.join(root, folder, '.atlas')), 'the file and its empty folder are gone');
+  mkdirSync(path.dirname(file));
+  writeFileSync(file, JSON.stringify(report(50, 'model-a', null, 's1')) + '\n');
+  assert.equal((await withDatabaseAsync(undefined, database => importStatisticsFiles(database, root))).reports, 0, 'a report imported before is not added again');
+  const reread = (await loadPlanning(root)).work[0].statistics!;
+  assert.equal(reread.reports, 4);
+  assert.deepEqual(reread.subagents, { count: 6, agentMs: 60000 }, 'the subagents a line counted without listing them still count');
+
+  mkdirSync(path.dirname(file));
+  writeFileSync(file, JSON.stringify(report(70, 'model-a')) + '\n');
   const exported = await exportPlan(root, 'work-0001');
-  assert.ok(!exported.manifest.files.some(file => file.path.endsWith('statistics.jsonl')), 'plan exports leave the statistics out');
+  assert.ok(!exported.manifest.files.some(entry => entry.path.endsWith('statistics.jsonl')), 'plan exports leave statistics files out');
 });
 
 test('inside a harness, atlas work report reads the session, model, agent time and tokens from the session log', async t => {
@@ -341,7 +404,8 @@ test('inside a harness, atlas work report reads the session, model, agent time a
   assert.deepEqual(second.report.measured, { since: at(2), agentMs: (20 - 2 + 140 - 100) * 60000, models: [
     { model: 'claude-opus-5-5', agentMs: (20 - 2 + 30) * 60000, input: 30, cacheRead: 9000, cacheWrite: 600, output: 1200 },
     { model: 'claude-haiku-5-5', agentMs: 30 * 60000, input: 20, cacheRead: 6000, cacheWrite: 400, output: 800 },
-  ] }, 'from the previous report on, waiting excluded, the helper\'s parallel work once');
+  ], subagents: { count: 1, agentMs: 30 * 60000, tokens: 2 * 3610, agents: [{ id: 'a1', model: 'claude-haiku-5-5', agentMs: 30 * 60000, tokens: 2 * 3610 }] } }, 'from the previous report on, waiting excluded, the helper\'s parallel work once, and the helper on its own');
+  assert.equal(second.report.stage, 'implementation', 'the plan is accepted');
   const statistics = (await loadPlanning(root)).work[0].statistics!;
   assert.deepEqual([statistics.agentMs / 60000, statistics.measuredMs / 60000, statistics.estimatedMs, statistics.primaryModel, statistics.tokens], [58, 58, 0, 'claude-opus-5-5', 5 * 3610], 'five responses since the first report');
 
@@ -356,7 +420,7 @@ test('inside a harness, atlas work report reads the session, model, agent time a
   assert.match(unmeasured.warnings.join(' '), /^Agent time and tokens were not measured: no Claude Code log of session 11111111-2222-4333-8444-555555555555 was found on this computer\.$/);
   await assert.rejects(recordWorkReport(root, 'work-0001', { at: new Date(at(180)) }, missing), /model is unknown/);
   await assert.rejects(recordWorkReport(root, 'work-0001', { at: new Date(at(180)) }, { environment: {}, home: config }), /model is unknown: give it with --model/);
-  assert.equal(readFileSync(path.join(root, folder, '.atlas/statistics.jsonl'), 'utf8').trim().split('\n').length, 4, 'refused reports write nothing');
+  assert.equal(reportsOf(root, 'work-0001').length, 4, 'refused reports record nothing');
 });
 
 test('a Codex helper reporting under its own thread reports into its root session, so no work counts twice', async t => {
@@ -391,17 +455,48 @@ test('a Codex helper reporting under its own thread reports into its root sessio
   assert.deepEqual(statistics.models.map(model => [model.model, model.agentMs / 60000, model.tokens]), [['gpt-5-codex-mini', 60, 1100], ['gpt-6.1-sol', 9, 550]]);
 });
 
-test('reports never follow a symbolic link out of the work folder', { skip: process.platform === 'win32' ? 'Symbolic links need extra rights on Windows.' : false }, async t => {
+test('a report records the work item\'s stage: planning until its plan is accepted, and while a session amends it', async t => {
   const { root, register } = repository(t);
   const folder = 'active/0001-example';
-  mkdirSync(path.join(root, folder, '.atlas'), { recursive: true });
+  mkdirSync(path.join(root, folder), { recursive: true });
+  register(folder);
+  const stage = async (options = {}) => (await recordWorkReport(root, 'work-0001', { model: 'model-a' }, options)).report.stage;
+  assert.equal(await stage(), 'planning', 'no plan yet');
+  writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.').replace('design_status: accepted', 'design_status: draft').replace('accepted_at: "2026-10-01"', 'accepted_at: null'));
+  assert.equal(await stage(), 'planning', 'a draft');
+  writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
+  assert.equal(await stage(), 'implementation', 'accepted');
+  assert.equal(await stage({ amending: true }), 'planning', 'a session amending the accepted plan');
+  assert.deepEqual(Object.entries((await loadPlanning(root)).work[0].statistics!.stages).map(([name, usage]) => [name, usage.reports]), [['planning', 3], ['implementation', 1], ['unknown', 0]]);
+});
+
+test('a hook names the session\'s log: it is measured with its subagents, whatever the environment says', async t => {
+  const { root, register } = repository(t);
+  const folder = 'active/0001-example';
+  mkdirSync(path.join(root, folder), { recursive: true });
   register(folder);
   writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
-  const outside = mkdtempSync(path.join(tmpdir(), 'atlas-outside-'));
-  t.after(() => rmSync(outside, { recursive: true, force: true }));
-  writeFileSync(path.join(outside, 'target.jsonl'), JSON.stringify(report(0, 'model-a')) + '\n');
-  symlinkSync(path.join(outside, 'target.jsonl'), path.join(root, folder, '.atlas/statistics.jsonl'));
-  await assert.rejects(recordWorkReport(root, 'work-0001', { model: 'model-a' }), /not a regular file/);
-  assert.equal(readFileSync(path.join(outside, 'target.jsonl'), 'utf8').trim().split('\n').length, 1);
-  assert.equal((await loadPlanning(root)).work[0].statistics?.reports, 0);
+  const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
+  const config = mkdtempSync(path.join(tmpdir(), 'atlas-claude-'));
+  t.after(() => rmSync(config, { recursive: true, force: true }));
+  const project = path.join(config, 'projects', 'C--work-example');
+  mkdirSync(path.join(project, session, 'subagents'), { recursive: true });
+  const usage = { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 90 };
+  const prompt = (minutes: number) => JSON.stringify({ type: 'user', message: { role: 'user', content: 'Placeholder' }, timestamp: at(minutes) });
+  const response = (minutes: number, id: string, model: string, stop = 'end_turn') => JSON.stringify({ type: 'assistant', message: { id, model, role: 'assistant', content: [], stop_reason: stop, usage }, timestamp: at(minutes) });
+  const log = path.join(project, session + '.jsonl');
+  writeFileSync(log, [prompt(0), response(1, 'msg_1', 'claude-opus-5-5'), prompt(10), response(30, 'msg_2', 'claude-opus-5-5')].join('\n') + '\n');
+  writeFileSync(path.join(project, session, 'subagents', 'agent-a7.jsonl'), [prompt(12), response(20, 'msg_3', 'claude-haiku-5-5')].join('\n') + '\n');
+  // Another session in the environment, and no harness folder: the transcript path decides.
+  const options = { environment: { CLAUDE_CODE_SESSION_ID: '11111111-2222-4333-8444-555555555555' }, home: path.join(config, 'nowhere'), transcriptPath: log };
+  const first = await recordWorkReport(root, 'work-0001', { at: new Date(at(2)) }, options);
+  assert.deepEqual([first.report.session, first.report.model, first.warnings], [session, 'claude-opus-5-5', []]);
+  const second = await recordWorkReport(root, 'work-0001', { at: new Date(at(40)) }, options);
+  assert.deepEqual([second.report.measured?.agentMs, second.report.measured?.subagents], [20 * 60000, { count: 1, agentMs: 8 * 60000, tokens: 100, agents: [{ id: 'a7', model: 'claude-haiku-5-5', agentMs: 8 * 60000, tokens: 100 }] }]);
+  const statistics = (await loadPlanning(root)).work[0].statistics!;
+  assert.deepEqual([statistics.subagents, statistics.stages.implementation.agentMs], [{ count: 1, agentMs: 8 * 60000 }, 20 * 60000]);
+  const elsewhere = path.join(config, 'notes.jsonl');
+  writeFileSync(elsewhere, prompt(0) + '\n');
+  const unread = await recordWorkReport(root, 'work-0001', { model: 'model-a', at: new Date(at(50)) }, { ...options, transcriptPath: elsewhere });
+  assert.deepEqual([unread.report.measured, unread.warnings], [undefined, ['Agent time and tokens were not measured: ' + elsewhere + ' is not a Claude Code or Codex session log.']]);
 });

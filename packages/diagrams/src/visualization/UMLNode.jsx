@@ -1,41 +1,5 @@
 import { elementClass, interactionProps, sameTarget } from "./interaction";
 
-const typeColors = {
-  kind: "#0550ae",
-  role: "#953800",
-  relator: "#8250df",
-  phase: "#116329",
-  event: "#cf222e",
-  mode: "#0a3069",
-};
-const typeBackgrounds = {
-  kind: "#ddedff",
-  role: "#fff0df",
-  relator: "#f0e5ff",
-  phase: "#e1f2e4",
-  event: "#ffe5e2",
-  mode: "#e0f3f5",
-};
-const colorFamilies = {
-  subkind: "kind",
-  collective: "kind",
-  quantity: "kind",
-  category: "kind",
-  mixin: "kind",
-  roleMixin: "role",
-  phaseMixin: "phase",
-  quality: "mode",
-};
-
-/** The colour family of a stereotype: the suffix of its --node-* and --type-* properties. */
-export function stereotypeFamily(stereotype) {
-  // Stereotypes such as "type alias" must become valid custom property names.
-  return String(colorFamilies[stereotype] || stereotype || "none").replace(
-    /[^\w-]/g,
-    "-",
-  );
-}
-
 // A proposal's marks are drawn with presentation attributes, so they survive
 // static exports and the bitmap backdrop; the theme supplies the colours.
 export const CHANGE_COLORS = {
@@ -47,15 +11,25 @@ const CHANGE_TAGS = { added: "New", modified: "Changed", removed: "Removed" };
 const MEMBER_GLYPHS = { added: "+", modified: "~", removed: "−" };
 export const isChanged = (status) => !!CHANGE_COLORS[status];
 
+// A described element or member shows its description as its tooltip.
+const Tooltip = ({ text }) => (text ? <title>{text}</title> : null);
+
 /** A member row's text, marked when a proposal adds, changes or removes it. */
 function MemberText({ member, x, y, method }) {
   const status = isChanged(member.changeStatus) ? member.changeStatus : null;
+  // An operation's signature, an object's slot value, an enum's literal, or
+  // an attribute with its type and count.
   const text = method
     ? member.type
-    : `${member.name} : ${member.type}${member.multiplicity ? ` [${member.multiplicity}]` : ""}`;
+    : member.slot
+      ? `${member.name} = ${member.type}`
+      : !member.type
+        ? member.name
+        : `${member.name} : ${member.type}${member.multiplicity ? ` [${member.multiplicity}]` : ""}`;
   if (!status)
     return (
       <text x={x} y={y}>
+        <Tooltip text={member.description} />
         {text}
       </text>
     );
@@ -76,6 +50,7 @@ function MemberText({ member, x, y, method }) {
         fill={CHANGE_COLORS[status]}
         textDecoration={status === "removed" ? "line-through" : undefined}
       >
+        <Tooltip text={member.description} />
         {text}
       </text>
     </g>
@@ -86,7 +61,6 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
   const header = node.attributes.length || methods.length ? 66 : node.height;
-  const color = stereotypeFamily(node.stereotype);
   const change = isChanged(node.changeStatus) ? node.changeStatus : null;
   const tag = change && CHANGE_TAGS[change];
   const tagWidth = tag ? tag.length * 6.4 + 12 : 0;
@@ -104,6 +78,7 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       transform={`translate(${node.x} ${node.y})`}
       {...interactionProps(target, handlers)}
     >
+      <Tooltip text={node.description} />
       {change && (
         <rect
           className="node-ring"
@@ -123,7 +98,7 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
         width={node.width}
         height={node.height}
         rx="3"
-        fill={`var(--node-${color},${typeBackgrounds[color] || "var(--surface,#f6f8fa)"})`}
+        fill="var(--surface,#f6f8fa)"
         stroke={
           change ? CHANGE_COLORS[change] : "var(--diagram-border,#818b98)"
         }
@@ -157,7 +132,7 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
           x={node.width / 2}
           y={header / 2 - 10}
           textAnchor="middle"
-          fill={`var(--type-${color},${typeColors[color] || "var(--diagram-muted,#59636e)"})`}
+          fill="var(--diagram-muted,#59636e)"
           fontSize="11.5"
         >
           «{node.stereotype}»

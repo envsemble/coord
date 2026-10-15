@@ -161,7 +161,7 @@ export function UMLRelation({
             markerEnd={
               edge.type === "generalization" && !edge.branchPaths
                 ? `url(#${markerId}${markerState})`
-                : edge.stereotype === "dependency"
+                : edge.stereotype === "dependency" || edge.navigable
                   ? `url(#${markerId}-DEPENDENCY${markerState})`
                   : aggregationMarker(edge.targetAggregation)
             }

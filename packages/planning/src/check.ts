@@ -5,10 +5,9 @@
 // YAML booleans, nulls, numbers, or timestamps. Plain ISO dates remain compatible only in
 // the contract's date fields. Ported from the former check_planning.py with the same rules
 // and messages.
-import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { ledgerStatus } from './ledger.ts';
-import { fileLimit as statisticsFileLimit, parseReport } from './statistics.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const repositoryIdentity = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -277,6 +276,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   if (!isObject(registry)) return { errors: ['planning.json must be an object'], warnings };
   if (!isInteger(registry.schema_version) || registry.schema_version !== 1) errors.push('registry schema_version must be integer 1');
   for (const field of ['repositories', 'work_items']) if (!Array.isArray(registry[field])) errors.push(field + ' must be an array');
+  // The project's name, which the app shows; the folder's own name without it.
+  if (Object.hasOwn(registry, 'name') && (typeof registry.name !== 'string' || !registry.name.trim() || registry.name.length > 100)) errors.push('name must be a nonempty string of at most 100 characters when supplied');
   if (errors.length) return { errors, warnings };
   const repositories = registry.repositories as unknown[], workItems = registry.work_items as unknown[];
 
@@ -334,7 +335,9 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   });
 
   const workIds = new Set<string>(), locations = new Set<string>();
-  const plans: { pointer: string; metadata: Metadata; workId: unknown; workScope: Set<string> }[] = [];
+  const plans: { pointer: string; metadata: Metadata; workId: unknown; workScope: Set<string>; location: unknown }[] = [];
+  /** Per work ID, the ledger's open items: steps not done, and blocked. */
+  const openItems = new Map<string, number>();
   workItems.forEach((entry, index) => {
     const label = `work_items[${index}]`;
     if (!isObject(entry)) { errors.push(label + ' must be an object'); return; }
@@ -363,7 +366,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     try { metadata = parseFrontmatter(readText(planPath, true)); }
     catch (error) { errors.push(String(pointer) + ': ' + (error as Error).message); return; }
     if (metadata === null) { warnings.push(String(pointer) + ': legacy plan has no frontmatter; metadata not validated'); return; }
-    plans.push({ pointer: String(pointer), metadata, workId, workScope });
+    plans.push({ pointer: String(pointer), metadata, workId, workScope, location: entry.path });
   });
 
   for (const { pointer, metadata, workId, workScope } of plans) {
@@ -413,37 +416,21 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
       const invalidDate = typeof updated === 'string' && isoDate.test(updated) ? calendarError(updated) : null;
       if (invalidDate) throw new FrontmatterError(invalidDate);
       if (typeof entry.id !== 'string') continue;
-      try { ledgerStatus(metadata, entry.id); }
+      let status;
+      try { status = ledgerStatus(metadata, entry.id); }
       catch (error) { throw new FrontmatterError('invalid ledger status metadata: ' + (error as Error).message); }
+      openItems.set(entry.id, (status.steps ?? []).filter(step => step.status !== 'done').length + (status.blocked ? 1 : 0));
     } catch (error) {
       errors.push(path.relative(root, ledger) + ': ' + (error as Error).message);
     }
   }
-  // Agent-reported statistics (atlas work report) are telemetry: problems are warnings, never errors.
-  for (const entry of workItems) {
-    if (!isObject(entry) || typeof entry.path !== 'string' || entry.path.includes('\\') || entry.path.split('/').includes('..')) continue;
-    const location = path.join(root, entry.path);
-    if (!isDirectory(location) || !within(root, resolveLenient(location))) continue;
-    const label = entry.path.replace(/\/+$/, '') + '/' + '.atlas/statistics.jsonl';
-    const folder = lstatSync(path.join(location, '.atlas'), { throwIfNoEntry: false });
-    if (!folder) continue;
-    if (folder.isSymbolicLink() || !folder.isDirectory()) { warnings.push(entry.path + '/.atlas: a link or not a folder; statistics are not read'); continue; }
-    const file = path.join(location, '.atlas', 'statistics.jsonl');
-    const info = lstatSync(file, { throwIfNoEntry: false });
-    if (!info) continue;
-    if (!info.isFile()) { warnings.push(label + ': a link or not a regular file; statistics are not read'); continue; }
-    if (info.size > statisticsFileLimit) { warnings.push(label + ': larger than 4 MB; statistics are not read'); continue; }
-    let invalid = 0, unmeasured = 0;
-    try {
-      for (const line of readText(file).split(/\r?\n/)) {
-        if (!line.trim()) continue;
-        const report = parseReport(line);
-        if (!report) invalid++;
-        else if (!report.measured && line.includes('"measured":')) unmeasured++;
-      }
-    } catch (error) { warnings.push(label + ': ' + (error as Error).message); continue; }
-    if (invalid) warnings.push(label + ': ' + invalid + (invalid === 1 ? ' line is' : ' lines are') + ' not a valid statistics report and will be ignored');
-    if (unmeasured) warnings.push(label + ': ' + unmeasured + (unmeasured === 1 ? ' report has a measurement' : ' reports have measurements') + ' that cannot be read; agent time there is estimated');
+  // Archived work is complete, superseded or abandoned: archiving never hides work still open.
+  for (const { pointer, metadata, workId, location } of plans) {
+    if (typeof location !== 'string' || !location.startsWith('archive/') || metadata.design_status === 'superseded' || metadata.design_status === 'abandoned') continue;
+    const open = openItems.get(String(workId)) ?? 0;
+    if (open || metadata.implementation_status === 'in_progress') {
+      errors.push(pointer + ': archived ' + (open ? `with ${open} open ledger ${open === 1 ? 'item' : 'items'}` : 'while its implementation is in_progress') + ' but neither superseded nor abandoned; reopen it, close it, or give it that disposition');
+    }
   }
   return { errors, warnings };
 }

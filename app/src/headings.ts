@@ -1,4 +1,5 @@
 import { slug } from 'github-slugger';
+import { headingAnchors } from '@envsemble/atlas-planning/headings';
 
 export const headingPrefix = 'planning-heading-';
 export function headingSlug(text: string) {
@@ -15,18 +16,14 @@ function visit(node: HeadingNode, action: (node: HeadingNode) => void) {
 function text(node: HeadingNode): string {
   return node.type === 'text' ? node.value ?? '' : (node.children ?? []).map(text).join('');
 }
-// Allocate on the parsed document, so React render retries cannot advance a counter.
+// Allocate on the parsed document, so React render retries cannot advance a counter. Headings are
+// numbered as a document's diagram links name them; ids the document already has (footnotes) stay.
 export function rehypeHeadingIds() {
   return (tree: HeadingNode) => {
-    const used = new Set<string>();
-    visit(tree, node => { if (typeof node.properties?.id === 'string') used.add(node.properties.id); });
+    const anchor = headingAnchors();
     visit(tree, node => {
       if (node.type !== 'element' || !/^h[1-6]$/.test(node.tagName ?? '') || node.properties?.id) return;
-      const base = headingPrefix + (headingSlug(text(node)) || 'section');
-      let id = base; let suffix = 0;
-      while (used.has(id)) id = base + '-' + ++suffix;
-      used.add(id);
-      node.properties = { ...node.properties, id };
+      node.properties = { ...node.properties, id: headingPrefix + anchor(text(node)) };
     });
   };
 }

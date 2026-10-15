@@ -20,7 +20,7 @@ const MAX_VALUE = 160;
 const MAX_INLINE = 40;
 
 // Names that only repeat what a relation is: every captured type use has the
-// first, and OntoUML gives the second to relations without a name.
+// first, and some relations are named only the second.
 const GENERIC_RELATION_NAMES = new Set(["declared type use", "association"]);
 
 /** Whether a relation's name says more than its kind. */
@@ -72,13 +72,7 @@ export function nameIndex(...models) {
   return names;
 }
 
-/** A text: a string, or the first text of a multilingual OntoUML value. */
-const textOf = (value) =>
-  typeof value === "string"
-    ? value
-    : value && typeof value === "object" && !Array.isArray(value)
-      ? (Object.values(value).find((v) => typeof v === "string") ?? null)
-      : null;
+const textOf = (value) => (typeof value === "string" ? value : null);
 
 // A part of a table: a key, an index, a constraint or trigger (each named),
 // or a foreign key (its columns and the table they refer to).
@@ -208,9 +202,6 @@ export function readable(value, names = new Map()) {
   if (typeof value === "object") {
     // A part of a table (a key, an index, a trigger), with what it holds.
     if (isPart(value)) return describePart(value);
-    // Multilingual OntoUML names and descriptions.
-    const text = Object.values(value).find((v) => typeof v === "string");
-    if (text !== undefined && Object.keys(value).length <= 3) return text;
   }
   const text = JSON.stringify(value, (key, v) =>
     v && typeof v === "object" && typeof v.$element === "string"
@@ -225,9 +216,6 @@ export const shorten = (text, limit = MAX_VALUE) =>
   text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 
 // Lists that hold elements: each element's own change tells what changed.
-// Structural models and OntoUML's project list nested elements; OntoUML's
-// packages, classes and relations list their contents, attributes, literals
-// and ends by identity.
 const CONTAINER_KEYS = new Set(["contents", "properties", "literals"]);
 // Member lists and package contents: an item that moves between two of them
 // keeps its identity and may change nothing of its own, so only the lists
@@ -331,89 +319,15 @@ export function memberSignature(member, method, profile) {
 }
 
 /**
- * The parts of an identity captured from code or a database, each
- * URL-encoded: TypeScript `code:ts:<repository>:<file>:<name>`, Java
- * `code:java:<repository>:<qualified name>` and `db:<engine>:<source>:
- * <schema>:<table>`. Proposed elements follow the same convention, so the
- * identity says where a new declaration is meant to live.
- */
-export function decodeIdentity(id) {
-  if (typeof id !== "string") return null;
-  const parts = id.split(":");
-  try {
-    if (parts[0] === "code" && parts.length >= 5)
-      return {
-        source: "code",
-        language: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        file: decodeURIComponent(parts[3]),
-        name: decodeURIComponent(parts[4]),
-      };
-    if (parts[0] === "code" && parts.length === 4)
-      return {
-        source: "code",
-        language: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        file: null,
-        name: decodeURIComponent(parts[3]),
-      };
-    if (parts[0] === "db" && parts.length >= 5)
-      return {
-        source: "database",
-        engine: parts[1],
-        repository: decodeURIComponent(parts[2]),
-        schema: decodeURIComponent(parts[3]),
-        name: decodeURIComponent(parts[4]),
-      };
-  } catch {
-    // A malformed escape is not a location.
-  }
-  return null;
-}
-
-/**
- * Where a class lives: its captured location, else what its identity says.
- * A Java identity names a class rather than its file (see javaFile).
+ * Where a class lives: its captured location, else the file its evidence
+ * names, which a proposal can give a new class to say where it goes.
  */
 export function elementFile(element, model) {
   if (element?.location?.file) return element.location.file;
-  const identity = decodeIdentity(element?.id);
-  if (!identity || identity.source !== "code") return null;
-  if (identity.file) return identity.file;
-  return identity.language === "java" ? javaFile(identity, model) : null;
-}
-
-// A Java class nested in a captured class lives in that class's file; any
-// other is where its package puts it, under the source root the captured
-// classes of its repository share (src/main/java/com/shop/Cart.java for
-// com.shop.Cart).
-function javaFile({ name: qualified, repository }, model) {
-  const captured = (model?.classes || []).filter((c) => {
-    const identity = decodeIdentity(c.id);
-    return (
-      c.location?.file &&
-      identity?.language === "java" &&
-      identity.repository === repository
-    );
-  });
-  const nameOf = (c) => decodeIdentity(c.id).name;
-  for (let end = qualified.lastIndexOf("."); end > 0; ) {
-    const outer = captured.find((c) => nameOf(c) === qualified.slice(0, end));
-    if (outer) return outer.location.file;
-    end = qualified.lastIndexOf(".", end - 1);
-  }
-  // Packages are lower case by convention; the first capitalized name is the
-  // top-level class, whose file holds any class nested in it.
-  const parts = qualified.split(".");
-  const top = parts.findIndex((part) => /^[A-Z]/.test(part));
-  const relative = `${parts.slice(0, top < 0 ? parts.length : top + 1).join("/")}.java`;
-  for (const c of captured) {
-    const own = `${nameOf(c).replace(/\./g, "/")}.java`;
-    const file = c.location.file;
-    if (file === own || file.endsWith(`/${own}`))
-      return file.slice(0, file.length - own.length) + relative;
-  }
-  return null;
+  const source = (model?.sources || []).find(
+    (s) => s.id === element?.primarySource,
+  );
+  return source?.file || null;
 }
 
 // Kinds every relation of a profile shares say nothing in a list of them.
@@ -460,21 +374,10 @@ function drawn(views) {
   return { nodes, edges };
 }
 
-// OntoUML attributes and literals: `type` names the element's own type, and
-// an attribute's type is the class its `propertyType` refers to ("?" without
-// one, as the diagram shows it).
-const ONTOUML_MEMBERS = new Set(["Property", "Literal"]);
-function typeOf(data, names) {
-  if (data.type === "Literal") return undefined;
-  if (data.type === "Property")
-    return data.propertyType ? readable(data.propertyType, names) : "?";
-  return typeof data.type === "string" ? data.type : undefined;
-}
 function memberFromChange(change, names) {
   const data = change.after || change.before || {};
-  const type = typeOf(data, names);
+  const type = typeof data.type === "string" ? data.type : undefined;
   const method =
-    !ONTOUML_MEMBERS.has(data.type) &&
     typeof type === "string" &&
     (/^[^:]*\(/.test(type) || /:method%3A/.test(change.elementId || ""));
   return {
@@ -484,16 +387,9 @@ function memberFromChange(change, names) {
   };
 }
 
-// The model's own record (a structural model's root, an OntoUML project) and
-// OntoUML packages: what they list is told by each element, but their other
-// properties (constraints, a name) are changes of their own.
-const modelLevelType = (change, ontouml) => {
-  if (!change.elementId) return "model";
-  const type = (change.after || change.before || {}).type;
-  return ontouml && (type === "Project" || type === "Package")
-    ? type.toLowerCase()
-    : null;
-};
+// The model's own record: what it lists is told by each element, but its
+// other properties (constraints) are changes of its own.
+const modelLevelType = (change) => (change.elementId ? null : "model");
 
 /**
  * A list's change as tokens: what it gains, loses and changes, each by name
@@ -528,7 +424,6 @@ export function rollupChanges(comparison, model, views) {
   const names = nameIndex(model, comparison.baseline?.model);
   const canvas = drawn(views);
   const profile = model.document?.profile;
-  const ontouml = profile === "ontouml";
   const changes = comparison.changes.changes || [];
   const recorded = new Map(
     changes.filter((c) => c.elementId).map((c) => [c.elementId, c]),
@@ -595,7 +490,6 @@ export function rollupChanges(comparison, model, views) {
     before: p.before,
     after: p.after,
   });
-  const text = (value) => ({ present: true, value });
   // A database capture also lists each table's definition and constraints at
   // the model's level; the table's own record tells them.
   const scoped = (cell) =>
@@ -652,33 +546,8 @@ export function rollupChanges(comparison, model, views) {
   for (const change of changes) {
     const id = change.elementId;
     const properties = meaningfulProperties(change);
-    const level = modelLevelType(change, ontouml);
-    if (level) {
-      const notes = properties
-        .filter(fromModel)
-        .map((p) => note(p, level === "package" ? `package ${p.key}` : p.key));
-      if (level === "package" && change.kind !== "modified")
-        notes.push({
-          key: `${placeName(id)} package`,
-          property: "presence",
-          status: change.kind,
-        });
-      // What moved into this package, from where.
-      if (level === "package")
-        for (const { key, joined } of listChanges(change))
-          if (key === "contents")
-            for (const item of joined)
-              if (moves.has(item))
-                notes.push({
-                  key: placeName(item),
-                  property: "moved",
-                  before: text(
-                    moves.get(item).from
-                      ? placeName(moves.get(item).from)
-                      : "none",
-                  ),
-                  after: text(placeName(id)),
-                });
+    if (modelLevelType(change)) {
+      const notes = properties.filter(fromModel).map((p) => note(p));
       if (!notes.length) continue; // Only its element lists changed.
       const entry = modelRow();
       entry.changes.push(change);
@@ -745,24 +614,6 @@ export function rollupChanges(comparison, model, views) {
         label: memberLabel(member, member.method),
         member,
       });
-      continue;
-    }
-    if (owner && edges.has(owner)) {
-      // An association end: OntoUML keeps ends as elements of their own,
-      // named by their role, or by the class at that end (and which end, when
-      // a relation joins a class to itself).
-      const edge = edges.get(owner);
-      const entry = edgeRow(edge, "modified");
-      entry.changes.push(change);
-      const data = change.after || change.before || {};
-      const [source, target] = edgeEnds(edge);
-      const at = readable(data.propertyType, names);
-      const end =
-        textOf(data.name) ||
-        (source === target && change.end
-          ? `${at} ${change.end} end`
-          : `${at} end`);
-      for (const p of properties) entry.notes.push(note(p, `${end} ${p.key}`));
       continue;
     }
     if (!properties.length && change.kind === "modified") continue;
@@ -1090,16 +941,11 @@ export function describeClassChange(rollup, element, profile) {
 
 // The name and type a member had before the proposal, in the terms the
 // change view shows it now.
-function previousMember(before, member, names) {
-  const conceptual = ONTOUML_MEMBERS.has(before.type);
+function previousMember(before, member) {
   return {
     ...member,
     name: textOf(before.name) ?? member.name,
-    type: conceptual
-      ? (typeOf(before, names) ?? member.type)
-      : typeof before.type === "string"
-        ? before.type
-        : member.type,
+    type: typeof before.type === "string" ? before.type : member.type,
   };
 }
 
@@ -1125,11 +971,7 @@ function memberChange(member, method, change, profile, names, moved) {
     // A member that moved in may also have changed on the way.
     previous:
       (status === "modified" || moved?.from) && before
-        ? memberSignature(
-            previousMember(before, member, names),
-            method,
-            profile,
-          )
+        ? memberSignature(previousMember(before, member), method, profile)
         : null,
     properties,
     moved: moved || null,

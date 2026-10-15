@@ -428,10 +428,9 @@ test('an actual Git baseline recovers records after a move', { skip: !git && 'Gi
   run('init');
   // Exercise the supplied raw capture policy against inherited conversion.
   run('config', 'core.autocrlf', 'true');
-  const skills = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../skills');
-  const bootstrap = readdirSync(skills).find(name => name.endsWith('-bootstrap') && statSync(path.join(skills, name, 'assets/planning/.gitattributes'), { throwIfNoEntry: false }));
-  assert.ok(bootstrap, 'the bootstrap skill ships the planning .gitattributes');
-  writeFileSync(path.join(setup.root, '.gitattributes'), readFileSync(path.join(skills, bootstrap, 'assets/planning/.gitattributes')));
+  const attributes = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../plugin/skills/atlas/assets/planning/.gitattributes');
+  assert.ok(statSync(attributes, { throwIfNoEntry: false }), 'the atlas skill ships the planning .gitattributes');
+  writeFileSync(path.join(setup.root, '.gitattributes'), readFileSync(attributes));
   run('add', '.');
   run('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-m', 'Retain baseline');
   const originals: Record<string, Buffer> = { 'plan.md': readFileSync(setup.plan), 'evidence.txt': readFileSync(path.join(setup.work, 'evidence.txt')) };

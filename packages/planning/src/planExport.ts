@@ -1,23 +1,22 @@
 // Portable plan export: one self-contained HTML file carrying a whole work folder
 // losslessly, and its import into a planning folder as new work.
 //
-// The diagram package and the HTML parser load lazily, so the command's planning
-// checks stay light when they import the package entry.
+// The diagram layout loads lazily, so the command's planning checks stay light
+// when they import the package entry.
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { AtlasDocument } from '@envsemble/atlas-diagrams';
+import { parse } from 'parse5';
 import { parseFrontmatter, validatePlanning } from './check.ts';
 import { PlanningError, loadPlanning } from './planning.ts';
-import { resolveRecordPath, samePath, workRelative } from './paths.ts';
-import { describeProvenance, type Provenance } from './provenance.ts';
+import { samePath, workRelative } from './paths.ts';
+import type { Provenance } from './provenance.ts';
+import { describeFiles, isDiagram } from './diagrams.ts';
 import { appendRegistryEntries, RegistryFormatError } from './registryText.ts';
 import { acquireImportLock, ImportLockBusyError } from './importLock.ts';
 import type { Work } from './types.ts';
 
-const require = createRequire(import.meta.url);
 const { version: atlasVersion } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 
 export const planExportFormat = 'atlas/plan-export';
@@ -41,7 +40,6 @@ export const planExportTesting: {
 } = { maxInputLength: Math.ceil(planExportMaxBytes / 3) * 4 + 64 * 1024 * 1024 };
 const payloadId = 'atlas-plan-export';
 const viewId = 'atlas-plan-view';
-const modelFile = /^\.atlas\/models\/(m-[a-f0-9]{24})\.json$/;
 const workIdentity = /^work-([0-9]{4,})$/;
 const BOM = String.fromCharCode(0xfeff);
 const leftoverPrefix = '.atlas-import-';
@@ -71,7 +69,7 @@ export interface PlanExportManifest {
   /** Every file of the work folder, by work-folder-relative POSIX path. */
   files: PlanExportFile[];
 }
-export interface PlanExportDiagram { title: string; provenance: Provenance }
+export interface PlanExportDiagram { path: string; title: string; provenance: Provenance }
 /** A validated plan export. It is frozen; pass it to `importPlan` to import without reading the file again. */
 export interface PlanExportPreview {
   manifest: PlanExportManifest;
@@ -146,6 +144,8 @@ export function planExportPathProblem(value: unknown): string | null {
 const pathKey = (value: string) => value.normalize('NFC').toLowerCase();
 const printableTitle = (value: string) => value.replace(new RegExp(controlCharacter.source, 'g'), String.fromCharCode(0xfffd));
 const isMarkdown = (name: string) => /\.md$/i.test(name) && !name.startsWith('.atlas/');
+/** The work folder's diagram files: every `.puml` outside `.atlas/`. */
+const isDiagramFile = (name: string) => isDiagram(name) && !name.startsWith('.atlas/');
 
 // ---------------------------------------------------------------------------
 // Reading an export
@@ -172,7 +172,6 @@ function payloadText(input: string | Uint8Array): string {
       throw new PlanExportError('FORMAT', 'This file is not UTF-8 text, so it is not an Atlas plan export.');
     }
   } else throw new PlanExportError('FORMAT', 'Provide the plan export as HTML text or bytes.');
-  const { parse } = require('parse5') as typeof import('parse5');
   let tree: ParsedNode;
   try {
     tree = parse(html, { onParseError: error => { if (error.code === 'duplicate-attribute') throw new PlanExportError('FORMAT', 'The plan export repeats an HTML attribute, so its payload is ambiguous.'); } }) as unknown as ParsedNode;
@@ -182,20 +181,20 @@ function payloadText(input: string | Uint8Array): string {
     throw new PlanExportError('FORMAT', 'This file could not be read as HTML.');
   }
   const found: ParsedNode[] = [];
-  let modelExport = false;
+  let diagramExport = false;
   const pending: ParsedNode[] = [tree];
   while (pending.length) {
     const node = pending.pop()!;
     if (node.tagName === 'script') {
       const id = node.attrs?.find(attribute => attribute.name === 'id')?.value;
       if (id === payloadId) found.push(node);
-      if (id === 'atlas-document') modelExport = true;
+      if (id === 'atlas-diagram' || id === 'atlas-document') diagramExport = true;
     }
     pending.push(...node.childNodes ?? []);
   }
   if (!found.length) {
-    throw new PlanExportError('FORMAT', modelExport
-      ? 'This is a single-model export, not a plan export. Reopen it with atlas model import.'
+    throw new PlanExportError('FORMAT', diagramExport
+      ? 'This is the offline viewer of one diagram, not a plan export.'
       : 'This file is not an Atlas plan export: it has no plan payload.');
   }
   if (found.length > 1) throw new PlanExportError('FORMAT', 'The plan export has more than one payload.');
@@ -297,14 +296,8 @@ function validatePayload(payload: unknown): Decoded {
     source: { planningFolder, workId, title, location: source.location, path: sourcePath, currentPlan, repositories },
     files,
   };
-  const diagrams: PlanExportDiagram[] = [];
-  for (const file of files) {
-    if (!modelFile.test(file.path)) continue;
-    let document: Partial<AtlasDocument> | null = null;
-    try { document = JSON.parse(contents.get(file.path)!.toString('utf8')); } catch { /* Listed by file name. */ }
-    const named = isObject(document) && typeof document.title === 'string' && document.title.trim() ? document.title : path.posix.basename(file.path);
-    diagrams.push({ title: printableTitle(named), provenance: describeProvenance(isObject(document) ? document : null) });
-  }
+  const diagrams: PlanExportDiagram[] = describeFiles(files.filter(file => isDiagramFile(file.path)).map(file => ({ path: file.path, text: contents.get(file.path)!.toString('utf8') })))
+    .map(diagram => ({ path: diagram.path, title: printableTitle(diagram.title), provenance: diagram.provenance }));
   const preview = deepFreeze({ manifest, files: files.map(({ path: name, size }) => ({ path: name, size })), diagrams, totalBytes: files.reduce((sum, file) => sum + file.size, 0) });
   decodedPreviews.set(preview, contents);
   return { preview, contents };
@@ -334,10 +327,10 @@ export function readPlanExport(html: string | Uint8Array): PlanExportPreview {
 // Exporting
 
 interface ViewDocument { path: string; title: string; category: string; format: string }
-interface ViewReference { path: string; section: string | null; elementId: string | null; elementName: string | null }
+/** A link to a diagram from a document of the work folder: under its `section` heading, naming `element`. */
+interface ViewReference { path: string; section: string | null; element: string | null }
 interface ViewDiagram {
-  handle: string; file: string; title: string; provenance: Provenance; payload: unknown | null; error: string | null;
-  explains: { path: string; section: string | null }[]; references: ViewReference[];
+  path: string; title: string; provenance: Provenance; payload: unknown | null; error: string | null; references: ViewReference[];
 }
 /** Derived viewer data. Import ignores it; the files in the payload are authoritative. */
 interface PlanView {
@@ -394,68 +387,33 @@ function findWork(works: Work[], work: string, same: (a: string, b: string) => b
   return works.find(item => same(item.path, relative));
 }
 
-async function diagramsFor(folder: string, work: Work, documents: Work['documents'], same: (a: string, b: string) => boolean, warnings: string[]): Promise<ViewDiagram[]> {
-  const models = path.join(folder, '.atlas', 'models');
-  if (!existsSync(models)) return [];
-  const handles = readdirSync(models).filter(name => /^m-[a-f0-9]{24}\.json$/.test(name)).sort().map(name => name.slice(0, -5));
-  if (!handles.length) return [];
+/** The work folder's diagrams, drawn as the app draws them, with the links to them from its documents. */
+async function diagramsFor(files: { path: string; data: string }[], warnings: string[]): Promise<ViewDiagram[]> {
+  const text = (file: { data: string }) => Buffer.from(file.data, 'base64').toString('utf8');
+  const sources = files.filter(file => isDiagramFile(file.path)).map(file => ({ path: file.path, text: text(file) }));
+  if (!sources.length) return [];
   const { default: atlas } = await import('@envsemble/atlas-diagrams');
-  const { elementNames, modelFamilies, familyPayloads } = await import('./atlas.ts');
-  const workspace = atlas.createWorkspace(folder);
-  const loaded = new Map<string, AtlasDocument>();
-  for (const handle of handles) {
-    try { loaded.set(handle, workspace.load(handle)); } catch { /* Reported below. */ }
+  const described = describeFiles(sources);
+  // Each family is laid out on its own, as the app lays it out, so one that fails leaves the rest drawn.
+  const prepared = new Map<string, unknown>();
+  for (const root of new Set(described.filter(diagram => diagram.valid).map(diagram => diagram.family ?? diagram.path))) {
+    try { for (const [name, viewer] of (await atlas.prepareDiagrams({ files: sources, paths: [root] })).prepared) prepared.set(name, viewer.payload); }
+    catch { /* The family's diagrams are reported as not drawn below. */ }
   }
-  // A capture and its proposals are laid out together, so the viewer switches among them in place;
-  // a member that cannot be drawn with the others is drawn alone, and the rest together.
-  const prepared = new Map<string, Promise<unknown>>();
-  const alone = ([handle, document]: [string, AtlasDocument]) => {
-    let pending = prepared.get(handle);
-    if (!pending) {
-      pending = atlas.prepareViewer({ document, includeArtifacts: false }).then(result => result.payload);
-      pending.catch(() => undefined);
-      prepared.set(handle, pending);
-    }
-    return pending;
-  };
-  const payloads = new Map<string, unknown>();
-  for (const members of modelFamilies([...loaded]).values())
-    for (const [handle, payload] of await familyPayloads(members, alone)) payloads.set(handle, payload);
-  const result: ViewDiagram[] = [];
-  for (const handle of handles) {
-    const file = '.atlas/models/' + handle + '.json';
-    const document = loaded.get(handle);
-    if (!document) {
-      warnings.push(`The model ${file} has an invalid or unrecorded update; it is exported as-is but not shown.`);
-      let title = handle;
-      try { const claimed = JSON.parse(readFileSync(path.join(models, handle + '.json'), 'utf8')); if (typeof claimed?.title === 'string') title = claimed.title; } catch { /* Shown by handle. */ }
-      result.push({ handle, file, title, provenance: describeProvenance(null), payload: null, error: 'This model has an invalid or unrecorded update and cannot be shown.', explains: [], references: [] });
-      continue;
-    }
-    let payload: unknown = payloads.get(handle) ?? null, error: string | null = null;
-    if (!payload) {
-      try { payload = await alone([handle, document]); }
-      catch (failure) {
-        error = 'This model cannot be drawn: ' + (failure instanceof Error ? failure.message.split('\n')[0] : 'unknown error');
-        warnings.push(`The model ${file} is exported but cannot be drawn in the viewer.`);
-      }
-    }
-    // Chips name elements as the app's do: relations by their ends when their own name says nothing more.
-    const names = elementNames(document.model);
-    const explains: ViewDiagram['explains'] = [], references: ViewReference[] = [];
-    for (const record of document.context.records) {
-      const resolved = resolveRecordPath(record.path, work.path, documents, same);
-      if (!resolved || resolved.workId !== work.id) continue;
-      const target = workRelative(resolved.path, work.path);
-      const section = typeof record.section === 'string' && record.section.trim() ? record.section.trim() : null;
-      if (!explains.some(item => item.path === target && item.section === section)) explains.push({ path: target, section });
-      const links = document.context.links.filter(link => link.recordId === record.id);
-      if (!links.length) references.push({ path: target, section, elementId: null, elementName: null });
-      for (const link of links) references.push({ path: target, section, elementId: link.elementId, elementName: names.get(link.elementId) ?? null });
-    }
-    result.push({ handle, file, title: document.title, provenance: describeProvenance(document), payload, error, explains, references });
+  const references = new Map<string, ViewReference[]>();
+  // The Markdown parser loads only for an export, so the commands that never export start faster.
+  const [{ diagramLinks }, { markdownBody }] = await Promise.all([import('./diagramLinks.ts'), import('./headings.ts')]);
+  for (const file of files) {
+    if (!isMarkdown(file.path)) continue;
+    for (const link of diagramLinks(markdownBody(text(file)), file.path)) references.set(link.target, [...references.get(link.target) ?? [], { path: file.path, section: link.section, element: link.element }]);
   }
-  return result;
+  return described.map(diagram => {
+    const payload = prepared.get(diagram.path) ?? null;
+    const problem = diagram.problems.find(item => item.severity === 'error');
+    const error = payload ? null : problem ? `Line ${problem.line}: ${problem.message}` : 'This diagram cannot be drawn.';
+    if (error) warnings.push(`The diagram ${diagram.path} is exported but cannot be drawn in the viewer.`);
+    return { path: diagram.path, title: diagram.title, provenance: diagram.provenance, payload, error, references: references.get(diagram.path) ?? [] };
+  });
 }
 
 /**
@@ -517,7 +475,7 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
     plan: currentPlan,
     ledger: item.ledger ? workRelative(item.ledger, item.path) : null,
     documents: item.documents.map(document => ({ path: workRelative(document.path, item.path), title: document.title, category: document.category, format: document.format })).filter(document => names.includes(document.path)),
-    diagrams: await diagramsFor(actual, item, item.documents, same, warnings),
+    diagrams: await diagramsFor(files, warnings),
   };
   const limit = () => new PlanExportError('LIMIT', `${item.id} is too large for one plan export file; move large evidence elsewhere and link to it.`);
   let html: string;
@@ -544,12 +502,12 @@ interface TargetState { root: string; registryText: string; registry: Registry; 
 
 async function planningRoot(input: string) {
   try { return await realpath(input); }
-  catch { throw new PlanExportError('TARGET', `${input} does not exist. Choose a planning folder, or create one with the atlas-bootstrap skill.`); }
+  catch { throw new PlanExportError('TARGET', `${input} does not exist. Choose a planning folder, or create one with the atlas skill.`); }
 }
 async function targetState(root: string): Promise<TargetState> {
   const { errors } = validatePlanning(root);
   if (errors.length) {
-    throw new PlanExportError('TARGET', `${root} is not a valid planning repository, so nothing was imported. Create one with the atlas-bootstrap skill, or fix what atlas planning check reports:\n` + errors.slice(0, 10).map(error => '  ' + error).join('\n'));
+    throw new PlanExportError('TARGET', `${root} is not a valid planning repository, so nothing was imported. Create one with the atlas skill, or fix what atlas check reports:\n` + errors.slice(0, 10).map(error => '  ' + error).join('\n'));
   }
   const registryText = await readFile(path.join(root, 'planning.json'), 'utf8');
   return { root, registryText, registry: JSON.parse(registryText.startsWith(BOM) ? registryText.slice(1) : registryText), errors };
@@ -642,38 +600,7 @@ function clearCrossWorkReferences(text: string): { text: string; supersedes: str
   return { text: result, supersedes, supersededBy };
 }
 
-interface Rewrite { file: string; field: string; from: string | string[] | null; to: string | string[] | null; revision?: string }
-interface PathRewrite { file: string; recordId: string; from: string; to: string | null; reason: string }
-
-/** Rewrite a record path that reaches into the source work folder through the planning root. */
-function relocatedRecordPath(raw: string, sourcePath: string, contents: Map<string, Buffer>): string | null {
-  const hash = raw.indexOf('#');
-  const fragment = hash < 0 ? '' : raw.slice(hash);
-  const clean = (hash < 0 ? raw : raw.slice(0, hash)).replaceAll('\\', '/');
-  if (!clean || clean.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(clean)) return null;
-  // `active/0003-x/plan.md`: written relative to the planning root.
-  if (clean.startsWith(sourcePath + '/')) {
-    const target = clean.slice(sourcePath.length + 1);
-    if (contents.has(target) && !contents.has(clean)) return target + fragment;
-  }
-  // `../../active/0003-x/plan.md`: up to the planning root and back into the source folder.
-  if (!clean.split('/').includes('..')) return null;
-  const resolved = path.posix.normalize(sourcePath + '/' + clean);
-  if (resolved.startsWith(sourcePath + '/') && contents.has(resolved.slice(sourcePath.length + 1))) return resolved.slice(sourcePath.length + 1) + fragment;
-  return null;
-}
-/** Whether a record path leaves the work folder (a URL is not a planning path and stays). */
-function outsideWorkFolder(raw: string) {
-  const clean = raw.split('#', 1)[0].replaceAll('\\', '/');
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(clean)) return false;
-  if (clean.startsWith('/') || /^[a-z]:/i.test(clean)) return true;
-  let depth = 0;
-  for (const segment of clean.split('/')) {
-    if (segment === '..') { if (--depth < 0) return true; }
-    else if (segment && segment !== '.') depth++;
-  }
-  return false;
-}
+interface Rewrite { file: string; field: string; from: string | string[] | null; to: string | string[] | null }
 
 /**
  * Where to record this import: `evidence/import-provenance.json` in the export's own
@@ -803,34 +730,6 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
       else notes.push(`ledger.md has no work_id: ${source.workId} status line, so it was kept as exported.`);
     }
 
-    const pathRewrites: PathRewrite[] = [];
-    let revisions = 0;
-    const handles = [...contents.keys()].map(name => modelFile.exec(name)?.[1]).filter((handle): handle is string => Boolean(handle));
-    if (handles.length) {
-      const { default: atlas } = await import('@envsemble/atlas-diagrams');
-      const workspace = atlas.createWorkspace(temporary);
-      for (const handle of handles) {
-        const file = '.atlas/models/' + handle + '.json';
-        let document: AtlasDocument;
-        try { document = workspace.load(handle); }
-        catch { notes.push(`The model ${file} has an invalid or unrecorded update; it was imported unchanged.`); continue; }
-        const reassign = document.workId === source.workId;
-        if (document.workId && !reassign) notes.push(`The model ${file} is assigned to ${document.workId}, not ${source.workId}; its work ID was kept.`);
-        const recordPaths: Record<string, string | null> = {};
-        for (const record of document.context.records) {
-          if (typeof record.path !== 'string' || !record.path) continue;
-          const relocated = relocatedRecordPath(record.path, source.path, contents);
-          if (relocated) { recordPaths[record.id] = relocated; pathRewrites.push({ file, recordId: record.id, from: record.path, to: relocated, reason: 'reached the work folder through the planning root' }); }
-          else if (outsideWorkFolder(record.path)) { recordPaths[record.id] = null; pathRewrites.push({ file, recordId: record.id, from: record.path, to: null, reason: 'points outside the work folder' }); }
-        }
-        if (!reassign && !Object.keys(recordPaths).length) continue;
-        const relocated = atlas.relocateDocument(document, { ...(reassign ? { workId: target.workId } : {}), recordPaths, reason: 'Imported as ' + target.workId }, document.revision.id);
-        workspace.save(relocated, document.revision.id);
-        revisions++;
-        if (reassign) rewrites.push({ file, field: 'workId', from: source.workId, to: target.workId, revision: relocated.revision.id });
-      }
-    }
-
     const provenanceName = provenanceFileName(contents.keys());
     if (!/^evidence\/import-provenance\.json$/i.test(provenanceName)) notes.push(`The export already carried an import record; this import is recorded in ${provenanceName}.`);
     const provenance = {
@@ -839,7 +738,6 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
       source: { planningFolder: source.planningFolder, workId: source.workId, title: source.title, location: source.location, path: source.path },
       export: { exportedAt: manifest.exportedAt, atlasVersion: manifest.atlasVersion, importedWith: atlasVersion },
       identityRewrites: rewrites,
-      recordPathRewrites: pathRewrites,
       addedRepositories,
     };
     const provenanceFile = path.join(temporary, ...provenanceName.split('/'));
@@ -860,16 +758,13 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     const introduced = validatePlanning(root).errors.filter(error => !before.has(error));
     if (introduced.length) throw new PlanExportError('TARGET', `Importing would leave ${root} failing atlas planning check, so nothing was imported:\n` + introduced.slice(0, 10).map(error => '  ' + error).join('\n'));
 
-    const count = contents.size + 1 + revisions;
+    const count = contents.size + 1;
     const describe = (value: Rewrite['from']) => Array.isArray(value) ? `[${value.join(', ')}]` : String(value);
     notes.unshift(
       `Imported ${source.workId} “${source.title}” from ${source.planningFolder} as ${target.workId} in ${target.path}.`,
       ...rewrites.map(item => item.field === 'supersedes' || item.field === 'superseded_by'
         ? `Cleared ${item.field} in ${item.file} (was ${describe(item.from)}): it named work in ${source.planningFolder}.`
-        : `Rewrote ${item.field} in ${item.file} from ${describe(item.from)} to ${describe(item.to)}${item.revision ? ' through a recorded model revision' : ''}.`),
-      ...pathRewrites.map(item => item.to === null
-        ? `Removed the reference ${item.from} from ${item.file}: it ${item.reason}.`
-        : `Rewrote the reference ${item.from} in ${item.file} to ${item.to}.`),
+        : `Rewrote ${item.field} in ${item.file} from ${describe(item.from)} to ${describe(item.to)}.`),
       ...addedRepositories.map(item => `Registered the repository ${item.id} (${item.name}${item.remote ? ', remote ' + item.remote : ''}) in planning.json.`),
       `Registered ${target.workId} in planning.json and recorded the origin in ${provenanceName}.`,
     );

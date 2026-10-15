@@ -1,11 +1,11 @@
 // electron-builder afterPack hook: drop the diagram package's dependencies that only its command-line
-// features use (the MCP server, PostgreSQL capture and TypeScript capture). The desktop app reads,
-// lays out and renders models and runs plan export/import; it never loads these.
+// features use (PostgreSQL and TypeScript capture). The desktop app reads, lays out and renders
+// diagrams and runs plan export/import; it never loads these.
 const fs = require('node:fs');
 const path = require('node:path');
 
 /** Dependencies of @envsemble/atlas-diagrams the app never loads, with everything only they need. */
-const unused = new Set(['@modelcontextprotocol/sdk', 'pg', 'typescript-compiler']);
+const unused = new Set(['pg', 'typescript-compiler']);
 
 /** Every installed package the app can load, by walking the lockfile from the app's dependencies. */
 function runtimePackages(repository) {
