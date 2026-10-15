@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, close, launchProject, projectHome, removeDirectory, showFiles, type Launched } from './app';
+import { addProject, close, launchProject, projectHome, removeDirectory, showFiles, sidebarProject, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 const homes: string[] = [];
@@ -10,9 +10,16 @@ test.afterEach(async () => { await close(launched); launched = undefined; for (c
 const tabs = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab');
 const previewTabs = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][data-preview="true"]');
 const activeTab = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]');
-/** What the window shows: the project's page, a plan, the ledger or a diagram. */
+/** What the window shows: the project's page, a work item (on its plan or its ledger), a file or a diagram. */
 const shows = (window: Page) => window.locator('.project-page h1, .work-header h1, .reader-name strong, .model-picker-title').first();
 const menubar = (window: Page) => window.getByRole('menubar', { name: 'Application menu' });
+/** The last step of a work item's trail: its number while the plan shows, Ledger while the ledger does. */
+const trailEnd = (window: Page) => window.locator('.work-main .breadcrumb [aria-current="page"]');
+/** Shows the work item Saved payment methods, on its plan or, in its place, its ledger. */
+async function showsPayments(window: Page, view: 'plan' | 'ledger') {
+  await expect(shows(window)).toHaveText('Saved payment methods');
+  await expect(trailEnd(window)).toHaveText(view === 'plan' ? '#0001' : 'Ledger');
+}
 
 /** The mouse's back (3) or forward (4) button, pressed and released over the page; true when the release was taken. */
 function mouseButton(window: Page, button: 3 | 4) {
@@ -43,18 +50,20 @@ test('back and forward step through a project\'s page, a plan, its ledger and a 
   const { window, app } = launched;
   const back = window.getByRole('button', { name: 'Back' });
   const forward = window.getByRole('button', { name: 'Forward' });
-  // The arrows sit between the menus and the computer.
+  // The arrows come first, before the menus and the computer.
   const left = async (target: ReturnType<Page['locator']>) => (await target.boundingBox())!.x;
-  const order = [await left(menubar(window)), await left(back), await left(forward), await left(window.getByRole('button', { name: /^Computer:/ }))];
+  const order = [await left(back), await left(forward), await left(menubar(window)), await left(window.getByRole('button', { name: /^Computer:/ }))];
   expect(order).toEqual([...order].sort((a, b) => a - b));
   await expect(back).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft BrowserBack');
   await expect(forward).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowRight BrowserForward');
 
-  // The project's page, then a work item's plan, its ledger, and a diagram.
+  // The project's page, then a work item's plan, its ledger in the plan's place in the same tab, and a diagram.
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click({ modifiers: ['Control'] });
-  await expect(shows(window)).toHaveText('Saved payment methods');
-  await window.locator('.about').getByRole('link', { name: 'Ledger' }).click({ modifiers: ['Control'] });
-  await expect(shows(window)).toHaveText('ledger.md');
+  await showsPayments(window, 'plan');
+  await window.locator('.about').getByRole('link', { name: 'Ledger' }).click();
+  await showsPayments(window, 'ledger');
+  await expect(window.locator('.about').getByRole('link', { name: 'Plan' })).toBeVisible();
+  await expect(tabs(window)).toHaveCount(2);
   await window.keyboard.press('Control+P');
   const palette = window.getByRole('dialog', { name: 'Quick open' });
   await palette.getByRole('combobox').fill('Checkout · proposed payment methods');
@@ -66,9 +75,10 @@ test('back and forward step through a project\'s page, a plan, its ledger and a 
 
   // Back: the title bar's arrow, Alt+←, the mouse's back button and View › Back.
   await back.click();
-  await expect(shows(window)).toHaveText('ledger.md');
+  await showsPayments(window, 'ledger');
   await window.keyboard.press('Alt+ArrowLeft');
-  await expect(shows(window)).toHaveText('Saved payment methods');
+  await showsPayments(window, 'plan');
+  await expect(window.locator('.about').getByRole('link', { name: 'Ledger' })).toBeVisible();
   // Alt+← leaves the menubar alone: no menu opens and the menus do not take focus.
   await expect(window.getByRole('menu')).toHaveCount(0);
   expect(await window.evaluate(() => Boolean(document.activeElement?.closest('[role="menubar"]')))).toBe(false);
@@ -82,7 +92,7 @@ test('back and forward step through a project\'s page, a plan, its ledger and a 
   await expect(window.getByRole('menu')).toHaveCount(0);
   await expect(back).toBeDisabled();
   // The tabs stay open while nothing shows.
-  await expect(tabs(window)).toHaveCount(4);
+  await expect(tabs(window)).toHaveCount(3);
 
   // Forward: the application menu's View › Forward, Alt+→, the mouse's forward button and the arrow.
   await app.evaluate(({ Menu }) => {
@@ -91,16 +101,16 @@ test('back and forward step through a project\'s page, a plan, its ledger and a 
   });
   await expect(shows(window)).toHaveText('Northwind');
   await window.keyboard.press('Alt+ArrowRight');
-  await expect(shows(window)).toHaveText('Saved payment methods');
+  await showsPayments(window, 'plan');
   expect(await mouseButton(window, 4)).toBe(true);
-  await expect(shows(window)).toHaveText('ledger.md');
+  await showsPayments(window, 'ledger');
   await forward.click();
   await expect(shows(window)).toHaveText('Checkout · proposed payment methods');
   await expect(forward).toBeDisabled();
 
   // Showing something new drops what was ahead.
   await back.click();
-  await expect(shows(window)).toHaveText('ledger.md');
+  await showsPayments(window, 'ledger');
   await tabs(window).filter({ hasText: 'Northwind' }).click();
   await expect(forward).toBeDisabled();
 });
@@ -163,7 +173,7 @@ test('a link into a sibling project in the home opens there; one to a folder no 
   writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## Elsewhere\n\nSee [the fulfilment model](../../../northwind/active/0002-order-fulfilment-model/plan.md) and [nothing](../../../nowhere/README.md).\n');
   launched = await launchProject({ ...home, open: false });
   const { window } = launched;
-  await window.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'Coord', exact: true }).click();
+  await sidebarProject(window, 'Coord').click();
   await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect(window.locator('.prose .outside-reference', { hasText: 'nothing' })).toBeVisible();
@@ -270,8 +280,10 @@ test('the mouse buttons close an open menu without going back, and one press goe
   const { window, app } = launched;
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click({ modifiers: ['Control'] });
   await expect(shows(window)).toHaveText('Saved payment methods');
-  await window.locator('.about').getByRole('link', { name: 'Ledger' }).click({ modifiers: ['Control'] });
-  await expect(shows(window)).toHaveText('ledger.md');
+  // A decision the plan links, in a tab of its own.
+  const decision = '0001-acquirer-tokens-only.md';
+  await window.locator('.prose').getByRole('link', { name: 'ADR 0001' }).click({ modifiers: ['Control'] });
+  await expect(shows(window)).toHaveText(decision);
   await tabs(window).filter({ hasText: 'Saved payment methods' }).click();
   await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
@@ -297,25 +309,25 @@ test('the mouse buttons close an open menu without going back, and one press goe
   await expect(shows(window)).toHaveText('Saved payment methods');
   await windowReports('browser-backward');
   expect(await mouseButton(window, 3)).toBe(true);
-  await expect(shows(window)).toHaveText('ledger.md');
+  await expect(shows(window)).toHaveText(decision);
   await window.waitForTimeout(400);
-  await expect(shows(window)).toHaveText('ledger.md');
+  await expect(shows(window)).toHaveText(decision);
 
-  // Over the title bar's empty space only the window gets the press: it goes back (to the plan the ledger was opened from).
+  // Over the title bar's empty space only the window gets the press: it goes back (to the plan the decision was opened from).
   await windowReports('browser-backward');
   await expect(shows(window)).toHaveText('Saved payment methods');
   await windowReports('browser-forward');
-  await expect(shows(window)).toHaveText('ledger.md');
+  await expect(shows(window)).toHaveText(decision);
 });
 
-test('in a narrow window the menus stay clear of the arrows, which keep focus at the end of the history', async () => {
+test('in a narrow window the arrows stay clear of the menus, and keep focus at the end of the history', async () => {
   launched = await launchProject();
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(640, 600); });
-  const help = (await menubar(window).getByRole('menuitem', { name: 'Help' }).boundingBox())!;
+  const file = (await menubar(window).getByRole('menuitem', { name: 'File' }).boundingBox())!;
   const back = window.getByRole('button', { name: 'Back' });
-  const arrow = (await back.boundingBox())!;
-  expect(help.x + help.width).toBeLessThanOrEqual(arrow.x);
+  const forward = (await window.getByRole('button', { name: 'Forward' }).boundingBox())!;
+  expect(forward.x + forward.width).toBeLessThanOrEqual(file.x);
   // At the end of the history the arrow stays focusable and keeps focus.
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');

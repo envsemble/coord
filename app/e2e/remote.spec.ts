@@ -9,7 +9,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import type { AtlasBridge } from '../shared/contract.ts';
-import { close, launch, launchProject, openProject, removeDirectory, sidebarProject, temporaryDirectory, windowTitles, type Launched } from './app';
+import { close, expectProjects, launch, launchProject, newProjectButton, openProject, removeDirectory, sidebar, sidebarProject, temporaryDirectory, windowTitles, type Launched } from './app';
 
 // The dialog's access line: the device list's confirm buttons announce through live regions of their own.
 const accessStatus = (dialog: Locator) => dialog.getByRole('status').and(dialog.locator('.access-status'));
@@ -91,7 +91,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   folders.push(readerData);
   reading = await launch({ dataDirectory: readerData });
   const viewer = reading.window;
-  await expect(viewer.getByRole('group', { name: 'Projects' })).toContainText('No projects yet.');
+  await expect(sidebar(viewer)).toContainText('No projects yet.');
   await fileMenu(reading.app, 'Co&nnect to Another Atlas…');
   const connect = viewer.getByRole('dialog', { name: 'Connect to another Atlas' });
   await connect.getByLabel('Pairing link or address').fill(link);
@@ -130,26 +130,25 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect(viewer.locator('.work-row')).toHaveCount(4);
 
   // A project created from here is made on that computer, and both see it.
-  await viewer.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'New Project…' }).click();
+  await newProjectButton(viewer).click();
   await viewer.getByRole('dialog', { name: 'New project' }).getByLabel('Name').first().fill('Coord');
   await viewer.getByRole('dialog', { name: 'New project' }).getByRole('button', { name: 'Create' }).click();
   await expect(viewer.locator('.project-page h1')).toHaveText('Coord');
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
   // (The owner's Remote Access dialog stays open, so its sidebar is read past the dialog.)
-  const ownerProjects = owner.locator('.project-list [data-project]');
-  await expect(ownerProjects).toHaveText(['Northwind', 'Coord']);
+  await expectProjects(owner, ['Northwind', 'Coord']);
   // Renaming goes to that computer (the name is in the project's planning.json)...
   await sidebarProject(viewer, 'Coord').click({ button: 'right' });
   await viewer.getByRole('menuitem', { name: 'Rename…' }).click();
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Coord platform');
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
-  await expect(ownerProjects).toHaveText(['Northwind', 'Coord platform']);
+  await expectProjects(owner, ['Northwind', 'Coord platform']);
   // ...while hiding and the order are this app's own.
   await sidebarProject(viewer, 'Northwind').click({ button: 'right' });
   await viewer.getByRole('menuitem', { name: 'Hide' }).click();
-  await expect(viewer.getByRole('group', { name: 'Projects' }).locator('[data-project]')).toHaveText(['Coord platform']);
+  await expectProjects(viewer, ['Coord platform']);
   await viewer.waitForTimeout(500);
-  await expect(ownerProjects).toHaveText(['Northwind', 'Coord platform']);
+  await expectProjects(owner, ['Northwind', 'Coord platform']);
 
   // With Manage access, this Atlas pairs and revokes devices of that computer, but cannot change how it is reached.
   await viewer.bringToFront();
@@ -166,11 +165,11 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   // Switching to this computer, which has no projects, and back.
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
   await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: 'This computer' }).click();
-  await expect(viewer.getByRole('group', { name: 'Projects' })).toContainText('No projects yet.');
+  await expect(sidebar(viewer)).toContainText('No projects yet.');
   await expect(viewer.getByRole('tablist', { name: 'Open tabs' })).toHaveCount(0);
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
   await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: /127\.0\.0\.1/ }).click();
-  await expect(viewer.getByRole('group', { name: 'Projects' }).locator('[data-project]')).toHaveText(['Coord platform']);
+  await expectProjects(viewer, ['Coord platform']);
   // Its tabs of that computer come back with it.
   await expect(viewer.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind', 'Coord platform']);
 
@@ -220,7 +219,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await computers.getByRole('button', { name: 'Forget', exact: true }).click();
   await last.waitForTimeout(600);
   await computers.getByRole('button', { name: `Forget ${name}` }).click();
-  await expect(last.getByRole('group', { name: 'Projects' })).toContainText('No projects yet.');
+  await expect(sidebar(last)).toContainText('No projects yet.');
   await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);
   const kept = () => {
     const database = new DatabaseSync(path.join(readerData, 'atlas.db'), { readOnly: true });

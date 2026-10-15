@@ -1,12 +1,22 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { close, launchProject, projectHome, removeDirectory, showFiles, type Launched } from './app';
+import { close, launchProject, projectHome, removeDirectory, showFiles, sidebarProject, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 let home: { dataDirectory: string; folder: string };
 test.beforeEach(() => { home = projectHome(); });
 test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(home.dataDirectory); });
+
+/** Rename a folder as a user would, trying again while Atlas reads it for a moment (Windows refuses to rename a folder in use). */
+async function move(from: string, to: string) {
+  for (let attempt = 0; ; attempt++) {
+    try { renameSync(from, to); return; } catch (error) {
+      if (!['EBUSY', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '') || attempt >= 30) throw error;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+}
 
 test('a crashed window reloads with its tabs', async () => {
   launched = await launchProject(home);
@@ -63,12 +73,12 @@ test('a project whose folder is moved away says so, and returns when it comes ba
   launched = await launchProject(home);
   const { window } = launched;
   const moved = home.folder + '-moved';
-  renameSync(home.folder, moved);
+  await move(home.folder, moved);
   await expect(window.getByRole('heading', { name: 'This project’s folder was moved or deleted' })).toBeVisible();
   await expect(window.locator('.folder-problem-path')).toHaveText(home.folder);
   // No Locate… or Close Folder: projects live in the home, and a project page is closed as a tab.
   await expect(window.getByRole('button', { name: 'Locate…' })).toHaveCount(0);
-  renameSync(moved, home.folder);
+  await move(moved, home.folder);
   await expect(window.locator('.work-row')).toHaveCount(3, { timeout: 20_000 });
 });
 
@@ -77,7 +87,7 @@ test('a project that cannot be read at all explains why', async () => {
   launched = await launchProject({ ...home, open: false });
   const { window } = launched;
   // Its name is the folder's while its planning.json cannot be read.
-  await window.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'northwind', exact: true }).click();
+  await sidebarProject(window, 'northwind').click();
   await expect(window.getByRole('heading', { name: 'This project can’t be read' })).toBeVisible();
   await expect(window.locator('.page-empty')).toContainText('planning.json');
 });

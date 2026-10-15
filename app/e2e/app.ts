@@ -151,8 +151,22 @@ export async function close(launched: Launched | undefined) {
   if (!stopped) throw new Error('The app did not quit within 15 seconds of being asked to.');
 }
 
-/** The sidebar's project of that name. */
-export const sidebarProject = (window: Page, name = 'Northwind') => window.getByRole('group', { name: 'Projects' }).getByRole('button', { name, exact: true });
+/**
+ * The sidebar's project cards: the active projects', or those in the hidden and archived group. Found
+ * by their markup rather than their role, so they are read past an open dialog too.
+ */
+export const projectCards = (window: Page, group: 'Projects' | 'Hidden and archived projects' = 'Projects') => window.locator(`[role="group"][aria-label="${group}"] .project-card`);
+/** The sidebar's card of the project of that name (a card also says what is going on in the project). */
+export const sidebarProject = (window: Page, name = 'Northwind', group?: 'Projects' | 'Hidden and archived projects') => projectCards(window, group).filter({ has: window.getByText(name, { exact: true }) });
+/** The sidebar's cards are those of these projects, in this order. */
+export async function expectProjects(window: Page, names: string[], group?: 'Projects' | 'Hidden and archived projects') {
+  await expect(projectCards(window, group)).toHaveCount(names.length);
+  for (const [index, name] of names.entries()) await expect(projectCards(window, group).nth(index).getByText(name, { exact: true }).first()).toBeVisible();
+}
+/** The sidebar, where it says it has no projects. */
+export const sidebar = (window: Page) => window.locator('.workbench .env-app-sidebar');
+/** The button in the strip above the projects that makes a new one. */
+export const newProjectButton = (window: Page) => sidebar(window).getByRole('button', { name: 'New project', exact: true });
 
 /** Open a project's page from the sidebar and wait for its work list. */
 export async function openProject(window: Page, name = 'Northwind') {

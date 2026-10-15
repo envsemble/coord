@@ -2,17 +2,21 @@ import { renameSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { addProject, close, launch, launchProject, openProject, planningFixture, projectHome, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
+import { addProject, close, launch, launchProject, newProjectButton, openProject, planningFixture, projectCards, projectHome, removeDirectory, secondInstance, sidebar, sidebarProject, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
-test('a home without projects starts empty, with New Project in the sidebar', async () => {
+test('a home without projects starts empty, with New Project and the search above the projects', async () => {
   launched = await launch();
   const { window } = launched;
-  await expect(window.getByRole('group', { name: 'Projects' })).toContainText('No projects yet.');
-  await expect(window.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'New Project…' })).toBeVisible();
+  await expect(sidebar(window)).toContainText('No projects yet.');
+  await expect(projectCards(window)).toHaveCount(0);
+  await expect(newProjectButton(window)).toBeVisible();
+  await expect(sidebar(window).getByRole('searchbox', { name: 'Search projects' })).toBeVisible();
+  // The old New Project… item at the end of the list is gone.
+  await expect(sidebar(window).getByRole('button', { name: 'New Project…' })).toHaveCount(0);
   await expect(window.getByRole('heading', { name: 'Open a project' })).toBeVisible();
 });
 
@@ -93,7 +97,7 @@ test('a project moved into the home moves along in every window; a refused move 
   database.close();
   launched = await launchProject(home);
   const { app, window } = launched;
-  const shop = (page: Page) => page.getByRole('group', { name: 'Projects' }).locator('[data-project]', { hasText: 'Shop' });
+  const shop = (page: Page) => sidebarProject(page, 'Shop');
   const openShop = async (page: Page) => { await shop(page).click(); await expect(page.locator('.project-page h1')).toHaveText('Shop'); };
   await openShop(window);
   // Closing another window that showed the project leaves it open in this one.
