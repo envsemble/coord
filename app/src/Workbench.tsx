@@ -11,7 +11,7 @@ import { DiagramIcon, ErrorIcon, FileIcon, FolderIcon, FolderOpenIcon, SearchIco
 import { limits, type ImportPreview, type MenuCommand } from '../shared/contract';
 import type { FolderChange, Issue, Project, ProjectState, Snapshot, Target, UiState, WindowInfo } from './types';
 import { api, AtlasError } from './api';
-import { activateTab, closeAllTabs, closeTab, keyTabs, openTab, pinTab, retarget as retargetTab } from './tabs';
+import { activateTab, closeAllTabs, closeTab, keyTabs, openTab, pinTab, restoreTabs, retarget as retargetTab } from './tabs';
 import { projectTarget, scrollKey, workTarget, type Place } from './targets';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, shownPlace, showPlace, startHistory, step } from './history';
 import { workStatus } from './status';
@@ -124,6 +124,15 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
 
   const setTabs = useCallback((change: (tabs: UiState['tabs']) => UiState['tabs']) => setUi(current => ({ ...current, tabs: change(current.tabs) })), [setUi]);
   const openPlace = useCallback((place: Place, pin = false) => setTabs(tabs => openTab(tabs, place.project, place.target, pin)), [setTabs]);
+  // Tabs of projects whose computer had not answered as the window opened come once it lists them.
+  const restoring = useRef(Boolean(initialUi.pending));
+  useEffect(() => {
+    if (!restoring.current || !projects?.length) return;
+    api.loadUi().then(loaded => {
+      if (!loaded.pending) restoring.current = false;
+      setTabs(tabs => restoreTabs(tabs, loaded.tabs));
+    }, () => undefined);
+  }, [projects, setTabs]);
   const setSidebar = useCallback((change: Partial<UiState['sidebar']>) => setUi(current => ({ ...current, sidebar: { ...current.sidebar, ...change } })), [setUi]);
   const setInspectorWidth = useCallback((width: number) => setUi(current => current.inspectorWidth === width ? current : { ...current, inspectorWidth: width }), [setUi]);
 

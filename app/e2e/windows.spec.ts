@@ -1,5 +1,7 @@
+import { renameSync } from 'node:fs';
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { close, launch, launchProject, openProject, projectHome, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
+import { addProject, close, launch, launchProject, openProject, projectHome, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
@@ -37,6 +39,29 @@ test('a second launch brings the running app forward, and windows open again wit
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(2);
   for (const page of launched.app.windows()) await expect(page.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind']);
+});
+
+test('a project whose folder is not a planning folder at the start keeps its tabs for when it is again', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  const coord = addProject(home.dataDirectory, 'coord', 'Coord');
+  launched = await launchProject(home);
+  await openProject(launched.window, 'Coord');
+  const tabs = () => launched!.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab');
+  await expect(tabs()).toHaveText(['Northwind', 'Coord']);
+  await launched.window.waitForTimeout(600);
+  await close(launched);
+  // Coord's planning.json is briefly away: it is not listed, and the window saves without it.
+  renameSync(path.join(coord, 'planning.json'), path.join(coord, 'planning.json.away'));
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  await expect(tabs()).toHaveText(['Northwind']);
+  await launched.window.keyboard.press('Control+B');
+  await launched.window.keyboard.press('Control+B');
+  await launched.window.waitForTimeout(600);
+  await close(launched);
+  renameSync(path.join(coord, 'planning.json.away'), path.join(coord, 'planning.json'));
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  await expect(tabs()).toHaveText(['Northwind', 'Coord']);
 });
 
 test('a window closed by hand is forgotten; the last one stays for the next start', async () => {

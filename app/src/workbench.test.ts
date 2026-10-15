@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeAllTabs, closeTab, keyTabs, openTab, pinTab, retarget } from './tabs.ts';
+import { closeAllTabs, closeTab, keyTabs, openTab, pinTab, restoreTabs, retarget } from './tabs.ts';
 import { diagramTarget, documentTarget, fileTarget, projectTarget, workTarget } from './targets.ts';
 import { buildIndex, folderId, revealIds, visibleRows } from './explorerModel.ts';
 import { fuzzyScore, rankItems } from './quickMatch.ts';
@@ -46,6 +46,13 @@ test('tabs of different projects sit side by side, and Close All Tabs closes the
   // Saved tabs get their ids again, and duplicates go.
   const saved = { items: [{ id: '0', project: shop, target: projectTarget(), preview: false }, { id: '1', project: shop, target: projectTarget(), preview: false }, { id: '2', project: coord, target: fileTarget('a.md'), preview: false }], active: '2' };
   assert.deepEqual(keyTabs(saved), { items: [{ id: shop + ':project', project: shop, target: projectTarget(), preview: false }, { id: coord + ':file:a.md', project: coord, target: fileTarget('a.md'), preview: false }], active: coord + ':file:a.md' });
+  // Tabs that waited for their computer join those the window has: only of projects it has none of.
+  const shown = openTab({ items: [], active: null }, shop, fileTarget('b.md'), true);
+  const restored = restoreTabs(shown, saved);
+  assert.deepEqual(restored.items.map(tab => tab.id), [shop + ':file:b.md', coord + ':file:a.md']);
+  assert.equal(restored.active, shop + ':file:b.md', 'the window keeps its active tab');
+  assert.equal(restoreTabs({ items: [], active: null }, saved).active, coord + ':file:a.md');
+  assert.equal(restoreTabs(restored, saved), restored, 'nothing new changes nothing');
 });
 
 const document = (path: string, workId: string | null = null) => ({ path, name: path.split('/').at(-1)!, title: path, workId }) as Document;

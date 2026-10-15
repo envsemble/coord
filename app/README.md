@@ -69,7 +69,7 @@ Atlas shows **projects**: each is a planning folder in the [Atlas home](../docs/
 - **A project's page** opens as a tab: its work list with filters, then its statistics and its Git activity, under one repository filter.
 - **The computer menu** (the computer's name in the title bar, after the menus) lists this computer and the paired ones. Choosing a computer shows its projects in this window, with the tabs this window last had there. **Manage Computers…** opens a computer in a new window or forgets a paired one.
 - **New Window** (Ctrl+Shift+N) opens another window on the same computer. **Close Window** (Ctrl+Shift+W) closes one; closing windows one by one keeps the last one.
-- Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility and, per computer, its open tabs and the page it showed.
+- Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility and, per computer, its open tabs and the page it showed. A window whose paired computer does not answer at the start shows at once and gets its tabs back when the computer answers; tabs of a project whose folder cannot be listed for a while are kept for when it can.
 
 Atlas keeps its own data in the **Atlas home**, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and everything else in the home database, `atlas.db`: the projects and their order and state, windows and their tabs, the theme, this computer's identity, remote access settings and paired devices, the computers this one paired with, and statistics. The [command reference](../docs/command.md#the-atlas-home) describes the whole home.
 

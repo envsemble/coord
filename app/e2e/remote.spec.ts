@@ -182,6 +182,25 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect(reading.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind', 'Coord platform']);
   await expect(reading.window.locator('.project-group summary')).toContainText('Hidden and archived');
 
+  // Started while that computer cannot be reached, the window shows at once and keeps its tabs
+  // (also through a save meanwhile); they come back when the computer answers again.
+  await reading.window.waitForTimeout(600);
+  await close(reading);
+  const allow = access.getByLabel('Allow paired devices to connect to this computer');
+  await allow.click();
+  await expect(accessStatus(access)).toHaveText('Remote access is off.');
+  const restarted = Date.now();
+  reading = await launch({ dataDirectory: readerData });
+  await expect(reading.window.getByRole('button', { name: /^Computer:/ })).toContainText(name);
+  expect(Date.now() - restarted).toBeLessThan(12_000);
+  await expect(reading.window.getByRole('tablist', { name: 'Open tabs' })).toHaveCount(0);
+  await reading.window.keyboard.press('Control+B');
+  await reading.window.keyboard.press('Control+B');
+  await reading.window.waitForTimeout(600);
+  await allow.click();
+  await expect(accessStatus(access)).toHaveText(`Listening on 127.0.0.1:${port}.`);
+  await expect(reading.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind', 'Coord platform'], { timeout: 60_000 });
+
   // Revoking the device ends its access at once; the window keeps the last view and says why.
   await reading.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab', { name: 'Northwind' }).click();
   await expect(reading.window.locator('.work-row')).toHaveCount(4);

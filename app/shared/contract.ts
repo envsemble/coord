@@ -113,6 +113,8 @@ export interface UiState {
   sidebar: { visible: boolean; width: number };
   tabs: { items: TabState[]; active: string | null };
   inspectorWidth?: number;
+  /** Loaded while the window's computer did not answer: tabs of projects not listed yet wait to be loaded again. */
+  pending?: boolean;
 }
 export const defaultUiState: UiState = { sidebar: { visible: true, width: 280 }, tabs: { items: [], active: null } };
 export const limits = { path: 2048, tabs: 40, sidebarMin: 170, sidebarMax: 640, inspectorMin: 240, inspectorMax: 1200 } as const;

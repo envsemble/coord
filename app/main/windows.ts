@@ -220,6 +220,12 @@ export class AtlasWindow {
     if (!entry) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
     return entry.rowId;
   }
+  /** A project's row among the projects last listed, without listing them again; null when it is not among them. */
+  listedRow(folderId: string): number | null { return this.listed.get(folderId)?.rowId ?? null; }
+  /** The project rows whose saved tabs the page loaded (ui:load): saving replaces only theirs. */
+  readonly tabsLoaded = new Set<number>();
+  /** The rows of the projects last listed. */
+  listedRows(): number[] { return [...this.listed.values()].map(entry => entry.rowId); }
   /** The folder ID of a project row, among the projects last listed. */
   folderOf(rowId: number): string | null {
     for (const [folderId, entry] of this.listed) if (entry.rowId === rowId) return folderId;
@@ -287,6 +293,7 @@ export class AtlasWindow {
     for (const view of this.views.values()) { this.revisionFloor = Math.max(this.revisionFloor, view.revision); view.close(); }
     this.views.clear();
     this.listed.clear();
+    this.tabsLoaded.clear();
   }
 
   /** Show another computer's projects: the window lets this one's go and starts again. */

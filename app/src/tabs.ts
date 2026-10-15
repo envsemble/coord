@@ -58,6 +58,18 @@ export function activateTab(state: TabsState, id: string): TabsState {
 }
 
 /** Saved tabs with their ids as this version gives them, the active one kept. */
+/**
+ * Add tabs loaded again once their computer answered: those of projects the window has no tab of
+ * yet, after its own; the active one too when the window has none.
+ */
+export function restoreTabs(state: TabsState, restored: TabsState): TabsState {
+  const keyed = keyTabs(restored);
+  const open = new Set(state.items.map(item => item.project));
+  const added = keyed.items.filter(item => !open.has(item.project));
+  if (!added.length) return state;
+  return { items: [...state.items, ...added].slice(0, limits.tabs), active: state.active ?? (added.some(item => item.id === keyed.active) ? keyed.active : null) };
+}
+
 export function keyTabs(state: TabsState): TabsState {
   const active = state.items.find(item => item.id === state.active);
   const items = state.items.map(item => ({ ...item, id: tabId(item.project, item.target) }))

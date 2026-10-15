@@ -58,11 +58,21 @@ test('windows, their tabs per computer and the shared settings are kept in the h
     const window = state.addWindow(null, { x: 10, y: 20, width: 900, height: 700 });
     state.updateWindow(window, { maximized: true, sidebarWidth: 5000 });
     assert.deepEqual(state.windows(), [{ id: window, connectionId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true, sidebarWidth: 640 }], 'the sidebar keeps within its limits');
-    state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: local.id, kind: 'work', target: '{"work":"work-0001"}', active: true }]);
-    state.saveTabs(window, 'c1', [{ projectId: remote.id, kind: 'project', target: null, active: true }]);
-    state.saveTabs(window, null, [{ projectId: local.id, kind: 'file', target: '{"path":"README.md"}', active: true }]);
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: local.id, kind: 'work', target: '{"work":"work-0001"}', active: true }], []);
+    state.saveTabs(window, 'c1', [{ projectId: remote.id, kind: 'project', target: null, active: true }], []);
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'file', target: '{"path":"README.md"}', active: true }], [local.id]);
     assert.deepEqual(state.tabs(window, null).map(tab => [tab.kind, tab.target, tab.active]), [['file', '{"path":"README.md"}', true]], 'saving replaces the computer\'s tabs');
     assert.deepEqual(state.tabs(window, 'c1').map(tab => tab.projectId), [remote.id], 'and keeps the other computer\'s');
+    // A computer that did not answer at the start (nothing loaded), or a project whose folder was not
+    // a planning folder then: saving keeps the tabs it could not show, after the others.
+    const missing = database.addProject(path.join(directory, 'planning', 'gone'), 'Gone');
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: missing.id, kind: 'file', target: '{"path":"a.md"}', active: true }], [local.id, missing.id]);
+    state.saveTabs(window, 'c1', [], []);
+    assert.deepEqual(state.tabs(window, 'c1').map(tab => tab.projectId), [remote.id], 'the offline computer keeps its tabs');
+    state.saveTabs(window, null, [{ projectId: local.id, kind: 'work', target: '{"work":"work-0002"}', active: true }], [local.id]);
+    assert.deepEqual(state.tabs(window, null).map(tab => [tab.projectId, tab.kind, tab.active]), [[local.id, 'work', true], [missing.id, 'file', false]], 'the missing folder keeps its tab, no longer active');
+    state.saveTabs(window, null, [], [local.id, missing.id]);
+    assert.deepEqual(state.tabs(window, null), [], 'once loaded, closing them removes them');
     state.removeWindow(window);
     assert.deepEqual([state.windows(), state.tabs(window, null)], [[], []], 'a closed window goes with its tabs');
   } finally { database.close(); rmSync(directory, { recursive: true, force: true }); }

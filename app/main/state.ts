@@ -66,12 +66,21 @@ export class DesktopState {
     return (this.database.db.prepare('SELECT tab.* FROM tab JOIN project ON project.id = tab.project_id WHERE window_id = ? AND project.connection_id IS ? ORDER BY tab.position, tab.id').all(windowId, connectionId) as Row[])
       .map(row => ({ projectId: Number(row.project_id), kind: row.kind as TabKind, target: (row.target as string | null) ?? null, active: Boolean(row.active) }));
   }
-  /** Replace a window's tabs of one computer's projects; its tabs of other computers stay for when it shows them again. */
-  saveTabs(windowId: number, connectionId: string | null, tabs: TabRow[]) {
+  /**
+   * Replace a window's tabs of the projects whose saved tabs it loaded (`loaded`, project rows of one
+   * computer). Its tabs of projects it could not list then (their computer did not answer, or their
+   * folder was briefly not a planning folder) stay, after these, for when they are listed again; so
+   * do its tabs of other computers, for when it shows them again.
+   */
+  saveTabs(windowId: number, connectionId: string | null, tabs: TabRow[], loaded: number[]) {
     this.database.transaction(() => {
-      this.database.db.prepare('DELETE FROM tab WHERE window_id = ? AND project_id IN (SELECT id FROM project WHERE connection_id IS ?)').run(windowId, connectionId);
-      const insert = this.database.db.prepare('INSERT INTO tab (window_id, project_id, position, kind, target, active) VALUES (?, ?, ?, ?, ?, ?)');
-      tabs.forEach((tab, index) => insert.run(windowId, tab.projectId, index, tab.kind, tab.target, tab.active ? 1 : 0));
+      const { db } = this.database;
+      const shown = new Set([...loaded, ...tabs.map(tab => tab.projectId)]);
+      const kept = this.tabs(windowId, connectionId).filter(tab => !shown.has(tab.projectId));
+      db.prepare('DELETE FROM tab WHERE window_id = ? AND project_id IN (SELECT id FROM project WHERE connection_id IS ?)').run(windowId, connectionId);
+      const insert = db.prepare('INSERT INTO tab (window_id, project_id, position, kind, target, active) VALUES (?, ?, ?, ?, ?, ?)');
+      const active = tabs.some(tab => tab.active);
+      [...tabs, ...kept.map(tab => ({ ...tab, active: tab.active && !active }))].forEach((tab, index) => insert.run(windowId, tab.projectId, index, tab.kind, tab.target, tab.active ? 1 : 0));
     });
   }
 }

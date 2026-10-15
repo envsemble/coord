@@ -82,17 +82,29 @@ function pairingHost(link: string, code: string | null) {
   try { return new URL(parsePairing(link, code ?? undefined).origin).host; } catch (error) { throw hostError(error); }
 }
 
-/** A window's layout as the database keeps it: the shared settings, its sidebar's width, and its tabs of its computer's projects. */
+/**
+ * A window's layout as the database keeps it: the shared settings, its sidebar's width, and its tabs
+ * of its computer's projects. A paired computer that is not connected is not waited for: the window
+ * shows what is known, its tabs of projects not listed yet wait in the database (`pending`), and the
+ * window asks again once the computer answers.
+ */
 async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<UiState> {
   const { state, connections } = manager.context;
   const row = state.windows().find(entry => entry.id === window.rowId);
   const connectionId = window.computer === null ? null : connections.idOf(window.computer);
-  await window.projects().catch(() => []);
+  // Earlier saves land first, so what loads is what the window last showed.
+  await saving.get(window);
+  const listing = window.projects().catch(() => []);
+  // A paired computer that does not answer at once is not waited for.
+  await (window.computer === null || window.client().status === 'connected' ? listing : Promise.race([listing, new Promise(resolve => setTimeout(resolve, 2000))]));
+  // The window now knows the saved tabs of the projects listed, and saves replace only theirs.
+  for (const rowId of window.listedRows()) window.tabsLoaded.add(rowId);
   const items: TabState[] = [];
   let active: string | null = null;
+  let pending = false;
   for (const tab of state.tabs(window.rowId, connectionId)) {
     const project = window.folderOf(tab.projectId);
-    if (!project) continue;
+    if (!project) { pending = true; continue; }
     let target;
     try { target = tabTarget({ kind: tab.kind, ...tab.target && JSON.parse(tab.target) }); } catch { continue; }
     const id = String(items.length);
@@ -100,8 +112,16 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<UiSt
     if (tab.active) active = id;
   }
   const inspectorWidth = state.inspectorWidth;
-  return { sidebar: { visible: state.sidebarVisible, width: row?.sidebarWidth ?? 280 }, tabs: { items, active }, ...inspectorWidth !== null && { inspectorWidth } };
+  return { sidebar: { visible: state.sidebarVisible, width: row?.sidebarWidth ?? 280 }, tabs: { items, active }, ...inspectorWidth !== null && { inspectorWidth }, ...pending && { pending } };
 }
+/** Each window's saves, applied one after another in the order they came. */
+const saving = new WeakMap<AtlasWindow, Promise<void>>();
+function queueSave(manager: WindowManager, window: AtlasWindow, ui: UiState) {
+  const next = (saving.get(window) ?? Promise.resolve()).then(() => saveUi(manager, window, ui));
+  saving.set(window, next.catch(() => undefined));
+  return next;
+}
+/** Save a window's layout: its tabs replace the saved tabs of the projects it loaded them for; the others' stay. */
 async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) {
   const { state, connections } = manager.context;
   const computer = window.computer;
@@ -110,13 +130,13 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   state.updateWindow(window.rowId, { sidebarWidth: ui.sidebar.width });
   const rows = [];
   for (const tab of ui.tabs.items) {
-    const projectId = await window.projectRow(tab.project).catch(() => null);
+    const projectId = window.listedRow(tab.project);
     if (projectId === null) continue;
     const { kind, ...rest } = tab.target;
     rows.push({ projectId, kind, target: kind === 'project' ? null : JSON.stringify(rest), active: tab.id === ui.tabs.active });
   }
   // The window may have moved to another computer meanwhile: these tabs are no longer its own.
-  if (window.computer === computer) state.saveTabs(window.rowId, computer === null ? null : connections.idOf(computer), rows);
+  if (window.computer === computer) state.saveTabs(window.rowId, computer === null ? null : connections.idOf(computer), rows, [...window.tabsLoaded]);
 }
 
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
@@ -148,7 +168,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     // Views count in the document use of the computer the project is on.
     'usage:view': { args: [folderId, viewEvent], handle: async (window, project: string, event) => { await (await window.readable(project)).request('folder.recordView', { folderId: project, event }); } },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
-    'ui:save': { args: [uiState], handle: (window, state: UiState) => saveUi(manager, window, state) },
+    'ui:save': { args: [uiState], handle: (window, state: UiState) => queueSave(manager, window, state) },
     'shell:reveal': { args: [folderId, relativePath], handle: (window, project: string, file: string) => revealInside(window, project, file) },
     'shell:openExternal': {
       args: [url],
