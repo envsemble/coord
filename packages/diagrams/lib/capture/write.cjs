@@ -30,15 +30,14 @@ function plain(text, member = false) {
   }
   return value;
 }
-// The HTML documentation comments use. A tag of one letter counts only in
-// lowercase, so a type parameter such as `List<A>` stays.
+// The HTML documentation comments use, in lowercase as they write it, so a
+// type such as `List<Table>` or `Optional<Span>` stays.
 const HTML_TAGS = new Set(
   "a b i p s u br em tt pre code strong small big sub sup span div ul ol li dl dt dd blockquote h1 h2 h3 h4 h5 h6 table tr td th".split(
     " ",
   ),
 );
-const htmlTag = (tag, name) =>
-  HTML_TAGS.has(name.length === 1 ? name : name.toLowerCase()) ? "" : tag;
+const htmlTag = (tag, name) => (HTML_TAGS.has(name) ? "" : tag);
 // A documentation comment's first sentence as a description: plain text on
 // one line, without inline tags and HTML, or none when it is longer than a
 // description may be. Other text in angle brackets, such as generics and
@@ -47,7 +46,7 @@ function described(doc) {
   const paragraph = String(doc ?? "")
     .split(/\r?\n\s*(?:\r?\n|@)/)[0]
     .replace(/\{@\w+\s*([^}]*)\}/g, "$1")
-    .replace(/<\/?([a-z][a-z0-9]*)\b[^<>]*>/gi, htmlTag)
+    .replace(/<\/?([a-z][a-z0-9]*)\b[^<>]*>/g, htmlTag)
     .replace(/\s+/g, " ")
     .trim();
   const sentence =

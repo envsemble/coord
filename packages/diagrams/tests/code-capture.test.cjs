@@ -700,8 +700,10 @@ export class User {
   name = "";
   /** Greets **loudly** in <b>bold</b>. @returns nothing */
   greet(): void {}
-  /** Friends as a List<User>, in {@code Map<A, B>} order, made by <<create>>. */
+  /** Friends as a List<User> or List<Table>, in {@code Map<A, B>} order, as Optional<Span>, made by <<create>>. */
   friends: User[] = [];
+  /** Rows as a {@code Map<Code, Row>}. */
+  rows = 0;
   /** ${"long ".repeat(70)}*/
   long = 1;
   constructor(/** Where the user lives. */ public city: string) {}
@@ -723,11 +725,13 @@ export enum State {
       "The name shown to others, see User.",
     );
     assert.equal(field("long").description, undefined);
-    // Generics and stereotype text stay; only HTML tags go.
+    // Generics (also those named like HTML tags) and stereotype text stay; only HTML tags go.
     assert.equal(
       field("friends").description,
-      "Friends as a List<User>, in Map<A, B> order, made by < < create>>.",
+      "Friends as a List<User> or List<Table>, in Map<A, B> order, as Optional<Span>, made by < < create>>.",
     );
+    // `<Code` would read as PlantUML's code tag: it is broken up, not dropped.
+    assert.equal(field("rows").description, "Rows as a Map< Code, Row>.");
     assert.equal(field("city").description, "Where the user lives.");
     assert.equal(
       user.operations.find((o) => o.name === "greet").description,
