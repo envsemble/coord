@@ -1,4 +1,4 @@
-// Validates the Atlas plugin's packaging: its two skills, the standalone babysit-pr skill, their
+// Validates the Atlas plugin's packaging: its three skills, the standalone babysit-pr skill, their
 // invocation rules, the commands and tools they name, and the plugin and marketplace manifests.
 // Run with `npm run test:skills`.
 import assert from "node:assert/strict";
@@ -12,9 +12,14 @@ const REPO = path.dirname(PLUGIN);
 const SKILLS = path.join(PLUGIN, "skills");
 const EXTRAS = path.join(REPO, "extras");
 
-const PLUGIN_SKILLS = ["atlas", "atlas-implement"];
+const PLUGIN_SKILLS = ["atlas", "atlas-grill", "atlas-implement"];
 const EXTRA_SKILLS = ["babysit-pr"];
-const EXPLICIT_ONLY = new Set(["atlas-implement", "babysit-pr"]);
+const EXPLICIT_ONLY = new Set(["babysit-pr"]);
+// Skills the user triggers by saying their names: the description is that trigger and nothing else.
+const BY_NAME = {
+  "atlas-grill": ["atlas grill", "grill", "grill me"],
+  "atlas-implement": ["atlas implement"],
+};
 const ALL = [
   ...PLUGIN_SKILLS.map((name) => path.join(SKILLS, name)),
   ...EXTRA_SKILLS.map((name) => path.join(EXTRAS, name)),
@@ -33,7 +38,7 @@ const RETIRED_NAMES = [
   /ontouml[- ]atla[s]/gi,
   /(?<![\w-])plannin[g]-(?:bootstrap|grill|implement|record|organize)\b/gi,
   /(?<![\w-])implement-pla[n]\b/gi,
-  /(?<![\w-])atlas-(?:gril[l]|recor[d]|organiz[e]|bootstra[p]|mode[l]|modelin[g]|babysit-p[r])\b/gi,
+  /(?<![\w-])atlas-(?:recor[d]|organiz[e]|bootstra[p]|mode[l]|modelin[g]|babysit-p[r])\b/gi,
 ];
 const PROVIDER_NAME =
   /\b(gpt[\w.-]*|chatgpt|openai|codex|anthropic|claude[\w.-]*|opus|sonnet|haiku|fable|gemini|sol|llama|mistral)\b/gi;
@@ -114,12 +119,19 @@ function frontmatter(dir) {
       `${name}: unsupported frontmatter key ${key}`,
     );
     assert.ok(!(key in meta), `${name}: duplicate frontmatter key ${key}`);
-    // Plain YAML scalars must not contain sequences that change their meaning.
+    // A double-quoted scalar without escapes, or a plain one without sequences that change its meaning.
+    const quoted = /^"([^"\\]*)"$/.exec(raw);
     assert.ok(
-      !/: |\s#|^[\[\]{}&*!|>'"%@`]/.test(raw),
-      `${name}: ${key} is a safe plain YAML scalar`,
+      quoted || !/: |\s#|^[\[\]{}&*!|>'"%@`]/.test(raw),
+      `${name}: ${key} is a safe YAML scalar`,
     );
-    meta[key] = raw === "true" ? true : raw === "false" ? false : raw;
+    meta[key] = quoted
+      ? quoted[1]
+      : raw === "true"
+        ? true
+        : raw === "false"
+          ? false
+          : raw;
   }
   return { meta, body: text.slice(match[0].length) };
 }
@@ -149,7 +161,7 @@ function openaiMetadata(dir) {
   return result;
 }
 
-test("the plugin packages exactly the atlas and atlas-implement skills; babysit-pr stands apart", () => {
+test("the plugin packages exactly the atlas, atlas-grill and atlas-implement skills; babysit-pr stands apart", () => {
   const folders = (dir) =>
     readdirSync(dir)
       .filter((name) => existsSync(path.join(dir, name, "SKILL.md")))
@@ -198,6 +210,21 @@ test("explicit-only skills declare it for Codex and Claude Code", () => {
       `${name}: disable-model-invocation`,
     );
     if (explicitOnly) assert.match(meta.description, /explicitly invoked/);
+  }
+});
+
+test("skills triggered by name describe only their trigger", () => {
+  for (const [name, phrases] of Object.entries(BY_NAME)) {
+    const quoted = phrases.map((phrase) => `"${phrase}"`);
+    const list =
+      quoted.length > 1
+        ? `${quoted.slice(0, -1).join(", ")} or ${quoted.at(-1)}`
+        : quoted[0];
+    assert.equal(
+      frontmatter(path.join(SKILLS, name)).meta.description,
+      `Use when the user says ${list}.`,
+      name,
+    );
   }
 });
 
