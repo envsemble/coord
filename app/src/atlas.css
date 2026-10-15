@@ -80,7 +80,8 @@ body { margin: 0; }
 .project-card-open:focus-visible { outline: none; }
 .project-card-open::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
 .project-card-line { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; color: var(--color-text-muted); }
-.project-card[data-selected] .project-card-line { color: inherit; opacity: 0.8; }
+/* Dimmed by colour, not opacity: opacity would put the line under the card's open button, Hide included. */
+.project-card[data-selected] .project-card-line { color: color-mix(in srgb, currentColor 80%, transparent); }
 .project-card-repositories, .project-card-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-card-repositories { flex: 1 1 auto; min-inline-size: 0; }
 .project-card-age { flex: none; margin-inline-start: auto; font-variant-numeric: tabular-nums; }

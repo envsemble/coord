@@ -422,6 +422,12 @@ test('a project card says what is going on, lists that work on hover, and hides 
   await hidden.hover();
   await hidden.getByRole('button', { name: 'Show', exact: true }).click();
   await expectProjects(window, ['Northwind', 'Coord']);
+  // The selected card's corner works too: its open button never covers Hide.
+  await card.click();
+  await expect(card).toHaveAttribute('data-selected', 'true');
+  await card.hover();
+  await card.getByRole('button', { name: 'Hide', exact: true }).click();
+  await expectProjects(window, ['Coord']);
 });
 
 test('the side column of a work item stays still while the page scrolls, and scrolls on its own when it is taller than the window', async () => {
