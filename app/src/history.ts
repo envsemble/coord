@@ -17,7 +17,7 @@ export const startHistory = (place: Place | null): History => ({ entries: [place
 export const currentEntry = (history: History) => history.ids[history.index];
 
 const parts = (target: Target) => target.kind === 'project' ? []
-  : target.kind === 'work' ? [target.work, target.anchor ?? null]
+  : target.kind === 'work' ? [target.work, target.anchor ?? null, target.view ?? null]
   : target.kind === 'diagram' ? [target.work, target.path ?? null, target.element ?? null]
   : [target.path, target.anchor ?? null];
 /** Whether two places show the same thing; a part left out is the same as one set to null. */

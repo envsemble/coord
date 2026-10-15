@@ -1,4 +1,4 @@
-// The window's title bar: the logo, File, Edit, View and Help, back and forward, and the computer the
+// The window's title bar: the logo, back and forward, File, Edit, View and Help, and the computer the
 // window works on. On macOS the system's menu bar holds the menus instead (main's application menu),
 // and the traffic lights take the start of the title bar.
 import { useRef } from 'react';
@@ -111,11 +111,11 @@ export function AppMenubar({ info, workbench, onError }: { info: WindowInfo; wor
   </Menubar>;
 }
 
-/** The start of the title bar after the logo: the menus (except on macOS), back and forward, and the computer. */
+/** The start of the title bar after the logo: back and forward, the menus (except on macOS), and the computer. */
 export function TitleBarStart({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
-    {info.platform !== 'darwin' && <AppMenubar info={info} workbench={workbench} onError={onError} />}
     <HistoryButtons platform={info.platform} workbench={workbench} />
+    {info.platform !== 'darwin' && <AppMenubar info={info} workbench={workbench} onError={onError} />}
     <ComputerMenu current={info.computer} onError={onError} />
   </div>;
 }

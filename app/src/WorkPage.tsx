@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { Badge, Breadcrumbs, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
-import { CommitIcon, LedgerIcon } from './icons';
+import { CommitIcon, LedgerIcon, PlanIcon } from './icons';
 import type { Document, Snapshot, Target, Work } from './types';
 import { defaultDocument, primaryDocuments } from './work';
-import { fileTarget, projectTarget, workTarget } from './targets';
+import { ledgerTarget, projectTarget, workTarget } from './targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
 import { RepositoryBadge, StatusBadge } from './ui';
@@ -28,16 +28,23 @@ function AboutSection({ title, note, children }: { title: ReactNode; note?: Reac
   </section>;
 }
 
-function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
+/**
+ * The side column: the work's progress, then the link that shows its ledger in place of the plan (or
+ * the plan again), its dates, statistics and recent activity. It scrolls on its own, beside the page.
+ */
+function About({ work, snapshot, showing }: { work: Work; snapshot: Snapshot; showing: 'plan' | 'ledger' }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
   const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   const commits = snapshot.history.filter(entry => entry.workIds.includes(work.id)).slice(0, 5);
   const statistics = work.statistics;
-  const { ledger } = primaryDocuments(work);
+  const { plan, ledger } = primaryDocuments(work);
+  // The other of the plan and the ledger, shown in place of the one on the page.
+  const other = showing === 'ledger' ? plan && <TargetLink target={workTarget(work.id)}><PlanIcon />Plan</TargetLink>
+    : ledger && <TargetLink target={ledgerTarget(work.id)}><LedgerIcon />Ledger</TargetLink>;
+  const switcher = other && <p className="about-ledger">{other}</p>;
   return <aside className="about" aria-label="About this work">
-    {ledger && <p className="about-ledger"><TargetLink target={fileTarget(ledger.path)}><LedgerIcon />Ledger</TargetLink></p>}
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
     {hasStatus && progress && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
@@ -45,7 +52,9 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
         {progress.current && <p className="about-current">{progress.current}</p>}
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
+      {switcher}
     </AboutSection>}
+    {!(hasStatus && progress) && switcher}
     {dates.length > 0 && <AboutSection title="About">
       <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}</dl>
     </AboutSection>}
@@ -59,20 +68,24 @@ function About({ work, snapshot }: { work: Work; snapshot: Snapshot }) {
 }
 
 /**
- * A work item: its plan (or, without one, its ledger or first document) with the title as its
- * heading and the work number, and beside it the work's progress, dates, statistics and recent
- * activity, with a link to its ledger. Diagrams open from their cards in the plan.
+ * A work item: its plan (or, without one, its ledger or first document), or its ledger in the plan's
+ * place, with the title as its heading and the work number; beside it the work's progress with the
+ * link between the plan and the ledger, its dates, statistics and recent activity. Diagrams open from
+ * their cards in the plan.
  */
 export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
   const { projectName } = useWorkbench();
-  const reading: Document | undefined = primaryDocuments(work).plan ?? defaultDocument(work);
+  const { plan, ledger } = primaryDocuments(work);
+  const showing = target.view === 'ledger' && ledger ? 'ledger' : 'plan';
+  const reading: Document | undefined = showing === 'ledger' ? ledger : plan ?? defaultDocument(work);
   const status = workStatus(work);
   const note = designNote(work);
   const references = useReferences(reading, work.id, reading?.format === 'markdown');
   return <div className="work-page">
     <div className="work-layout">
       <div className="work-main">
-        <Trail items={[{ label: projectName, target: projectTarget() }, { label: workNumber(work.id) }]} />
+        <Trail items={showing === 'ledger' ? [{ label: projectName, target: projectTarget() }, { label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Ledger' }]
+          : [{ label: projectName, target: projectTarget() }, { label: workNumber(work.id) }]} />
         <header className="work-header">
           <Text as="h1" variant="page-heading">{work.title}</Text>
           <div className="work-header-meta">
@@ -86,7 +99,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
-      <About work={work} snapshot={snapshot} />
+      <About work={work} snapshot={snapshot} showing={showing} />
     </div>
   </div>;
 }

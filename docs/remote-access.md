@@ -50,7 +50,7 @@ On the other device, choose **File › Connect to Another Atlas…** (also in th
 
 ## Work on another computer
 
-Each window says where it works: the **computer menu** (the computer's name in the title bar, after the menus and the back and forward arrows) and the projects in the sidebar.
+Each window says where it works: the **computer menu** (the computer's name in the title bar, after the back and forward arrows and the menus) and the projects in the sidebar.
 
 - **The computer menu** lists this computer and every computer this one is paired with. Computers that do not answer are marked **Offline**.
   - Choosing a computer works on it in this window: the sidebar lists its projects, and the tabs are the ones this window last had open there.

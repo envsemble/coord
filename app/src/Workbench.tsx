@@ -27,7 +27,7 @@ import { ProjectPage, type WorkFilters } from './ProjectPage';
 import { Gone } from './Pages';
 import { modifierKey, TitleBarStart, type WorkbenchMenus } from './AppMenu';
 import { AppActionsContext, useAppActions } from './Computers';
-import { NewProjectDialog, ProjectsNavigation, RenameProjectDialog, SetAsideProjects, type ProjectActions } from './ProjectsSidebar';
+import { NewProjectDialog, ProjectCards, ProjectsNavigation, RenameProjectDialog, type ProjectActions } from './ProjectsSidebar';
 import { revealIds } from './explorerModel';
 import { WorkbenchContext, type Notify, type OpenOptions, type WorkbenchApi } from './workbenchContext';
 
@@ -53,6 +53,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // ---- The computer's projects, and the folders the window follows ------------------------------
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [projectsError, setProjectsError] = useState('');
+  /** The sidebar's search over the projects. */
+  const [projectQuery, setProjectQuery] = useState('');
   useEffect(() => {
     let current = true;
     const load = () => api.projects().then(next => { if (current) { setProjects(next); setProjectsError(''); } }, error => { if (current) { setProjects(previous => previous ?? []); setProjectsError((error as Error).message); } });
@@ -397,8 +399,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       </>}
       collapsed={!ui.sidebar.visible} onCollapsedChange={collapsed => setSidebar({ visible: !collapsed })}
       resizable sidebarWidth={ui.sidebar.width} sidebarMinWidth={limits.sidebarMin} sidebarMaxWidth={limits.sidebarMax} onSidebarWidthChange={width => setSidebar({ width: Math.round(width) })}
-      navigation={<ProjectsNavigation projects={projects} error={projectsError} selected={active?.target.kind === 'project' ? activeProject : null} actions={projectActions} />}
-      sidebarContent={<SetAsideProjects projects={projects} selected={active?.target.kind === 'project' ? activeProject : null} actions={projectActions} />}>
+      navigation={<ProjectsNavigation projects={projects} query={projectQuery} onQueryChange={setProjectQuery} selected={active?.target.kind === 'project' ? activeProject : null} actions={projectActions} />}
+      sidebarContent={<ProjectCards projects={projects} error={projectsError} query={projectQuery} selected={active?.target.kind === 'project' ? activeProject : null} actions={projectActions} />}>
       <div className={'workbench-body' + (fills ? ' is-filled' : '') + (tabs.length ? ' has-tabs' : '')}>
         {tabs.length > 0 && <DocumentTabs className="workbench-tabs" items={tabs} value={ui.tabs.active} aria-label="Open tabs"
           onValueChange={id => setTabs(state => activateTab(state, id))} onClose={id => setTabs(state => closeTab(state, id))} onPin={id => setTabs(state => pinTab(state, id))}

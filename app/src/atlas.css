@@ -57,11 +57,26 @@ body { margin: 0; }
 .health-icon { flex: none; margin-block-start: 0.125rem; color: var(--color-tone-warning); }
 .health-list li[data-level='error'] .health-icon { color: var(--color-tone-danger); }
 
-/* The sidebar's projects, and the hidden and archived ones in a group at its bottom. */
-.project-list { display: grid; gap: 0.125rem; }
-.project-list-state { padding: var(--space-2) var(--space-4); }
-.project-state { color: var(--color-text-muted); font: var(--type-body-small); }
-.project-group { padding: var(--space-2) var(--space-2) var(--space-3); }
+/* The sidebar's projects: a strip with the search and New Project at the top, then the projects as
+   cards, which scroll below it, the hidden and archived ones in a group after them. */
+.workbench .env-app-navigation { justify-items: stretch; padding-block-end: var(--space-2); }
+.project-strip { display: flex; align-items: center; gap: var(--space-1); min-inline-size: 0; }
+.project-search { flex: 1 1 auto; min-inline-size: 0; }
+.project-icons { display: grid; gap: var(--space-1); }
+.project-cards { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-1) var(--env-sidebar-inset, var(--space-3)) var(--space-4); }
+.project-list { display: grid; gap: var(--space-2); }
+.project-list-state { padding: var(--space-2); }
+.project-card.env-card { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-large, 1rem); }
+.project-card[aria-current='page'] { background: var(--color-navigation-selected); color: var(--color-on-navigation-selected); }
+.project-card[aria-current='page']:hover { background: var(--color-navigation-selected); }
+.project-card-icon { display: grid; flex: none; place-items: center; inline-size: 2rem; block-size: 2rem; border-radius: var(--radius-standard); background: var(--color-canvas); color: var(--color-navigation-icon); }
+.project-card[aria-current='page'] .project-card-icon { color: inherit; }
+.project-card-text { display: grid; min-inline-size: 0; }
+.project-card-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.project-card-note { overflow: hidden; color: var(--color-text-muted); font: var(--type-body-small); text-overflow: ellipsis; white-space: nowrap; }
+.project-card[aria-current='page'] .project-card-note { color: inherit; opacity: 0.8; }
+.project-card[data-state='archived'], .project-card[data-state='hidden'] { opacity: 0.85; }
+.project-group { display: grid; gap: var(--space-2); }
 .project-group > summary { padding: var(--space-2); border-radius: var(--radius-standard); color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; cursor: pointer; }
 .project-group > summary:hover { background: var(--color-surface-hover, transparent); }
 .project-group > summary:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: -0.125rem; }
@@ -143,7 +158,8 @@ body { margin: 0; }
 .work-number { color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
 .work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
 .work-main { min-inline-size: 0; }
-.about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: grid; gap: var(--space-6); }
+/* The side column stays in view and scrolls on its own when it is taller than the room below the tabs. */
+.about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-4) * 2); overflow-y: auto; scrollbar-width: thin; padding-inline-end: var(--space-2); padding-block-end: var(--space-4); }
 .about-section { display: grid; gap: var(--space-2); }
 .about-ledger { margin: 0; }
 .about-ledger a { display: inline-flex; align-items: center; gap: var(--space-2); }
@@ -162,7 +178,7 @@ body { margin: 0; }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 @container (max-width: 62rem) {
   .work-layout { grid-template-columns: minmax(0, 1fr); }
-  .about { position: static; }
+  .about { position: static; max-block-size: none; overflow: visible; }
 }
 /* The diagrams section takes the rest of the window. */
 .work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }

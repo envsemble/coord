@@ -1,10 +1,11 @@
-// The sidebar's projects: those of the computer the window shows, in their order, each opening its
-// project page; hidden and archived projects wait in a group at the bottom, closed until opened. A
-// project's context menu renames it, moves it, and hides, archives or shows it again; projects are
-// never deleted here. A project outside the Atlas home (from before it) is marked, and its menu moves
-// it into the home. New Project… makes one from the bundled templates.
+// The sidebar's projects: those of the computer the window shows, in their order, as cards that each
+// open the project's page, below a strip with a search over them and New Project; hidden and archived
+// projects wait in a group below the cards, closed until opened. A project's context menu renames
+// it, moves it, and hides, archives or shows it again; projects are never deleted here. A project
+// outside the Atlas home (from before it) is marked, and its menu moves it into the home. While the
+// sidebar shows icons only, each project is an icon.
 import { useState, type ReactNode } from 'react';
-import { Button, ContextMenu, Dialog, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, Spinner, Text, Tooltip } from '@envsemble/envui';
+import { Button, Card, ContextMenu, Dialog, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, SearchField, Spinner, Text, Tooltip, useSidebarCompact } from '@envsemble/envui';
 import { AddIcon, ArchiveIcon, CloseIcon, FolderIcon } from './icons';
 import type { Project, ProjectRepository, ProjectState } from './types';
 import { api } from './api';
@@ -20,12 +21,22 @@ export interface ProjectActions {
 }
 
 const stateLabels: Record<ProjectState, string> = { active: 'Active', hidden: 'Hidden', archived: 'Archived' };
+const projectIcon = (project: Project) => project.state === 'archived' ? <ArchiveIcon /> : <FolderIcon />;
+const projectTitle = (project: Project) => project.path + (project.outsideHome ? ' (outside the Atlas home: agents do not find it until it is moved in)' : '');
+/** What a card says below the name: where the project stands, when that is not simply active in the home. */
+const projectNote = (project: Project) => [project.outsideHome && 'Outside the Atlas home', project.state !== 'active' && stateLabels[project.state]].filter(Boolean).join(' · ');
 
-/** One project in the sidebar: it opens its page; its context menu is the list's. */
-function ProjectItem({ project, selected, actions }: { project: Project; selected: boolean; actions: ProjectActions }) {
-  return <NavigationItem icon={project.state === 'archived' ? <ArchiveIcon /> : <FolderIcon />} selected={selected} data-project={project.folderId}
-    title={project.path + (project.outsideHome ? ' (outside the Atlas home: agents do not find it until it is moved in)' : '')} onClick={() => actions.open(project)}
-    trailing={project.state === 'active' && !project.outsideHome ? undefined : <span className="project-state">{[project.outsideHome && 'Outside home', project.state !== 'active' && stateLabels[project.state]].filter(Boolean).join(' · ')}</span>}>{project.name}</NavigationItem>;
+/** One project as a card: it opens its page; its context menu is the list's. */
+function ProjectCard({ project, selected, actions }: { project: Project; selected: boolean; actions: ProjectActions }) {
+  const note = projectNote(project);
+  return <Card as="button" type="button" className="project-card" data-project={project.folderId} data-state={project.state} aria-current={selected ? 'page' : undefined}
+    title={projectTitle(project)} onClick={() => actions.open(project)}>
+    <span className="project-card-icon" aria-hidden="true">{projectIcon(project)}</span>
+    <span className="project-card-text">
+      <span className="project-card-name">{project.name}</span>
+      {note && <span className="project-card-note">{note}</span>}
+    </span>
+  </Card>;
 }
 
 /** The project a context menu was opened on, by the element it was opened on. */
@@ -54,31 +65,60 @@ function ProjectMenu({ project, projects, actions }: { project: Project | null; 
   </>;
 }
 
-/** The projects as the sidebar's navigation: the active ones, then New Project. */
-export function ProjectsNavigation({ projects, error, selected, actions }: { projects: Project[] | null; error: string; selected: string | null; actions: ProjectActions }) {
-  const active = (projects ?? []).filter(project => project.state === 'active');
-  return <ContextMenu aria-label="Project actions" density="compact" content={target => <ProjectMenu project={projectAt(projects ?? [], target)} projects={projects ?? []} actions={actions} />}>
-    <div className="project-list" role="group" aria-label="Projects">
-      {projects === null ? <div className="project-list-state"><Spinner size="small" label="Loading projects" /></div>
-        : active.map(project => <ProjectItem key={project.folderId} project={project} selected={selected === project.folderId} actions={actions} />)}
-      {projects !== null && !active.length && <Text variant="caption" tone="muted" className="project-list-state">{error || 'No projects yet.'}</Text>}
+/** Whether a project matches the search: every word in its name or folder, ignoring case. */
+export const projectMatches = (project: Project, query: string) => {
+  const text = (project.name + ' ' + project.path).toLocaleLowerCase();
+  return query.toLocaleLowerCase().split(/\s+/).filter(Boolean).every(word => text.includes(word));
+};
+
+/**
+ * The top of the sidebar: a strip with the search over the projects and New Project; while the
+ * sidebar shows icons only, each active project as an icon instead, then New Project.
+ */
+export function ProjectsNavigation({ projects, query, onQueryChange, selected, actions }: {
+  projects: Project[] | null; query: string; onQueryChange(query: string): void; selected: string | null; actions: ProjectActions;
+}) {
+  const compact = useSidebarCompact();
+  const all = projects ?? [];
+  if (compact) return <ContextMenu aria-label="Project actions" density="compact" content={target => <ProjectMenu project={projectAt(all, target)} projects={all} actions={actions} />}>
+    <div className="project-icons" role="group" aria-label="Projects">
+      {all.filter(project => project.state === 'active').map(project => <NavigationItem key={project.folderId} icon={projectIcon(project)} selected={selected === project.folderId}
+        data-project={project.folderId} title={projectTitle(project)} onClick={() => actions.open(project)}>{project.name}</NavigationItem>)}
       <NavigationItem icon={<AddIcon />} onClick={actions.create}>New Project…</NavigationItem>
     </div>
   </ContextMenu>;
+  return <div className="project-strip">
+    <SearchField className="project-search" label="Search projects" placeholder="Search projects" value={query} onValueChange={onQueryChange} />
+    <Tooltip content="New project" side="bottom"><IconButton variant="text" icon={<AddIcon />} aria-label="New project" onClick={actions.create} /></Tooltip>
+  </div>;
 }
 
-/** Hidden and archived projects, in a group at the bottom of the sidebar, closed until opened. */
-export function SetAsideProjects({ projects, selected, actions }: { projects: Project[] | null; selected: string | null; actions: ProjectActions }) {
-  const aside = (projects ?? []).filter(project => project.state !== 'active');
-  if (!aside.length) return null;
-  return <details className="project-group">
-    <summary>Hidden and archived <span className="muted">{aside.length}</span></summary>
-    <ContextMenu aria-label="Project actions" density="compact" content={target => <ProjectMenu project={projectAt(aside, target)} projects={projects ?? []} actions={actions} />}>
-      <div className="project-list" role="group" aria-label="Hidden and archived projects">
-        {aside.map(project => <ProjectItem key={project.folderId} project={project} selected={selected === project.folderId} actions={actions} />)}
-      </div>
-    </ContextMenu>
-  </details>;
+/**
+ * The projects below the strip, as cards: the active ones, then the hidden and archived ones in a
+ * group, closed until opened (and open while searching).
+ */
+export function ProjectCards({ projects, error, query, selected, actions }: { projects: Project[] | null; error: string; query: string; selected: string | null; actions: ProjectActions }) {
+  const all = projects ?? [];
+  const searching = query.trim() !== '';
+  const shown = searching ? all.filter(project => projectMatches(project, query)) : all;
+  const active = shown.filter(project => project.state === 'active');
+  const aside = shown.filter(project => project.state !== 'active');
+  const empty = projects === null ? '' : !all.length ? error || 'No projects yet.' : !shown.length ? 'No projects match.' : !active.length && !searching ? 'Every project is hidden or archived.' : '';
+  return <ContextMenu aria-label="Project actions" density="compact" content={target => <ProjectMenu project={projectAt(all, target)} projects={all} actions={actions} />}>
+    <div className="project-cards">
+      {projects === null && <div className="project-list-state"><Spinner size="small" label="Loading projects" /></div>}
+      {active.length > 0 && <div className="project-list" role="group" aria-label="Projects">
+        {active.map(project => <ProjectCard key={project.folderId} project={project} selected={selected === project.folderId} actions={actions} />)}
+      </div>}
+      {empty && <Text variant="caption" tone="muted" className="project-list-state">{empty}</Text>}
+      {aside.length > 0 && <details className="project-group" open={searching || undefined}>
+        <summary>Hidden and archived <span className="muted">{aside.length}</span></summary>
+        <div className="project-list" role="group" aria-label="Hidden and archived projects">
+          {aside.map(project => <ProjectCard key={project.folderId} project={project} selected={selected === project.folderId} actions={actions} />)}
+        </div>
+      </details>}
+    </div>
+  </ContextMenu>;
 }
 
 /** Rename a project: the name in its planning.json, which agents see too. */

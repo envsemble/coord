@@ -98,12 +98,12 @@ export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 /**
  * What a tab shows of its project: its page (the work list, statistics and activity), a work item's
- * plan, one of its diagrams (by its path in the work folder, null for its first; `element` names an
+ * plan or, in its place, its ledger (`view`), one of its diagrams (by its path in the work folder, null for its first; `element` names an
  * element of it), or a file.
  */
 export type Target =
   | { kind: 'project' }
-  | { kind: 'work'; work: string; anchor?: string | null }
+  | { kind: 'work'; work: string; anchor?: string | null; view?: 'ledger' | null }
   | { kind: 'diagram'; work: string; path: string | null; element?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
 /** A tab: what it shows, of which project (by its folder ID). */
