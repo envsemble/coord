@@ -174,48 +174,75 @@ export async function close(launched: Launched | undefined) {
   if (!stopped) throw new Error('The app did not quit within 15 seconds of being asked to.');
 }
 
+/** The hub's plan rows, or the row of the plan of that title. */
+export const hubRows = (window: Page, title?: string) => title ? window.locator('.hub-row').filter({ has: window.getByRole('link', { name: title, exact: true }) }) : window.locator('.hub-row');
+/** The window shows the hub, with every plan or (`heading`) one project's. */
+export async function expectHub(window: Page, heading = 'Plans') {
+  await expect(window.locator('.hub h1')).toHaveText(heading);
+}
+/** Open a plan from the hub with one click (the first, when projects share it) and wait for it. */
+export async function openPlan(window: Page, title: string) {
+  await hubRows(window, title).first().getByRole('link', { name: title, exact: true }).click();
+  await expect(window.locator('.work-header h1')).toHaveText(title);
+}
+/** Go to the hub by the logo in the title bar. */
+export async function goHome(window: Page) {
+  await window.getByRole('button', { name: 'All plans', exact: true }).click();
+  await expectHub(window);
+}
+
+/** The title bar's menu button. */
+export const menuButton = (window: Page) => window.locator('.env-title-bar').getByRole('button', { name: 'Menu', exact: true });
+/** Choose an item of the title bar's menu. */
+export async function chooseMenu(window: Page, item: string) {
+  await menuButton(window).click();
+  await window.getByRole('menu', { name: 'Menu' }).getByRole('menuitem', { name: item, exact: true }).click();
+}
+/** Run an item of main's application menu (the system's menu bar on macOS, hidden elsewhere, holding the shortcuts). */
+export async function applicationMenu(app: ElectronApplication, menu: string, item: string) {
+  await app.evaluate(({ BrowserWindow, Menu }, [menuLabel, itemLabel]) => {
+    const entry = Menu.getApplicationMenu()!.items.find(candidate => candidate.label === menuLabel)!.submenu!.items.find(candidate => candidate.label === itemLabel)!;
+    entry.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
+  }, [menu, item] as const);
+}
+
+/** Open the Projects page from the menu. */
+export async function openProjects(window: Page) {
+  await chooseMenu(window, 'Projects');
+  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
+}
 /**
- * The sidebar's project cards: the active projects', or those in the hidden and archived group. Found
- * by their markup rather than their role, so they are read past an open dialog too.
+ * The Projects page's rows: the active projects', or the hidden and archived ones. Found by their
+ * markup rather than their role, so they are read past an open dialog too.
  */
-export const projectCards = (window: Page, group: 'Projects' | 'Hidden and archived projects' = 'Projects') => window.locator(`[role="group"][aria-label="${group}"] .project-card`);
-/** The sidebar's card of the project of that name (a card also says what is going on in the project). */
-export const sidebarProject = (window: Page, name = 'Northwind', group?: 'Projects' | 'Hidden and archived projects') => projectCards(window, group).filter({ has: window.getByText(name, { exact: true }) });
-/** The sidebar's cards are those of these projects, in this order. */
+export const projectRows = (window: Page, group: 'Projects' | 'Hidden and archived projects' = 'Projects') => window.locator(`.project-list[aria-label="${group}"] > .project-row`);
+/** The Projects page's row of the project of that name. */
+export const projectRow = (window: Page, name = 'Northwind', group?: 'Projects' | 'Hidden and archived projects') => projectRows(window, group).filter({ has: window.locator('.row-link-title').getByText(name, { exact: true }) });
+/** The Projects page lists these projects, in this order. */
 export async function expectProjects(window: Page, names: string[], group?: 'Projects' | 'Hidden and archived projects') {
-  await expect(projectCards(window, group)).toHaveCount(names.length);
-  for (const [index, name] of names.entries()) await expect(projectCards(window, group).nth(index).getByText(name, { exact: true }).first()).toBeVisible();
+  await expect(projectRows(window, group).locator('.row-link-title')).toHaveText(names);
 }
-/** The sidebar, where it says it has no projects. */
-export const sidebar = (window: Page) => window.locator('.workbench .env-app-sidebar');
-/** The sidebar's project search, a quiet field at the top of the sidebar. */
-export async function projectSearch(window: Page) {
-  const field = sidebar(window).getByRole('searchbox', { name: 'Search projects' });
-  await field.click();
-  return field;
+/** Run one of a project's actions on the Projects page. */
+export async function projectAction(window: Page, name: string, action: string) {
+  await window.getByRole('button', { name: 'Actions for ' + name, exact: true }).click();
+  await window.getByRole('menuitem', { name: action, exact: true }).click();
 }
-/** The button in the strip above the projects that makes a new one. */
-export const newProjectButton = (window: Page) => sidebar(window).getByRole('button', { name: 'New project', exact: true });
 
-/** Open a project's page from the sidebar and wait for its work list. */
-export async function openProject(window: Page, name = 'Northwind') {
-  await sidebarProject(window, name).click();
-  await expect(window.locator('.project-page h1')).toHaveText(name);
-  await expect(window.locator('.work-row').first()).toBeVisible();
-}
+/** The element the window's content scrolls in, below the title bar. */
+export const pageScroll = (window: Page) => window.evaluate(() => document.querySelector('.env-window-frame-content')!.scrollTop);
 
 /**
- * Launch the app on a home with the fixture project (or the home given), and open the project's page.
- * The home is the launch's own unless given, and goes with it.
+ * Launch the app on a home with the fixture project (or the home given), and wait for the hub to list
+ * its plans. The home is the launch's own unless given, and goes with it.
  */
-export async function launchProject(options: { dataDirectory?: string; folder?: string; open?: boolean } = {}) {
+export async function launchProject(options: { dataDirectory?: string; folder?: string } = {}) {
   const home = options.dataDirectory ? { dataDirectory: options.dataDirectory, folder: options.folder ?? path.join(options.dataDirectory, 'planning', 'northwind') } : projectHome();
   const launched = await launch({ dataDirectory: home.dataDirectory, ownsData: !options.dataDirectory });
-  if (options.open !== false) await openProject(launched.window);
+  await expect(hubRows(launched.window).first()).toBeVisible();
   return { ...launched, folder: home.folder };
 }
 
-/** Show the file panel, with the files of the active tab's project. */
+/** Show the file panel, with the files of the open plan's project. */
 export async function showFiles(window: Page) {
   const panel = window.getByRole('region', { name: 'Files' });
   if (!await panel.isVisible()) await window.getByRole('button', { name: 'Files', exact: true }).click();

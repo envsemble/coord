@@ -2,41 +2,43 @@ import { renameSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { addProject, close, launch, launchProject, newProjectButton, openProject, planningFixture, projectCards, projectHome, removeDirectory, secondInstance, sidebar, sidebarProject, windowTitles, type Launched } from './app';
+import { addProject, chooseMenu, close, expectHub, launch, launchProject, openPlan, openProjects, planningFixture, projectAction, projectHome, projectRow, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
-test('a home without projects starts empty, with New Project and the search above the projects', async () => {
+test('a home without projects opens on the hub, which points to the Projects page to make one', async () => {
   launched = await launch();
   const { window } = launched;
-  await expect(sidebar(window)).toContainText('No projects yet.');
-  await expect(projectCards(window)).toHaveCount(0);
-  await expect(newProjectButton(window)).toBeVisible();
-  // A quiet strip: the search, only its icon and placeholder at rest, and New Project.
-  const search = sidebar(window).getByRole('searchbox', { name: 'Search projects' });
-  await expect(search).toBeVisible();
-  await expect(search.locator('xpath=..')).toHaveAttribute('data-variant', 'quiet');
-  await expect(newProjectButton(window)).toHaveClass(/env-button-quiet/);
-  // The old New Project… item at the end of the list is gone.
-  await expect(sidebar(window).getByRole('button', { name: 'New Project…' })).toHaveCount(0);
-  await expect(window.getByRole('heading', { name: 'Open a project' })).toBeVisible();
+  await expect(window.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
+  await expect(window.locator('.hub')).toContainText('Projects › New project');
+  await window.locator('.hub').getByRole('button', { name: 'Projects' }).click();
+  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
+  await expect(window.locator('.projects-page')).toContainText('No projects yet.');
+  await expect(window.getByRole('button', { name: 'New project', exact: true })).toBeVisible();
 });
 
-test('a second launch brings the running app forward, and windows open again with their tabs next time', async () => {
+/** New Window from the application menu, in the first window. */
+async function newWindow(app: ElectronApplication): Promise<Page> {
+  const opened = app.waitForEvent('window');
+  await app.evaluate(({ Menu, BrowserWindow }) => {
+    Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === 'New &Window')!.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
+  });
+  const page = await opened;
+  await page.waitForLoadState('domcontentloaded');
+  return page;
+}
+
+test('a second launch brings the running app forward, and windows open again showing what they showed next time', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   launched = await launchProject(home);
   const { app, window } = launched;
-  // File › New Window opens another window on the same computer.
-  const opened = app.waitForEvent('window');
-  await app.evaluate(({ Menu, BrowserWindow }) => {
-    const item = Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === 'New &Window')!;
-    item.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
-  });
-  const second = await opened;
-  await openProject(second);
+  // New Window opens another window on the same computer, on the hub.
+  const second = await newWindow(app);
+  await expectHub(second);
+  await openPlan(second, 'Saved payment methods');
   // Starting Atlas again only brings it forward (single instance).
   expect(secondInstance(home.dataDirectory, [])).toBe(0);
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -47,46 +49,36 @@ test('a second launch brings the running app forward, and windows open again wit
 
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(2);
-  for (const page of launched.app.windows()) await expect(page.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind']);
+  const shown = async () => (await Promise.all(launched!.app.windows().map(page => page.locator('.hub h1, .work-header h1').first().textContent()))).sort();
+  await expect.poll(shown).toEqual(['Plans', 'Saved payment methods']);
 });
 
-test('a project whose folder is not a planning folder at the start keeps its tabs for when it is again', async () => {
+test('a plan of a project whose folder is not a planning folder at the start shows again when it is', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   const coord = addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launchProject(home);
-  await openProject(launched.window, 'Coord');
-  const tabs = () => launched!.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab');
-  await expect(tabs()).toHaveText(['Northwind', 'Coord']);
+  await launched.window.getByRole('searchbox', { name: 'Search plans' }).fill('coord notifications');
+  await openPlan(launched.window, 'Customer order notifications');
   await launched.window.waitForTimeout(600);
   await close(launched);
-  // Coord's planning.json is briefly away: it is not listed, and the window saves without it.
+  // Coord's planning.json is briefly away: it is not listed, and the window shows the hub meanwhile.
   renameSync(path.join(coord, 'planning.json'), path.join(coord, 'planning.json.away'));
   launched = await launch({ dataDirectory: home.dataDirectory });
-  await expect(tabs()).toHaveText(['Northwind']);
-  await launched.window.keyboard.press('Control+B');
-  await launched.window.keyboard.press('Control+B');
+  await expectHub(launched.window);
   await launched.window.waitForTimeout(600);
   await close(launched);
   renameSync(path.join(coord, 'planning.json.away'), path.join(coord, 'planning.json'));
   launched = await launch({ dataDirectory: home.dataDirectory });
-  await expect(tabs()).toHaveText(['Northwind', 'Coord']);
+  await expect(launched.window.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(launched.window.locator('.work-main .breadcrumb')).toContainText('Coord');
 });
 
-/** File › New Window, from the first window. */
-async function newWindow(app: ElectronApplication): Promise<Page> {
-  const opened = app.waitForEvent('window');
-  await app.evaluate(({ Menu, BrowserWindow }) => {
-    Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === 'New &Window')!.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
-  });
-  const page = await opened;
-  await page.waitForLoadState('domcontentloaded');
-  return page;
-}
-/** Open a work item's plan from the project page shown, and see it read from its folder. */
-async function openPlan(window: Page, title: string) {
-  await window.locator('.work-row a', { hasText: title }).click({ modifiers: ['Control'] });
-  await expect(window.locator('.work-header h1')).toHaveText(title);
+/** Open a plan of the project Shop from the hub, and see it read from its folder. */
+async function openShopPlan(window: Page, title: string) {
+  await window.getByRole('searchbox', { name: 'Search plans' }).fill('shop ' + title);
+  await openPlan(window, title);
+  await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
   await expect(window.locator('.reader .prose')).toContainText('Outcome');
 }
 
@@ -101,37 +93,38 @@ test('a project moved into the home moves along in every window; a refused move 
   database.close();
   launched = await launchProject(home);
   const { app, window } = launched;
-  const shop = (page: Page) => sidebarProject(page, 'Shop');
-  const openShop = async (page: Page) => { await shop(page).click(); await expect(page.locator('.project-page h1')).toHaveText('Shop'); };
-  await openShop(window);
+  await openShopPlan(window, 'Saved payment methods');
   // Closing another window that showed the project leaves it open in this one.
-  await openShop(await newWindow(app));
+  await openShopPlan(await newWindow(app), 'Customer order notifications');
   await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
   await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(1);
-  await openPlan(window, 'Saved payment methods');
+  await expect(window.locator('.reader .prose')).toContainText('Current checkout');
   const second = await newWindow(app);
-  await openShop(second);
+  await openShopPlan(second, 'Customer order notifications');
 
   // A move that is refused (the folder is not a Git repository now) leaves it followed where it is.
   renameSync(path.join(outside, '.git'), path.join(outside, '.git-away'));
-  await shop(window).click({ button: 'right' });
-  await window.getByRole('menuitem', { name: 'Move into the Atlas home' }).click();
+  await openProjects(window);
+  await expect(projectRow(window, 'Shop')).toContainText('Outside the Atlas home');
+  await projectAction(window, 'Shop', 'Move into the Atlas home');
   await expect(window.locator('.env-toast-message', { hasText: 'is not the top of a Git repository' })).toBeVisible();
-  await window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab', { name: 'Shop' }).click();
-  await openPlan(window, 'Order fulfilment model');
 
-  // Moved, the project's tabs and history follow it in every window: here, and in the other one.
+  // Moved, what shows of the project and its history follow it in every window: here, and in the other one.
   renameSync(path.join(outside, '.git-away'), path.join(outside, '.git'));
-  await shop(window).click({ button: 'right' });
-  await window.getByRole('menuitem', { name: 'Move into the Atlas home' }).click();
+  await projectAction(window, 'Shop', 'Move into the Atlas home');
   await expect(window.locator('.env-toast-message', { hasText: 'Moved Shop into the Atlas home' })).toBeVisible();
-  await expect(shop(second)).not.toContainText('Outside home');
-  await openPlan(second, 'Customer order notifications');
+  await expect(projectRow(window, 'Shop')).not.toContainText('Outside the Atlas home');
+  await expect(second.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(second.locator('.reader .prose')).toContainText('Outcome');
   await second.keyboard.press('Alt+ArrowLeft');
-  await expect(second.locator('.project-page h1')).toHaveText('Shop');
-  await window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab', { name: 'Saved payment methods' }).click();
+  await expectHub(second);
+  await second.keyboard.press('Alt+ArrowRight');
+  await expect(second.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(second.locator('.work-main .breadcrumb')).toContainText('Shop');
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect(window.locator('.reader .prose')).toContainText('Current checkout');
+  await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
 });
 
 test('a window closed by hand is forgotten; the last one stays for the next start', async () => {
@@ -139,11 +132,10 @@ test('a window closed by hand is forgotten; the last one stays for the next star
   homes.push(home.dataDirectory);
   launched = await launchProject(home);
   const { app } = launched;
-  await app.evaluate(({ Menu, BrowserWindow }) => {
-    Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === 'New &Window')!.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
-  });
+  await openPlan(launched.window, 'Order fulfilment model');
+  await newWindow(app);
   await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(2);
-  // The new window closes by hand; the first keeps its project tab when Atlas quits.
+  // The new window closes by hand; the first keeps its plan when Atlas quits.
   await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
   await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(1);
   await launched.window.waitForTimeout(600);
@@ -151,15 +143,14 @@ test('a window closed by hand is forgotten; the last one stays for the next star
   await app.waitForEvent('close').catch(() => undefined);
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(1);
-  await expect(launched.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind']);
+  await expect(launched.window.locator('.work-header h1')).toHaveText('Order fulfilment model');
 });
 
-test('Help › About Atlas shows the version in the window and copies the details', async () => {
+test('About Atlas, from the menu, shows the version in the window and copies the details', async () => {
   launched = await launch();
   const { app, window } = launched;
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
-  await window.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'Help' }).click();
-  await window.getByRole('menuitem', { name: 'About Atlas' }).click();
+  await chooseMenu(window, 'About Atlas');
   const about = window.getByRole('dialog', { name: 'Atlas' });
   await expect(about).toContainText('Version ' + version);
   await expect(about).toContainText('Atlas works offline.');

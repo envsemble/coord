@@ -1,6 +1,6 @@
 // Remote access between two copies of Atlas: one turns remote access on, the other pairs with a
-// one-time link and then works on the first computer's projects as if they were local: listed in
-// its sidebar (ordered and hidden its own way), read, renamed and created there, plan export and
+// one-time link and then works on the first computer's projects as if they were local: their plans in
+// its hub, listed on its Projects page (hidden its own way), read, renamed and created there, plan export and
 // import, and switching between computers. Both run on this machine with their own homes; the
 // first listens on 127.0.0.1, since CI runners have no Tailscale.
 import { existsSync, readFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import type { AtlasBridge } from '../shared/contract.ts';
-import { close, expectProjects, launch, launchProject, newProjectButton, openProject, removeDirectory, sidebar, sidebarProject, temporaryDirectory, windowTitles, type Launched } from './app';
+import { close, expectHub, expectProjects, goHome, hubRows, launch, launchProject, openPlan, openProjects, projectAction, projectRow, removeDirectory, temporaryDirectory, windowTitles, type Launched } from './app';
 
 // The dialog's access line: the device list's confirm buttons announce through live regions of their own.
 const accessStatus = (dialog: Locator) => dialog.getByRole('status').and(dialog.locator('.access-status'));
@@ -43,6 +43,9 @@ const bridge = (page: Page) => ({
   }, [run.toString(), args] as const),
 });
 /** A project's folder ID on the window's computer, by its name. */
+/** The projects of the window's computer, by name, with their state when it is not active. */
+const projectNames = (page: Page) => bridge(page).call(async atlas => { const result = await atlas.projects(); return result.ok ? result.value.map(item => item.name + (item.state === 'active' ? '' : ' (' + item.state + ')')) : []; });
+const noProjects = (page: Page) => expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
 const folderIdOf = (page: Page, name: string) => bridge(page).call(async (atlas, wanted) => { const result = await atlas.projects(); return result.ok ? result.value.find(item => item.name === wanted)?.folderId ?? '' : ''; }, name);
 
 /** Turn remote access on for 127.0.0.1 in the open Remote Access dialog; returns the port. */
@@ -86,12 +89,12 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   expect(link).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/pair#token=[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$`));
   await expect(access.getByText('No paired devices.')).toBeVisible();
 
-  // The other Atlas pairs and shows that computer: its projects in the sidebar.
+  // The other Atlas pairs and shows that computer: its projects' plans in the hub.
   const readerData = temporaryDirectory('atlas-e2e-data-');
   folders.push(readerData);
   reading = await launch({ dataDirectory: readerData });
   const viewer = reading.window;
-  await expect(sidebar(viewer)).toContainText('No projects yet.');
+  await noProjects(viewer);
   await fileMenu(reading.app, 'Co&nnect to Another Atlas…');
   const connect = viewer.getByRole('dialog', { name: 'Connect to another Atlas' });
   await connect.getByLabel('Pairing link or address').fill(link);
@@ -100,7 +103,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await connect.getByRole('button', { name: 'Show ' + name }).click();
   await expect(viewer.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   await expect.poll(() => windowTitles(reading!.app)).toEqual([`${name} — Atlas`]);
-  await openProject(viewer);
+  await openPlan(viewer, 'Customer order notifications');
   // A paired device sees real paths: it is the same person's computer.
   const northwind = await folderIdOf(viewer, 'Northwind');
   expect(await bridge(viewer).call(async (atlas, id) => { const result = await atlas.snapshot(id); return result.ok ? result.value.root : result.error.message; }, northwind)).toBe(folder);
@@ -127,28 +130,40 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   const imported = await bridge(viewer).call(async (atlas, token) => atlas.confirmImport(token), (preview as { value: { token: string } }).value.token);
   expect(imported).toMatchObject({ ok: true, value: { workId: 'work-0005' } });
   expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toContain('work-0005');
-  await expect(viewer.locator('.work-row')).toHaveCount(4);
+  await goHome(viewer);
+  await expect(hubRows(viewer)).toHaveCount(4);
 
   // A project created from here is made on that computer, and both see it.
-  await newProjectButton(viewer).click();
-  await viewer.getByRole('dialog', { name: 'New project' }).getByLabel('Name').first().fill('Coord');
-  await viewer.getByRole('dialog', { name: 'New project' }).getByRole('button', { name: 'Create' }).click();
-  await expect(viewer.locator('.project-page h1')).toHaveText('Coord');
+  // (It covers a folder there, typed in: it cannot be browsed for from here.)
+  const workspace = temporaryDirectory('atlas-e2e-workspace-');
+  folders.push(workspace);
+  await openProjects(viewer);
+  await viewer.getByRole('button', { name: 'New project', exact: true }).click();
+  const create = viewer.getByRole('dialog', { name: 'New project' });
+  await create.getByLabel('Name').fill('Coord');
+  await expect(create.getByRole('button', { name: 'Browse…' })).toHaveCount(0);
+  await create.getByLabel('Folder').fill(workspace);
+  await expect(create).toContainText('when it creates the project');
+  await create.getByRole('button', { name: 'Create' }).click();
+  await expectProjects(viewer, ['Northwind', 'Coord']);
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
-  // (The owner's Remote Access dialog stays open, so its sidebar is read past the dialog.)
-  await expectProjects(owner, ['Northwind', 'Coord']);
+  // (The owner's Remote Access dialog stays open, so its projects are read through its bridge.)
+  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord']);
   // Renaming goes to that computer (the name is in the project's planning.json)...
-  await sidebarProject(viewer, 'Coord').click({ button: 'right' });
-  await viewer.getByRole('menuitem', { name: 'Rename…' }).click();
+  await projectAction(viewer, 'Coord', 'Rename…');
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Coord platform');
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
-  await expectProjects(owner, ['Northwind', 'Coord platform']);
-  // ...while hiding and the order are this app's own.
-  await sidebarProject(viewer, 'Northwind').click({ button: 'right' });
-  await viewer.getByRole('menuitem', { name: 'Hide' }).click();
+  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
+  // ...while hiding is this app's own.
+  await projectAction(viewer, 'Northwind', 'Hide');
   await expectProjects(viewer, ['Coord platform']);
+  await expectProjects(viewer, ['Northwind'], 'Hidden and archived projects');
   await viewer.waitForTimeout(500);
-  await expectProjects(owner, ['Northwind', 'Coord platform']);
+  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
+  // A hidden project's plans are reached from its name there.
+  await projectRow(viewer, 'Northwind', 'Hidden and archived projects').getByRole('button', { name: 'Northwind', exact: true }).click();
+  await expectHub(viewer, 'Northwind');
+  await openPlan(viewer, 'Customer order notifications');
 
   // With Manage access, this Atlas pairs and revokes devices of that computer, but cannot change how it is reached.
   await viewer.bringToFront();
@@ -165,24 +180,22 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   // Switching to this computer, which has no projects, and back.
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
   await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: 'This computer' }).click();
-  await expect(sidebar(viewer)).toContainText('No projects yet.');
-  await expect(viewer.getByRole('tablist', { name: 'Open tabs' })).toHaveCount(0);
+  await noProjects(viewer);
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
   await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: /127\.0\.0\.1/ }).click();
-  await expectProjects(viewer, ['Coord platform']);
-  // Its tabs of that computer come back with it.
-  await expect(viewer.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind', 'Coord platform']);
+  // What it showed of that computer comes back with it.
+  await expect(viewer.locator('.work-header h1')).toHaveText('Customer order notifications');
 
-  // Next launch, this Atlas shows that computer again with its saved credential, tabs and hidden project.
+  // Next launch, this Atlas shows that computer again with its saved credential, place and hidden project.
   await viewer.waitForTimeout(600);
   await close(reading);
   reading = await launch({ dataDirectory: readerData });
   await expect(reading.window.getByRole('button', { name: /^Computer:/ })).toContainText(name);
-  await expect(reading.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind', 'Coord platform']);
-  await expect(reading.window.locator('.project-group summary')).toContainText('Hidden and archived');
+  await expect(reading.window.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect.poll(() => projectNames(reading!.window).then(names => names.sort())).toEqual(['Coord platform', 'Northwind (hidden)']);
 
-  // Started while that computer cannot be reached, the window shows at once and keeps its tabs
-  // (also through a save meanwhile); they come back when the computer answers again.
+  // Started while that computer cannot be reached, the window shows at once, on the hub, and keeps its
+  // place (also through a save meanwhile); it comes back when the computer answers again.
   await reading.window.waitForTimeout(600);
   await close(reading);
   const allow = access.getByLabel('Allow paired devices to connect to this computer');
@@ -192,24 +205,21 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   reading = await launch({ dataDirectory: readerData });
   await expect(reading.window.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   expect(Date.now() - restarted).toBeLessThan(12_000);
-  await expect(reading.window.getByRole('tablist', { name: 'Open tabs' })).toHaveCount(0);
-  await reading.window.keyboard.press('Control+B');
-  await reading.window.keyboard.press('Control+B');
+  await expect(reading.window.locator('.hub')).toBeVisible();
   await reading.window.waitForTimeout(600);
   await allow.click();
   await expect(accessStatus(access)).toHaveText(`Listening on 127.0.0.1:${port}.`);
-  await expect(reading.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind', 'Coord platform'], { timeout: 60_000 });
+  await expect(reading.window.locator('.work-header h1')).toHaveText('Customer order notifications', { timeout: 60_000 });
 
   // Revoking the device ends its access at once; the window keeps the last view and says why.
-  await reading.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab', { name: 'Northwind' }).click();
-  await expect(reading.window.locator('.work-row')).toHaveCount(4);
+  await expect(reading.window.locator('.reader .prose')).toContainText('Outcome');
   await access.getByRole('button', { name: 'Revoke…' }).click();
   // envUI's confirm button ignores a second press that comes as fast as a double click.
   await sharing.window.waitForTimeout(600);
   await access.getByRole('button', { name: 'Revoke access' }).click();
   await expect(access.getByText('No paired devices.')).toBeVisible();
   await expect(reading.window.getByRole('alert')).toContainText('was revoked');
-  await expect(reading.window.locator('.work-row')).toHaveCount(4);
+  await expect(reading.window.locator('.work-header h1')).toHaveText('Customer order notifications');
 
   // Forgetting the computer shows this computer in its windows, and nothing about the other computer is kept.
   const last = reading.window;
@@ -219,7 +229,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await computers.getByRole('button', { name: 'Forget', exact: true }).click();
   await last.waitForTimeout(600);
   await computers.getByRole('button', { name: `Forget ${name}` }).click();
-  await expect(sidebar(last)).toContainText('No projects yet.');
+  await noProjects(last);
   await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);
   const kept = () => {
     const database = new DatabaseSync(path.join(readerData, 'atlas.db'), { readOnly: true });

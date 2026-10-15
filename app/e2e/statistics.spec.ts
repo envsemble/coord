@@ -1,21 +1,77 @@
 // Work statistics from agent reports (<work>/.atlas/statistics.jsonl in the fixture, imported into the
-// home's database as the fixture is adopted into it) and Git: the project page's Statistics section,
-// its Work and Models tabs, and the About sidebar of a work item. The fixture has an
+// home's database as the fixture is adopted into it) and Git: the Statistics page, opened from the menu
+// for one project at a time, its Work and Models tabs, and the About sidebar of a work item. The fixture has an
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
-import { expect, test } from '@playwright/test';
-import { close, launchProject, type Launched } from './app';
+import { expect, test, type Page } from '@playwright/test';
+import { addProject, chooseMenu, close, goHome, launch, launchProject, openPlan, pageScroll, projectHome, removeDirectory, type Launched } from './app';
 
 let launched: Launched | undefined;
 /** Numbers as the window formats them, whatever the system locale. */
 const compact = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(number), value);
 const whole = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => number.toLocaleString(), value);
-test.afterEach(async () => { await close(launched); launched = undefined; });
+const homes: string[] = [];
+test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
+/** The menu's Statistics page, of the project given or the one it chooses. */
+async function openStatistics(window: Page, project = 'Northwind') {
+  await chooseMenu(window, 'Statistics');
+  await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
+  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(new RegExp(project));
+}
+
+test('Statistics, from the menu, shows one project at a time: the project of the plan last open, else the first', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  addProject(home.dataDirectory, 'coord', 'Coord');
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  const { window } = launched;
+  await openStatistics(window, 'Northwind');
+  await expect(window.locator('.work-statistics-table')).toBeVisible();
+  // The picker shows another project's.
+  await window.getByRole('combobox', { name: 'Project' }).click();
+  await window.getByRole('option', { name: 'Coord' }).click();
+  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(/Coord/);
+  await expect(window.locator('.work-statistics-table')).toBeVisible();
+  // Back returns to Northwind's.
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(/Northwind/);
+  // After a plan of Coord, Statistics shows Coord's.
+  await goHome(window);
+  await window.getByRole('searchbox', { name: 'Search plans' }).fill('coord');
+  await openPlan(window, 'Saved payment methods');
+  await openStatistics(window, 'Coord');
+  // A plan keeps its own statistics in its side column.
+  await window.locator('.work-statistics-table tr', { hasText: 'Saved payment methods' }).getByRole('link').click();
+  await expect(window.locator('.about-section h2', { hasText: 'Statistics' })).toBeVisible();
+});
+
+test('a wheel over the work statistics table scrolls the page', async () => {
+  launched = await launchProject();
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(1200, 520); });
+  await openStatistics(window);
+  const table = window.getByRole('table', { name: 'Work statistics' });
+  await expect(table.getByRole('row').nth(1)).toBeVisible();
+  await table.evaluate(element => element.scrollIntoView({ block: 'center' }));
+  await window.waitForTimeout(300);
+  const before = await pageScroll(window);
+  const delta = before > 300 ? -250 : 250;
+  // As far as the page can scroll that way, up to the wheel's step.
+  const room = Math.min(100, await window.evaluate(down => { const element = document.querySelector('.env-window-frame-content')!; return down ? element.scrollHeight - element.clientHeight - element.scrollTop : element.scrollTop; }, delta > 0));
+  expect(room).toBeGreaterThan(20);
+  // A point over the table, within the window.
+  const box = (await table.boundingBox())!;
+  const point = { x: box.x + box.width / 2, y: Math.min(Math.max(box.y, 140) + 80, box.y + box.height - 10) };
+  expect(await window.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('table[aria-label="Work statistics"]')), point)).toBe(true);
+  await window.mouse.move(point.x, point.y);
+  await window.mouse.wheel(0, delta);
+  await expect.poll(async () => Math.abs(await pageScroll(window) - before)).toBeGreaterThan(room - 2);
+});
 
 test('the Work tab lists each work item with its model, planning and implementation, subagents, plan revisions and steps', async () => {
   launched = await launchProject();
   const { window } = launched;
-  // The same segmented control as the work list's filter.
+  await openStatistics(window);
   await expect(window.getByRole('radiogroup', { name: 'Statistics sections' }).getByRole('radio', { name: 'Work' })).toBeChecked();
   await expect(window.locator('.stats-grid .stat').first().locator('.stat-value')).toHaveText('2');
   const agentTime = window.locator('.stats-grid .stat', { hasText: 'Agent time' });
@@ -57,6 +113,7 @@ test('the Work tab lists each work item with its model, planning and implementat
 test('the Models tab plots completed work over time by implementing model, with a table and a tooltip', async () => {
   launched = await launchProject();
   const { window } = launched;
+  await openStatistics(window);
   await window.getByRole('radiogroup', { name: 'Statistics sections' }).getByRole('radio', { name: 'Models over time' }).click();
   await expect(window.locator('.chart-dot')).toHaveCount(1);
   await expect(window.locator('.chart-legend')).toContainText('GPT-6.1 Sol');
@@ -84,7 +141,7 @@ test('the Models tab plots completed work over time by implementing model, with 
 test('a work item\'s About sidebar sums up its statistics, by stage and with its subagents, with what agent time and tokens stand for on hover and focus', async () => {
   launched = await launchProject();
   const { window } = launched;
-  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
+  await openPlan(window, 'Saved payment methods');
   const statistics = window.locator('.about-section', { has: window.locator('h2', { hasText: 'Statistics' }) });
   await expect(statistics.locator('.work-statistics-primary')).toHaveText('Claude Opus 5.5');
   await expect(statistics.locator('.work-statistics-model .provider-mark')).toHaveAttribute('data-provider', 'anthropic');
