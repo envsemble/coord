@@ -331,9 +331,11 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   /** Open a path of a project (read first when the window does not have it yet) as a tab of what it is. */
   const openPath = useCallback(async (project: string, path: string, anchor: string | null, options: OpenOptions = {}) => {
     // Followed while it is read; let go again unless a tab of it opens.
-    follow([project]);
     const release = () => { if (!tabsShown.current.has(project)) unfollow(project); };
     try {
+      // Opened before it is followed, so the snapshot is asked for once the folder is open.
+      if (!snapshots[project]) await api.openProject(project);
+      follow([project]);
       const snapshot = snapshots[project] ?? await api.snapshot(project);
       const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
