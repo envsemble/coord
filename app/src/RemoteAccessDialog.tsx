@@ -1,4 +1,4 @@
-// Remote Access…: let your other devices use this computer's planning folders. Off by default. The
+// Remote Access…: let your other devices use this computer's projects. Off by default. The
 // owner picks how the computer is reached (Tailscale, a local network, or only this machine),
 // creates five-minute one-time pairing links shown with a QR code, and revokes paired devices. A
 // paired device gets the whole computer; the pairing link may also grant it Manage access, so it
@@ -93,7 +93,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
   </Dialog>;
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={title} className="remote-access-dialog" closeLabel="Done"
     description={here
-      ? 'Pair your other devices, such as your laptop, to work on this computer from them: they browse its folders, open any planning folder, and import and export plans, as Atlas does here. Pair only your own devices.'
+      ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects, create new ones, and import and export plans, as Atlas does here. Pair only your own devices.'
       : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}>
     {!state ? (error ? <Notice tone="error" announce>{error}</Notice> : <Spinner label="Loading remote access" />) : <>
       {state.problem ? <Notice tone="error" announce>{state.problem}</Notice>
@@ -138,7 +138,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
           <Input label="Device label (optional)" className="pairing-label" value={label} maxLength={80} onChange={event => setLabel(event.target.value)} placeholder="e.g. Work laptop" spellCheck={false} autoComplete="off" disabled={busy || managed} />
           <fieldset className="pairing-permissions">
             <legend className="field-legend">Permissions</legend>
-            <p className="pairing-permission is-fixed"><CheckIcon className="pairing-permission-icon" /><span><strong>Use this computer</strong><span className="muted">Browse its folders, open any planning folder, import and export plans. Every paired device can.</span></span></p>
+            <p className="pairing-permission is-fixed"><CheckIcon className="pairing-permission-icon" /><span><strong>Use this computer</strong><span className="muted">Work on its projects, create new ones, import and export plans. Every paired device can.</span></span></p>
             <Checkbox label={<span><strong>Manage access</strong><span className="muted"> Create pairing links, and list and revoke paired devices.</span></span>} aria-label="Manage access"
               checked={manageAccess} disabled={busy || managed} onCheckedChange={value => setManageAccess(value === true)} />
           </fieldset>

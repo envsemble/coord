@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atlas, git, homeWithPlanning, planText, temporary, write } from './testing.ts';
+import { atlas, git, homeWithPlanning, planText, reportsIn, temporary, write } from './testing.ts';
 
 test('a checkout finds its planning folder in the home and drives a work item through its life', t => {
   const { root, checkout, env } = homeWithPlanning(t);
@@ -74,12 +74,13 @@ test('atlas check checks a checkout\'s planning folder, files and folders with 0
   assert.equal(atlas(['check'], { env, cwd: nowhere }).status, 1);
 });
 
-test('atlas home lists the home\'s planning folders and adopts one, refusing a taken name', t => {
+test('atlas home lists the home\'s projects and adopts a planning folder, importing its statistics, refusing a taken name', t => {
   const { home, root, directory, env } = homeWithPlanning(t);
   const listed = atlas(['home'], { env });
-  assert.deepEqual(JSON.parse(listed.stdout), { home, planningFolders: [root] });
+  assert.deepEqual(JSON.parse(listed.stdout), { home, projects: [{ name: 'shop-planning', planningFolder: root }] });
   const other = path.join(directory, 'old-planning');
-  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'app', name: 'App', path: '../app' }], work_items: [] }, null, 2) + '\n');
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Old', repositories: [{ id: 'app', name: 'App', path: '../app' }], work_items: [{ id: 'work-0001', path: 'active/0001-old', repositories: ['app'], current_plan: null }] }, null, 2) + '\n');
+  write(path.join(other, 'active/0001-old/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T10:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
   git(other, 'init', '-q');
   const refused = atlas(['home', 'adopt', other, '--name', 'shop-planning'], { env });
   assert.equal(refused.status, 1);
@@ -88,9 +89,12 @@ test('atlas home lists the home\'s planning folders and adopts one, refusing a t
   assert.equal(adopted.status, 0, adopted.stderr);
   const moved = path.join(home, 'planning', 'old-planning');
   assert.deepEqual(JSON.parse(adopted.stdout).rewritten, [{ id: 'app', from: '../app', to: path.join(directory, 'app') }]);
+  assert.equal(JSON.parse(adopted.stdout).project, 'Old');
+  assert.match(adopted.stderr, /Imported 1 work report into the Atlas home database and deleted active\/0001-old\/\.atlas\/statistics\.jsonl from .*commit the removal/);
+  assert.equal(reportsIn(moved, 'work-0001', home).length, 1);
   assert.ok(!existsSync(other) && existsSync(path.join(moved, '.git')));
   assert.equal(JSON.parse(readFileSync(path.join(moved, 'planning.json'), 'utf8')).repositories[0].path, path.join(directory, 'app'));
-  assert.deepEqual(JSON.parse(atlas(['home', 'list'], { env }).stdout).planningFolders, [moved, root]);
+  assert.deepEqual(JSON.parse(atlas(['home', 'list'], { env }).stdout).projects, [{ name: 'Old', planningFolder: moved }, { name: 'shop-planning', planningFolder: root }]);
   assert.equal(atlas(['home', 'adopt'], { env }).status, 2);
   assert.equal(atlas(['home', 'move', other], { env }).status, 2);
 });

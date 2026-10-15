@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/atlas-diagrams",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Internal Atlas diagram package: Atlas's PlantUML subset, captures from code and databases, layout, the React viewer and offline export",
   "repository": {
@@ -30,7 +30,7 @@
     "node": ">=22.12.0"
   },
   "devDependencies": {
-    "@envsemble/envui": "0.5.0",
+    "@envsemble/envui": "0.6.0",
     "@types/react": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "peggy": "5.1.0",

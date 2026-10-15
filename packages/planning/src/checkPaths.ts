@@ -1,6 +1,7 @@
-// `atlas check`: check files or whole planning folders. Plans, ledgers, the registry and statistics
-// lines go through the planning check (validatePlanning), whose findings are attributed to the file
-// they name; other kinds of file are checked by the checker registered for their extension.
+// `atlas check`: check files or whole planning folders. Plans, ledgers and the registry go through
+// the planning check (validatePlanning), whose findings are attributed to the file they name; other
+// kinds of file are checked by the checker registered for their extension. A diagram in a work
+// folder that no Markdown document of its work item links is a warning: plans link their diagrams.
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import atlas from '@envsemble/atlas-diagrams';
@@ -71,7 +72,7 @@ function checkedFiles(root: string, relative = ''): string[] {
 
 /** The file a planning check message is about (`active/x/plan.md: ...`), or null for a registry message. */
 function subject(message: string) {
-  const match = /^([^\s:]+?\.(?:md|jsonl)|[^\s:]+\/\.atlas): /.exec(message.replaceAll('\\', '/'));
+  const match = /^([^\s:]+?\.md): /.exec(message.replaceAll('\\', '/'));
   return match ? match[1] : null;
 }
 
@@ -80,7 +81,7 @@ function subject(message: string) {
  * findings about it (planning.json gets the registry's). Paths outside every planning folder are
  * errors. Several paths in one planning folder share one check.
  */
-export function checkPaths(paths: string[]): CheckResult[] {
+export async function checkPaths(paths: string[]): Promise<CheckResult[]> {
   const groups = new Map<string, { files: string[]; whole: boolean }>();
   const outside: string[] = [];
   for (const target of paths) {
@@ -98,17 +99,69 @@ export function checkPaths(paths: string[]): CheckResult[] {
     const about = (message: string) => {
       if (group.whole) return true;
       const named = subject(message);
-      return group.files.some(file => named === null ? file === 'planning.json' : named === file || named.startsWith(file + '/') || (file.endsWith('statistics.jsonl') && named === file.replace(/\/statistics\.jsonl$/, '')));
+      return group.files.some(file => named === null ? file === 'planning.json' : named === file || named.startsWith(file + '/'));
     };
     const result: CheckResult = { planningFolder: root, files: group.whole ? [] : group.files, errors: errors.filter(about), warnings: warnings.filter(about) };
-    for (const file of group.whole ? checkedFiles(root) : group.files) {
+    const files = group.whole ? checkedFiles(root) : group.files;
+    for (const file of files) {
       const checker = fileCheckers.get(path.posix.extname(file).toLowerCase());
       if (!checker || !statSync(path.join(root, file), { throwIfNoEntry: false })?.isFile()) continue;
       const found = checker(root, file);
       result.errors.push(...found.errors);
       result.warnings.push(...found.warnings);
     }
+    const diagrams = files.filter(file => /\.puml$/i.test(file));
+    if (diagrams.length) result.warnings.push(...await unlinkedDiagrams(root, diagrams));
     results.push(result);
   }
   return results;
+}
+
+/** The Markdown and diagram files of a folder, relative to it (hidden and build folders aside). */
+function workFiles(folder: string, relative = ''): string[] {
+  const found: string[] = [];
+  let entries;
+  try { entries = readdirSync(path.join(folder, relative), { withFileTypes: true }); } catch { return found; }
+  for (const entry of entries) {
+    if (entry.name.startsWith('.') || ['node_modules', 'dist', 'build'].includes(entry.name)) continue;
+    const child = relative ? relative + '/' + entry.name : entry.name;
+    if (entry.isDirectory()) found.push(...workFiles(folder, child));
+    else if (entry.isFile() && /\.(?:md|puml)$/i.test(entry.name)) found.push(child);
+  }
+  return found;
+}
+
+/**
+ * Warnings for the diagrams given (relative to the planning folder) that sit in a registered work
+ * folder and that no Markdown document in the planning folder links. The work item's own documents
+ * are read first; the rest of the folder only for a diagram they do not link. The Markdown parser
+ * loads only here.
+ */
+async function unlinkedDiagrams(root: string, diagrams: string[]): Promise<string[]> {
+  let items: { id?: unknown; path?: unknown }[];
+  try { items = JSON.parse(readFileSync(path.join(root, 'planning.json'), 'utf8').replace(/^﻿/, '')).work_items; } catch { return []; }
+  if (!Array.isArray(items)) return [];
+  const [{ diagramLinks }, { markdownBody }] = await Promise.all([import('./diagramLinks.ts'), import('./headings.ts')]);
+  const key = (value: string) => process.platform === 'win32' || process.platform === 'darwin' ? value.toLowerCase() : value;
+  const linked = new Set<string>(), read = new Set<string>();
+  const readLinks = (documents: string[]) => {
+    for (const relative of documents) {
+      if (read.has(relative)) continue;
+      read.add(relative);
+      try { for (const link of diagramLinks(markdownBody(readFileSync(path.join(root, ...relative.split('/')), 'utf8')), relative)) linked.add(key(link.target)); }
+      catch { /* An unreadable document links nothing. */ }
+    }
+  };
+  const markdown = (files: string[]) => files.filter(name => /\.md$/i.test(name));
+  const unlinked: string[] = [];
+  for (const item of items) {
+    if (typeof item?.id !== 'string' || typeof item.path !== 'string') continue;
+    const location = item.path.replace(/\/+$/, '');
+    const asked = diagrams.filter(file => key(file).startsWith(key(location) + '/'));
+    if (!asked.length) continue;
+    readLinks(markdown(workFiles(path.join(root, ...location.split('/')))).map(file => location + '/' + file));
+    unlinked.push(...asked.filter(file => !linked.has(key(file))));
+  }
+  if (unlinked.length) readLinks(markdown(workFiles(root)));
+  return unlinked.filter(file => !linked.has(key(file))).map(file => `${file}: no document links this diagram; link it from the plan under the heading it explains`);
 }

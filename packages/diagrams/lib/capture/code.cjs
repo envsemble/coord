@@ -14,6 +14,13 @@ const BOUNDS = {
   members: 4000,
 };
 const slash = (value) => value.replaceAll("\\", "/");
+// A declaration's own JSDoc text, which its description summarizes.
+const jsDoc = (ts, node) =>
+  ts
+    .getJSDocCommentsAndTags(node)
+    .filter(ts.isJSDoc)
+    .map((doc) => ts.getTextOfJSDocComment(doc.comment) || "")
+    .at(-1) || "";
 function contained(root, file) {
   const resolved = fs.realpathSync(file),
     relative = path.relative(fs.realpathSync(root), resolved);
@@ -475,6 +482,7 @@ async function captureTypeScript(options) {
                 }),
             modifiers: modifiers(member),
             optional: !!member.questionToken,
+            description: jsDoc(ts, member),
             location: {
               file,
               startLine:
@@ -499,6 +507,7 @@ async function captureTypeScript(options) {
                 ),
                 modifiers: modifiers(parameter),
                 optional: !!parameter.questionToken,
+                description: jsDoc(ts, parameter),
                 location: {
                   file,
                   startLine:
@@ -534,6 +543,7 @@ async function captureTypeScript(options) {
           methods,
           ...(kind === "enum" ? { literals: attributes } : {}),
           location,
+          description: jsDoc(ts, node),
           abstract: !!node.modifiers?.some(
             (m) => m.kind === ts.SyntaxKind.AbstractKeyword,
           ),

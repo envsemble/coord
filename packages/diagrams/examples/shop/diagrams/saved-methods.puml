@@ -38,12 +38,14 @@ package src {
     charge(amount: number, token: string) : Promise<string>
   }
 
+  ' atlas description Keeps the payment methods customers save.
   ' atlas evidence {"file":"src/vault.ts"}
   interface Vault {
     save(customerId: string, token: string) : Promise<SavedMethod>
     methodsOf(customerId: string) : Promise<SavedMethod[]>
   }
 
+  ' atlas description A card a customer saved, kept as a token.
   class SavedMethod {
     id : string
     token : string

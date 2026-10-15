@@ -27,7 +27,7 @@ export function AboutDialog({ onClose, onError }: { onClose(): void; onError(mes
       <CopyButton text={details} label="Copy Details" />
     </>}>
     <Text>Plans, models and shared understanding for agents and the people they work with.</Text>
-    <Text variant="supporting" tone="muted">Atlas works offline. Plans, models, statistics and logs stay on this computer, unless you turn on remote access (File › Remote Access…) so your paired devices can use its planning folders.</Text>
+    <Text variant="supporting" tone="muted">Atlas works offline. Plans, models, statistics and logs stay on this computer, unless you turn on remote access (File › Remote Access…) so your paired devices can use its projects.</Text>
     <dl className="facts about-dialog-facts">
       {versions.map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}
       <div><dt>Atlas home</dt><dd><bdi>{about.dataFolder}</bdi></dd></div>

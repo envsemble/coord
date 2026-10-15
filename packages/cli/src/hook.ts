@@ -2,15 +2,15 @@
 // event as JSON on stdin and read JSON from stdout. A hook never breaks a session: on any failure it
 // prints nothing, exits 0 and notes the failure in the home's logs/hooks.log.
 //
-// SessionStart tells the agent its planning folder and active work. PostToolUse checks the files
-// the agent edited in the home's planning folders (blocking with the problems so it fixes them), links the
-// session to the work item it edits or calls an Atlas tool on, and records the planning files it
-// reads as document use. Stop and SubagentStop record the
-// work statistics of each linked work item from the session's log.
-import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+// SessionStart tells the agent the projects its checkout's repository belongs to and their active
+// work. PostToolUse checks the files the agent edited in the home's planning folders (blocking with
+// the problems so it fixes them), links the session to the work item it edits or calls an Atlas tool
+// on (in the home database), and records the planning files it reads as document use. Stop and
+// SubagentStop record the work statistics of each linked work item from the session's log.
+import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { acquireFileLock, atlasHome, checkPaths, findPlanning, homePlanningDirectory, logConsultation, parseFrontmatter, recordWorkReport, resolvePlanningFolder, type Whereabouts } from '@envsemble/atlas-planning';
+import { atlasHome, checkPaths, findPlanning, HomeDatabase, homePlanningDirectory, logConsultation, parseFrontmatter, projectOf, recordWorkReport, resolvePlanningFolder, type Whereabouts } from '@envsemble/atlas-planning';
 import type { Output } from './args.ts';
 
 export interface HookInput {
@@ -19,11 +19,12 @@ export interface HookInput {
   agent_id?: string; agent_type?: string; agent_transcript_path?: string;
 }
 /**
- * A work item the session touched; `linked` is when, so the session's first report measures from
- * then, and `amended` when it last edited the accepted plan, so a report clears only what it counted.
+ * A work item the session touched (a session_work row): `linked` is when, so the session's first
+ * report measures from then, and `amended` when it last edited the accepted plan, so a report
+ * clears only what it counted.
  */
-interface Link { planningFolder: string; workId: string; amending: boolean; linked?: string; amended?: string }
-interface SessionLinks { session: string; transcriptPath: string | null; updated: string; work: Link[] }
+interface Link { projectId: number; planningFolder: string; workId: string; amending: boolean; linked: string; amended: string | null }
+interface SessionLinks { session: string; transcriptPath: string | null; work: Link[] }
 
 const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const fileTools = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
@@ -45,65 +46,56 @@ function logFailure(home: string, event: string, error: unknown) {
   } catch { /* Nothing more to do. */ }
 }
 
-// ---- Session links ------------------------------------------------------------------------------
+// ---- Session links (the home database's session and session_work) -------------------------------
 
-/** Run a file operation, retrying while Windows briefly refuses a file another hook is reading or replacing. */
-function retrying<T>(action: () => T): T {
-  for (let attempt = 0; ; attempt++) {
-    try { return action(); }
-    catch (error) {
-      if (attempt >= 40 || !['EPERM', 'EACCES', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
-    }
-  }
+/** The session's links; a new session's when it has none. */
+function readLinks(database: HomeDatabase, session: string, transcriptPath: string | null): SessionLinks {
+  const saved = database.db.prepare('SELECT transcript_path FROM session WHERE id = ?').get(session) as { transcript_path: string | null } | undefined;
+  const rows = database.db.prepare('SELECT session_work.*, project.folder FROM session_work JOIN project ON project.id = session_work.project_id WHERE session_id = ? ORDER BY session_work.id').all(session) as Record<string, unknown>[];
+  return {
+    session, transcriptPath: transcriptPath ?? saved?.transcript_path ?? null,
+    work: rows.map(row => ({ projectId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending), linked: String(row.linked_at), amended: (row.amended_at as string | null) ?? null })),
+  };
 }
-
-function linksFile(home: string, session: string) { return path.join(home, 'sessions', session + '.json'); }
-/** The session's links; a new session's when there are none. A file that cannot be read is an error, so it is never overwritten. */
-function readLinks(home: string, session: string, transcriptPath: string | null): SessionLinks {
-  let value: SessionLinks | null = null;
-  try { value = JSON.parse(retrying(() => readFileSync(linksFile(home, session), 'utf8'))) as SessionLinks; }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
-  if (value?.session === session && Array.isArray(value.work)) return { ...value, transcriptPath: transcriptPath ?? value.transcriptPath };
-  return { session, transcriptPath, updated: new Date().toISOString(), work: [] };
+/** The harness a session runs in, as its log's place tells. */
+const harnessOf = (transcriptPath: string | null) => transcriptPath === null ? 'unknown' : /[\\/]\.codex[\\/]/.test(transcriptPath) ? 'codex' : 'claude-code';
+/**
+ * Record the session, or that it was seen again; `working` says whether its agent is in a turn
+ * (null leaves it as it was, as a subagent stopping does).
+ */
+function touchSession(database: HomeDatabase, session: string, transcriptPath: string | null, working: boolean | null) {
+  const now = new Date().toISOString();
+  database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET transcript_path = ifnull(excluded.transcript_path, transcript_path), updated_at = excluded.updated_at, working = ifnull(?, working)')
+    .run(session, harnessOf(transcriptPath), transcriptPath, now, now, working ? 1 : 0, working === null ? null : working ? 1 : 0);
 }
 /**
- * Change the session's links as they are on disk now, holding a lock file, so hooks of the same
- * session running at once (a slow Stop and a PostToolUse) never undo each other's changes. A lock
- * whose hook died is taken over at once (it names its process), one that cannot be judged after ten
- * seconds. `change` returns whether it changed anything.
+ * The session's agent is at work on its linked work (it just used a tool): say so for the app's live
+ * dot, at most once a minute, since this hook runs on every tool use.
  */
-async function updateLinks(home: string, session: string, transcriptPath: string | null, change: (links: SessionLinks) => boolean) {
-  const file = linksFile(home, session);
-  mkdirSync(path.dirname(file), { recursive: true });
-  const release = await acquireFileLock(file + '.lock', { waitMs: 5000, staleAfterMs: 10000 });
-  try {
-    const links = readLinks(home, session, transcriptPath);
-    if (!change(links)) return;
-    const temporary = file + '.' + process.pid + '.tmp';
-    writeFileSync(temporary, JSON.stringify({ ...links, updated: new Date().toISOString() }, null, 2) + '\n');
-    retrying(() => renameSync(temporary, file));
-  } finally { await release(); }
+function markWorking(database: HomeDatabase, session: string, transcriptPath: string | null) {
+  const row = database.db.prepare('SELECT working, updated_at FROM session WHERE id = ?').get(session) as { working: number; updated_at: string } | undefined;
+  if (row?.working === 1 && Date.now() - Date.parse(row.updated_at) < 60_000) return;
+  touchSession(database, session, transcriptPath, true);
 }
-/** Link the session to a work item (amending, when it edits an accepted plan); whether that changed anything. */
-function link(links: SessionLinks, planningFolder: string, workId: string, amending: boolean) {
+/**
+ * Link the session to a work item (amending, when it edits an accepted plan). Hooks of one session
+ * running at once (a slow Stop and a PostToolUse) each change the links in a transaction of their own,
+ * so they never undo each other's changes.
+ */
+function link(database: HomeDatabase, session: string, projectId: number, workId: string, amending: boolean) {
   const now = new Date().toISOString();
-  const found = links.work.find(item => item.workId === workId && key(item.planningFolder) === key(planningFolder));
-  if (!found) { links.work.push({ planningFolder, workId, amending, linked: now, ...amending && { amended: now } }); return true; }
-  if (!amending) return false;
-  found.amending = true;
-  found.amended = now;
-  return true;
+  database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at, amending, amended_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (session_id, project_id, work_id) DO UPDATE SET amending = max(amending, excluded.amending), amended_at = ifnull(excluded.amended_at, amended_at)')
+    .run(session, projectId, workId, now, amending ? 1 : 0, amending ? now : null);
 }
 
 // ---- SessionStart -------------------------------------------------------------------------------
 
-/** The context a session starts with: its planning folder, its active work, and how to plan. Null when there is none. */
+/** The context a session starts with: its projects, their active work, and how to plan. Null when there is none. */
 export function sessionContext(where: Whereabouts): string | null {
   if (!where.matches.length) return null;
   const lines: string[] = [];
   for (const match of where.matches) {
-    lines.push(`Atlas planning folder for this checkout: ${match.planningFolder}${match.repositories.length ? ' (repositories: ' + match.repositories.join(', ') + ')' : ''}.`);
+    lines.push(`Atlas project "${match.project}" for this checkout: planning folder ${match.planningFolder}${match.repositories.length ? ' (repositories: ' + match.repositories.join(', ') + ')' : ''}.`);
     if (!match.work.length) lines.push('No active work for this checkout.');
     else lines.push('Active work:');
     for (const item of match.work.slice(0, 10)) {
@@ -113,6 +105,7 @@ export function sessionContext(where: Whereabouts): string | null {
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Atlas tool where).`);
   }
+  if (where.matches.length > 1) lines.push(`Several projects register this checkout's repository (${where.matches.map(match => match.project).join(', ')}): before planning, ask the user which project to plan in, and give its planning folder to the Atlas tools.`);
   lines.push('Planning: when the user designs something or asks for work big enough to plan, ask before opening a work item; small tasks stay plain coding. Change planning state (work items, steps, blocked, closing, archiving) through the Atlas tools; edit plan prose, glossaries and diagrams directly as files in the planning folder.');
   return lines.join('\n');
 }
@@ -193,7 +186,7 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   }
   if (!files.length) return { output: null, requests };
   const problems: string[] = [];
-  for (const result of checkPaths(files.map(file => file.absolute))) problems.push(...result.errors.map(message => path.basename(result.planningFolder) + ': ' + message));
+  for (const result of await checkPaths(files.map(file => file.absolute))) problems.push(...result.errors.map(message => path.basename(result.planningFolder) + ': ' + message));
   for (const file of files) {
     const work = await registered(file.root).catch(() => [] as Registered[]);
     const owner = work.filter(item => file.relative === item.path || file.relative.startsWith(item.path.replace(/\/+$/, '') + '/')).sort((a, b) => b.path.length - a.path.length)[0];
@@ -216,7 +209,8 @@ async function recordRead(input: HookInput, base: string, home: string, links: S
   const resolved = await realpath(path.resolve(input.cwd && path.isAbsolute(input.cwd) ? input.cwd : process.cwd(), file)).catch(() => null);
   if (!resolved || !inside(base, resolved)) return;
   const root = path.join(base, path.relative(base, resolved).split(path.sep)[0]);
-  const task = links.work.find(item => key(item.planningFolder) === key(root))?.workId;
+  const canonical = await realpath(root).catch(() => root);
+  const task = links.work.find(item => key(item.planningFolder) === key(canonical))?.workId;
   const result = await logConsultation(root, [resolved], { home, session: links.session, ...task && { task } });
   if (result.unavailable) logFailure(home, 'PostToolUse', new Error('document use not recorded: ' + result.unavailable));
 }
@@ -228,7 +222,7 @@ async function recordLinked(home: string, links: SessionLinks, event: string) {
   const amended: Link[] = [];
   for (const item of links.work) {
     try {
-      const recorded = await recordWorkReport(item.planningFolder, item.workId, { session: links.session }, { amending: item.amending, ...item.linked && { since: item.linked }, ...links.transcriptPath && { transcriptPath: links.transcriptPath } });
+      const recorded = await recordWorkReport(item.planningFolder, item.workId, { session: links.session }, { amending: item.amending, since: item.linked, atlasHome: home, ...links.transcriptPath && { transcriptPath: links.transcriptPath } });
       if (recorded.warnings.length) logFailure(home, event, new Error(item.workId + ': ' + recorded.warnings.join(' ')));
       if (item.amending) amended.push(item);
     } catch (error) { logFailure(home, event, error); }
@@ -239,6 +233,7 @@ async function recordLinked(home: string, links: SessionLinks, event: string) {
 /** Handle one hook event; returns what to print (nothing for most events). */
 export async function runHook(event: string, text: string, environment: NodeJS.ProcessEnv = process.env): Promise<string> {
   const home = atlasHome(undefined, environment);
+  let database: HomeDatabase | null = null;
   try {
     const input = JSON.parse(text || '{}') as HookInput;
     const session = typeof input.session_id === 'string' && sessionPattern.test(input.session_id) ? input.session_id : null;
@@ -247,31 +242,35 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       const context = sessionContext(await findPlanning(input.cwd ?? process.cwd(), { home }));
       return context ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }) : '';
     }
-    if (!session) return '';
-    const links = readLinks(home, session, transcriptPath);
+    if (!session || !['PostToolUse', 'Stop', 'SubagentStop'].includes(event)) return '';
+    database = HomeDatabase.open(home);
+    const links = readLinks(database, session, transcriptPath);
     if (event === 'PostToolUse') {
       const { output, requests } = await postToolUse(input, home, links);
-      if (requests.length) await updateLinks(home, session, transcriptPath, now => requests.reduce((changed, request) => link(now, request.planningFolder, request.workId, request.amending) || changed, false));
+      if (requests.length) {
+        const projects = await Promise.all(requests.map(request => projectOf(database!, request.planningFolder)));
+        database.transaction(() => {
+          touchSession(database!, session, transcriptPath, true);
+          requests.forEach((request, index) => link(database!, session, projects[index].id, request.workId, request.amending));
+        });
+      } else if (links.work.length) markWorking(database, session, transcriptPath);
       return output ? JSON.stringify(output) : '';
     }
-    if (event === 'Stop' || event === 'SubagentStop') {
-      if (!links.work.length) return '';
-      const began = new Date().toISOString();
-      const amended = await recordLinked(home, links, event);
-      // An amending edit made while the report was being recorded is counted by the next one.
-      await updateLinks(home, session, transcriptPath, now => {
-        for (const item of now.work) {
-          if (item.amended && item.amended >= began) continue;
-          if (amended.some(done => done.workId === item.workId && key(done.planningFolder) === key(item.planningFolder))) item.amending = false;
-        }
-        return true;
-      });
-    }
+    if (!links.work.length) return '';
+    const began = new Date().toISOString();
+    const amended = await recordLinked(home, links, event);
+    // An amending edit made while the report was being recorded is counted by the next one.
+    database.transaction(() => {
+      // The turn is over when the main agent stops; a subagent stopping leaves it as it is.
+      touchSession(database!, session, transcriptPath, event === 'Stop' ? false : null);
+      const clear = database!.db.prepare('UPDATE session_work SET amending = 0 WHERE session_id = ? AND project_id = ? AND work_id = ? AND (amended_at IS NULL OR amended_at < ?)');
+      for (const item of amended) clear.run(session, item.projectId, item.workId, began);
+    });
     return '';
   } catch (error) {
     logFailure(home, event, error);
     return '';
-  }
+  } finally { database?.close(); }
 }
 
 export async function hook(args: string[], out: Output) {

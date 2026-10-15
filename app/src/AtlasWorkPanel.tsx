@@ -1,10 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { AtlasPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
 import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
 import type { DiagramEntry, Target, Work } from './types';
 import { api } from './api';
-import { workTarget } from './targets';
+import { diagramTarget } from './targets';
 import { selectDiagram } from './diagramSelection';
 import { elementId, modelSummary } from '@envsemble/atlas-planning/provenance';
 import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, Surface, useThemePreference } from '@envsemble/envui';
@@ -13,7 +13,7 @@ import { DiagramIcon } from './icons';
 import { ProvenanceBadge } from './ui';
 import { useWorkbench } from './workbenchContext';
 
-type WorkTarget = Extract<Target, { kind: 'work' }>;
+type DiagramTarget = Extract<Target, { kind: 'diagram' }>;
 
 const byTitle = (a: DiagramEntry, b: DiagramEntry) => a.title.localeCompare(b.title, undefined, { numeric: true });
 const problemCount = (diagram: DiagramEntry) => diagram.problems.filter(problem => problem.severity === 'error').length;
@@ -87,13 +87,13 @@ function Problems({ diagram }: { diagram: DiagramEntry }) {
 }
 
 /**
- * A work item's diagrams: its `.puml` files. A capture and the proposals over it arrive together, laid
- * out once, so choosing another of them shows it at once in the same panel, with nothing moving;
- * another diagram loads. `sections` (the work page's switcher) comes first, at the top left, as it
- * does elsewhere.
+ * A work item's diagram, one of its `.puml` files, in a tab of its own. A capture and the proposals
+ * over it arrive together, laid out once, so choosing another of them shows it at once in the same
+ * panel, with nothing moving; another diagram loads. Its controls start at the top left; the way
+ * back to the plan is the tab's history or the plan's own tab.
  */
-export function AtlasWorkPanel({ work, target, sections }: { work: Work; target: WorkTarget; sections?: ReactNode }) {
-  const { retarget, revision, inspectorWidth, setInspectorWidth } = useWorkbench();
+export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTarget }) {
+  const { project, retarget, revision, inspectorWidth, setInspectorWidth } = useWorkbench();
   const { theme } = useThemePreference();
   const [diagrams, setDiagrams] = useState<DiagramEntry[] | null>(null);
   const [listError, setListError] = useState('');
@@ -103,7 +103,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
   const [shown, setShown] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const listed = diagrams ?? [];
-  const selected = selectDiagram(listed, shown, target.diagram || '');
+  const selected = selectDiagram(listed, shown, target.path || '');
   const entry = listed.find(diagram => diagram.path === selected);
   // The files drawn with this one, at the revisions listed now: its family, and the scenarios a class diagram shows.
   const family = entry?.family ? listed.filter(diagram => diagram.family === entry.family) : entry ? [entry] : [];
@@ -113,7 +113,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
   // The list is read again whenever the folder changes on disk.
   useEffect(() => {
     let current = true;
-    api.diagrams(work.id).then(next => {
+    api.diagrams(project, work.id).then(next => {
       if (!current) return;
       setDiagrams(next); setShown(previous => selectDiagram(next, previous)); setListError('');
     }).catch(error => {
@@ -121,19 +121,19 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
       setListError((error as Error).message); setDiagrams(previous => previous ?? []);
     });
     return () => { current = false; };
-  }, [work.id, revision]);
+  }, [project, work.id, revision]);
   useEffect(() => {
     // A diagram with problems is not drawn; its problems are shown instead.
     if (!selected || !diagrams || entry?.valid === false) { if (!selected) setLoaded(null); setDiagramError(null); return; }
     // A diagram that arrived with the one shown, at the revisions listed, needs no request.
     if (loaded?.payloads.has(selected) && loaded.revisions === expected) return;
     let current = true;
-    api.diagram(work.id, selected).then(answer => {
+    api.diagram(project, work.id, selected).then(answer => {
       if (!current) return;
       setLoaded(loadedFrom(selected, answer as Answer, expected)); setDiagramError(null);
     }).catch(error => { if (current) setDiagramError({ path: selected, message: (error as Error).message }); });
     return () => { current = false; };
-  }, [selected, expected, work.id, diagrams, entry?.valid]);
+  }, [project, selected, expected, work.id, diagrams, entry?.valid]);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -143,7 +143,7 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
     return () => { window.removeEventListener('keydown', key); document.body.classList.remove('has-fullscreen'); };
   }, [fullscreen]);
 
-  const select = (next: string) => retarget(workTarget(work.id, 'diagrams', { diagram: next }));
+  const select = (next: string) => retarget(diagramTarget(work.id, next));
   const picker = listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={loaded?.payloads ?? new Map()} open={pickerOpen} onOpenChange={setPickerOpen} onSelect={select} /> : null;
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
@@ -154,14 +154,13 @@ export function AtlasWorkPanel({ work, target, sections }: { work: Work; target:
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
         <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: elementId(payload.model, target.element) } : null}
-          leading={picker} sections={sections} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
+          leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>
       : <>
-        {(sections || picker) && <div className="diagrams-islands">
-          {sections}
+        <div className="diagrams-islands">
           {picker && <Surface tone="pane" corners="pill" padding={1} density="compact" className="diagrams-island">{picker}</Surface>}
-        </div>}
+        </div>
         {!diagrams ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
           : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Diagrams appear here when your agent writes PlantUML (.puml) files into this work folder; the atlas skill tells it how." /></div>
           : entry && !entry.valid ? <div className="diagrams-state"><Problems diagram={entry} /></div>

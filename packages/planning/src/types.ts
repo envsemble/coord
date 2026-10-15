@@ -99,7 +99,10 @@ export interface Usage {
 }
 /** What the reader returns for one planning folder, before usage statistics are attached. */
 export interface PlanningIndex {
-  root: string; loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; repositories: Repository[]; work: Work[];
+  root: string;
+  /** The project's name: the registry's `name`, else the folder's own name. */
+  name: string;
+  loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; repositories: Repository[]; work: Work[];
   documents: Document[]; history: HistoryEntry[]; issues: Issue[]; gitAvailable: boolean;
 }
 export interface DocumentContent {

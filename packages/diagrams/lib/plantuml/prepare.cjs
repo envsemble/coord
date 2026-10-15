@@ -126,6 +126,7 @@ const reportOf = (problems) => {
   };
 };
 // What a comparison compares: the model without its evidence and places.
+// A description stays, so a changed one is a change of its element.
 const strip = ({
   evidence,
   primarySource,
@@ -135,7 +136,7 @@ const strip = ({
   description,
   location,
   ...rest
-}) => rest;
+}) => (description ? { ...rest, description } : rest);
 const semanticOf = (model) => ({
   type: "StructuralModel",
   nodes: model.classes.map((c) => ({

@@ -70,7 +70,8 @@ function relationIds(diagram) {
 /**
  * The viewer's model of a diagram. `profile` says what kind of model it is
  * ("class", "code", "database" or "object"); evidence becomes sources, and
- * snippets `snippets` keyed by those sources.
+ * snippets `snippets` keyed by those sources. Elements and members keep their
+ * descriptions.
  */
 function convert(diagram, options = {}) {
   const sources = [];
@@ -113,6 +114,9 @@ function convert(diagram, options = {}) {
         : {}),
     };
   };
+  // A member's description, which the details and its tooltip show.
+  const described = (item) =>
+    item.description ? { description: item.description } : {};
   const elements = new Map(diagram.elements.map((e) => [e.id, e]));
   const classes = diagram.elements.map((element) => {
     const id = element.id;
@@ -124,6 +128,7 @@ function convert(diagram, options = {}) {
             id: memberId(id, l.name),
             name: l.name,
             type: "",
+            ...described(l),
             ...cite(l, memberId(id, l.name)),
           }))
         : element.kind === "object"
@@ -154,6 +159,7 @@ function convert(diagram, options = {}) {
                       ...(a.key === "FK" ? { foreignKey: true } : {}),
                     }
                   : {}),
+                ...described(a),
                 ...cite(a, memberId(id, a.name)),
               };
             });
@@ -162,13 +168,14 @@ function convert(diagram, options = {}) {
       name: o.name,
       type: `${o.name}(${o.parameters})${o.returns ? `: ${o.returns}` : ""}`,
       ...(o.visibility ? { visibility: o.visibility } : {}),
+      ...described(o),
       ...cite(o, operationId(id, o)),
     }));
     return {
       id,
       name: element.name,
       stereotype: STEREOTYPES[element.kind],
-      description: "",
+      description: element.description || "",
       evidence: [],
       ...(element.kind === "abstract class" ? { isAbstract: true } : {}),
       ...(element.package ? { namespace: element.package } : {}),

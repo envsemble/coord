@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/atlas-host",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "The Atlas host: serves planning folders to the desktop app and to paired devices over an authenticated connection",
   "repository": {

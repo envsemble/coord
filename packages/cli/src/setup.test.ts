@@ -2,12 +2,13 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { grantClaudeDirectory, grantCodexRoot, repository } from './setup.ts';
-import { atlas, environment, temporary, write } from './testing.ts';
+import { withDatabase } from '@envsemble/atlas-planning';
+import { atlas, environment, reportsIn, temporary, write } from './testing.ts';
 
 const home = process.platform === 'win32' ? 'C:\\Users\\me\\.atlas' : '/home/me/.atlas';
 const literal = "'" + home + "'";
@@ -108,11 +109,20 @@ function fakeProgram(folder: string, name: string, log: string) {
   else { writeFileSync(path.join(folder, name), `#!/bin/sh\nexec "${process.execPath}" "${script}" ${name} "$@"\n`); chmodSync(path.join(folder, name), 0o755); }
 }
 
-/** A process holding the remote-access lock of a host working from the data folder `data`, as `atlas serve` does. */
+/**
+ * A process holding the remote-access lock of an older host working from the data folder `data`, as
+ * `atlas serve` did before the home database: its host/access.json names the lock's secret.
+ */
 async function holdHostLock(data: string) {
+  const secret = 'S'.repeat(43);
+  write(path.join(data, 'host', 'access.json'), JSON.stringify({ version: 2, hostId: 'host-1234-abcd', name: 'Desk', secret, settings: { network: { enabled: false, address: null, port: 7346 } }, devices: [] }));
   const access = pathToFileURL(path.join(repository, 'packages', 'host', 'src', 'access.ts')).href;
+  const planning = pathToFileURL(path.join(repository, 'packages', 'planning', 'src', 'database.ts')).href;
   const script = `const { AccessStore } = await import(${JSON.stringify(access)});
-const store = new AccessStore(${JSON.stringify(path.join(data, 'host'))}, { info() {}, warn() {}, error() {} }, 'atlas serve');
+const { HomeDatabase } = await import(${JSON.stringify(planning)});
+const database = HomeDatabase.open(${JSON.stringify(path.join(data, '..', 'serve-home'))});
+database.setSetting('host.secret', ${JSON.stringify(secret)});
+const store = new AccessStore(database, { info() {}, warn() {}, error() {} }, 'atlas serve');
 console.log(await store.lock() === null ? 'locked' : 'not locked');
 setInterval(() => {}, 60000);`;
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true });
@@ -174,8 +184,12 @@ test('atlas setup creates the home, moves the old data folder, grants the home a
   const done = atlas(['setup'], { env });
   assert.equal(done.status, 0, done.stderr);
   assert.ok(existsSync(path.join(atlasHome, 'planning')));
-  assert.ok(existsSync(path.join(atlasHome, 'planning-roots.json')) && !existsSync(path.join(legacy, 'planning-roots.json')), 'the old data folder moved into the home');
+  assert.ok(!existsSync(path.join(legacy, 'planning-roots.json')), 'the old data folder moved into the home');
   assert.match(done.stdout, /Moved from .*: host, planning-roots\.json/, 'once the host stopped');
+  // Then into the home's database: the files are set aside.
+  assert.match(done.stdout, /Imported into the Atlas home's database \(the files are set aside in .*\): host\/access\.json, planning-roots\.json/);
+  assert.ok(existsSync(path.join(atlasHome, 'atlas.db')) && existsSync(path.join(atlasHome, 'legacy', 'planning-roots.json')) && !existsSync(path.join(atlasHome, 'host')));
+  assert.equal(withDatabase(atlasHome, database => database.setting('host.id')), 'host-1234-abcd', 'the host keeps its identity');
   assert.deepEqual(JSON.parse(readFileSync(path.join(claude, 'settings.json'), 'utf8')), { model: 'opus', permissions: { additionalDirectories: [atlasHome] } });
   assert.match(readFileSync(path.join(codex, 'config.toml'), 'utf8'), /^model = "gpt-5\.5"\n\n\[sandbox_workspace_write\]\nwritable_roots = \[.+\]\n$/);
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [
@@ -183,7 +197,21 @@ test('atlas setup creates the home, moves the old data folder, grants the home a
     ['codex', 'plugin', 'marketplace', 'add', repository], ['codex', 'plugin', 'marketplace', 'remove', marketplace], ['codex', 'plugin', 'marketplace', 'add', repository], ['codex', 'plugin', 'add', 'atlas@' + marketplace],
   ]);
   const settings = readFileSync(path.join(claude, 'settings.json'), 'utf8'), config = readFileSync(path.join(codex, 'config.toml'), 'utf8');
+  // Statistics files in the home's planning folders are imported once and deleted there, for the user to commit.
+  const project = path.join(atlasHome, 'planning', 'shop');
+  write(path.join(project, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [{ id: 'work-0001', path: 'active/0001-cart', repositories: [], current_plan: null }] }));
+  write(path.join(project, 'active/0001-cart/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T10:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
+  // So are those of a project outside the home.
+  const outside = path.join(directory, 'elsewhere');
+  write(path.join(outside, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [{ id: 'work-0002', path: 'active/0002-pay', repositories: [], current_plan: null }] }));
+  write(path.join(outside, 'active/0002-pay/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T11:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
+  withDatabase(atlasHome, database => database.addProject(realpathSync(outside), 'Elsewhere'));
   const again = atlas(['setup'], { env });
+  assert.match(again.stdout, /Imported 1 work report from .*elsewhere and deleted active\/0002-pay\/\.atlas\/statistics\.jsonl there/);
+  assert.equal(reportsIn(outside, 'work-0002', atlasHome).length, 1);
+  assert.match(again.stdout, /Imported 1 work report from .*shop and deleted active\/0001-cart\/\.atlas\/statistics\.jsonl there\. Atlas never commits: commit the removal in that planning folder\./);
+  assert.ok(!existsSync(path.join(project, 'active/0001-cart/.atlas')));
+  assert.equal(reportsIn(project, 'work-0001', atlasHome).length, 1);
   assert.equal(again.status, 0, again.stderr);
   assert.match(again.stdout, /Claude Code: the home is already granted/);
   assert.match(again.stdout, /Codex: the home is already granted/);

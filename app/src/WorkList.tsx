@@ -4,15 +4,15 @@ import { DiagramIcon, WorkIcon } from './icons';
 import type { Snapshot, Work } from './types';
 import { designNote, workStatus } from './status';
 import { absoluteDate, relativeDate, workNumber } from './format';
-import { workTarget } from './targets';
+import { diagramTarget, workTarget } from './targets';
 import { RepositoryBadge, StatusIcon } from './ui';
 import { TargetLink, useWorkbench } from './workbenchContext';
 import { StepBar } from './LedgerProgress';
-import { Page, RepositorySelect, type RepositoryFilter } from './Pages';
+import { Page } from './Pages';
 
 /**
  * A work item: the whole row opens it (its title link covers the row); its diagram count opens its
- * diagrams. Details with a tooltip of their own stay above the link, and open the item too.
+ * first diagram. Details with a tooltip of their own stay above the link, and open the item too.
  */
 function WorkRow({ work }: { work: Work }) {
   const { open } = useWorkbench();
@@ -41,26 +41,25 @@ function WorkRow({ work }: { work: Work }) {
     </span>}
     action={<span className="work-row-side">
       {counts && counts.total > 0 && !finished && <span className="work-row-steps" title={stepSummary(counts)}><StepBar counts={counts} compact /><span>{counts.done}/{counts.total}</span></span>}
-      {!!work.diagrams && <TargetLink className="diagram-count" target={workTarget(work.id, 'diagrams')} title={work.diagrams + (work.diagrams === 1 ? ' diagram' : ' diagrams')}><DiagramIcon />{work.diagrams}</TargetLink>}
+      {!!work.diagrams && <TargetLink className="diagram-count" target={diagramTarget(work.id)} title={work.diagrams + (work.diagrams === 1 ? ' diagram' : ' diagrams')}><DiagramIcon />{work.diagrams}</TargetLink>}
       {updated && <span className="work-row-updated" title={'Updated ' + absoluteDate(updated)}>{relativeDate(updated)}</span>}
     </span>}>
     {work.progress?.current && status.key !== 'complete' && <p className="work-row-focus">{work.progress.current}</p>}
   </Row>;
 }
 
-export function WorkList({ snapshot, repository, setRepository, location, setLocation, search, setSearch }: RepositoryFilter & {
-  snapshot: Snapshot; location: string; setLocation(value: string): void; search: string; setSearch(value: string): void;
+export function WorkList({ snapshot, repository, location, setLocation, search, setSearch }: {
+  snapshot: Snapshot; repository: string; location: string; setLocation(value: string): void; search: string; setSearch(value: string): void;
 }) {
   const work = snapshot.work.filter(item => repository === 'all' || item.repositories.includes(repository));
   const term = search.toLowerCase();
   const matches = (item: Work) => [item.title, item.id, workNumber(item.id), ...item.repositories, item.progress?.current ?? ''].join(' ').toLowerCase().includes(term);
   const counts = { active: work.filter(item => item.location === 'active').length, archived: work.filter(item => item.location === 'archived').length, all: work.length };
   const visible = work.filter(item => (location === 'all' || item.location === location) && matches(item)).sort((a, b) => b.id.localeCompare(a.id));
-  return <Page title="Work" toolbar={<>
+  return <Page section title="Work" toolbar={<>
     <SegmentedControl aria-label="Work location" value={location} onValueChange={setLocation}
       options={[{ value: 'active', label: 'Active', count: counts.active }, { value: 'archived', label: 'Archived', count: counts.archived }, { value: 'all', label: 'All', count: counts.all }]} />
     <SearchField className="work-search" label="Search work" placeholder="Search work" value={search} onValueChange={setSearch} />
-    <RepositorySelect snapshot={snapshot} repository={repository} setRepository={setRepository} />
   </>}>
     {visible.length ? <GroupedRows className="work-list" aria-label="Work items">{visible.map(item => <WorkRow key={item.id} work={item} />)}</GroupedRows>
       : <EmptyState className="page-empty" icon={<WorkIcon />} title={search ? 'No matching work' : location === 'archived' ? 'No archived work' : 'No work here yet'} />}

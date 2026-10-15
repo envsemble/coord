@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { agentTimeNote, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, shownStages, stageShare, stageUsage, subagentShare, timeSource, tokenRows, tokenText, workRows } from './workStatistics.ts';
-import { absoluteDate, compactNumber, duration, median } from './format.ts';
+import { absoluteDate, compactNumber, duration, median, shortAge, shortDate } from './format.ts';
 import { timeTicks, valueTicks } from './components/ScatterChart.tsx';
 import type { Snapshot, Work, WorkStatistics } from './types.ts';
 
@@ -107,6 +107,11 @@ test('planning and implementation show apart once reports record a stage, with r
 test('formats and chart ticks', () => {
   assert.equal(duration(0), '0 min'); assert.equal(duration(20000), '< 1 min'); assert.equal(duration(45 * 60000), '45 min');
   assert.equal(duration(200 * 60000), '3 h 20 min'); assert.equal(duration(50 * 3600000), '2 d 2 h');
+  const now = Date.parse('2026-10-15T12:00:00Z');
+  const ago = (minutes: number) => new Date(now - minutes * 60000).toISOString();
+  assert.deepEqual([ago(0.5), ago(-5), ago(11), ago(59), ago(60), ago(23 * 60 + 59), ago(24 * 60), ago(29 * 1440)].map(value => shortAge(value, now)), ['now', 'now', '11m', '59m', '1h', '23h', '1d', '29d'], 'a card says how long ago briefly; a clock ahead says now');
+  assert.equal(shortAge(ago(30 * 1440), now), shortDate(ago(30 * 1440)), 'a month or more ago, the date');
+  assert.deepEqual([shortAge(null, now), shortAge('', now), shortAge('not a date', now)], ['', '', '']);
   assert.equal(median([]), null); assert.equal(median([3, 1, 2]), 2); assert.equal(median([1, 2, 3, 4]), 2.5);
   assert.equal(compactNumber(1234567), new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(1234567));
   assert.deepEqual(valueTicks(0), [0, 1]);

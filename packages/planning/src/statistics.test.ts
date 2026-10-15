@@ -1,16 +1,18 @@
 // Work statistics: report grouping, measured and estimated agent time and token arithmetic, plan
-// revisions from Git (following archive moves), recording with atlas work report (measuring a
-// synthetic session log), and how the reader and checker treat them.
+// revisions from Git (following archive moves), recording with atlas work report into the home
+// database (measuring a synthetic session log), importing old statistics files, and how the reader
+// summarizes them.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { validatePlanning } from './check.ts';
 import { loadPlanning } from './planning.ts';
 import { exportPlan } from './planExport.ts';
-import { createReport, fitStep, parseReport, planRevisions, summarizeReports, StatisticsReportError, type Measured, type MeasuredSubagents, type StatisticsReport } from './statistics.ts';
+import { createReport, fitStep, importStatisticsFiles, parseReport, planRevisions, storedReports, summarizeReports, StatisticsReportError, type Measured, type MeasuredSubagents, type StatisticsReport } from './statistics.ts';
+import { withDatabase, withDatabaseAsync } from './database.ts';
 import type { WorkStage } from './types.ts';
 import { recordWorkReport } from './workReport.ts';
 
@@ -27,6 +29,11 @@ const report = (minutes: number, model: string, tokens: number | null = null, se
 type Share = [model: string, minutes: number, tokens: [input: number, cacheRead: number, cacheWrite: number, output: number]];
 const measurement = (since: number, minutes: number, shares: Share[]): Measured => ({ since: at(since), agentMs: minutes * 60000, models: shares.map(([model, time, [input, cacheRead, cacheWrite, output]]) => ({ model, agentMs: time * 60000, input, cacheRead, cacheWrite, output })) });
 const measured = (minutes: number, model: string, session: string, since: number, agentMinutes: number, shares: Share[]): StatisticsReport => ({ ...report(minutes, model, null, session), measured: measurement(since, agentMinutes, shares) });
+/** A work item's reports in the test home's database. */
+const reportsOf = (root: string, workId: string) => withDatabase(undefined, database => {
+  const project = database.projectByFolder(realpathSync.native(root));
+  return project ? storedReports(database, project.id, [workId]).get(workId) ?? [] : [];
+});
 
 test('a session sums the time between its reports and counts tokens from its first report on', () => {
   const summary = summarizeReports([
@@ -313,39 +320,20 @@ test('a new plan that Git pairs with another work item\'s rewritten plan does no
   ]), { 'work-0002': 4, 'work-0003': 0 });
 });
 
-test('reports are never written through a linked .atlas folder, and a file without a final newline gets one', async t => {
+test('a long step is shortened, and a step with doubled spaces is still the ledger\'s', async t => {
   const { root, register } = repository(t);
   const folder = 'active/0001-example';
   mkdirSync(path.join(root, folder), { recursive: true });
   register(folder);
   writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
-  mkdirSync(path.join(root, folder, '.atlas'));
-  writeFileSync(path.join(root, folder, '.atlas/statistics.jsonl'), JSON.stringify(report(0, 'model-a')));
-  await recordWorkReport(root, 'work-0001', { model: 'model-a' });
-  const lines = readFileSync(path.join(root, folder, '.atlas/statistics.jsonl'), 'utf8').split('\n').filter(Boolean);
-  assert.equal(lines.length, 2);
-  assert.ok(lines.every(line => parseReport(line)));
   const long = await recordWorkReport(root, 'work-0001', { model: 'model-a', step: 'x'.repeat(300) });
   assert.match(long.warnings.join(' '), /shortened to 200/);
   writeFileSync(path.join(root, folder, 'ledger.md'), ['---', 'schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: null', 'blocked: null', 'steps:', '  - title: "Build  the  thing"', '    status: doing', '---', ''].join('\n'));
   assert.deepEqual((await recordWorkReport(root, 'work-0001', { model: 'model-a', step: 'Build  the  thing' })).warnings, [], 'a title with double spaces is still the ledger\'s step');
-
-  // A junction (Windows, no rights needed) or a symbolic link to a folder outside.
-  const other = 'active/0002-other';
-  mkdirSync(path.join(root, other), { recursive: true });
-  const outside = mkdtempSync(path.join(tmpdir(), 'atlas-outside-'));
-  t.after(() => rmSync(outside, { recursive: true, force: true }));
-  symlinkSync(outside, path.join(root, other, '.atlas'), process.platform === 'win32' ? 'junction' : 'dir');
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [
-    { id: 'work-0001', path: folder, repositories: ['example'], current_plan: folder + '/plan.md' },
-    { id: 'work-0002', path: other, repositories: ['example'], current_plan: null },
-  ] }));
-  await assert.rejects(recordWorkReport(root, 'work-0002', { model: 'model-a' }), /link or not a folder/);
-  assert.deepEqual(readdirSync(outside), [], 'nothing was written outside');
-  assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('0002-other/.atlas: a link')));
+  assert.equal(reportsOf(root, 'work-0001').length, 2);
 });
 
-test('atlas work report appends to the work folder, which the reader summarizes and plan exports leave out', async t => {
+test('atlas work report records into the home database, which the reader summarizes; old statistics files are imported once', async t => {
   const { root, register } = repository(t);
   const folder = 'active/0001-example';
   mkdirSync(path.join(root, folder), { recursive: true });
@@ -353,26 +341,38 @@ test('atlas work report appends to the work folder, which the reader summarizes 
   writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
   writeFileSync(path.join(root, folder, 'ledger.md'), ['---', 'schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: null', 'blocked: null', 'steps:', '  - title: "Build it"', '    status: doing', '---', '', '# Ledger', ''].join('\n'));
   const first = await recordWorkReport(root, 'work-0001', { model: 'model-a', tokens: 1000, session: 's1', step: 'Build it', at: new Date(at(0)) });
-  assert.equal(first.file, folder + '/.atlas/statistics.jsonl');
+  assert.equal(first.project, path.basename(root), 'recorded under the folder\'s project, named after the folder');
   assert.deepEqual(first.warnings, []);
+  assert.ok(!existsSync(path.join(root, folder, '.atlas')), 'nothing is written into the planning folder');
   const second = await recordWorkReport(root, 'work-0001', { model: 'model-a', tokens: 3000, session: 's1', step: 'Ship it', at: new Date(at(45)) });
   assert.match(second.warnings[0], /not one of the ledger's steps/);
   await assert.rejects(recordWorkReport(root, 'work-0002', { model: 'model-a' }), /not a registered work item/);
   await assert.rejects(recordWorkReport(root, 'work-0001', { model: 'model a' }), StatisticsReportError);
-  assert.equal(readFileSync(path.join(root, first.file), 'utf8').trim().split('\n').length, 2);
-
-  appendFileSync(path.join(root, first.file), 'garbage\n');
+  assert.equal(reportsOf(root, 'work-0001').length, 2);
   const statistics = (await loadPlanning(root)).work[0].statistics!;
-  assert.deepEqual({ reports: statistics.reports, invalid: statistics.invalid, tokens: statistics.tokens, minutes: statistics.agentMs / 60000, model: statistics.primaryModel }, { reports: 2, invalid: 1, tokens: 2000, minutes: 45, model: 'model-a' });
+  assert.deepEqual({ reports: statistics.reports, tokens: statistics.tokens, minutes: statistics.agentMs / 60000, model: statistics.primaryModel }, { reports: 2, tokens: 2000, minutes: 45, model: 'model-a' });
   assert.equal(statistics.planRevisions, null, 'no Git history');
-  assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('statistics.jsonl: 1 line is not a valid statistics report')));
-  assert.deepEqual(validatePlanning(root).errors, []);
-  appendFileSync(path.join(root, first.file), JSON.stringify({ ...report(50, 'model-a', null, 's1'), measured: { since: at(60), agentMs: 0, models: [] } }) + '\n');
-  assert.ok(validatePlanning(root).warnings.some(warning => warning.includes('statistics.jsonl: 1 report has a measurement that cannot be read; agent time there is estimated')));
-  assert.equal((await loadPlanning(root)).work[0].statistics?.reports, 3, 'the report itself still counts');
 
+  // A statistics file as Atlas wrote it before the database: imported once, then deleted.
+  const file = path.join(root, folder, '.atlas/statistics.jsonl');
+  mkdirSync(path.dirname(file));
+  const subagents: MeasuredSubagents = { count: 6, agentMs: 60000, tokens: 600, agents: [{ id: 'a1', model: 'model-b', agentMs: 30000, tokens: 100 }] };
+  writeFileSync(file, [JSON.stringify(report(50, 'model-a', null, 's1')), 'garbage', JSON.stringify({ ...measured(60, 'model-a', 's1', 50, 1, [['model-a', 1, [1, 2, 3, 4]]]), measured: { ...measurement(50, 1, [['model-a', 1, [1, 2, 3, 4]]]), subagents } })].join('\n') + '\n');
+  assert.deepEqual(validatePlanning(root).warnings.filter(warning => warning.includes('statistics')), [], 'atlas check no longer reads statistics files');
+  const imported = await withDatabaseAsync(undefined, database => importStatisticsFiles(database, root));
+  assert.deepEqual(imported, { files: [folder + '/.atlas/statistics.jsonl'], reports: 2, invalid: 1, problems: [] });
+  assert.ok(!existsSync(path.join(root, folder, '.atlas')), 'the file and its empty folder are gone');
+  mkdirSync(path.dirname(file));
+  writeFileSync(file, JSON.stringify(report(50, 'model-a', null, 's1')) + '\n');
+  assert.equal((await withDatabaseAsync(undefined, database => importStatisticsFiles(database, root))).reports, 0, 'a report imported before is not added again');
+  const reread = (await loadPlanning(root)).work[0].statistics!;
+  assert.equal(reread.reports, 4);
+  assert.deepEqual(reread.subagents, { count: 6, agentMs: 60000 }, 'the subagents a line counted without listing them still count');
+
+  mkdirSync(path.dirname(file));
+  writeFileSync(file, JSON.stringify(report(70, 'model-a')) + '\n');
   const exported = await exportPlan(root, 'work-0001');
-  assert.ok(!exported.manifest.files.some(file => file.path.endsWith('statistics.jsonl')), 'plan exports leave the statistics out');
+  assert.ok(!exported.manifest.files.some(entry => entry.path.endsWith('statistics.jsonl')), 'plan exports leave statistics files out');
 });
 
 test('inside a harness, atlas work report reads the session, model, agent time and tokens from the session log', async t => {
@@ -420,7 +420,7 @@ test('inside a harness, atlas work report reads the session, model, agent time a
   assert.match(unmeasured.warnings.join(' '), /^Agent time and tokens were not measured: no Claude Code log of session 11111111-2222-4333-8444-555555555555 was found on this computer\.$/);
   await assert.rejects(recordWorkReport(root, 'work-0001', { at: new Date(at(180)) }, missing), /model is unknown/);
   await assert.rejects(recordWorkReport(root, 'work-0001', { at: new Date(at(180)) }, { environment: {}, home: config }), /model is unknown: give it with --model/);
-  assert.equal(readFileSync(path.join(root, folder, '.atlas/statistics.jsonl'), 'utf8').trim().split('\n').length, 4, 'refused reports write nothing');
+  assert.equal(reportsOf(root, 'work-0001').length, 4, 'refused reports record nothing');
 });
 
 test('a Codex helper reporting under its own thread reports into its root session, so no work counts twice', async t => {
@@ -499,19 +499,4 @@ test('a hook names the session\'s log: it is measured with its subagents, whatev
   writeFileSync(elsewhere, prompt(0) + '\n');
   const unread = await recordWorkReport(root, 'work-0001', { model: 'model-a', at: new Date(at(50)) }, { ...options, transcriptPath: elsewhere });
   assert.deepEqual([unread.report.measured, unread.warnings], [undefined, ['Agent time and tokens were not measured: ' + elsewhere + ' is not a Claude Code or Codex session log.']]);
-});
-
-test('reports never follow a symbolic link out of the work folder', { skip: process.platform === 'win32' ? 'Symbolic links need extra rights on Windows.' : false }, async t => {
-  const { root, register } = repository(t);
-  const folder = 'active/0001-example';
-  mkdirSync(path.join(root, folder, '.atlas'), { recursive: true });
-  register(folder);
-  writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
-  const outside = mkdtempSync(path.join(tmpdir(), 'atlas-outside-'));
-  t.after(() => rmSync(outside, { recursive: true, force: true }));
-  writeFileSync(path.join(outside, 'target.jsonl'), JSON.stringify(report(0, 'model-a')) + '\n');
-  symlinkSync(path.join(outside, 'target.jsonl'), path.join(root, folder, '.atlas/statistics.jsonl'));
-  await assert.rejects(recordWorkReport(root, 'work-0001', { model: 'model-a' }), /not a regular file/);
-  assert.equal(readFileSync(path.join(outside, 'target.jsonl'), 'utf8').trim().split('\n').length, 1);
-  assert.equal((await loadPlanning(root)).work[0].statistics?.reports, 0);
 });

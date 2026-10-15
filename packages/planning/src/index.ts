@@ -3,12 +3,14 @@
 // diagrams out and are imported separately; checking a diagram loads only the diagram parser.
 export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './planning.ts';
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
-export { atlasAppRunning, atlasHome, cacheOutsidePlanning, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, recentRootsFile, statisticsDirectory, type LegacyMigration } from './storage.ts';
-export { Telemetry, recordCollectionGap, schema, type ViewEvent } from './telemetry.ts';
-export { RecentPlanningRoots, inspectPlanningRoot, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
+export { atlasAppRunning, atlasHome, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, statisticsDirectory, type LegacyMigration } from './storage.ts';
+export { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, canonicalProjectFolder, canonicalProjectFolderSync, databaseName, folderKey, isPlanningFolder, planningName, projectOf, schemaVersion, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState } from './database.ts';
+export { importLegacyUsage, migrateHomeFiles, pendingHomeFiles, type HomeMigration } from './homeMigration.ts';
+export { recordCollectionGap, recordView, usageSummary, type CollectionSource, type ViewEvent } from './telemetry.ts';
+export { samePlatformPath } from './planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';
 export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './ledger.ts';
-export { StatisticsReportError, appendReport, createReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, readReports, sessionGap, statisticsFile, summarizeReports, workStages, workStatistics, type Measured, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics.ts';
+export { StatisticsReportError, createReport, importStatisticsFiles, insertReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, sessionGap, statisticsFile, storedReports, summarizeReports, workStages, workStatistics, type StatisticsImport, type Measured, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics.ts';
 export { harnessSessions, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './sessionLog.ts';
 export { recordWorkReport, type RecordedReport, type WorkReportInput, type WorkReportOptions } from './workReport.ts';
 export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './consultation.ts';
@@ -25,3 +27,6 @@ export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, set
 export { findPlanning, resolvePlanningFolder, normalizeRemote, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type Whereabouts } from './resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './checkPaths.ts';
 export { adoptPlanningFolder, type Adopted } from './adopt.ts';
+export { projectSummary, type ProjectSummary } from './projectSummary.ts';
+export { createProject, readTemplates, type ProjectRepository, type ProjectTemplates } from './project.ts';
+export { setRegistryName } from './registryText.ts';

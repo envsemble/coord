@@ -1,20 +1,25 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { close, launch, planningFixture, removeDirectory, type Launched } from './app';
+import { addProject, close, launchProject, projectHome, removeDirectory, showFiles, sidebarProject, type Launched } from './app';
 
-let launched: Launched | undefined;
-let folder: string;
-test.beforeEach(() => { folder = planningFixture(); });
-test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(path.dirname(folder)); });
+let launched: (Launched & { folder: string }) | undefined;
+const homes: string[] = [];
+test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
-const views = (window: Page) => window.getByRole('navigation', { name: 'Atlas' });
 const tabs = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab');
 const previewTabs = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][data-preview="true"]');
-/** A work item's sections; one place to change if the section switcher changes. */
-const sections = (window: Page) => window.getByRole('radiogroup', { name: 'Work sections' }).getByRole('radio');
-const section = (window: Page) => sections(window).and(window.locator('[aria-checked="true"]'));
+const activeTab = (window: Page) => window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]');
+/** What the window shows: the project's page, a work item (on its plan or its ledger), a file or a diagram. */
+const shows = (window: Page) => window.locator('.project-page h1, .work-header h1, .reader-name strong, .model-picker-title').first();
 const menubar = (window: Page) => window.getByRole('menubar', { name: 'Application menu' });
+/** The last step of a work item's trail: its number while the plan shows, Ledger while the ledger does. */
+const trailEnd = (window: Page) => window.locator('.work-main .breadcrumb [aria-current="page"]');
+/** Shows the work item Saved payment methods, on its plan or, in its place, its ledger. */
+async function showsPayments(window: Page, view: 'plan' | 'ledger') {
+  await expect(shows(window)).toHaveText('Saved payment methods');
+  await expect(trailEnd(window)).toHaveText(view === 'plan' ? '#0001' : 'Ledger');
+}
 
 /** The mouse's back (3) or forward (4) button, pressed and released over the page; true when the release was taken. */
 function mouseButton(window: Page, button: 3 | 4) {
@@ -40,78 +45,80 @@ async function settledScroll(window: Page) {
   return position;
 }
 
-test('back and forward step through pages, a work item and its sections', async () => {
-  launched = await launch({ folder });
+test('back and forward step through a project\'s page, a plan, its ledger and a diagram', async () => {
+  launched = await launchProject();
   const { window, app } = launched;
-  await expect(window.locator('.work-row')).toHaveCount(3);
   const back = window.getByRole('button', { name: 'Back' });
   const forward = window.getByRole('button', { name: 'Forward' });
-  // The arrows sit between the menus and the computer; a window starts with nowhere to go.
+  // The arrows come first, before the menus and the computer.
   const left = async (target: ReturnType<Page['locator']>) => (await target.boundingBox())!.x;
-  const order = [await left(menubar(window)), await left(back), await left(forward), await left(window.getByRole('button', { name: /^Computer:/ }))];
+  const order = [await left(back), await left(forward), await left(menubar(window)), await left(window.getByRole('button', { name: /^Computer:/ }))];
   expect(order).toEqual([...order].sort((a, b) => a - b));
-  await expect(back).toBeDisabled();
-  await expect(forward).toBeDisabled();
   await expect(back).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft BrowserBack');
   await expect(forward).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowRight BrowserForward');
 
-  // The Work page, then a work item (on its ledger), its plan and diagrams, then Activity.
-  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
-  await expect(section(window)).toContainText('Ledger');
-  await sections(window).filter({ hasText: 'Plan' }).click();
-  await expect(section(window)).toContainText('Plan');
-  await sections(window).filter({ hasText: 'Diagrams' }).click();
-  await expect(window.locator('.model-picker-title')).toBeVisible();
-  await views(window).getByRole('button', { name: 'Activity' }).click();
-  await expect(window.locator('.activity-row')).toHaveCount(1);
+  // The project's page, then a work item's plan, its ledger in the plan's place in the same tab, and a diagram.
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click({ modifiers: ['Control'] });
+  await showsPayments(window, 'plan');
+  await window.locator('.about').getByRole('link', { name: 'Ledger' }).click();
+  await showsPayments(window, 'ledger');
+  await expect(window.locator('.about').getByRole('link', { name: 'Plan' })).toBeVisible();
+  await expect(tabs(window)).toHaveCount(2);
+  await window.keyboard.press('Control+P');
+  const palette = window.getByRole('dialog', { name: 'Quick open' });
+  await palette.getByRole('combobox').fill('Checkout · proposed payment methods');
+  await expect(palette.getByRole('option').first()).toContainText('Checkout · proposed payment methods');
+  await palette.getByRole('combobox').press('Control+Enter');
+  await expect(shows(window)).toHaveText('Checkout · proposed payment methods');
   await expect(back).toBeEnabled();
   await expect(forward).toBeDisabled();
 
   // Back: the title bar's arrow, Alt+←, the mouse's back button and View › Back.
   await back.click();
-  await expect(section(window)).toContainText('Diagrams');
+  await showsPayments(window, 'ledger');
   await window.keyboard.press('Alt+ArrowLeft');
-  await expect(section(window)).toContainText('Plan');
+  await showsPayments(window, 'plan');
+  await expect(window.locator('.about').getByRole('link', { name: 'Ledger' })).toBeVisible();
   // Alt+← leaves the menubar alone: no menu opens and the menus do not take focus.
   await expect(window.getByRole('menu')).toHaveCount(0);
   expect(await window.evaluate(() => Boolean(document.activeElement?.closest('[role="menubar"]')))).toBe(false);
   expect(await mouseButton(window, 3)).toBe(true);
-  await expect(section(window)).toContainText('Ledger');
+  await expect(shows(window)).toHaveText('Northwind');
+  await expect(back).toBeEnabled();
   await menubar(window).getByRole('menuitem', { name: 'View' }).click();
   await expect(window.getByRole('menuitem', { name: 'Back' })).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft');
   await window.getByRole('menuitem', { name: 'Back' }).click();
-  await expect(window.locator('.work-row')).toHaveCount(3);
+  await expect(window.getByRole('heading', { name: 'Open a project' })).toBeVisible();
   await expect(window.getByRole('menu')).toHaveCount(0);
   await expect(back).toBeDisabled();
-  // The tab stays open while its page shows.
-  await expect(tabs(window)).toHaveCount(1);
+  // The tabs stay open while nothing shows.
+  await expect(tabs(window)).toHaveCount(3);
 
   // Forward: the application menu's View › Forward, Alt+→, the mouse's forward button and the arrow.
   await app.evaluate(({ Menu }) => {
     const view = Menu.getApplicationMenu()!.items.find(entry => entry.label === '&View')!;
     view.submenu!.items.find(item => item.label === '&Forward')!.click();
   });
-  await expect(section(window)).toContainText('Ledger');
+  await expect(shows(window)).toHaveText('Northwind');
   await window.keyboard.press('Alt+ArrowRight');
-  await expect(section(window)).toContainText('Plan');
+  await showsPayments(window, 'plan');
   expect(await mouseButton(window, 4)).toBe(true);
-  await expect(section(window)).toContainText('Diagrams');
+  await showsPayments(window, 'ledger');
   await forward.click();
-  await expect(window.locator('.activity-row')).toHaveCount(1);
+  await expect(shows(window)).toHaveText('Checkout · proposed payment methods');
   await expect(forward).toBeDisabled();
 
   // Showing something new drops what was ahead.
   await back.click();
-  await expect(section(window)).toContainText('Diagrams');
-  await views(window).getByRole('button', { name: 'Statistics' }).click();
+  await showsPayments(window, 'ledger');
+  await tabs(window).filter({ hasText: 'Northwind' }).click();
   await expect(forward).toBeDisabled();
 });
 
-test('going back reopens a closed tab as a preview at its place, and fields and the explorer keep their part', async () => {
-  launched = await launch({ folder });
+test('going back reopens a closed tab as a preview at its place, and fields and the file panel keep their part', async () => {
+  launched = await launchProject();
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
-  await expect(window.locator('.work-row')).toHaveCount(3);
   const scrollTop = () => window.evaluate(() => document.querySelector('main')!.scrollTop);
   // Opened and kept, then scrolled.
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click({ modifiers: ['Control'] });
@@ -127,9 +134,9 @@ test('going back reopens a closed tab as a preview at its place, and fields and 
     return steady;
   }, { intervals: [150] }).toBe(true);
 
-  // Closing the tab shows the page; going back opens it again, as a preview, where it was.
+  // Closing the tab shows the project's page; going back opens it again, as a preview, where it was.
   await window.keyboard.press('Control+W');
-  await expect(tabs(window)).toHaveCount(0);
+  await expect(tabs(window)).toHaveCount(1);
   await expect(window.locator('.work-row')).toHaveCount(3);
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
@@ -147,18 +154,37 @@ test('going back reopens a closed tab as a preview at its place, and fields and 
   await expect(window.locator('.work-row')).toHaveCount(3);
   await expect(search).toBeFocused();
 
-  // In the explorer, Alt+← goes back rather than collapsing the folder.
-  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').click();
+  // In the file panel, Alt+← goes back rather than collapsing the folder.
+  const files = await showFiles(window);
+  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').click();
   await expect(window.locator('.reader-name')).toContainText('inventory-schema.md');
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-row')).toHaveCount(3);
-  await expect(window.locator('[role="treeitem"][data-id="d:knowledge/shop"]')).toHaveAttribute('aria-expanded', 'true');
+  await expect(files.locator('[role="treeitem"][data-id="d:knowledge/shop"]')).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('a work row opens from anywhere on it, and its diagram count opens its diagrams', async () => {
-  launched = await launch({ folder });
+test('a link into a sibling project in the home opens there; one to a folder no project has is unavailable', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  const coord = addProject(home.dataDirectory, 'coord', 'Coord');
+  const plan = path.join(coord, 'active/0001-saved-payment-methods/plan.md');
+  writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## Elsewhere\n\nSee [the fulfilment model](../../../northwind/active/0002-order-fulfilment-model/plan.md) and [nothing](../../../nowhere/README.md).\n');
+  launched = await launchProject({ ...home, open: false });
+  const { window } = launched;
+  await sidebarProject(window, 'Coord').click();
+  await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await expect(window.locator('.prose .outside-reference', { hasText: 'nothing' })).toBeVisible();
+  await window.locator('.prose').getByRole('link', { name: 'the fulfilment model' }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  // In a tab of that project: the file panel shows its files.
+  await expect(await showFiles(window)).toContainText('Northwind');
+});
+
+test('a work row opens from anywhere on it, and its diagram count opens its first diagram', async () => {
+  launched = await launchProject();
   const { window } = launched;
   const row = window.locator('.work-row', { hasText: 'Order fulfilment model' });
   await expect(row).toBeVisible();
@@ -167,7 +193,7 @@ test('a work row opens from anywhere on it, and its diagram count opens its diag
   await window.mouse.click(detail.x + detail.width / 2, detail.y + detail.height / 2);
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   // A detail with a tooltip of its own stays above the link, so the tooltip shows, and it opens the item too.
-  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await tabs(window).filter({ hasText: 'Northwind' }).click();
   const updated = row.locator('.work-row-updated');
   await expect(updated).toHaveAttribute('title', /^Updated /);
   const box = (await updated.boundingBox())!;
@@ -175,34 +201,35 @@ test('a work row opens from anywhere on it, and its diagram count opens its diag
   await updated.click();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   // A press that moves a little does not drag the title link away.
-  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await tabs(window).filter({ hasText: 'Northwind' }).click();
   await expect(row.getByRole('link', { name: 'Order fulfilment model' })).toHaveAttribute('draggable', 'false');
-  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await tabs(window).filter({ hasText: 'Northwind' }).click();
   await row.locator('.diagram-count').click();
-  await expect(section(window)).toContainText('Diagrams');
   await expect(window.locator('.model-picker-title')).toBeVisible();
   // One link names the row for the keyboard and screen readers.
-  await views(window).getByRole('button', { name: /^Work/ }).click();
+  await tabs(window).filter({ hasText: 'Northwind' }).click();
   await expect(row.getByRole('link')).toHaveText(['Order fulfilment model', /2/]);
 });
 
 test('going back finds a document where it was before a jump to one of its headings', async () => {
-  writeFileSync(path.join(folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
-  launched = await launch({ folder });
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  writeFileSync(path.join(home.folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
+  launched = await launchProject(home);
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
-  await expect(window.locator('.work-row')).toHaveCount(3);
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click({ modifiers: ['Control'] });
-  await sections(window).filter({ hasText: 'Plan' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await window.locator('.work-main').hover();
   for (let index = 0; index < 6; index++) await window.mouse.wheel(0, 1500);
   const before = await settledScroll(window);
   expect(before).toBeGreaterThan(500);
   // A file links to one of the plan's headings; the plan opens there.
-  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').click();
+  const files = await showFiles(window);
+  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').click();
+  await window.keyboard.press('Control+Shift+E');
   await expect(window.locator('.reader-name')).toContainText('jump.md');
   await window.getByRole('link', { name: 'the current checkout' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
@@ -216,46 +243,51 @@ test('going back finds a document where it was before a jump to one of its headi
   await expect.poll(async () => Math.abs(await settledScroll(window) - before)).toBeLessThan(2);
 });
 
-test('a document reached at a heading and read on keeps the reading place across a section switch, and each step back its own', async () => {
-  writeFileSync(path.join(folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
-  launched = await launch({ folder });
+test('a document reached at a heading and read on keeps the reading place across a tab switch, and each step back its own', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  writeFileSync(path.join(home.folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
+  launched = await launchProject(home);
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').click();
-  await window.getByRole('link', { name: 'the current checkout' }).click();
+  const files = await showFiles(window);
+  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').dblclick();
+  await window.keyboard.press('Control+Shift+E');
+  await window.getByRole('link', { name: 'the current checkout' }).click({ modifiers: ['Control'] });
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   const atHeading = await settledScroll(window);
-  // Read on from the heading, then look at the ledger and come back to the plan.
+  // Read on from the heading, then look at the project's page and come back to the plan.
   await window.locator('.work-main').hover();
   for (let index = 0; index < 3; index++) await window.mouse.wheel(0, 700);
   const reading = await settledScroll(window);
   expect(reading - atHeading).toBeGreaterThan(300);
-  await sections(window).filter({ hasText: 'Ledger' }).click();
-  await expect(section(window)).toContainText('Ledger');
-  await sections(window).filter({ hasText: 'Plan' }).click();
-  await expect(section(window)).toContainText('Plan');
+  await tabs(window).filter({ hasText: 'Northwind' }).click();
+  await expect(shows(window)).toHaveText('Northwind');
+  await tabs(window).filter({ hasText: 'Saved payment methods' }).click();
   await expect.poll(async () => Math.abs(await settledScroll(window) - reading)).toBeLessThan(2);
-  // Back to the ledger, then to the plan where it was left before the ledger.
+  // Back to the project's page, then to the plan where it was left before it.
   await window.locator('body').press('Alt+ArrowLeft');
-  await expect(section(window)).toContainText('Ledger');
+  await expect(shows(window)).toHaveText('Northwind');
   await window.locator('body').press('Alt+ArrowLeft');
-  await expect(section(window)).toContainText('Plan');
+  await expect(shows(window)).toHaveText('Saved payment methods');
   await expect.poll(async () => Math.abs(await settledScroll(window) - reading)).toBeLessThan(2);
 });
 
 test('the mouse buttons close an open menu without going back, and one press goes one step however it arrives', async () => {
-  launched = await launch({ folder });
+  launched = await launchProject();
   const { window, app } = launched;
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
-  await expect(section(window)).toContainText('Ledger');
-  await sections(window).filter({ hasText: 'Plan' }).click();
-  await expect(section(window)).toContainText('Plan');
-  await sections(window).filter({ hasText: 'Diagrams' }).click();
-  await expect(section(window)).toContainText('Diagrams');
+  await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click({ modifiers: ['Control'] });
+  await expect(shows(window)).toHaveText('Saved payment methods');
+  // A decision the plan links, in a tab of its own.
+  const decision = '0001-acquirer-tokens-only.md';
+  await window.locator('.prose').getByRole('link', { name: 'ADR 0001' }).click({ modifiers: ['Control'] });
+  await expect(shows(window)).toHaveText(decision);
+  await tabs(window).filter({ hasText: 'Saved payment methods' }).click();
+  await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
+  await expect(window.locator('.diagrams .node').first()).toBeVisible();
+  const diagram = (await window.locator('.model-picker-title').textContent())!;
   // Windows and Linux report the buttons to the window too, as main's back or forward.
   const windowReports = (command: 'browser-backward' | 'browser-forward') => app.evaluate(({ BrowserWindow }, name) => { BrowserWindow.getAllWindows()[0].emit('app-command', {}, name); }, command);
 
@@ -267,42 +299,43 @@ test('the mouse buttons close an open menu without going back, and one press goe
   await window.waitForTimeout(400);
   await window.keyboard.press('Escape');
   await expect(window.getByRole('menu')).toHaveCount(0);
-  await expect(section(window)).toContainText('Diagrams');
+  await expect(shows(window)).toHaveText(diagram);
 
   // One press the page and the window both get goes one step, whichever comes first.
   expect(await mouseButton(window, 3)).toBe(true);
   await windowReports('browser-backward');
-  await expect(section(window)).toContainText('Plan');
+  await expect(shows(window)).toHaveText('Saved payment methods');
   await window.waitForTimeout(400);
-  await expect(section(window)).toContainText('Plan');
+  await expect(shows(window)).toHaveText('Saved payment methods');
   await windowReports('browser-backward');
   expect(await mouseButton(window, 3)).toBe(true);
-  await expect(section(window)).toContainText('Ledger');
+  await expect(shows(window)).toHaveText(decision);
   await window.waitForTimeout(400);
-  await expect(section(window)).toContainText('Ledger');
+  await expect(shows(window)).toHaveText(decision);
 
-  // Over the title bar's empty space only the window gets the press: it goes back.
+  // Over the title bar's empty space only the window gets the press: it goes back (to the plan the decision was opened from).
   await windowReports('browser-backward');
-  await expect(window.locator('.work-row')).toHaveCount(3);
+  await expect(shows(window)).toHaveText('Saved payment methods');
   await windowReports('browser-forward');
-  await expect(section(window)).toContainText('Ledger');
+  await expect(shows(window)).toHaveText(decision);
 });
 
-test('in a narrow window the menus stay clear of the arrows, which keep focus at the end of the history', async () => {
-  launched = await launch({ folder });
+test('in a narrow window the arrows stay clear of the menus, and keep focus at the end of the history', async () => {
+  launched = await launchProject();
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(640, 600); });
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  const help = (await menubar(window).getByRole('menuitem', { name: 'Help' }).boundingBox())!;
+  const file = (await menubar(window).getByRole('menuitem', { name: 'File' }).boundingBox())!;
   const back = window.getByRole('button', { name: 'Back' });
-  const arrow = (await back.boundingBox())!;
-  expect(help.x + help.width).toBeLessThanOrEqual(arrow.x);
+  const forward = (await window.getByRole('button', { name: 'Forward' }).boundingBox())!;
+  expect(forward.x + forward.width).toBeLessThanOrEqual(file.x);
   // At the end of the history the arrow stays focusable and keeps focus.
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await back.focus();
   await window.keyboard.press('Enter');
   await expect(window.locator('.work-row')).toHaveCount(3);
+  await window.keyboard.press('Enter');
+  await expect(window.getByRole('heading', { name: 'Open a project' })).toBeVisible();
   await expect(back).toBeDisabled();
   await expect(back).toBeFocused();
 });

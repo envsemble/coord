@@ -649,6 +649,117 @@ test("' atlas comments carry captures, proposals, comparisons, scenarios and evi
   );
 });
 
+// Descriptions of every kind of element and member, and the home database's
+// tables, one description each.
+const DESCRIBED = `@startuml
+title Described
+' atlas description Someone who buys.
+abstract class Party {
+  ' atlas description What others call them.
+  +name : String [0..1]
+  ' atlas description Greets them, by name.
+  greet(other : Party) : String
+}
+' atlas description Can be paid for: see https://example.com/pay.
+interface Payable
+' atlas description How far an order is.
+enum State {
+  ' atlas description Not paid yet.
+  OPEN
+}
+' atlas description A request to buy.
+class Order
+Order --> Party
+@enduml
+`;
+const HOME = fs.readFileSync(
+  path.join(__dirname, "fixtures/home-database.puml"),
+  "utf8",
+);
+
+test("' atlas description describes the element or member below it in one line of plain text", () => {
+  const { diagram, problems } = parse(DESCRIBED);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(atlas.checkDiagram(DESCRIBED), []);
+  const [party, payable, state] = diagram.elements;
+  assert.equal(party.description, "Someone who buys.");
+  assert.equal(party.attributes[0].description, "What others call them.");
+  assert.equal(party.operations[0].description, "Greets them, by name.");
+  assert.equal(
+    payable.description,
+    "Can be paid for: see https://example.com/pay.",
+  );
+  assert.equal(state.literals[0].description, "Not paid yet.");
+  assert.equal(diagram.relations[0].description, undefined);
+  // Entity columns and objects take them too.
+  const entity = parse(
+    "@startuml\nentity t {\n  ' atlas description Its key.\n  *id : integer <<PK>>\n  --\n  ' atlas description Its name.\n  name : text\n}\n@enduml\n",
+  );
+  assert.deepEqual(entity.problems, []);
+  assert.deepEqual(
+    entity.diagram.elements[0].attributes.map((a) => a.description),
+    ["Its key.", "Its name."],
+  );
+  assert.equal(
+    parse(
+      "@startuml\n' atlas description Ada, a learner.\nobject ada\n@enduml\n",
+    ).diagram.elements[0].description,
+    "Ada, a learner.",
+  );
+  // The home database describes every table.
+  assert.deepEqual(atlas.checkDiagram(HOME), []);
+  const home = parse(HOME).diagram;
+  assert.equal(home.elements.length, 13);
+  assert(home.elements.every((e) => e.description));
+  const wrong = (body) =>
+    parse(`@startuml\n${body}\n@enduml\n`).problems.map((p) => [
+      p.line,
+      p.code,
+    ]);
+  const limit = "x".repeat(279);
+  assert.deepEqual(wrong(`' atlas description ${limit}.\nclass A`), []);
+  assert.deepEqual(wrong(`' atlas description ${limit}..\nclass A`), [
+    [2, "ATLAS_DESCRIPTION"],
+  ]);
+  assert.deepEqual(wrong("' atlas description\nclass A"), [
+    [2, "ATLAS_DESCRIPTION"],
+  ]);
+  assert.deepEqual(wrong("' atlas description A **bold** class.\nclass A"), [
+    [2, "ATLAS_DESCRIPTION"],
+  ]);
+  assert.deepEqual(
+    wrong("' atlas description One.\n' atlas description Two.\nclass A"),
+    [[3, "ATLAS_REPEATED"]],
+  );
+  // Directly above an element or member, and nothing else.
+  for (const [body, line] of [
+    ["class A\nclass B\n' atlas description Joins them.\nA -- B", 4],
+    ["' atlas description Shop.\ntitle Shop\nclass A", 2],
+    ["' atlas description A.\n\nclass A", 2],
+    ["class A {\n  x : int\n  ' atlas description Nothing.\n}", 4],
+    ["object a {\n  ' atlas description A slot.\n  x = 1\n}", 3],
+    [
+      "entity t {\n  *id : int <<PK>>\n  ' atlas description Keys.\n  --\n  x : int\n}",
+      4,
+    ],
+    ["class A\n' atlas description At the end.", 3],
+  ])
+    assert.deepEqual(wrong(body), [[line, "ATLAS_PLACEMENT"]], body);
+  assert.match(
+    parse(
+      "@startuml\nclass A\nclass B\n' atlas description Joins.\nA -- B\n@enduml\n",
+    ).problems[0].message,
+    /relations and slots take none/,
+  );
+  // Evidence is one per element too.
+  assert.deepEqual(
+    wrong(
+      `' atlas evidence {"file":"a.ts"}\n' atlas evidence {"file":"b.ts"}\nclass A`,
+    ),
+    [[3, "ATLAS_REPEATED"]],
+  );
+});
+
 // A capture of code whose names and types PlantUML would read as more than
 // text, or join with the next line, if they were written as they are.
 function awkwardCapture() {
@@ -934,7 +1045,14 @@ test("writing a diagram gives Atlas's canonical text, which reads back the same"
     JSON.parse(
       JSON.stringify(value, (key, v) => (key === "line" ? undefined : v)),
     );
-  for (const text of [CLASSES, ENTITIES, OBJECTS, captureText()]) {
+  for (const text of [
+    CLASSES,
+    ENTITIES,
+    OBJECTS,
+    DESCRIBED,
+    HOME,
+    captureText(),
+  ]) {
     const { diagram } = parse(text);
     const written = atlas.formatDiagram(diagram);
     const reread = parse(written);
@@ -1209,7 +1327,7 @@ test(
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-plantuml-"));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     const files = [
-      ...[CLASSES, ENTITIES, OBJECTS].map((text, i) => ({
+      ...[CLASSES, ENTITIES, OBJECTS, DESCRIBED, HOME].map((text, i) => ({
         path: `fixture-${i}.puml`,
         text,
       })),

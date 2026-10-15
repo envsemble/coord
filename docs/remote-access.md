@@ -1,11 +1,10 @@
 # Remote access
 
-Remote access lets you work on another computer's planning folders from Atlas on this one: a desktop's plans from a laptop, or a server's from either. Atlas on that computer runs a small server, the **Atlas host**. Atlas on your other device pairs with it once, then works on that computer as it does on its own.
+Remote access lets you work on another computer's projects from Atlas on this one: a desktop's plans from a laptop, or a server's from either. Atlas on that computer runs a small server, the **Atlas host**. Atlas on your other device pairs with it once, then works on that computer as it does on its own.
 
 Pairing is for **your own devices**. A paired device can do what Atlas does on that computer:
 
-- browse its folders;
-- open any planning folder there;
+- see and open its projects (the planning folders in its Atlas home), rename them and create new ones;
 - import and export plans;
 - have its views counted in that computer's document use.
 
@@ -47,58 +46,34 @@ On Windows, the first time the host listens on a network address, Windows Defend
 
 ## Connect from another device
 
-On the other device, choose **File › Connect to Another Atlas…** (also on the welcome page and in the computer menu) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Atlas then lists that computer's planning folders. Choose one to open it, or **Open Folder on …** to browse that computer for another.
+On the other device, choose **File › Connect to Another Atlas…** (also in the computer menu) and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Then **Show** that computer: the window's sidebar lists its projects.
 
 ## Work on another computer
 
-Each window says where it works: the **computer menu** (the computer's name in the title bar, after the menus and the back and forward arrows) and the folder's name above the explorer.
+Each window says where it works: the **computer menu** (the computer's name in the title bar, after the back and forward arrows and the menus) and the projects in the sidebar.
 
 - **The computer menu** lists this computer and every computer this one is paired with. Computers that do not answer are marked **Offline**.
-  - Choosing a computer works on it in this window. Atlas opens:
-    - its only planning folder;
-    - else the one this device last showed there;
-    - else its most recent;
-    - and with none, that computer's welcome page, to open one.
-
-    On a welcome page, choosing a computer shows its folder list instead.
-
+  - Choosing a computer works on it in this window: the sidebar lists its projects, and the tabs are the ones this window last had open there.
   - **Connect to Another Atlas…** pairs with one more.
   - **Manage Computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
+- **The projects** are the planning folders in that computer's Atlas home, in the same sidebar as this computer's. **File › New Project…** creates one there, and **Rename…** changes a project's name in its `planning.json` there, for every device. The order of the projects and whether one is hidden or archived are this device's own.
 
-- **File › Open Recent** lists the computer's planning folders, newest first, then **Manage Folders…** (on macOS, **File › Manage Folders…**); **File › Open Folder…** opens another one:
-  - on this computer, **Open Folder…** opens the system's dialog;
-  - on another, it opens the **folder browser**. It lists that computer's folders (never files), marks planning folders (those with a `planning.json`) and opens only those. It starts beside the folder the window shows; **Home** goes to the home folder and the drives.
-  - **Manage Folders…** lists every folder with its path, its number of work items and when it was last opened, and marks the one this window shows. **↗** opens a folder in a new window, and **×** takes it off the list on every device.
-  - **File › Close Folder** goes back to the computer's welcome page.
-- **Choosing a folder or a computer** opens it in this window. In a folder list, Ctrl+click (⌘+click on macOS) or **↗** opens it in a new window. A folder that is already open somewhere brings that window forward.
-- **The welcome page**, in a window without a folder, has the same computer menu and lists the chosen computer's folders.
-
-A window on another computer shows the computer's name in its title (`planning — desk — Atlas`). Everything works as it does locally:
+A window on another computer shows the computer's name in its title (`desk — Atlas`). Everything works as it does locally:
 
 - the work list, plans, ledgers, statistics, diagrams and quick open;
 - **Export Plan…**, which saves the export on this device;
-- **Import Plan…**, which sends the chosen file to that computer and adds the plan to the folder there.
+- **Import Plan…**, which sends the chosen file to that computer and adds the plan to the project there.
 
 Only **Reveal in File Explorer** is not offered. Your views count in that computer's document use.
 
-Windows showing another computer's folders reopen on the next start while the computer is still paired. When that computer is unreachable (asleep, Atlas closed, or the network down), its windows keep showing the last view with a notice and reconnect on their own.
+Windows showing another computer reopen on the next start while the computer is still paired. When that computer is unreachable (asleep, Atlas closed, or the network down), its windows keep showing the last view with a notice and reconnect on their own.
 
 - Both sides check the connection every 30 seconds, so a connection that died silently is noticed within two minutes.
 - When this device wakes from sleep, it checks its connections at once and replaces any that died.
-- A window restored at start while its computer is unreachable opens the folder as soon as the computer answers.
+- A window restored at start while its computer is unreachable shows its projects as soon as the computer answers.
 - When the device is revoked, the window says so. Pair again with a new link, and the computer's windows read through the new pairing.
 
-### The folder list
-
-Each computer keeps one **folder list**, in `host/folders.json` in its [Atlas home](command.md#the-atlas-home), and lists every planning folder in the home after it.
-
-- **Joining:** a planning folder joins the list when it is opened there from any device, from the command line, or with `atlas serve --folder`.
-- **Everyone sees the same list:** File › Open Recent and the welcome page, on this computer and on every paired device. A folder opened on one device appears on the others at once.
-- **Leaving:** a folder stays until someone removes it with **×** in a folder list, which removes it for every device. Planning folders in the Atlas home are always listed.
-- **Missing folders:** a folder that was moved or deleted is marked **Missing**.
-- **The first list** starts from the folders this Atlas recently opened and, from the first version of remote access, the folders it shared.
-
-What each device shows stays its own: its windows, the folder each window shows, tabs, scrolling and the sidebar.
+What each device shows stays its own: its windows, their tabs, scrolling and the sidebar, and the order and state of the projects. A project's name, its planning folder and its document use belong to the computer.
 
 ### Managing access from another device
 
@@ -113,7 +88,7 @@ atlas serve
 ```
 
 - **Address:** it listens on the computer's Tailscale address unless `--address` names another address of the computer, on port 7346 unless `--port` gives another one.
-- **Folders:** paired devices open folders from its folder list or its folder browser. `--folder <planning-root>` (repeatable) adds a folder to the list as it starts.
+- **Projects:** paired devices see the projects in its Atlas home.
 - **Pairing:** it prints a pairing link with a QR code in the terminal. In an interactive terminal:
   - **Enter** prints a new link;
   - `manage` prints a link that also grants Manage access;
@@ -129,7 +104,7 @@ atlas serve
 One process per Atlas home manages remote access.
 
 - **The lock:** the managing process holds a lock that the system releases when the process ends, however it ends (a named pipe on Windows, an abstract socket on Linux). The lock is named after a secret in the home, so every path to the same home finds it, and other users cannot predict its name. A program that takes the name anyway cannot prove it read the secret: Atlas then says that a program that is not Atlas holds the lock, and remote access stays off.
-- **Unreadable settings:** if `host/access.json` cannot be read, because it is damaged or a newer Atlas wrote it, Atlas leaves the file as it is, keeps remote access off and says why in **Remote Access**. To start over, remove the file and start Atlas again; paired devices then pair again.
+- **Unreadable settings:** the host's identity, settings and paired devices are in the [home database](command.md#the-atlas-home). If it cannot be opened, because it is damaged or a newer Atlas wrote it, neither the app nor `atlas serve` starts on it, and both say why.
 - **The app and `atlas serve` together:**
   - while `atlas serve` runs, the app's **Remote Access** dialog shows remote access as managed by it and changes nothing;
   - once `atlas serve` stops, the app takes over within 15 seconds, or when the dialog opens;
@@ -143,7 +118,7 @@ The Atlas host (`packages/host`) is a Node server written with [Hono](https://ho
 
 The desktop app runs the host in a separate utility process and is its first client. Its main process connects to the host as the **owner**, over a loopback listener on a random port, with a token created at each start and kept only in memory. The app's windows still talk to their main process through the checked message list, and never reach the host directly.
 
-A crashed host restarts, at most three times a minute; after that, Atlas says so and leaves it stopped until Atlas starts again. The app reconnects, opens its windows' folders again, and they carry on.
+A crashed host restarts, at most three times a minute; after that, Atlas says so and leaves it stopped until Atlas starts again. The app reconnects, follows its windows' projects again, and they carry on.
 
 A paired device connects to the **network listener** that remote access turns on. Clients use a JSON request and event protocol over one WebSocket (`/api/connect`), and HTTP for files in documents, plan exports and plans sent for import.
 
@@ -159,7 +134,7 @@ A paired device connects to the **network listener** that remote access turns on
 
 Every request has a declared scope, checked before anything else:
 
-- **`computer`:** every paired device has it. It covers the folder list, the folder browser, opening any planning folder, reading it, document use, and plan export and import.
+- **`computer`:** every paired device has it. It covers the project list, creating and renaming projects, reading them, document use, and plan export and import.
 - **`access:manage`:** a device has it when its pairing link granted Manage access. It covers pairing links, the paired devices list, revocation, and the remote access status.
 - **`owner`:** changing how the computer is reached is for the owner only.
 
@@ -172,12 +147,12 @@ The loopback listener accepts only the owner credential, and only from this comp
   - At most 20 links can be open at once.
   - After 20 wrong codes from one address within five minutes, or 200 from all addresses together, the host refuses pairing until the window passes.
 - **Device tokens** are 32 random bytes.
-  - The host stores only their SHA-256 hash, with what the device may do, in `<Atlas home>/host/access.json`, and compares hashes in constant time.
-  - The connecting device stores its token in `connections.json` in its Atlas home, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted.
-  - Both files are written with owner-only permissions on Linux; on Windows, the home is in your user profile.
+  - The host stores only their SHA-256 hash, with what the device may do, in its [home database](command.md#the-atlas-home), and compares hashes in constant time.
+  - The connecting device stores its token in its home database, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted.
+  - On macOS and Linux, Atlas creates the home readable by you only (0700) and the database and its `-wal` and `-shm` files as 0600, and tightens database files an earlier version left readable when it opens them. On Windows, the home is in your user profile, whose permissions keep other users out.
 - **What a device can reach** is what Atlas reaches on that computer, as the user who runs it:
-  - the names of folders it may list;
-  - the files inside planning folders;
+  - the files inside the planning folders of its projects: those in its Atlas home, and any project from before the home that is still outside it;
+  - new projects it creates there, project names it changes, and projects it moves into the home;
   - new work items it imports into a planning folder.
 
   It cannot read other files, run programs, edit plans or change how the computer is reached. A lost or stolen device keeps that reach until you revoke it, so revoke it from the computer, from `atlas serve` (`revoke`), or from another device with Manage access.
@@ -195,26 +170,23 @@ The loopback listener accepts only the owner credential, and only from this comp
 
 Remote access sends planning-folder contents only to devices you paired, and only while it is turned on. A paired device can see what the app shows on that computer:
 
-- the names of folders it browses, anywhere the computer's user may list;
 - real paths, which often include the user's name;
-- any planning folder's files, Git activity (commit titles and dates, without authors) and work statistics;
+- any project's files, Git activity (commit titles and dates, without authors) and work statistics;
 - document-use counts and last-use dates.
 
-Its views are recorded in that computer's document use, like views there. A device can also save a plan export, a copy its user then keeps, and import plans into a planning folder on that computer.
+Its views are recorded in that computer's document use, like views there. A device can also save a plan export, a copy its user then keeps, import plans into a project on that computer, and create and rename projects there.
 
-While remote access is on, anyone who can reach the chosen address and port can ask the host who it is (`GET /api/host`). The answer is this computer's name, a host ID and the Atlas version, but no folders or content. Over Tailscale, only your tailnet can ask; on a local network, anyone on it can.
+While remote access is on, anyone who can reach the chosen address and port can ask the host who it is (`GET /api/host`). The answer is this computer's name, a host ID and the Atlas version, but no projects or content. Over Tailscale, only your tailnet can ask; on a local network, anyone on it can.
 
 What each computer keeps:
 
-- **The computer with the folders:**
-  - `access.json` lists each paired device's name (its label, or the device's own computer name), platform, what it may do, pairing time and last-seen time, until the device is revoked;
-  - `folders.json` lists the planning folders opened there, from any device, until they are removed from the list;
+- **The computer with the projects:**
+  - its home database lists each paired device's name (its label, or the device's own computer name), platform, what it may do, pairing time and last-seen time, until the device is revoked;
   - when the app runs the host, `host.log` records the device's IP address and name when it pairs, its device ID when it connects, and revocations.
 - **The connecting device:**
-  - `connections.json` holds the paired computer's name, address, the device's credential and whether it may manage access, until you forget the computer there;
-  - `desktop-state.json` remembers the folder last shown on each computer, and the window layout of each folder.
+  - its home database holds the paired computer's name, address, the device's credential and whether it may manage access, until you forget the computer there, with the computer's projects as this device orders them and each window's tabs there.
 
-  Forgetting a computer removes both. `atlas.log` records the computer's name and address when pairing.
+  Forgetting a computer removes all of it. `atlas.log` records the computer's name and address when pairing.
 
 - **Logs** rotate by size: 1 MB per file, with three older files kept. Revoking or forgetting a computer does not remove lines already in the log.
 

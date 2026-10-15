@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "name": "Project name",
   "repositories": [],
   "work_items": []
 }

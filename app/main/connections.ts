@@ -1,27 +1,27 @@
 // The app's connections to Atlas hosts: its own host (main/localHost.ts), reached as the owner,
 // and the hosts of other computers it paired with, reached with a device token. A paired computer
 // is the same person's: its device token reaches everything Atlas can do there, and Manage access
-// when its pairing link granted it. Saved connections live in <Atlas data folder>/connections.json;
-// tokens are encrypted with the system's credential store (Electron safeStorage) where it has one.
-// A paired computer's connection stays open while a window shows one of its folders; other
-// requests (its folder list, the folder browser) use that connection or a short-lived one.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+// when its pairing link granted it. Paired computers are rows of the home database's connection
+// table; tokens are encrypted with the system's credential store (Electron safeStorage) where it has
+// one. A paired computer's connection stays open while a window shows its projects; other requests
+// (the computer menu's check) use that connection or a short-lived one.
+import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
-import path from 'node:path';
 import { safeStorage } from 'electron';
+import type { HomeDatabase } from '@envsemble/atlas-planning';
 import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events } from '@envsemble/atlas-host';
 import type { Computer, ComputerStatus } from '../shared/contract.ts';
-import { array, boolean, object, oneOf, optional, string } from '../shared/validate.ts';
+import { boolean, object, optional, string } from '../shared/validate.ts';
 import type { LocalHost } from './localHost.ts';
 import type { RotatingLog } from './log.ts';
 
-interface SavedConnection { hostId: string; name: string; origin: string; deviceId: string; token: string; pairedAt: string; manageAccess?: boolean }
+/** A paired computer as the connection table keeps it: `id` is the row's, `token` sealed. */
+interface SavedConnection { id: string; hostId: string; name: string; origin: string; deviceId: string; token: string; pairedAt: string; manageAccess: boolean }
 const hostIdPattern = /^[a-zA-Z0-9-]{8,64}$/;
-const saved = object<SavedConnection & { scopes?: string[] }>({
+const saved = object<Omit<SavedConnection, 'id' | 'manageAccess'> & { manageAccess?: boolean }>({
   hostId: string({ min: 8, max: 64, pattern: hostIdPattern }), name: string({ min: 1, max: 80 }), origin: string({ min: 10, max: 300, pattern: /^https?:\/\/[^/]+$/ }),
   deviceId: string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ }), token: string({ min: 8, max: 2000 }), pairedAt: string({ min: 1, max: 40 }),
   manageAccess: optional(boolean),
-  scopes: optional(array(oneOf(['planning:read', 'computer', 'access:manage'] as const), 3)),
 });
 /** How long the computer menu waits for a paired computer to answer. */
 const probeTimeout = 2500;
@@ -33,14 +33,14 @@ export interface ConnectionEvents {
 
 export class Connections {
   readonly local: HostClient;
-  private readonly file: string;
+  private readonly database: HomeDatabase;
   private readonly log: RotatingLog;
   private readonly events: ConnectionEvents;
   private readonly localHost: LocalHost;
   private readonly remote = new Map<string, { saved: SavedConnection; client: HostClient | null }>();
 
-  constructor(options: { dataDirectory: string; localHost: LocalHost; log: RotatingLog } & ConnectionEvents) {
-    this.file = path.join(options.dataDirectory, 'connections.json');
+  constructor(options: { database: HomeDatabase; localHost: LocalHost; log: RotatingLog } & ConnectionEvents) {
+    this.database = options.database;
     this.log = options.log;
     this.events = options;
     this.localHost = options.localHost;
@@ -55,22 +55,18 @@ export class Connections {
   }
 
   private load() {
-    let parsed: unknown = [];
-    try { parsed = JSON.parse(readFileSync(this.file, 'utf8')); } catch { /* None saved yet, or unreadable: start empty. */ }
-    if (!Array.isArray(parsed)) { this.log.warn('Saved connections unreadable; starting without them'); return; }
-    // Each saved computer is checked on its own, so one unreadable entry costs only itself.
-    for (const [index, value] of parsed.slice(0, 100).entries()) {
+    // Each saved computer is checked on its own, so one unreadable row costs only itself.
+    for (const row of this.database.db.prepare('SELECT * FROM connection ORDER BY paired_at').all() as Record<string, unknown>[]) {
       try {
-        const { scopes, ...entry } = saved(value);
-        this.remote.set(entry.hostId, { saved: { ...entry, manageAccess: entry.manageAccess ?? scopes?.includes('access:manage') ?? false }, client: null });
-      } catch (error) { this.log.warn('A saved connection is unreadable and was skipped', { index, message: (error as Error).message }); }
+        const entry = saved({ hostId: row.host_id, name: row.name, origin: row.origin, deviceId: row.device_id, token: Buffer.from(row.token as Uint8Array).toString('utf8'), pairedAt: row.paired_at });
+        this.remote.set(entry.hostId, { saved: { ...entry, id: String(row.id), manageAccess: Boolean(row.manage_access) }, client: null });
+      } catch (error) { this.log.warn('A saved connection is unreadable and was skipped', { id: row.id, message: (error as Error).message }); }
     }
   }
-  private save() {
-    mkdirSync(path.dirname(this.file), { recursive: true });
-    const temporary = this.file + '.' + process.pid + '.tmp';
-    writeFileSync(temporary, JSON.stringify([...this.remote.values()].map(entry => entry.saved), null, 2) + '\n', { mode: 0o600 });
-    renameSync(temporary, this.file);
+  /** Save a paired computer, keeping its row (and so its projects' order) when it pairs again. */
+  private save(entry: SavedConnection) {
+    this.database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at, manage_access) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (host_id) DO UPDATE SET name = excluded.name, origin = excluded.origin, device_id = excluded.device_id, token = excluded.token, paired_at = excluded.paired_at, manage_access = excluded.manage_access')
+      .run(entry.id, entry.hostId, entry.name, entry.origin, entry.deviceId, Buffer.from(entry.token, 'utf8'), entry.pairedAt, entry.manageAccess ? 1 : 0);
   }
 
   /** Whether the system has a credential store. Linux without a keyring falls back to a fixed key, which protects nothing. */
@@ -91,6 +87,13 @@ export class Connections {
   get localName() { return this.local.descriptor?.name ?? (hostname().trim() || 'This computer'); }
   has(hostId: string) { return this.remote.has(hostId); }
   name(hostId: string) { return this.remote.get(hostId)?.saved.name ?? hostId; }
+  /** The connection row of a paired computer, which its projects' rows and windows name. */
+  idOf(hostId: string) { return this.entry(hostId).saved.id; }
+  /** The paired computer of a connection row, if it is still paired. */
+  hostIdFor(connectionId: string): string | null {
+    for (const [hostId, entry] of this.remote) if (entry.saved.id === connectionId) return hostId;
+    return null;
+  }
   /** The paired computer a connection belongs to; null for this computer's own. */
   hostIdOf(client: HostClient): string | null {
     for (const [hostId, entry] of this.remote) if (entry.client === client) return hostId;
@@ -104,7 +107,7 @@ export class Connections {
   async computers(): Promise<Computer[]> {
     const local: Computer = { hostId: null, name: this.localName, status: 'online', detail: null, manageAccess: true, origin: null };
     const others = await Promise.all([...this.remote.values()].map(async ({ saved: entry, client }): Promise<Computer> => {
-      const base = { hostId: entry.hostId, name: entry.name, manageAccess: entry.manageAccess ?? false, origin: entry.origin };
+      const base = { hostId: entry.hostId, name: entry.name, manageAccess: entry.manageAccess, origin: entry.origin };
       if (client && client.status !== 'closed') return { ...base, status: statusOf(client.status), detail: client.status === 'connected' ? null : client.detail };
       try {
         const described = await describeHost(entry.origin, probeTimeout);
@@ -149,7 +152,7 @@ export class Connections {
     try { return await task(client); }
     finally { client.close(); }
   }
-  /** No window shows this computer's folders any more: close its connection. */
+  /** No window shows this computer's projects any more: close its connection. */
   release(hostId: string) {
     const entry = this.remote.get(hostId);
     entry?.client?.close();
@@ -166,28 +169,28 @@ export class Connections {
     if (descriptor.hostId !== described.hostId) throw new HostRequestError('unavailable', 'The host changed while pairing. Try again.');
     // Everything saved comes from the other computer: keep only what fits.
     let entry: SavedConnection;
-    try {
-      const { scopes: _scopes, ...checked } = saved({
-        hostId: descriptor.hostId, name: descriptor.name.trim().slice(0, 80) || 'Another computer', origin: target.origin,
-        deviceId: pairing.deviceId, token: this.seal(pairing.token), pairedAt: new Date().toISOString(), manageAccess: Array.isArray(pairing.scopes) && pairing.scopes.includes('access:manage'),
-      });
-      entry = checked;
-    } catch (error) { throw new HostRequestError('unavailable', 'The other computer answered with something Atlas cannot use (' + (error as Error).message + ').'); }
     const previous = this.remote.get(descriptor.hostId);
+    try {
+      const checked = saved({
+        hostId: descriptor.hostId, name: descriptor.name.trim().slice(0, 80) || 'Another computer', origin: target.origin,
+        deviceId: pairing.deviceId, token: this.seal(pairing.token), pairedAt: new Date().toISOString(),
+      });
+      entry = { ...checked, id: previous?.saved.id ?? randomUUID(), manageAccess: Array.isArray(pairing.scopes) && pairing.scopes.includes('access:manage') };
+    } catch (error) { throw new HostRequestError('unavailable', 'The other computer answered with something Atlas cannot use (' + (error as Error).message + ').'); }
     previous?.client?.close();
     this.remote.set(descriptor.hostId, { saved: entry, client: null });
-    this.save();
+    this.save(entry);
     this.log.info('Paired with another computer', { hostId: descriptor.hostId, name: entry.name, origin: target.origin, manageAccess: entry.manageAccess });
-    return { hostId: entry.hostId, name: entry.name, status: 'online', detail: null, manageAccess: entry.manageAccess ?? false, origin: entry.origin };
+    return { hostId: entry.hostId, name: entry.name, status: 'online', detail: null, manageAccess: entry.manageAccess, origin: entry.origin };
   }
 
-  /** Forget a paired computer here. Its host keeps the device listed until it is revoked there. */
+  /** Forget a paired computer here, with the rows kept for its projects. Its host keeps the device listed until it is revoked there. */
   forget(hostId: string) {
     const entry = this.remote.get(hostId);
     if (!entry) return;
     entry.client?.close();
     this.remote.delete(hostId);
-    this.save();
+    this.database.db.prepare('DELETE FROM connection WHERE id = ?').run(entry.saved.id);
   }
 
   /** Try every connection again now (the computer woke up, or the network changed). */

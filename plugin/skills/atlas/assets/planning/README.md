@@ -1,12 +1,12 @@
 # Planning
 
-This locally versioned repository, in the Atlas home, holds intended work, implementation records, historical rationale, and scoped engineering knowledge for participating projects.
+This locally versioned repository, in the Atlas home, is an Atlas project: it holds intended work, implementation records, historical rationale, and scoped engineering knowledge for its participating repositories. Its name is the `name` in `planning.json`.
 
 Start with [AGENTS.md](AGENTS.md) for governance and [PLANS.md](PLANS.md) for work identity, metadata, and lifecycle. [planning.json](planning.json) is the authoritative scope/location index and explicit current-plan selector. [plan-frontmatter.md](plan-frontmatter.md) is the minimal metadata example; plan bodies remain flexible.
 
-## Participating projects
+## Participating repositories
 
-Repository IDs and names are listed in `planning.json`. Each repository's Git remote is how Atlas finds this folder from a checkout of it; optional checkout paths may differ between machines. Register the projects whose work belongs here as scope becomes known; sharing this repository does not share every project's constraints.
+Repository IDs and names are listed in `planning.json`. Each repository's Git remote is how Atlas finds this folder from a checkout of it; optional checkout paths may differ between machines. Register the repositories whose work belongs here as scope becomes known; sharing this planning repository does not share every repository's constraints. A repository may belong to several projects.
 
 ## Work and knowledge
 

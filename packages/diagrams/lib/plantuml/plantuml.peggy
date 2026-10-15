@@ -67,7 +67,8 @@ Blank
     { return { type: "blank" }; }
 
 // `' atlas …` comments carry what PlantUML cannot: capture headers, proposal,
-// comparison and scenario references, and evidence for the next element.
+// comparison and scenario references, and evidence and descriptions for the
+// next element.
 AtlasComment
   = _ "'" _ "atlas" text:(Space @$(!NL .)*)? NL
     { return { type: "atlas", ...at(), text: (text || "").trim() }; }

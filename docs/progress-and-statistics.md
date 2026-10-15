@@ -1,6 +1,6 @@
 # Progress and statistics
 
-Atlas shows how far each piece of work has come and what it took, from two records in the planning folder: the **steps** in the work's ledger, which the agent keeps current through the Atlas tools, and **reports** that Atlas's hooks measure from the agent's own session log. Both live next to the work, so they are versioned with it and move with it.
+Atlas shows how far each piece of work has come and what it took, from two records: the **steps** in the work's ledger in the planning folder, which the agent keeps current through the Atlas tools and which are versioned with the work, and **reports** that Atlas's hooks measure from the agent's own session log, kept in the [home database](command.md#the-atlas-home) under the work item's project.
 
 ## Ledger steps
 
@@ -45,7 +45,7 @@ Agents do not report statistics: the Atlas plugin's [hooks](agent-interface.md#h
 
 The log is only read, never copied: a report holds these numbers and model identifiers, never prompts, paths or tool output. Claude Code's log is `<config>/projects/<project>/<session>.jsonl` with its subagents' logs beside it (`<config>` is `CLAUDE_CONFIG_DIR`, else `~/.claude`); Codex's are the thread's rollouts under `<home>/sessions/` or `<home>/archived_sessions/`, with its subagents' threads (`<home>` is `CODEX_HOME`, else `~/.codex`). A Codex subagent's thread belongs to its root session: its own reports count as that session's, so its work is never counted twice.
 
-Each report is one line in `<work>/.atlas/statistics.jsonl`. A hook never fails the agent's session: a report it cannot write or measure is noted in the home's `logs/hooks.log`.
+Each report is a row of the home database, with its models and subagents beside it, keyed by the planning folder's project and the work item; nothing is written into the planning folder. A hook never fails the agent's session: a report it cannot write or measure is noted in the home's `logs/hooks.log`.
 
 ### Reporting without the hooks
 
@@ -69,7 +69,7 @@ From the reports and the planning folder's Git history, Atlas works out, per wor
 | **Plan revisions** | Commits that changed the main plan after it was added, up to its completion date. Renames are followed, so moving the plan to the archive is not a revision.                                                                                                                                                                                                                                                                             |
 | **Steps**          | Done and total steps from the ledger.                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-The **Statistics** view shows them in two tabs. **Work** lists every work item with these figures, its agent time and tokens in a column per stage, with totals and the median plan revisions of completed work. **Models over time** compares completed work by implementing model: a chart plots agent time, tokens, plan revisions or steps for each completed work item at its completion date, and a table gives each model's medians, so you can see how a new model compares with the ones before it. A work item's About sidebar sums up its own statistics: the model with its provider's mark, the agent time and tokens of each stage (on hover or focus, how much was measured and since when, and the tokens by kind), the subagents and the plan revisions.
+A project's page shows them in its **Statistics** section, chosen with a segmented control like the work list's filter. **Work** lists every work item with these figures, its agent time and tokens in a column per stage, with totals and the median plan revisions of completed work. **Models over time** compares completed work by implementing model: a chart plots agent time, tokens, plan revisions or steps for each completed work item at its completion date, and a table gives each model's medians, so you can see how a new model compares with the ones before it. A work item's About sidebar sums up its own statistics: the model with its provider's mark, the agent time and tokens of each stage (on hover or focus, how much was measured and since when, and the tokens by kind), the subagents and the plan revisions.
 
 ### What the numbers mean
 
@@ -81,8 +81,8 @@ The **Statistics** view shows them in two tabs. **Work** lists every work item w
 - **Revisions need history.** Plan revisions count only committed changes, and need the planning folder's Git history.
 - **Not a productivity score.** The figures describe how work went. They do not measure the quality of the outcome.
 
-Plan exports leave the statistics file out. `atlas check` warns about lines that are not valid reports, and never fails on them. The record format is in [`PLANS.md`](../plugin/skills/atlas/assets/planning/PLANS.md#work-statistics).
+Before the home database, reports were lines of `<work>/.atlas/statistics.jsonl` in the planning folder. `atlas setup` and `atlas home adopt` import such files into the database, each report once, and delete them from the planning folder; Atlas never commits, so commit the removal there (Git keeps the files' history). Plan exports leave them out.
 
 ## Document use
 
-The Statistics view's third tab, **Document use**, is a separate record: which planning documents were opened in Atlas, and which ones agents reported consulting with `atlas usage log`. It is kept outside the planning folder, in the [Atlas home](command.md#the-atlas-home). With [remote access](remote-access.md) on, paired devices see the counts of the computer whose folder they show, and their views count there. The [app guide](../app/README.md#document-use) describes it.
+The Statistics section's third choice, **Document use**, is a separate record: which planning documents were opened in Atlas, and which ones agents reported consulting with `atlas usage log` (or read, with the hooks). It is kept outside the planning folder, in the home database under the project, with the gaps in its collection. With [remote access](remote-access.md) on, paired devices see the counts of the computer whose project they show, and their views count there. The [app guide](../app/README.md#document-use) describes it.

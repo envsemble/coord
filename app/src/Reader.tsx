@@ -4,26 +4,26 @@ import { Markdown } from '@envsemble/envui/content';
 import { DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from './icons';
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from './types';
 import { api, fileUrl } from './api';
-import { resolveLink } from './links';
+import { resolveLink, siblingReference } from './links';
 import { sectionAnchors } from '@envsemble/atlas-planning/headings';
 import { findHeadingId, headingPrefix, rehypeHeadingIds } from './headings';
-import { documentTarget, workTarget } from './targets';
+import { diagramTarget, documentTarget, workTarget } from './targets';
 import { bytes, workNumber } from './format';
 import { ProvenanceBadge } from './ui';
 import { useWorkbench } from './workbenchContext';
 
 /** The diagrams a document links to, refetched when the folder changes. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
-  const { revision } = useWorkbench();
+  const { project, revision } = useWorkbench();
   const [links, setLinks] = useState<DiagramReference[]>([]);
   useEffect(() => {
     if (!file || !enabled || (!workId && file.category !== 'knowledge')) { setLinks([]); return; }
     let current = true;
-    api.references(workId ?? null, file.path)
+    api.references(project, workId ?? null, file.path)
       .then(next => { if (current) setLinks(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next); })
       .catch(() => { if (current) setLinks([]); });
     return () => { current = false; };
-  }, [workId, file?.path, file?.modified, file?.category, enabled, revision]);
+  }, [project, workId, file?.path, file?.modified, file?.category, enabled, revision]);
   return links;
 }
 
@@ -41,7 +41,7 @@ function cards(references: DiagramReference[]): DiagramCard[] {
 /** The diagrams the passage links to, under its heading, with the elements its links name. */
 function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boolean }) {
   const { open } = useWorkbench();
-  const show = (card: DiagramCard, element?: string) => open(workTarget(card.workId, 'diagrams', { diagram: card.path, element: element ?? card.elements[0] ?? null }), { pin: true });
+  const show = (card: DiagramCard, element?: string) => open(diagramTarget(card.workId, card.path, element ?? card.elements[0] ?? null), { pin: true });
   return <div className="diagram-cards">{items.map(card => <Card key={card.key} className="diagram-card" tone="pane" padding={4}
     heading={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
     meta={showWork ? workNumber(card.workId) : undefined}
@@ -67,7 +67,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: DiagramReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
 }) {
-  const { open, notify, remote } = useWorkbench();
+  const { project, open, notify, remote, sibling, openPath } = useWorkbench();
   const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [error, setError] = useState('');
@@ -80,16 +80,16 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   useEffect(() => {
     let current = true;
     setError('');
-    api.document(file.path)
+    api.document(project, file.path)
       .then(next => { if (current) setContent(previous => previous && previous.path === next.path && previous.contentHash === next.contentHash ? previous : next); })
       .catch(failure => { if (current) setError(failure.message); });
     return () => { current = false; };
-  }, [file.path, file.modified]);
+  }, [project, file.path, file.modified]);
   useEffect(() => { setContent(null); }, [file.path]);
   useEffect(() => {
     if (!content) return;
     // View statistics are optional; a failure never interrupts reading.
-    api.recordView({ id: crypto.randomUUID(), path: content.path, session: sessionId(), contentHash: content.contentHash || null }).catch(() => undefined);
+    api.recordView(project, { id: crypto.randomUUID(), path: content.path, session: sessionId(), contentHash: content.contentHash || null }).catch(() => undefined);
   }, [content]);
   const cardCount = references.length;
   useEffect(() => {
@@ -136,22 +136,26 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
         if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></a>;
         const owner = target.file ? snapshot.work.find(work => work.id === target.file!.workId) : undefined;
         const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
-          : target.work ? workTarget(target.work.id, null, { anchor: target.anchor ?? null }) : null;
+          : target.work ? workTarget(target.work.id, target.anchor ?? null) : null;
         if (href.startsWith('#') && target.anchor !== undefined) return <a id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</a>;
         if (route) return <a id={id} href="#" onClick={event => {
           event.preventDefault();
           if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
           open(route, { pin: event.ctrlKey || event.metaKey });
         }}>{children}</a>;
+        // A link into a sibling project of the same computer opens there.
+        const across = siblingReference(href, file.path);
+        const other = across && sibling(across.folder);
+        if (across && other) return <a id={id} href="#" onClick={event => { event.preventDefault(); openPath(other, across.path, across.anchor, { pin: event.ctrlKey || event.metaKey }); }}>{children}</a>;
         return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
       },
       img: ({ src = '', alt = '' }: { src?: unknown; alt?: string }) => {
         const target = destination(typeof src === 'string' ? src : '');
-        return target.file ? <img src={fileUrl(target.file.path)} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
+        return target.file ? <img src={fileUrl(project, target.file.path)} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
       },
     };
-  }, [diagramCards, showWork, hideTitle, snapshot, file.path, open]);
-  const reveal = () => { api.reveal(file.path).catch(failure => notify(failure.message, 'warning')); };
+  }, [diagramCards, showWork, hideTitle, snapshot, file.path, open, project, sibling, openPath]);
+  const reveal = () => { api.reveal(project, file.path).catch(failure => notify(failure.message, 'warning')); };
   const revealButton = remote ? null : <Button variant="text" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>;
 
   return <article className={'reader' + (toolbar ? ' reader-boxed' : '')} ref={article}>
@@ -163,6 +167,6 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
         <Markdown inlineCode="subtle" rehypePlugins={rehypePlugins} components={components}>{content.body}</Markdown>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
-      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}
+      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(project, file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}
   </article>;
 }

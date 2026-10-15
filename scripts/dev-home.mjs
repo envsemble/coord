@@ -1,10 +1,19 @@
 // `npm run dev:home`: the desktop app in development on a home of its own, beside an installed Atlas.
-// The home is artifacts/dev-home (ignored by Git). The first run seeds it with a demo planning folder,
-// a copy of the end-to-end fixture with its diagrams, as a Git repository. This checkout's `atlas`
-// command goes first on the PATH, so the plugin's hooks and MCP server run this version too:
-// `artifacts/dev-bin` holds the shims. Arguments after `--` reach the app (a folder to open).
+// The home is artifacts/dev-home (ignored by Git). The first run seeds it with a demo project, a
+// copy of the end-to-end fixture with its diagrams, adopted into the home as a Git repository so its
+// statistics go into the home database. This checkout's `atlas` command goes first on the PATH, so
+// the plugin's hooks and MCP server run this version too: `artifacts/dev-bin` holds the shims.
+// Arguments after `--` reach the app.
 import { spawn, execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const repository = path.resolve(import.meta.dirname, "..");
@@ -14,27 +23,41 @@ const command = path.join(repository, "packages", "cli", "bin", "atlas.js");
 
 const demo = path.join(home, "planning", "demo");
 if (!existsSync(demo)) {
-  cpSync(path.join(repository, "app", "e2e", "fixtures", "planning"), demo, {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), "atlas-dev-home-"));
+  const source = path.join(scratch, "demo");
+  cpSync(path.join(repository, "app", "e2e", "fixtures", "planning"), source, {
     recursive: true,
   });
-  const git = (...args) =>
-    execFileSync("git", ["-C", demo, ...args], {
+  const git = (folder, ...args) =>
+    execFileSync(
+      "git",
+      [
+        "-C",
+        folder,
+        "-c",
+        "user.name=Atlas",
+        "-c",
+        "user.email=atlas@example.invalid",
+        ...args,
+      ],
+      { stdio: "ignore", windowsHide: true },
+    );
+  git(source, "init", "-q");
+  git(source, "add", "-A");
+  git(source, "commit", "-q", "-m", "Demo planning folder");
+  execFileSync(
+    process.execPath,
+    [command, "home", "adopt", source, "--name", "demo"],
+    {
+      env: { ...process.env, ATLAS_HOME: home },
       stdio: "ignore",
       windowsHide: true,
-    });
-  git("init", "-q");
-  git("add", "-A");
-  git(
-    "-c",
-    "user.name=Atlas",
-    "-c",
-    "user.email=atlas@example.invalid",
-    "commit",
-    "-q",
-    "-m",
-    "Demo planning folder",
+    },
   );
-  console.log("Seeded the demo planning folder: " + demo);
+  // Adopting moved the statistics files into the home database; commit their removal.
+  git(demo, "commit", "-q", "-a", "-m", "Statistics moved into the Atlas home");
+  rmSync(scratch, { recursive: true, force: true });
+  console.log("Seeded the demo project: " + demo);
 }
 
 mkdirSync(bin, { recursive: true });

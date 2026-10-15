@@ -1,34 +1,41 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, sameTarget, shownTarget, showTarget, startHistory, step, type History } from './history.ts';
-import { fileTarget, viewTarget, workTarget } from './targets.ts';
+import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, shownPlace, showPlace, startHistory, step, type History } from './history.ts';
+import { diagramTarget, fileTarget, ledgerTarget, projectTarget, workTarget, type Place } from './targets.ts';
 import type { UiState } from './types.ts';
 
-const work = viewTarget('work');
-const plan = workTarget('work-0001', 'plan');
-const ledger = workTarget('work-0001', 'ledger');
-const notes = fileTarget('knowledge/notes.md');
+const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
+const at = (target: Place['target'], project = shop): Place => ({ project, target });
+const page = at(projectTarget());
+const plan = at(workTarget('work-0001'));
+const other = at(workTarget('work-0001'), coord);
+const notes = at(fileTarget('knowledge/notes.md'));
 
 test('each new thing shown follows the current entry; the same thing again adds nothing', () => {
-  let history = startHistory(work);
+  let history = startHistory(page);
   assert.equal(canGoBack(history), false);
   history = record(history, plan);
-  history = record(history, workTarget('work-0001', 'plan', { diagram: null, anchor: null }));
-  history = record(history, ledger);
-  assert.deepEqual(history, { entries: [work, plan, ledger], ids: [0, 1, 2], index: 2, next: 3 });
+  history = record(history, at(workTarget('work-0001', null)));
+  history = record(history, other);
+  assert.deepEqual(history, { entries: [page, plan, other], ids: [0, 1, 2], index: 2, next: 3 });
   assert.equal(currentEntry(history), 2);
   assert.equal(canGoBack(history), true);
   assert.equal(canGoForward(history), false);
-  // A heading or a diagram is a place of its own.
-  assert.equal(sameTarget(fileTarget('a.md'), fileTarget('a.md', 'intro')), false);
-  assert.equal(sameTarget(workTarget('work-0001', 'diagrams'), workTarget('work-0001', 'diagrams', { diagram: 'm-1' })), false);
-  assert.equal(sameTarget(viewTarget('activity'), viewTarget('activity')), true);
+  // A heading, a diagram's element or another project is a place of its own.
+  assert.equal(samePlace(at(fileTarget('a.md')), at(fileTarget('a.md', 'intro'))), false);
+  assert.equal(samePlace(at(diagramTarget('work-0001', 'd.puml')), at(diagramTarget('work-0001', 'd.puml', 'Order'))), false);
+  assert.equal(samePlace(plan, other), false);
+  assert.equal(samePlace(plan, at(ledgerTarget('work-0001'))), false, "a work item's plan and its ledger are two places");
+  assert.equal(samePlace(plan, at({ kind: 'work', work: 'work-0001', anchor: null, view: null })), true);
+  assert.equal(record(startHistory(plan), at(ledgerTarget('work-0001'))).entries.length, 2, 'showing the ledger in place is a step back to the plan');
+  assert.equal(samePlace(page, at(projectTarget())), true);
+  assert.equal(samePlace(null, null), true);
 });
 
 test('going back and forward moves through the entries; showing something new drops what was ahead', () => {
-  let history: History = { entries: [work, plan, ledger], ids: [0, 1, 2], index: 2, next: 3 };
+  let history: History = { entries: [page, plan, other], ids: [0, 1, 2], index: 2, next: 3 };
   const back = step(history, -1)!;
-  assert.deepEqual(back.target, plan);
+  assert.deepEqual(back.place, plan);
   history = step(back.history, -1)!.history;
   assert.equal(history.index, 0);
   assert.equal(step(history, -1), null);
@@ -39,40 +46,38 @@ test('going back and forward moves through the entries; showing something new dr
   assert.equal(record(history, plan), history);
   history = record(history, notes);
   // The new entry has an id of its own, never the dropped entry's.
-  assert.deepEqual(history, { entries: [work, plan, notes], ids: [0, 1, 3], index: 2, next: 4 });
+  assert.deepEqual(history, { entries: [page, plan, notes], ids: [0, 1, 3], index: 2, next: 4 });
   assert.equal(step(history, 1), null);
 });
 
 test('the history keeps its latest entries', () => {
-  let history = startHistory(work);
-  for (let index = 0; index < historyLimit + 10; index++) history = record(history, fileTarget(`file-${index}.md`));
+  let history = startHistory(page);
+  for (let index = 0; index < historyLimit + 10; index++) history = record(history, at(fileTarget(`file-${index}.md`)));
   assert.equal(history.entries.length, historyLimit);
   assert.equal(history.index, historyLimit - 1);
-  assert.deepEqual(history.entries.at(-1), fileTarget(`file-${historyLimit + 9}.md`));
-  assert.deepEqual(history.entries[0], fileTarget('file-10.md'));
+  assert.deepEqual(history.entries.at(-1), at(fileTarget(`file-${historyLimit + 9}.md`)));
+  assert.deepEqual(history.entries[0], at(fileTarget('file-10.md')));
   assert.equal(history.ids.length, historyLimit);
   assert.equal(currentEntry(history), historyLimit + 10);
 });
 
-const ui = (tabs: UiState['tabs'], page: UiState['page'] = 'work'): UiState => ({ sidebar: { visible: true, width: 280, expanded: [] }, tabs, page });
+const ui = (tabs: UiState['tabs']): UiState => ({ sidebar: { visible: true, width: 280 }, tabs });
 
-test('an entry shows again as a page, as its open tab, or as a preview tab when its tab was closed', () => {
-  const opened = ui({ items: [{ id: 'work:work-0001', target: ledger, preview: false }, { id: 'file:knowledge/notes.md', target: notes, preview: true }], active: 'file:knowledge/notes.md' });
-  assert.deepEqual(shownTarget(opened), notes);
-  // A page shows over the tabs, which stay as they are.
-  const page = showTarget(opened, viewTarget('statistics'));
-  assert.deepEqual(page.tabs.items, opened.tabs.items);
-  assert.equal(page.tabs.active, null);
-  assert.deepEqual(shownTarget(page), viewTarget('statistics'));
+test('an entry shows again as its open tab, or as a preview tab when its tab was closed', () => {
+  const opened = ui({ items: [{ id: shop + ':work:work-0001', project: shop, target: plan.target, preview: false }, { id: shop + ':file:knowledge/notes.md', project: shop, target: notes.target, preview: true }], active: shop + ':file:knowledge/notes.md' });
+  assert.deepEqual(shownPlace(opened), notes);
+  // Nothing shown leaves the tabs, none active.
+  const none = showPlace(opened, null);
+  assert.deepEqual(none.tabs.items, opened.tabs.items);
+  assert.equal(shownPlace(none), null);
   // An open tab becomes active at the entry's place, and a kept tab stays kept.
-  const tab = showTarget(page, plan);
-  assert.equal(tab.tabs.active, 'work:work-0001');
-  assert.deepEqual(tab.tabs.items.map(item => [item.id, item.preview]), [['work:work-0001', false], ['file:knowledge/notes.md', true]]);
-  assert.deepEqual(shownTarget(tab), plan);
+  const tab = showPlace(none, plan);
+  assert.equal(tab.tabs.active, shop + ':work:work-0001');
+  assert.deepEqual(tab.tabs.items.map(item => [item.id, item.preview]), [[shop + ':work:work-0001', false], [shop + ':file:knowledge/notes.md', true]]);
   // A closed tab opens again as a preview, which replaces the current preview.
-  const reopened = showTarget(tab, fileTarget('README.md'));
-  assert.deepEqual(reopened.tabs.items.map(item => [item.id, item.preview]), [['work:work-0001', false], ['file:README.md', true]]);
-  assert.equal(reopened.tabs.active, 'file:README.md');
+  const reopened = showPlace(tab, at(fileTarget('README.md'), coord));
+  assert.deepEqual(reopened.tabs.items.map(item => [item.id, item.preview]), [[shop + ':work:work-0001', false], [coord + ':file:README.md', true]]);
+  assert.equal(reopened.tabs.active, coord + ':file:README.md');
 });
 
 const key = (key: string, modifiers: { alt?: boolean; ctrl?: boolean; meta?: boolean; shift?: boolean } = {}) =>
@@ -91,4 +96,12 @@ test('Alt+← and Alt+→ go back and forward, ⌘[ and ⌘] on macOS, and so do
   assert.equal(keyStep(key('ArrowLeft', { alt: true }), 'darwin'), null);
   assert.equal(keyStep(key('BrowserBack'), 'win32'), -1);
   assert.equal(keyStep(key('BrowserForward'), 'darwin'), 1);
+});
+
+test('a project moved under a new folder ID takes its tabs and history along', () => {
+  const moved = 'f-' + 'c'.repeat(32);
+  const shown = ui({ items: [{ id: shop + ':project', project: shop, target: projectTarget(), preview: false }, { id: coord + ':work:work-0001', project: coord, target: workTarget('work-0001'), preview: false }], active: shop + ':project' });
+  const { ui: next, history } = moveProject({ ui: shown, history: record(startHistory(other), page) }, shop, moved);
+  assert.deepEqual(next.tabs, { items: [{ id: moved + ':project', project: moved, target: projectTarget(), preview: false }, shown.tabs.items[1]], active: moved + ':project' });
+  assert.deepEqual(history.entries, [other, at(projectTarget(), moved)]);
 });

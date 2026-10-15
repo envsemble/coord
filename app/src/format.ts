@@ -35,6 +35,18 @@ export function relativeDate(value: string | null | undefined, now = Date.now())
   if (magnitude < 86400 * 30) return relativeFormat.format(Math.round(seconds / 86400), 'day');
   return 'on ' + shortDate(value);
 }
+/** How long ago, as briefly as a card has room for: "now", "11m", "3h", "5d", else the date. */
+export function shortAge(value: string | null | undefined, now = Date.now()) {
+  if (!value) return '';
+  const date = parse(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const minutes = Math.max(0, Math.floor((now - date.getTime()) / 60000));
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return minutes + 'm';
+  if (minutes < 1440) return Math.floor(minutes / 60) + 'h';
+  if (minutes < 1440 * 30) return Math.floor(minutes / 1440) + 'd';
+  return shortDate(value);
+}
 export function bytes(value: number) { return value < 1024 ? value + ' B' : value < 1048576 ? Math.round(value / 1024) + ' KB' : (value / 1048576).toFixed(1) + ' MB'; }
 export function workNumber(id: string) { return id.replace('work-', '#'); }
 export function plural(count: number, word: string, many = word + 's') { return count + ' ' + (count === 1 ? word : many); }

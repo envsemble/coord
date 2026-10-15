@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 import { ledgerStatus } from './ledger.ts';
 import { workStatistics } from './statistics.ts';
+import { planningName, type HomeDatabase } from './database.ts';
 import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Repository, Work } from './types.ts';
 import { runProgram as execute } from './run.ts';
 
@@ -212,7 +213,8 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
     }) };
   } catch { return { history: [], available: false }; }
 }
-export async function loadPlanning(inputRoot: string): Promise<PlanningIndex> {
+/** Read a planning folder. Work statistics come from the home database: the one given, else the home's (`home`, else ATLAS_HOME or ~/.atlas). */
+export async function loadPlanning(inputRoot: string, options: { home?: string; database?: HomeDatabase | null } = {}): Promise<PlanningIndex> {
   let root: string;
   try { root = await realpath(inputRoot); } catch { throw new PlanningError('The planning folder does not exist. Check --planning-dir.'); }
   let registry: { schema_version: number; repositories: Repository[]; work_items: { id: string; path: string; repositories: string[]; current_plan: string | null }[] };
@@ -346,8 +348,8 @@ export async function loadPlanning(inputRoot: string): Promise<PlanningIndex> {
     item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
   }
   const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths, [...repositoryIds]);
-  const statistics = await workStatistics(root, work);
+  const statistics = await workStatistics(root, work, options);
   for (const item of work) item.statistics = statistics[item.id];
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
-  return { root, loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
+  return { root, name: await planningName(root), loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

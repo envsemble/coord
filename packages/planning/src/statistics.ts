@@ -1,18 +1,19 @@
 // Work statistics. Agents report each ledger transition with `atlas work report` (and hooks report
-// when a session stops), which appends one JSON line to <work>/.atlas/statistics.jsonl: the time, the
-// model, the step and the work item's stage, and, when it could read the agent's session log, the
-// agent time and tokens measured since the session's previous report, with the subagents that worked.
-// Without a measurement, agent time is estimated from the time between reports and tokens are
-// self-reported. Plan revisions come from the planning folder's Git history.
+// when a session stops), which records one report in the home database, keyed by project and work
+// item: the time, the model, the step and the work item's stage, and, when it could read the agent's
+// session log, the agent time and tokens measured since the session's previous report, with the
+// subagents that worked. Without a measurement, agent time is estimated from the time between
+// reports and tokens are self-reported. Plan revisions come from the planning folder's Git history.
 //
-// The line format stays version 1: every field added since (`measured`, then `stage` and
-// `measured.subagents`) is optional, and versions that do not know a field read the rest. A line
+// Before the database, reports were lines of <work>/.atlas/statistics.jsonl (format version 1, every
+// field added since optional); `atlas setup` and `atlas home adopt` import such files once. A report
 // without a stage is from before stages were recorded: its stage is unknown.
-import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
+import { lstat, readdir, readFile, realpath, rm, rmdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { ModelUsage, StageUsage, TokenKinds, Work, WorkStage, WorkStatistics } from './types.ts';
 import { runProgram as execute } from './run.ts';
-
+import { projectOf, withDatabase, type HomeDatabase } from './database.ts';
+import { normalizedLocation } from './planning.ts';
 
 /** Where a work item's reports live, relative to its folder. Plan exports leave it out. */
 export const statisticsFile = '.atlas/statistics.jsonl';
@@ -289,70 +290,118 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
   };
 }
 
-function inside(root: string, candidate: string) {
-  const relative = path.relative(root, candidate);
-  return relative !== '' && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+type Row = Record<string, unknown>;
+
+/** Record a report of a work item in the home database, with its measurement's models and subagents. */
+export function insertReport(database: HomeDatabase, projectId: number, workId: string, report: StatisticsReport) {
+  database.transaction(() => {
+    const measured = report.measured;
+    const { lastInsertRowid } = database.db.prepare('INSERT INTO work_report (project_id, work_id, at, stage, step, model, session, tokens, measured_since, agent_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(projectId, workId, report.at, report.stage ?? null, report.step, report.model, report.session, report.tokens, measured?.since ?? null, measured?.agentMs ?? null);
+    if (!measured) return;
+    const model = database.db.prepare('INSERT INTO report_model (report_id, model, agent_ms, input, cache_read, cache_write, output) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    for (const item of measured.models) model.run(lastInsertRowid, item.model, item.agentMs, item.input, item.cacheRead, item.cacheWrite, item.output);
+    const helpers = measured.subagents;
+    if (!helpers) return;
+    const subagent = database.db.prepare('INSERT INTO report_subagent (report_id, agent, model, agent_ms, tokens) VALUES (?, ?, ?, ?, ?)');
+    for (const agent of helpers.agents) subagent.run(lastInsertRowid, agent.id, agent.model, agent.agentMs, agent.tokens);
+    // A report line lists only the busiest subagents: the others it counted get rows of their own, with the rest of the time and tokens.
+    const unlisted = helpers.count - helpers.agents.length;
+    const restMs = Math.max(0, helpers.agentMs - helpers.agents.reduce((total, agent) => total + agent.agentMs, 0));
+    const restTokens = Math.max(0, helpers.tokens - helpers.agents.reduce((total, agent) => total + agent.tokens, 0));
+    for (let index = 0; index < unlisted; index++) subagent.run(lastInsertRowid, `unlisted-${lastInsertRowid}-${index + 1}`, null, index ? 0 : restMs, index ? 0 : restTokens);
+  });
 }
+
+/** The reports recorded for a project's work items (all of them, or the ones given), by work item, oldest first. */
+export function storedReports(database: HomeDatabase, projectId: number, workIds?: string[]): Map<string, StatisticsReport[]> {
+  const scope = workIds ? ' AND work_id IN (' + workIds.map(() => '?').join(',') + ')' : '';
+  const rows = database.db.prepare('SELECT * FROM work_report WHERE project_id = ?' + scope + ' ORDER BY at, id').all(projectId, ...(workIds ?? [])) as Row[];
+  const models = new Map<number, MeasuredModel[]>(), agents = new Map<number, MeasuredSubagent[]>();
+  const measuredIds = rows.filter(row => row.measured_since !== null).map(row => Number(row.id));
+  if (measuredIds.length) {
+    const list = measuredIds.join(',');
+    for (const row of database.db.prepare(`SELECT * FROM report_model WHERE report_id IN (${list}) ORDER BY id`).all() as Row[]) {
+      const entry: MeasuredModel = { model: String(row.model), agentMs: Number(row.agent_ms), input: Number(row.input), cacheRead: Number(row.cache_read), cacheWrite: Number(row.cache_write), output: Number(row.output) };
+      models.set(Number(row.report_id), [...models.get(Number(row.report_id)) ?? [], entry]);
+    }
+    for (const row of database.db.prepare(`SELECT * FROM report_subagent WHERE report_id IN (${list}) ORDER BY id`).all() as Row[]) {
+      const entry: MeasuredSubagent = { id: String(row.agent), model: (row.model as string | null) ?? null, agentMs: Number(row.agent_ms), tokens: Number(row.tokens) };
+      agents.set(Number(row.report_id), [...agents.get(Number(row.report_id)) ?? [], entry]);
+    }
+  }
+  const result = new Map<string, StatisticsReport[]>();
+  for (const row of rows) {
+    const id = Number(row.id);
+    const report: StatisticsReport = { version: 1, at: String(row.at), model: String(row.model ?? 'unknown'), session: (row.session as string | null) ?? null, tokens: row.tokens === null ? null : Number(row.tokens), step: (row.step as string | null) ?? null };
+    if (row.stage) report.stage = row.stage as WorkStage;
+    if (row.measured_since !== null) {
+      report.measured = { since: String(row.measured_since), agentMs: Number(row.agent_ms), models: models.get(id) ?? [] };
+      const helpers = agents.get(id);
+      if (helpers?.length) report.measured.subagents = { count: helpers.length, agentMs: helpers.reduce((total, agent) => total + agent.agentMs, 0), tokens: helpers.reduce((total, agent) => total + agent.tokens, 0), agents: helpers };
+    }
+    const workId = String(row.work_id);
+    result.set(workId, [...result.get(workId) ?? [], report]);
+  }
+  return result;
+}
+
+/** Whether the database has this report already: the same moment, model, session and step of the same work item. */
+function recorded(database: HomeDatabase, projectId: number, workId: string, report: StatisticsReport) {
+  return Boolean(database.db.prepare('SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND at = ? AND model IS ? AND session IS ? AND step IS ? LIMIT 1')
+    .get(projectId, workId, report.at, report.model, report.session, report.step));
+}
+
+/** What importing a planning folder's statistics files did; `files` relative to the planning folder. */
+export interface StatisticsImport { files: string[]; reports: number; invalid: number; problems: string[] }
 
 /**
- * A work folder's `.atlas` folder, when it is a real folder inside the planning folder: never a
- * symbolic link or junction that could lead reports elsewhere.
+ * Import the work statistics files of a planning folder (<work>/.atlas/statistics.jsonl, as Atlas
+ * wrote them before the home database) into the database, then delete them. Each report is added
+ * once, so an import that stopped half way can run again. Lines that are not valid reports are
+ * counted and dropped. A file that is a link, or too large, is left alone and named in `problems`.
+ * Nothing is committed: the planning folder's Git history keeps the files.
  */
-async function atlasFolder(root: string, work: Pick<Work, 'path'>, create: boolean): Promise<string | null> {
-  const resolvedRoot = await realpath(root);
-  const folder = await realpath(path.join(root, work.path)).catch(() => null);
-  if (!folder || !inside(resolvedRoot, folder)) throw new StatisticsReportError('The work folder is outside the planning folder.');
-  const directory = path.join(folder, '.atlas');
-  if (create) await mkdir(directory, { recursive: true });
-  const info = await lstat(directory).catch(() => null);
-  if (!info) return null;
-  if (info.isSymbolicLink() || !info.isDirectory()) throw new StatisticsReportError(work.path + '/.atlas is a link or not a folder; statistics are not read or written there.');
-  const actual = await realpath(directory);
-  if (!inside(resolvedRoot, actual)) throw new StatisticsReportError(work.path + '/.atlas leads outside the planning folder.');
-  return actual;
-}
-
-/** The reports recorded for one work item; invalid lines are counted, not fatal. */
-export async function readReports(root: string, work: Pick<Work, 'path'>): Promise<{ reports: StatisticsReport[]; invalid: number }> {
-  const directory = await atlasFolder(root, work, false).catch(() => null);
-  if (!directory) return { reports: [], invalid: 0 };
-  const file = path.join(directory, 'statistics.jsonl');
-  const info = await lstat(file).catch(() => null);
-  if (!info || !info.isFile() || info.size > fileLimit) return { reports: [], invalid: 0 };
-  const reports: StatisticsReport[] = [];
-  let invalid = 0;
-  for (const line of (await readFile(file, 'utf8')).split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    const report = parseReport(line);
-    if (report) reports.push(report); else invalid++;
-  }
-  return { reports, invalid };
-}
-
-/** Append a report to a work item's statistics file, creating `.atlas/` when needed. */
-export async function appendReport(root: string, work: Pick<Work, 'path'>, report: StatisticsReport) {
-  const directory = (await atlasFolder(root, work, true))!;
-  const file = path.join(directory, 'statistics.jsonl');
-  const existing = await lstat(file).catch(() => null);
-  if (existing && !existing.isFile()) throw new StatisticsReportError(statisticsFile + ' is a link or not a regular file; reports are not added to it.');
-  const line = JSON.stringify(report) + '\n';
-  const handle = await open(file, 'a+', 0o644);
-  try {
-    const info = await handle.stat();
-    if (!info.isFile()) throw new StatisticsReportError(statisticsFile + ' is not a regular file.');
-    if (info.size + Buffer.byteLength(line) + 1 > fileLimit) throw new StatisticsReportError(statisticsFile + ' would grow past 4 MB; reports are no longer added.');
-    // A file that does not end in a newline (an interrupted write, a hand edit) gets one first,
-    // so this report does not merge into the previous line.
-    let separator = '';
-    if (info.size > 0) {
-      const last = Buffer.alloc(1);
-      await handle.read(last, 0, 1, info.size - 1);
-      if (last[0] !== 0x0a) separator = '\n';
+export async function importStatisticsFiles(database: HomeDatabase, root: string): Promise<StatisticsImport> {
+  const result: StatisticsImport = { files: [], reports: 0, invalid: 0, problems: [] };
+  const canonical = await realpath(root);
+  let items: unknown[];
+  try { items = (JSON.parse((await readFile(path.join(canonical, 'planning.json'), 'utf8')).replace(/^﻿/, '')) as { work_items?: unknown[] }).work_items ?? []; }
+  catch { return result; }
+  if (!Array.isArray(items)) return result;
+  const project = await projectOf(database, canonical);
+  for (const item of items) {
+    const entry = item && typeof item === 'object' ? item as { id?: unknown; path?: unknown } : {};
+    if (typeof entry.id !== 'string' || typeof entry.path !== 'string') continue;
+    const location = normalizedLocation(entry.path);
+    if (location.split('/').includes('..') || path.isAbsolute(location)) continue;
+    const folder = path.join(canonical, location, '.atlas');
+    const file = path.join(folder, 'statistics.jsonl');
+    const relative = location + '/' + statisticsFile;
+    const info = await lstat(file).catch(() => null);
+    if (!info) continue;
+    if (!info.isFile() || (await lstat(folder)).isSymbolicLink()) { result.problems.push(relative + ' is a link or not a regular file; it was left as it is.'); continue; }
+    if (info.size > fileLimit) { result.problems.push(relative + ' is larger than 4 MB; it was left as it is.'); continue; }
+    const reports: StatisticsReport[] = [];
+    for (const line of (await readFile(file, 'utf8')).replace(/^﻿/, '').split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const report = parseReport(line);
+      if (report) reports.push(report); else result.invalid++;
     }
-    // One short write in append mode: concurrent reports never interleave.
-    await handle.appendFile(separator + line, 'utf8');
-  } finally { await handle.close(); }
-  return path.relative(await realpath(root), file).split(path.sep).join('/');
+    const workId = entry.id;
+    database.transaction(() => {
+      for (const report of reports) {
+        if (recorded(database, project.id, workId, report)) continue;
+        insertReport(database, project.id, workId, report);
+        result.reports++;
+      }
+    });
+    await rm(file, { force: true });
+    // The .atlas folder goes too when nothing else is in it.
+    if (!(await readdir(folder).catch(() => ['?'])).length) await rmdir(folder).catch(() => undefined);
+    result.files.push(relative);
+  }
+  return result;
 }
 
 interface Change { status: string; path: string; from: string | null }
@@ -450,13 +499,19 @@ export async function planRevisions(root: string, work: Pick<Work, 'id' | 'curre
   return result;
 }
 
-/** Statistics for every work item: reports from each work folder and plan revisions from Git. */
-export async function workStatistics(root: string, work: Pick<Work, 'id' | 'path' | 'currentPlan' | 'completed'>[]): Promise<Record<string, WorkStatistics>> {
+/** Statistics for every work item: its reports in the home database and its plan revisions from Git. */
+export async function workStatistics(root: string, work: Pick<Work, 'id' | 'path' | 'currentPlan' | 'completed'>[], options: { home?: string; database?: HomeDatabase | null } = {}): Promise<Record<string, WorkStatistics>> {
   const revisions = await planRevisions(root, work);
+  let reports = new Map<string, StatisticsReport[]>();
+  try {
+    const canonical = await realpath(root);
+    const read = (database: HomeDatabase) => {
+      const project = database.projectByFolder(canonical);
+      return project ? storedReports(database, project.id, work.map(item => item.id)) : new Map<string, StatisticsReport[]>();
+    };
+    reports = options.database ? read(options.database) : withDatabase(options.home, read);
+  } catch { /* Without the database, no reports are known. */ }
   const result: Record<string, WorkStatistics> = {};
-  await Promise.all(work.map(async item => {
-    const { reports, invalid } = await readReports(root, item).catch(() => ({ reports: [], invalid: 0 }));
-    result[item.id] = { ...summarizeReports(reports, invalid), planRevisions: revisions[item.id] ?? null };
-  }));
+  for (const item of work) result[item.id] = { ...summarizeReports(reports.get(item.id) ?? []), planRevisions: revisions[item.id] ?? null };
   return result;
 }

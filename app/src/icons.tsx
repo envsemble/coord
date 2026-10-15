@@ -18,6 +18,7 @@ export { DoNotDisturbOn as AbandonedIcon } from '@envsemble/envui/icons/DoNotDis
 export { Dns as ServerIcon } from '@envsemble/envui/icons/Dns';
 export { Download as DownloadIcon } from '@envsemble/envui/icons/Download';
 export { EditNote as DraftIcon } from '@envsemble/envui/icons/EditNote';
+export { EditSquare as NewProjectIcon } from '@envsemble/envui/icons/EditSquare';
 export { Error as ErrorIcon } from '@envsemble/envui/icons/Error';
 export { Folder as FolderIcon } from '@envsemble/envui/icons/Folder';
 export { FolderOpen as FolderOpenIcon } from '@envsemble/envui/icons/FolderOpen';
@@ -37,5 +38,8 @@ export { SkipNext as SupersededIcon } from '@envsemble/envui/icons/SkipNext';
 export { TaskAlt as WorkIcon } from '@envsemble/envui/icons/TaskAlt';
 export { UnfoldLess as CollapseAllIcon } from '@envsemble/envui/icons/UnfoldLess';
 export { Upload as UploadIcon } from '@envsemble/envui/icons/Upload';
+export { Unarchive as RestoreIcon } from '@envsemble/envui/icons/Unarchive';
+export { Visibility as ShowIcon } from '@envsemble/envui/icons/Visibility';
+export { VisibilityOff as HideIcon } from '@envsemble/envui/icons/VisibilityOff';
 export { Warning as WarningIcon } from '@envsemble/envui/icons/Warning';
 export { Devices as DevicesIcon } from '@envsemble/envui/icons/Devices';

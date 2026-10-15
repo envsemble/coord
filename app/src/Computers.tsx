@@ -1,53 +1,30 @@
 // Choosing where to work: the computer menu in the title bar (this computer and the paired ones,
-// like Platform's organization menu), File › Open Recent, and the lists behind them. Choosing in a
-// menu opens in this window; the lists also open a computer or a folder in a new window, and remove
-// folders or forget computers.
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type MouseEvent } from 'react';
-import {
-  Badge, Button, ConfirmButton, Dialog, EmptyState, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSubmenu, Row, Spinner, Tooltip, useToast,
-} from '@envsemble/envui';
+// like Platform's organization menu), and the list of computers behind it. Choosing in the menu
+// shows that computer's projects in this window; the list also opens a computer in a new window, and
+// forgets computers.
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { Badge, Button, ConfirmButton, Dialog, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip, useToast } from '@envsemble/envui';
 import { UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
-import { AddIcon, CloseIcon, ComputerIcon, DevicesIcon, FolderIcon, NewWindowIcon } from './icons';
-import type { Computer, ComputerFolder, ComputerRef } from './types';
+import { AddIcon, ComputerIcon, DevicesIcon, NewWindowIcon } from './icons';
+import type { Computer, ComputerRef } from './types';
 import { api } from './api';
-import { plural, relativeDate } from './format';
 
-/** Window-wide actions the menus start: pairing, the folder browser, remote access, the lists and About. */
+/** Window-wide actions the menus start: pairing, remote access, the computers, a new project and About. */
 export interface AppActions {
   connect(): void;
-  browse(computer: ComputerRef, near?: string | null): void;
   remoteAccess(): void;
   manageComputers(): void;
-  /** The list marks the folder this window shows, when the window shows one of them. */
-  manageFolders(computer: ComputerRef, isCurrent?: (folder: ComputerFolder) => boolean): void;
+  /** File › New Project…, on the window's computer. */
+  newProject(): void;
   /** Help › About Atlas. */
   about(): void;
 }
 const nothing = () => undefined;
-export const AppActionsContext = createContext<AppActions>({ connect: nothing, browse: nothing, remoteAccess: nothing, manageComputers: nothing, manageFolders: nothing, about: nothing });
+export const AppActionsContext = createContext<AppActions>({ connect: nothing, remoteAccess: nothing, manageComputers: nothing, newProject: nothing, about: nothing });
 export const useAppActions = () => useContext(AppActionsContext);
 
 const statusLabels: Record<Computer['status'], string | null> = { online: null, connecting: 'Connecting', offline: 'Offline', revoked: 'Not paired', mismatch: 'Not the same computer', incompatible: 'Needs an update' };
-/** Ctrl (⌘ on macOS) with a click: open in a new window. */
-const wantsNewWindow = (event: { ctrlKey: boolean; metaKey: boolean }) => event.ctrlKey || event.metaKey;
 const describe = (computer: Computer) => computer.hostId === null ? 'This computer' : computer.origin?.replace(/^https?:\/\//, '') ?? '';
-
-/** A computer's folder list, kept current as it changes (on any device). */
-export function useComputerFolders(hostId: string | null, active = true) {
-  const [folders, setFolders] = useState<ComputerFolder[] | null>(null);
-  const [error, setError] = useState('');
-  const load = useCallback(() => {
-    setError('');
-    api.folders(hostId).then(setFolders, failure => { setFolders([]); setError((failure as Error).message); });
-  }, [hostId]);
-  useEffect(() => {
-    if (!active) return;
-    setFolders(null);
-    load();
-    return api.onFoldersChanged(change => { if (change.hostId === hostId) { setFolders(change.folders); setError(''); } });
-  }, [hostId, active, load]);
-  return { folders, error, reload: load };
-}
 
 /** The computers this app works on, checked each time the list opens. */
 function useComputers(active: boolean, onError: (message: string) => void) {
@@ -92,103 +69,6 @@ export function ComputerMenu({ current, onError }: { current: ComputerRef; onErr
   </Menu>;
 }
 
-/** How many folders File › Open Recent lists; Manage Folders… has them all. */
-const recentLimit = 10;
-
-/**
- * File › Open Recent: the planning folders of the computer this window works on, the one it shows
- * checked. They load when the submenu opens.
- */
-export function RecentFolders({ computer, isCurrent, onError }: { computer: ComputerRef; isCurrent?(folder: ComputerFolder): boolean; onError(message: string): void }) {
-  const [open, setOpen] = useState(false);
-  const { folders, error } = useComputerFolders(computer.hostId, open);
-  const actions = useAppActions();
-  const current = isCurrent ? folders?.find(isCurrent) : undefined;
-  const shown = folders?.slice(0, recentLimit) ?? [];
-  return <MenuSubmenu label="Open Recent" onOpenChange={setOpen}>
-    {folders === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Loading…</MenuItem>
-      : shown.length ? <MenuRadioGroup value={current?.folderId ?? ''} onValueChange={value => {
-        const folder = shown.find(item => item.folderId === value);
-        if (folder && folder !== current) openFolder(computer, folder, false, onError);
-      }}>
-        {shown.map(folder => <MenuRadioItem key={folder.folderId} value={folder.folderId} disabled={!folder.available} description={shortPath(folder.path) + (folder.available ? '' : ' · Missing')}>{folder.name}</MenuRadioItem>)}
-      </MenuRadioGroup>
-      : <MenuItem disabled>{error || 'No recent folders'}</MenuItem>}
-    <MenuSeparator />
-    <MenuItem onClick={() => actions.manageFolders(computer, isCurrent)}>Manage Folders…</MenuItem>
-  </MenuSubmenu>;
-}
-
-/** The folder a window shows, in its computer's folder list: by path here, by its key on another computer. */
-export function currentFolder(info: { computer: ComputerRef; platform: string }, root: string) {
-  const computer = info.computer;
-  return (folder: ComputerFolder) => computer.hostId === null
-    ? (info.platform === 'win32' || info.platform === 'darwin' ? folder.path.toLowerCase() === root.toLowerCase() : folder.path === root)
-    : root === `atlas-remote:${computer.hostId}/${folder.folderId}`;
-}
-
-/** A long path as its root, an ellipsis and its last two folders: C:\Dev\…\e2e\fixtures\planning. */
-export function shortPath(path: string, most = 40) {
-  if (path.length <= most) return path;
-  const separator = path.includes('\\') ? '\\' : '/';
-  const parts = path.split(/[\\/]/);
-  return parts.length > 4 ? [...parts.slice(0, 2), '…', ...parts.slice(-3)].join(separator) : path;
-}
-
-export function openFolder(computer: ComputerRef, folder: ComputerFolder, newWindow: boolean, onError: (message: string) => void, onOpened?: () => void) {
-  api.openFolder(computer.hostId, folder.path, newWindow).then(() => onOpened?.(), failure => { if ((failure as { code?: string }).code !== 'cancelled') onError((failure as Error).message); });
-}
-
-/** Open a folder that is not on the list yet: the system's dialog here, the in-app browser on another computer. */
-export function openFolderOn(computer: ComputerRef, actions: AppActions, onError: (message: string) => void, near: string | null = null) {
-  if (computer.hostId === null) api.chooseFolder(false).catch(failure => onError((failure as Error).message));
-  else actions.browse(computer, near);
-}
-
-/**
- * One computer's folder list: open a folder in this window (Ctrl+click: a new one) or in a new
- * window, or take it off the list, which removes it for every device.
- */
-export function FolderRows({ computer, folders, current, onError, onOpened }: {
-  computer: ComputerRef; folders: ComputerFolder[]; current?: (folder: ComputerFolder) => boolean; onError(message: string): void; onOpened?(): void;
-}) {
-  const remove = (folder: ComputerFolder) => { api.removeFolder(computer.hostId, folder.folderId).catch(failure => onError((failure as Error).message)); };
-  return <GroupedRows className="folder-rows" aria-label={'Planning folders on ' + computer.name}>{folders.map(folder => {
-    const here = current?.(folder) ?? false;
-    const facts = [folder.available ? folder.workItems !== null && plural(folder.workItems, 'work item') : null, folder.openedAt && 'opened ' + relativeDate(folder.openedAt)].filter(Boolean).join(' · ');
-    // An available folder opens from anywhere on its row: its name's button covers the row.
-    return <Row key={folder.folderId} interactive={folder.available} className="folder-row" data-current={here || undefined}
-      title={<button type="button" className="row-link" data-row-target={folder.available ? '' : undefined} disabled={!folder.available} aria-current={here || undefined} title={'Open ' + folder.path}
-        onClick={(event: MouseEvent) => openFolder(computer, folder, wantsNewWindow(event), onError, onOpened)}>
-        <span className="row-link-title">{folder.name}</span>
-        {!folder.available && <Badge tone="warning">Missing</Badge>}
-        {here && <Badge tone="accent">This window</Badge>}
-      </button>}
-      detail={<><bdi className="folder-row-path">{folder.path}</bdi>{facts && <span className="folder-row-facts">{facts}</span>}</>}
-      action={<span className="row-actions">
-        <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + folder.name + ' in a new window'} disabled={!folder.available} onClick={() => openFolder(computer, folder, true, onError, onOpened)} /></Tooltip>
-        <Tooltip content={folder.inHome ? 'Folders in the Atlas home are always listed' : 'Remove from the list on every device'}><IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder.name + ' from the list'} disabled={folder.inHome} onClick={() => remove(folder)} /></Tooltip>
-      </span>} />;
-  })}</GroupedRows>;
-}
-
-/** File › Open Recent › Manage Folders…: the whole list for one computer. */
-export function FoldersDialog({ computer, isCurrent, onClose }: { computer: ComputerRef; isCurrent?(folder: ComputerFolder): boolean; onClose(): void }) {
-  const { folders, error: listError } = useComputerFolders(computer.hostId);
-  const [error, setError] = useState('');
-  const actions = useAppActions();
-  const toast = useToast();
-  const report = (message: string) => toast.show({ message, variant: 'error' });
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={'Planning folders on ' + computer.name}
-    description="Every device that works on this computer sees the same list."
-    closeLabel="Done" actions={<Button variant="secondary" startIcon={<FolderIcon />} onClick={() => { onClose(); openFolderOn(computer, actions, report); }}>Open Folder…</Button>}>
-    {folders === null ? <Spinner label="Loading folders" />
-      : folders.length ? <FolderRows computer={computer} folders={folders} current={isCurrent} onError={setError} onOpened={onClose} />
-      : <EmptyState title="No planning folders yet" description={listError || 'Open a folder to add it.'} icon={<FolderIcon />} />}
-    {error && <p className="dialog-error" role="alert">{error}</p>}
-  </Dialog>;
-}
-
 /** Computer menu › Manage computers…: open one in a new window, or forget a paired one. */
 export function ComputersDialog({ current, onClose }: { current: ComputerRef; onClose(): void }) {
   const [error, setError] = useState('');
@@ -199,8 +79,8 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
   const refocus = useRef(false);
   // The computer being forgotten, whose row stays until the list reloads.
   const [forgetting, setForgetting] = useState<string | null>(null);
-  // Forgetting the computer this window shows turns the window to this computer's welcome page, so
-  // the list closes; otherwise it shows the computers that are left, and focus, which was on the
+  // Forgetting the computer this window shows turns the window to this computer's projects, so the
+  // list closes; otherwise it shows the computers that are left, and focus, which was on the
   // forgotten row, moves to the first action left in the list.
   const forget = (computer: Computer) => {
     setForgetting(computer.hostId);
@@ -237,7 +117,7 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
             {computer.hostId !== null && <ConfirmButton variant="text" disabled={pending} confirmLabel={'Forget ' + computer.name} onConfirm={() => forget(computer)}>Forget</ConfirmButton>}
           </span>} />;
       })}</GroupedRows>}
-    <p className="dialog-note">Forgetting a computer closes the windows that show it. This computer must pair again to reach it.</p>
+    <p className="dialog-note">Windows that show a forgotten computer show this one instead. This computer must pair again to reach it.</p>
     {error && <p className="dialog-error" role="alert">{error}</p>}
   </Dialog>;
 }

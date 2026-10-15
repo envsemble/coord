@@ -7,6 +7,8 @@ const { createHash } = require("node:crypto");
 const { posix } = require("node:path");
 const { parse } = require("./parser.cjs");
 
+// The longest description, in characters: one short sentence.
+const DESCRIPTION_LIMIT = 280;
 const MULTIPLICITY = /^(?:\d+|\*)(?:\.\.(?:\d+|\*))?$/;
 // Crow's feet: the count of the entity each end touches.
 const CROWS_FEET = {
@@ -352,20 +354,31 @@ class Reader {
         this.previous = statement;
     }
   }
-  // Evidence and snippets describe the element, member or relation that
-  // follows them directly.
+  // Evidence, snippets and descriptions describe the element, member or
+  // relation that follows them directly; a relation takes no description.
   annotate(statement) {
     if (!this.pending.length) return;
     const describable = ["element", "relation", "field", "method", "literal"];
-    if (statement && describable.includes(statement.type)) {
-      for (const { key, value } of this.pending) statement[key] = value;
-    } else
-      for (const { line, key } of this.pending)
+    for (const { line, key, value } of this.pending)
+      if (
+        !statement ||
+        !describable.includes(statement.type) ||
+        (key === "description" && statement.type === "relation")
+      )
         this.fail(
           line,
           "ATLAS_PLACEMENT",
-          `Write \`' atlas ${key}\` directly above the element, member or relation it describes.`,
+          key === "description"
+            ? "Write `' atlas description` directly above the class, interface, enum, entity, object or member it describes; relations and slots take none."
+            : `Write \`' atlas ${key}\` directly above the element, member or relation it describes.`,
         );
+      else if (key in statement)
+        this.fail(
+          line,
+          "ATLAS_REPEATED",
+          `Write one \`' atlas ${key}\` for each element, member or relation; merge this line with the one above it.`,
+        );
+      else statement[key] = value;
     this.pending = [];
   }
   atlas(statement, packageName, inBody = false) {
@@ -385,6 +398,20 @@ class Reader {
       );
       return null;
     };
+    if (keyword === "description") {
+      const length = [...rest].length;
+      const token = formattingIn(rest, true);
+      const wrong = !rest
+        ? "Write the description on the same line: `' atlas description <one short sentence of its purpose>`."
+        : length > DESCRIPTION_LIMIT
+          ? `A description is one short sentence of at most ${DESCRIPTION_LIMIT} characters (this one has ${length}); shorten it and keep the rationale in the plan.`
+          : token
+            ? `A description is plain text; remove the formatting (\`${token}\`).`
+            : null;
+      if (wrong) this.fail(line, "ATLAS_DESCRIPTION", wrong);
+      else this.pending.push({ line, key: keyword, value: rest });
+      return;
+    }
     if (keyword === "evidence" || keyword === "snippet") {
       const value = json();
       if (value) {
@@ -423,7 +450,7 @@ class Reader {
       this.fail(
         line,
         "ATLAS_UNKNOWN",
-        `Atlas reads \`' atlas\` comments of these kinds: ${[...header, "evidence", "snippet"].join(", ")}; \`${keyword || "(none)"}\` is not one of them. Write other remarks as plain \`'\` comments.`,
+        `Atlas reads \`' atlas\` comments of these kinds: ${[...header, "evidence", "snippet", "description"].join(", ")}; \`${keyword || "(none)"}\` is not one of them. Write other remarks as plain \`'\` comments.`,
       );
       return;
     }
@@ -719,6 +746,7 @@ class Reader {
   }
   annotations(statement) {
     return {
+      ...(statement.description ? { description: statement.description } : {}),
       ...(statement.evidence ? { evidence: statement.evidence } : {}),
       ...(statement.snippet ? { snippet: statement.snippet } : {}),
     };
@@ -1414,6 +1442,9 @@ function declaredName(element) {
   return `${quoted(element.name)} as ${element.id}`;
 }
 const annotationLines = (item, indent) => [
+  ...(item.description
+    ? [`${indent}' atlas description ${item.description}`]
+    : []),
   ...(item.evidence
     ? [`${indent}' atlas evidence ${JSON.stringify(item.evidence)}`]
     : []),
@@ -1551,4 +1582,5 @@ module.exports = {
   diagramFingerprint,
   foreignKeyColumns,
   formattingIn,
+  DESCRIPTION_LIMIT,
 };

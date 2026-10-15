@@ -1,13 +1,14 @@
-// The Atlas host: owns this computer's planning folders and serves them over HTTP and one WebSocket
-// per client. It always listens on 127.0.0.1 (an ephemeral port) for the desktop app on this
-// computer, which holds the owner token. When the owner turns remote access on, it also listens on
-// one chosen address (this machine, a local network, or Tailscale) for paired devices. A paired
-// device belongs to the same person and may do what the app can do here: browse the computer, open
-// any planning folder, import and export; only the remote-access settings stay with the owner, and
-// managing pairings with the devices granted it. Every request is authenticated and every method's
-// scope is checked first.
+// The Atlas host: owns this computer's projects (the planning folders in its Atlas home) and serves
+// them over HTTP and one WebSocket per client. It always listens on 127.0.0.1 (an ephemeral port) for
+// the desktop app on this computer, which holds the owner token. When the owner turns remote access
+// on, it also listens on one chosen address (this machine, a local network, or Tailscale) for paired
+// devices. A paired device belongs to the same person and may do what the app can do here: list,
+// create and change the projects, read them, import and export; only the remote-access settings stay
+// with the owner, and managing pairings with the devices granted it. Every request is authenticated
+// and every method's scope is checked first.
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { open, rm } from 'node:fs/promises';
+import { watch, type FSWatcher } from 'node:fs';
+import { mkdir, open, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, Server } from 'node:http';
 import { isIPv4, isIPv6 } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -18,27 +19,25 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
-import { homePlanningFolders, inspectPlanningRoot, RecentPlanningRoots, resolveDocument } from '@envsemble/atlas-planning';
+import { adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, resolveDocument, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates } from '@envsemble/atlas-planning';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
-import { browse } from './browse.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
-  type AccessState, type ComputerFolder, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Scope,
+  type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
+  type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
-import { FolderList } from './folderList.ts';
-import { canonicalFolder, FolderRegistry, pathKey } from './folders.ts';
+import { FolderRegistry, pathKey } from './folders.ts';
 import { exportFileName } from './planExportName.ts';
 import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
 
 export interface HostOptions {
   /**
-   * The Atlas home: the host keeps its identity and paired devices in its `host/` folder, usage
-   * statistics in `usage/`, and lists the planning folders in its `planning/` folder.
+   * The Atlas home: its database holds the host's identity, paired devices, projects and statistics;
+   * its `planning/` folder holds the projects' planning folders.
    */
   home: string;
   version: string;
@@ -48,14 +47,16 @@ export interface HostOptions {
   owner: string;
   watchDelay?: { debounce: number; maxWait: number };
   idleClose?: number;
-  /** Folders this process adds to the computer's folder list as it starts (`atlas serve --folder`). */
-  folders?: string[];
+  /** The templates new projects are made from (plugin/skills/atlas/assets/planning); without them, projects are not created here. */
+  templates?: () => Promise<ProjectTemplates>;
   /** Remote access settings for this process only (`atlas serve --address/--port`), instead of the saved ones. */
   networkOverride?: { address: string; port: number };
   /** The loopback port to try first (the desktop keeps its host's port across restarts); 0 picks one. */
   loopbackPort?: number;
   /** How often connections are checked for life (tests shorten it). */
   heartbeat?: number;
+  /** Milliseconds between checks of the work agents are working on, for the projects' live dots (15 s). */
+  liveCheck?: number;
 }
 
 interface Credential { scopes: Set<Scope>; deviceId: string | null; label: string }
@@ -103,7 +104,16 @@ class Connection {
   written = 0;
   /** The connection's socket, whose byte counts show whether a large answer is still moving. */
   raw: { bytesWritten?: number; writableLength?: number } | null = null;
+  /** Each folder's subscribe and unsubscribe requests, applied one after another in the order they came. */
+  private readonly queues = new Map<string, Promise<unknown>>();
   constructor(ws: WebSocket, credential: Credential, listener: Listener) { this.ws = ws; this.credential = credential; this.listener = listener; }
+  inOrder<T>(folderId: string, run: () => Promise<T>): Promise<T> {
+    const next = (this.queues.get(folderId) ?? Promise.resolve()).then(run);
+    const settled = next.catch(() => undefined);
+    this.queues.set(folderId, settled);
+    void settled.then(() => { if (this.queues.get(folderId) === settled) this.queues.delete(folderId); });
+    return next;
+  }
   get owner() { return this.credential.scopes.has('owner'); }
   can(scope: Scope) { return this.owner || this.credential.scopes.has(scope); }
   send(message: unknown) { if (this.ws.readyState === this.ws.OPEN) this.ws.send(JSON.stringify(message)); }
@@ -111,6 +121,7 @@ class Connection {
 
 export class Host {
   readonly ownerToken = newToken();
+  readonly database: HomeDatabase;
   readonly access: AccessStore;
   readonly folders: FolderRegistry;
   private readonly options: HostOptions;
@@ -124,8 +135,9 @@ export class Host {
   private retry: ReturnType<typeof setTimeout> | null = null;
   /** Network changes run one at a time, so overlapping updates cannot leave a listener behind. */
   private networkQueue: Promise<void> = Promise.resolve();
-  /** The planning folders opened on this computer, which every client sees. */
-  readonly folderList: FolderList;
+  /** Watches the home's planning folder, where projects appear. */
+  private projectsWatcher: FSWatcher | null = null;
+  private projectsTimer: ReturnType<typeof setTimeout> | null = null;
   /** Clients preparing an export or reading an import now; each does one at a time. */
   private readonly preparing = new Set<string>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
@@ -135,12 +147,10 @@ export class Host {
 
   constructor(options: HostOptions) {
     this.options = options;
-    this.access = new AccessStore(path.join(options.home, 'host'), options.log, options.owner);
+    this.database = HomeDatabase.open(options.home);
+    this.access = new AccessStore(this.database, options.log, options.owner);
     this.exports = new PlanWorkerClient(options.createPlanWorker);
-    // The list starts from the app's recent folders and the folders the first remote access shared.
-    const recents = new RecentPlanningRoots(path.join(options.home, 'planning-roots.json'));
-    this.folderList = new FolderList(this.access.directory, options.log, async () => [...await recents.list(), ...this.access.legacySharedFolders]);
-    this.folders = new FolderRegistry({ key: () => this.access.folderKey, dataBase: options.home, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
+    this.folders = new FolderRegistry({ key: () => this.access.folderKey, database: this.database, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
   }
 
   get descriptor(): HostDescriptor { return { protocol: protocolVersion, hostId: this.access.hostId, name: this.access.name, version: this.options.version }; }
@@ -153,14 +163,15 @@ export class Host {
       this.lockRetry = setInterval(() => { void this.retakeLock(); }, 15000);
       this.lockRetry.unref?.();
     }
-    for (const folder of this.options.folders ?? []) await this.addToList(await canonicalFolder(folder));
+    this.watchProjects();
     const preferred = this.options.loopbackPort ?? 0;
     this.loopback = await this.listen('127.0.0.1', preferred, true).catch(error => {
       if (!preferred) throw error;
       return this.listen('127.0.0.1', 0, true);
     });
     await this.applyNetwork();
-    this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000));
+    this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000),
+      setInterval(() => this.checkLiveWork(), this.options.liveCheck ?? 15000));
     for (const timer of this.timers) timer.unref?.();
     this.options.log.info('Host started', { port: this.loopback.port, hostId: this.access.hostId, managedBy: this.access.managedBy });
     return { port: this.loopback.port };
@@ -176,10 +187,13 @@ export class Host {
     await Promise.all([this.loopback, this.network].map(listener => listener && this.closeListener(listener)));
     this.loopback = this.network = null;
     this.folders.closeAll();
+    this.projectsWatcher?.close();
+    if (this.projectsTimer) clearTimeout(this.projectsTimer);
     this.held.clear();
     this.exports.stop();
     this.access.clearPairings();
     this.access.unlock();
+    this.database.close();
   }
 
   /** Another process managed remote access when this host started: take over if it has quit. */
@@ -510,6 +524,8 @@ export class Host {
   private event<E extends EventName>(connection: Connection, event: E, data: Events[E]) { connection.send({ event, data }); }
   private folderChanged(state: FolderState) {
     for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', state);
+    // A project's name lives in its planning.json.
+    this.projectsChanged();
   }
   /** Remote access changed: tell the connections that may manage it. */
   private broadcastAccess() {
@@ -517,65 +533,153 @@ export class Host {
     if (!managers.length) return;
     void this.accessState().then(state => { for (const connection of managers) this.event(connection, 'access.changed', state); }).catch(() => undefined);
   }
-  /** The folder list changed: every client sees the new one. */
-  private broadcastFolders() {
-    if (!this.connections.size) return;
-    void this.computerFolders().then(folders => { for (const connection of this.connections) this.event(connection, 'folders.changed', { folders }); }).catch(() => undefined);
+  /** The projects changed (or may have): every client sees them, once the changes settle. */
+  private projectsChanged() {
+    if (this.projectsTimer || this.stopped) return;
+    this.projectsTimer = setTimeout(() => {
+      this.projectsTimer = null;
+      if (!this.connections.size || this.stopped) return;
+      void this.projects(true).then(projects => { for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined);
+    }, 300);
+    this.projectsTimer.unref?.();
+  }
+  /** Folders appearing in or leaving the home's planning folder are projects coming and going. */
+  private watchProjects() {
+    const base = homePlanningDirectory(this.options.home);
+    void mkdir(base, { recursive: true }).then(() => {
+      if (this.stopped) return;
+      try {
+        this.projectsWatcher = watch(base, () => this.projectsChanged());
+        this.projectsWatcher.on('error', error => { this.options.log.warn('The projects folder is not watched', { message: error.message }); this.projectsWatcher?.close(); this.projectsWatcher = null; });
+      } catch (error) { this.options.log.warn('The projects folder is not watched', { message: (error as Error).message }); }
+    }, () => undefined);
   }
 
   // ---- Folders and access ----------------------------------------------------------------------
 
+  // ---- Projects --------------------------------------------------------------------------------
+
+  /** A project as clients see it, by the ID of its folder. */
+  private project(row: ProjectRow): Project {
+    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, outsideHome: !this.inHome(row.folder) };
+  }
+  /** Whether a project's folder is one of the home's planning folders. */
+  private inHome(folder: string) {
+    return folderKey(path.dirname(folder)) === folderKey(canonicalProjectFolderSync(homePlanningDirectory(this.options.home)));
+  }
   /**
-   * The folder list and, after it, every planning folder in the home's `planning/` folder that the
-   * list does not have: those are always listed, whoever opened them.
+   * The computer's projects in their order: every planning folder in the home is one (a folder that
+   * appears becomes the last), with its name read again from its planning.json; projects whose
+   * folder is no longer a planning folder are left out. Projects outside the home (from before it)
+   * are listed too, marked, until they are moved in. The list clients show has each project's summary.
    */
-  private async listed() {
-    const entries = await this.folderList.entries();
-    const known = new Set(entries.map(entry => pathKey(entry.path)));
-    const home = await homePlanningFolders(this.options.home);
-    const inHome = new Set(home.map(folder => pathKey(folder)));
-    return [
-      ...entries.map(entry => ({ ...entry, inHome: inHome.has(pathKey(entry.path)) })),
-      ...home.filter(folder => !known.has(pathKey(folder))).map(folder => ({ path: folder, openedAt: null, inHome: true })),
-    ];
+  async projects(summaries = false): Promise<Project[]> {
+    for (const folder of await homePlanningFolders(this.options.home)) await projectOf(this.database, folder);
+    const listed: ProjectRow[] = [];
+    for (const row of this.database.projects()) {
+      if (!await isPlanningFolder(row.folder)) continue;
+      const name = await planningName(row.folder);
+      if (name !== row.name) this.database.updateProject(row.id, { name });
+      listed.push({ ...row, name });
+    }
+    if (!summaries) return listed.map(row => this.project(row));
+    const live = this.readLiveWork();
+    return Promise.all(listed.map(async row => ({ ...this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
+  }
+  /** What a project's card says: from its planning folder, with the work agents are working on now. */
+  private async summaryOf(row: ProjectRow, live: ProjectSummary['live']): Promise<ProjectSummary | null> {
+    try { return { ...await projectSummary(row.folder), live }; } catch { return null; }
+  }
+  /** The work agents are working on now, by project row, as the hooks record it; none when it cannot be read. */
+  private readLiveWork() {
+    try { return this.database.liveWork(); } catch { return new Map<number, ProjectSummary['live']>(); }
+  }
+  /** The work agents are working on, as last told to clients: when it changes, the projects are told again. */
+  private liveKey = '';
+  private checkLiveWork() {
+    const key = JSON.stringify([...this.readLiveWork()].map(([project, work]) => [project, work.map(item => item.workId)]));
+    if (key === this.liveKey) return;
+    this.liveKey = key;
+    this.projectsChanged();
+  }
+  /** A project by its folder's ID. */
+  private async projectRow(folderId: string): Promise<ProjectRow> {
+    await this.projects();
+    const row = this.database.projects().find(entry => this.folders.idOf(entry.folder) === folderId);
+    if (!row) throw new HostError('not-found', `This project is not on ${this.access.name}.`);
+    return row;
+  }
+  /** The path of a folder by its ID: one this process opened, or a project's. */
+  private async pathOf(folderId: string): Promise<string | null> {
+    return this.folders.pathOf(folderId) ?? (await this.projectRow(folderId).catch(() => null))?.folder ?? null;
+  }
+  private async createProject(name: string, repositories: Methods['projects.create']['params']['repositories']): Promise<Project> {
+    if (!this.options.templates) throw new HostError('unavailable', `New projects cannot be created on ${this.access.name} by this Atlas.`);
+    try {
+      const row = await createProject(this.database, { name, repositories }, await this.options.templates());
+      this.options.log.info('Project created', { folder: row.folder });
+      this.projectsChanged();
+      return this.project(row);
+    } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
+  }
+  private async updateProject(params: Methods['projects.update']['params']): Promise<Project> {
+    const row = await this.projectRow(params.folderId);
+    if (params.name !== undefined && params.name !== row.name) {
+      const file = path.join(row.folder, 'planning.json');
+      try { await writeFile(file, setRegistryName(await readFile(file, 'utf8'), params.name)); }
+      catch (error) { throw new HostError('unavailable', `The project could not be renamed: ${(error as Error).message}`); }
+    }
+    this.database.updateProject(row.id, { name: params.name, state: params.state, position: params.position });
+    this.projectsChanged();
+    return this.project(this.database.project(row.id)!);
   }
 
-  /** The computer's folder list, as clients see it: newest first, each with whether it is still there. */
-  async computerFolders(): Promise<ComputerFolder[]> {
-    const entries = await this.listed();
-    return Promise.all(entries.map(async entry => {
-      // A folder on a network drive that does not answer is shown as missing rather than holding the list up.
-      const checked = await stalls((async () => {
-        const info = await inspectPlanningRoot(entry.path).catch(() => null);
-        return { info, available: info !== null || await stat(entry.path).then(found => found.isDirectory(), () => false) };
-      })(), folderCheck).catch(() => ({ info: null, available: false }));
-      return { folderId: this.folders.idOf(entry.path), path: entry.path, name: path.basename(entry.path) || entry.path, openedAt: entry.openedAt, available: checked.available, workItems: checked.info?.workItems ?? null, inHome: entry.inHome };
-    }));
-  }
-  /** A folder was opened here: it moves to the top of the folder list, which every client sees. */
-  private async addToList(root: string) {
-    try { await this.folderList.touch(root); }
-    catch (error) { this.options.log.warn('Folder list not saved', error); return; }
-    this.broadcastFolders();
-  }
-  /** The path of a folder by its ID: one this process opened, or one on the folder list. */
-  private async pathOf(folderId: string): Promise<string | null> {
-    const known = this.folders.pathOf(folderId);
-    if (known) return known;
-    const entries = await this.listed().catch(() => []);
-    return entries.find(entry => this.folders.idOf(entry.path) === folderId)?.path ?? null;
-  }
   /**
-   * Open a folder by its ID: one that is open, one this process opened before, or one on the folder
-   * list. A device reaches planning folders only (the app here may open any folder from the command
-   * line, to explain why it is not one), so their files are all a device can read.
+   * Move a project outside the home into it (as `atlas home adopt` does, with its statistics), under
+   * its folder's name or the first free name after it. Its folder closes here first, as an open
+   * watcher would keep it from moving; clients follow it again under its new folder ID, or keep
+   * following it when it could not move.
+   */
+  private async adoptProject(folderId: string): Promise<Project> {
+    const row = await this.projectRow(folderId);
+    if (this.inHome(row.folder)) throw new HostError('invalid-argument', 'This project is in the Atlas home already.');
+    const base = path.basename(row.folder).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[^A-Za-z0-9]+/, '').slice(0, 90) || 'project';
+    let name = base;
+    // A name another project (its folder gone) was last at stays its own.
+    const taken = (folder: string) => this.database.projectByFolder(folder) !== null || stat(folder).then(() => true, () => false);
+    for (let number = 2; await taken(path.join(homePlanningDirectory(this.options.home), name)); number++) name = base + '-' + number;
+    const subscribers = [...this.connections].filter(connection => connection.subscriptions.delete(folderId));
+    this.folders.forget(folderId);
+    try {
+      const adopted = await adoptPlanningFolder(row.folder, { home: this.options.home, name });
+      this.options.log.info('Project moved into the home', { from: adopted.from, to: adopted.to, reports: adopted.statistics.reports });
+    } catch (error) {
+      // A folder that did not move opens again for the clients that followed it.
+      if (await stat(row.folder).then(() => true, () => false)) {
+        await this.folders.open(row.folder).catch(() => undefined);
+        for (const connection of subscribers) {
+          if (!this.connections.has(connection) || !this.folders.has(folderId) || connection.subscriptions.has(folderId)) continue;
+          this.folders.acquire(folderId);
+          connection.subscriptions.add(folderId);
+        }
+      }
+      throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error;
+    } finally { this.projectsChanged(); }
+    const moved = (await this.projects()).find(project => this.database.projectByFolder(project.path)?.id === row.id);
+    if (!moved) throw new HostError('not-found', 'The project moved, but is no longer listed.');
+    return moved;
+  }
+
+  /**
+   * Open a folder by its ID: one that is open, one this process opened before, or a project's. A
+   * device reaches planning folders only, so their files are all a device can read.
    */
   private async accessibleFolder(credential: Credential, folderId: string): Promise<FolderSession> {
     let folder: FolderSession;
     if (this.folders.has(folderId)) folder = this.folders.get(folderId);
     else {
       const root = await this.pathOf(folderId);
-      if (!root) throw new HostError('not-found', `This planning folder is not open on ${this.access.name}. Open it again from its folder list.`);
+      if (!root) throw new HostError('not-found', `This project is not on ${this.access.name}.`);
       folder = await this.folders.open(root);
     }
     if (!credential.scopes.has('owner') && !await isPlanningFolder(folder.root)) throw new HostError('forbidden', 'Only planning folders open on another device.');
@@ -603,47 +707,24 @@ export class Host {
     switch (method) {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
-      case 'folders.list': return this.computerFolders() as never;
-      case 'folders.open': {
-        const { path: requested, remember = true } = p as { path: string; remember?: boolean };
-        // The app checks folders itself before opening them (and opens a broken one to explain it);
-        // a device opens planning folders on this computer's own disks only.
-        if (!connection.owner) {
-          refuseNetworkPath(requested);
-          try { await inspectPlanningRoot(requested); }
-          catch (error) { throw new HostError((error as { status?: number }).status === 404 ? 'folder-missing' : 'folder-invalid', `${(error as Error).message} (${requested})`); }
-        }
-        const folder = await this.folders.open(requested);
-        // A planning folder someone opens joins the folder list (a missing one, or one without a
-        // planning.json, does not); reopening it after a reconnection leaves the list as it is.
-        if (remember && await isPlanningFolder(folder.root)) await this.addToList(folder.root);
-        return folder.state() as never;
-      }
-      case 'folders.remove': {
-        const root = await this.pathOf((p as { folderId: string }).folderId);
-        if (root && (await homePlanningFolders(this.options.home)).some(folder => pathKey(folder) === pathKey(root))) {
-          throw new HostError('forbidden', 'Planning folders in the Atlas home are always listed; move the folder out of the home to remove it.');
-        }
-        if (!root || !await this.folderList.remove(root)) throw new HostError('not-found', 'This folder is not on the folder list.');
-        this.broadcastFolders();
-        return null as never;
-      }
-      case 'folders.browse': {
-        const { path: folder } = p as { path: string | null };
-        if (!connection.owner && folder !== null) refuseNetworkPath(folder);
-        return browse(folder) as never;
-      }
+      case 'projects.list': return this.projects(true) as never;
+      case 'projects.create': { const { name, repositories } = p as Methods['projects.create']['params']; return this.createProject(name, repositories) as never; }
+      case 'projects.update': return this.updateProject(p as Methods['projects.update']['params']) as never;
+      case 'projects.adopt': return this.adoptProject((p as { folderId: string }).folderId) as never;
       case 'folders.subscribe': {
         const { folderId } = p as { folderId: string };
-        const folder = await this.accessibleFolder(connection.credential, folderId);
-        // Opening can take a while: the connection may have gone since.
-        if (!this.connections.has(connection)) throw new HostError('cancelled', 'The connection closed.');
-        if (!connection.subscriptions.has(folderId)) { this.folders.acquire(folderId); connection.subscriptions.add(folderId); }
-        return folder.state() as never;
+        return connection.inOrder(folderId, async () => {
+          const folder = await this.accessibleFolder(connection.credential, folderId);
+          // Opening can take a while: the connection may have gone since.
+          if (!this.connections.has(connection)) throw new HostError('cancelled', 'The connection closed.');
+          if (!connection.subscriptions.has(folderId)) { this.folders.acquire(folderId); connection.subscriptions.add(folderId); }
+          return folder.state();
+        }) as never;
       }
       case 'folders.unsubscribe': {
         const { folderId } = p as { folderId: string };
-        if (connection.subscriptions.delete(folderId)) this.folders.release(folderId);
+        // After a subscribe still opening the folder, which it undoes.
+        await connection.inOrder(folderId, async () => { if (connection.subscriptions.delete(folderId)) this.folders.release(folderId); });
         return null as never;
       }
       case 'folder.snapshot': return this.subscribed(connection, (p as { folderId: string }).folderId).snapshot() as never;
@@ -751,22 +832,11 @@ export class Host {
 /** Compare two folder paths as this platform does. */
 export const sameFolder = (a: string, b: string) => pathKey(a) === pathKey(b);
 /** Whether a folder has a planning.json (it may still be unreadable; the folder then explains why). */
-const isPlanningFolder = (root: string) => stat(path.join(root, 'planning.json')).then(found => found.isFile(), () => false);
-/** How long a request body may stall, and how long the folder list waits for one folder. */
+/** How long a request body may stall. */
 const bodyStall = 60000;
-const folderCheck = 3000;
 /** A promise that fails when it takes longer than `limit`. */
 function stalls<T>(pending: Promise<T>, limit: number, message = 'This took too long.'): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new HostError('unavailable', message)), limit); });
   return Promise.race([pending, late]).finally(() => clearTimeout(timer));
-}
-/**
- * A device works on this computer's own disks. A network path (\\server\share) would make this
- * computer sign in to whatever server a device names, with this user's credentials.
- */
-function refuseNetworkPath(folder: string) {
-  // As written, and as Windows reads it: it takes /\server\share for \\server\share.
-  const resolved = process.platform === 'win32' ? path.win32.resolve(folder) : folder;
-  if (/^(?:\\\\|\/\/)/.test(folder) || resolved.startsWith('\\\\')) throw new HostError('forbidden', 'Network paths do not open from another device: ' + folder);
 }

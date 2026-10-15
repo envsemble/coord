@@ -36,6 +36,10 @@ _Avoid_: ID, handle
 Where an element, member or relation is declared, and a short excerpt of its source, written as `' atlas evidence` and `' atlas snippet` lines above it.
 _Avoid_: Proof, source record
 
+**Description**:
+One short sentence of what an element or member is for, written as an `' atlas description` line above it. The viewer shows it in the details and as the element's tooltip; the rationale stays in the plan.
+_Avoid_: Note, comment
+
 **Coverage**:
 Whether a capture read everything in its scope (`complete`) or left something out (`partial`), with the diagnostics that say what.
 _Avoid_: Accuracy, validation

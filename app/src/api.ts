@@ -25,33 +25,34 @@ const bridge = (): AtlasBridge => window.atlas;
 
 export const api: Unwrapped = {
   info: () => unwrap(bridge().info()),
-  snapshot: () => unwrap(bridge().snapshot()),
-  document: path => unwrap(bridge().document(path)),
-  diagrams: work => unwrap(bridge().diagrams(work)),
-  diagram: (work, path) => unwrap(bridge().diagram(work, path)),
-  references: (work, path) => unwrap(bridge().references(work, path)),
-  diagramIndex: () => unwrap(bridge().diagramIndex()),
-  recordView: event => unwrap(bridge().recordView(event)),
+  projects: () => unwrap(bridge().projects()),
+  createProject: (name, repositories) => unwrap(bridge().createProject(name, repositories)),
+  updateProject: (project, change) => unwrap(bridge().updateProject(project, change)),
+  adoptProject: project => unwrap(bridge().adoptProject(project)),
+  openProject: project => unwrap(bridge().openProject(project)),
+  closeProject: project => unwrap(bridge().closeProject(project)),
+  snapshot: project => unwrap(bridge().snapshot(project)),
+  document: (project, path) => unwrap(bridge().document(project, path)),
+  diagrams: (project, work) => unwrap(bridge().diagrams(project, work)),
+  diagram: (project, work, path) => unwrap(bridge().diagram(project, work, path)),
+  references: (project, work, path) => unwrap(bridge().references(project, work, path)),
+  diagramIndex: project => unwrap(bridge().diagramIndex(project)),
+  recordView: (project, event) => unwrap(bridge().recordView(project, event)),
   loadUi: () => unwrap(bridge().loadUi()),
   saveUi: state => unwrap(bridge().saveUi(state)),
-  reveal: path => unwrap(bridge().reveal(path)),
+  reveal: (project, path) => unwrap(bridge().reveal(project, path)),
   openExternal: url => unwrap(bridge().openExternal(url)),
   copy: text => unwrap(bridge().copy(text)),
   command: command => unwrap(bridge().command(command)),
   theme: () => unwrap(bridge().theme()),
   setTheme: preference => unwrap(bridge().setTheme(preference)),
   about: () => unwrap(bridge().about()),
-  exportPlan: work => unwrap(bridge().exportPlan(work)),
-  chooseImport: () => unwrap(bridge().chooseImport()),
+  exportPlan: (project, work) => unwrap(bridge().exportPlan(project, work)),
+  chooseImport: project => unwrap(bridge().chooseImport(project)),
   confirmImport: token => unwrap(bridge().confirmImport(token)),
   cancelImport: token => unwrap(bridge().cancelImport(token)),
   computers: () => unwrap(bridge().computers()),
   switchComputer: (hostId, newWindow) => unwrap(bridge().switchComputer(hostId, newWindow)),
-  folders: hostId => unwrap(bridge().folders(hostId)),
-  openFolder: (hostId, path, newWindow) => unwrap(bridge().openFolder(hostId, path, newWindow)),
-  chooseFolder: newWindow => unwrap(bridge().chooseFolder(newWindow)),
-  browse: (hostId, path) => unwrap(bridge().browse(hostId, path)),
-  removeFolder: (hostId, folderId) => unwrap(bridge().removeFolder(hostId, folderId)),
   pairRemote: (link, code) => unwrap(bridge().pairRemote(link, code)),
   forgetRemote: hostId => unwrap(bridge().forgetRemote(hostId)),
   accessState: hostId => unwrap(bridge().accessState(hostId)),
@@ -61,12 +62,12 @@ export const api: Unwrapped = {
   devices: hostId => unwrap(bridge().devices(hostId)),
   revokeDevice: (hostId, deviceId) => unwrap(bridge().revokeDevice(hostId, deviceId)),
   onChanged: listener => bridge().onChanged(listener),
+  onProjectsChanged: listener => bridge().onProjectsChanged(listener),
   onMenu: listener => bridge().onMenu(listener),
   onAccessChanged: listener => bridge().onAccessChanged(listener),
-  onFoldersChanged: listener => bridge().onFoldersChanged(listener),
 };
 
-/** A file inside this window's planning folder, served by the window's own `atlas:` protocol. */
-export function fileUrl(path: string) {
-  return 'atlas://planning/' + path.split('/').map(encodeURIComponent).join('/');
+/** A file inside a project's folder, served by the window's own `atlas:` protocol. */
+export function fileUrl(project: string, path: string) {
+  return 'atlas://planning/' + project + '/' + path.split('/').map(encodeURIComponent).join('/');
 }

@@ -151,6 +151,8 @@ public class AtlasJava {
                 .map(Object::toString)
                 .sorted()
                 .toList(),
+              "description",
+              trees.getDocComment(p),
               "location",
               location(p)
             )
@@ -198,6 +200,8 @@ public class AtlasJava {
                 .map(Object::toString)
                 .sorted()
                 .toList(),
+              "description",
+              trees.getDocComment(p),
               "location",
               location(p)
             )
@@ -230,6 +234,8 @@ public class AtlasJava {
         attributes,
         "methods",
         methods,
+        "description",
+        trees.getDocComment(current),
         "location",
         location(current)
       );
