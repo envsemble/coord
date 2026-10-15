@@ -1,85 +1,68 @@
-import { renameSync } from 'node:fs';
-import path from 'node:path';
-import { expect, test, type ElectronApplication } from '@playwright/test';
-import { close, launch, planningFixture, removeDirectory, secondInstance, temporaryDirectory, windowTitles, type Launched } from './app';
+import { expect, test } from '@playwright/test';
+import { close, launch, launchProject, openProject, projectHome, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
-const folders: string[] = [];
-const fixture = () => { const folder = planningFixture(); folders.push(path.dirname(folder)); return folder; };
-test.afterEach(async () => { await close(launched); launched = undefined; for (const folder of folders.splice(0)) removeDirectory(folder); });
+const homes: string[] = [];
+test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
-async function stubFolderPicker(app: ElectronApplication, folder: string) {
-  await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as typeof dialog.showOpenDialog; }, folder);
-}
-async function recentMenu(app: ElectronApplication) {
-  return app.evaluate(({ Menu }) => Menu.getApplicationMenu()?.getMenuItemById('open-recent')?.submenu?.items.map(item => item.label) ?? []);
-}
-
-test('without a folder, the welcome window opens one with Open Folder… and it joins the folder list', async () => {
+test('a home without projects starts empty, with New Project in the sidebar', async () => {
   launched = await launch();
-  const { app, window } = launched;
-  await expect(window.getByRole('heading', { name: 'Atlas', level: 1 })).toBeVisible();
-  await expect(window.getByText('No recent folders.')).toBeVisible();
-  expect(await recentMenu(app)).toEqual(['No recent folders']);
-  const folder = fixture();
-  await stubFolderPicker(app, folder);
-  await window.getByRole('button', { name: 'Open Folder…' }).click();
-  // The empty window is reused for the folder.
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  await expect.poll(() => windowTitles(app)).toEqual(['planning — Atlas']);
-  await expect.poll(() => recentMenu(app)).toEqual([folder]);
+  const { window } = launched;
+  await expect(window.getByRole('group', { name: 'Projects' })).toContainText('No projects yet.');
+  await expect(window.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'New Project…' })).toBeVisible();
+  await expect(window.getByRole('heading', { name: 'Open a project' })).toBeVisible();
 });
 
-test('Open Folder… opens another folder in a new window; opening it again focuses that window', async () => {
-  const first = fixture();
-  launched = await launch({ folder: first });
+test('a second launch brings the running app forward, and windows open again with their tabs next time', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  launched = await launchProject(home);
   const { app, window } = launched;
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  const second = fixture();
-  const renamed = path.join(path.dirname(second), 'demo');
-  renameSync(second, renamed);
-  await stubFolderPicker(app, renamed);
+  // File › New Window opens another window on the same computer.
+  const opened = app.waitForEvent('window');
   await app.evaluate(({ Menu, BrowserWindow }) => {
-    const item = Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === '&Open Folder…')!;
+    const item = Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === 'New &Window')!;
     item.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
   });
-  await expect.poll(() => windowTitles(app).then(titles => titles.sort())).toEqual(['demo — Atlas', 'planning — Atlas']);
-  await app.evaluate(({ Menu, BrowserWindow }) => {
-    const item = Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === '&Open Folder…')!;
-    item.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
-  });
+  const second = await opened;
+  await openProject(second);
+  // Starting Atlas again only brings it forward (single instance).
+  expect(secondInstance(home.dataDirectory, [])).toBe(0);
   await new Promise(resolve => setTimeout(resolve, 1000));
   expect((await windowTitles(app)).length).toBe(2);
-  await expect.poll(() => recentMenu(app)).toEqual([renamed, first]);
-});
-
-test('a second launch hands its folder to the running app (single instance) and restores windows next time', async () => {
-  const dataDirectory = temporaryDirectory('atlas-e2e-data-');
-  folders.push(dataDirectory);
-  const first = fixture();
-  launched = await launch({ folder: first, dataDirectory });
-  const { app, window } = launched;
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  const other = fixture();
-  expect(secondInstance(dataDirectory, [other])).toBe(0);
-  await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(2);
-  // Asking for an open folder only focuses its window.
-  expect(secondInstance(dataDirectory, [first])).toBe(0);
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  expect((await windowTitles(app)).length).toBe(2);
+  await window.waitForTimeout(600);
   await app.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => undefined);
   await app.waitForEvent('close').catch(() => undefined);
 
-  launched = await launch({ dataDirectory });
+  launched = await launch({ dataDirectory: home.dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(2);
+  for (const page of launched.app.windows()) await expect(page.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind']);
 });
 
-test('Help › About Atlas shows the version in the window, also on the welcome page, and copies the details', async () => {
+test('a window closed by hand is forgotten; the last one stays for the next start', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  launched = await launchProject(home);
+  const { app } = launched;
+  await app.evaluate(({ Menu, BrowserWindow }) => {
+    Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === 'New &Window')!.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
+  });
+  await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(2);
+  // The new window closes by hand; the first keeps its project tab when Atlas quits.
+  await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
+  await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(1);
+  await launched.window.waitForTimeout(600);
+  await app.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => undefined);
+  await app.waitForEvent('close').catch(() => undefined);
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(1);
+  await expect(launched.window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveText(['Northwind']);
+});
+
+test('Help › About Atlas shows the version in the window and copies the details', async () => {
   launched = await launch();
   const { app, window } = launched;
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
-  // The title bar's Help › About Atlas, on the welcome page.
-  await expect(window.getByRole('heading', { name: 'Atlas', level: 1 })).toBeVisible();
   await window.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'Help' }).click();
   await window.getByRole('menuitem', { name: 'About Atlas' }).click();
   const about = window.getByRole('dialog', { name: 'Atlas' });
@@ -87,7 +70,7 @@ test('Help › About Atlas shows the version in the window, also on the welcome 
   await expect(about).toContainText('Atlas works offline.');
   await expect(about.locator('dt')).toHaveText(['Electron', 'Chromium', 'Node.js', 'System', 'Atlas home']);
   await expect(about.locator('dd').last()).toHaveText(launched.dataDirectory);
-  // The details a bug report needs, without the data folder's path.
+  // The details a bug report needs, without the home's path.
   await about.getByRole('button', { name: 'Copy Details' }).click();
   await expect(about.getByRole('button', { name: 'Copied' })).toBeVisible();
   const copied = await app.evaluate(({ clipboard }) => clipboard.readText());

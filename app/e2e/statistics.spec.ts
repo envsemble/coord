@@ -1,23 +1,20 @@
-// Work statistics from agent reports (<work>/.atlas/statistics.jsonl in the fixture) and Git: the
-// Statistics view's Work and Models tabs, and the About sidebar of a work item. The fixture has an
+// Work statistics from agent reports (<work>/.atlas/statistics.jsonl in the fixture, imported into the
+// home's database as the fixture is adopted into it) and Git: the project page's Statistics section,
+// its Work and Models tabs, and the About sidebar of a work item. The fixture has an
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { close, launch, planningFixture, removeDirectory, type Launched } from './app';
+import { close, launchProject, type Launched } from './app';
 
 let launched: Launched | undefined;
-let folder: string;
 /** Numbers as the window formats them, whatever the system locale. */
 const compact = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(number), value);
 const whole = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => number.toLocaleString(), value);
-test.beforeEach(() => { folder = planningFixture(); });
-test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(path.dirname(folder)); });
+test.afterEach(async () => { await close(launched); launched = undefined; });
 
 test('the Work tab lists each work item with its model, planning and implementation, subagents, plan revisions and steps', async () => {
-  launched = await launch({ folder });
+  launched = await launchProject();
   const { window } = launched;
-  await window.getByRole('button', { name: 'Statistics' }).click();
   await expect(window.getByRole('tablist', { name: 'Statistics sections' }).locator('[role="tab"][aria-selected="true"]')).toHaveText('Work');
   await expect(window.locator('.stats-grid .stat').first().locator('.stat-value')).toHaveText('2');
   const agentTime = window.locator('.stats-grid .stat', { hasText: 'Agent time' });
@@ -57,9 +54,8 @@ test('the Work tab lists each work item with its model, planning and implementat
 });
 
 test('the Models tab plots completed work over time by implementing model, with a table and a tooltip', async () => {
-  launched = await launch({ folder });
+  launched = await launchProject();
   const { window } = launched;
-  await window.getByRole('button', { name: 'Statistics' }).click();
   await window.getByRole('tablist', { name: 'Statistics sections' }).getByRole('tab', { name: 'Models over time' }).click();
   await expect(window.locator('.chart-dot')).toHaveCount(1);
   await expect(window.locator('.chart-legend')).toContainText('GPT-6.1 Sol');
@@ -85,7 +81,7 @@ test('the Models tab plots completed work over time by implementing model, with 
 });
 
 test('a work item\'s About sidebar sums up its statistics, by stage and with its subagents, with what agent time and tokens stand for on hover and focus', async () => {
-  launched = await launch({ folder });
+  launched = await launchProject();
   const { window } = launched;
   await window.locator('.work-row a', { hasText: 'Saved payment methods' }).click();
   const statistics = window.locator('.about-section', { has: window.locator('h2', { hasText: 'Statistics' }) });
@@ -100,8 +96,8 @@ test('a work item\'s About sidebar sums up its statistics, by stage and with its
     '1 subagent · 18 min', '0 plan revisions',
   ], { useInnerText: true });
   await expect(window.locator('.about')).not.toContainText('active/0001-saved-payment-methods', { timeout: 1000 });
-  // Where the About sidebar sits below the ledger, the ledger arriving moves it: hover once it has.
-  await expect(window.getByRole('heading', { name: 'Saved payment methods: ledger' })).toBeVisible();
+  // Where the About sidebar sits below the plan, the plan arriving moves it: hover once it has.
+  await expect(window.locator('.reader .prose h2').first()).toBeVisible();
   await facts.nth(0).locator('.detailed').hover();
   await expect(window.locator('.env-tooltip')).toContainText('Measured from logs2 h 38 min');
   await expect(window.locator('.env-tooltip')).toContainText('Estimated from reports1 h 30 min');

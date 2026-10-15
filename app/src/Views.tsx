@@ -17,7 +17,7 @@ export function Activity({ snapshot, repository }: { snapshot: Snapshot; reposit
   const entries = snapshot.history.filter(entry => repository === 'all' || entry.repositories.includes(repository) || entry.files.some(file => { const document = find(file); return document?.workId === null && document.repositories.includes(repository); }));
   const titles = new Map(snapshot.work.map(work => [work.id, work.title]));
   return <Page section title="Activity">
-    {!snapshot.gitAvailable ? <EmptyState className="page-empty" icon={<CommitIcon />} title="No Git history" description="This planning folder is not its own Git repository." />
+    {!snapshot.gitAvailable ? <EmptyState className="page-empty" icon={<CommitIcon />} title="No Git history" description="This project's folder is not its own Git repository." />
       : entries.length ? <GroupedRows className="activity-list" aria-label="Commits">{entries.map(entry => <Row className="activity-row" key={entry.id}
         title={<span className="activity-title"><strong>{entry.title}</strong>{entry.workIds.map(id => <TargetLink key={id} className="activity-work" target={workTarget(id)} title={titles.get(id)}>{workNumber(id)}</TargetLink>)}</span>}
         detail={<span className="changed-files">{entry.files.slice(0, 5).map(file => { const document = find(file); return <button type="button" key={file} className="file-chip" disabled={!document} title={file} onClick={event => document && open(documentTarget(document, owner(document.workId)), { pin: event.ctrlKey || event.metaKey })}><FileIcon />{file.split('/').at(-1)}</button>; })}{entry.files.length > 5 && <span className="muted">+{entry.files.length - 5} more</span>}</span>}

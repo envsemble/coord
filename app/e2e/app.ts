@@ -70,7 +70,10 @@ export function projectHome(options: { slug?: string; name?: string; dataDirecto
   const source = planningFixture(options.name);
   execFileSync(process.execPath, [command, 'home', 'adopt', source, '--name', slug], { env: environment(dataDirectory), stdio: 'ignore', windowsHide: true });
   removeDirectory(path.dirname(source));
-  return { dataDirectory, folder: path.join(dataDirectory, 'planning', slug) };
+  // Adopting deleted the statistics files it imported; the user commits that.
+  const folder = path.join(dataDirectory, 'planning', slug);
+  try { execFileSync('git', ['-C', folder, '-c', 'user.name=Atlas fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'commit', '-q', '-a', '-m', 'Statistics moved into the Atlas home'], { stdio: 'ignore', windowsHide: true }); } catch { /* Nothing to commit. */ }
+  return { dataDirectory, folder };
 }
 export const addProject = (dataDirectory: string, slug: string, name: string) => projectHome({ dataDirectory, slug, name }).folder;
 

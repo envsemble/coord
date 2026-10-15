@@ -50,8 +50,11 @@ export function retarget(state: TabsState, id: string, project: string, target: 
   return { ...state, items: state.items.map(item => item.id === id ? { ...item, target, preview: item.preview && !pin } : item) };
 }
 
+/** Show a tab again: where it was read, not at the heading it was opened at. */
 export function activateTab(state: TabsState, id: string): TabsState {
-  return state.items.some(item => item.id === id) ? { ...state, active: id } : state;
+  if (!state.items.some(item => item.id === id)) return state;
+  const read = (target: Target): Target => 'anchor' in target && target.anchor ? { ...target, anchor: null } : target;
+  return { items: state.items.map(item => item.id === id ? { ...item, target: read(item.target) } : item), active: id };
 }
 
 /** Saved tabs with their ids as this version gives them, the active one kept. */

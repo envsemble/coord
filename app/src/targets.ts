@@ -1,6 +1,7 @@
 // What a tab shows of its project. Tabs are identified by their project and what they show, so
 // opening something that already has a tab focuses that tab (and updates its position, such as a
-// heading or a diagram's element).
+// heading or a diagram's element). A work item's diagrams share one tab, which switches between
+// them in place.
 import type { Document, Target, Work } from './types';
 import { workRelative } from '@envsemble/atlas-planning/paths';
 
@@ -11,7 +12,7 @@ export function tabId(project: string, target: Target): string {
   switch (target.kind) {
     case 'project': return project + ':project';
     case 'work': return project + ':work:' + target.work;
-    case 'diagram': return project + ':diagram:' + target.work + ':' + (target.path ?? '');
+    case 'diagram': return project + ':diagram:' + target.work;
     case 'file': return project + ':file:' + target.path;
   }
 }

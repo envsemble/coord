@@ -36,10 +36,12 @@ test('tabs of different projects sit side by side, and Close All Tabs closes the
   tabs = openTab(tabs, shop, workTarget('work-0001'), true);
   tabs = openTab(tabs, coord, workTarget('work-0001'), true);
   assert.deepEqual(tabs.items.map(tab => [tab.project, tab.target.kind]), [[shop, 'project'], [coord, 'project'], [shop, 'work'], [coord, 'work']], 'the same work ID in two projects is two tabs');
-  // A plan and its diagrams are tabs of their own; a diagram tab moves to another element in place.
+  // A plan and its diagrams are tabs of their own; the diagram tab moves to another diagram or element in place.
   tabs = openTab(tabs, shop, diagramTarget('work-0001', 'diagrams/checkout.puml'), true);
   tabs = retarget(tabs, tabs.active!, shop, diagramTarget('work-0001', 'diagrams/checkout.puml', 'Order'));
+  tabs = retarget(tabs, tabs.active!, shop, diagramTarget('work-0001', 'diagrams/proposal.puml'));
   assert.equal(tabs.items.length, 5);
+  assert.deepEqual(tabs.items[4].target, diagramTarget('work-0001', 'diagrams/proposal.puml'));
   assert.deepEqual(closeAllTabs(), { items: [], active: null });
   // Saved tabs get their ids again, and duplicates go.
   const saved = { items: [{ id: '0', project: shop, target: projectTarget(), preview: false }, { id: '1', project: shop, target: projectTarget(), preview: false }, { id: '2', project: coord, target: fileTarget('a.md'), preview: false }], active: '2' };

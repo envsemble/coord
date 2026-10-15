@@ -464,7 +464,7 @@ function Shown({ place, folder, project, scope, work }: { place: Place | null; f
   const change = folder?.change;
   if (change?.status === 'missing' || (!folder?.snapshot && (change?.status === 'invalid' || folder?.failure))) {
     return <EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
-      description={<>{project && <bdi className="folder-problem-path">{project.path}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />;
+      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />;
   }
   if (!scope || !folder?.snapshot) return <div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>;
   const snapshot = folder.snapshot;

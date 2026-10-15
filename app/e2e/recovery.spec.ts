@@ -1,22 +1,23 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { close, launch, planningFixture, removeDirectory, type Launched } from './app';
+import { close, launchProject, projectHome, removeDirectory, showFiles, type Launched } from './app';
 
-let launched: Launched | undefined;
-let folder: string;
-test.beforeEach(() => { folder = planningFixture(); });
-test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(path.dirname(folder)); });
+let launched: (Launched & { folder: string }) | undefined;
+let home: { dataDirectory: string; folder: string };
+test.beforeEach(() => { home = projectHome(); });
+test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(home.dataDirectory); });
 
 test('a crashed window reloads with its tabs', async () => {
-  launched = await launch({ folder });
+  launched = await launchProject(home);
   const { app, window } = launched;
   await window.locator('.work-row', { hasText: 'Saved payment methods' }).getByRole('link', { name: 'Saved payment methods' }).click();
   await window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][data-preview="true"]').dblclick();
-  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(2);
+  const files = await showFiles(window);
+  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
+  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
+  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
+  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(3);
   await window.waitForTimeout(600);
   // End the renderer process as a crash would. (forcefullyCrashRenderer() on Linux leaves a sandboxed
   // renderer stuck in its crash handler, so the process never ends.)
@@ -25,20 +26,19 @@ test('a crashed window reloads with its tabs', async () => {
   const tabs = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(
     "[...document.querySelectorAll('[role=tablist][aria-label=\"Open tabs\"] [role=tab]')].map(tab => (tab.getAttribute('aria-selected') === 'true' ? '*' : '') + tab.textContent).join('|')").catch(() => ''));
   let restored = '';
-  for (let attempt = 0; attempt < 40 && restored !== 'Saved payment methods|*inventory-schema.md'; attempt++) {
+  for (let attempt = 0; attempt < 40 && restored !== 'Northwind|Saved payment methods|*inventory-schema.md'; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 500));
     restored = await tabs();
   }
-  expect(restored).toBe('Saved payment methods|*inventory-schema.md');
+  expect(restored).toBe('Northwind|Saved payment methods|*inventory-schema.md');
   const log = readFileSync(path.join(launched.dataDirectory, 'logs', 'atlas.log'), 'utf8');
   expect(log).toContain('Window renderer gone');
 });
 
 test('a broken planning.json keeps the last good view with an error, and recovers when fixed', async () => {
-  launched = await launch({ folder });
+  launched = await launchProject(home);
   const { window } = launched;
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  const registry = path.join(folder, 'planning.json');
+  const registry = path.join(home.folder, 'planning.json');
   const good = readFileSync(registry, 'utf8');
   writeFileSync(registry, '{ "schema_version": 1, "repositories": [');
   await expect(window.locator('.folder-error')).toBeVisible();
@@ -51,56 +51,33 @@ test('a broken planning.json keeps the last good view with an error, and recover
   await expect(window.locator('.work-row')).toHaveCount(3);
 });
 
-test('a new work item appears without a refresh', async () => {
-  launched = await launch({ folder });
+test('a ledger change appears without a refresh', async () => {
+  launched = await launchProject(home);
   const { window } = launched;
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  const ledger = path.join(folder, 'active/0003-customer-notifications/ledger.md');
+  const ledger = path.join(home.folder, 'active/0003-customer-notifications/ledger.md');
   writeFileSync(ledger, readFileSync(ledger, 'utf8').replace(/^current: .*$/m, 'current: "Waiting for the provider review"'));
   await expect(window.locator('.work-row', { hasText: 'Customer order notifications' })).toContainText('Waiting for the provider review');
 });
 
-test('a moved planning folder shows Locate… and Close, and returns when it comes back', async () => {
-  launched = await launch({ folder });
+test('a project whose folder is moved away says so, and returns when it comes back', async () => {
+  launched = await launchProject(home);
   const { window } = launched;
-  await expect(window.locator('.work-row')).toHaveCount(3);
-  const moved = folder + '-moved';
-  renameSync(folder, moved);
-  await expect(window.getByRole('heading', { name: 'This planning folder was moved or deleted' })).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Locate…' })).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Close Folder' })).toBeVisible();
-  renameSync(moved, folder);
+  const moved = home.folder + '-moved';
+  renameSync(home.folder, moved);
+  await expect(window.getByRole('heading', { name: 'This project’s folder was moved or deleted' })).toBeVisible();
+  await expect(window.locator('.folder-problem-path')).toHaveText(home.folder);
+  // No Locate… or Close Folder: projects live in the home, and a project page is closed as a tab.
+  await expect(window.getByRole('button', { name: 'Locate…' })).toHaveCount(0);
+  renameSync(moved, home.folder);
   await expect(window.locator('.work-row')).toHaveCount(3, { timeout: 20_000 });
 });
 
-test('Locate… points the window at the folder’s new location and keeps its tabs', async () => {
-  launched = await launch({ folder });
-  const { app, window } = launched;
-  await window.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await window.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await window.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').dblclick();
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(1);
-  await window.waitForTimeout(600);
-  const moved = path.join(path.dirname(folder), 'relocated');
-  renameSync(folder, moved);
-  await expect(window.getByRole('button', { name: 'Locate…' })).toBeVisible();
-  await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as typeof dialog.showOpenDialog; }, moved);
-  await window.getByRole('button', { name: 'Locate…' }).click();
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).getByRole('tab')).toHaveCount(1);
-  await expect(window.getByRole('tablist', { name: 'Open tabs' }).locator('[role="tab"][aria-selected="true"]')).toContainText('inventory-schema.md');
-  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()))).toEqual(['relocated — Atlas']);
-  folder = moved;
-});
-
-test('a folder that cannot be read at all explains why, and Close closes the window', async () => {
-  writeFileSync(path.join(folder, 'planning.json'), 'not json');
-  launched = await launch({ folder });
-  const { window, app } = launched;
-  await expect(window.getByRole('heading', { name: 'This planning folder can’t be read' })).toBeVisible();
-  await expect(window.locator('.folder-problem-error')).toContainText('planning.json');
-  const closed = app.waitForEvent('close');
-  await window.getByRole('button', { name: 'Close', exact: true }).click();
-  await closed;
-  // afterEach still runs close(), which removes the data folder of the exited app.
+test('a project that cannot be read at all explains why', async () => {
+  writeFileSync(path.join(home.folder, 'planning.json'), 'not json');
+  launched = await launchProject({ ...home, open: false });
+  const { window } = launched;
+  // Its name is the folder's while its planning.json cannot be read.
+  await window.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'northwind', exact: true }).click();
+  await expect(window.getByRole('heading', { name: 'This project can’t be read' })).toBeVisible();
+  await expect(window.locator('.page-empty')).toContainText('planning.json');
 });
