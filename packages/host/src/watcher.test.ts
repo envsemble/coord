@@ -165,8 +165,8 @@ test('in the home, only what the project list shows counts: registries, plans, l
     ['shop', 'folders'], ['shop/active', 'folders'], ['shop/archive/0002-old', 'folders'],
     ['shop/active/0001-cart/CONTEXT.md', 'maybe'], ['shop/legacy/plan-notes.md', 'maybe'],
     ['shop/active/0001-cart/diagrams/orders.puml', false], ['shop/active/0001-cart/evidence/plan.md', false], ['shop/.git/HEAD', false], ['shop/.git/index', false],
-    ['shop/notes.txt', false], ['shop/knowledge/planning.json', false], ['shop\\active\\0001-cart\\ledger.md', true],
+    ['shop/notes.txt', false], ['shop/knowledge/planning.json', false], ['diagrams/active/0001-cart/plan.md', true], ['shop/active/evidence/ledger.md', true], ['shop\\active\\0001-cart\\ledger.md', true],
   ] as const) assert.equal(projectListChange(relative), change, String(relative));
   for (const folder of ['shop/.git', 'shop/.git/objects', 'shop/active/0001/diagrams', 'shop/active/0001/evidence', 'shop/node_modules', 'shop/.atlas-import-1']) assert.ok(ignoredInHome(folder), folder);
-  for (const folder of ['shop', 'shop/active', 'shop/active/0001', 'shop/knowledge']) assert.ok(!ignoredInHome(folder), folder);
+  for (const folder of ['shop', 'shop/active', 'shop/active/0001', 'shop/knowledge', 'diagrams', 'evidence/active/0001', 'shop/active/diagrams', 'shop/active/evidence', 'shop/knowledge/diagrams']) assert.ok(!ignoredInHome(folder), folder);
 });

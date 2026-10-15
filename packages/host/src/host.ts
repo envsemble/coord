@@ -7,7 +7,6 @@
 // with the owner, and managing pairings with the devices granted it. Every request is authenticated
 // and every method's scope is checked first.
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { watch } from 'node:fs';
 import { mkdir, open, readdir, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, Server } from 'node:http';
 import { isIPv4, isIPv6 } from 'node:net';
@@ -33,7 +32,7 @@ import {
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
 import { FolderRegistry, pathKey } from './folders.ts';
-import { ignoredInHome, projectListChange, watchFolder } from './watcher.ts';
+import { ProjectListWatch } from './projectWatch.ts';
 import { exportFileName } from './planExportName.ts';
 import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
@@ -145,7 +144,12 @@ export class Host {
   /** Network changes run one at a time, so overlapping updates cannot leave a listener behind. */
   private networkQueue: Promise<void> = Promise.resolve();
   /** Watches the home's planning folder, where projects appear. */
-  private projectsWatcher: { close(): void } | null = null;
+  private projectsWatcher: ProjectListWatch | null = null;
+  /** The projects outside the home that are watched, by folder key. */
+  private readonly outsideWatches = new Map<string, ProjectListWatch>();
+  /** The listing being sent to clients, and whether another is wanted once it is done. */
+  private listing: Promise<void> | null = null;
+  private listAgain = false;
   private projectsTimer: ReturnType<typeof setTimeout> | null = null;
   /** Folders in the home's planning folder that are not planning folders, by name, with how often the projects were listed again for them. */
   private readonly unfinishedProjects = new Map<string, number>();
@@ -200,6 +204,8 @@ export class Host {
     this.loopback = this.network = null;
     this.folders.closeAll();
     this.projectsWatcher?.close();
+    for (const watcher of this.outsideWatches.values()) watcher.close();
+    this.outsideWatches.clear();
     if (this.projectsTimer) clearTimeout(this.projectsTimer);
     if (this.projectsLookAgain) clearTimeout(this.projectsLookAgain);
     this.held.clear();
@@ -552,8 +558,14 @@ export class Host {
     this.projectsTimer = setTimeout(() => {
       this.projectsTimer = null;
       if (!this.connections.size || this.stopped) return;
-      void this.projects(true).then(projects => { for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined)
-        .then(() => this.lookForUnfinishedProjects());
+      // One listing at a time, so an older and slower one never reaches clients after a newer one.
+      if (this.listing) { this.listAgain = true; return; }
+      this.listing = this.projects(true).then(projects => { if (!this.stopped) for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined)
+        .then(() => this.lookForUnfinishedProjects())
+        .finally(() => {
+          this.listing = null;
+          if (this.listAgain) { this.listAgain = false; this.projectsChanged(); }
+        });
     }, 300);
     this.projectsTimer.unref?.();
   }
@@ -581,61 +593,19 @@ export class Host {
     this.projectsLookAgain.unref?.();
   }
   /**
-   * Watch the home's planning folder for what the project list shows: folders appearing in or
-   * leaving it are projects coming and going, and a project's planning.json, its plans and ledgers
-   * and work moving between active/ and archive/ change its summary, whether or not a window has the
-   * project open. Changes are told once they settle, so a burst (a Git checkout) is one listing.
-   * Should the whole tree become unwatchable, the folder's own entries are still watched.
+   * Watch the home's planning folder for what the project list shows (see projectWatch.ts), whether
+   * or not a window has a project open. Projects outside the home are watched as they are listed.
    */
   private watchProjects() {
-    const base = homePlanningDirectory(this.options.home);
-    void mkdir(base, { recursive: true }).then(() => {
-      if (this.stopped) return;
-      const shallow = () => {
-        try {
-          const watcher = watch(base, () => this.projectsChanged());
-          watcher.on('error', error => { this.options.log.warn('The projects folder is not watched', { message: error.message }); watcher.close(); });
-          this.projectsWatcher = { close: () => watcher.close() };
-        } catch (error) { this.options.log.warn('The projects folder is not watched', { message: (error as Error).message }); }
-      };
-      this.projectsWatcher = watchFolder(base, {
-        debounce: 300, maxWait: 5000, ignore: ignoredInHome, relevant: relative => projectListChange(relative) !== false,
-        onChange: paths => { void this.projectListChanged(base, paths); },
-        onError: error => {
-          this.options.log.warn('The projects folder is watched only for projects coming and going', { message: error.message });
-          this.projectsWatcher?.close();
-          if (!this.stopped) shallow();
-        },
-      });
-      void this.lookForUnfinishedProjects(true);
-      void this.projectFolders(base).then(shape => { this.folderShape ??= shape; });
-    }, () => undefined);
+    this.projectsWatcher = new ProjectListWatch(homePlanningDirectory(this.options.home), true, { log: this.options.log, changed: () => this.projectsChanged() });
+    void mkdir(homePlanningDirectory(this.options.home), { recursive: true }).then(() => this.lookForUnfinishedProjects(true), () => undefined);
   }
-  /** The folders of the home's planning folder and of each project's active/ and archive/, as one text to compare. */
-  private async projectFolders(base: string) {
-    const names = async (folder: string) => (await readdir(folder, { withFileTypes: true }).catch(() => [])).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
-    const projects = await names(base);
-    return JSON.stringify(await Promise.all(projects.map(async name => [name, await names(path.join(base, name, 'active')), await names(path.join(base, name, 'archive'))])));
-  }
-  private folderShape: string | null = null;
-  /** Changed paths in the home's planning folder: list the projects again when one of them is shown in the list. */
-  private async projectListChanged(base: string, paths: string[]) {
-    const changes = paths.map(projectListChange);
-    let changed = changes.includes(true);
-    // A folder reported: only folders coming, going or moving count (the shape is kept current either way).
-    if (changes.includes('folders')) {
-      const shape = await this.projectFolders(base);
-      if (shape !== this.folderShape) { this.folderShape = shape; changed = true; }
-    }
-    // Another Markdown file counts when its project registers it as a work item's plan.
-    for (const [index, relative] of paths.entries()) {
-      if (changed) break;
-      if (changes[index] !== 'maybe') continue;
-      const [project, ...rest] = relative.replaceAll('\\', '/').split('/').filter(Boolean);
-      const registry = await readRegistry(path.join(base, project)).catch(() => null);
-      changed = registry?.work_items.some(item => typeof item?.current_plan === 'string' && item.current_plan === rest.join('/')) ?? false;
-    }
-    if (changed) this.projectsChanged();
+  /** Watch the listed projects outside the home that are not archived, and stop watching the rest. */
+  private watchOutsideProjects(rows: ProjectRow[]) {
+    if (this.stopped) return;
+    const wanted = new Map(rows.filter(row => row.state !== 'archived' && !this.inHome(row.folder)).map(row => [folderKey(row.folder), row.folder]));
+    for (const [key, watcher] of this.outsideWatches) if (!wanted.has(key)) { watcher.close(); this.outsideWatches.delete(key); }
+    for (const [key, folder] of wanted) if (!this.outsideWatches.has(key)) this.outsideWatches.set(key, new ProjectListWatch(folder, false, { log: this.options.log, changed: () => this.projectsChanged() }));
   }
 
   // ---- Folders and access ----------------------------------------------------------------------
@@ -666,6 +636,7 @@ export class Host {
       if (name !== row.name) this.database.updateProject(row.id, { name });
       listed.push({ ...row, name });
     }
+    this.watchOutsideProjects(listed);
     if (!summaries) return Promise.all(listed.map(row => this.project(row)));
     const live = this.readLiveWork();
     return Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
