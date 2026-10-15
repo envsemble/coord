@@ -62,7 +62,9 @@ body { margin: 0; }
 .workbench .env-app-navigation { justify-items: stretch; padding-block-end: var(--space-2); }
 /* A quiet strip: the search, only its icon and placeholder at rest, and New Project beside it. */
 .project-strip { display: flex; align-items: center; gap: var(--space-1); min-inline-size: 0; }
-.project-search { flex: 1 1 auto; min-inline-size: 0; }
+/* The field (the class is on its input) takes the room, so New Project ends where the cards end. */
+.project-strip > .env-text-field { flex: 1 1 auto; min-inline-size: 0; }
+.project-strip > :last-child { margin-inline-start: auto; }
 .project-icons { display: grid; gap: var(--space-1); }
 .project-cards { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-1) var(--env-sidebar-inset, var(--space-3)) var(--space-4); }
 .project-list { display: grid; gap: var(--space-2); }
