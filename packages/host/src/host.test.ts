@@ -425,6 +425,50 @@ test('plan and ledger edits in a project no window has open reach the project li
   assert.equal(owner.lists.length, told + 1, 'one listing for the burst');
 });
 
+test('listings for clients run one at a time, so an older and slower one never arrives last', async t => {
+  const { host, origin } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await owner.connection.request('projects.list', {});
+  // The first listing takes long; the second, wanted meanwhile, is quick.
+  const original = host.projects.bind(host);
+  let calls = 0;
+  host.projects = async (summaries?: boolean) => {
+    const call = ++calls;
+    if (summaries) await new Promise(resolve => setTimeout(resolve, call === 1 ? 900 : 0));
+    return (await original(summaries)).map(project => ({ ...project, name: project.name + ' ' + call }));
+  };
+  const changed = () => (host as unknown as { projectsChanged(): void }).projectsChanged();
+  changed();
+  await new Promise(resolve => setTimeout(resolve, 450));
+  changed();
+  await until(() => owner.lists.length >= 2, 5000, () => owner.lists.length);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  assert.deepEqual(owner.lists.map(list => list[0].name), ['Northwind 1', 'Northwind 2'], 'the newer listing last');
+});
+
+test('a project outside the home is watched for its plans and ledgers, and again once its folder is replaced', async t => {
+  const { host, origin, data } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  const outside = path.join(temporary(t, 'atlas-outside-'), 'Shop planning');
+  cpSync(fixture, outside, { recursive: true });
+  const database = HomeDatabase.open(data);
+  try { database.addProject(realpathSync.native(outside), 'Shop', null, 'active'); } finally { database.close(); }
+  await owner.connection.request('projects.list', {});
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const summary = () => owner.lists.at(-1)?.find(project => project.path === realpathSync.native(outside))?.summary?.active.find(item => item.id === 'work-0001')?.summary;
+  const plan = path.join(outside, 'active/0001-saved-payment-methods/plan.md');
+  const say = (text: string) => writeFileSync(plan, readFileSync(plan, 'utf8').replace(/^title: Saved payment methods\n(?:summary: .*\n)?/m, `title: Saved payment methods\nsummary: "${text}"\n`));
+  say('Watched outside the home.');
+  await until(() => summary() === 'Watched outside the home.', 10000, () => owner.lists.length);
+  // The folder replaced by a copy of itself: the new one is watched.
+  rmSync(outside, { recursive: true, force: true, maxRetries: 10 });
+  await new Promise(resolve => setTimeout(resolve, 500));
+  cpSync(fixture, outside, { recursive: true });
+  await new Promise(resolve => setTimeout(resolve, 4000));
+  say('Watched again.');
+  await until(() => summary() === 'Watched again.', 15000, () => owner.lists.length);
+});
+
 test('a project made outside the app appears when its planning.json comes, a moment after its folder', async t => {
   const { host, origin, data } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);

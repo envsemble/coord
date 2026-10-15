@@ -44,10 +44,16 @@ export function ignoredPath(relative: string): boolean {
   return normalized.split('/').some(part => part === 'node_modules' || part === '__pycache__') || /(?:^|\/)\.atlas\/(?:prepared|results|exports)(?:\/|$)/.test(normalized);
 }
 
-const homeIgnored = new Set(['.git', 'node_modules', '__pycache__', 'diagrams', 'evidence']);
-/** Folders in the home's planning folder never watched for the project list: Git's, dependencies, diagrams and evidence. */
+const homeIgnored = new Set(['.git', 'node_modules', '__pycache__']);
+/**
+ * Folders in the home's planning folder (paths `<project>/…`) never watched for the project list:
+ * Git's, dependencies, Atlas's own, and a work folder's diagrams and evidence
+ * (`<project>/active|archive/<work>/diagrams|evidence`), where captures and evidence go.
+ */
 export function ignoredInHome(relative: string): boolean {
-  return relative.replaceAll('\\', '/').split('/').some(part => homeIgnored.has(part) || part.startsWith('.atlas'));
+  const parts = relative.replaceAll('\\', '/').split('/').filter(Boolean);
+  if (parts.some(part => homeIgnored.has(part) || part.startsWith('.atlas'))) return true;
+  return parts.length >= 4 && (parts[1] === 'active' || parts[1] === 'archive') && (parts[3] === 'diagrams' || parts[3] === 'evidence');
 }
 /**
  * Whether a change in the home's planning folder (a path relative to it, `<project>/…`) can change
