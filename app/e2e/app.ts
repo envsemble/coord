@@ -188,11 +188,10 @@ export async function expectProjects(window: Page, names: string[], group?: 'Pro
 }
 /** The sidebar, where it says it has no projects. */
 export const sidebar = (window: Page) => window.locator('.workbench .env-app-sidebar');
-/** The sidebar's project search, opened from the strip's Search button when it is not open yet. */
+/** The sidebar's project search, a quiet field at the top of the sidebar. */
 export async function projectSearch(window: Page) {
   const field = sidebar(window).getByRole('searchbox', { name: 'Search projects' });
-  if (!await field.isVisible()) await sidebar(window).getByRole('button', { name: 'Search projects', exact: true }).click();
-  await expect(field).toBeFocused();
+  await field.click();
   return field;
 }
 /** The button in the strip above the projects that makes a new one. */

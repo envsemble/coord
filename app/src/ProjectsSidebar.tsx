@@ -7,7 +7,7 @@
 // sidebar shows icons only, each project is an icon.
 import { useState, type ReactNode } from 'react';
 import { Button, Card, ContextMenu, Dialog, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, SearchField, Spinner, Text, Tooltip, useSidebarCompact } from '@envsemble/envui';
-import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, FolderIcon, InProgressIcon, SearchIcon } from './icons';
+import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, FolderIcon, InProgressIcon } from './icons';
 import { ProviderMark } from './AiModel';
 import { aiModel } from './aiModels';
 import { absoluteDate, plural, shortAge } from './format';
@@ -89,18 +89,15 @@ export const projectMatches = (project: Project, query: string) => {
 };
 
 /**
- * The top of the sidebar: a quiet strip, "Projects" with Search and New Project beside it, and the
- * search field below it while searching (Escape closes it and clears the search); while the sidebar
- * shows icons only, each active project as an icon instead, then New Project.
+ * The top of the sidebar: a quiet strip, the search over the projects (only its icon and placeholder
+ * until the pointer or focus reaches it; Escape clears it) and New Project; while the sidebar shows
+ * icons only, each active project as an icon instead, then New Project.
  */
 export function ProjectsNavigation({ projects, query, onQueryChange, selected, actions }: {
   projects: Project[] | null; query: string; onQueryChange(query: string): void; selected: string | null; actions: ProjectActions;
 }) {
   const compact = useSidebarCompact();
-  const [searchOpen, setSearchOpen] = useState(false);
   const all = projects ?? [];
-  const searching = searchOpen || query !== '';
-  const closeSearch = () => { onQueryChange(''); setSearchOpen(false); };
   if (compact) return <ContextMenu aria-label="Project actions" density="compact" content={target => <ProjectMenu project={projectAt(all, target)} projects={all} actions={actions} />}>
     <div className="project-icons" role="group" aria-label="Projects">
       {all.filter(project => project.state === 'active').map(project => <NavigationItem key={project.folderId} icon={projectIcon(project)} selected={selected === project.folderId}
@@ -109,14 +106,8 @@ export function ProjectsNavigation({ projects, query, onQueryChange, selected, a
     </div>
   </ContextMenu>;
   return <div className="project-strip">
-    <div className="project-strip-row">
-      <Text as="h2" variant="caption" tone="muted" className="project-strip-title">Projects</Text>
-      <Tooltip content="Search projects" side="bottom"><IconButton variant="text" icon={<SearchIcon />} aria-label="Search projects" aria-pressed={searching}
-        onClick={() => searching ? closeSearch() : setSearchOpen(true)} /></Tooltip>
-      <Tooltip content="New project" side="bottom"><IconButton variant="text" icon={<AddIcon />} aria-label="New project" onClick={actions.create} /></Tooltip>
-    </div>
-    {searching && <SearchField className="project-search" label="Search projects" placeholder="Search projects" value={query} onValueChange={onQueryChange} autoFocus
-      onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeSearch(); } }} />}
+    <SearchField variant="quiet" className="project-search" label="Search projects" placeholder="Search projects" value={query} onValueChange={onQueryChange} />
+    <Tooltip content="New project" side="bottom"><IconButton variant="quiet" icon={<AddIcon />} aria-label="New project" onClick={actions.create} /></Tooltip>
   </div>;
 }
 

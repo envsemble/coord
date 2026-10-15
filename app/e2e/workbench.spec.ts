@@ -380,11 +380,11 @@ test('the search above the projects filters their cards by every word in a name 
   await search.fill('');
   await expectProjects(window, ['Northwind', 'Coord']);
   await expect(sidebar(window)).not.toContainText('No projects match.');
-  // Escape closes the search and clears it.
+  // Escape clears the search.
   await search.fill('north');
   await expectProjects(window, ['Northwind']);
   await search.press('Escape');
-  await expect(search).toHaveCount(0);
+  await expect(search).toHaveValue('');
   await expectProjects(window, ['Northwind', 'Coord']);
 });
 

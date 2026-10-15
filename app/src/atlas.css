@@ -60,13 +60,9 @@ body { margin: 0; }
 /* The sidebar's projects: a strip with the search and New Project at the top, then the projects as
    cards, which scroll below it, the hidden and archived ones in a group after them. */
 .workbench .env-app-navigation { justify-items: stretch; padding-block-end: var(--space-2); }
-.project-strip { display: grid; gap: var(--space-2); min-inline-size: 0; }
-/* A quiet header: the label, then small text buttons, like T3 Code's sidebar. */
-.project-strip-row { display: flex; align-items: center; gap: 0.125rem; min-block-size: 2rem; padding-inline-start: var(--space-2); }
-.project-strip-title { flex: 1 1 auto; margin: 0; font-weight: 600; letter-spacing: 0.02em; }
-.project-strip-row .env-button { --control-height: 1.75rem; inline-size: 1.75rem; block-size: 1.75rem; min-block-size: 1.75rem; }
-.project-strip-row .env-button .env-symbol, .project-strip-row .env-button svg { inline-size: 1.125rem; block-size: 1.125rem; font-size: 1.125rem; }
-.project-search { min-inline-size: 0; }
+/* A quiet strip: the search, only its icon and placeholder at rest, and New Project beside it. */
+.project-strip { display: flex; align-items: center; gap: var(--space-1); min-inline-size: 0; }
+.project-search { flex: 1 1 auto; min-inline-size: 0; }
 .project-icons { display: grid; gap: var(--space-1); }
 .project-cards { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-1) var(--env-sidebar-inset, var(--space-3)) var(--space-4); }
 .project-list { display: grid; gap: var(--space-2); }
