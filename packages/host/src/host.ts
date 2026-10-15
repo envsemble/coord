@@ -19,7 +19,7 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
-import { createProject, HomeDatabase, homePlanningDirectory, homePlanningFolders, planningName, projectOf, resolveDocument, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates } from '@envsemble/atlas-planning';
+import { adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, resolveDocument, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates } from '@envsemble/atlas-planning';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
 import {
@@ -549,12 +549,17 @@ export class Host {
 
   /** A project as clients see it, by the ID of its folder. */
   private project(row: ProjectRow): Project {
-    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state };
+    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, outsideHome: !this.inHome(row.folder) };
+  }
+  /** Whether a project's folder is one of the home's planning folders. */
+  private inHome(folder: string) {
+    return folderKey(path.dirname(folder)) === folderKey(canonicalProjectFolderSync(homePlanningDirectory(this.options.home)));
   }
   /**
    * The computer's projects in their order: every planning folder in the home is one (a folder that
    * appears becomes the last), with its name read again from its planning.json; projects whose
-   * folder is no longer a planning folder are left out.
+   * folder is no longer a planning folder are left out. Projects outside the home (from before it)
+   * are listed too, marked, until they are moved in.
    */
   async projects(): Promise<Project[]> {
     for (const folder of await homePlanningFolders(this.options.home)) await projectOf(this.database, folder);
@@ -600,6 +605,29 @@ export class Host {
   }
 
   /**
+   * Move a project outside the home into it (as `atlas home adopt` does, with its statistics), under
+   * its folder's name or the first free name after it. Its folder closes here first, as an open
+   * watcher would keep it from moving; clients follow it again under its new folder ID.
+   */
+  private async adoptProject(folderId: string): Promise<Project> {
+    const row = await this.projectRow(folderId);
+    if (this.inHome(row.folder)) throw new HostError('invalid-argument', 'This project is in the Atlas home already.');
+    const base = path.basename(row.folder).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[^A-Za-z0-9]+/, '').slice(0, 90) || 'project';
+    let name = base;
+    for (let number = 2; await stat(path.join(homePlanningDirectory(this.options.home), name)).then(() => true, () => false); number++) name = base + '-' + number;
+    for (const connection of this.connections) connection.subscriptions.delete(folderId);
+    this.folders.forget(folderId);
+    try {
+      const adopted = await adoptPlanningFolder(row.folder, { home: this.options.home, name });
+      this.options.log.info('Project moved into the home', { from: adopted.from, to: adopted.to, reports: adopted.statistics.reports });
+    } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
+    finally { this.projectsChanged(); }
+    const moved = (await this.projects()).find(project => this.database.projectByFolder(project.path)?.id === row.id);
+    if (!moved) throw new HostError('not-found', 'The project moved, but is no longer listed.');
+    return moved;
+  }
+
+  /**
    * Open a folder by its ID: one that is open, one this process opened before, or a project's. A
    * device reaches planning folders only, so their files are all a device can read.
    */
@@ -639,6 +667,7 @@ export class Host {
       case 'projects.list': return this.projects() as never;
       case 'projects.create': { const { name, repositories } = p as Methods['projects.create']['params']; return this.createProject(name, repositories) as never; }
       case 'projects.update': return this.updateProject(p as Methods['projects.update']['params']) as never;
+      case 'projects.adopt': return this.adoptProject((p as { folderId: string }).folderId) as never;
       case 'folders.subscribe': {
         const { folderId } = p as { folderId: string };
         const folder = await this.accessibleFolder(connection.credential, folderId);
@@ -757,7 +786,6 @@ export class Host {
 /** Compare two folder paths as this platform does. */
 export const sameFolder = (a: string, b: string) => pathKey(a) === pathKey(b);
 /** Whether a folder has a planning.json (it may still be unreadable; the folder then explains why). */
-const isPlanningFolder = (root: string) => stat(path.join(root, 'planning.json')).then(found => found.isFile(), () => false);
 /** How long a request body may stall. */
 const bodyStall = 60000;
 /** A promise that fails when it takes longer than `limit`. */

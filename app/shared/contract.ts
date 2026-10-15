@@ -17,7 +17,7 @@ export type {
 
 export const invokeChannels = [
   'window:info',
-  'projects:list', 'projects:create', 'projects:update', 'project:open',
+  'projects:list', 'projects:create', 'projects:update', 'projects:adopt', 'project:open',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
   'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
@@ -161,6 +161,8 @@ export interface AtlasBridge {
   createProject(name: string, repositories: ProjectRepository[]): Promise<Result<Project>>;
   /** Rename a project, hide, archive or show it, or move it in the order. */
   updateProject(project: string, change: { name?: string; state?: ProjectState; position?: number }): Promise<Result<Project>>;
+  /** Move a project outside the computer's Atlas home into it; it comes back under its new folder ID. */
+  adoptProject(project: string): Promise<Result<Project>>;
   /** Start following a project's folder; its state now, and changes as planning:changed. */
   openProject(project: string): Promise<Result<FolderChange>>;
   snapshot(project: string): Promise<Result<Snapshot>>;

@@ -34,9 +34,10 @@ export type ProjectState = 'active' | 'hidden' | 'archived';
 /**
  * A project of this computer: a planning folder in its Atlas home, with its name (from its
  * planning.json, else the folder's), its place in the computer's order and its state. `folderId`
- * identifies it in every request about its folder.
+ * identifies it in every request about its folder. A project from before the home (`outsideHome`)
+ * is listed until it is moved into the home; agents do not find it until then.
  */
-export interface Project { folderId: string; name: string; path: string; position: number; state: ProjectState }
+export interface Project { folderId: string; name: string; path: string; position: number; state: ProjectState; outsideHome: boolean }
 /** A repository a new project covers: its ID in planning.json, its name and its Git remote. */
 export interface ProjectRepository { id: string; name: string; remote: string | null }
 
@@ -85,6 +86,8 @@ export interface Methods {
   'projects.create': { params: { name: string; repositories: ProjectRepository[] }; result: Project };
   /** Rename a project (its planning.json's name), hide, archive or show it, or move it in the order. */
   'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number }; result: Project };
+  /** Move a project outside the home into it, with its statistics; it keeps its place, state and tabs, under a new folder ID. */
+  'projects.adopt': { params: { folderId: string }; result: Project };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
   'folders.unsubscribe': { params: { folderId: string }; result: null };
   'folder.snapshot': { params: { folderId: string }; result: Snapshot };
@@ -117,6 +120,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'projects.list': 'computer',
   'projects.create': 'computer',
   'projects.update': 'computer',
+  'projects.adopt': 'computer',
   'folders.subscribe': 'computer',
   'folders.unsubscribe': 'computer',
   'folder.snapshot': 'computer',

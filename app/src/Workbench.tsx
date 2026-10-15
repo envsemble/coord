@@ -271,8 +271,16 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     open: project => openPlace({ project: project.folderId, target: projectTarget() }, true),
     update: (project, change) => { updateProject(project, change).then(() => api.projects().then(setProjects), error => notify((error as Error).message, 'danger')); },
     rename: project => setRenaming(project),
+    // The project comes back under a new folder ID: its tabs follow it.
+    adopt: project => {
+      api.adoptProject(project.folderId).then(moved => {
+        setTabs(tabs => ({ ...tabs, items: tabs.items.map(tab => tab.project === project.folderId ? { ...tab, project: moved.folderId } : tab) }));
+        notify(`Moved ${moved.name} into the Atlas home: ${moved.path}`);
+        return api.projects().then(setProjects);
+      }, error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'danger'); });
+    },
     create: () => setNewProject(true),
-  }), [openPlace, updateProject, notify]);
+  }), [openPlace, updateProject, setTabs, notify]);
   // File › New Project… opens the dialog here, where the new project's page opens.
   const windowActions = useMemo(() => ({ ...actions, newProject: () => setNewProject(true) }), [actions]);
 

@@ -127,6 +127,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'host.session': none,
   'projects.list': none,
   'projects.create': object({ name: projectName, repositories: array(repositoryInput, 50) }),
+  'projects.adopt': object({ folderId }),
   'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)) }),
   'folders.subscribe': object({ folderId }),
   'folders.unsubscribe': object({ folderId }),

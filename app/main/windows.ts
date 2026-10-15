@@ -248,6 +248,21 @@ export class AtlasWindow {
     return project;
   }
 
+  /**
+   * Move a project outside its computer's Atlas home into it. It keeps its row (on a paired computer,
+   * this app's row follows its new folder), so its order, state and saved tabs stay; the folder it
+   * left is no longer followed.
+   */
+  async adoptProject(folderId: string): Promise<Project> {
+    const rowId = await this.projectRow(folderId);
+    const moved = await this.client().request('projects.adopt', { folderId }, { timeout: 120000 });
+    if (this.computer !== null) this.manager.context.database.updateProject(rowId, { folder: moved.path });
+    this.views.get(folderId)?.close();
+    this.views.delete(folderId);
+    this.manager.projectsChanged(this.computer);
+    return (await this.projects()).find(project => project.folderId === moved.folderId) ?? moved;
+  }
+
   /** A project's folder, followed from now on (its changes reach the window). */
   async open(folderId: string): Promise<FolderView> {
     const known = this.views.get(folderId);

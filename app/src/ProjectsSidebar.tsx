@@ -1,7 +1,8 @@
 // The sidebar's projects: those of the computer the window shows, in their order, each opening its
 // project page; hidden and archived projects wait in a group at the bottom, closed until opened. A
 // project's context menu renames it, moves it, and hides, archives or shows it again; projects are
-// never deleted here. New Project… makes one from the bundled templates.
+// never deleted here. A project outside the Atlas home (from before it) is marked, and its menu moves
+// it into the home. New Project… makes one from the bundled templates.
 import { useState, type ReactNode } from 'react';
 import { Button, ContextMenu, Dialog, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, Spinner, Text, Tooltip } from '@envsemble/envui';
 import { AddIcon, ArchiveIcon, CloseIcon, FolderIcon } from './icons';
@@ -13,6 +14,8 @@ export interface ProjectActions {
   open(project: Project): void;
   update(project: Project, change: { name?: string; state?: ProjectState; position?: number }): void;
   rename(project: Project): void;
+  /** Move a project outside the Atlas home into it. */
+  adopt(project: Project): void;
   create(): void;
 }
 
@@ -21,8 +24,8 @@ const stateLabels: Record<ProjectState, string> = { active: 'Active', hidden: 'H
 /** One project in the sidebar: it opens its page; its context menu is the list's. */
 function ProjectItem({ project, selected, actions }: { project: Project; selected: boolean; actions: ProjectActions }) {
   return <NavigationItem icon={project.state === 'archived' ? <ArchiveIcon /> : <FolderIcon />} selected={selected} data-project={project.folderId}
-    title={project.path} onClick={() => actions.open(project)}
-    trailing={project.state === 'active' ? undefined : <span className="project-state">{stateLabels[project.state]}</span>}>{project.name}</NavigationItem>;
+    title={project.path + (project.outsideHome ? ' (outside the Atlas home: agents do not find it until it is moved in)' : '')} onClick={() => actions.open(project)}
+    trailing={project.state === 'active' && !project.outsideHome ? undefined : <span className="project-state">{[project.outsideHome && 'Outside home', project.state !== 'active' && stateLabels[project.state]].filter(Boolean).join(' · ')}</span>}>{project.name}</NavigationItem>;
 }
 
 /** The project a context menu was opened on, by the element it was opened on. */
@@ -40,6 +43,7 @@ function ProjectMenu({ project, projects, actions }: { project: Project | null; 
   return <>
     <MenuItem onClick={() => actions.open(project)}>Open</MenuItem>
     <MenuItem onClick={() => actions.rename(project)}>Rename…</MenuItem>
+    {project.outsideHome && <MenuItem onClick={() => actions.adopt(project)}>Move into the Atlas home</MenuItem>}
     <MenuSeparator />
     <MenuItem disabled={index <= 0} onClick={() => move(-1)}>Move Up</MenuItem>
     <MenuItem disabled={index < 0 || index >= peers.length - 1} onClick={() => move(1)}>Move Down</MenuItem>

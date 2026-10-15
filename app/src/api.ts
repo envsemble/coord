@@ -28,6 +28,7 @@ export const api: Unwrapped = {
   projects: () => unwrap(bridge().projects()),
   createProject: (name, repositories) => unwrap(bridge().createProject(name, repositories)),
   updateProject: (project, change) => unwrap(bridge().updateProject(project, change)),
+  adoptProject: project => unwrap(bridge().adoptProject(project)),
   openProject: project => unwrap(bridge().openProject(project)),
   snapshot: project => unwrap(bridge().snapshot(project)),
   document: (project, path) => unwrap(bridge().document(project, path)),

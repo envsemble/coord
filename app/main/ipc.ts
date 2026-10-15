@@ -130,6 +130,14 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       handle: async (window, name: string, repositories: ProjectRepository[]) => remoteErrors(window.createProject(name, repositories)),
     },
     'projects:update': { args: [folderId, projectChange], handle: (window, project: string, change: { name?: string; state?: ProjectState; position?: number }) => remoteErrors(window.updateProject(project, change)) },
+    'projects:adopt': {
+      args: [folderId],
+      handle: async (window, project: string) => {
+        const name = (await window.projects()).find(entry => entry.folderId === project)?.name ?? 'this project';
+        await confirmed(window, `Move ${name} into the Atlas home?`, 'Move', 'Its folder moves into the Atlas home, where agents find it.');
+        return remoteErrors(window.adoptProject(project));
+      },
+    },
     'project:open': { args: [folderId], handle: async (window, project: string) => (await window.open(project)).change() },
     'planning:snapshot': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.snapshot', { folderId: project }) },
     'planning:document': { args: [folderId, relativePath], handle: async (window, project: string, file: string) => (await window.readable(project)).request('folder.document', { folderId: project, path: file }) },

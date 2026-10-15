@@ -101,6 +101,17 @@ export class FolderRegistry {
     entry.timer.unref?.();
   }
 
+  /** Close a folder now and forget its path (it moved): its ID no longer opens anything. */
+  forget(folderId: string) {
+    const entry = this.entries.get(folderId);
+    if (entry) {
+      if (entry.timer) clearTimeout(entry.timer);
+      this.entries.delete(folderId);
+      entry.session.close();
+    }
+    this.known.delete(folderId);
+  }
+
   /** Close every folder now (the host is stopping). */
   closeAll() {
     for (const entry of this.entries.values()) {

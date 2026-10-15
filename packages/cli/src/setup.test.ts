@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -201,7 +201,14 @@ test('atlas setup creates the home, moves the old data folder, grants the home a
   const project = path.join(atlasHome, 'planning', 'shop');
   write(path.join(project, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [{ id: 'work-0001', path: 'active/0001-cart', repositories: [], current_plan: null }] }));
   write(path.join(project, 'active/0001-cart/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T10:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
+  // So are those of a project outside the home.
+  const outside = path.join(directory, 'elsewhere');
+  write(path.join(outside, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [{ id: 'work-0002', path: 'active/0002-pay', repositories: [], current_plan: null }] }));
+  write(path.join(outside, 'active/0002-pay/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T11:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
+  withDatabase(atlasHome, database => database.addProject(realpathSync(outside), 'Elsewhere'));
   const again = atlas(['setup'], { env });
+  assert.match(again.stdout, /Imported 1 work report from .*elsewhere and deleted active\/0002-pay\/\.atlas\/statistics\.jsonl there/);
+  assert.equal(reportsIn(outside, 'work-0002', atlasHome).length, 1);
   assert.match(again.stdout, /Imported 1 work report from .*shop and deleted active\/0001-cart\/\.atlas\/statistics\.jsonl there\. Atlas never commits: commit the removal in that planning folder\./);
   assert.ok(!existsSync(path.join(project, 'active/0001-cart/.atlas')));
   assert.equal(reportsIn(project, 'work-0001', atlasHome).length, 1);

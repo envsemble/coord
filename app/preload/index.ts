@@ -24,6 +24,7 @@ const api: AtlasBridge = {
   projects: () => call('projects:list'),
   createProject: (name, repositories) => call('projects:create', name, repositories),
   updateProject: (project, change) => call('projects:update', project, change),
+  adoptProject: project => call('projects:adopt', project),
   openProject: project => call('project:open', project),
   snapshot: project => call('planning:snapshot', project),
   document: (project, path) => call('planning:document', project, path),

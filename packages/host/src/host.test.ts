@@ -309,6 +309,34 @@ test('projects are the home\'s planning folders: created from the templates, ren
   await assert.rejects(owner.connection.request('projects.update', { folderId: 'f-' + 'a'.repeat(32), state: 'active' }), (error: HostRequestError) => error.code === 'not-found');
 });
 
+test('a project outside the home is listed, marked, until it moves into the home with its statistics', async t => {
+  const { host, origin, data } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  const outside = path.join(temporary(t, 'atlas-outside-'), 'Shop planning');
+  cpSync(fixture, outside, { recursive: true });
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('git', ['-C', outside, 'init', '-q']);
+  mkdirSync(path.join(outside, 'active/0001-saved-payment-methods/.atlas'), { recursive: true });
+  writeFileSync(path.join(outside, 'active/0001-saved-payment-methods/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T10:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
+  // Read and written beside the host's own connection, and closed before its home is removed.
+  const database = HomeDatabase.open(data);
+  try {
+    const row = database.addProject(realpathSync.native(outside), 'Northwind', null, 'hidden');
+    const projects = await owner.connection.request('projects.list', {});
+    assert.deepEqual(projects.map(project => [project.path, project.outsideHome]), [[realpathSync.native(outside), true], [path.join(data, 'planning', 'planning'), false]]);
+    const listed = projects[0];
+    await owner.connection.follow(listed.folderId);
+    const moved = await owner.connection.request('projects.adopt', { folderId: listed.folderId });
+    assert.deepEqual([moved.path, moved.outsideHome, moved.state], [path.join(data, 'planning', 'Shop-planning'), false, 'hidden']);
+    assert.ok(!existsSync(outside) && !existsSync(path.join(moved.path, 'active/0001-saved-payment-methods/.atlas')));
+    assert.equal(database.projectByFolder(moved.path)?.id, row.id, 'the project keeps its row, and with it its tabs');
+    assert.equal((database.db.prepare("SELECT count(*) AS n FROM work_report WHERE project_id = ? AND at = '2026-10-01T10:00:00.000Z'").get(row.id) as { n: number }).n, 1);
+    assert.notEqual(moved.folderId, listed.folderId);
+    await assert.rejects(owner.connection.request('folder.snapshot', { folderId: listed.folderId }), (error: HostRequestError) => error.code === 'forbidden');
+    await assert.rejects(owner.connection.request('projects.adopt', { folderId: moved.folderId }), /in the Atlas home already/);
+  } finally { database.close(); }
+});
+
 test('another computer imports a plan by sending its file', async t => {
   const { host, origin, planning } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId).connection;

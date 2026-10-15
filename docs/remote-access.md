@@ -151,8 +151,8 @@ The loopback listener accepts only the owner credential, and only from this comp
   - The connecting device stores its token in its home database, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted.
   - On macOS and Linux, Atlas creates the home readable by you only (0700) and the database and its `-wal` and `-shm` files as 0600, and tightens database files an earlier version left readable when it opens them. On Windows, the home is in your user profile, whose permissions keep other users out.
 - **What a device can reach** is what Atlas reaches on that computer, as the user who runs it:
-  - the files inside the planning folders in its Atlas home;
-  - new projects it creates there, and project names it changes;
+  - the files inside the planning folders of its projects: those in its Atlas home, and any project from before the home that is still outside it;
+  - new projects it creates there, project names it changes, and projects it moves into the home;
   - new work items it imports into a planning folder.
 
   It cannot read other files, run programs, edit plans or change how the computer is reached. A lost or stolen device keeps that reach until you revoke it, so revoke it from the computer, from `atlas serve` (`revoke`), or from another device with Manage access.
