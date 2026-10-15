@@ -4,10 +4,10 @@
 export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './planning.ts';
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './filesystem.ts';
 export { atlasAppRunning, atlasHome, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, statisticsDirectory, type LegacyMigration } from './storage.ts';
-export { DatabaseVersionError, HomeDatabase, canonicalProjectFolder, databaseName, folderKey, planningName, projectOf, projectStates, schemaVersion, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState } from './database.ts';
+export { DatabaseVersionError, HomeDatabase, canonicalProjectFolder, databaseName, folderKey, planningName, projectOf, schemaVersion, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState } from './database.ts';
 export { importLegacyUsage, migrateHomeFiles, pendingHomeFiles, type HomeMigration } from './homeMigration.ts';
 export { recordCollectionGap, recordView, usageSummary, type CollectionSource, type ViewEvent } from './telemetry.ts';
-export { inspectPlanningRoot, samePlatformPath, type PlanningRootInfo } from './planningRoots.ts';
+export { samePlatformPath } from './planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check.ts';
 export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './ledger.ts';
 export { StatisticsReportError, createReport, importStatisticsFiles, insertReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, sessionGap, statisticsFile, storedReports, summarizeReports, workStages, workStatistics, type StatisticsImport, type Measured, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics.ts';
@@ -27,5 +27,5 @@ export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, set
 export { findPlanning, resolvePlanningFolder, normalizeRemote, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type Whereabouts } from './resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './checkPaths.ts';
 export { adoptPlanningFolder, type Adopted } from './adopt.ts';
-export { checkedProject, createProject, readTemplates, type ProjectRepository, type ProjectTemplates } from './project.ts';
+export { createProject, readTemplates, type ProjectRepository, type ProjectTemplates } from './project.ts';
 export { setRegistryName } from './registryText.ts';

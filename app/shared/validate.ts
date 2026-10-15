@@ -5,7 +5,7 @@ import { appCommands, limits, themePreferences, type TabState, type Target, type
 import { array, boolean, diagramPath, folderId, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas-host/validate';
 
 export {
-  ValidationError, absolutePath, argumentsOf, array, boolean, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
+  ValidationError, argumentsOf, array, boolean, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
   port, projectName, relativePath, string, token, viewEvent, workId, type Validator,
 } from '@envsemble/atlas-host/validate';
 

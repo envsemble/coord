@@ -37,7 +37,8 @@ test('the sidebar lists the projects; a project opens its page as a tab with its
   await expect(window.locator('.work-row')).toHaveCount(3);
   await expect(window.locator('.work-row').first()).toContainText('Customer order notifications');
   await expect(window.locator('.stats-grid .stat')).toHaveCount(4);
-  await expect(window.locator('.activity-row')).toHaveCount(1);
+  // The fixture's commit, and the one removing the statistics files adopting it imported.
+  await expect(window.locator('.activity-row')).toHaveCount(2);
   await expect(window.locator('.project-path')).toHaveText(home.folder);
   // The project tab is a regular tab: closed like any other.
   await window.keyboard.press('Control+W');

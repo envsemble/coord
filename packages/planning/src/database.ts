@@ -67,7 +67,6 @@ export class DatabaseVersionError extends Error {
 }
 
 export type ProjectState = 'active' | 'hidden' | 'archived';
-export const projectStates: readonly ProjectState[] = ['active', 'hidden', 'archived'];
 export interface ProjectRow { id: number; connectionId: string | null; name: string; folder: string; position: number; state: ProjectState; createdAt: string }
 
 /** Compare folders as the platform does: case-insensitively on Windows and macOS. */

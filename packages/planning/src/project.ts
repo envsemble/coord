@@ -23,7 +23,7 @@ export async function readTemplates(folder: string): Promise<ProjectTemplates> {
 }
 
 /** Check a new project's name and repositories; returns them tidied. */
-export function checkedProject(name: unknown, repositories: unknown): { name: string; repositories: ProjectRepository[] } {
+function checkedProject(name: unknown, repositories: unknown): { name: string; repositories: ProjectRepository[] } {
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 100 || unprintable.test(name)) throw new WorkError('Give the project a name of at most 100 characters.');
   if (!Array.isArray(repositories) || repositories.length > 50) throw new WorkError('List at most 50 repositories.');
   const ids = new Set<string>();

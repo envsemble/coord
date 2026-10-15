@@ -4,7 +4,7 @@ export { Host, acceptableHost, type HostOptions } from './host.ts';
 export { AccessStore, hostRunning, newPairingCode, normalizeCode } from './access.ts';
 export { hostAddresses, inSharedRange, isPrivate } from './addresses.ts';
 export { HostClient, HostRequestError, describeHost, pairWithHost, parsePairing, type ClientOptions, type ClientStatus } from './client.ts';
-export { FolderRegistry, canonicalFolder, folderIdOf, pathKey } from './folders.ts';
+export { FolderRegistry, folderIdOf, pathKey } from './folders.ts';
 export { HostError, toErrorValue, type Logger } from './errors.ts';
 export { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 export { exportFileName } from './planExportName.ts';
