@@ -90,9 +90,23 @@ function link(database: HomeDatabase, session: string, projectId: number, workId
 
 // ---- SessionStart -------------------------------------------------------------------------------
 
-/** The context a session starts with: its projects, their active work, and how to plan. Null when there is none. */
-export function sessionContext(where: Whereabouts): string | null {
-  if (!where.matches.length) return null;
+/**
+ * The context of a session no project registers: the home's active projects (or how to make one),
+ * and that the agent asks which one the work belongs to. Short, as every such session gets it.
+ */
+function contextOutsideProjects(where: Whereabouts): string {
+  const folder = where.checkout ?? where.cwd;
+  if (!where.projects.length) return `Atlas: no project registers this folder (${folder}), and the Atlas home (${where.home}) has no projects yet; when the user wants to plan, make one with the app (File › New Project…), the atlas skill, or atlas home adopt <folder>.`;
+  const lines = [`Atlas: no project registers this folder (${folder}). Active projects in the Atlas home:`];
+  for (const project of where.projects.slice(0, 15)) lines.push(`- "${project.project}": ${project.planningFolder} (${project.work.length} active work ${project.work.length === 1 ? 'item' : 'items'})`);
+  if (where.projects.length > 15) lines.push(`- …and ${where.projects.length - 15} more.`);
+  lines.push("When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's repositories and active work.");
+  return lines.join('\n');
+}
+
+/** The context a session starts with: its projects, their active work, and how to plan; outside them, the home's projects. */
+export function sessionContext(where: Whereabouts): string {
+  if (!where.matches.length) return contextOutsideProjects(where);
   const lines: string[] = [];
   for (const match of where.matches) {
     lines.push(`Atlas project "${match.project}" for this checkout: planning folder ${match.planningFolder}${match.repositories.length ? ' (repositories: ' + match.repositories.join(', ') + ')' : ''}.`);
@@ -240,7 +254,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const transcriptPath = typeof input.transcript_path === 'string' ? input.transcript_path : null;
     if (event === 'SessionStart') {
       const context = sessionContext(await findPlanning(input.cwd ?? process.cwd(), { home }));
-      return context ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }) : '';
+      return JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } });
     }
     if (!session || !['PostToolUse', 'Stop', 'SubagentStop'].includes(event)) return '';
     database = HomeDatabase.open(home);

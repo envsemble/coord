@@ -34,7 +34,7 @@ Retain decisions, grounded lessons, outcomes, and observations that improve late
 
 Plan metadata is governed by `PLANS.md`. Design acceptance, implementation completion, PR readiness, merge, and release are separate facts. Do not guess dates or turn uncertain historical status into completion.
 
-Ask the user before opening a work item; only work big enough to plan needs one. The complete `atlas-implement` workflow requires an explicit invocation. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
+Ask the user before opening a work item; only work big enough to plan needs one. The complete `atlas-implement` workflow runs only when the user asks for it by name. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
 
 Starting implementation records the selected plan path and planning Git revision in the work item's ledger, so commit the plan first. A later edit must not silently change its agreed scope. Keep the ledger's steps current through the Atlas tools at meaningful transitions, so progress and the work left can be viewed; missing historical status stays unknown. Keep the ledger body concise and resumable: actual progress, verification evidence, relevant product revisions/PRs, consequential departures, unresolved delivery milestones, and next actions.
 

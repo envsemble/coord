@@ -15,7 +15,7 @@ import { parseOptions, UsageError, wantsHelp, type Output } from './args.ts';
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
 
-const instructions = 'Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). Find the projects and active work for your checkout with where; '
+const instructions = 'Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). Find the projects and active work for your checkout with where, which also lists every active project in the home; '
   + 'when several projects register its repository, ask the user which one to plan in and pass its planningFolder. '
   + 'Change planning state only through these tools: create a work item (ask the user first, and only for work big enough to plan), accept its design, start implementation with its steps, '
   + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, ledger notes, glossaries and diagrams directly as files in the planning folder. The tools never commit; commit planning changes yourself.';
@@ -33,7 +33,7 @@ interface Tool { name: string; description: string; inputSchema: Record<string, 
 const tools: Tool[] = [
   {
     name: 'where',
-    description: "Find the projects (planning folders: absolute paths in the Atlas home, with their names) that register a checkout's repository, by its Git remotes, and the active work for its repositories with their steps and blocked. Call it first when you need the plan or ledger of your work; when it lists several projects, ask the user which one to plan in.",
+    description: "List every active project in the Atlas home (projects: each planning folder, an absolute path, with its name, repositories, active work as titles and states, and match: whether it registers the checkout), and in matches the projects that register the checkout's repository by its Git remotes, with the active work for its repositories, their steps and blocked. Works in any folder, in a Git checkout or not. Call it first when you need the plan or ledger of your work; when several projects match, ask the user which one to plan in; when none does, ask which project the work belongs to, or work across them.",
     inputSchema: { type: 'object', properties: { cwd }, additionalProperties: false },
     run: (_, input) => findPlanning(input.cwd!),
   },

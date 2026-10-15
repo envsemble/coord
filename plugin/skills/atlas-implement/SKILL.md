@@ -1,14 +1,13 @@
 ---
 name: atlas-implement
-description: Implement a selected Atlas plan in full, keeping its ledger current through the Atlas tools, reviewing proportionately, bringing its PRs to readiness and closing the work when it is verified. Use only when explicitly invoked by name (for example $atlas-implement or /atlas-implement).
-disable-model-invocation: true
+description: Use when the user says "atlas implement".
 ---
 
 # Atlas Implement
 
-Implement the user's selected plan in full. The plan and the invoking prompt define the scope, the outcomes and any sequence; this workflow adds progress visibility, review and delivery, and must not reinterpret or reorganize the plan. Explicit user instructions take precedence. Keep most effort on the planned work and bookkeeping proportionate.
+Implement an accepted Atlas plan end to end: its steps, ledger, reviews, PRs and closing. The plan and the invoking prompt define the scope, the outcomes and any sequence; this workflow adds progress visibility, review and delivery, and must not reinterpret or reorganize the plan. Explicit user instructions take precedence. Keep most effort on the planned work and bookkeeping proportionate.
 
-This workflow runs only when invoked by name. Ordinary coding needs neither it nor a planning folder. Planning, recording and organizing follow the [atlas](../atlas/SKILL.md) skill, which this workflow uses throughout.
+This workflow runs only when the user asks for it by name ("atlas implement", or its command); never for ordinary coding, which needs neither it nor a planning folder. Planning, recording and organizing follow the [atlas](../atlas/SKILL.md) skill, which this workflow uses throughout.
 
 ## Scope and authorization
 
@@ -32,9 +31,9 @@ Follow the agreed design through ordinary uncertainty and preferences for anothe
 
 ## Review and prepare PRs
 
-Review proportionately: an independent adversarial review for substantial, risky or cross-repository work, focused self-review for small clear changes. Give reviewers only the relevant requirements, decisions and changed code. Validate findings against the plan, tell defects from proposed plan changes, and fix valid defects before handoff. Model and effort choices follow the user's and the harness's configuration.
+Review proportionately: an independent adversarial review for substantial, risky or cross-repository work, focused self-review for small clear changes. Give reviewers only the relevant requirements, decisions and changed code. Validate findings against the plan, tell defects from proposed plan changes, and fix valid defects before handoff. Fix them in rounds: after each fix round, review its commits independently again, until a round leaves nothing that should be fixed; record each round's findings and their dispositions in the ledger. Model and effort choices follow the user's and the harness's configuration.
 
-Inspect final diffs for accidental and unrelated files. Push and open PRs when authorized, as drafts while gates are incomplete. Write a self-contained title and description for a reviewer who has not seen the conversation: the problem, the resulting behavior, relevant choices and actual validation. Link related PRs with their dependencies and merge order, and link issues they resolve.
+Inspect final diffs for accidental and unrelated files. Push and open PRs when authorized, as drafts while gates are incomplete, against the branch the repository integrates into (its `dev` where it has one), not its default branch. Write a self-contained title and description for a reviewer who has not seen the conversation: the problem, the resulting behavior, relevant choices and actual validation. Link related PRs with their dependencies and merge order, and link issues they resolve.
 
 ## Bring PRs to readiness
 
@@ -43,14 +42,14 @@ Each PR needs a **review gate** covering its current head:
 - **Configured review:** the repository's configured automated reviewer, found from its documentation, settings and recent PRs together with its actual trigger and completion signal, completed a review of the current head.
 - **Independent review:** when no automated reviewer is configured or available, an independent adversarial review of the PR's full changes at the current head, with every later commit reviewed before it is pushed.
 
-Every PR also needs passing CI on its current head: missing, pending, cancelled or unexpectedly skipped checks are not success, and checks and tests are never weakened. A review request, queued job or review of an earlier head is not a completed gate.
+Every PR also needs passing CI on its current head: missing, pending, cancelled or unexpectedly skipped checks are not success, and checks and tests are never weakened. A review request, queued job or review of an earlier head is not a completed gate. When CI does not run for the PR (some repositories run it only for their default branch) or cannot run, verify locally instead: run the repository's full checks on the current head, record the results in the ledger and the PR description, and say plainly that CI did not run.
 
 Validate every finding, from bots and people alike. Batch valid fixes, verify, push, and reply in each thread with the correction and the fixing commit's link; answer inapplicable findings with evidence. After every new commit, refresh CI and request follow-up review through the discovered mechanism. Wait with bounded backoff, and report an external blocker after repeated attempts that make no progress.
 
-Before declaring readiness, inspect the current head, checks, reviews, threads and mergeability afresh. Mark qualifying drafts ready and say a PR is **ready for human review** only when its CI and review gate pass on the current head with no valid unresolved finding, the description is current and there are no conflicts. Otherwise report the incomplete gate and the next action. Human approval and merge stay with the user.
+Before declaring readiness, inspect the current head, checks, reviews, threads and mergeability afresh. Mark qualifying drafts ready and say a PR is **ready for human review** only when its CI and review gate pass on the current head with no valid unresolved finding, the description is current and there are no conflicts. Otherwise report the incomplete gate and the next action. Human approval and merge stay with the user: merge, and promote the integration branch into the default branch (`dev` into `main`), only with their approval and as they direct.
 
 ## Close and record
 
-Confirm the planned outcome against the plan itself, the validation and the combined review, and record it in the ledger. Once every step is done and the agreed completion criteria are verified (for PR delivery, the required PRs merged unless agreed otherwise), close with `work_close`; it refuses while items are open, so finish them or record why one is dropped. Until then the work stays active, with its pending milestones stated accurately. Retain durable decisions and lessons through the atlas skill.
+Confirm the planned outcome against the plan itself, the validation and the combined review, and record it in the ledger. Once every step is done and the agreed completion criteria are verified (for PR delivery, the required PRs merged unless agreed otherwise), close with `work_close`, which also archives the folder; it refuses while items are open, so finish them or record why one is dropped. Follow-ups that arise (deferred findings, ideas, later fixes) neither keep the work open nor stay as loose notes: with the user's agreement, move them to a new work item (`work_create`), link it from the ledger, and remove any step it takes over with `step_remove`, naming the new work. Until then the work stays active, with its pending milestones stated accurately. Retain durable decisions and lessons through the atlas skill.
 
 Conclude with links to the work item and its PRs, what changed, the validation and review evidence, and any limitation. Code written, a PR opened or CI started is not readiness, and readiness is not completion.

@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/atlas-planning",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Internal Atlas planning-folder reader shared by the atlas command and the app",
   "repository": {

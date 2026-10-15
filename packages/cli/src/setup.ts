@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSyn
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { atlasAppRunning, atlasHome, canonicalProjectFolder, folderKey, HomeDatabase, homePlanningFolders, importStatisticsFiles, isPlanningFolder, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
+import { atlasAppRunning, atlasHome, HomeDatabase, homePlanningFolders, importStatisticsFiles, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome, samePlatformPath } from '@envsemble/atlas-planning';
 import { hostRunning } from '@envsemble/atlas-host';
 import { parseOptions, positionals, wantsHelp, type Output } from './args.ts';
 
@@ -310,8 +310,9 @@ function writeAtomically(file: string, text: string) {
 }
 
 /**
- * Import the home's files into its database and the statistics files of this computer's projects
- * (in the home or not), saying what moved; false when something could not be imported.
+ * Import the home's files into its database and the statistics files of the home's planning folders,
+ * saying what moved; false when something could not be imported. Folders outside the home are left
+ * alone: their statistics files are imported when they move in (`atlas home adopt`).
  */
 async function migrateHome(home: string, out: Output) {
   let complete = true;
@@ -323,13 +324,7 @@ async function migrateHome(home: string, out: Output) {
     if (migration.imported.length) out.stdout(`Imported into the Atlas home's database (the files are set aside in ${path.join(home, 'legacy')}): ${migration.imported.join(', ')}`);
     for (const item of migration.failed) { complete = false; out.stderr(`Not imported: ${item}`); }
     if (migration.unmatched.length) out.stdout(`Left for later, as no project has their planning folder: ${migration.unmatched.join(', ')}`);
-    // The home's planning folders, and projects on this computer outside the home.
-    const folders = new Map<string, string>();
-    for (const folder of [...await homePlanningFolders(home), ...database.projects().map(project => project.folder)]) {
-      const key = folderKey(await canonicalProjectFolder(folder));
-      if (!folders.has(key) && await isPlanningFolder(folder)) folders.set(key, folder);
-    }
-    for (const folder of folders.values()) {
+    for (const folder of await homePlanningFolders(home)) {
       const imported = await importStatisticsFiles(database, folder).catch(error => ({ files: [], reports: 0, invalid: 0, problems: [(error as Error).message] }));
       for (const problem of imported.problems) out.stderr(`${folder}: ${problem}`);
       if (imported.files.length) out.stdout(`Imported ${imported.reports} work ${imported.reports === 1 ? 'report' : 'reports'} from ${folder} and deleted ${imported.files.join(', ')} there. Atlas never commits: commit the removal in that planning folder.`);

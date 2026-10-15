@@ -104,6 +104,7 @@ async function check() {
       "The app uses the workspace diagram package",
     );
     assert(files["plugin/skills/atlas/SKILL.md"]);
+    assert(files["plugin/skills/atlas-grill/SKILL.md"]);
     assert(files["plugin/skills/atlas-implement/SKILL.md"]);
     assert(files["plugin/.claude-plugin/plugin.json"]);
     assert(files[".claude-plugin/marketplace.json"]);

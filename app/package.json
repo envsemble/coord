@@ -1,7 +1,7 @@
 {
   "name": "@envsemble/atlas-app",
   "productName": "Atlas",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Atlas desktop app: plans, models and shared understanding for agents and the people they work with",
   "author": "envsemble",

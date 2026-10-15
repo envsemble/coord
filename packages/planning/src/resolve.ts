@@ -3,6 +3,7 @@
 // folder it is inside, and, for a repository without a remote, to the one whose absolute `path`
 // hint is the checkout. Worktrees share their repository's remotes, so they resolve the same way.
 // Only active projects match: hidden and archived ones (such as a folder split into others) do not.
+// `where` also lists every active project of the home in brief, so an agent outside them can ask.
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from './check.ts';
@@ -31,7 +32,29 @@ export interface PlanningMatch {
   /** Active work for those repositories (all active work when the checkout is the planning folder and no repository matched). */
   work: ActiveWork[];
 }
-export interface Whereabouts { cwd: string; checkout: string | null; remotes: string[]; home: string; matches: PlanningMatch[] }
+/** One active work item in brief: its title and states, without its steps. */
+export interface WorkBrief {
+  workId: string; title: string; designStatus: string | null; implementationStatus: string | null;
+  progress: string | null; blocked: string | null; problem?: string;
+}
+/** An active project of the home, whether or not it registers the checkout. */
+export interface ProjectBrief {
+  planningFolder: string;
+  project: string;
+  /** Its registered repositories' IDs. */
+  repositories: string[];
+  /** Whether it registers the checkout (it is then in `matches` too, with its work in full). */
+  match: boolean;
+  /** All of its active work. */
+  work: WorkBrief[];
+}
+export interface Whereabouts {
+  cwd: string; checkout: string | null; remotes: string[]; home: string;
+  /** The projects the checkout belongs to, with their active work for its repositories in full. */
+  matches: PlanningMatch[];
+  /** Every active project in the home (hidden and archived ones never), matching or not. */
+  projects: ProjectBrief[];
+}
 
 export class PlanningNotFoundError extends Error {
   constructor(message: string) { super(message); this.name = 'PlanningNotFoundError'; }
@@ -107,13 +130,20 @@ export async function activeWork(root: string, item: RegistryEntry): Promise<Act
   return work;
 }
 
-/** The planning folders of the home that the checkout at `cwd` belongs to, with their active work. */
+const brief = ({ workId, title, designStatus, implementationStatus, progress, blocked, problem }: ActiveWork): WorkBrief =>
+  ({ workId, title, designStatus, implementationStatus, progress, blocked, ...problem ? { problem } : {} });
+
+/**
+ * The planning folders of the home that the checkout at `cwd` belongs to, with their active work,
+ * and every active project of the home in brief. Outside a Git checkout only `inside` can match.
+ */
 export async function findPlanning(cwd: string, options: { home?: string } = {}): Promise<Whereabouts> {
   const home = options.home ?? atlasHome();
   const resolvedCwd = await realpath(cwd).catch(() => path.resolve(cwd));
   const found = await checkoutOf(resolvedCwd);
   const remotes = new Set((found?.remotes ?? []).map(normalizeRemote).filter((value): value is string => value !== null));
   const matches: PlanningMatch[] = [];
+  const projects: ProjectBrief[] = [];
   const inactive = await inactiveProjectFolders(home);
   for (const folder of await homePlanningFolders(home)) {
     const root = await realpath(folder).catch(() => folder);
@@ -132,13 +162,16 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
       else if (!remote && hint && found && path.isAbsolute(hint) && samePlatformPath(path.resolve(hint), found.checkout)) { via.add('path'); repositories.push(repository.id); }
       else if (within && hint && !path.isAbsolute(hint) && samePlatformPath(path.resolve(root, hint), root)) repositories.push(repository.id);
     }
+    const active = registry.work_items.filter(item => typeof item?.id === 'string' && typeof item.path === 'string' && item.path.startsWith('active/'));
+    const work = await Promise.all(active.map(item => activeWork(root, item)));
+    const project = await planningName(root);
+    projects.push({ planningFolder: root, project, repositories: registry.repositories.flatMap(item => typeof item?.id === 'string' ? [item.id] : []), match: via.size > 0, work: work.map(brief) });
     if (!via.size) continue;
     const scope = new Set(repositories);
-    const items = registry.work_items.filter(item => typeof item?.id === 'string' && typeof item.path === 'string' && item.path.startsWith('active/')
-      && (!scope.size || (Array.isArray(item.repositories) && item.repositories.some(id => scope.has(id)))));
-    matches.push({ planningFolder: root, project: await planningName(root), via: [...via], repositories, work: await Promise.all(items.map(item => activeWork(root, item))) });
+    const scoped = work.filter((_, index) => !scope.size || (Array.isArray(active[index].repositories) && (active[index].repositories as unknown[]).some(id => scope.has(id as string))));
+    matches.push({ planningFolder: root, project, via: [...via], repositories, work: scoped });
   }
-  return { cwd: resolvedCwd, checkout: found?.checkout ?? null, remotes: found?.remotes ?? [], home, matches };
+  return { cwd: resolvedCwd, checkout: found?.checkout ?? null, remotes: found?.remotes ?? [], home, matches, projects };
 }
 
 /**
