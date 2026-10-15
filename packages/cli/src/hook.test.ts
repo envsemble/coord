@@ -56,8 +56,13 @@ test('hooks give the session its planning context, check and link planning edits
     "When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's repositories and active work.",
   ].join('\n'));
 
-  // PostToolUse: a valid edit of a draft plan links the session, without amending.
+  // PostToolUse: a valid edit of a draft plan links the session, without amending; what the check
+  // only warns about (an active plan without a summary) is said without stopping the agent.
   const plan = path.join(root, 'active', '0001-cart', 'plan.md');
+  assert.deepEqual(hook('PostToolUse', { tool_name: 'Edit', tool_input: { file_path: plan, old_string: 'a', new_string: 'b' }, tool_response: { success: true } }), { hookSpecificOutput: {
+    hookEventName: 'PostToolUse', additionalContext: 'Atlas checked the planning files you edited; consider:\n- shop-planning: active/0001-cart/plan.md: no summary: add one to the header, two or three plain sentences on what the work is, why, and where it stands',
+  } });
+  writeFileSync(plan, planText('work-0001', 'Cart').replace('title: "Cart"', 'title: "Cart"\nsummary: "Carts that last."'));
   assert.equal(hook('PostToolUse', { tool_name: 'Edit', tool_input: { file_path: plan, old_string: 'a', new_string: 'b' }, tool_response: { success: true } }), null);
   const [first] = links();
   assert.deepEqual(first, { planningFolder: realpathSync.native(root), workId: 'work-0001', amending: false, linked: first.linked });
@@ -88,7 +93,7 @@ test('hooks give the session its planning context, check and link planning edits
   assert.equal(usageIn(root, base.ATLAS_HOME!)?.reports, 1);
 
   // Codex: apply_patch names its files in the patch, relative to the session's folder.
-  assert.equal(atlas(['work', 'create', '--title', 'Payments', '--repo', 'shop', '--planning-dir', root], { env }).status, 0);
+  assert.equal(atlas(['work', 'create', '--title', 'Payments', '--summary', 'Payments by card.', '--repo', 'shop', '--planning-dir', root], { env }).status, 0);
   const patch = '*** Begin Patch\n*** Update File: active/0002-payments/plan.md\n@@\n-# Payments\n+# Payments today\n*** End Patch\n';
   const codex = atlas(['hook', 'PostToolUse'], { env, input: JSON.stringify({ session_id: session, transcript_path: null, cwd: root, hook_event_name: 'PostToolUse', model: 'gpt-5.5', permission_mode: 'default', tool_name: 'apply_patch', tool_input: { command: patch }, tool_response: 'Done', tool_use_id: 'call_1', turn_id: 't1' }) });
   assert.deepEqual([codex.status, codex.stdout], [0, '']);
@@ -170,6 +175,10 @@ test('a session in a checkout that several projects register is told to ask whic
   const where = JSON.parse(atlas(['where', '--cwd', checkout], { env }).stdout);
   assert.deepEqual(where.matches.map((match: { project: string }) => match.project), ['Coord', 'shop-planning']);
   assert.ok(root);
+  // Once Coord covers the folder the checkout is in, the session belongs to Coord alone.
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Coord', workspaces: [path.dirname(checkout)], repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop' }], work_items: [] }));
+  const covered: string = JSON.parse(atlas(['hook', 'SessionStart'], { env, input: JSON.stringify({ session_id: session, cwd: checkout }) }).stdout).hookSpecificOutput.additionalContext;
+  assert.match(covered, /^Atlas project "Coord" for this workspace folder: planning folder .*\(repositories: shop\)\.\nNo active work for this checkout\.\nPlanning: /);
 });
 
 test('a session in an empty Atlas home is told there are no projects and how to make one', t => {
@@ -178,7 +187,7 @@ test('a session in an empty Atlas home is told there are no projects and how to 
   const started = atlas(['hook', 'SessionStart'], { env: { ...environment, ATLAS_HOME: home }, input: JSON.stringify({ session_id: session, cwd: directory }) });
   assert.equal(started.status, 0);
   const context: string = JSON.parse(started.stdout).hookSpecificOutput.additionalContext;
-  assert.equal(context, `Atlas: no project registers this folder (${realpathSync.native(directory)}), and the Atlas home (${home}) has no projects yet; when the user wants to plan, make one with the app (File › New Project…), the atlas skill, or atlas home adopt <folder>.`);
+  assert.equal(context, `Atlas: no project registers this folder (${realpathSync.native(directory)}), and the Atlas home (${home}) has no projects yet; when the user wants to plan, make one with their agreement (the Atlas tool project_create, or atlas project create), or the user makes one in the app.`);
 });
 
 test('a hook never breaks the session: bad input prints nothing, exits 0 and is logged', t => {

@@ -1,17 +1,21 @@
-// The planning-state commands: where, work status|create|accept|start|step|block|close|archive|reopen,
-// check and home. They call the planning operations the MCP server calls too, print JSON on
-// success, and exit 1 with the reason (and any open items) when an operation is refused.
+// The planning-state commands: where, project create, work
+// status|create|accept|start|step|block|close|archive|reopen, check and home. They call the planning
+// operations the MCP server calls too, print JSON on success, and exit 1 with the reason (and any
+// open items) when an operation is refused.
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
-  acceptWork, addSteps, adoptPlanningFolder, archiveWork, atlasHome, checkPaths, closeWork, createWork, findPlanning, homePlanningFolders, planningName,
-  planningFolderOf, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, workStatus, type LedgerStepStatus,
+  acceptWork, addSteps, adoptPlanningFolder, archiveWork, atlasHome, checkPaths, closeWork, createProject, createWork, findPlanning, homePlanningFolders, planningName,
+  planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, withDatabaseAsync, workStatus,
+  type LedgerStepStatus, type ProjectRepository,
 } from '@envsemble/atlas-planning';
 import { parseOptions, positionals, UsageError, wantsHelp, type Output } from './args.ts';
 
 export const planningUsage = `  atlas where [--cwd <dir>]
+  atlas project create --name <name> --workspace <folder>... [--json]
   atlas work status <work-id> [--planning-dir <dir>]
-  atlas work create --title <title> [--repo <id>...] [--slug <slug>] [--planning-dir <dir>]
+  atlas work create --title <title> [--summary <text>] [--repo <id>...] [--slug <slug>] [--planning-dir <dir>]
   atlas work accept <work-id> [--planning-dir <dir>]
   atlas work start <work-id> --step <title>... [--planning-dir <dir>]
   atlas work step add <work-id> <title>... [--planning-dir <dir>]
@@ -40,6 +44,40 @@ export async function where(args: string[], out: Output) {
   return 0;
 }
 
+/** A project as `project create` and the Atlas tool `project_create` describe it. */
+export interface CreatedProject { name: string; planningFolder: string; workspaces: string[]; repositories: ProjectRepository[] }
+
+/**
+ * Create a project in the home as the app's host does: from the templates the atlas skill bundles in
+ * this checkout (as `atlas serve` reads them), with its first commit and its row in the home database.
+ */
+export async function createHomeProject(request: { name: string; workspaces: string[]; repositories?: ProjectRepository[] }): Promise<CreatedProject> {
+  const templates = await readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../plugin/skills/atlas/assets/planning'));
+  const row = await withDatabaseAsync(atlasHome(), database => createProject(database, request, templates));
+  const registry = await readRegistry(row.folder);
+  const repositories = registry.repositories.flatMap(item => typeof item?.id === 'string' ? [{
+    id: item.id, name: typeof item.name === 'string' ? item.name : item.id, remote: typeof item.remote === 'string' ? item.remote : null, ...typeof item.path === 'string' && { path: item.path },
+  }] : []);
+  return { name: row.name, planningFolder: row.folder, workspaces: registry.workspaces, repositories };
+}
+
+/** `atlas project create`: a new project in the home, covering the workspace folders given and registering the Git checkouts in them. */
+export async function project(args: string[], out: Output) {
+  const [action, ...rest] = args;
+  const line = usageOf('atlas project create');
+  if (action !== 'create') throw new UsageError(action === undefined ? 'the following arguments are required: create' : 'unknown project command: ' + action, line);
+  if (wantsHelp(rest)) { out.stdout(line); return 0; }
+  const { positional, values, lists, flags } = parseOptions(rest, { values: ['name'], lists: ['workspace'], flags: ['json'] }, line);
+  positionals(positional, [], line);
+  const missing = [values.name ? '' : '--name', lists.workspace ? '' : '--workspace'].filter(Boolean);
+  if (missing.length) throw new UsageError('the following arguments are required: ' + missing.join(', '), line);
+  const created = await createHomeProject({ name: values.name, workspaces: lists.workspace.map(folder => path.resolve(folder)) });
+  if (flags.has('json')) { print(out, created); return 0; }
+  out.stdout(`Created the project ${created.name} in ${created.planningFolder}, covering ${created.workspaces.join(', ')}.`);
+  out.stdout(created.repositories.length ? 'Repositories: ' + created.repositories.map(item => `${item.id} (${item.remote ?? item.path ?? 'no remote'})`).join(', ') + '.' : 'No Git checkouts were found in those folders; register repositories in its planning.json.');
+  return 0;
+}
+
 const steps = ['add', 'set', 'rename', 'remove'];
 /** `atlas work <operation>`; `work report` is handled by main.ts. */
 export async function work(operation: string | undefined, args: string[], out: Output) {
@@ -64,7 +102,7 @@ export async function work(operation: string | undefined, args: string[], out: O
       return 0;
     }
     case 'create': {
-      const { positional, values, lists } = parseOptions(args, { values: ['title', 'slug', 'planning-dir'], lists: ['repo'] }, line);
+      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'planning-dir'], lists: ['repo'] }, line);
       positionals(positional, [], line);
       if (!values.title) throw new UsageError('the following arguments are required: --title', line);
       const root = await planningDir(values, null);
@@ -74,7 +112,7 @@ export async function work(operation: string | undefined, args: string[], out: O
         repositories = (await findPlanning(process.cwd())).matches.find(match => match.planningFolder === root)?.repositories ?? [];
         if (!repositories.length) throw new UsageError('give the repositories with --repo: this checkout is not a registered repository of ' + root, line);
       }
-      print(out, await createWork(root, { title: values.title, repositories, slug: values.slug ?? null }));
+      print(out, await createWork(root, { title: values.title, repositories, slug: values.slug ?? null, summary: values.summary ?? null }));
       return 0;
     }
     case 'start': case 'reopen': {

@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { withDatabase } from '@envsemble/atlas-planning';
 import { atlas, command, homeWithPlanning } from './testing.ts';
 
 interface Response { id: number; result?: { tools?: { name: string; description: string; inputSchema: { required?: string[] } }[]; content?: { text: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean }; error?: unknown }
 
 test('atlas mcp serves the planning-state tools over stdio, resolving the planning folder from the checkout', async t => {
-  const { root, checkout, env } = homeWithPlanning(t);
+  const { root, checkout, directory, home, env } = homeWithPlanning(t);
   const child = spawn(process.execPath, [command, 'mcp'], { env, cwd: checkout, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   // The server ends before the test's folders are removed: Windows cannot remove a running program's folder.
   const exited = new Promise(resolve => child.once('exit', resolve));
@@ -33,7 +34,7 @@ test('atlas mcp serves the planning-state tools over stdio, resolving the planni
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
 
     const { result: listed } = await request('tools/list', {});
-    assert.deepEqual(listed!.tools!.map(tool => tool.name), ['where', 'work_status', 'work_create', 'work_accept', 'work_start', 'step_add', 'step_set', 'step_rename', 'step_remove', 'work_block', 'work_close', 'work_archive', 'work_reopen']);
+    assert.deepEqual(listed!.tools!.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_accept', 'work_start', 'step_add', 'step_set', 'step_rename', 'step_remove', 'work_block', 'work_close', 'work_archive', 'work_reopen']);
     assert.ok(listed!.tools!.every(tool => tool.description.length > 40), 'every tool says what it is for');
     assert.ok(!listed!.tools!.some(tool => /diagram|model/i.test(tool.name)), 'no diagram tools: diagrams are files');
 
@@ -64,5 +65,17 @@ test('atlas mcp serves the planning-state tools over stdio, resolving the planni
     assert.deepEqual([archived.structuredContent!.location, archived.structuredContent!.designStatus], ['archive', 'superseded']);
     assert.equal(atlas(['planning', 'check', root], { env }).status, 0);
     assert.equal(atlas(['mcp', '--root', root], { env }).status, 2, 'the former model server spelling is gone');
+
+    // A project for the folder the checkout is in: made in the home as the app makes one, and from then on the checkout's project.
+    const made = await call('project_create', { name: 'Shop work', workspaces: [directory] });
+    assert.equal(made.isError, undefined, made.content?.[0].text);
+    const planningFolder = path.join(home, 'planning', 'shop-work');
+    assert.deepEqual(made.structuredContent, { name: 'Shop work', planningFolder, workspaces: [directory], repositories: [{ id: 'shop', name: 'shop', remote: 'https://github.com/example/shop.git' }] });
+    assert.ok(existsSync(path.join(planningFolder, '.git')) && existsSync(path.join(planningFolder, 'PLANS.md')));
+    assert.ok(withDatabase(home, database => database.projects().some(project => project.name === 'Shop work' && project.folder === planningFolder)), 'its row in the home database');
+    assert.deepEqual(((await call('where', {})).structuredContent as { matches: { project: string }[] }).matches.map(match => match.project), ['Shop work']);
+    const summarized = await call('work_create', { title: 'Returns', summary: 'Returns by post. Not started.' });
+    assert.deepEqual([summarized.structuredContent!.planningFolder, summarized.structuredContent!.summary], [planningFolder, 'Returns by post. Not started.']);
+    for (const input of [{ name: 'X', workspaces: [] }, { name: 'X', workspaces: [path.join(directory, 'missing')] }]) assert.equal((await call('project_create', input)).isError, true, JSON.stringify(input));
   } finally { child.stdin.end(); child.kill(); await exited; }
 });

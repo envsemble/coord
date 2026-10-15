@@ -8,15 +8,17 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
   acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork,
-  resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
+  resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus, type ProjectRepository,
 } from '@envsemble/atlas-planning';
 import { parseOptions, UsageError, wantsHelp, type Output } from './args.ts';
+import { createHomeProject } from './planning.ts';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
 
 const instructions = 'Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). Find the projects and active work for your checkout with where, which also lists every active project in the home; '
-  + 'when several projects register its repository, ask the user which one to plan in and pass its planningFolder. '
+  + "a session in one of a project's workspace folders belongs to that project. When several projects match, ask the user which one to plan in and pass its planningFolder. "
+  + 'Create a project with project_create only when the user asks for one or agrees to it. '
   + 'Change planning state only through these tools: create a work item (ask the user first, and only for work big enough to plan), accept its design, start implementation with its steps, '
   + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, ledger notes, glossaries and diagrams directly as files in the planning folder. The tools never commit; commit planning changes yourself.';
 
@@ -33,9 +35,27 @@ interface Tool { name: string; description: string; inputSchema: Record<string, 
 const tools: Tool[] = [
   {
     name: 'where',
-    description: "List every active project in the Atlas home (projects: each planning folder, an absolute path, with its name, repositories, active work as titles and states, and match: whether it registers the checkout), and in matches the projects that register the checkout's repository by its Git remotes, with the active work for its repositories, their steps and blocked. Works in any folder, in a Git checkout or not. Call it first when you need the plan or ledger of your work; when several projects match, ask the user which one to plan in; when none does, ask which project the work belongs to, or work across them.",
+    description: "List every active project in the Atlas home (projects: each planning folder, an absolute path, with its name, repositories, workspace folders, active work as titles, summaries and states, and match: whether the checkout belongs to it), and in matches the projects the checkout belongs to, with the active work for its repositories, their steps and blocked. A folder in one of a project's workspace folders belongs to that project alone (the deepest folder wins); elsewhere a checkout matches the projects that register its Git remotes. Works in any folder, in a Git checkout or not. Call it first when you need the plan or ledger of your work; when several projects match, ask the user which one to plan in; when none does, ask which project the work belongs to, or work across them.",
     inputSchema: { type: 'object', properties: { cwd }, additionalProperties: false },
     run: (_, input) => findPlanning(input.cwd!),
+  },
+  {
+    name: 'project_create',
+    description: "Create a project in the Atlas home: a planning folder made from Atlas's templates, as its own Git repository, covering the workspace folders given (a session in one of them belongs to the project) and registering the Git checkouts in them (each folder itself and the folders directly inside it; worktrees count as their repository), unless repositories are given. Ask the user before creating one, and check with where that no project already covers the work. Returns its name, planning folder, workspace folders and repositories.",
+    inputSchema: {
+      type: 'object', additionalProperties: false, required: ['name', 'workspaces'], properties: {
+        name: { type: 'string', description: "The project's name." },
+        workspaces: { type: 'array', items: { type: 'string' }, minItems: 1, description: 'Absolute paths of the folders on this computer the project covers.' },
+        repositories: {
+          type: 'array', description: 'The repositories to register instead of the checkouts found in the folders.',
+          items: { type: 'object', additionalProperties: false, required: ['id', 'name', 'remote'], properties: { id: { type: 'string', description: 'Lowercase letters and digits joined by hyphens.' }, name: { type: 'string' }, remote: { type: ['string', 'null'], description: 'Its Git remote URL.' } } },
+        },
+      },
+    },
+    run: (_, input) => {
+      if (!Array.isArray(input.workspaces) || !input.workspaces.length) throw new WorkError('Give the project at least one workspace folder.');
+      return createHomeProject({ name: input.name as string, workspaces: input.workspaces as string[], ...input.repositories !== undefined && { repositories: input.repositories as ProjectRepository[] } });
+    },
   },
   {
     name: 'work_status', description: 'A work item\'s plan statuses and dates, ledger steps, blocked, and a summary of its statistics.',
@@ -43,12 +63,12 @@ const tools: Tool[] = [
   },
   {
     name: 'work_create',
-    description: 'Create and register a work item: the next free number, active/NNNN-slug/plan.md with a draft plan header, and its planning.json entry. Ask the user before creating one: only work big enough to plan needs it. Then write the plan body in plan.md directly.',
-    inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, repositories: titles('Registered repository IDs the work applies to. Omit them to use the repositories your checkout is.'), slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' } }, ['title']),
+    description: 'Create and register a work item: the next free number, active/NNNN-slug/plan.md with a draft plan header (with its summary), and its planning.json entry. Ask the user before creating one: only work big enough to plan needs it. Then write the plan body in plan.md directly, and keep the summary in its header current as the work moves.',
+    inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, repositories: titles('Registered repository IDs the work applies to. Omit them to use the repositories your checkout is.'), slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' } }, ['title']),
     run: async (root, input) => {
       let repositories = input.repositories as string[] | undefined;
       if (!repositories?.length) repositories = (await findPlanning(input.cwd ?? process.cwd())).matches.find(match => match.planningFolder === root)?.repositories ?? [];
-      return createWork(root, { title: input.title as string, repositories, slug: (input.slug as string | undefined) ?? null });
+      return createWork(root, { title: input.title as string, repositories, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null });
     },
   },
   {
@@ -103,13 +123,16 @@ const tools: Tool[] = [
   },
 ];
 
+/** Tools about the home rather than one planning folder. */
+const homeTools = new Set(['where', 'project_create']);
+
 /** Run a tool call; a refusal is a tool error the agent can read and act on. */
 export async function callTool(name: string, input: Arguments) {
   const tool = tools.find(item => item.name === name);
   if (!tool) return { isError: true, content: [{ type: 'text', text: 'Unknown tool: ' + name }] };
   try {
     const base = input.cwd && path.isAbsolute(input.cwd) ? input.cwd : process.cwd();
-    const root = name === 'where' ? '' : await resolvePlanningFolder({ planningFolder: input.planningFolder, cwd: base, work: input.work ?? null });
+    const root = homeTools.has(name) ? '' : await resolvePlanningFolder({ planningFolder: input.planningFolder, cwd: base, work: input.work ?? null });
     const value = await tool.run(root, { ...input, cwd: base });
     return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value as Record<string, unknown> };
   } catch (error) {

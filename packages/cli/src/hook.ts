@@ -96,7 +96,7 @@ function link(database: HomeDatabase, session: string, projectId: number, workId
  */
 function contextOutsideProjects(where: Whereabouts): string {
   const folder = where.checkout ?? where.cwd;
-  if (!where.projects.length) return `Atlas: no project registers this folder (${folder}), and the Atlas home (${where.home}) has no projects yet; when the user wants to plan, make one with the app (File › New Project…), the atlas skill, or atlas home adopt <folder>.`;
+  if (!where.projects.length) return `Atlas: no project registers this folder (${folder}), and the Atlas home (${where.home}) has no projects yet; when the user wants to plan, make one with their agreement (the Atlas tool project_create, or atlas project create), or the user makes one in the app.`;
   const lines = [`Atlas: no project registers this folder (${folder}). Active projects in the Atlas home:`];
   for (const project of where.projects.slice(0, 15)) lines.push(`- "${project.project}": ${project.planningFolder} (${project.work.length} active work ${project.work.length === 1 ? 'item' : 'items'})`);
   if (where.projects.length > 15) lines.push(`- …and ${where.projects.length - 15} more.`);
@@ -109,7 +109,7 @@ export function sessionContext(where: Whereabouts): string {
   if (!where.matches.length) return contextOutsideProjects(where);
   const lines: string[] = [];
   for (const match of where.matches) {
-    lines.push(`Atlas project "${match.project}" for this checkout: planning folder ${match.planningFolder}${match.repositories.length ? ' (repositories: ' + match.repositories.join(', ') + ')' : ''}.`);
+    lines.push(`Atlas project "${match.project}" for this ${match.via.includes('workspace') ? 'workspace folder' : 'checkout'}: planning folder ${match.planningFolder}${match.repositories.length ? ' (repositories: ' + match.repositories.join(', ') + ')' : ''}.`);
     if (!match.work.length) lines.push('No active work for this checkout.');
     else lines.push('Active work:');
     for (const item of match.work.slice(0, 10)) {
@@ -199,8 +199,11 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
     files.push({ root, relative: path.relative(root, resolved).split(path.sep).join('/'), absolute: resolved });
   }
   if (!files.length) return { output: null, requests };
-  const problems: string[] = [];
-  for (const result of await checkPaths(files.map(file => file.absolute))) problems.push(...result.errors.map(message => path.basename(result.planningFolder) + ': ' + message));
+  const problems: string[] = [], warnings: string[] = [];
+  for (const result of await checkPaths(files.map(file => file.absolute))) {
+    problems.push(...result.errors.map(message => path.basename(result.planningFolder) + ': ' + message));
+    warnings.push(...result.warnings.map(message => path.basename(result.planningFolder) + ': ' + message));
+  }
   for (const file of files) {
     const work = await registered(file.root).catch(() => [] as Registered[]);
     const owner = work.filter(item => file.relative === item.path || file.relative.startsWith(item.path.replace(/\/+$/, '') + '/')).sort((a, b) => b.path.length - a.path.length)[0];
@@ -211,7 +214,8 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
     }
     requests.push({ planningFolder: file.root, workId: owner.id, amending });
   }
-  if (!problems.length) return { output: null, requests };
+  // Warnings (such as an active plan without a summary) are said without stopping the agent.
+  if (!problems.length) return { output: warnings.length ? { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'Atlas checked the planning files you edited; consider:\n' + warnings.map(warning => '- ' + warning).join('\n') } } : null, requests };
   const reason = 'Atlas found problems in the planning files you edited; fix them:\n' + problems.map(problem => '- ' + problem).join('\n');
   return { output: { decision: 'block', reason, hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: reason } }, requests };
 }
