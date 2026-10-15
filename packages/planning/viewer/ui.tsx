@@ -50,19 +50,28 @@ export function absoluteDate(value: string | null | undefined) {
 export function bytes(value: number) { return value < 1024 ? value + ' B' : value < 1048576 ? Math.round(value / 1024) + ' KB' : (value / 1048576).toFixed(1) + ' MB'; }
 export function workNumber(id: string) { return id.replace('work-', '#'); }
 
-/** The ledger's agreed steps, as the app shows them (app/src/LedgerProgress.tsx). */
+/**
+ * The ledger's agreed steps, as the app shows them (app/src/LedgerProgress.tsx): planning steps
+ * (`phase: planning`) and implementation steps in one list, the planning ones in their own colour.
+ */
 const stepLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };
 export function LedgerSteps({ steps }: { steps: LedgerStep[] }) {
   const counts = stepCounts(steps);
+  const planning = stepCounts(steps.filter(step => step.phase === 'planning'));
   const share = (count: number) => count / counts.total * 100 + '%';
   return <div className="ledger-progress">
     {counts.total > 0 && <span className="step-bar" role="progressbar" aria-label="Ledger progress" aria-valuetext={stepSummary(counts)} aria-valuemin={0} aria-valuemax={counts.total} aria-valuenow={counts.done}>
-      <span className="step-bar-done" style={{ width: share(counts.done) }} /><span className="step-bar-doing" style={{ width: share(counts.doing) }} />
+      {planning.done > 0 && <span className="step-bar-planning-done" style={{ width: share(planning.done) }} />}
+      <span className="step-bar-done" style={{ width: share(counts.done - planning.done) }} />
+      {planning.doing > 0 && <span className="step-bar-planning-doing" style={{ width: share(planning.doing) }} />}
+      <span className="step-bar-doing" style={{ width: share(counts.doing - planning.doing) }} />
     </span>}
     <p className="ledger-progress-summary">{stepSummary(counts)}</p>
     {steps.length > 0 && <ol className="ledger-steps">{steps.map(step => {
-      const props = { className: 'step-icon', 'data-status': step.status, label: stepLabels[step.status] };
-      return <li key={step.title} className={'ledger-step ledger-step-' + step.status}>
+      const phase = step.phase === 'planning' ? 'planning' : 'implementation';
+      const props = { className: 'step-icon', 'data-status': step.status, 'data-phase': phase, label: phase === 'planning' ? 'Planning step, ' + stepLabels[step.status].toLowerCase() : stepLabels[step.status] };
+      return <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase}
+        title={(phase === 'planning' ? 'Planning' : 'Implementation') + ' step: ' + step.title + ', ' + stepLabels[step.status].toLowerCase()}>
         {step.status === 'done' ? <CheckCircle filled {...props} /> : step.status === 'doing' ? <Pending {...props} /> : <RadioButtonUnchecked {...props} />}<span>{step.title}</span>
       </li>;
     })}</ol>}
