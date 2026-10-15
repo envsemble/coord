@@ -59,6 +59,25 @@ const migrations = [
 /** The schema version this Atlas writes. */
 export const schemaVersion = migrations.length;
 
+/**
+ * Put the database in WAL mode once; later openings find it there and leave it. Switching takes the
+ * whole file for a moment, which processes opening it at once (hooks of one session) may refuse
+ * without waiting: try again for a few seconds.
+ */
+function walMode(db: DatabaseSync) {
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      if ((db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }).journal_mode === 'wal') return;
+      db.exec('PRAGMA journal_mode = WAL');
+      return;
+    } catch (error) {
+      if (!/database is locked|SQLITE_BUSY/i.test((error as Error).message) || attempt >= 100) throw error;
+      Atomics.wait(pause, 0, 0, 50);
+    }
+  }
+}
+
 export class DatabaseVersionError extends Error {
   constructor(file: string, version: number) {
     super(`${file} has schema version ${version}, newer than this Atlas knows (${schemaVersion}). Update Atlas.`);
@@ -114,7 +133,8 @@ export class HomeDatabase {
     ownerOnly(home, this.file);
     this.db = new DatabaseSync(this.file, { timeout: 10000 });
     try {
-      this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA synchronous = NORMAL;');
+      walMode(this.db);
+      this.db.exec('PRAGMA foreign_keys = ON; PRAGMA synchronous = NORMAL;');
       this.migrate();
     } catch (error) { this.db.close(); throw error; }
   }
