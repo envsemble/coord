@@ -20,5 +20,5 @@ export function toErrorValue(error: unknown): { value: AtlasErrorValue; expected
   // The host already chose a message fit for the window (an unexpected host error arrives as a generic one).
   if (error instanceof HostRequestError) return { value: { code: error.code, message: error.message }, expected: error.code !== 'internal' };
   if (error instanceof PlanningError) return { value: { code: byStatus[error.status] ?? 'invalid-argument', message: error.message }, expected: true };
-  return { value: { code: 'internal', message: 'Atlas could not complete this request. Details are in the log (Help › Open Logs).' }, expected: false };
+  return { value: { code: 'internal', message: 'Atlas could not complete this request. Details are in the log (Open Logs, in the menu).' }, expected: false };
 }

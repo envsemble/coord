@@ -1,12 +1,12 @@
 // Each window shows the projects of one computer: this one, or another computer this app paired
-// with. Its tabs show things of those projects side by side, each tab of one project, and the window
-// follows each project's folder on that computer's Atlas host as its tabs need it. Windows and their
-// tabs are kept in the home database, so they open again at the next start. Each window has its own
+// with. It shows one place at a time (the hub, or something of one project), and follows each
+// project's folder on that computer's Atlas host as its pages need it. Windows and their places are
+// kept in the home database, so they open again at the next start. Each window has its own
 // in-memory session, so its `atlas:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import type { HomeDatabase } from '@envsemble/atlas-planning';
-import type { AccessState, ClientStatus, FolderState, HostClient, Project, ProjectRepository, ProjectState } from '@envsemble/atlas-host';
-import type { EventChannel, MenuCommand, WindowInfo } from '../shared/contract.ts';
+import type { AccessState, ClientStatus, FolderState, HostClient, Project } from '@envsemble/atlas-host';
+import type { EventChannel, MenuCommand, ProjectChangeRequest, WindowInfo } from '../shared/contract.ts';
 import { AtlasError } from './errors.ts';
 import type { Connections } from './connections.ts';
 import { FolderView } from './folderView.ts';
@@ -224,8 +224,8 @@ export class AtlasWindow {
   }
   /** A project's row among the projects last listed, without listing them again; null when it is not among them. */
   listedRow(folderId: string): number | null { return this.listed.get(folderId)?.rowId ?? null; }
-  /** The project rows whose saved tabs the page loaded (ui:load): saving replaces only theirs. */
-  readonly tabsLoaded = new Set<number>();
+  /** The project rows whose saved places the page loaded (ui:load): saving replaces only theirs. */
+  readonly placesLoaded = new Set<number>();
   /** The rows of the projects last listed. */
   listedRows(): number[] { return [...this.listed.values()].map(entry => entry.rowId); }
   /** The folder ID of a project row, among the projects last listed. */
@@ -233,20 +233,21 @@ export class AtlasWindow {
     for (const [folderId, entry] of this.listed) if (entry.rowId === rowId) return folderId;
     return null;
   }
-  async createProject(name: string, repositories: ProjectRepository[]): Promise<Project> {
-    const created = await this.client().request('projects.create', { name, workspaces: [], repositories }, { timeout: 60000 });
+  /** A new project covering workspace folders of the window's computer; its host registers the repositories it finds in them. */
+  async createProject(name: string, workspaces: string[]): Promise<Project> {
+    const created = await this.client().request('projects.create', { name, workspaces }, { timeout: 60000 });
     return (await this.projects()).find(project => project.folderId === created.folderId) ?? created;
   }
   /**
    * Change a project: on this computer through its host, so every device sees it. On a paired
-   * computer, a new name goes to its host (it is in the planning folder), while hiding, archiving
-   * and the order are this app's own.
+   * computer, a new name and workspace folders go to its host (they are in the planning folder),
+   * while hiding, archiving and the order are this app's own.
    */
-  async updateProject(folderId: string, change: { name?: string; state?: ProjectState; position?: number }): Promise<Project> {
+  async updateProject(folderId: string, change: ProjectChangeRequest): Promise<Project> {
     const { database } = this.manager.context;
-    if (this.computer === null) await this.client().request('projects.update', { folderId, ...change });
+    if (this.computer === null) await this.client().request('projects.update', { folderId, ...change }, { timeout: 60000 });
     else {
-      if (change.name !== undefined) await this.client().request('projects.update', { folderId, name: change.name });
+      if (change.name !== undefined || change.workspaces !== undefined) await this.client().request('projects.update', { folderId, name: change.name, workspaces: change.workspaces }, { timeout: 60000 });
       const rowId = await this.projectRow(folderId);
       if (change.state !== undefined || change.position !== undefined) database.updateProject(rowId, { state: change.state, position: change.position });
       this.manager.projectsChanged(this.computer);
@@ -258,7 +259,7 @@ export class AtlasWindow {
 
   /**
    * Move a project outside its computer's Atlas home into it. It keeps its row (on a paired computer,
-   * this app's row follows its new folder), so its order, state and saved tabs stay; every window
+   * this app's row follows its new folder), so its order, state and saved place stay; every window
    * showing that computer follows it under its new folder ID.
    */
   async adoptProject(folderId: string): Promise<Project> {
@@ -270,8 +271,8 @@ export class AtlasWindow {
   }
   /**
    * A project of the window's computer moved under a new folder ID: the folder it left is no longer
-   * followed, and its row (with its saved tabs) goes by the new ID until the projects are listed
-   * again. The page moves its tabs and history.
+   * followed, and its row (with its saved place) goes by the new ID until the projects are listed
+   * again. The page moves its place and history.
    */
   projectMoved(from: string, to: string) {
     const view = this.views.get(from);
@@ -324,7 +325,7 @@ export class AtlasWindow {
     for (const view of this.views.values()) this.letGo(view);
     this.views.clear();
     this.listed.clear();
-    this.tabsLoaded.clear();
+    this.placesLoaded.clear();
   }
 
   /** Show another computer's projects: the window lets this one's go and starts again. */
@@ -342,7 +343,7 @@ export class AtlasWindow {
     if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
   }
 
-  /** View › Zoom: half a zoom level a step, as Chromium's own, from 25% to 471%; the title bar keeps up. */
+  /** Zoom: half a zoom level a step, as Chromium's own, from 25% to 471%; the title bar keeps up. */
   zoom(change: 'in' | 'out' | 'reset') {
     if (this.win.isDestroyed()) return;
     const contents = this.win.webContents;
@@ -425,7 +426,7 @@ export class AtlasWindow {
     this.manager.context.state.updateWindow(this.rowId, { bounds: this.win.getNormalBounds(), maximized: this.win.isMaximized() });
   }
 
-  /** A crashed renderer reloads; its tabs come back from the saved window state. */
+  /** A crashed renderer reloads; its place comes back from the saved window state. */
   private recover(reason: string) {
     const { log } = this.manager.context;
     log.error('Window renderer gone', { reason, computer: this.computer });
@@ -435,7 +436,7 @@ export class AtlasWindow {
     if (this.crashes.length <= 3) { this.load(); return; }
     void dialog.showMessageBox(this.win, {
       type: 'error', title: 'Atlas', message: 'This window keeps closing unexpectedly.',
-      detail: 'Atlas reloaded it three times in the last minute. Details are in the log (Help › Open Logs).',
+      detail: 'Atlas reloaded it three times in the last minute. Details are in the log (Open Logs, in the menu).',
       buttons: ['Reload', 'Close Window'], defaultId: 0, cancelId: 1,
     }).then(({ response }) => {
       if (this.win.isDestroyed()) return;

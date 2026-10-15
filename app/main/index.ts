@@ -134,7 +134,7 @@ function start(database: HomeDatabase) {
   let manager: WindowManager;
 
   const openLogs = () => { void shell.openPath(log.directory); };
-  // Help › About Atlas is a dialog in the window; these are its facts.
+  // About Atlas, in the menu, is a dialog in the window; these are its facts.
   const systems: Record<string, string> = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   const about = (): AboutInfo => ({
     version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node,
@@ -200,7 +200,7 @@ function start(database: HomeDatabase) {
     try { await localHost.start(); }
     catch (error) {
       log.error('Host could not start', error);
-      await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Help › Open Logs).', buttons: ['OK'] });
+      await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Open Logs, in the menu).', buttons: ['OK'] });
     }
     connections.local.start();
     // The window buttons in each title bar follow the theme.

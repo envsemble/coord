@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argumentsOf, command, diagramPath, relativePath, target, uiState, ValidationError, viewEvent, workId } from './validate.ts';
+import { argumentsOf, command, diagramPath, place, relativePath, target, uiState, ValidationError, viewEvent, workId } from './validate.ts';
 import { defaultUiState } from './contract.ts';
 
 const project = 'f-' + 'a'.repeat(32);
@@ -30,25 +30,27 @@ test('argument lists reject extra arguments', () => {
   assert.throws(() => argumentsOf([workId], []), /argument 1/);
 });
 
-test('tabs show a project\'s page, a plan, a diagram or a file, and nothing else', () => {
-  assert.deepEqual(target({ kind: 'project', extra: 1 }), { kind: 'project' });
+test("a place is a plan, a diagram or a file of a project, or one of the window's pages, and nothing else", () => {
   assert.deepEqual(target({ kind: 'work', work: 'work-0001', section: 'ledger' }), { kind: 'work', work: 'work-0001' }, 'sections are gone');
   assert.deepEqual(target({ kind: 'diagram', work: 'work-0001', path: null }), { kind: 'diagram', work: 'work-0001', path: null });
   assert.equal((target({ kind: 'diagram', work: 'work-0001', path: 'diagrams/order.puml', element: 'Order' }) as { element?: string }).element, 'Order');
   assert.deepEqual(target({ kind: 'work', work: 'work-0001', anchor: 'provenance', view: 'ledger' }), { kind: 'work', work: 'work-0001', anchor: 'provenance', view: 'ledger' }, 'a work item shows its ledger in place of the plan');
   assert.deepEqual(target({ kind: 'work', work: 'work-0001', view: null }), { kind: 'work', work: 'work-0001', view: null });
   for (const view of ['plan', 'diagrams', 'Ledger', 1]) assert.throws(() => target({ kind: 'work', work: 'work-0001', view }), /view/, String(view));
-  for (const bad of [{ kind: 'view', view: 'work' }, { kind: 'diagram', work: 'work-0001', path: '../../planning.json' }, { kind: 'file', path: '../secret' }]) assert.throws(() => target(bad), JSON.stringify(bad));
+  for (const bad of [{ kind: 'project' }, { kind: 'view', view: 'work' }, { kind: 'diagram', work: 'work-0001', path: '../../planning.json' }, { kind: 'file', path: '../secret' }]) assert.throws(() => target(bad), JSON.stringify(bad));
+  assert.deepEqual(place({ project, target: { kind: 'file', path: 'README.md' }, extra: 1 }), { project, target: { kind: 'file', path: 'README.md' } });
+  assert.deepEqual(place({ page: 'hub', project: null }), { page: 'hub', project: null });
+  assert.deepEqual(place({ page: 'hub', project }), { page: 'hub', project });
+  assert.deepEqual(place({ page: 'statistics', project }), { page: 'statistics', project });
+  assert.deepEqual(place({ page: 'projects', project }), { page: 'projects' });
+  for (const bad of [{ page: 'project', project }, { page: 'hub', project: '../x' }, { page: 'hub' }, { project: '../x', target: { kind: 'file', path: 'a.md' } }, { project }, null]) assert.throws(() => place(bad), JSON.stringify(bad));
 });
 
 test('window state is checked deeply', () => {
   assert.deepEqual(uiState(defaultUiState), defaultUiState);
-  const state = uiState({ sidebar: { visible: false, width: 300, expanded: ['dropped'] }, tabs: { items: [{ id: 'p:work:work-0001', project, target: { kind: 'work', work: 'work-0001' }, preview: true }], active: 'p:work:work-0001' } });
-  assert.deepEqual(state.sidebar, { visible: false, width: 300 });
-  assert.equal(state.tabs.items[0].project, project);
-  assert.throws(() => uiState({ ...defaultUiState, sidebar: { visible: true, width: 5 } }), /sidebar.width/);
-  assert.throws(() => uiState({ ...defaultUiState, tabs: { items: [{ id: 'x', project: '../x', target: { kind: 'project' }, preview: false }], active: null } }), /project/);
-  assert.throws(() => uiState({ ...defaultUiState, tabs: { items: Array.from({ length: 41 }, () => ({ id: 'x', project, target: { kind: 'project' }, preview: false })), active: null } }), /at most 40/);
+  const state = uiState({ place: { project, target: { kind: 'work', work: 'work-0001' } }, sidebar: { visible: false, width: 300 }, tabs: { items: [], active: null } });
+  assert.deepEqual(state, { place: { project, target: { kind: 'work', work: 'work-0001' } } }, 'the sidebar and the tabs are gone');
+  assert.throws(() => uiState({ tabs: { items: [], active: null } }), /place/);
   // The width of a diagram's details is kept when the reader chose one.
   assert.equal(uiState({ ...defaultUiState, inspectorWidth: 480 }).inspectorWidth, 480);
   assert.equal('inspectorWidth' in uiState(defaultUiState), false);

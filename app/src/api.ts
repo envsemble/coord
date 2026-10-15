@@ -26,7 +26,9 @@ const bridge = (): AtlasBridge => window.atlas;
 export const api: Unwrapped = {
   info: () => unwrap(bridge().info()),
   projects: () => unwrap(bridge().projects()),
-  createProject: (name, repositories) => unwrap(bridge().createProject(name, repositories)),
+  createProject: (name, workspaces) => unwrap(bridge().createProject(name, workspaces)),
+  scanFolder: folder => unwrap(bridge().scanFolder(folder)),
+  chooseFolder: () => unwrap(bridge().chooseFolder()),
   updateProject: (project, change) => unwrap(bridge().updateProject(project, change)),
   adoptProject: project => unwrap(bridge().adoptProject(project)),
   openProject: project => unwrap(bridge().openProject(project)),

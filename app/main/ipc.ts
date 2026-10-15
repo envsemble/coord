@@ -11,11 +11,12 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas-host';
 import { resolveDocument } from '@envsemble/atlas-planning';
 import { accessSettings, deviceText } from '@envsemble/atlas-host/validate';
-import { invokeChannels, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectRepository, type ProjectState, type Result, type TabState, type ThemePreference, type UiState } from '../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, relativePath, string, target as tabTarget, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
+import { defaultUiState, invokeChannels, limits, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectChangeRequest, type Result, type ThemePreference, type UiState } from '../shared/contract.ts';
+import { absolutePath, argumentsOf, array, boolean, command, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../shared/validate.ts';
 import { AtlasError, toErrorValue } from './errors.ts';
 import type { FolderView } from './folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
+import { placeRow, savedPlace } from './state.ts';
 import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
 
 type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
@@ -27,8 +28,8 @@ const computer = nullable(hostId);
 const deviceId = string({ min: 34, max: 34, pattern: /^d-[a-f0-9]{32}$/ });
 const pairingLink = string({ min: 3, max: 2048 });
 const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
-const repository: Validator<ProjectRepository> = object<ProjectRepository>({ id: string({ min: 1, max: 64, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ }), name: deviceText(100), remote: nullable(string({ min: 1, max: 500 })) });
-const projectChange = object<{ name?: string; state?: ProjectState; position?: number }>({ name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)) });
+const workspaces = array(absolutePath, limits.workspaces);
+const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(workspaces) });
 
 /** Import previews belong to the window that chose the file. */
 const pendingImports = new Map<string, { window: number; folder: FolderView }>();
@@ -83,36 +84,27 @@ function pairingHost(link: string, code: string | null) {
 }
 
 /**
- * A window's layout as the database keeps it: the shared settings, its sidebar's width, and its tabs
- * of its computer's projects. A paired computer that is not connected is not waited for: the window
- * shows what is known, its tabs of projects not listed yet wait in the database (`pending`), and the
- * window asks again once the computer answers.
+ * A window's layout as the database keeps it: the shared settings and the place it showed of its
+ * computer's projects (a window from before the hub showed its active tab; with none, the hub). A
+ * paired computer that is not connected is not waited for: the window shows the hub, its place of a
+ * project not listed yet waits in the database (`pending`), and the window asks again once the
+ * computer answers.
  */
 async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<UiState> {
   const { state, connections } = manager.context;
-  const row = state.windows().find(entry => entry.id === window.rowId);
   const connectionId = window.computer === null ? null : connections.idOf(window.computer);
   // Earlier saves land first, so what loads is what the window last showed.
   await saving.get(window);
   const listing = window.projects().catch(() => []);
   // A paired computer that does not answer at once is not waited for.
   await (window.computer === null || window.client().status === 'connected' ? listing : Promise.race([listing, new Promise(resolve => setTimeout(resolve, 2000))]));
-  // The window now knows the saved tabs of the projects listed, and saves replace only theirs.
-  for (const rowId of window.listedRows()) window.tabsLoaded.add(rowId);
-  const items: TabState[] = [];
-  let active: string | null = null;
-  let pending = false;
-  for (const tab of state.tabs(window.rowId, connectionId)) {
-    const project = window.folderOf(tab.projectId);
-    if (!project) { pending = true; continue; }
-    let target;
-    try { target = tabTarget({ kind: tab.kind, ...tab.target && JSON.parse(tab.target) }); } catch { continue; }
-    const id = String(items.length);
-    items.push({ id, project, target, preview: false });
-    if (tab.active) active = id;
-  }
+  // The window now knows the saved places of the projects listed, and saves replace only theirs.
+  for (const rowId of window.listedRows()) window.placesLoaded.add(rowId);
+  const saved = state.tabs(window.rowId, connectionId).find(row => row.active);
+  const project = saved ? window.folderOf(saved.projectId) : null;
+  const place = saved && project ? savedPlace(project, saved) : null;
   const inspectorWidth = state.inspectorWidth;
-  return { sidebar: { visible: state.sidebarVisible, width: row?.sidebarWidth ?? 280 }, tabs: { items, active }, ...inspectorWidth !== null && { inspectorWidth }, ...pending && { pending } };
+  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !project && { pending: true } };
 }
 /** Each window's saves, applied one after another in the order they came. */
 const saving = new WeakMap<AtlasWindow, Promise<void>>();
@@ -121,22 +113,16 @@ function queueSave(manager: WindowManager, window: AtlasWindow, ui: UiState) {
   saving.set(window, next.catch(() => undefined));
   return next;
 }
-/** Save a window's layout: its tabs replace the saved tabs of the projects it loaded them for; the others' stay. */
+/** Save a window's layout: its place replaces the saved places of the projects it loaded them for; the others' stay. */
 async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) {
   const { state, connections } = manager.context;
   const computer = window.computer;
-  state.setSidebarVisible(ui.sidebar.visible);
   state.setInspectorWidth(ui.inspectorWidth ?? null);
-  state.updateWindow(window.rowId, { sidebarWidth: ui.sidebar.width });
-  const rows = [];
-  for (const tab of ui.tabs.items) {
-    const projectId = window.listedRow(tab.project);
-    if (projectId === null) continue;
-    const { kind, ...rest } = tab.target;
-    rows.push({ projectId, kind, target: kind === 'project' ? null : JSON.stringify(rest), active: tab.id === ui.tabs.active });
-  }
-  // The window may have moved to another computer meanwhile: these tabs are no longer its own.
-  if (window.computer === computer) state.saveTabs(window.rowId, computer === null ? null : connections.idOf(computer), rows, [...window.tabsLoaded]);
+  const row = placeRow(ui.place);
+  const projectId = row ? window.listedRow(row.project) : null;
+  const rows = row && projectId !== null ? [{ projectId, kind: row.kind, target: row.target, active: true }] : [];
+  // The window may have moved to another computer meanwhile: this place is no longer its own.
+  if (window.computer === computer) state.saveTabs(window.rowId, computer === null ? null : connections.idOf(computer), rows, [...window.placesLoaded]);
 }
 
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
@@ -145,11 +131,24 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
   return {
     'window:info': { args: [], handle: window => window.info() },
     'projects:list': { args: [], handle: window => remoteErrors(window.projects()) },
-    'projects:create': {
-      args: [projectName, array(repository, 50)],
-      handle: async (window, name: string, repositories: ProjectRepository[]) => remoteErrors(window.createProject(name, repositories)),
+    'projects:create': { args: [projectName, workspaces], handle: (window, name: string, folders: string[]) => remoteErrors(window.createProject(name, folders)) },
+    // A folder on this computer: on another computer's projects, the folder is only found as the project is created there.
+    'projects:scan': {
+      args: [absolutePath],
+      handle: (window, folder: string) => {
+        if (window.computer !== null) throw new AtlasError('unavailable', 'Folders on another computer are not looked into before the project is created.');
+        return remoteErrors(owner().request('projects.scan', { folder }));
+      },
     },
-    'projects:update': { args: [folderId, projectChange], handle: (window, project: string, change: { name?: string; state?: ProjectState; position?: number }) => remoteErrors(window.updateProject(project, change)) },
+    'projects:chooseFolder': {
+      args: [],
+      handle: async window => {
+        if (window.computer !== null) throw new AtlasError('unavailable', 'A folder on another computer cannot be chosen here: type its path.');
+        const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Choose a folder', buttonLabel: 'Choose', properties: ['openDirectory', 'createDirectory'] }));
+        return choice.canceled ? null : choice.filePaths[0] ?? null;
+      },
+    },
+    'projects:update': { args: [folderId, projectChange], handle: (window, project: string, change: ProjectChangeRequest) => remoteErrors(window.updateProject(project, change)) },
     'projects:adopt': {
       args: [folderId],
       handle: async (window, project: string) => {
@@ -184,7 +183,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
-    // Help › About Atlas, which the window shows: versions and the data folder, nothing a page could misuse.
+    // About Atlas, which the window shows: versions and the data folder, nothing a page could misuse.
     'app:about': { args: [], handle: () => actions.about() },
     'app:command': {
       args: [command],

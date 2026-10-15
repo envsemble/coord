@@ -26,7 +26,7 @@ export class LocalHost {
   get origin() { return 'http://127.0.0.1:' + this.port; }
   /** The owner token, once the host is up; the connection reads it on every attempt. */
   async token() {
-    if (this.exhausted) throw new Error('The Atlas host keeps stopping, so Atlas stopped restarting it. Quit and start Atlas again; details are in the log (Help › Open Logs).');
+    if (this.exhausted) throw new Error('The Atlas host keeps stopping, so Atlas stopped restarting it. Quit and start Atlas again; details are in the log (Open Logs, in the menu).');
     await (this.starting ?? this.restarting ?? this.start());
     if (!this.child) throw new Error('The Atlas host is not running.');
     return this.ownerToken;

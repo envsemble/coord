@@ -2,7 +2,7 @@ import { Menu, type MenuItemConstructorOptions } from 'electron';
 import type { WindowManager } from './windows.ts';
 
 /**
- * The application menu. On macOS it is the system's menu bar; elsewhere windows draw the same menus
+ * The application menu. On macOS it is the system's menu bar; elsewhere windows draw their own menu
  * in their title bar, and this menu stays hidden, keeping its shortcuts.
  */
 export function buildMenu(manager: WindowManager, actions: { openLogs(): void; devTools: boolean }) {
@@ -13,18 +13,16 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
       label: '&File',
       submenu: [
         { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { manager.create(window()?.computer ?? null); } },
-        { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
+        { type: 'separator' },
+        { label: '&Projects', click: () => manager.sendMenu('projects') },
+        { label: '&Statistics', click: () => manager.sendMenu('statistics') },
+        { type: 'separator' },
+        { label: '&Import Plan…', click: () => manager.sendMenu('importPlan') },
         { type: 'separator' },
         { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },
         { label: 'Re&mote Access…', click: () => manager.sendMenu('remoteAccess') },
         { type: 'separator' },
-        { label: '&Import Plan…', click: () => manager.sendMenu('importPlan') },
-        { label: '&Export Plan…', click: () => manager.sendMenu('exportPlan') },
-        { type: 'separator' },
-        { label: 'Close &Tab', accelerator: 'CmdOrCtrl+W', click: () => manager.sendMenu('closeTab') },
-        { label: 'Close &All Tabs', click: () => manager.sendMenu('closeAllTabs') },
         { label: 'Close Win&dow', accelerator: 'CmdOrCtrl+Shift+W', click: () => window()?.win.close() },
-        { type: 'separator' },
         { role: 'quit', label: 'E&xit' },
       ],
     },
@@ -37,15 +35,12 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
         { type: 'separator' },
         { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
-        { type: 'separator' },
         { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('toggleFiles') },
-        { label: 'Toggle &Sidebar', accelerator: 'CmdOrCtrl+B', click: () => manager.sendMenu('toggleSidebar') },
         { type: 'separator' },
         // Zoom keeps the title bar's window buttons as tall as the bar above its line.
-        { label: '&Actual Size', accelerator: 'CmdOrCtrl+0', click: () => window()?.zoom('reset') },
         { label: 'Zoom &In', accelerator: 'CmdOrCtrl+Plus', click: () => window()?.zoom('in') },
         { label: 'Zoom &Out', accelerator: 'CmdOrCtrl+-', click: () => window()?.zoom('out') },
-        { type: 'separator' },
+        { label: '&Actual Size', accelerator: 'CmdOrCtrl+0', click: () => window()?.zoom('reset') },
         { role: 'togglefullscreen' },
         ...(actions.devTools ? [{ type: 'separator' } as const, { role: 'reload' } as const, { role: 'toggleDevTools' } as const] : []),
       ],
