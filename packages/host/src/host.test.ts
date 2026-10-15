@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { HomeDatabase } from '@envsemble/atlas-planning';
+import { createReport, HomeDatabase, insertReport } from '@envsemble/atlas-planning';
 import { AccessStore, hostRunning, lockAddress, normalizeCode } from './access.ts';
 import { HostClient, HostRequestError, describeHost, pairWithHost, parsePairing, type ClientStatus } from './client.ts';
 import { closeCodes, type FolderState, type Project } from './contract.ts';
@@ -289,6 +289,11 @@ test('projects are the home\'s planning folders: created from the templates, ren
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
   const device = await pairDevice(t, host, owner.connection);
   assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Northwind']);
+  // The list has what each project's card says: its repositories, its active, blocked and implementing work, its last change and the model that reported last.
+  assert.deepEqual((await projectNamed(device.connection)).summary, { repositories: ['shop'], active: 3, blocked: 1, implementing: 1, updated: null, model: null });
+  const database = HomeDatabase.open(data);
+  try { insertReport(database, database.projectByFolder(path.join(data, 'planning', 'planning'))!.id, 'work-0001', createReport({ model: 'claude-opus-5-5' })); } finally { database.close(); }
+  assert.equal((await projectNamed(owner.connection)).summary?.model, 'claude-opus-5-5');
   // A device creates one: a Git repository in the home with the templates, its name and its repositories.
   const coord = await device.connection.request('projects.create', { name: 'Coord', repositories: [{ id: 'coord-web', name: 'Coord web', remote: 'git@github.com:example/coord-web.git' }, { id: 'platform', name: 'Platform', remote: null }] });
   assert.deepEqual([coord.name, coord.path, coord.position, coord.state], ['Coord', path.join(data, 'planning', 'coord'), 1, 'active']);
@@ -300,9 +305,14 @@ test('projects are the home\'s planning folders: created from the templates, ren
   assert.equal((await device.connection.request('projects.create', { name: 'Coord', repositories: [] })).path, path.join(data, 'planning', 'coord-2'), 'a taken name gets a number');
   await assert.rejects(device.connection.request('projects.create', { name: 'Bad', repositories: [{ id: 'Not An ID', name: 'x', remote: null }] }), (error: HostRequestError) => error.code === 'invalid-argument');
   await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
+  // The lists clients are sent have the summaries too (a new project's folder has its first commit); a single project answered has none.
+  const sent = owner.lists.find(list => list.length === 3)!.find(project => project.folderId === coord.folderId)!;
+  assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated }, { repositories: ['coord-web', 'platform'], active: 0, blocked: 0, implementing: 0, updated: 'string', model: null });
+  assert.equal('summary' in coord, false);
   // Renaming writes the name into its planning.json; hiding, archiving and moving change only the order and state.
   const renamed = await owner.connection.request('projects.update', { folderId: coord.folderId, name: 'Coord platform' });
   assert.equal(renamed.name, 'Coord platform');
+  assert.equal('summary' in renamed, false);
   assert.equal(JSON.parse(readFileSync(path.join(coord.path, 'planning.json'), 'utf8')).name, 'Coord platform');
   await owner.connection.request('projects.update', { folderId: coord.folderId, position: 0 });
   const second = (await owner.connection.request('projects.list', {}))[2];
