@@ -700,6 +700,8 @@ export class User {
   name = "";
   /** Greets **loudly** in <b>bold</b>. @returns nothing */
   greet(): void {}
+  /** Friends as a List<User>, in {@code Map<A, B>} order, made by <<create>>. */
+  friends: User[] = [];
   /** ${"long ".repeat(70)}*/
   long = 1;
   constructor(/** Where the user lives. */ public city: string) {}
@@ -721,6 +723,11 @@ export enum State {
       "The name shown to others, see User.",
     );
     assert.equal(field("long").description, undefined);
+    // Generics and stereotype text stay; only HTML tags go.
+    assert.equal(
+      field("friends").description,
+      "Friends as a List<User>, in Map<A, B> order, made by < < create>>.",
+    );
     assert.equal(field("city").description, "Where the user lives.");
     assert.equal(
       user.operations.find((o) => o.name === "greet").description,
