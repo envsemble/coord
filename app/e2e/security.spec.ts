@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { close, launchProject, type Launched } from './app';
+import { close, launchProject, openPlan, type Launched } from './app';
 
 let launched: Launched | undefined;
 /** The project's folder ID, as the bridge names it. */
@@ -61,11 +61,17 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       badDiagram: await bridge.diagram(folderId, 'work-0001', '../../planning.json'),
       notDiagram: await bridge.diagram(folderId, 'work-0001', 'plan.md'),
       command: await bridge.command('openFolder'),
-      // Pasting (which reads the clipboard) needs a person's click or key press; quitting, closing
-      // the last window and opening windows or the logs ask first.
+      // Edit's commands are the window's own keys and the application menu's, not the page's.
       paste: await bridge.command('paste'),
-      quit: await bridge.command('quit'),
       closeWindow: await bridge.command('closeWindow'),
+      // A workspace folder is a full path of this computer.
+      scanRelative: await bridge.scanFolder('relative/folder'),
+      scanWrongType: await bridge.scanFolder(42),
+      scanMissing: await bridge.scanFolder(),
+      createRelative: await bridge.createProject('Coord', ['relative/folder']),
+      updateRelative: await bridge.updateProject(folderId, { workspaces: ['..\\up'] }),
+      // Quitting and opening windows or the logs ask first.
+      quit: await bridge.command('quit'),
       newWindow: await bridge.command('newWindow'),
       openLogs: await bridge.command('openLogs'),
       // So do remote access and pairing, which could hand the computer to someone else.
@@ -77,18 +83,38 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       ok: await bridge.document(folderId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };
   }, project);
-  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
+  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'scanRelative', 'scanWrongType', 'scanMissing', 'createRelative', 'updateRelative'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.otherProject).toMatchObject({ ok: false });
-  expect(results.paste).toMatchObject({ ok: false, error: { code: 'forbidden' } });
-  for (const key of ['quit', 'closeWindow', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
+  for (const key of ['quit', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([
-    'Exit Atlas?', 'Close the last window and exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?',
+    'Exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?',
     'Let paired devices reach this computer at 127.0.0.1?', 'Create a pairing link for this computer?', 'Pair with the Atlas at 127.0.0.1:9?', 'Open this address in your browser?',
   ]);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   expect(results.external).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.ok).toBe(true);
+});
+
+test('the folder dialog and a folder scan answer the window on this computer only, one dialog at a time', async () => {
+  const { window: atlasWindow, app } = launched!;
+  await app.evaluate(({ dialog }) => {
+    dialog.showOpenDialog = (async (_window: unknown, options: { properties?: string[] }) => {
+      (globalThis as unknown as { openedFor: string[] }).openedFor = options.properties ?? [];
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return { canceled: true, filePaths: [] };
+    }) as unknown as typeof dialog.showOpenDialog;
+  });
+  const results = await atlasWindow.evaluate(async () => {
+    const bridge = (window as unknown as { atlas: unknown }).atlas as Record<string, (...args: unknown[]) => Promise<unknown>>;
+    const first = bridge.chooseFolder();
+    const second = await bridge.chooseFolder();
+    return { first: await first, second };
+  });
+  // Cancelled, the dialog chose nothing; a second one while it is open is refused.
+  expect(results.first).toEqual({ ok: true, value: null });
+  expect(results.second).toMatchObject({ ok: false, error: { code: 'unavailable' } });
+  expect(await app.evaluate(() => (globalThis as unknown as { openedFor: string[] }).openedFor)).toContain('openDirectory');
 });
 
 test('each press allows one command a page could misuse, and not its release or repeats', async () => {
@@ -131,6 +157,9 @@ test('each press allows one command a page could misuse, and not its release or 
 
 test('the file protocol serves only the projects this window follows, and the window cannot navigate away or open windows', async () => {
   const { window: atlasWindow, app } = launched!;
+  // A plan of the project shows, so the window follows its folder; the press is long past below.
+  await openPlan(atlasWindow, 'Customer order notifications');
+  await atlasWindow.waitForTimeout(2100);
   // Requests through the window's own session, as its pages make them.
   const status = await app.evaluate(async ({ BrowserWindow }, folderId) => {
     const session = BrowserWindow.getAllWindows()[0].webContents.session;
