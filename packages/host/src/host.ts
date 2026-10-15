@@ -770,7 +770,7 @@ export class Host {
       // Workspace folders are paths on this computer, which it scans: the app's to choose, like projects.scan.
       case 'projects.create': {
         const params = p as Methods['projects.create']['params'];
-        if (params.workspaces.length) this.ownerOnly(connection, 'choose the folders a project covers');
+        if (params.workspaces?.length) this.ownerOnly(connection, 'choose the folders a project covers');
         return this.createProject(params) as never;
       }
       case 'projects.scan': return this.scanFolder((p as Methods['projects.scan']['params']).folder) as never;

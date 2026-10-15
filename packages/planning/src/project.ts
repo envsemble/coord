@@ -26,8 +26,8 @@ export async function readTemplates(folder: string): Promise<ProjectTemplates> {
   return templates;
 }
 
-/** Check a new project's name and repositories; returns them tidied. */
-function checkedProject(name: unknown, repositories: unknown): { name: string; repositories: ProjectRepository[] } {
+/** Check a new project's name and repositories; returns them tidied. `duplicates` lets one ID come twice, for IDs still to be made unique. */
+function checkedProject(name: unknown, repositories: unknown, duplicates = false): { name: string; repositories: ProjectRepository[] } {
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 100 || unprintable.test(name)) throw new WorkError('Give the project a name of at most 100 characters.');
   if (!Array.isArray(repositories) || repositories.length > 50) throw new WorkError('List at most 50 repositories.');
   const ids = new Set<string>();
@@ -35,14 +35,16 @@ function checkedProject(name: unknown, repositories: unknown): { name: string; r
     const entry = (item ?? {}) as { id?: unknown; name?: unknown; remote?: unknown };
     const id = typeof entry.id === 'string' ? entry.id.trim() : '';
     if (!repositoryIdentity.test(id) || id.length > 64) throw new WorkError(`Repository ${index + 1}: its ID must be lowercase letters and digits joined by hyphens, such as coord-web.`);
-    if (ids.has(id)) throw new WorkError(`Repository ${index + 1}: ${id} is listed twice.`);
+    if (ids.has(id) && !duplicates) throw new WorkError(`Repository ${index + 1}: ${id} is listed twice.`);
     ids.add(id);
     const label = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : id;
     if (label.length > 100 || unprintable.test(label)) throw new WorkError(`Repository ${index + 1}: its name is too long.`);
+    if (entry.remote !== undefined && entry.remote !== null && typeof entry.remote !== 'string') throw new WorkError(`Repository ${index + 1}: its remote is not a Git remote.`);
     const remote = typeof entry.remote === 'string' && entry.remote.trim() ? entry.remote.trim() : null;
     if (remote && (remote.length > 500 || unprintable.test(remote))) throw new WorkError(`Repository ${index + 1}: its remote is not a Git remote.`);
     // A checkout without a remote is found by its absolute path.
     const hint = (entry as { path?: unknown }).path;
+    if (hint !== undefined && hint !== null && (typeof hint !== 'string' || !path.isAbsolute(hint))) throw new WorkError(`Repository ${index + 1}: its path is not an absolute path.`);
     return { id, name: label, remote, ...!remote && typeof hint === 'string' && path.isAbsolute(hint) && { path: hint } };
   });
   return { name: name.trim(), repositories: checked };
@@ -66,8 +68,9 @@ export async function createProject(database: HomeDatabase, request: { name: str
   if (!templates['planning.json']) throw new WorkError('The planning templates are not available.');
   let given: unknown = request.repositories, skipped: SkippedCheckout[] = [];
   if (given === undefined) ({ repositories: given, skipped } = await scanWorkspaces(workspaces));
-  else if (Array.isArray(given) && given.every(item => typeof item?.id === 'string')) {
-    let listed = given as ProjectRepository[];
+  else {
+    // Checked before anything reads them; an ID may come twice until each gets its own below.
+    let listed = checkedProject(request.name, given, true).repositories;
     // A checkout without a remote comes back from the app's preview without its path: this scan has it.
     if (workspaces.length && listed.some(item => !item.remote && !item.path)) {
       const scan = await scanWorkspaces(workspaces);

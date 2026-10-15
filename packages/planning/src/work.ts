@@ -332,8 +332,10 @@ export async function startWork(root: string, workId: string, request: { steps: 
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; accept it before implementation starts.`);
   if (loaded.planMetadata.implementation_status === 'complete') throw new WorkError('The implementation is already complete; reopen the work instead.');
-  if (loaded.planMetadata.implementation_status === 'in_progress') throw new WorkError('The implementation has started already; add steps with step_add instead.');
-  if (loaded.ledgerSteps?.some(step => step.phase !== 'planning')) throw new WorkError('The work already has implementation steps; change its steps instead.');
+  // Started once already: the ledger has its implementation steps or its selection. Work in progress without either gets them now.
+  if (loaded.ledgerSteps?.some(step => step.phase !== 'planning') || (loaded.ledgerText !== null && /^## Selection[ \t]*\r?$/m.test(loaded.ledgerText))) {
+    throw new WorkError('The implementation has started already; add steps with step_add instead.');
+  }
   const taken = titles.filter(title => loaded.ledgerSteps?.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   if (locationOf(loaded.entry.path) === 'archive') throw new WorkError('The work is archived; reopen it instead.');

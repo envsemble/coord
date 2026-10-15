@@ -13,7 +13,7 @@ import { withDatabase } from './database.ts';
 import { storedReports } from './statistics.ts';
 import { usageSummary } from './telemetry.ts';
 import { findPlanning, normalizeRemote, resolvePlanningFolder } from './resolve.ts';
-import { acceptWork, addSteps, archiveWork, closeWork, createWork, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, closeWork, createWork, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 
 const today = { today: '2026-10-14' };
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, '-c', 'user.name=Atlas Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], { encoding: 'utf8', windowsHide: true });
@@ -110,6 +110,26 @@ test('new work has its planning steps from the start: added to while designing, 
   for (const step of ['Build', 'Ship', 'Announce']) await setStepStatus(root, 'work-0004', step, 'done', today);
   assert.equal((await closeWork(root, 'work-0004', today)).location, 'archive');
   assert.deepEqual(errorsOf(root), []);
+});
+
+test('work in progress or partly done without a started ledger starts once, with one selection', async t => {
+  const root = planningFolder(temporary(t));
+  const accepted = { design_status: 'accepted', accepted_at: '"2026-10-02"' };
+  // An older plan in progress, adopted without a ledger, gets one when it starts.
+  writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { ...accepted, implementation_status: 'in_progress' }));
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plans');
+  const started = await startWork(root, 'work-0001', { steps: ['Build'] }, today);
+  assert.deepEqual([started.ledger, started.steps], ['active/0001-existing/ledger.md', [{ title: 'Build', status: 'todo' }]]);
+  await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /implementation has started already/);
+  // Partly done work whose ledger has only its planning steps: one Selection, and no second start.
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { ...accepted, repositories: '[tools]', implementation_status: 'partial' }));
+  write(path.join(root, 'active/0002-other/ledger.md'), planningLedger('work-0002', 'Other', '2026-10-01').replace(/status: (?:doing|todo)/g, 'status: done'));
+  await startWork(root, 'work-0002', { steps: ['Finish'] }, today);
+  assert.equal(read(root, 'active/0002-other/ledger.md').match(/^## Selection$/gm)?.length, 1);
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { ...accepted, repositories: '[tools]', implementation_status: 'partial' }));
+  write(path.join(root, 'active/0002-other/ledger.md'), read(root, 'active/0002-other/ledger.md').replace(/  - title: "Finish"\n    status: todo\n/, ''));
+  await assert.rejects(startWork(root, 'work-0002', { steps: ['Finish'] }, today), /implementation has started already/, 'a ledger with its selection has started');
+  assert.equal(read(root, 'active/0002-other/ledger.md').match(/^## Selection$/gm)?.length, 1);
 });
 
 test('a ledger whose steps have no phase reads as before, and a phase is planning or implementation', async t => {

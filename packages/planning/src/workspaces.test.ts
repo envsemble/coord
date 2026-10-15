@@ -137,6 +137,10 @@ test('repositories sent back from previews keep their paths and get IDs of their
       { id: 'site-2', name: 'site', remote: 'https://github.com/two/site.git' },
     ]);
     assert.deepEqual(row.skipped, []);
+    // Repositories that are not what they claim are refused plainly, before anything reads them.
+    for (const [repository, message] of [[{ id: 'a', name: 'A', remote: 5 }, /^Repository 1: its remote is not a Git remote\.$/], [{ id: 'a', name: 'A', remote: null, path: 7 }, /^Repository 1: its path is not an absolute path\.$/], [null, /^Repository 1: its ID must be/]] as const) {
+      await assert.rejects(createProject(database, { name: 'Bad', workspaces: [one], repositories: [repository as never] }, await readTemplates(templates)), (error: Error) => error.name === 'WorkError' && message.test(error.message));
+    }
   } finally { database.close(); }
 });
 
