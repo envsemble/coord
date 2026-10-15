@@ -55,7 +55,11 @@ const migrations = [
     id INTEGER PRIMARY KEY, report_id INTEGER NOT NULL REFERENCES work_report(id) ON DELETE CASCADE, agent TEXT NOT NULL, model TEXT,
     agent_ms INTEGER NOT NULL, tokens INTEGER NOT NULL);
   CREATE INDEX report_subagent_report ON report_subagent(report_id);`,
+  // Whether a session's agent is in a turn: set as it uses tools on linked work, cleared when the turn stops.
+  `ALTER TABLE session ADD COLUMN working INTEGER NOT NULL DEFAULT 0;`,
 ];
+/** How long a working session counts as live without being seen again: a long tool call can be quiet this long. */
+export const liveWindowMs = 15 * 60_000;
 /** The schema version this Atlas writes. */
 export const schemaVersion = migrations.length;
 
@@ -208,10 +212,20 @@ export class HomeDatabase {
       return this.project(Number(lastInsertRowid))!;
     });
   }
-  /** The model of a project's latest work report that names one, or null. */
-  lastModel(projectId: number): string | null {
-    const row = this.db.prepare('SELECT model FROM work_report WHERE project_id = ? AND model IS NOT NULL ORDER BY at DESC, id DESC LIMIT 1').get(projectId) as { model: string } | undefined;
-    return row?.model ?? null;
+  /**
+   * The work agents are working on now, by project: work items linked to a session that is in a turn
+   * and was seen within the last `withinMs` (a session that ended without stopping drops out).
+   */
+  liveWork(now = Date.now(), withinMs = liveWindowMs): Map<number, { workId: string; since: string }[]> {
+    const rows = this.db.prepare(`SELECT session_work.project_id, session_work.work_id, max(session.updated_at) AS seen FROM session
+      JOIN session_work ON session_work.session_id = session.id WHERE session.working = 1 AND session.updated_at >= ?
+      GROUP BY session_work.project_id, session_work.work_id ORDER BY session_work.project_id, seen DESC`).all(new Date(now - withinMs).toISOString()) as Row[];
+    const live = new Map<number, { workId: string; since: string }[]>();
+    for (const row of rows) {
+      const projectId = Number(row.project_id);
+      live.set(projectId, [...live.get(projectId) ?? [], { workId: String(row.work_id), since: String(row.seen) }]);
+    }
+    return live;
   }
   /** Change a project's cached name, state or position; a new position moves the others along. */
   updateProject(id: number, change: { name?: string; state?: ProjectState; position?: number; folder?: string }) {

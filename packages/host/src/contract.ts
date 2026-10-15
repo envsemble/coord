@@ -42,8 +42,13 @@ export interface Project {
   /** What the project's card says about it (the project list has it; null when its folder could not be read). */
   summary?: ProjectSummary | null;
 }
-/** A project's repositories, its active, blocked and implementing work, its last change, and the model that reported last. */
-export interface ProjectSummary { repositories: string[]; active: number; blocked: number; implementing: number; updated: string | null; model: string | null }
+/** An active work item on a project's card: its title, where it stands, and its blocker. */
+export interface ProjectWork { id: string; title: string; state: 'blocked' | 'implementing' | 'draft' | 'other'; blocked: string | null }
+/**
+ * A project's repositories, its active work, its last change, and the work agents are working on now
+ * (`since`: when the session was last seen).
+ */
+export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; updated: string | null; live: { workId: string; since: string }[] }
 /** A repository a new project covers: its ID in planning.json, its name and its Git remote. */
 export interface ProjectRepository { id: string; name: string; remote: string | null }
 

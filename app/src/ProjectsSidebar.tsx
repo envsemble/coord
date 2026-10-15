@@ -1,17 +1,18 @@
 // The sidebar's projects: those of the computer the window shows, in their order, as cards that each
-// open the project's page and say what is going on in it (its repositories, when it last changed, its
-// active, blocked and implementing work and the model that reported last), below a strip with a search over them and New Project; hidden and archived
-// projects wait in a group below the cards, closed until opened. A project's context menu renames
-// it, moves it, and hides, archives or shows it again; projects are never deleted here. A project
-// outside the Atlas home (from before it) is marked, and its menu moves it into the home. While the
-// sidebar shows icons only, each project is an icon.
+// open the project's page and say what is going on in it: its repositories and when it last changed,
+// its name, its active work with how much is blocked, being implemented or a draft plan, and a live
+// dot while an agent works on it. Resting on a card shows its details (each blocked, implementing and
+// draft item, the work agents are on, its folder); its corner offers Hide (Show or Restore in the
+// group of hidden and archived projects). Above the cards a strip has a search over them and New
+// Project; hidden and archived projects wait in a group below the cards, closed until opened. A
+// project's context menu renames it, moves it, and hides, archives or shows it again; projects are
+// never deleted here. A project outside the Atlas home (from before it) is marked, and its menu moves
+// it into the home. While the sidebar shows icons only, each project is an icon.
 import { useState, type ReactNode } from 'react';
-import { Button, Card, ContextMenu, Dialog, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, SearchField, Spinner, Text, Tooltip, useSidebarCompact } from '@envsemble/envui';
-import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, FolderIcon, InProgressIcon, NewProjectIcon } from './icons';
-import { ProviderMark } from './AiModel';
-import { aiModel } from './aiModels';
-import { absoluteDate, plural, shortAge } from './format';
-import type { Project, ProjectRepository, ProjectState } from './types';
+import { Button, Card, ContextMenu, Dialog, HoverCard, IconButton, Input, MenuItem, MenuSeparator, NavigationItem, Notice, SearchField, Spinner, Text, Tooltip, useSidebarCompact } from '@envsemble/envui';
+import { AddIcon, ArchiveIcon, BlockedIcon, CloseIcon, DraftIcon, FolderIcon, InProgressIcon, NewProjectIcon } from './icons';
+import { absoluteDate, shortAge, workNumber } from './format';
+import type { Project, ProjectRepository, ProjectState, ProjectWork } from './types';
 import { api } from './api';
 
 export interface ProjectActions {
@@ -29,31 +30,73 @@ const projectIcon = (project: Project) => project.state === 'archived' ? <Archiv
 const projectTitle = (project: Project) => project.path + (project.outsideHome ? ' (outside the Atlas home: agents do not find it until it is moved in)' : '');
 /** Where a project stands, when that is not simply active in the home. */
 const projectNote = (project: Project) => [project.outsideHome && 'Outside the Atlas home', project.state !== 'active' && stateLabels[project.state]].filter(Boolean).join(' · ');
+/** The repositories a card has room for: the first three, then how many more. */
+const repositoryLine = (repositories: string[]) => repositories.slice(0, 3).join(' · ') + (repositories.length > 3 ? ' +' + (repositories.length - 3) : '');
+/** The corner action of a card: Hide for an active project, else bringing it back. */
+const cornerAction = (project: Project) => project.state === 'active' ? { label: 'Hide', state: 'hidden' as const } : { label: project.state === 'archived' ? 'Restore' : 'Show', state: 'active' as const };
+
+type Counted = Exclude<ProjectWork['state'], 'other'>;
+const stateIcons: Record<Counted, ReactNode> = { blocked: <BlockedIcon />, implementing: <InProgressIcon />, draft: <DraftIcon /> };
+const stateNames: Record<Counted, string> = { blocked: 'blocked', implementing: 'being implemented', draft: 'draft plans' };
+const stateOrder: Record<ProjectWork['state'], number> = { blocked: 0, implementing: 1, draft: 2, other: 3 };
+
+/** A card's count of work in one state, with the state's icon; nothing when there is none. */
+function Fact({ work, state }: { work: ProjectWork[]; state: Counted }) {
+  const count = work.filter(item => item.state === state).length;
+  return count ? <span className="project-card-fact" data-tone={state} title={count + ' ' + stateNames[state]}>{stateIcons[state]}{count}</span> : null;
+}
 
 /**
- * One project as a card, in the text size of the rest of the sidebar: its repositories and when it
- * last changed, its name, then its active work, how much of it is blocked and being implemented, and
- * the mark of the model that reported last. It opens its page; its context menu is the list's.
+ * What resting on a card shows: the project's folder and repositories, the work agents are on now,
+ * then each blocked, implementing and draft item (blocked first, its blocker on hover), and when the
+ * folder last changed.
+ */
+function ProjectDetails({ project }: { project: Project }) {
+  const summary = project.summary ?? null;
+  const titles = new Map(summary?.active.map(item => [item.id, item.title]) ?? []);
+  const listed = (summary?.active ?? []).filter(item => item.state !== 'other').sort((a, b) => stateOrder[a.state] - stateOrder[b.state]);
+  const note = projectNote(project);
+  return <div className="project-details">
+    <Text as="h3" variant="body" className="project-details-name">{project.name}</Text>
+    <p className="project-details-line"><FolderIcon /><span>{project.path}</span></p>
+    {note && <p className="project-details-line muted">{note}</p>}
+    {summary && summary.repositories.length > 0 && <p className="project-details-line muted">{summary.repositories.join(' · ')}</p>}
+    {summary && (summary.live.length > 0 || listed.length > 0) && <ul className="project-details-work">
+      {summary.live.map(item => <li key={'live:' + item.workId} data-tone="live"><span className="project-live-dot" aria-hidden="true" /><span className="project-details-id">{workNumber(item.workId)}</span><span className="project-details-title">Agent working · {titles.get(item.workId) ?? item.workId}</span></li>)}
+      {listed.slice(0, 8).map(item => <li key={item.id} data-tone={item.state} title={item.blocked ?? undefined}>{stateIcons[item.state as Counted]}<span className="project-details-id">{workNumber(item.id)}</span><span className="project-details-title">{item.title}</span></li>)}
+      {listed.length > 8 && <li className="muted">+{listed.length - 8} more</li>}
+    </ul>}
+    {summary?.updated && <p className="project-details-line muted">Last changed {absoluteDate(summary.updated)}</p>}
+  </div>;
+}
+
+/**
+ * One project as a card, in the sidebar's own text size: its repositories and when it last changed
+ * (Hide, or Show and Restore, in that corner while the pointer or focus is on the card), its name, then
+ * its active work with how much is blocked, being implemented or a draft plan, and a live dot while an
+ * agent works on it. The name is the button that opens the project's page and covers the card; resting
+ * on the card shows its details. Its context menu is the list's.
  */
 function ProjectCard({ project, selected, actions }: { project: Project; selected: boolean; actions: ProjectActions }) {
   const summary = project.summary ?? null;
   const note = projectNote(project);
-  const model = summary?.model ? aiModel(summary.model) : null;
-  return <Card as="button" type="button" className="project-card" data-project={project.folderId} data-state={project.state} aria-current={selected ? 'page' : undefined}
-    title={projectTitle(project)} onClick={() => actions.open(project)}>
+  const corner = cornerAction(project);
+  const live = summary?.live ?? [];
+  const card = <Card className="project-card" data-project={project.folderId} data-state={project.state} data-selected={selected || undefined}>
     <span className="project-card-line project-card-context">
-      <span className="project-card-repositories">{summary?.repositories.length ? summary.repositories.join(' · ') : project.path.split(/[\\/]/).at(-1)}</span>
-      {summary?.updated && <span className="project-card-age" title={'Last changed ' + absoluteDate(summary.updated)}>{shortAge(summary.updated)}</span>}
+      <span className="project-card-repositories">{summary?.repositories.length ? repositoryLine(summary.repositories) : project.path.split(/[\\/]/).at(-1)}</span>
+      {summary?.updated && <span className="project-card-age">{shortAge(summary.updated)}</span>}
+      <Button variant="quiet" className="project-card-action" onClick={() => actions.update(project, { state: corner.state })}>{corner.label}</Button>
     </span>
-    <span className="project-card-name">{project.name}</span>
+    <button type="button" className="project-card-open" aria-current={selected ? 'page' : undefined} onClick={() => actions.open(project)}>{project.name}</button>
     <span className="project-card-line project-card-facts">
       {note && <span className="project-card-note">{note}</span>}
-      {summary && <span>{summary.active ? summary.active + ' active' : 'No active work'}</span>}
-      {summary && summary.blocked > 0 && <span className="project-card-fact" data-tone="blocked" title={plural(summary.blocked, 'blocked work item')}><BlockedIcon />{summary.blocked}</span>}
-      {summary && summary.implementing > 0 && <span className="project-card-fact" data-tone="implementing" title={summary.implementing + ' being implemented'}><InProgressIcon />{summary.implementing}</span>}
-      {model && <span className="project-card-model" title={'Last reported by ' + model.name}><ProviderMark provider={model.provider} /></span>}
+      {summary && <span>{summary.active.length ? summary.active.length + ' active' : 'No active work'}</span>}
+      {summary && <><Fact work={summary.active} state="blocked" /><Fact work={summary.active} state="implementing" /><Fact work={summary.active} state="draft" /></>}
+      {live.length > 0 && <span className="project-card-live" role="img" aria-label={'Agent working on ' + live.map(item => workNumber(item.workId)).join(', ')}><span className="project-live-dot" /></span>}
     </span>
   </Card>;
+  return <HoverCard trigger={card} side="right" align="start" width="wide"><ProjectDetails project={project} /></HoverCard>;
 }
 
 /** The project a context menu was opened on, by the element it was opened on. */

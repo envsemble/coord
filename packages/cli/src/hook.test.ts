@@ -37,6 +37,8 @@ test('hooks give the session its planning context, check and link planning edits
     return result.stdout ? JSON.parse(result.stdout) : null;
   };
   const links = () => linksIn(base.ATLAS_HOME!);
+  /** Whether the database has the session's agent in a turn (the app's live dot). */
+  const working = () => withDatabase(base.ATLAS_HOME!, database => Number((database.db.prepare('SELECT working FROM session WHERE id = ?').get(session) as { working: number }).working));
 
   // SessionStart: the project, its planning folder and active work, and how to plan; nothing outside a registered checkout.
   const started = hook('SessionStart', { source: 'startup' });
@@ -54,6 +56,7 @@ test('hooks give the session its planning context, check and link planning edits
   const [first] = links();
   assert.deepEqual(first, { planningFolder: realpathSync.native(root), workId: 'work-0001', amending: false, linked: first.linked });
   assert.ok(Date.parse(first.linked) > Date.now() - 60000, 'when the session started on the work');
+  assert.equal(working(), 1, 'a session working on linked work is in a turn');
   // Editing the plan of an accepted design amends it.
   writeFileSync(plan, planText('work-0001', 'Cart', 'accepted'));
   hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: plan, content: '' } });
@@ -102,8 +105,13 @@ test('hooks give the session its planning context, check and link planning edits
     assert.deepEqual(reports[0].measured!.models.map(item => item.output), [4], workId + ': only what came after the link');
   }
   assert.deepEqual(links().map(item => item.amending), [false, false, false]);
+  assert.equal(working(), 0, 'the turn is over when the agent stops');
+  // The next tool use, on any file, puts the linked session back in a turn; a subagent stopping leaves it there.
+  hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(checkout, 'src.ts') } });
+  assert.equal(working(), 1);
   hook('SubagentStop', { agent_id: 'a1', agent_type: 'Explore', agent_transcript_path: transcript });
   assert.equal(reportsIn(root, 'work-0001', base.ATLAS_HOME!).length, 2);
+  assert.equal(working(), 1);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.atlas')), 'nothing is written into the planning folder');
   assert.equal(atlas(['planning', 'check', root], { env }).status, 0);
 });

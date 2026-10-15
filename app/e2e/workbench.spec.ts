@@ -34,7 +34,7 @@ test('the sidebar lists the projects; a project opens its page as a tab with its
   await openProject(window);
   await expect(tabs(window)).toHaveCount(1);
   await expect(activeTab(window)).toContainText('Northwind');
-  await expect(sidebarProject(window)).toHaveAttribute('aria-current', 'page');
+  await expect(sidebarProject(window).locator('.project-card-open')).toHaveAttribute('aria-current', 'page');
   // One page: the work list with its filters, then statistics, then activity.
   await expect(window.locator('.project-page .page-section > .page-header h2')).toHaveText(['Work', 'Statistics', 'Activity']);
   await expect(window.locator('.work-row')).toHaveCount(3);
@@ -388,6 +388,39 @@ test('the search above the projects filters their cards by every word in a name 
   await expectProjects(window, ['Northwind']);
   await search.press('Escape');
   await expect(search).toHaveValue('');
+  await expectProjects(window, ['Northwind', 'Coord']);
+});
+
+test('a project card says what is going on, lists that work on hover, and hides from its corner', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  addProject(home.dataDirectory, 'coord', 'Coord');
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  const { window } = launched;
+  const card = sidebarProject(window);
+  // Repositories and last change, the name, then active work with the blocked and implementing counts; no model.
+  await expect(card.locator('.project-card-repositories')).toHaveText('shop');
+  await expect(card.locator('.project-card-facts')).toContainText('3 active');
+  await expect(card.locator('.project-card-fact[data-tone="blocked"]')).toHaveText('1');
+  await expect(card.locator('.project-card-fact[data-tone="implementing"]')).toHaveText('1');
+  await expect(card.locator('.provider-mark')).toHaveCount(0);
+  await expect(card.locator('.project-card-live')).toHaveCount(0);
+  // Resting on the card lists the work that needs eyes, blocked first, and the project's folder.
+  await card.hover();
+  const details = window.locator('.project-details');
+  await expect(details).toBeVisible();
+  await expect(details.locator('.project-details-name')).toHaveText('Northwind');
+  await expect(details.locator('.project-details-work li').first()).toHaveAttribute('data-tone', 'blocked');
+  await expect(details.locator('.project-details-work li')).toHaveCount(3);
+  await expect(card.locator('.project-card-fact[data-tone="draft"]')).toHaveText('1');
+  // Its corner hides it (the age gives way to Hide while the pointer is on the card); Show brings it back.
+  await card.getByRole('button', { name: 'Hide', exact: true }).click();
+  await expectProjects(window, ['Coord']);
+  const group = window.locator('.project-group');
+  await group.locator('summary').click();
+  const hidden = sidebarProject(window, 'Northwind', 'Hidden and archived projects');
+  await hidden.hover();
+  await hidden.getByRole('button', { name: 'Show', exact: true }).click();
   await expectProjects(window, ['Northwind', 'Coord']);
 });
 

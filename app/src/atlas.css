@@ -69,24 +69,44 @@ body { margin: 0; }
 .project-cards { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-1) var(--env-sidebar-inset, var(--space-3)) var(--space-4); }
 .project-list { display: grid; gap: var(--space-2); }
 .project-list-state { padding: var(--space-2); }
-/* A card in the sidebar's own text size: context and age, the name, then facts, as in T3 Code's thread cards. */
-.project-card.env-card { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-large, 1rem); font: var(--type-body-small); }
-.project-card[aria-current='page'] { background: var(--color-navigation-selected); color: var(--color-on-navigation-selected); }
-.project-card[aria-current='page']:hover { background: var(--color-navigation-selected); }
+/* A card in the sidebar's own text size: repositories and age, the name, then facts, as in T3 Code's
+   thread cards. The name's button covers the card; the corner action sits above it and replaces the
+   age while the pointer or focus is on the card. */
+.project-card.env-card { position: relative; display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-large, 1rem); font: var(--type-body-small); transition: background-color var(--motion-duration-fast) var(--motion-ease); }
+.project-card:hover { background: var(--env-surface-hover); }
+.project-card[data-selected] { background: var(--color-navigation-selected); color: var(--color-on-navigation-selected); }
+.project-card:has(.project-card-open:focus-visible) { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; }
+.project-card-open { overflow: hidden; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: start; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.project-card-open:focus-visible { outline: none; }
+.project-card-open::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
 .project-card-line { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; color: var(--color-text-muted); }
-.project-card[aria-current='page'] .project-card-line { color: inherit; opacity: 0.8; }
+.project-card[data-selected] .project-card-line { color: inherit; opacity: 0.8; }
 .project-card-repositories, .project-card-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-card-repositories { flex: 1 1 auto; min-inline-size: 0; }
 .project-card-age { flex: none; margin-inline-start: auto; font-variant-numeric: tabular-nums; }
-.project-card-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.project-card-facts { flex-wrap: nowrap; }
+.project-card-action.env-button { position: relative; z-index: 1; display: none; flex: none; min-block-size: 0; block-size: 1.5rem; margin-block: -0.25rem; margin-inline-start: auto; padding-inline: var(--space-2); font: inherit; }
+.project-card:is(:hover, :focus-within) .project-card-action.env-button { display: inline-flex; }
+.project-card:is(:hover, :focus-within) .project-card-age { display: none; }
 .project-card-fact { display: inline-flex; align-items: center; gap: 0.125rem; font-variant-numeric: tabular-nums; }
-.project-card-fact .env-symbol, .project-card-fact svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; }
-.project-card-fact[data-tone='blocked'] { color: var(--color-tone-danger); }
-.project-card-fact[data-tone='implementing'] { color: var(--color-tone-success); }
-.project-card-model { display: inline-flex; margin-inline-start: auto; }
-.project-card-model .provider-mark { inline-size: 1rem; block-size: 1rem; }
+.project-card-fact .env-symbol, .project-card-fact svg, .project-details-work .env-symbol, .project-details-work svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; flex: none; }
+.project-card-fact[data-tone='blocked'], .project-details-work [data-tone='blocked'] > svg, .project-details-work [data-tone='blocked'] > .env-symbol { color: var(--color-tone-danger); }
+.project-card-fact[data-tone='implementing'], .project-details-work [data-tone='implementing'] > svg, .project-details-work [data-tone='implementing'] > .env-symbol { color: var(--color-tone-success); }
+.project-card-live { display: inline-flex; margin-inline-start: auto; padding: 0.25rem; }
+/* An agent at work: a green dot that breathes, still when motion is reduced. */
+.project-live-dot { display: inline-block; flex: none; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--color-tone-success); box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tone-success) 50%, transparent); animation: project-live 1.8s var(--motion-ease) infinite; }
+@keyframes project-live { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tone-success) 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 0.375rem transparent; } }
+@media (prefers-reduced-motion: reduce) { .project-live-dot { animation: none; } }
 .project-card[data-state='archived'], .project-card[data-state='hidden'] { opacity: 0.85; }
+/* A card's details, on hover: the name, the folder and repositories, then the work that needs eyes. */
+.project-details { display: grid; gap: var(--space-2); min-inline-size: 0; font: var(--type-body-small); }
+.project-details-name { margin: 0; font-weight: 600; }
+.project-details-line { display: flex; align-items: center; gap: var(--space-2); margin: 0; overflow-wrap: anywhere; }
+.project-details-line > svg, .project-details-line > .env-symbol { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
+.project-details-work { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-2) 0 0; border-block-start: 0.0625rem solid var(--color-border); list-style: none; }
+.project-details-work li { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.project-details-work [data-tone='live'] .project-live-dot { margin-inline: 0.25rem; }
+.project-details-id { flex: none; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.project-details-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-group { display: grid; gap: var(--space-2); }
 .project-group > summary { padding: var(--space-2); border-radius: var(--radius-standard); color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; cursor: pointer; }
 .project-group > summary:hover { background: var(--color-surface-hover, transparent); }

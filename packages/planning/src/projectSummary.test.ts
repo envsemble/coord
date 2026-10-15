@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HomeDatabase } from './database.ts';
 import { projectSummary } from './projectSummary.ts';
-import { createReport, insertReport } from './statistics.ts';
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-summary-')));
@@ -14,18 +13,18 @@ function temporary(t: TestContext) {
   return directory;
 }
 function write(file: string, text: string) { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, text); }
-const plan = (status: string) => `---\nkind: plan\nimplementation_status: ${status}\n---\n\n# Plan\n`;
+const plan = (status: string, more = '') => `---\nkind: plan\nimplementation_status: ${status}\n${more}---\n\n# Plan\n`;
 const ledger = (blocked: string | null) => `---\nschema_version: 2\nkind: ledger\nblocked: ${blocked === null ? 'null' : JSON.stringify(blocked)}\nsteps: []\n---\n\n# Ledger\n`;
 const item = (folder: string, plan = folder + '/plan.md') => ({ id: 'work-' + folder.slice(-4), path: folder, current_plan: plan });
 
-/** A planning folder: being implemented, blocked while implemented, blocked, planned, unreadable, and archived. */
+/** A planning folder: being implemented, blocked while implemented, blocked, planned, unreadable, archived, a draft, and a draft done in part. */
 function planningFolder(root: string) {
   write(path.join(root, 'planning.json'), '\ufeff' + JSON.stringify({
     schema_version: 1, name: 'Shop',
     repositories: [{ id: 'shop', path: '../shop' }, { id: 'planning', path: '.' }, { id: 'web' }],
-    work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('active/0004'), item('active/0005'), item('active/0006', '../outside/plan.md'), item('archive/0007')],
+    work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('active/0004'), item('active/0005'), item('active/0006', '../outside/plan.md'), item('archive/0007'), item('active/0008'), item('active/0009')],
   }));
-  write(path.join(root, 'active/0001/plan.md'), plan('in_progress'));
+  write(path.join(root, 'active/0001/plan.md'), plan('in_progress', 'title: Saved cards\n'));
   write(path.join(root, 'active/0001/ledger.md'), ledger(null));
   write(path.join(root, 'active/0002/plan.md'), plan('in_progress'));
   write(path.join(root, 'active/0002/ledger.md'), ledger('Waiting for the acquirer'));
@@ -37,14 +36,27 @@ function planningFolder(root: string) {
   write(path.join(root, 'active/0005/plan.md'), '---\nimplementation_status: [in_progress\n---\n');
   write(path.join(root, 'outside/plan.md'), plan('in_progress'));
   write(path.join(root, 'archive/0007/plan.md'), plan('in_progress'));
+  write(path.join(root, 'active/0008/plan.md'), plan('not_started', 'title: Gift cards\ndesign_status: draft\n'));
+  write(path.join(root, 'active/0009/plan.md'), plan('partial', 'title: Returns\ndesign_status: draft\n'));
   write(path.join(root, 'archive/0007/ledger.md'), ledger('Blocked long ago'));
 }
 
-test('a project\'s summary counts its active work, of that the blocked and the implemented, and lists its repositories', async t => {
+test('a project\'s summary lists its active work with where each item stands, and its repositories', async t => {
   const root = path.join(temporary(t), 'shop');
   planningFolder(root);
-  assert.deepEqual(await projectSummary(root), { repositories: ['shop', 'web'], active: 6, blocked: 2, implementing: 1, updated: null },
-    'a blocked item is not also implementing; a header that does not parse, a missing ledger and a plan outside the folder count as nothing; outside Git there is no last change');
+  const other = (id: string, title = id.slice(-4)) => ({ id, title, state: 'other', blocked: null });
+  assert.deepEqual(await projectSummary(root), {
+    repositories: ['shop', 'web'],
+    active: [
+      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null },
+      { id: 'work-0002', title: '0002', state: 'blocked', blocked: 'Waiting for the acquirer' },
+      { id: 'work-0003', title: '0003', state: 'blocked', blocked: 'Waiting for review' },
+      other('work-0004'), other('work-0005'), other('work-0006'),
+      { id: 'work-0008', title: 'Gift cards', state: 'draft', blocked: null },
+      other('work-0009', 'Returns'),
+    ],
+    updated: null,
+  }, 'blocked comes first, then implementing, then a draft plan (one done in part is not a draft); a blank blocker, a header that does not parse, a missing ledger and a plan outside the folder leave an item as other; outside Git there is no last change');
 });
 
 test('a project\'s last change is its planning folder\'s last commit', async t => {
@@ -59,31 +71,32 @@ test('a project\'s last change is its planning folder\'s last commit', async t =
 
 test('a folder without a readable registry has an empty summary', async t => {
   const root = temporary(t);
-  assert.deepEqual(await projectSummary(path.join(root, 'missing')), { repositories: [], active: 0, blocked: 0, implementing: 0, updated: null });
+  assert.deepEqual(await projectSummary(path.join(root, 'missing')), { repositories: [], active: [], updated: null });
   write(path.join(root, 'broken', 'planning.json'), '{ "repositories": ');
-  assert.deepEqual(await projectSummary(path.join(root, 'broken')), { repositories: [], active: 0, blocked: 0, implementing: 0, updated: null });
-  write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ repositories: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
-  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: 1, blocked: 0, implementing: 0, updated: null });
+  assert.deepEqual(await projectSummary(path.join(root, 'broken')), { repositories: [], active: [], updated: null });
+  write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ repositories: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001' }, { id: 'work-0001', path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
+  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null }], updated: null });
 });
 
-test('a project\'s last model is that of its latest report naming one', t => {
+test('live work is what sessions in a turn, seen lately, are linked to', t => {
   const home = temporary(t);
   const database = HomeDatabase.open(home);
   try {
     const shop = database.addProject(path.join(home, 'planning', 'shop'), 'Shop');
     const coord = database.addProject(path.join(home, 'planning', 'coord'), 'Coord');
-    assert.equal(database.lastModel(shop.id), null);
-    const report = (model: string, at: string) => createReport({ model, at: new Date(at) });
-    insertReport(database, shop.id, 'work-0001', report('claude-opus-5-5', '2026-10-14T10:00:00Z'));
-    insertReport(database, shop.id, 'work-0002', report('gpt-6-codex', '2026-10-15T09:00:00Z'));
-    insertReport(database, shop.id, 'work-0001', report('claude-haiku-5', '2026-10-13T09:00:00Z'));
-    insertReport(database, coord.id, 'work-0001', report('claude-sonnet-5', '2026-10-16T09:00:00Z'));
-    // A later report without a model (as the hooks may write) does not hide the last one named.
-    database.db.prepare('INSERT INTO work_report (project_id, work_id, at, model) VALUES (?, ?, ?, NULL)').run(shop.id, 'work-0001', '2026-10-15T12:00:00.000Z');
-    assert.equal(database.lastModel(shop.id), 'gpt-6-codex');
-    assert.equal(database.lastModel(coord.id), 'claude-sonnet-5');
-    // Two reports at the same time: the one recorded last.
-    insertReport(database, shop.id, 'work-0003', report('claude-opus-5-5', '2026-10-15T09:00:00Z'));
-    assert.equal(database.lastModel(shop.id), 'claude-opus-5-5');
+    const now = Date.parse('2026-10-15T12:00:00Z');
+    const session = (id: string, working: boolean, minutesAgo: number, links: [number, string][]) => {
+      const seen = new Date(now - minutesAgo * 60_000).toISOString();
+      database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working) VALUES (?, ?, NULL, ?, ?, ?)').run(id, 'claude-code', seen, seen, working ? 1 : 0);
+      for (const [project, work] of links) database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at) VALUES (?, ?, ?, ?)').run(id, project, work, seen);
+    };
+    session('a', true, 2, [[shop.id, 'work-0001'], [coord.id, 'work-0003']]);
+    session('b', true, 5, [[shop.id, 'work-0001'], [shop.id, 'work-0002']]);
+    session('stopped', false, 1, [[shop.id, 'work-0004']]);
+    session('gone', true, 20, [[coord.id, 'work-0005']]);
+    const live = database.liveWork(now);
+    assert.deepEqual(live.get(shop.id), [{ workId: 'work-0001', since: new Date(now - 2 * 60_000).toISOString() }, { workId: 'work-0002', since: new Date(now - 5 * 60_000).toISOString() }],
+      'each item once, at its latest session, the most recent first; a stopped session is not live');
+    assert.deepEqual(live.get(coord.id), [{ workId: 'work-0003', since: new Date(now - 2 * 60_000).toISOString() }], 'a session not seen for 15 minutes has ended');
   } finally { database.close(); }
 });

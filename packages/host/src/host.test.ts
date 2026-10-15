@@ -289,11 +289,20 @@ test('projects are the home\'s planning folders: created from the templates, ren
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
   const device = await pairDevice(t, host, owner.connection);
   assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Northwind']);
-  // The list has what each project's card says: its repositories, its active, blocked and implementing work, its last change and the model that reported last.
-  assert.deepEqual((await projectNamed(device.connection)).summary, { repositories: ['shop'], active: 3, blocked: 1, implementing: 1, updated: null, model: null });
+  // The list has what each project's card says: its repositories, its active work and where each item stands, its last change, and the work agents are on now.
+  const summary = (await projectNamed(device.connection)).summary!;
+  assert.deepEqual([summary.repositories, summary.active.length, summary.active.filter(item => item.state === 'blocked').length, summary.active.filter(item => item.state === 'implementing').length, summary.updated, summary.live],
+    [['shop'], 3, 1, 1, null, []]);
+  assert.ok(summary.active.every(item => item.title), 'each item has its title');
+  // A session in a turn, linked to a work item, makes it live.
   const database = HomeDatabase.open(data);
-  try { insertReport(database, database.projectByFolder(path.join(data, 'planning', 'planning'))!.id, 'work-0001', createReport({ model: 'claude-opus-5-5' })); } finally { database.close(); }
-  assert.equal((await projectNamed(owner.connection)).summary?.model, 'claude-opus-5-5');
+  try {
+    const project = database.projectByFolder(path.join(data, 'planning', 'planning'))!;
+    const now = new Date().toISOString();
+    database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working) VALUES (?, ?, NULL, ?, ?, 1)').run('session-1', 'claude-code', now, now);
+    database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at) VALUES (?, ?, ?, ?)').run('session-1', project.id, 'work-0001', now);
+  } finally { database.close(); }
+  assert.deepEqual((await projectNamed(owner.connection)).summary?.live.map(item => item.workId), ['work-0001']);
   // A device creates one: a Git repository in the home with the templates, its name and its repositories.
   const coord = await device.connection.request('projects.create', { name: 'Coord', repositories: [{ id: 'coord-web', name: 'Coord web', remote: 'git@github.com:example/coord-web.git' }, { id: 'platform', name: 'Platform', remote: null }] });
   assert.deepEqual([coord.name, coord.path, coord.position, coord.state], ['Coord', path.join(data, 'planning', 'coord'), 1, 'active']);
@@ -307,7 +316,7 @@ test('projects are the home\'s planning folders: created from the templates, ren
   await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
   // The lists clients are sent have the summaries too (a new project's folder has its first commit); a single project answered has none.
   const sent = owner.lists.find(list => list.length === 3)!.find(project => project.folderId === coord.folderId)!;
-  assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated }, { repositories: ['coord-web', 'platform'], active: 0, blocked: 0, implementing: 0, updated: 'string', model: null });
+  assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated }, { repositories: ['coord-web', 'platform'], active: [], updated: 'string', live: [] });
   assert.equal('summary' in coord, false);
   // Renaming writes the name into its planning.json; hiding, archiving and moving change only the order and state.
   const renamed = await owner.connection.request('projects.update', { folderId: coord.folderId, name: 'Coord platform' });

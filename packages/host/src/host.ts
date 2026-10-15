@@ -55,6 +55,8 @@ export interface HostOptions {
   loopbackPort?: number;
   /** How often connections are checked for life (tests shorten it). */
   heartbeat?: number;
+  /** Milliseconds between checks of the work agents are working on, for the projects' live dots (15 s). */
+  liveCheck?: number;
 }
 
 interface Credential { scopes: Set<Scope>; deviceId: string | null; label: string }
@@ -168,7 +170,8 @@ export class Host {
       return this.listen('127.0.0.1', 0, true);
     });
     await this.applyNetwork();
-    this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000));
+    this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000),
+      setInterval(() => this.checkLiveWork(), this.options.liveCheck ?? 15000));
     for (const timer of this.timers) timer.unref?.();
     this.options.log.info('Host started', { port: this.loopback.port, hostId: this.access.hostId, managedBy: this.access.managedBy });
     return { port: this.loopback.port };
@@ -580,11 +583,24 @@ export class Host {
       listed.push({ ...row, name });
     }
     if (!summaries) return listed.map(row => this.project(row));
-    return Promise.all(listed.map(async row => ({ ...this.project(row), summary: await this.summaryOf(row) })));
+    const live = this.readLiveWork();
+    return Promise.all(listed.map(async row => ({ ...this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
   }
-  /** What a project's card says: from its planning folder, with the model that reported last. */
-  private async summaryOf(row: ProjectRow): Promise<ProjectSummary | null> {
-    try { return { ...await projectSummary(row.folder), model: this.database.lastModel(row.id) }; } catch { return null; }
+  /** What a project's card says: from its planning folder, with the work agents are working on now. */
+  private async summaryOf(row: ProjectRow, live: ProjectSummary['live']): Promise<ProjectSummary | null> {
+    try { return { ...await projectSummary(row.folder), live }; } catch { return null; }
+  }
+  /** The work agents are working on now, by project row, as the hooks record it; none when it cannot be read. */
+  private readLiveWork() {
+    try { return this.database.liveWork(); } catch { return new Map<number, ProjectSummary['live']>(); }
+  }
+  /** The work agents are working on, as last told to clients: when it changes, the projects are told again. */
+  private liveKey = '';
+  private checkLiveWork() {
+    const key = JSON.stringify([...this.readLiveWork()].map(([project, work]) => [project, work.map(item => item.workId)]));
+    if (key === this.liveKey) return;
+    this.liveKey = key;
+    this.projectsChanged();
   }
   /** A project by its folder's ID. */
   private async projectRow(folderId: string): Promise<ProjectRow> {

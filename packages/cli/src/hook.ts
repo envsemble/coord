@@ -59,11 +59,23 @@ function readLinks(database: HomeDatabase, session: string, transcriptPath: stri
 }
 /** The harness a session runs in, as its log's place tells. */
 const harnessOf = (transcriptPath: string | null) => transcriptPath === null ? 'unknown' : /[\\/]\.codex[\\/]/.test(transcriptPath) ? 'codex' : 'claude-code';
-/** Record the session, or that it was seen again. */
-function touchSession(database: HomeDatabase, session: string, transcriptPath: string | null) {
+/**
+ * Record the session, or that it was seen again; `working` says whether its agent is in a turn
+ * (null leaves it as it was, as a subagent stopping does).
+ */
+function touchSession(database: HomeDatabase, session: string, transcriptPath: string | null, working: boolean | null) {
   const now = new Date().toISOString();
-  database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET transcript_path = ifnull(excluded.transcript_path, transcript_path), updated_at = excluded.updated_at')
-    .run(session, harnessOf(transcriptPath), transcriptPath, now, now);
+  database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET transcript_path = ifnull(excluded.transcript_path, transcript_path), updated_at = excluded.updated_at, working = ifnull(?, working)')
+    .run(session, harnessOf(transcriptPath), transcriptPath, now, now, working ? 1 : 0, working === null ? null : working ? 1 : 0);
+}
+/**
+ * The session's agent is at work on its linked work (it just used a tool): say so for the app's live
+ * dot, at most once a minute, since this hook runs on every tool use.
+ */
+function markWorking(database: HomeDatabase, session: string, transcriptPath: string | null) {
+  const row = database.db.prepare('SELECT working, updated_at FROM session WHERE id = ?').get(session) as { working: number; updated_at: string } | undefined;
+  if (row?.working === 1 && Date.now() - Date.parse(row.updated_at) < 60_000) return;
+  touchSession(database, session, transcriptPath, true);
 }
 /**
  * Link the session to a work item (amending, when it edits an accepted plan). Hooks of one session
@@ -238,10 +250,10 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       if (requests.length) {
         const projects = await Promise.all(requests.map(request => projectOf(database!, request.planningFolder)));
         database.transaction(() => {
-          touchSession(database!, session, transcriptPath);
+          touchSession(database!, session, transcriptPath, true);
           requests.forEach((request, index) => link(database!, session, projects[index].id, request.workId, request.amending));
         });
-      }
+      } else if (links.work.length) markWorking(database, session, transcriptPath);
       return output ? JSON.stringify(output) : '';
     }
     if (!links.work.length) return '';
@@ -249,7 +261,8 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const amended = await recordLinked(home, links, event);
     // An amending edit made while the report was being recorded is counted by the next one.
     database.transaction(() => {
-      touchSession(database!, session, transcriptPath);
+      // The turn is over when the main agent stops; a subagent stopping leaves it as it is.
+      touchSession(database!, session, transcriptPath, event === 'Stop' ? false : null);
       const clear = database!.db.prepare('UPDATE session_work SET amending = 0 WHERE session_id = ? AND project_id = ? AND work_id = ? AND (amended_at IS NULL OR amended_at < ?)');
       for (const item of amended) clear.run(session, item.projectId, item.workId, began);
     });

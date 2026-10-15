@@ -6,13 +6,13 @@
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
-  ProjectState, Snapshot, ViewEventInput,
+  ProjectState, ProjectWork, Snapshot, ViewEventInput,
 } from '@envsemble/atlas-host/contract';
 import type { DocumentContent } from '@envsemble/atlas-planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
-  ProjectState, Snapshot, ViewEventInput,
+  ProjectState, ProjectWork, Snapshot, ViewEventInput,
 };
 
 export const invokeChannels = [
