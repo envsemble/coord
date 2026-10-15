@@ -13,16 +13,16 @@ Atlas keeps plans, decisions and diagrams where both a coding agent and its huma
 
 [Get started](#get-started) · [App guide](app/README.md) · [Agent interface](docs/agent-interface.md) · [The atlas command](docs/command.md) · [Progress and statistics](docs/progress-and-statistics.md) · [Remote access](docs/remote-access.md) · [All documentation](docs/README.md)
 
-![The Atlas desktop app: project cards in the sidebar, one with a live dot while an agent works on it and its details open beside it, and the project's page with its work and statistics](app/assets/atlas-desktop.jpg)
+![The Atlas desktop app: the hub listing every plan of every project, each with its project, a one-line summary, its progress and a live dot while an agent works on it](app/assets/atlas-desktop.jpg)
 
-| Part                                 | What it does                                                                                                                                             |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [App](app/README.md)                 | The desktop app for Windows and Linux: your projects side by side, each with its work, plans, ledgers, knowledge, Git activity, statistics and diagrams. |
-| [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas`, `atlas-grill` and `atlas-implement` skills, and the hooks.                      |
-| [`atlas` command](docs/command.md)   | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.               |
-| [Diagram package](packages/diagrams) | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.        |
-| [Planning reader](packages/planning) | The planning-folder reader and planning operations shared by the app, the host and the command, including [plan export and import](docs/plan-export.md). |
-| [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, to the devices you pair.                                 |
+| Part                                 | What it does                                                                                                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [App](app/README.md)                 | The desktop app for Windows and Linux: one hub with every plan of every project, and each plan with its ledger, knowledge, Git activity, statistics and diagrams. |
+| [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas`, `atlas-grill` and `atlas-implement` skills, and the hooks.                               |
+| [`atlas` command](docs/command.md)   | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.                        |
+| [Diagram package](packages/diagrams) | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.                 |
+| [Planning reader](packages/planning) | The planning-folder reader and planning operations shared by the app, the host and the command, including [plan export and import](docs/plan-export.md).          |
+| [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, to the devices you pair.                                          |
 
 ## Get started
 
@@ -38,9 +38,9 @@ Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for E
 
    `atlas setup` creates the Atlas home (`~/.atlas`), lets Claude Code and Codex sessions edit planning files in it from any checkout, and installs the Atlas plugin into each of them. Start a new agent session afterwards. If you copied earlier Atlas skills (`atlas-*`) into `~/.claude/skills` or `~/.codex/skills`, remove them: the plugin replaces them. The [command reference](docs/command.md) covers every command and the home.
 
-2. **Create a project.** A project is a planning folder in the home, covering one repository or several. Create one in the app with **File › New Project…**, or ask your agent to set up planning for your repository with the `atlas` skill. Either registers the repository's Git remote, which is how every checkout and worktree of it finds the project. `atlas home adopt <folder>` moves a planning folder you already have into the home.
+2. **Create a project.** A project is a planning folder in the home that covers workspace folders: an agent session in one of them works in that project and its plans. Create one in the app on the **Projects** page (in the menu) with a name and a folder, ask your agent (the `project_create` tool), or run `atlas project create --name <name> --workspace <folder>`. Atlas registers the Git checkouts it finds in the folder; their remotes find the project from checkouts outside it. `atlas home adopt <folder>` moves a planning folder you already have into the home.
 3. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from the clone with `npm run dev`.
-4. **Open your projects.** The sidebar shows the projects in the home as cards: what is blocked, being implemented or still a draft, and a live dot while an agent works on one. Each opens as a page with its work, statistics and activity, and its plans, diagrams and files open in tabs beside those of the other projects. Atlas follows changes as the agent writes them.
+4. **Open Atlas.** It opens on the hub: every plan of every project, blocked and in progress first, then drafts, each with its project, a one-line summary, its progress and a live dot while an agent works on it. Filter by project or search, and open a plan in one click; back and forward return to where you were. Atlas follows changes as the agent writes them.
 
 Plans, diagrams and statistics stay on your computer unless you turn on remote access. No model service or API key is needed.
 
@@ -48,8 +48,8 @@ Plans, diagrams and statistics stay on your computer unless you turn on remote a
 
 The [plugin](docs/agent-interface.md) gives an agent everything Atlas needs from it:
 
-- **At session start**, the project for its checkout, its planning folder and the active work there; outside any project, the projects in the home, to ask which one the work belongs to.
-- **MCP tools** for planning state: find the project (or list them all), create, accept, start, block, close, archive and reopen work, and keep the ledger's steps. Plan bodies, glossaries, decisions and diagrams are files the agent edits directly.
+- **At session start**, the project for the folder it works in (by workspace folder, else by Git remote), its planning folder and the active work there; outside any project, the projects in the home, to ask which one the work belongs to.
+- **MCP tools** for planning state: find the project (or list them all), create a project, create, accept, start, block, close, archive and reopen work, and keep the ledger's steps, from the planning steps onward. Plan bodies, glossaries, decisions and diagrams are files the agent edits directly.
 - **Checks** of every planning file it edits, with the problems handed back to fix.
 - **Statistics** measured from its session whenever it stops: time, tokens, models and subagents, as planning or implementation.
 
@@ -77,9 +77,9 @@ The skills work in Codex and Claude Code and name no model or provider. A standa
 
 ## Share and connect
 
-- **Share a plan.** `atlas plan export <work-id>` (or **File › Export Plan…**) writes the whole work item to one `.atlas-plan.html` file: plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history. Anyone can open it in a browser to read the plan offline; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds it to another planning folder as new work. See [plan export](docs/plan-export.md).
-- **Work on another computer.** **File › Remote Access…** lets your other devices work on this computer's projects as if they were local: turn it on, choose the Tailscale address and create a pairing link.
-  - On the other device, **File › Connect to Another Atlas…** takes the link (it works once, for five minutes).
+- **Share a plan.** `atlas plan export <work-id>` (or **Export Plan…** on the plan's page) writes the whole work item to one `.atlas-plan.html` file: plan, ledger, glossary, decisions, evidence, attachments and diagrams with their history. Anyone can open it in a browser to read the plan offline; it makes no network requests and runs none of its contents. `atlas plan import <file>` adds it to another planning folder as new work. See [plan export](docs/plan-export.md).
+- **Work on another computer.** **Remote Access…** in the menu lets your other devices work on this computer's projects as if they were local: turn it on, choose the Tailscale address and create a pairing link.
+  - On the other device, **Connect to Another Atlas…** in the menu takes the link (it works once, for five minutes).
   - The computer menu in the title bar then switches between computers, each with its projects.
   - `atlas serve` does the same without the app.
 
