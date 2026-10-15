@@ -1,7 +1,7 @@
 // Back and forward, as in a browser: what a window showed, in order, and where it is now. An entry is
 // what a tab showed: a project's page, a work item's plan at its heading, a diagram at its element,
 // or a file at its heading, each of its project. The history lives in memory while the window is open.
-import { openTab } from './tabs';
+import { keyTabs, openTab } from './tabs';
 import type { Place } from './targets';
 import type { Target, UiState } from './types';
 
@@ -56,6 +56,13 @@ export function shownPlace(ui: UiState): Place | null {
 export function showPlace(ui: UiState, place: Place | null): UiState {
   if (!place) return { ...ui, tabs: { ...ui.tabs, active: null } };
   return { ...ui, tabs: openTab(ui.tabs, place.project, place.target, false) };
+}
+
+/** A project moved under a new folder ID: the window's tabs and history of it follow it. */
+export function moveProject(state: { ui: UiState; history: History }, from: string, to: string): { ui: UiState; history: History } {
+  const items = state.ui.tabs.items.map(tab => tab.project === from ? { ...tab, project: to } : tab);
+  const entries = state.history.entries.map(entry => entry?.project === from ? { ...entry, project: to } : entry);
+  return { ui: { ...state.ui, tabs: keyTabs({ items, active: state.ui.tabs.active }) }, history: { ...state.history, entries } };
 }
 
 type Keys = Pick<KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>;

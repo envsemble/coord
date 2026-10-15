@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, samePlace, shownPlace, showPlace, startHistory, step, type History } from './history.ts';
+import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, shownPlace, showPlace, startHistory, step, type History } from './history.ts';
 import { diagramTarget, fileTarget, projectTarget, workTarget, type Place } from './targets.ts';
 import type { UiState } from './types.ts';
 
@@ -93,4 +93,12 @@ test('Alt+← and Alt+→ go back and forward, ⌘[ and ⌘] on macOS, and so do
   assert.equal(keyStep(key('ArrowLeft', { alt: true }), 'darwin'), null);
   assert.equal(keyStep(key('BrowserBack'), 'win32'), -1);
   assert.equal(keyStep(key('BrowserForward'), 'darwin'), 1);
+});
+
+test('a project moved under a new folder ID takes its tabs and history along', () => {
+  const moved = 'f-' + 'c'.repeat(32);
+  const shown = ui({ items: [{ id: shop + ':project', project: shop, target: projectTarget(), preview: false }, { id: coord + ':work:work-0001', project: coord, target: workTarget('work-0001'), preview: false }], active: shop + ':project' });
+  const { ui: next, history } = moveProject({ ui: shown, history: record(startHistory(other), page) }, shop, moved);
+  assert.deepEqual(next.tabs, { items: [{ id: moved + ':project', project: moved, target: projectTarget(), preview: false }, shown.tabs.items[1]], active: moved + ':project' });
+  assert.deepEqual(history.entries, [other, at(projectTarget(), moved)]);
 });

@@ -14,7 +14,7 @@ import { api, AtlasError } from './api';
 import { activateTab, closeAllTabs, closeTab, keyTabs, openTab, pinTab, restoreTabs, retarget as retargetTab } from './tabs';
 import { documentTarget, projectTarget, scrollKey, workTarget, type Place } from './targets';
 import { samePath, siblingProject } from './links';
-import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, shownPlace, showPlace, startHistory, step } from './history';
+import { canGoBack, canGoForward, currentEntry, keyStep, moveProject, record, samePlace, shownPlace, showPlace, startHistory, step } from './history';
 import { workStatus } from './status';
 import { workNumber } from './format';
 import { StatusIcon } from './ui';
@@ -119,6 +119,12 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       return moved ? { ui: showPlace(current.ui, moved.place), history: moved.history } : current;
     });
   }, []);
+  // A project moved into its computer's home, from this window or another: what shows of it follows its new folder ID.
+  useEffect(() => api.onProjectsChanged(({ moved }) => {
+    if (!moved) return;
+    unfollow(moved.from);
+    setWindowState(current => moveProject(current, moved.from, moved.to));
+  }), [unfollow]);
   // Persist the layout, debounced.
   useEffect(() => {
     const timer = window.setTimeout(() => { api.saveUi(ui).catch(() => undefined); }, 250);
@@ -298,16 +304,15 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     open: project => openPlace({ project: project.folderId, target: projectTarget() }, true),
     update: (project, change) => { updateProject(project, change).then(() => api.projects().then(setProjects), error => notify((error as Error).message, 'danger')); },
     rename: project => setRenaming(project),
-    // The project comes back under a new folder ID: its tabs follow it.
+    // The project comes back under a new folder ID, which every window showing it follows.
     adopt: project => {
       api.adoptProject(project.folderId).then(moved => {
-        setTabs(tabs => ({ ...tabs, items: tabs.items.map(tab => tab.project === project.folderId ? { ...tab, project: moved.folderId } : tab) }));
         notify(`Moved ${moved.name} into the Atlas home: ${moved.path}`);
         return api.projects().then(setProjects);
       }, error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'danger'); });
     },
     create: () => setNewProject(true),
-  }), [openPlace, updateProject, setTabs, notify]);
+  }), [openPlace, updateProject, notify]);
   // File › New Project… opens the dialog here, where the new project's page opens.
   const windowActions = useMemo(() => ({ ...actions, newProject: () => setNewProject(true) }), [actions]);
 

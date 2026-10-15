@@ -88,8 +88,8 @@ export interface WindowInfo {
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
 /** A change of one project's folder, named by its folder ID. */
 export interface ProjectChange extends FolderChange { project: string }
-/** The projects of a computer changed; the window lists them again. */
-export interface ProjectsChange { hostId: string | null }
+/** The projects of a computer changed; the window lists them again. `moved`: a project moved under a new folder ID. */
+export interface ProjectsChange { hostId: string | null; moved?: { from: string; to: string } }
 /** Remote access changed on a computer this app manages access for. */
 export interface AccessChange { hostId: string | null; state: AccessState }
 

@@ -258,17 +258,27 @@ export class AtlasWindow {
 
   /**
    * Move a project outside its computer's Atlas home into it. It keeps its row (on a paired computer,
-   * this app's row follows its new folder), so its order, state and saved tabs stay; the folder it
-   * left is no longer followed.
+   * this app's row follows its new folder), so its order, state and saved tabs stay; every window
+   * showing that computer follows it under its new folder ID.
    */
   async adoptProject(folderId: string): Promise<Project> {
     const rowId = await this.projectRow(folderId);
     const moved = await this.client().request('projects.adopt', { folderId }, { timeout: 120000 });
     if (this.computer !== null) this.manager.context.database.updateProject(rowId, { folder: moved.path });
-    this.views.get(folderId)?.close();
-    this.views.delete(folderId);
-    this.manager.projectsChanged(this.computer);
+    this.manager.projectMoved(this.computer, folderId, moved.folderId);
     return (await this.projects()).find(project => project.folderId === moved.folderId) ?? moved;
+  }
+  /**
+   * A project of the window's computer moved under a new folder ID: the folder it left is no longer
+   * followed, and its row (with its saved tabs) goes by the new ID until the projects are listed
+   * again. The page moves its tabs and history.
+   */
+  projectMoved(from: string, to: string) {
+    const view = this.views.get(from);
+    if (view) { this.views.delete(from); this.revisionFloor = Math.max(this.revisionFloor, view.revision); view.close(); }
+    const entry = this.listed.get(from);
+    if (entry) { this.listed.delete(from); this.listed.set(to, { ...entry, project: { ...entry.project, folderId: to } }); }
+    this.send('projects:changed', { hostId: this.computer, moved: { from, to } });
   }
 
   /** A project's folder, followed from now on (its changes reach the window). */
@@ -297,8 +307,11 @@ export class AtlasWindow {
     const view = this.views.get(folderId);
     if (!view) return;
     this.views.delete(folderId);
+    this.letGo(view);
+  }
+  private letGo(view: FolderView) {
     this.revisionFloor = Math.max(this.revisionFloor, view.revision);
-    if (!this.manager.all().some(other => other !== this && other.views.get(folderId)?.client === view.client)) view.close();
+    if (!this.manager.all().some(other => other !== this && other.views.get(view.folderId)?.client === view.client)) view.close();
   }
   /** A project's folder for a request: followed, and readable. */
   async readable(folderId: string): Promise<FolderView> {
@@ -306,9 +319,9 @@ export class AtlasWindow {
     if (view.status === 'missing' || (view.status === 'invalid' && view.error)) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This project cannot be read.');
     return view;
   }
-  /** Let every project go (the window shows another computer, or closes). */
+  /** Let every project go (the window shows another computer, or closes); other windows keep those they follow. */
   private release() {
-    for (const view of this.views.values()) { this.revisionFloor = Math.max(this.revisionFloor, view.revision); view.close(); }
+    for (const view of this.views.values()) this.letGo(view);
     this.views.clear();
     this.listed.clear();
     this.tabsLoaded.clear();
@@ -502,6 +515,10 @@ export class WindowManager {
     for (const window of this.all()) if (window.computer === hostId) window.send('projects:changed', { hostId });
   }
 
+  /** A project of a computer moved under a new folder ID: the windows showing that computer follow it. */
+  projectMoved(hostId: string | null, from: string, to: string) {
+    for (const window of this.all()) if (window.computer === hostId) window.projectMoved(from, to);
+  }
   /** A folder event from a host reaches the windows following that project. */
   folderChanged(client: HostClient, state: FolderState) {
     for (const window of this.all()) {
