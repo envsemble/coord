@@ -330,7 +330,9 @@ test('a project outside the home is listed, marked, until it moves into the home
   const database = HomeDatabase.open(data);
   try {
     const row = database.addProject(realpathSync.native(outside), 'Northwind', null, 'hidden');
-    const projects = await owner.connection.request('projects.list', {});
+    // Another project, whose folder is gone, was last where the folder would go: that name stays its own.
+    database.addProject(path.join(data, 'planning', 'Shop-planning'), 'Gone', null, 'archived');
+    const projects = (await owner.connection.request('projects.list', {})).filter(project => project.name !== 'Gone');
     assert.deepEqual(projects.map(project => [project.path, project.outsideHome]), [[realpathSync.native(outside), true], [path.join(data, 'planning', 'planning'), false]]);
     const listed = projects[0];
     await owner.connection.follow(listed.folderId);
@@ -340,7 +342,7 @@ test('a project outside the home is listed, marked, until it moves into the home
     const { execFileSync } = await import('node:child_process');
     execFileSync('git', ['-C', outside, 'init', '-q']);
     const moved = await owner.connection.request('projects.adopt', { folderId: listed.folderId });
-    assert.deepEqual([moved.path, moved.outsideHome, moved.state], [path.join(data, 'planning', 'Shop-planning'), false, 'hidden']);
+    assert.deepEqual([moved.path, moved.outsideHome, moved.state], [path.join(data, 'planning', 'Shop-planning-2'), false, 'hidden']);
     assert.ok(!existsSync(outside) && !existsSync(path.join(moved.path, 'active/0001-saved-payment-methods/.atlas')));
     assert.equal(database.projectByFolder(moved.path)?.id, row.id, 'the project keeps its row, and with it its tabs');
     assert.equal((database.db.prepare("SELECT count(*) AS n FROM work_report WHERE project_id = ? AND at = '2026-10-01T10:00:00.000Z'").get(row.id) as { n: number }).n, 1);

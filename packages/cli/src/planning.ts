@@ -165,6 +165,7 @@ export async function home(args: string[], out: Output) {
     if (!statSync(folder, { throwIfNoEntry: false })?.isDirectory()) throw new UsageError(folder + ' is not a folder', line);
     const adopted = await adoptPlanningFolder(folder, { name: values.name ?? null });
     print(out, adopted);
+    if (adopted.reused !== null) out.stderr(`${adopted.to} was the folder of the project ${adopted.reused}, whose folder is gone: taking it for this folder renamed or moved by hand, it keeps its statistics.`);
     for (const problem of adopted.statistics.problems) out.stderr('WARNING: ' + problem);
     if (adopted.statistics.files.length) out.stderr(`Imported ${adopted.statistics.reports} work ${adopted.statistics.reports === 1 ? 'report' : 'reports'} into the Atlas home database and deleted ${adopted.statistics.files.join(', ')} from ${adopted.to}. Atlas never commits: commit the removal in that planning folder.`);
     return 0;

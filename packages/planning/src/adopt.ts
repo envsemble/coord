@@ -13,7 +13,11 @@ import { importStatisticsFiles, type StatisticsImport } from './statistics.ts';
 import { atlasHome, homePlanningDirectory, statisticsDirectory } from './storage.ts';
 import { WorkError } from './work.ts';
 
-export interface Adopted { from: string; to: string; project: string; rewritten: { id: string; from: string; to: string }[]; statistics: StatisticsImport }
+export interface Adopted {
+  from: string; to: string; project: string; rewritten: { id: string; from: string; to: string }[]; statistics: StatisticsImport;
+  /** The name of the project last at the new path, whose row and statistics the folder took over, or null. */
+  reused: string | null;
+}
 
 const within = (parent: string, child: string) => { const relative = path.relative(parent, child); return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)); };
 const exists = (target: string) => stat(target).then(() => true, () => false);
@@ -48,11 +52,15 @@ export async function adoptPlanningFolder(folder: string, options: { name?: stri
   const database = HomeDatabase.open(home);
   try {
     // Before anything moves, the folder's project (or a new one) takes the new path. A row left for
-    // the target path (its folder is gone) is reused when the folder has no project, else replaced.
+    // the target path (its folder is gone) is most likely this folder renamed or moved by hand: one
+    // without a project of its own takes it over, with its statistics. A folder with a project of
+    // its own is another one, and the row's statistics are not thrown away for it.
     const projectName = await planningName(from);
+    let reused: string | null = null;
     const project = database.transaction(() => {
       const known = database.projectByFolder(from), stale = database.projectByFolder(target);
-      if (known && stale && stale.id !== known.id) database.removeProject(stale.id);
+      if (known && stale && stale.id !== known.id) throw new WorkError(`The project ${stale.name}, whose folder is gone, was last at ${target} and keeps its statistics there; choose another --name.`);
+      if (!known && stale) reused = stale.name;
       const row = known ?? stale;
       if (!row) return database.addProject(target, projectName);
       database.updateProject(row.id, { folder: target, name: projectName, ...row === stale && { state: 'active' as const } });
@@ -77,6 +85,6 @@ export async function adoptPlanningFolder(folder: string, options: { name?: stri
     let statistics: StatisticsImport;
     try { statistics = await importStatisticsFiles(database, moved); }
     catch (error) { throw new WorkError(`${from} moved to ${moved}, but its statistics files could not be imported (${(error as Error).message}). Run atlas setup to import them.`); }
-    return { from, to: moved, project: projectName, rewritten, statistics };
+    return { from, to: moved, project: projectName, rewritten, statistics, reused };
   } finally { database.close(); }
 }

@@ -624,7 +624,9 @@ export class Host {
     if (this.inHome(row.folder)) throw new HostError('invalid-argument', 'This project is in the Atlas home already.');
     const base = path.basename(row.folder).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[^A-Za-z0-9]+/, '').slice(0, 90) || 'project';
     let name = base;
-    for (let number = 2; await stat(path.join(homePlanningDirectory(this.options.home), name)).then(() => true, () => false); number++) name = base + '-' + number;
+    // A name another project (its folder gone) was last at stays its own.
+    const taken = (folder: string) => this.database.projectByFolder(folder) !== null || stat(folder).then(() => true, () => false);
+    for (let number = 2; await taken(path.join(homePlanningDirectory(this.options.home), name)); number++) name = base + '-' + number;
     const subscribers = [...this.connections].filter(connection => connection.subscriptions.delete(folderId));
     this.folders.forget(folderId);
     try {

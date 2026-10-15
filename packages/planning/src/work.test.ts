@@ -357,7 +357,7 @@ test('a planning folder is adopted into the home with its path hints made absolu
   await assert.rejects(adoptPlanningFolder(other, { home }), /not the top of a Git repository/);
 });
 
-test('adopting reconciles a stale project row for the target path before the folder moves', async t => {
+test('adopting takes over a project row left for the target path, or refuses when the folder has a project of its own', async t => {
   const directory = temporary(t);
   const home = path.join(directory, 'home');
   // A row left for <home>/planning/kept, whose folder is gone, and a project for the folder being adopted.
@@ -366,19 +366,24 @@ test('adopting reconciles a stale project row for the target path before the fol
   const stale = path.join(realpathSync(path.dirname(target)), 'kept');
   const root = planningFolder(path.join(directory, 'first'));
   const [staleId, ownId] = withDatabase(home, database => [database.addProject(stale, 'Old', null, 'archived').id, database.addProject(realpathSync(root), 'main').id]);
-  const adopted = await adoptPlanningFolder(root, { home, name: 'kept' });
+  // A folder with a project of its own is another project: the row keeps its statistics, and nothing moves.
+  await assert.rejects(adoptPlanningFolder(root, { home, name: 'kept' }), /The project Old, whose folder is gone, was last at .*kept.*choose another --name/);
+  assert.ok(existsSync(root));
   withDatabase(home, database => {
-    assert.equal(database.projectByFolder(adopted.to)?.id, ownId, 'the folder keeps its own project');
-    assert.equal(database.project(staleId), null, 'the stale row is replaced');
+    assert.equal(database.project(staleId)?.folder, stale);
+    assert.equal(database.projectByFolder(realpathSync(root))?.id, ownId);
   });
-  // Without a project of its own, the folder takes over the stale row, active again.
+  const adopted = await adoptPlanningFolder(root, { home, name: 'own' });
+  assert.equal(adopted.reused, null);
+  withDatabase(home, database => assert.equal(database.projectByFolder(adopted.to)?.id, ownId, 'the folder keeps its own project'));
+  // Without a project of its own, the folder is taken for that project renamed or moved by hand: it
+  // takes over the row with its statistics, active again, and says so.
   const second = planningFolder(path.join(directory, 'second'));
-  const otherStale = path.join(realpathSync(path.dirname(target)), 'again');
-  const reused = withDatabase(home, database => database.addProject(otherStale, 'Old', null, 'hidden').id);
-  const again = await adoptPlanningFolder(second, { home, name: 'again' });
+  const again = await adoptPlanningFolder(second, { home, name: 'kept' });
+  assert.equal(again.reused, 'Old');
   withDatabase(home, database => {
     const project = database.projectByFolder(again.to)!;
-    assert.equal(project.id, reused);
+    assert.equal(project.id, staleId);
     assert.equal(project.state, 'active');
   });
 });
