@@ -84,7 +84,7 @@ const TOOLS = [
     /const tools[\s\S]*?\n\];/.exec(read(path.join(CLI, "mcp.ts")))?.[0] ?? ""
   ).matchAll(/name: '([a-z_]+)'/g),
 ].map((match) => match[1]);
-const TOOL_MENTION = /`(?!work_(?:items|id)`)((?:work|step)_[a-z_]+|where)`/g; // Registry and ledger fields are not tools.
+const TOOL_MENTION = /`(?!work_(?:items|id)`)((?:work|step|project)_[a-z_]+|where)`/g; // Registry and ledger fields are not tools.
 
 /** Whether `atlas <words>` names a command: it and a usage line agree for as long as both have words. */
 function knownCommand(words) {

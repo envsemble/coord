@@ -4,9 +4,9 @@ This repository preserves intended work, decisions, implementation evidence, and
 
 ## Discovery and task scope
 
-Planning folders live in the Atlas home (`~/.atlas/planning/<name>`, or under `ATLAS_HOME`). A checkout belongs to the planning folder whose `planning.json` registers its Git remote: Atlas names that folder and its active work at session start, and the Atlas tool `where` (or `atlas where`) finds it on request. An explicit location from the user is valid too. Do not search the machine for other `planning` folders; agents reach this one by its absolute path from any checkout or worktree, because setup grants the home to every session.
+Planning folders live in the Atlas home (`~/.atlas/planning/<name>`, or under `ATLAS_HOME`). A session in one of the workspace folders `planning.json` lists (`workspaces`) belongs to this project; elsewhere a checkout belongs to the planning folder whose `planning.json` registers its Git remote. Atlas names that folder and its active work at session start, and the Atlas tool `where` (or `atlas where`) finds it on request. An explicit location from the user is valid too. Do not search the machine for other `planning` folders; agents reach this one by its absolute path from any checkout or worktree, because setup grants the home to every session.
 
-A planning-dependent operation requires a usable planning repository: local Git history, governance, scope registry, and entry points. If none matches the checkout, explain what is missing and offer to set one up with the `atlas` skill in the same conversation. Its absence does not block ordinary authorized coding.
+A planning-dependent operation requires a usable planning repository: local Git history, governance, scope registry, and entry points. If none matches the checkout, explain what is missing and offer to set one up with the `atlas` skill in the same conversation. Stay in the project the session belongs to unless the user asks for work across projects. Its absence does not block ordinary authorized coding.
 
 Use only knowledge whose repository/domain scope applies to the task. A shared planning repository does not make one product's constraints apply to another product or an unrelated internal tool. Repository paths in the registry are hints; confirm the actual checkout and source ownership.
 
@@ -34,7 +34,7 @@ Retain decisions, grounded lessons, outcomes, and observations that improve late
 
 Plan metadata is governed by `PLANS.md`. Design acceptance, implementation completion, PR readiness, merge, and release are separate facts. Do not guess dates or turn uncertain historical status into completion.
 
-Ask the user before opening a work item; only work big enough to plan needs one. The complete `atlas-implement` workflow runs only when the user asks for it by name. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
+Ask the user before opening a work item; only work big enough to plan needs one. Its plan carries a `summary` (two or three plain sentences: what the work is, why, and where it stands) and its ledger the planning steps from the start: keep both current as the design settles and the work moves. The complete `atlas-implement` workflow runs only when the user asks for it by name. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
 
 Starting implementation records the selected plan path and planning Git revision in the work item's ledger, so commit the plan first. A later edit must not silently change its agreed scope. Keep the ledger's steps current through the Atlas tools at meaningful transitions, so progress and the work left can be viewed; missing historical status stays unknown. Keep the ledger body concise and resumable: actual progress, verification evidence, relevant product revisions/PRs, consequential departures, unresolved delivery milestones, and next actions.
 
