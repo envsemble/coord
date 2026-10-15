@@ -13,7 +13,7 @@ Atlas keeps plans, decisions and diagrams where both a coding agent and its huma
 
 [Get started](#get-started) · [App guide](app/README.md) · [Agent interface](docs/agent-interface.md) · [The atlas command](docs/command.md) · [Progress and statistics](docs/progress-and-statistics.md) · [Remote access](docs/remote-access.md) · [All documentation](docs/README.md)
 
-![The Atlas desktop app: the hub listing every plan of every project, each with its project, a one-line summary, its progress and a live dot while an agent works on it](app/assets/atlas-desktop.jpg)
+![The Atlas hub in the light theme on the computer Workstation: eight open plans of the projects Northwind, Platform and Field app, grouped as In progress (one blocked, three being implemented, two with an agent's live dot), Drafts and Other open work, each row with its state, title, number, project, one-line summary, steps done with the planning steps in their own colour, and when it changed](app/assets/atlas-desktop.jpg)
 
 | Part                                 | What it does                                                                                                                                                      |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -69,7 +69,7 @@ The skills work in Codex and Claude Code and name no model or provider. A standa
 2. **Implement.** When you say "atlas implement" (or use `/atlas:atlas-implement`, `$atlas-implement` in Codex), the agent starts the accepted plan with its steps, marks each `doing` and `done` as it goes, and delivers through pull requests with review and CI. It closes the work once every step is done.
 3. **Follow along.** Atlas shows every work item's progress and the steps left, its plan, ledger and decisions, recent commits, and the diagrams that explain it, updating as files change.
 
-   ![A work item in Atlas: its plan with a diagram card under the heading it explains, and beside it the progress through its steps, a link to its ledger, its dates and its statistics](assets/work-item.jpg)
+   ![A plan in Atlas: Saved payment methods, in progress, with its summary as a lead paragraph, its request folded under its heading, and a diagram card under the heading it explains; beside it the progress column with three planning steps done in their own colour, then implementation steps done, one in progress and the rest to do, its dates and its statistics](assets/work-item.jpg)
 
 4. **Learn from it.** The agent keeps the decisions and lessons worth reusing. A project's statistics show each work item's agent time, tokens and subagents for planning and for implementation, and compares completed work by model over time, so you can see how a new model does on your work.
 
