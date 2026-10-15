@@ -114,7 +114,7 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
   const found = await checkoutOf(resolvedCwd);
   const remotes = new Set((found?.remotes ?? []).map(normalizeRemote).filter((value): value is string => value !== null));
   const matches: PlanningMatch[] = [];
-  const inactive = inactiveProjectFolders(home);
+  const inactive = await inactiveProjectFolders(home);
   for (const folder of await homePlanningFolders(home)) {
     const root = await realpath(folder).catch(() => folder);
     if (inactive.has(folderKey(root))) continue;

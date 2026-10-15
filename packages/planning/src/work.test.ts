@@ -266,6 +266,11 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['main']);
   withDatabase(home, database => database.addProject(root, 'main', null, 'hidden'));
   assert.deepEqual((await findPlanning(shop, { home })).matches, []);
+  // A database this Atlas cannot read is an error, not a home where every project matches.
+  const raw = new DatabaseSync(path.join(home, 'atlas.db'));
+  raw.exec('PRAGMA user_version = 999');
+  raw.close();
+  await assert.rejects(findPlanning(shop, { home }), /schema version 999, newer than this Atlas knows/);
 });
 
 test('atlas check attributes findings to the files asked about and runs registered checkers', async t => {

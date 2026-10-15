@@ -231,12 +231,20 @@ export function canonicalProjectFolderSync(folder: string) {
 /**
  * The folders (as folderKey) of this computer's projects that are hidden or archived, read from the
  * home's database when it has one: they do not match checkouts. A folder without a row is active.
+ * A database still busy after its timeout is tried once more; it, or one that cannot be read (such
+ * as one from a newer Atlas), is an error, as hidden and archived projects would otherwise match.
  */
-export function inactiveProjectFolders(home: string): Set<string> {
+export async function inactiveProjectFolders(home: string): Promise<Set<string>> {
   if (!existsSync(path.join(home, databaseName))) return new Set();
-  try {
-    return withDatabase(home, database => new Set(database.projects().filter(project => project.state !== 'active').map(project => folderKey(project.folder))));
-  } catch { return new Set(); }
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return withDatabase(home, database => new Set(database.projects().filter(project => project.state !== 'active').map(project => folderKey(project.folder))));
+    } catch (error) {
+      // SQLITE_BUSY: another process held it for longer than the busy timeout.
+      if (attempt >= 2 || (error as { errcode?: number }).errcode !== 5) throw error;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
 }
 
 /** Whether a folder is a planning folder: it has a planning.json. */
