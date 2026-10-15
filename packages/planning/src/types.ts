@@ -72,7 +72,11 @@ export interface WorkStatistics {
   planRevisions: number | null;
 }
 export type LedgerStepStatus = 'todo' | 'doing' | 'done';
-export interface LedgerStep { title: string; status: LedgerStepStatus }
+/**
+ * A ledger step. `phase` is `planning` for the steps of designing the work, which the ledger has from
+ * the work's creation; a step without it is an implementation step.
+ */
+export interface LedgerStep { title: string; status: LedgerStepStatus; phase?: 'planning' }
 /** The ledger status header. Version 2 lists the agreed steps; version 1 (legacy) has only current and next. */
 export interface WorkProgress {
   version: 1 | 2;

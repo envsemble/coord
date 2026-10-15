@@ -8,7 +8,7 @@
 // and every method's scope is checked first.
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
-import { mkdir, open, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readdir, rm, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, Server } from 'node:http';
 import { isIPv4, isIPv6 } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -19,13 +19,16 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
-import { adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, resolveDocument, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates } from '@envsemble/atlas-planning';
+import {
+  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary,
+  readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates,
+} from '@envsemble/atlas-planning';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
   type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope,
+  type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope, type WorkspaceScan,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
@@ -70,6 +73,11 @@ const importLimit = 512 * 1024 * 1024;
 const exportsPerHolder = 2;
 /** Files in documents served over HTTP: images and attachments, never whole archives. */
 const fileLimit = 64 * 1024 * 1024;
+/**
+ * How often the home's planning folder is listed again while it has a new folder that is not a
+ * planning folder yet: after a quarter of a second, then twice as long each time, about a minute in all.
+ */
+const projectLooks = 8;
 const securityHeaders = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' };
 const imageTypes: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
 
@@ -138,6 +146,9 @@ export class Host {
   /** Watches the home's planning folder, where projects appear. */
   private projectsWatcher: FSWatcher | null = null;
   private projectsTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Folders in the home's planning folder that are not planning folders, by name, with how often the projects were listed again for them. */
+  private readonly unfinishedProjects = new Map<string, number>();
+  private projectsLookAgain: ReturnType<typeof setTimeout> | null = null;
   /** Clients preparing an export or reading an import now; each does one at a time. */
   private readonly preparing = new Set<string>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
@@ -189,6 +200,7 @@ export class Host {
     this.folders.closeAll();
     this.projectsWatcher?.close();
     if (this.projectsTimer) clearTimeout(this.projectsTimer);
+    if (this.projectsLookAgain) clearTimeout(this.projectsLookAgain);
     this.held.clear();
     this.exports.stop();
     this.access.clearPairings();
@@ -507,7 +519,7 @@ export class Host {
       if (typeof request.method !== 'string' || !Object.hasOwn(methodScopes, request.method)) throw new HostError('not-found', 'This host does not know that request.');
       const method = request.method as MethodName;
       if (!connection.can(methodScopes[method])) {
-        throw new HostError('forbidden', methodScopes[method] === 'owner' ? `Only the Atlas app on ${this.access.name} may change its remote access settings.`
+        throw new HostError('forbidden', methodScopes[method] === 'owner' ? (method.startsWith('access.') ? `Only the Atlas app on ${this.access.name} may change its remote access settings.` : `Only the Atlas app on ${this.access.name} may do this.`)
           : methodScopes[method] === 'access:manage' ? `This device may not manage access to ${this.access.name}. Pair it again with Manage access to pair and revoke devices from it.`
           : 'This device may not do this.');
       }
@@ -539,9 +551,33 @@ export class Host {
     this.projectsTimer = setTimeout(() => {
       this.projectsTimer = null;
       if (!this.connections.size || this.stopped) return;
-      void this.projects(true).then(projects => { for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined);
+      void this.projects(true).then(projects => { for (const connection of this.connections) this.event(connection, 'projects.changed', { projects }); }).catch(() => undefined)
+        .then(() => this.lookForUnfinishedProjects());
     }, 300);
     this.projectsTimer.unref?.();
+  }
+  /**
+   * A folder appearing in the home is often a project being made, whose planning.json comes a moment
+   * later, and a change inside a folder does not reach the watcher everywhere. While the home has a
+   * new folder that is not a planning folder, list the projects again, less often each time, a
+   * bounded number of times. Folders there when watching starts are not waited for (`settled`).
+   */
+  private async lookForUnfinishedProjects(settled = false) {
+    const base = homePlanningDirectory(this.options.home);
+    const unfinished = new Set<string>();
+    for (const entry of await readdir(base, { withFileTypes: true }).catch(() => [])) {
+      if (entry.isDirectory() && !entry.name.startsWith('.') && !await isPlanningFolder(path.join(base, entry.name))) unfinished.add(entry.name);
+    }
+    for (const name of this.unfinishedProjects.keys()) if (!unfinished.has(name)) this.unfinishedProjects.delete(name);
+    let fewest = projectLooks;
+    for (const name of unfinished) {
+      const looks = settled ? projectLooks : this.unfinishedProjects.get(name) ?? 0;
+      this.unfinishedProjects.set(name, Math.min(projectLooks, looks + 1));
+      fewest = Math.min(fewest, looks);
+    }
+    if (fewest >= projectLooks || this.projectsLookAgain || this.stopped) return;
+    this.projectsLookAgain = setTimeout(() => { this.projectsLookAgain = null; this.projectsChanged(); }, 250 * 2 ** fewest);
+    this.projectsLookAgain.unref?.();
   }
   /** Folders appearing in or leaving the home's planning folder are projects coming and going. */
   private watchProjects() {
@@ -550,6 +586,7 @@ export class Host {
       if (this.stopped) return;
       try {
         this.projectsWatcher = watch(base, () => this.projectsChanged());
+        void this.lookForUnfinishedProjects(true);
         this.projectsWatcher.on('error', error => { this.options.log.warn('The projects folder is not watched', { message: error.message }); this.projectsWatcher?.close(); this.projectsWatcher = null; });
       } catch (error) { this.options.log.warn('The projects folder is not watched', { message: (error as Error).message }); }
     }, () => undefined);
@@ -559,9 +596,10 @@ export class Host {
 
   // ---- Projects --------------------------------------------------------------------------------
 
-  /** A project as clients see it, by the ID of its folder. */
-  private project(row: ProjectRow): Project {
-    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, outsideHome: !this.inHome(row.folder), workspaces: [] }; // TODO(work-0023): planning.json's workspaces
+  /** A project as clients see it, by the ID of its folder, with the workspace folders its planning.json lists. */
+  private async project(row: ProjectRow): Promise<Project> {
+    const workspaces = (await readRegistry(row.folder).catch(() => null))?.workspaces ?? [];
+    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, outsideHome: !this.inHome(row.folder), workspaces };
   }
   /** Whether a project's folder is one of the home's planning folders. */
   private inHome(folder: string) {
@@ -582,14 +620,13 @@ export class Host {
       if (name !== row.name) this.database.updateProject(row.id, { name });
       listed.push({ ...row, name });
     }
-    if (!summaries) return listed.map(row => this.project(row));
+    if (!summaries) return Promise.all(listed.map(row => this.project(row)));
     const live = this.readLiveWork();
-    return Promise.all(listed.map(async row => ({ ...this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
+    return Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
   }
-  /** What a project's card says: from its planning folder, with the work agents are working on now. */
+  /** What the hub shows of a project's plans: from its planning folder, with the work agents are working on now. */
   private async summaryOf(row: ProjectRow, live: ProjectSummary['live']): Promise<ProjectSummary | null> {
-    // TODO(work-0023): the summary, steps, update and outcome of each work item, and the closed work.
-    try { const summary = await projectSummary(row.folder); return { ...summary, active: summary.active.map(work => ({ ...work, summary: null, steps: null, updated: null, outcome: null })), closed: [], live }; } catch { return null; }
+    try { return { ...await projectSummary(row.folder), live }; } catch { return null; }
   }
   /** The work agents are working on now, by project row, as the hooks record it; none when it cannot be read. */
   private readLiveWork() {
@@ -614,13 +651,20 @@ export class Host {
   private async pathOf(folderId: string): Promise<string | null> {
     return this.folders.pathOf(folderId) ?? (await this.projectRow(folderId).catch(() => null))?.folder ?? null;
   }
-  private async createProject(name: string, repositories: ProjectRepository[]): Promise<Project> {
+  private async createProject(params: Methods['projects.create']['params']): Promise<Project> {
     if (!this.options.templates) throw new HostError('unavailable', `New projects cannot be created on ${this.access.name} by this Atlas.`);
     try {
-      const row = await createProject(this.database, { name, repositories }, await this.options.templates());
+      const row = await createProject(this.database, params, await this.options.templates());
       this.options.log.info('Project created', { folder: row.folder });
       this.projectsChanged();
       return this.project(row);
+    } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
+  }
+  /** The Git checkouts in a folder, as a new project would register them. */
+  private async scanFolder(folder: string): Promise<WorkspaceScan> {
+    try {
+      const scan = await scanWorkspace(folder);
+      return { folder: scan.folder, repositories: scan.repositories.map(({ id, name, remote }): ProjectRepository => ({ id, name, remote })) };
     } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
   }
   private async updateProject(params: Methods['projects.update']['params']): Promise<Project> {
@@ -629,6 +673,12 @@ export class Host {
       const file = path.join(row.folder, 'planning.json');
       try { await writeFile(file, setRegistryName(await readFile(file, 'utf8'), params.name)); }
       catch (error) { throw new HostError('unavailable', `The project could not be renamed: ${(error as Error).message}`); }
+    }
+    if (params.workspaces !== undefined) {
+      try {
+        const { added } = await setProjectWorkspaces(row.folder, params.workspaces);
+        this.options.log.info('Project folders set', { folder: row.folder, workspaces: params.workspaces.length, repositories: added.length });
+      } catch (error) { throw error instanceof WorkError ? new HostError('invalid-argument', error.message) : error; }
     }
     this.database.updateProject(row.id, { name: params.name, state: params.state, position: params.position });
     this.projectsChanged();
@@ -709,9 +759,8 @@ export class Host {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
       case 'projects.list': return this.projects(true) as never;
-      case 'projects.create': { const { name, repositories } = p as Methods['projects.create']['params']; return this.createProject(name, repositories ?? []) as never; }
-      // TODO(work-0023): scan the folder for Git checkouts.
-      case 'projects.scan': throw new HostError('unavailable', 'Not implemented yet.');
+      case 'projects.create': return this.createProject(p as Methods['projects.create']['params']) as never;
+      case 'projects.scan': return this.scanFolder((p as Methods['projects.scan']['params']).folder) as never;
       case 'projects.update': return this.updateProject(p as Methods['projects.update']['params']) as never;
       case 'projects.adopt': return this.adoptProject((p as { folderId: string }).folderId) as never;
       case 'folders.subscribe': {

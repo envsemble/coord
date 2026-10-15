@@ -278,6 +278,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   for (const field of ['repositories', 'work_items']) if (!Array.isArray(registry[field])) errors.push(field + ' must be an array');
   // The project's name, which the app shows; the folder's own name without it.
   if (Object.hasOwn(registry, 'name') && (typeof registry.name !== 'string' || !registry.name.trim() || registry.name.length > 100)) errors.push('name must be a nonempty string of at most 100 characters when supplied');
+  // The workspace folders the project covers on this computer: a session in one belongs to it.
+  if (Object.hasOwn(registry, 'workspaces') && (!Array.isArray(registry.workspaces) || registry.workspaces.some(item => typeof item !== 'string' || !item.trim() || !path.isAbsolute(item)))) errors.push('workspaces must be an array of absolute folder paths when supplied');
   if (errors.length) return { errors, warnings };
   const repositories = registry.repositories as unknown[], workItems = registry.work_items as unknown[];
 
@@ -369,7 +371,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     plans.push({ pointer: String(pointer), metadata, workId, workScope, location: entry.path });
   });
 
-  for (const { pointer, metadata, workId, workScope } of plans) {
+  for (const { pointer, metadata, workId, workScope, location } of plans) {
     const prefix = pointer + ': ';
     const missing = planFields.filter(field => !Object.hasOwn(metadata, field)).sort();
     if (missing.length) errors.push(prefix + 'missing fields: ' + missing.join(', '));
@@ -377,6 +379,11 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (metadata.kind !== 'plan') errors.push(prefix + 'kind must be plan');
     if (metadata.id !== workId) errors.push(prefix + 'id disagrees with registry');
     if (typeof metadata.title !== 'string' || !metadata.title.trim()) errors.push(prefix + 'title must be a nonempty string');
+    // The summary is optional in the contract, but active work keeps one for the people and agents who find it.
+    if (metadata.summary !== undefined && metadata.summary !== null && typeof metadata.summary !== 'string') errors.push(prefix + 'summary must be a string or null');
+    else if (typeof location === 'string' && location.startsWith('active/') && !(typeof metadata.summary === 'string' && metadata.summary.trim())) {
+      warnings.push(prefix + 'no summary: add one to the header, two or three plain sentences on what the work is, why, and where it stands');
+    }
     if (!sameSet(scope(metadata.repositories, prefix + 'repositories'), workScope)) errors.push(prefix + 'repository scope disagrees with registry');
     for (const [field, allowed] of [['design_status', designStates], ['implementation_status', implementationStates]] as const) {
       const value = metadata[field];

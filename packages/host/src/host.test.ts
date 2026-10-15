@@ -294,6 +294,10 @@ test('projects are the home\'s planning folders: created from the templates, ren
   assert.deepEqual([summary.repositories, summary.active.length, summary.active.filter(item => item.state === 'blocked').length, summary.active.filter(item => item.state === 'implementing').length, summary.updated, summary.live],
     [['shop'], 3, 1, 1, null, []]);
   assert.ok(summary.active.every(item => item.title), 'each item has its title');
+  // Each item's steps (none without a ledger that lists them) and last change, and the closed work with how it ended.
+  assert.deepEqual(summary.active.map(item => [item.id, item.steps === null ? null : item.steps.total > 0, item.updated, item.outcome]),
+    [['work-0001', true, '2026-09-30', null], ['work-0002', null, '2026-10-07', null], ['work-0003', null, '2026-10-02', null]]);
+  assert.deepEqual(summary.closed.map(item => [item.id, item.state, item.updated, item.outcome]), [['work-0004', 'closed', '2026-09-24', 'complete']]);
   // A session in a turn, linked to a work item, makes it live.
   const database = HomeDatabase.open(data);
   try {
@@ -336,6 +340,54 @@ test('projects are the home\'s planning folders: created from the templates, ren
   rmSync(path.join(data, 'planning', 'coord-2'), { recursive: true, force: true, maxRetries: 10 });
   assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Coord platform', 'Northwind', 'Northwind']);
   await assert.rejects(owner.connection.request('projects.update', { folderId: 'f-' + 'a'.repeat(32), state: 'active' }), (error: HostRequestError) => error.code === 'not-found');
+});
+
+test('a project covers workspace folders: their checkouts are found, registered when it is made, and when it gets more', async t => {
+  const { host, origin, data } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  const device = await pairDevice(t, host, owner.connection);
+  const { execFileSync } = await import('node:child_process');
+  const checkout = (folder: string, remote: string | null) => {
+    mkdirSync(folder, { recursive: true });
+    execFileSync('git', ['-C', folder, 'init', '-q'], { windowsHide: true });
+    if (remote) execFileSync('git', ['-C', folder, 'remote', 'add', 'origin', remote], { windowsHide: true });
+  };
+  const workspace = path.join(data, 'workspace'), more = path.join(data, 'more');
+  checkout(path.join(workspace, 'web'), 'https://github.com/example/web.git');
+  checkout(path.join(workspace, 'scratch'), null);
+  mkdirSync(path.join(workspace, 'notes'));
+  checkout(path.join(more, 'api'), 'git@github.com:example/api.git');
+  // The app's preview: the checkouts in a folder, as a new project would register them.
+  assert.deepEqual(await owner.connection.request('projects.scan', { folder: workspace }), {
+    folder: workspace, repositories: [{ id: 'scratch', name: 'scratch', remote: null }, { id: 'web', name: 'web', remote: 'https://github.com/example/web.git' }],
+  });
+  await assert.rejects(owner.connection.request('projects.scan', { folder: path.join(data, 'missing') }), (error: HostRequestError) => error.code === 'invalid-argument' && /does not exist/.test(error.message));
+  await assert.rejects(device.connection.request('projects.scan', { folder: workspace }), (error: HostRequestError) => error.code === 'forbidden', 'a folder on this computer is the app\'s to look at');
+  // Made from the folder: its checkouts are registered, one without a remote by its path.
+  const web = await device.connection.request('projects.create', { name: 'Web', workspaces: [workspace] });
+  assert.deepEqual(web.workspaces, [workspace]);
+  const registry = () => JSON.parse(readFileSync(path.join(web.path, 'planning.json'), 'utf8'));
+  assert.deepEqual([registry().workspaces, registry().repositories], [[workspace], [{ id: 'scratch', name: 'scratch', path: path.join(workspace, 'scratch') }, { id: 'web', name: 'web', remote: 'https://github.com/example/web.git' }]]);
+  await assert.rejects(owner.connection.request('projects.create', { name: 'Gone', workspaces: [path.join(data, 'missing')] }), (error: HostRequestError) => error.code === 'invalid-argument');
+  // Another folder registers what it holds; the list shows the folders.
+  const updated = await owner.connection.request('projects.update', { folderId: web.folderId, workspaces: [workspace, more] });
+  assert.deepEqual(updated.workspaces, [workspace, more]);
+  assert.deepEqual(registry().repositories.map((item: { id: string }) => item.id), ['scratch', 'web', 'api']);
+  assert.deepEqual((await projectNamed(owner.connection, 'Web')).workspaces, [workspace, more]);
+  await assert.rejects(owner.connection.request('projects.update', { folderId: web.folderId, workspaces: [path.join(data, 'missing')] }), (error: HostRequestError) => error.code === 'invalid-argument');
+  assert.deepEqual((await projectNamed(owner.connection)).workspaces, [], 'a project without workspace folders has none');
+});
+
+test('a project made outside the app appears when its planning.json comes, a moment after its folder', async t => {
+  const { host, origin, data } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await owner.connection.request('projects.list', {});
+  // As an agent or the command makes one: the folder first, its planning.json about a second later.
+  const folder = path.join(data, 'planning', 'by-hand');
+  mkdirSync(folder);
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'By hand', repositories: [], work_items: [] }));
+  await until(() => owner.lists.some(list => list.some(project => project.name === 'By hand')), 10000, () => owner.lists.map(list => list.map(project => project.name)));
 });
 
 test('a project outside the home is listed, marked, until it moves into the home with its statistics', async t => {

@@ -4,7 +4,7 @@ Every normalized work folder has one main `plan.md` and, once implementation beg
 
 ## Registry version 1
 
-`planning.json` is a JSON object with `schema_version: 1`, an optional `name`, `repositories`, and `work_items`. `name` names the project this planning folder is (nonempty, at most 100 characters); without it, Atlas uses the folder's name. It indexes scope and locations; lifecycle status remains in plan frontmatter rather than being duplicated here.
+`planning.json` is a JSON object with `schema_version: 1`, an optional `name`, optional `workspaces`, `repositories`, and `work_items`. `name` names the project this planning folder is (nonempty, at most 100 characters); without it, Atlas uses the folder's name. `workspaces` lists the project's workspace folders, absolute paths of folders on this computer: an agent session in one of them, or inside one, belongs to this project and to no other, whatever its Git remotes (when workspace folders nest, the deepest wins); elsewhere a checkout belongs to the projects that register its remote. The registry indexes scope and locations; lifecycle status remains in plan frontmatter rather than being duplicated here.
 
 Each `repositories` entry has:
 
@@ -32,6 +32,7 @@ Example:
 {
   "schema_version": 1,
   "name": "Example",
+  "workspaces": ["/home/example/work/example"],
   "repositories": [{"id": "example-app", "name": "Example app", "remote": "https://github.com/example/example-app.git"}],
   "work_items": [
     {"id": "work-0001", "path": "active/0001-example-change", "repositories": ["example-app"], "current_plan": "active/0001-example-change/plan.md"},
@@ -52,6 +53,7 @@ A current plan uses a YAML frontmatter block delimited by `---`, with the follow
 | `kind` | String `plan`; distinguishes intended work from current-state documentation. |
 | `id` | Registered work-item ID. All revisions of that work's plan retain its ID. |
 | `title` | Nonempty readable title. |
+| `summary` | Optional string, on one line: two or three plain sentences saying what the work is, why, and where it stands, for whoever finds the plan in a list. Agents keep it current as the work moves; `atlas check` warns when an active plan has none. |
 | `repositories` | Array of registered repository IDs affected by this plan, agreeing with the work item's scope. Empty only for retained legacy work whose scope is unknown. |
 | `created` | ISO `YYYY-MM-DD` date string or null if original creation is unknown. Never use adoption date as guessed legacy creation. |
 | `updated` | ISO date string for the latest substantive record update, or null for an untouched legacy record whose update date is unknown. |
@@ -62,7 +64,7 @@ A current plan uses a YAML frontmatter block delimited by `---`, with the follow
 | `supersedes` | Array of replaced registered work-item IDs, empty when none are established. |
 | `superseded_by` | Replacement registered work-item ID, or null. |
 
-All fields are present in normalized plans. Serialize dates as quoted strings and unknown values as null. Readers also accept existing plain ISO date scalars in date fields without inventing chronology. Quote intended string values that resemble YAML booleans, nulls, numbers, or timestamps: implicit typing varies between YAML readers, so the checker conservatively rejects ambiguous strings rather than certifying the wrong type. Preserve the full body and attachments when adding metadata. Do not classify a record as a plan merely because it is Markdown. Keep unclassified legacy records indexed while investigating their status; full metadata normalization is not a prerequisite for using the repository.
+All fields but `summary` are present in normalized plans. Serialize dates as quoted strings and unknown values as null. Readers also accept existing plain ISO date scalars in date fields without inventing chronology. Quote intended string values that resemble YAML booleans, nulls, numbers, or timestamps: implicit typing varies between YAML readers, so the checker conservatively rejects ambiguous strings rather than certifying the wrong type. Preserve the full body and attachments when adding metadata. Do not classify a record as a plan merely because it is Markdown. Keep unclassified legacy records indexed while investigating their status; full metadata normalization is not a prerequisite for using the repository.
 
 `accepted` means agreement on intended work. `superseded` and `abandoned` are explicit design dispositions; they do not erase partial implementation. Implementation may be unknown for accepted historical plans. `partial` means some intended scope is implemented without claiming completion. Record evidence and any remaining or transferred scope in the ledger. A design that was accepted and later superseded may retain its known acceptance date. Leave unknown lifecycle dates null even when the corresponding status is known. A known `completed_at` requires `implementation_status: complete`; acceptance dates require evidence of acceptance, not merely a draft's existence.
 
@@ -70,7 +72,7 @@ Replacement relationships identify work items, not paths; update both sides when
 
 ## Identity, selection, and closure
 
-Use one repository-wide registration sequence across active, archive, and indexed legacy work. The `work_create` tool (`atlas work create`) assigns the next unused number, padded to at least four digits, with a descriptive folder slug, `active/0001-example-change/`, and registers it. Numbers show registration order, not age, authority, or completion order. Never reuse an assigned identity after closure.
+Use one repository-wide registration sequence across active, archive, and indexed legacy work. The `work_create` tool (`atlas work create`) assigns the next unused number, padded to at least four digits, with a descriptive folder slug, `active/0001-example-change/`, writes its plan header and its ledger with the planning steps, and registers it. Numbers show registration order, not age, authority, or completion order. Never reuse an assigned identity after closure.
 
 Keep the root lean: `plan.md`, `ledger.md` when needed, and a useful glossary. Update existing records instead of adding parallel specifications, progress summaries, handoffs, PR drafts, or per-phase command diaries. Use the ledger for progress and closure when it exists; a separate outcome/README is optional only when it improves navigation. Group retained historical notes under `supporting/`, verification artifacts under `evidence/`, and qualified ADRs under `docs/adr/`; do not create empty folders or discard originals. Existing detailed phase contracts may remain in grouped phase folders. Create supporting files only when useful: `CONTEXT.md` for the work's domain glossary, `docs/adr/` for qualifying decisions, `ledger.md` for implementation, and `evidence/` for meaningful verification. Keep these original documents together through archive moves. Diagrams are files in the work folder too (see [Diagrams](#diagrams)), so they move with it. Synthetic test or trial material stays in a labelled `evidence/<trial>-fixtures/` folder with a README and is never registered as work.
 
@@ -80,7 +82,7 @@ Use the user's selected plan or the registry's explicit `current_plan`. If they 
 
 ## Ledger status version 2
 
-The root `ledger.md` records actual progress and implementation provenance; its body stays flexible. A small YAML header lists the agreed steps of the work, so its progress and the work left are visible without parsing narrative prose:
+The root `ledger.md` records actual progress and implementation provenance; its body stays flexible. A small YAML header lists the steps of the work, the planning steps from its creation and then the implementation steps, so its progress and the work left are visible from the start without parsing narrative prose:
 
 ```yaml
 ---
@@ -90,6 +92,12 @@ work_id: work-0001
 updated: "2026-10-11"
 blocked: null
 steps:
+  - title: "Understand the request"
+    status: done
+    phase: planning
+  - title: "Settle the design"
+    status: done
+    phase: planning
   - title: "Implement the agreed query behavior"
     status: done
   - title: "Verify tenant boundaries"
@@ -99,9 +107,9 @@ steps:
 ---
 ```
 
-`work_id` matches the registered work; `updated` is an ISO date or null when unknown; `blocked` is a nonempty string or null. `steps` lists the agreed steps in order, and is `[]` until steps are established. Each step has exactly two fields: a `title`, a nonempty string unique within the ledger, and a `status` of `todo`, `doing` or `done`. Several steps may be `doing` at once. Write one block entry per step exactly as shown: the `-` of every entry in the same column, `status` aligned under `title`, spaces only, and the title in double quotes. Tools show progress as done steps over all steps; the work left is the steps not yet done, an estimate by count, not by time.
+`work_id` matches the registered work; `updated` is an ISO date or null when unknown; `blocked` is a nonempty string or null. `steps` lists the agreed steps in order, and is `[]` until steps are established. Each step has a `title`, a nonempty string unique within the ledger, a `status` of `todo`, `doing` or `done`, and optionally a `phase`: `planning` for a step of designing the work; a step without a phase is an implementation step (`phase: implementation` says the same). Several steps may be `doing` at once. Write one block entry per step exactly as shown: the `-` of every entry in the same column, `status` and `phase` aligned under `title`, spaces only, and the title in double quotes. Tools show progress as done steps over all steps; the work left is the steps not yet done, an estimate by count, not by time.
 
-The Atlas tools write this header; do not edit it by hand. `work_start` creates the ledger with the agreed steps, derived from the accepted plan when implementation starts: one step per meaningful deliverable or milestone, not per command. `step_set` updates statuses at meaningful transitions: before a substantial execution stretch, when a step starts or finishes, and at handoff; `work_block` sets or clears `blocked`. When agreed scope gains a step, `step_add` adds it; record the amendment. Never drop an agreed step silently: mark it done, or remove it with `step_remove`, which writes the reason it was transferred or dropped into the body. Once implementation is complete every step is done; report pending review and merge accurately in the body. Do not record every command, predict unagreed work, or promise continuous live telemetry.
+The Atlas tools write this header; do not edit it by hand. `work_create` writes the ledger with the planning steps "Understand the request" (doing), "Settle the design", "Write the plan" and "Accepted"; keep them true while designing, renaming, adding or removing them to fit the work. Steps added before implementation starts are planning steps. `work_accept` marks every planning step done. `work_start` adds the implementation steps after them (creating the ledger for older work without one), derived from the accepted plan: one step per meaningful deliverable or milestone, not per command; it adds the Selection section too. `step_set` updates statuses at meaningful transitions: before a substantial execution stretch, when a step starts or finishes, and at handoff; `work_block` sets or clears `blocked`. When agreed scope gains a step, `step_add` adds it; record the amendment. Never drop an agreed step silently: mark it done, or remove it with `step_remove`, which writes the reason it was transferred or dropped into the body. Once implementation is complete every step is done; report pending review and merge accurately in the body. Do not record every command, predict unagreed work, or promise continuous live telemetry.
 
 ### Version 1 (legacy)
 

@@ -35,7 +35,7 @@ function files(root: string, relative = ''): string[] {
 function snapshot(root: string) {
   return new Map(files(root).map(name => [name, readFileSync(path.join(root, name))]));
 }
-const plan = (id: string, title: string, extra = '') => ['---', 'schema_version: 1', 'kind: plan', `id: ${id}`, `title: "${title}"`, 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', `# ${title}`, '', extra].join('\n');
+const plan = (id: string, title: string, extra = '') => ['---', 'schema_version: 1', 'kind: plan', `id: ${id}`, `title: "${title}"`, `summary: "What ${title} is for."`, 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', `# ${title}`, '', extra].join('\n');
 const ORDERS = '@startuml\ntitle Orders\nclass Order {\n  id : integer\n}\nclass OrderLine\nOrder "1" *-- "0..*" OrderLine : lines\n@enduml\n';
 /** A database capture of the orders table, as Atlas writes one. */
 function captured() {
@@ -169,6 +169,22 @@ test('keeps the archive location, takes the next free number and imports twice a
   const again = await importPlan(target, (await exportPlan(target, 'work-0005', { now })).html);
   assert.ok(existsSync(path.join(target, again.path, 'evidence/import-provenance.json')));
   assert.equal(JSON.parse(readFileSync(path.join(target, again.path, 'evidence/import-provenance-2.json'), 'utf8')).source.workId, 'work-0005');
+});
+
+test('a draft imported without a ledger gets one with the planning steps, as new work does', async t => {
+  const directory = temporary(t);
+  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
+  mkdirSync(source);
+  const work = fixture(source);
+  rmSync(path.join(work, 'ledger.md'));
+  writeFileSync(path.join(work, 'plan.md'), plan('work-0001', 'Checkout').replace('design_status: accepted', 'design_status: draft').replace('implementation_status: in_progress', 'implementation_status: not_started').replace('accepted_at: "2026-10-02"', 'accepted_at: null'));
+  cpSync(source, target, { recursive: true });
+  const imported = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
+  assert.ok(imported.notes.includes('The draft had no ledger; it got one with the planning steps.'));
+  const ledger = readFileSync(path.join(target, imported.path, 'ledger.md'), 'utf8');
+  assert.match(ledger, new RegExp(`^---\\nschema_version: 2\\nkind: ledger\\nwork_id: ${imported.workId}\\n`));
+  assert.match(ledger, /- title: "Understand the request"\n {4}status: doing\n {4}phase: planning\n/);
+  assert.deepEqual(validatePlanning(target).errors, []);
 });
 
 test('registers repositories the target does not know, in the registry\'s own style', async t => {

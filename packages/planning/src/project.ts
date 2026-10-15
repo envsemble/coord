@@ -1,14 +1,18 @@
 // New projects: a planning folder in the home (`<home>/planning/<slug>`) made from the bundled
-// templates (plugin/skills/atlas/assets/planning), named in its planning.json and registering the
-// repositories it covers, as its own Git repository with an initial commit.
+// templates (plugin/skills/atlas/assets/planning), named in its planning.json, covering its workspace
+// folders and registering the repositories it covers (by default the Git checkouts found in those
+// folders), as its own Git repository with an initial commit. A project's workspace folders change
+// later too, registering what the new ones hold.
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { HomeDatabase, projectOf, type ProjectRow } from './database.ts';
+import { folderKey, HomeDatabase, projectOf, type ProjectRow } from './database.ts';
+import { appendRegistryEntries, setRegistryMember } from './registryText.ts';
 import { runProgram } from './run.ts';
 import { homePlanningDirectory } from './storage.ts';
 import { slugOf, WorkError } from './work.ts';
+import { checkedWorkspaces, newRepositories, scanWorkspaces, type ProjectRepository } from './workspaces.ts';
 
-export interface ProjectRepository { id: string; name: string; remote: string | null }
+export type { ProjectRepository };
 /** The template files by their path in a new planning folder. */
 export type ProjectTemplates = Record<string, string>;
 
@@ -37,21 +41,29 @@ function checkedProject(name: unknown, repositories: unknown): { name: string; r
     if (label.length > 100 || unprintable.test(label)) throw new WorkError(`Repository ${index + 1}: its name is too long.`);
     const remote = typeof entry.remote === 'string' && entry.remote.trim() ? entry.remote.trim() : null;
     if (remote && (remote.length > 500 || unprintable.test(remote))) throw new WorkError(`Repository ${index + 1}: its remote is not a Git remote.`);
-    return { id, name: label, remote };
+    // A checkout without a remote is found by its absolute path.
+    const hint = (entry as { path?: unknown }).path;
+    return { id, name: label, remote, ...!remote && typeof hint === 'string' && path.isAbsolute(hint) && { path: hint } };
   });
   return { name: name.trim(), repositories: checked };
 }
+
+/** A repository as planning.json registers it: by its remote, else by its checkout's path. */
+const registered = (item: ProjectRepository) => ({ id: item.id, name: item.name, ...item.remote ? { remote: item.remote } : item.path ? { path: item.path } : {} });
 
 const git = (folder: string, args: string[]) => runProgram('git', ['-C', folder, ...args], { windowsHide: true, timeout: 30000 });
 
 /**
  * Create a project in the home: a new folder in its planning folder, named after the project (a
- * number added when the name is taken), with the templates, a planning.json naming it and its
- * repositories, `git init` and an initial commit (as the user's Git identity, else as Atlas). It
- * becomes the last of the home's projects.
+ * number added when the name is taken), with the templates, a planning.json naming it, its workspace
+ * folders and its repositories (those given, else the Git checkouts found in the workspace folders),
+ * `git init` and an initial commit (as the user's Git identity, else as Atlas). It becomes the last
+ * of the home's projects.
  */
-export async function createProject(database: HomeDatabase, request: { name: string; repositories: ProjectRepository[] }, templates: ProjectTemplates): Promise<ProjectRow> {
-  const { name, repositories } = checkedProject(request.name, request.repositories);
+export async function createProject(database: HomeDatabase, request: { name: string; workspaces?: string[]; repositories?: ProjectRepository[] }, templates: ProjectTemplates): Promise<ProjectRow> {
+  const workspaces = checkedWorkspaces(request.workspaces ?? []);
+  checkedProject(request.name, request.repositories ?? []);
+  const { name, repositories } = checkedProject(request.name, request.repositories ?? await scanWorkspaces(workspaces));
   if (!templates['planning.json']) throw new WorkError('The planning templates are not available.');
   const base = homePlanningDirectory(database.home);
   await mkdir(base, { recursive: true });
@@ -64,8 +76,9 @@ export async function createProject(database: HomeDatabase, request: { name: str
       if (file.includes('/') || file.includes('\\') || file === 'planning.json') continue;
       await writeFile(path.join(folder, file), text);
     }
-    const registry = { ...JSON.parse(templates['planning.json']) as object, name, repositories: repositories.map(item => ({ id: item.id, name: item.name, ...item.remote && { remote: item.remote } })) };
-    await writeFile(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 1, ...registry }, null, 2) + '\n');
+    // The name and the workspace folders come first, whatever the template's order.
+    const registry = Object.assign({ schema_version: 1, name, workspaces }, JSON.parse(templates['planning.json']) as object, { name, workspaces, repositories: repositories.map(registered) });
+    await writeFile(path.join(folder, 'planning.json'), JSON.stringify(registry, null, 2) + '\n');
     await git(folder, ['init', '-q']);
     await git(folder, ['add', '-A']);
     // Without a Git identity configured, the first commit is Atlas's.
@@ -76,4 +89,27 @@ export async function createProject(database: HomeDatabase, request: { name: str
     throw new WorkError(`The project could not be created: ${(error as Error).message}`);
   }
   return projectOf(database, folder);
+}
+
+/**
+ * Set a project's workspace folders in its planning.json, keeping the file's formatting, and register
+ * the repositories found in the folders it did not cover before (never removing one). Returns the
+ * folders and the repositories added.
+ */
+export async function setProjectWorkspaces(root: string, folders: string[]): Promise<{ workspaces: string[]; added: ProjectRepository[] }> {
+  const workspaces = checkedWorkspaces(folders);
+  const file = path.join(root, 'planning.json');
+  let text: string, registry: { workspaces?: unknown; repositories?: unknown };
+  try { text = await readFile(file, 'utf8'); registry = JSON.parse(text.replace(/^﻿/, '')); }
+  catch (error) { throw new WorkError(`The project's planning.json cannot be read: ${(error as Error).message}`); }
+  const before = new Set((Array.isArray(registry.workspaces) ? registry.workspaces : []).flatMap(item => typeof item === 'string' ? [folderKey(path.resolve(item))] : []));
+  const found = await scanWorkspaces(workspaces.filter(folder => !before.has(folderKey(folder))));
+  const added = newRepositories(Array.isArray(registry.repositories) ? registry.repositories : [], found);
+  let next: string;
+  try {
+    next = setRegistryMember(text, 'workspaces', workspaces, ['name', 'schema_version']);
+    if (added.length) next = appendRegistryEntries(next, 'repositories', added.map(registered));
+  } catch (error) { throw new WorkError(`The project's workspace folders could not be set: ${(error as Error).message}`); }
+  if (next !== text) await writeFile(file, next);
+  return { workspaces, added };
 }

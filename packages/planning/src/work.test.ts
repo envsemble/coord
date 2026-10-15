@@ -54,14 +54,22 @@ test('a work item is created under the next unused number, registered, and valid
   const created = await createWork(root, { title: 'Säve the "cart"', repositories: ['shop', 'tools'] }, today);
   assert.equal(created.workId, 'work-0004', 'numbers taken by registered work and unregistered folders are skipped');
   assert.equal(created.path, 'active/0004-save-the-cart');
-  assert.deepEqual([created.designStatus, created.implementationStatus, created.created, created.updated, created.ledger], ['draft', 'not_started', '2026-10-14', '2026-10-14', null]);
-  assert.deepEqual(created.changed, ['active/0004-save-the-cart/plan.md', 'planning.json']);
+  assert.deepEqual([created.designStatus, created.implementationStatus, created.created, created.updated, created.ledger, created.progress], ['draft', 'not_started', '2026-10-14', '2026-10-14', 'active/0004-save-the-cart/ledger.md', '0 of 4 steps done · 4 left']);
+  assert.deepEqual(created.changed, ['active/0004-save-the-cart/plan.md', 'active/0004-save-the-cart/ledger.md', 'planning.json']);
   assert.ok(read(root, 'planning.json').startsWith(before.slice(0, before.lastIndexOf('}\n  ]'))), 'the registry is extended, not rewritten');
   assert.deepEqual(JSON.parse(read(root, 'planning.json')).work_items.at(-1), { id: 'work-0004', path: 'active/0004-save-the-cart', repositories: ['shop', 'tools'], current_plan: 'active/0004-save-the-cart/plan.md' });
   assert.match(read(root, created.plan), /^title: "Säve the \\"cart\\""$/m);
   assert.deepEqual(errorsOf(root), []);
   const slugged = await createWork(root, { title: 'Other', repositories: ['shop'], slug: 'custom-name' }, today);
   assert.equal(slugged.path, 'active/0005-custom-name');
+  // A summary goes into the header under the title; without one, the check asks for it.
+  const summarized = await createWork(root, { title: 'Refunds', repositories: ['shop'], summary: ' Refunds to the card: "partial" ones too. Not started. ' }, today);
+  assert.equal(summarized.summary, 'Refunds to the card: "partial" ones too. Not started.');
+  assert.match(read(root, summarized.plan), /^title: "Refunds"\nsummary: "Refunds to the card: \\"partial\\" ones too\. Not started\."\nrepositories: \["shop"\]$/m);
+  assert.equal(created.summary, null);
+  assert.deepEqual(validatePlanning(root).warnings.filter(warning => warning.includes('no summary')).map(warning => warning.split(':')[0]),
+    ['active/0001-existing/plan.md', 'active/0002-other/plan.md', 'active/0004-save-the-cart/plan.md', 'active/0005-custom-name/plan.md']);
+  await assert.rejects(createWork(root, { title: 'X', repositories: ['shop'], summary: 'One.\nTwo.' }, today), /The summary must be one line/);
   for (const [request, message] of [
     [{ title: '', repositories: ['shop'] }, /title must be nonempty/],
     [{ title: 'Two\nlines', repositories: ['shop'] }, /one line/],
@@ -69,6 +77,50 @@ test('a work item is created under the next unused number, registered, and valid
     [{ title: 'X', repositories: ['nope'] }, /Not registered in planning\.json: nope/],
     [{ title: 'X', repositories: ['shop'], slug: 'Bad Slug' }, /slug/],
   ] as const) await assert.rejects(createWork(root, request as never, today), message);
+});
+
+test('new work has its planning steps from the start: added to while designing, done on acceptance, followed by the implementation\'s', async t => {
+  const root = planningFolder(temporary(t));
+  const created = await createWork(root, { title: 'Refunds', repositories: ['shop'], summary: 'Refunds to the card.' }, today);
+  const ledger = () => read(root, 'active/0004-refunds/ledger.md');
+  const planning = (status: string) => (title: string) => ({ title, status, phase: 'planning' });
+  assert.deepEqual(created.steps, [planning('doing')('Understand the request'), ...['Settle the design', 'Write the plan', 'Accepted'].map(planning('todo'))]);
+  assert.match(ledger(), /^---\nschema_version: 2\nkind: ledger\nwork_id: work-0004\nupdated: "2026-10-14"\nblocked: null\nsteps:\n  - title: "Understand the request"\n    status: doing\n    phase: planning\n/);
+  assert.deepEqual(errorsOf(root), []);
+  // While designing, steps are planning steps (after the others); agents rename and remove them to fit the work.
+  await setStepStatus(root, 'work-0004', 'Understand the request', 'done', today);
+  await renameStep(root, 'work-0004', 'Settle the design', 'Settle the refund rules', today);
+  await removeStep(root, 'work-0004', 'Write the plan', 'The rules are the plan', today);
+  const added = await addSteps(root, 'work-0004', ['Ask finance'], today);
+  assert.deepEqual(added.steps.map(step => [step.title, step.status, step.phase]), [['Understand the request', 'done', 'planning'], ['Settle the refund rules', 'todo', 'planning'], ['Accepted', 'todo', 'planning'], ['Ask finance', 'todo', 'planning']]);
+  await assert.rejects(closeWork(root, 'work-0004', today), /only accepted work is closed/);
+  // Accepting marks every planning step done; starting appends the implementation steps and the selection.
+  const accepted = await acceptWork(root, 'work-0004', today);
+  assert.deepEqual([accepted.progress, accepted.changed], ['All 4 steps done', ['active/0004-refunds/plan.md', 'active/0004-refunds/ledger.md']]);
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plan');
+  await assert.rejects(startWork(root, 'work-0004', { steps: ['Accepted'] }, today), /already has these steps: Accepted/);
+  const started = await startWork(root, 'work-0004', { steps: ['Build', 'Ship'] }, today);
+  assert.deepEqual(started.steps.map(step => [step.title, step.status, step.phase]), [['Understand the request', 'done', 'planning'], ['Settle the refund rules', 'done', 'planning'], ['Accepted', 'done', 'planning'], ['Ask finance', 'done', 'planning'], ['Build', 'todo', undefined], ['Ship', 'todo', undefined]]);
+  assert.deepEqual([started.implementationStatus, started.progress, started.warnings], ['in_progress', '4 of 6 steps done · 2 left', []]);
+  assert.match(ledger(), /\n# Ledger: Refunds\n\n## Selection\n\n- \*\*Work item:\*\* work-0004, \[plan\]\(plan\.md\), accepted on 2026-10-14\.\n- \*\*Selected plan:\*\* `active\/0004-refunds\/plan\.md` at planning revision `[0-9a-f]{40}`\.\n\n## Progress\n\n- 2026-10-14: work created; planning started\.\n- 2026-10-14: removed the step "Write the plan" \(todo\): The rules are the plan\.\n- 2026-10-14: design accepted; planning done\.\n- 2026-10-14: implementation started\.\n$/);
+  await assert.rejects(startWork(root, 'work-0004', { steps: ['Again'] }, today), /already has implementation steps/);
+  // From then on, added steps are implementation steps; closing needs every step done.
+  assert.deepEqual((await addSteps(root, 'work-0004', ['Announce'], today)).steps.at(-1), { title: 'Announce', status: 'todo' });
+  await assert.rejects(closeWork(root, 'work-0004', today), /cannot close while items are open/);
+  for (const step of ['Build', 'Ship', 'Announce']) await setStepStatus(root, 'work-0004', step, 'done', today);
+  assert.equal((await closeWork(root, 'work-0004', today)).location, 'archive');
+  assert.deepEqual(errorsOf(root), []);
+});
+
+test('a ledger whose steps have no phase reads as before, and a phase is planning or implementation', async t => {
+  const root = planningFolder(temporary(t));
+  const header = (steps: string) => `---\nschema_version: 2\nkind: ledger\nwork_id: work-0001\nupdated: "2026-10-14"\nblocked: null\nsteps:\n${steps}---\n\n# Ledger\n`;
+  write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Build"\n    status: doing\n'));
+  assert.deepEqual([(await workStatus(root, 'work-0001')).steps, errorsOf(root)], [[{ title: 'Build', status: 'doing' }], []]);
+  write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Build"\n    status: todo\n    phase: implementation\n'));
+  assert.deepEqual([(await workStatus(root, 'work-0001')).steps, errorsOf(root)], [[{ title: 'Design', status: 'done', phase: 'planning' }, { title: 'Build', status: 'todo' }], []]);
+  write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Build"\n    status: todo\n    phase: later\n'));
+  assert.match(errorsOf(root).join('\n'), /Ledger step 1 phase must be planning or implementation/);
 });
 
 test('the design is accepted, then implementation starts with a ledger that records the selection', async t => {
@@ -89,7 +141,7 @@ test('the design is accepted, then implementation starts with a ledger that reco
   assert.ok(ledger.includes(`- **Selected plan:** \`active/0001-existing/plan.md\` at planning revision \`${revision}\`.`));
   assert.ok(ledger.includes('[plan](plan.md), accepted on 2026-10-14'));
   assert.deepEqual(errorsOf(root), []);
-  await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /already has a ledger/);
+  await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /already has implementation steps/);
   await assert.rejects(startWork(root, 'work-0002', { steps: ['A', 'A'] }, today), /unique/);
   await assert.rejects(startWork(root, 'work-0002', { steps: [] }, today), /at least one/);
   await assert.rejects(startWork(root, 'work-0009', { steps: ['A'] }, today), /work-0009 is not registered/);
@@ -132,11 +184,11 @@ test('closing refuses while items are open, then completes and archives, repairi
     return /cannot close while items are open/.test(error.message);
   });
   await assert.rejects(closeWork(root, 'work-0002', today), /only accepted work is closed/);
-  // Work that never started, or whose ledger has no steps, has nothing to show as done.
+  // Work that never started, or whose ledger has no implementation steps, has nothing to show as done.
   await acceptWork(root, 'work-0002', today);
   await assert.rejects(closeWork(root, 'work-0002', today), /no ledger: its implementation never started/);
   write(path.join(root, 'active/0002-other/ledger.md'), '---\nschema_version: 2\nkind: ledger\nwork_id: work-0002\nupdated: "2026-10-14"\nblocked: null\nsteps: []\n---\n\n# Ledger\n');
-  await assert.rejects(closeWork(root, 'work-0002', today), /ledger has no steps/);
+  await assert.rejects(closeWork(root, 'work-0002', today), /ledger has no implementation steps/);
   rmSync(path.join(root, 'active/0002-other/ledger.md'));
   await setStepStatus(root, 'work-0001', 'Review', 'done', today);
   await setBlocked(root, 'work-0001', null, today);
@@ -291,6 +343,52 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   await assert.rejects(findPlanning(shop, { home }), /schema version 999, newer than this Atlas knows/);
 });
 
+test('a folder in a project\'s workspace folder belongs to that project alone, the deepest one winning', async t => {
+  const directory = temporary(t);
+  const home = path.join(directory, 'home'), base = path.join(home, 'planning');
+  const workspace = path.join(directory, 'workspace'), inner = path.join(workspace, 'inner');
+  mkdirSync(path.join(inner, 'notes'), { recursive: true });
+  // main registers the shop by its remote; Atlas covers the workspace, Inner a folder in it; each registers the shop too.
+  const root = planningFolder(base, 'main');
+  writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { summary: '"Carts that last. Planned, not started."' }));
+  const project = (name: string, workspaces: string[]) => {
+    const folder = path.join(base, name.toLowerCase());
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 1, name, workspaces, repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop.git' }], work_items: [] }));
+    return realpathSync(folder);
+  };
+  const caseless = process.platform === 'win32' || process.platform === 'darwin';
+  project('Atlas', [caseless ? workspace.toUpperCase() : workspace]);
+  project('Inner', [inner]);
+  const shop = path.join(workspace, 'shop');
+  mkdirSync(path.join(shop, 'src'), { recursive: true });
+  git(shop, 'init', '-q');
+  git(shop, 'remote', 'add', 'origin', 'git@github.com:example/shop.git');
+  const matched = (where: Awaited<ReturnType<typeof findPlanning>>) => where.matches.map(match => [match.project, match.via, match.repositories]);
+  // In the workspace: Atlas alone, though main and Inner register the checkout's remote too.
+  const inWorkspace = await findPlanning(path.join(shop, 'src'), { home });
+  assert.deepEqual(matched(inWorkspace), [['Atlas', ['workspace', 'remote'], ['shop']]]);
+  assert.deepEqual(inWorkspace.projects.map(item => [item.project, item.workspaces.length, item.match]), [['Atlas', 1, true], ['Inner', 1, false], ['main', 0, false]]);
+  assert.equal(await resolvePlanningFolder({ cwd: shop, home }), realpathSync(path.join(base, 'atlas')));
+  // The deepest workspace folder wins; outside any Git checkout too.
+  const deeper = await findPlanning(path.join(inner, 'notes'), { home });
+  assert.deepEqual([deeper.checkout, matched(deeper)], [null, [['Inner', ['workspace'], []]]]);
+  // Two projects covering the same folder both match, as remotes several projects register do.
+  project('Other', [workspace]);
+  assert.deepEqual(matched(await findPlanning(shop, { home })).map(([name]) => name), ['Atlas', 'Other']);
+  await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects/);
+  // Outside every workspace folder, matching is as before: by remote.
+  const elsewhere = path.join(directory, 'shop');
+  mkdirSync(elsewhere);
+  git(elsewhere, 'init', '-q');
+  git(elsewhere, 'remote', 'add', 'origin', 'https://github.com/example/shop');
+  const outside = await findPlanning(elsewhere, { home });
+  assert.deepEqual(matched(outside), [['Atlas', ['remote'], ['shop']], ['Inner', ['remote'], ['shop']], ['main', ['remote'], ['shop']], ['Other', ['remote'], ['shop']]]);
+  // where's briefs carry each plan's summary.
+  assert.deepEqual(outside.projects.find(item => item.project === 'main')!.work.map(item => [item.workId, item.summary]), [['work-0001', 'Carts that last. Planned, not started.'], ['work-0002', null]]);
+  assert.equal(outside.matches.find(item => item.project === 'main')!.work[0].summary, 'Carts that last. Planned, not started.');
+});
+
 test('atlas check attributes findings to the files asked about and runs registered checkers', async t => {
   const root = planningFolder(temporary(t));
   writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001').replace('title: "Existing work"', 'title: 1.5'));
@@ -344,6 +442,32 @@ test('atlas check warns about a diagram no document links, and checks the projec
   assert.deepEqual(validatePlanning(root).errors, []);
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, name: ' ' }));
   assert.deepEqual(validatePlanning(root).errors, ['name must be a nonempty string of at most 100 characters when supplied']);
+  // Workspace folders are absolute paths.
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, workspaces: [path.join(root, 'workspace')] }));
+  assert.deepEqual(validatePlanning(root).errors, []);
+  for (const workspaces of ['C:/x', ['relative/folder'], [''], [7]]) {
+    writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, workspaces }));
+    assert.deepEqual(validatePlanning(root).errors, ['workspaces must be an array of absolute folder paths when supplied'], JSON.stringify(workspaces));
+  }
+});
+
+test('atlas check warns about an active plan without a summary, and refuses one that is not text', async t => {
+  const root = planningFolder(temporary(t));
+  const warned = () => validatePlanning(root).warnings.filter(warning => warning.includes('summary'));
+  assert.deepEqual(warned(), [
+    'active/0001-existing/plan.md: no summary: add one to the header, two or three plain sentences on what the work is, why, and where it stands',
+    'active/0002-other/plan.md: no summary: add one to the header, two or three plain sentences on what the work is, why, and where it stands',
+  ]);
+  assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/plan.md')]))[0].warnings.length, 1, 'only the plan asked about');
+  writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { summary: '"Saved carts. Planned."' }));
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { repositories: '[tools]', summary: '" "' }));
+  assert.deepEqual(warned().map(warning => warning.split(':')[0]), ['active/0002-other/plan.md'], 'a blank summary is none');
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { repositories: '[tools]', summary: '[one, two]' }));
+  assert.deepEqual(validatePlanning(root).errors, ['active/0002-other/plan.md: summary must be a string or null']);
+  // Archived work is not asked for one.
+  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { repositories: '[tools]' }));
+  await archiveWork(root, 'work-0002', { disposition: 'abandoned', supersededBy: null, reason: 'Not needed.' }, today);
+  assert.deepEqual(warned(), []);
 });
 
 test('a planning folder is adopted into the home with its path hints made absolute, its statistics imported', async t => {

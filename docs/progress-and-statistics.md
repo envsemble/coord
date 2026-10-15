@@ -4,7 +4,7 @@ Atlas shows how far each piece of work has come and what it took, from two recor
 
 ## Ledger steps
 
-When implementation starts, the agent (with the `atlas-implement` skill) breaks the accepted plan into steps, one per meaningful deliverable, and starts the work with them (the `work_start` tool, or `atlas work start`). Atlas writes them into the header of the work's `ledger.md`:
+A work item has its ledger from the moment it is created, with the **planning steps**: "Understand the request" (doing), "Settle the design", "Write the plan" and "Accepted". The agent keeps them true while designing, renaming, adding or removing them to fit the work (steps added before implementation starts are planning steps), and accepting the design (`work_accept`) marks them done. When implementation starts, the agent (with the `atlas-implement` skill) breaks the accepted plan into steps, one per meaningful deliverable, and starts the work with them (the `work_start` tool, or `atlas work start`). Atlas adds them after the planning steps in the header of the work's `ledger.md`:
 
 ```yaml
 ---
@@ -14,6 +14,12 @@ work_id: work-0001
 updated: "2026-10-11"
 blocked: null
 steps:
+  - title: "Understand the request"
+    status: done
+    phase: planning
+  - title: "Settle the design"
+    status: done
+    phase: planning
   - title: "Implement the agreed query behavior"
     status: done
   - title: "Verify tenant boundaries"
@@ -23,7 +29,7 @@ steps:
 ---
 ```
 
-Each step is `todo`, `doing` or `done`. The agent changes them through the step tools (`step_set`, `step_add`, `step_rename`, `step_remove`) when a step starts or finishes and at handoff, and sets `blocked` with `work_block`; `work_close` refuses while any step is open or the work is blocked. The ledger's body stays free-form: what happened, evidence, PR links, decisions.
+Each step is `todo`, `doing` or `done`; a planning step has `phase: planning`, and a step without a phase is an implementation step, as every step of older ledgers is. Progress counts all of them. The agent changes them through the step tools (`step_set`, `step_add`, `step_rename`, `step_remove`) when a step starts or finishes and at handoff, and sets `blocked` with `work_block`; `work_close` refuses while any step is open or the work is blocked. The ledger's body stays free-form: what happened, evidence, PR links, decisions.
 
 In the app:
 

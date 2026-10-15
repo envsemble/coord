@@ -6,7 +6,7 @@ Start with [AGENTS.md](AGENTS.md) for governance and [PLANS.md](PLANS.md) for wo
 
 ## Participating repositories
 
-Repository IDs and names are listed in `planning.json`. Each repository's Git remote is how Atlas finds this folder from a checkout of it; optional checkout paths may differ between machines. Register the repositories whose work belongs here as scope becomes known; sharing this planning repository does not share every repository's constraints. A repository may belong to several projects.
+Repository IDs and names are listed in `planning.json`, with the workspace folders the project covers on this computer (`workspaces`): a session in one of them belongs to this project. Elsewhere, each repository's Git remote is how Atlas finds this folder from a checkout of it; optional checkout paths may differ between machines. Register the repositories whose work belongs here as scope becomes known; sharing this planning repository does not share every repository's constraints. A repository may belong to several projects.
 
 ## Work and knowledge
 

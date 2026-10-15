@@ -7,7 +7,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
 import { parseOptions, UsageError, type Output } from './args.ts';
-import { check, home, planningUsage, where, work } from './planning.ts';
+import { check, home, planningUsage, project, where, work } from './planning.ts';
 import { capture, CaptureError } from './capture.ts';
 
 const require = createRequire(import.meta.url);
@@ -30,9 +30,11 @@ ${planningUsage}
   atlas --version
   atlas help
 
-where finds the projects (planning folders in the Atlas home) that this checkout belongs to (by its
-Git remotes, by an absolute path hint, or by being inside one), with their names and active work;
-when several register its repository, the work commands need --planning-dir. The work
+where finds the projects (planning folders in the Atlas home) that this checkout belongs to (by a
+workspace folder of theirs it is in, else by its Git remotes, by an absolute path hint, or by being
+inside one), with their names and active work; when several match, the work commands need
+--planning-dir. project create makes a project in the home covering the workspace folders given,
+registering the Git checkouts in them (each folder and the folders directly inside it). The work
 commands change a work item's planning state: each prints the work item's status as JSON and exits
 0, 1 when it is refused (with the reason and any open items on stderr) and 2 on usage errors.
 They use the planning folder given by --planning-dir, else the one this checkout belongs to. They
@@ -237,6 +239,7 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'check') return await check(args.slice(1), out);
     if (command === 'capture') return await capture(args.slice(1), out);
     if (command === 'home') return await home(args.slice(1), out);
+    if (command === 'project') return await project(args.slice(1), out);
     if (command === 'planning' && subcommand === 'check') return planningCheck(rest, out);
     if (command === 'plan' && subcommand === 'export') return await planExport(rest, printableOutput(out));
     if (command === 'plan' && subcommand === 'import') return await planImport(rest, printableOutput(out));
@@ -253,7 +256,7 @@ export async function main(args: string[], out: Output = console_): Promise<numb
       for (const problem of error.problems) out.stderr('  - ' + printable(problem));
       return 1;
     }
-    const failure = ['plan', 'work', 'home', 'capture'].includes(command) ? systemFailure(error) : null;
+    const failure = ['plan', 'work', 'home', 'project', 'capture'].includes(command) ? systemFailure(error) : null;
     if (failure) { out.stderr('atlas: ' + printable(failure)); return 1; }
     if (!(error instanceof UsageError)) throw error;
     out.stderr(error.line || usage);
