@@ -679,6 +679,96 @@ test(
   },
 );
 
+test(
+  "Captures describe declarations and members by the first sentence of their documentation comments",
+  { timeout: 60000 },
+  async (t) => {
+    const root = fixture(t);
+    const ts = read(
+      await captureTypeScript({
+        identity: "described",
+        projects: [
+          tsProject(
+            root,
+            `/** A person who uses the shop. Kept for audits. */
+export class User {
+  /**
+   * The name shown to others, see {@link User}.
+   *
+   * More detail.
+   */
+  name = "";
+  /** Greets **loudly** in <b>bold</b>. @returns nothing */
+  greet(): void {}
+  /** ${"long ".repeat(70)}*/
+  long = 1;
+  constructor(/** Where the user lives. */ public city: string) {}
+}
+/** How far an order is. */
+export enum State {
+  /** Not paid yet. */
+  Open,
+}`,
+          ),
+        ],
+      }),
+    );
+    const user = element(ts, "User");
+    assert.equal(user.description, "A person who uses the shop.");
+    const field = (name) => user.attributes.find((a) => a.name === name);
+    assert.equal(
+      field("name").description,
+      "The name shown to others, see User.",
+    );
+    assert.equal(field("long").description, undefined);
+    assert.equal(field("city").description, "Where the user lives.");
+    assert.equal(
+      user.operations.find((o) => o.name === "greet").description,
+      "Greets * *loudly* * in bold.",
+    );
+    assert.equal(element(ts, "State").description, "How far an order is.");
+    assert.equal(element(ts, "State").literals[0].description, "Not paid yet.");
+    fs.writeFileSync(
+      path.join(root, "Model.java"),
+      `/** A person who uses the shop. */
+class User {
+  /** The name shown to others. */
+  String name;
+  /**
+   * Greets them.
+   * @param loud whether to shout
+   */
+  void greet(boolean loud) {}
+  int plain;
+}
+`,
+    );
+    const java = element(
+      read(
+        await captureJava({
+          identity: "described",
+          projects: [
+            { identity: "fixture", path: root, files: ["Model.java"] },
+          ],
+        }),
+      ),
+      "User",
+    );
+    assert.equal(java.description, "A person who uses the shop.");
+    assert.deepEqual(
+      [...java.attributes, ...java.operations].map((m) => [
+        m.name,
+        m.description,
+      ]),
+      [
+        ["name", "The name shown to others."],
+        ["plain", undefined],
+        ["greet", "Greets them."],
+      ],
+    );
+  },
+);
+
 // PlantUML itself accepts the captures. Opt in with the path of a PlantUML
 // jar: ATLAS_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
 test(
@@ -694,6 +784,7 @@ test(
         root,
         `export interface HasId { id: string }
 export abstract class Base<T> { id!: string; }
+/** A user, see <code>a//b</code> and **this** \\ */
 export class User extends Base<number> implements HasId { friend?: User; tuple!: [string, number]; link!: "a//b//c"; get<U>(other: Base<U>): User { return this; } }
 export enum State { Active, Suspended }
 export type Choice = User | Base<string>;`,
@@ -702,6 +793,12 @@ export type Choice = User | Base<string>;`,
     fs.writeFileSync(
       file,
       await captureTypeScript({ identity: "classes", projects: [project] }),
+    );
+    const text = fs.readFileSync(file, "utf8");
+    // Its description is broken up and has no backslash at its end.
+    assert.match(
+      text,
+      /^' atlas description A user, see a\/ \/b and \* \*this\* \*$/m,
     );
     const result = spawnSync(
       "java",

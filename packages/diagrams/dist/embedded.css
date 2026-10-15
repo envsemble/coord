@@ -595,7 +595,8 @@
   overflow-wrap: anywhere;
 }
 .atlas-panel [data-change] > .change-line-text > .signature,.atlas-panel
-.member[data-change] > .signature {
+.member[data-change] > .signature,.atlas-panel
+.member[data-change] > .member-text > .signature {
   color: var(--change-color);
 }
 .atlas-panel .member[data-change="removed"] .signature,.atlas-panel
@@ -625,6 +626,16 @@
 }
 .atlas-panel .member > .signature {
   flex: 1;
+}
+/* A described member: its signature, and its description below it. */
+.atlas-panel .member-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.atlas-panel .member-description {
+  color: var(--color-text-muted);
 }
 .atlas-panel .member-list.marked .member:not([data-change]) {
   padding-inline-start: calc(1.125rem + var(--space-2));

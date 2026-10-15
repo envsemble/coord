@@ -24,6 +24,8 @@
  * - `' atlas evidence {json}` and `' atlas snippet {json}` directly above an
  *   element, member or relation: where it is declared ({@link DiagramEvidence})
  *   and a short excerpt of its source ({@link DiagramSnippet}).
+ * - `' atlas description <text>` directly above an element or member: one
+ *   short sentence of its purpose, at most 280 characters of plain text.
  *
  * Identities come from names, so a proposal copied from a capture compares
  * with it: an element is its PlantUML name (an alias for a quoted display
@@ -64,6 +66,8 @@ export interface DiagramSnippet {
   file?: string;
 }
 interface DiagramAnnotated {
+  /** An element's or member's description; relations have none. */
+  description?: string;
   evidence?: DiagramEvidence;
   snippet?: DiagramSnippet;
   /** The line it was read from. */
@@ -261,6 +265,8 @@ export interface Attribute {
   name: string;
   type: string;
   multiplicity?: string | null;
+  /** Its description, shown in the details and as its tooltip. */
+  description?: string;
   /** Where a captured member is declared. */
   location?: { file: string; startLine: number; endLine: number };
   /** In a proposal's change view, each member of a changed class. */
@@ -389,6 +395,8 @@ export interface DiagramNode {
   id: string;
   name: string;
   stereotype: string;
+  /** Its description, shown as its tooltip. */
+  description?: string;
   x: number;
   y: number;
   width: number;

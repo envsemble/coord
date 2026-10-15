@@ -440,6 +440,19 @@ function FocusableRow({ focused, change, children }) {
   );
 }
 
+/** A member's signature, with its description below it when it has one. */
+function Described({ description, children }) {
+  if (!description) return children;
+  return (
+    <span className="member-text">
+      {children}
+      <Text as="span" variant="supporting" className="member-description">
+        {description}
+      </Text>
+    </span>
+  );
+}
+
 function MemberRow({ member, method, profile, review, focused }) {
   const status = review ? member.changeStatus : undefined;
   const marked = status && status !== "unchanged";
@@ -455,25 +468,27 @@ function MemberRow({ member, method, profile, review, focused }) {
       {marked && (
         <span className="visually-hidden">{CHANGE_LABELS[status]}: </span>
       )}
-      <code className="signature">
-        {method ? (
-          member.type || `${member.name}()`
-        ) : (
-          <>
-            <span className="member-name">
-              {member.name}
-              {member.optional ? "?" : ""}
-            </span>
-            {member.type && (
-              <span className="member-type">
-                {profile === "database" ? " " : ": "}
-                {member.type}
-                {member.multiplicity ? ` [${member.multiplicity}]` : ""}
+      <Described description={member.description}>
+        <code className="signature">
+          {method ? (
+            member.type || `${member.name}()`
+          ) : (
+            <>
+              <span className="member-name">
+                {member.name}
+                {member.optional ? "?" : ""}
               </span>
-            )}
-          </>
-        )}
-      </code>
+              {member.type && (
+                <span className="member-type">
+                  {profile === "database" ? " " : ": "}
+                  {member.type}
+                  {member.multiplicity ? ` [${member.multiplicity}]` : ""}
+                </span>
+              )}
+            </>
+          )}
+        </code>
+      </Described>
       {member.location && (
         <span
           className="member-line"
@@ -668,16 +683,18 @@ export function TableSchema({
                       {CHANGE_LABELS[status]}:{" "}
                     </span>
                   )}
-                  <code className="signature">
-                    <span className="member-name">{column.name}</span>{" "}
-                    <span className="member-type">
-                      {column.type}
-                      {column.nullable ? "" : " not null"}
-                      {column.default !== null && column.default !== undefined
-                        ? ` default ${column.default}`
-                        : ""}
-                    </span>
-                  </code>
+                  <Described description={column.description}>
+                    <code className="signature">
+                      <span className="member-name">{column.name}</span>{" "}
+                      <span className="member-type">
+                        {column.type}
+                        {column.nullable ? "" : " not null"}
+                        {column.default !== null && column.default !== undefined
+                          ? ` default ${column.default}`
+                          : ""}
+                      </span>
+                    </code>
+                  </Described>
                   {(column.primaryKeyOrder || column.generated) && (
                     <span className="column-flags">
                       {column.primaryKeyOrder ? "PK" : ""}

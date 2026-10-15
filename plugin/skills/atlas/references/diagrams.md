@@ -66,6 +66,18 @@ At the top of the file:
 
 Directly above an element, member or relation: `' atlas evidence {"file": "src/x.ts", "line": 12}` (where it is declared; a `url` starts with `http://` or `https://`) and `' atlas snippet {"language": "typescript", "code": "…"}` (at most twelve lines). Other `' atlas` words are errors; use plain `'` comments for remarks.
 
+Directly above a class, interface, enum, entity, object or member (not a relation): `' atlas description <text>`, one short sentence of what it is for, in plain text on that line (at most 280 characters, no formatting). The viewer shows it in the element's details and as its tooltip, and a proposal that changes it changes the element. Describe what a reader cannot tell from the name, such as each table of a database diagram; skip the obvious. Why it is designed so is rationale and stays in the plan.
+
+```plantuml
+' atlas description A tab of a window, showing something of one project.
+entity tab {
+  *id : integer <<PK>>
+  --
+  ' atlas description Empty for a project page.
+  target : text
+}
+```
+
 ## Captures
 
 Capture with a source configuration file (JSON, paths relative to it, usually kept in the repository it captures):

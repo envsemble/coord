@@ -5,6 +5,7 @@
 // by element. Text PlantUML would read as formatting is broken up, and every
 // capture is checked before it is returned.
 const {
+  DESCRIPTION_LIMIT,
   formatDiagram,
   formattingIn,
   modelProblems,
@@ -28,6 +29,23 @@ function plain(text, member = false) {
     value = value.replace(/<([&$a-z/])/gi, "< $1");
   }
   return value;
+}
+// A documentation comment's first sentence as a description: plain text on
+// one line, without inline tags and HTML, or none when it is longer than a
+// description may be.
+function described(doc) {
+  const paragraph = String(doc ?? "")
+    .split(/\r?\n\s*(?:\r?\n|@)/)[0]
+    .replace(/\{@\w+\s*([^}]*)\}/g, "$1")
+    .replace(/<\/?[a-z][^>]*>/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sentence =
+    /^.*?[.!?](?=\s+\p{Lu}|$)/u.exec(paragraph)?.[0] || paragraph;
+  const description = plain(sentence, true).replace(/\s*\\+$/, "");
+  return description && [...description].length <= DESCRIPTION_LIMIT
+    ? { description }
+    : {};
 }
 // A PlantUML name for a source name: letters of the Basic Multilingual Plane,
 // digits and underscores. Outside members, PlantUML underlines between two
@@ -141,10 +159,11 @@ const header = (title) => ({
  * A class diagram of declarations. Each node has `id` (its identity in the
  * adapter), `name` (qualified within its package), `package`, `kind` (class,
  * interface, enum, record, type alias, annotation type), `abstract`,
- * `attributes` ({name, type, modifiers, optional, evidence}), `methods`
- * ({name, parameters, returns, modifiers, evidence}), `literals` (enum
- * constants), `evidence` and `snippet`. Generalizations name `specificId` and
- * `generalId` with `realization`; dependencies `sourceId` and `targetId`.
+ * `attributes` ({name, type, modifiers, optional, description, evidence}),
+ * `methods` ({name, parameters, returns, modifiers, description, evidence}),
+ * `literals` (enum constants), `description` (its documentation comment),
+ * `evidence` and `snippet`. Generalizations name `specificId` and `generalId`
+ * with `realization`; dependencies `sourceId` and `targetId`.
  */
 function codeDiagram({
   title,
@@ -180,6 +199,7 @@ function codeDiagram({
           parameters: parameterText(m.parameters),
           returns: m.returns ? typeText(m.returns) : null,
           visibility: visibilityOf(m.modifiers, memberVisibility(n)),
+          ...described(m.description),
           ...(m.evidence ? { evidence: m.evidence } : {}),
         };
         const key = `${operation.name}(${operation.parameters.replace(/\s+/g, "")})`;
@@ -198,18 +218,21 @@ function codeDiagram({
         ),
         multiplicity: a.optional ? "0..1" : null,
         visibility: visibilityOf(a.modifiers, memberVisibility(n)),
+        ...described(a.description),
         ...(a.evidence ? { evidence: a.evidence } : {}),
       })),
       operations: [...operations.values()],
       literals: memberNames(kind === "enum" ? n.literals || [] : [], true).map(
         (name, i) => ({
           name,
+          ...described(n.literals[i].description),
           ...(n.literals[i].evidence
             ? { evidence: n.literals[i].evidence }
             : {}),
         }),
       ),
       slots: [],
+      ...described(n.description),
       ...(n.evidence ? { evidence: n.evidence } : {}),
       ...(n.snippet ? { snippet: n.snippet } : {}),
     };

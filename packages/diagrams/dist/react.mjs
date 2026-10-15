@@ -213,11 +213,15 @@ var CHANGE_COLORS = {
 var CHANGE_TAGS = { added: "New", modified: "Changed", removed: "Removed" };
 var MEMBER_GLYPHS = { added: "+", modified: "~", removed: "\u2212" };
 var isChanged = (status) => !!CHANGE_COLORS[status];
+var Tooltip = ({ text }) => text ? /* @__PURE__ */ jsx("title", { children: text }) : null;
 function MemberText({ member, x, y, method }) {
   const status = isChanged(member.changeStatus) ? member.changeStatus : null;
   const text = method ? member.type : member.slot ? `${member.name} = ${member.type}` : !member.type ? member.name : `${member.name} : ${member.type}${member.multiplicity ? ` [${member.multiplicity}]` : ""}`;
   if (!status)
-    return /* @__PURE__ */ jsx("text", { x, y, children: text });
+    return /* @__PURE__ */ jsxs("text", { x, y, children: [
+      /* @__PURE__ */ jsx(Tooltip, { text: member.description }),
+      text
+    ] });
   return /* @__PURE__ */ jsxs("g", { className: "member-change", "data-change": status, children: [
     /* @__PURE__ */ jsx(
       "text",
@@ -230,14 +234,17 @@ function MemberText({ member, x, y, method }) {
         children: MEMBER_GLYPHS[status]
       }
     ),
-    /* @__PURE__ */ jsx(
+    /* @__PURE__ */ jsxs(
       "text",
       {
         x,
         y,
         fill: CHANGE_COLORS[status],
         textDecoration: status === "removed" ? "line-through" : void 0,
-        children: text
+        children: [
+          /* @__PURE__ */ jsx(Tooltip, { text: member.description }),
+          text
+        ]
       }
     )
   ] });
@@ -264,6 +271,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       transform: `translate(${node.x} ${node.y})`,
       ...interactionProps(target, handlers),
       children: [
+        /* @__PURE__ */ jsx(Tooltip, { text: node.description }),
         change && /* @__PURE__ */ jsx(
           "rect",
           {
@@ -2446,7 +2454,7 @@ import {
 import { Surface, Text } from "@envsemble/envui";
 
 // src/ui/Button.jsx
-import { IconButton, Tooltip } from "@envsemble/envui";
+import { IconButton, Tooltip as Tooltip2 } from "@envsemble/envui";
 import { jsx as jsx6 } from "react/jsx-runtime";
 function ToolButton({
   label,
@@ -2457,7 +2465,7 @@ function ToolButton({
   side = "bottom",
   ...props
 }) {
-  return /* @__PURE__ */ jsx6(Tooltip, { content: tooltip, side, children: /* @__PURE__ */ jsx6(
+  return /* @__PURE__ */ jsx6(Tooltip2, { content: tooltip, side, children: /* @__PURE__ */ jsx6(
     IconButton,
     {
       ...props,
@@ -2559,10 +2567,10 @@ import { Text as Text3, ThemeToggle } from "@envsemble/envui";
 
 // src/ui/CameraControls.jsx
 import { useSyncExternalStore } from "react";
-import { Button, ButtonGroup, Kbd, Tooltip as Tooltip2 } from "@envsemble/envui";
+import { Button, ButtonGroup, Kbd, Tooltip as Tooltip3 } from "@envsemble/envui";
 import { Fragment as Fragment3, jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
 function ZoomReadout({ zoom, onReset }) {
-  return /* @__PURE__ */ jsx8(Tooltip2, { content: "Reset to 100%", side: "bottom", children: /* @__PURE__ */ jsxs6(
+  return /* @__PURE__ */ jsx8(Tooltip3, { content: "Reset to 100%", side: "bottom", children: /* @__PURE__ */ jsxs6(
     Button,
     {
       id: "zoom-value",
@@ -3814,6 +3822,13 @@ function FocusableRow({ focused, change, children }) {
     }
   );
 }
+function Described({ description, children }) {
+  if (!description) return children;
+  return /* @__PURE__ */ jsxs14("span", { className: "member-text", children: [
+    children,
+    /* @__PURE__ */ jsx21(Text6, { as: "span", variant: "supporting", className: "member-description", children: description })
+  ] });
+}
 function MemberRow({ member, method, profile, review, focused }) {
   const status = review ? member.changeStatus : void 0;
   const marked = status && status !== "unchanged";
@@ -3831,7 +3846,7 @@ function MemberRow({ member, method, profile, review, focused }) {
           CHANGE_LABELS[status],
           ": "
         ] }),
-        /* @__PURE__ */ jsx21("code", { className: "signature", children: method ? member.type || `${member.name}()` : /* @__PURE__ */ jsxs14(Fragment6, { children: [
+        /* @__PURE__ */ jsx21(Described, { description: member.description, children: /* @__PURE__ */ jsx21("code", { className: "signature", children: method ? member.type || `${member.name}()` : /* @__PURE__ */ jsxs14(Fragment6, { children: [
           /* @__PURE__ */ jsxs14("span", { className: "member-name", children: [
             member.name,
             member.optional ? "?" : ""
@@ -3841,7 +3856,7 @@ function MemberRow({ member, method, profile, review, focused }) {
             member.type,
             member.multiplicity ? ` [${member.multiplicity}]` : ""
           ] })
-        ] }) }),
+        ] }) }) }),
         member.location && /* @__PURE__ */ jsx21(
           "span",
           {
@@ -3972,7 +3987,7 @@ function TableSchema({
               ":",
               " "
             ] }),
-            /* @__PURE__ */ jsxs14("code", { className: "signature", children: [
+            /* @__PURE__ */ jsx21(Described, { description: column.description, children: /* @__PURE__ */ jsxs14("code", { className: "signature", children: [
               /* @__PURE__ */ jsx21("span", { className: "member-name", children: column.name }),
               " ",
               /* @__PURE__ */ jsxs14("span", { className: "member-type", children: [
@@ -3980,7 +3995,7 @@ function TableSchema({
                 column.nullable ? "" : " not null",
                 column.default !== null && column.default !== void 0 ? ` default ${column.default}` : ""
               ] })
-            ] }),
+            ] }) }),
             (column.primaryKeyOrder || column.generated) && /* @__PURE__ */ jsxs14("span", { className: "column-flags", children: [
               column.primaryKeyOrder ? "PK" : "",
               column.generated ? " generated" : ""
@@ -5036,7 +5051,7 @@ function useToolbarDensity(topRef, resetKey, contentKey) {
 
 // src/review/useChangeReview.jsx
 import { useCallback as useCallback4, useMemo as useMemo8, useRef as useRef10, useState as useState11 } from "react";
-import { Button as Button8, Counter as Counter2, Tooltip as Tooltip3 } from "@envsemble/envui";
+import { Button as Button8, Counter as Counter2, Tooltip as Tooltip4 } from "@envsemble/envui";
 
 // src/review/ChangesOverview.jsx
 import { useEffect as useEffect8, useLayoutEffect as useLayoutEffect10, useRef as useRef9, useState as useState10 } from "react";
@@ -5396,7 +5411,7 @@ function useChangeReview({
     /** Toolbar controls: the changes overview toggle and fading. */
     controls: (showing) => /* @__PURE__ */ jsxs18(Fragment10, { children: [
       /* @__PURE__ */ jsx27(
-        Tooltip3,
+        Tooltip4,
         {
           content: showing ? "Hide the changes" : "Show every change",
           side: "bottom",

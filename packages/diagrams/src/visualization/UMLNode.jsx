@@ -11,6 +11,9 @@ const CHANGE_TAGS = { added: "New", modified: "Changed", removed: "Removed" };
 const MEMBER_GLYPHS = { added: "+", modified: "~", removed: "−" };
 export const isChanged = (status) => !!CHANGE_COLORS[status];
 
+// A described element or member shows its description as its tooltip.
+const Tooltip = ({ text }) => (text ? <title>{text}</title> : null);
+
 /** A member row's text, marked when a proposal adds, changes or removes it. */
 function MemberText({ member, x, y, method }) {
   const status = isChanged(member.changeStatus) ? member.changeStatus : null;
@@ -26,6 +29,7 @@ function MemberText({ member, x, y, method }) {
   if (!status)
     return (
       <text x={x} y={y}>
+        <Tooltip text={member.description} />
         {text}
       </text>
     );
@@ -46,6 +50,7 @@ function MemberText({ member, x, y, method }) {
         fill={CHANGE_COLORS[status]}
         textDecoration={status === "removed" ? "line-through" : undefined}
       >
+        <Tooltip text={member.description} />
         {text}
       </text>
     </g>
@@ -73,6 +78,7 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       transform={`translate(${node.x} ${node.y})`}
       {...interactionProps(target, handlers)}
     >
+      <Tooltip text={node.description} />
       {change && (
         <rect
           className="node-ring"

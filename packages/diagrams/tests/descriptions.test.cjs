@@ -1,0 +1,165 @@
+// Descriptions of elements and members: the viewer's model keeps them, the
+// details and the canvas's tooltips show them, and a proposal that changes
+// one changes its element.
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { createElement } = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+const atlas = require("../lib/index.cjs");
+const { loadComponents } = require("./load-components.cjs");
+
+const BASE = `' atlas description Someone who learns.
+class Person {
+  name : String
+  ' atlas description Greets them.
+  greet() : String
+}
+' atlas description A place of learning.
+class Institution
+class Enrollment
+Enrollment "0..*" -- "1" Person : learner
+Enrollment "0..*" -- "1" Institution : school`;
+
+async function prepared(files) {
+  const { prepared } = await atlas.prepareDiagrams({ files });
+  return prepared;
+}
+const render = (component, props) =>
+  renderToStaticMarkup(createElement(component, props));
+
+test("the details and the canvas show an element's and its members' descriptions", async () => {
+  const payload = (
+    await prepared([
+      { path: "people.puml", text: `@startuml\n${BASE}\n@enduml\n` },
+    ])
+  ).get("people.puml").payload;
+  const person = payload.model.classes.find((c) => c.id === "Person");
+  assert.equal(person.description, "Someone who learns.");
+  assert.equal(person.methods[0].description, "Greets them.");
+  assert.equal(person.attributes[0].description, undefined);
+  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const details = render(ConceptDetails, {
+    concept: person,
+    model: payload.model,
+    snippets: {},
+    onReference() {},
+  });
+  assert(details.includes("Someone who learns."));
+  assert.match(
+    details,
+    /<span class="member-text"><code class="signature">greet\(\): String<\/code><span[^>]*member-description[^>]*>Greets them\.<\/span>/,
+  );
+  // Each described node and member is its own tooltip.
+  const { UMLNode } = loadComponents();
+  const node = payload.views[0].diagramFields.nodes.find(
+    (n) => n.id === "Person",
+  );
+  const svg = render("svg", {
+    children: createElement(UMLNode, { node }),
+  });
+  assert.match(
+    svg,
+    /data-node-id="Person"[^>]*><title>Someone who learns\.<\/title>/,
+  );
+  assert.match(
+    svg,
+    /<text[^>]*><title>Greets them\.<\/title>greet\(\): String<\/text>/,
+  );
+  assert.equal(svg.match(/<title>/g).length, 2);
+  const plain = payload.views[0].diagramFields.nodes.find(
+    (n) => n.id === "Enrollment",
+  );
+  assert(
+    !render("svg", {
+      children: createElement(UMLNode, { node: plain }),
+    }).includes("<title>"),
+  );
+});
+
+test("a table's columns show their descriptions", async () => {
+  const text = fs
+    .readFileSync(path.join(__dirname, "fixtures/home-database.puml"), "utf8")
+    .replace(
+      "    *name : text\n",
+      "    ' atlas description What the sidebar shows.\n    *name : text\n",
+    );
+  const payload = (await prepared([{ path: "home.puml", text }])).get(
+    "home.puml",
+  ).payload;
+  assert.equal(payload.model.document.profile, "database");
+  assert(payload.model.classes.every((c) => c.description));
+  const project = payload.model.classes.find((c) => c.id === "project");
+  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const details = render(ConceptDetails, {
+    concept: project,
+    model: payload.model,
+    snippets: {},
+    onReference() {},
+  });
+  assert(details.includes(project.description));
+  assert.match(
+    details,
+    /member-name">name<\/span> <span class="member-type">text not null<\/span><\/code><span[^>]*member-description[^>]*>What the sidebar shows\.<\/span>/,
+  );
+});
+
+test("a changed, added or removed description is a change of its element", async () => {
+  const proposal = BASE.replace("Someone who learns.", "Someone enrolled.")
+    .replace(
+      "  name : String",
+      "  ' atlas description Their name.\n  name : String",
+    )
+    .replace("' atlas description A place of learning.\n", "");
+  const payload = (
+    await prepared([
+      { path: "base.puml", text: `@startuml\n${BASE}\n@enduml\n` },
+      {
+        path: "proposal.puml",
+        text: `@startuml\n' atlas proposal base.puml\n${proposal}\n@enduml\n`,
+      },
+    ])
+  ).get("proposal.puml").payload;
+  const view = payload.comparison.changeView;
+  const { rollupChanges } = loadComponents("src/review/changes.js");
+  const rollup = rollupChanges(payload.comparison, view.model, view.views);
+  assert.deepEqual(
+    rollup.rows.map((r) => [
+      r.status,
+      r.name,
+      r.summary.tokens.map((t) => `${t.status} ${t.text}`),
+    ]),
+    [
+      [
+        "modified",
+        "Institution",
+        ["modified description: A place of learning. → none"],
+      ],
+      [
+        "modified",
+        "Person",
+        [
+          "modified description: Someone who learns. → Someone enrolled.",
+          "modified name",
+        ],
+      ],
+    ],
+  );
+  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const details = render(ConceptDetails, {
+    concept: view.model.classes.find((c) => c.id === "Person"),
+    model: view.model,
+    snippets: {},
+    review: { rollup },
+    onReference() {},
+  });
+  assert.match(
+    details,
+    /description<\/span> <del class="change-before">Someone who learns\.<\/del>.*<ins class="change-after">Someone enrolled\.<\/ins>/,
+  );
+  assert.match(
+    details,
+    /description: <del class="change-before">none<\/del>.*<ins class="change-after">Their name\.<\/ins>/,
+  );
+});
