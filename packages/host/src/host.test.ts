@@ -304,15 +304,15 @@ test('projects are the home\'s planning folders: created from the templates, ren
   } finally { database.close(); }
   assert.deepEqual((await projectNamed(owner.connection)).summary?.live.map(item => item.workId), ['work-0001']);
   // A device creates one: a Git repository in the home with the templates, its name and its repositories.
-  const coord = await device.connection.request('projects.create', { name: 'Coord', repositories: [{ id: 'coord-web', name: 'Coord web', remote: 'git@github.com:example/coord-web.git' }, { id: 'platform', name: 'Platform', remote: null }] });
+  const coord = await device.connection.request('projects.create', { name: 'Coord', workspaces: [], repositories: [{ id: 'coord-web', name: 'Coord web', remote: 'git@github.com:example/coord-web.git' }, { id: 'platform', name: 'Platform', remote: null }] });
   assert.deepEqual([coord.name, coord.path, coord.position, coord.state], ['Coord', path.join(data, 'planning', 'coord'), 1, 'active']);
   const registry = JSON.parse(readFileSync(path.join(coord.path, 'planning.json'), 'utf8'));
   assert.deepEqual([registry.name, registry.repositories], ['Coord', [{ id: 'coord-web', name: 'Coord web', remote: 'git@github.com:example/coord-web.git' }, { id: 'platform', name: 'Platform' }]]);
   for (const file of ['AGENTS.md', 'PLANS.md', 'README.md', 'plan-frontmatter.md', '.gitattributes', '.git']) assert.ok(existsSync(path.join(coord.path, file)), file);
   const { execFileSync } = await import('node:child_process');
   assert.match(execFileSync('git', ['-C', coord.path, 'log', '--format=%s'], { encoding: 'utf8' }), /^Create the Coord project/);
-  assert.equal((await device.connection.request('projects.create', { name: 'Coord', repositories: [] })).path, path.join(data, 'planning', 'coord-2'), 'a taken name gets a number');
-  await assert.rejects(device.connection.request('projects.create', { name: 'Bad', repositories: [{ id: 'Not An ID', name: 'x', remote: null }] }), (error: HostRequestError) => error.code === 'invalid-argument');
+  assert.equal((await device.connection.request('projects.create', { name: 'Coord', workspaces: [], repositories: [] })).path, path.join(data, 'planning', 'coord-2'), 'a taken name gets a number');
+  await assert.rejects(device.connection.request('projects.create', { name: 'Bad', workspaces: [], repositories: [{ id: 'Not An ID', name: 'x', remote: null }] }), (error: HostRequestError) => error.code === 'invalid-argument');
   await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
   // The lists clients are sent have the summaries too (a new project's folder has its first commit); a single project answered has none.
   const sent = owner.lists.find(list => list.length === 3)!.find(project => project.folderId === coord.folderId)!;

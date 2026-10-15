@@ -126,9 +126,10 @@ const none = object<Record<string, never>>({});
 export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['params']> } = {
   'host.session': none,
   'projects.list': none,
-  'projects.create': object({ name: projectName, repositories: array(repositoryInput, 50) }),
+  'projects.create': object({ name: projectName, workspaces: array(absolutePath, 20), repositories: optional(array(repositoryInput, 50)) }),
+  'projects.scan': object({ folder: absolutePath }),
   'projects.adopt': object({ folderId }),
-  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)) }),
+  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(array(absolutePath, 20)) }),
   'folders.subscribe': object({ folderId }),
   'folders.unsubscribe': object({ folderId }),
   'folder.snapshot': object({ folderId }),

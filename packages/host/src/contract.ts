@@ -8,7 +8,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '@envsemb
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 5;
+export const protocolVersion = 6;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -39,18 +39,43 @@ export type ProjectState = 'active' | 'hidden' | 'archived';
  */
 export interface Project {
   folderId: string; name: string; path: string; position: number; state: ProjectState; outsideHome: boolean;
-  /** What the project's card says about it (the project list has it; null when its folder could not be read). */
+  /**
+   * The workspace folders the project covers on this computer (planning.json's `workspaces`, absolute
+   * paths): an agent session in one of them, or inside one, belongs to this project.
+   */
+  workspaces: string[];
+  /** What the hub shows of the project's plans (the project list has it; null when its folder could not be read). */
   summary?: ProjectSummary | null;
 }
-/** An active work item on a project's card: its title, where it stands, and its blocker. */
-export interface ProjectWork { id: string; title: string; state: 'blocked' | 'implementing' | 'draft' | 'other'; blocked: string | null }
 /**
- * A project's repositories, its active work, its last change, and the work agents are working on now
- * (`since`: when the session was last seen).
+ * Where a work item stands, as the hub groups it: blocked first, then being implemented, then a draft
+ * plan, then other open work; `closed` is work in `archive/` (complete, superseded or abandoned).
  */
-export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; updated: string | null; live: { workId: string; since: string }[] }
-/** A repository a new project covers: its ID in planning.json, its name and its Git remote. */
+export type ProjectWorkState = 'blocked' | 'implementing' | 'draft' | 'other' | 'closed';
+/** A work item as the hub lists it. */
+export interface ProjectWork {
+  id: string; title: string; state: ProjectWorkState;
+  /** The ledger's blocker, when it is blocked. */
+  blocked: string | null;
+  /** The plan's `summary` header: a few plain sentences on what the work is and where it stands. */
+  summary: string | null;
+  /** The ledger's steps, done and in all; null without a ledger. */
+  steps: { done: number; total: number } | null;
+  /** When the plan last changed: its `updated` header, else its `completed_at` (a date, YYYY-MM-DD). */
+  updated: string | null;
+  /** How closed work ended: its `implementation_status` complete, or the plan's `design_status` superseded or abandoned. */
+  outcome: 'complete' | 'superseded' | 'abandoned' | null;
+}
+/**
+ * A project's repositories, its work (`active/`, in the registry's order, and `closed`: `archive/`,
+ * newest first), its last change, and the work agents are working on now (`since`: when the session
+ * was last seen).
+ */
+export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; closed: ProjectWork[]; updated: string | null; live: { workId: string; since: string }[] }
+/** A repository a project covers: its ID in planning.json, its name and its Git remote. */
 export interface ProjectRepository { id: string; name: string; remote: string | null }
+/** The Git checkouts found in a workspace folder (the folder itself and the folders directly inside it), as a new project would register them. */
+export interface WorkspaceScan { folder: string; repositories: ProjectRepository[] }
 
 export interface Snapshot extends PlanningIndex {
   usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
@@ -93,10 +118,19 @@ export interface Methods {
   'host.session': { params: Record<string, never>; result: SessionInfo };
   /** The computer's projects (the planning folders in its home), in their order. */
   'projects.list': { params: Record<string, never>; result: Project[] };
-  /** A new project: a planning folder in the home made from the templates, as its own Git repository. */
-  'projects.create': { params: { name: string; repositories: ProjectRepository[] }; result: Project };
-  /** Rename a project (its planning.json's name), hide, archive or show it, or move it in the order. */
-  'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number }; result: Project };
+  /**
+   * A new project: a planning folder in the home made from the templates, as its own Git repository,
+   * covering the workspace folders given and registering the repositories found in them (or the
+   * repositories given, when `repositories` is set).
+   */
+  'projects.create': { params: { name: string; workspaces: string[]; repositories?: ProjectRepository[] }; result: Project };
+  /** The Git checkouts in a folder on this computer, for a new project's preview. */
+  'projects.scan': { params: { folder: string }; result: WorkspaceScan };
+  /**
+   * Rename a project (its planning.json's name), hide, archive or show it, move it in the order, or set
+   * its workspace folders (registering the repositories found in folders it did not cover before).
+   */
+  'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number; workspaces?: string[] }; result: Project };
   /** Move a project outside the home into it, with its statistics; it keeps its place, state and tabs, under a new folder ID. */
   'projects.adopt': { params: { folderId: string }; result: Project };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
@@ -130,6 +164,8 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'host.session': 'computer',
   'projects.list': 'computer',
   'projects.create': 'computer',
+  // A folder on this computer, by path: the app's own, like plan.importRead.
+  'projects.scan': 'owner',
   'projects.update': 'computer',
   'projects.adopt': 'computer',
   'folders.subscribe': 'computer',

@@ -36,10 +36,10 @@ const repositoryLine = (repositories: string[]) => repositories.slice(0, 3).join
 const cornerAction = (project: Project) => project.state === 'active' ? { label: 'Hide', icon: <HideIcon />, state: 'hidden' as const }
   : project.state === 'archived' ? { label: 'Restore', icon: <RestoreIcon />, state: 'active' as const } : { label: 'Show', icon: <ShowIcon />, state: 'active' as const };
 
-type Counted = Exclude<ProjectWork['state'], 'other'>;
+type Counted = Exclude<ProjectWork['state'], 'other' | 'closed'>;
 const stateIcons: Record<Counted, ReactNode> = { blocked: <BlockedIcon />, implementing: <InProgressIcon />, draft: <DraftIcon /> };
 const stateNames: Record<Counted, string> = { blocked: 'blocked', implementing: 'being implemented', draft: 'draft plans' };
-const stateOrder: Record<ProjectWork['state'], number> = { blocked: 0, implementing: 1, draft: 2, other: 3 };
+const stateOrder: Record<ProjectWork['state'], number> = { blocked: 0, implementing: 1, draft: 2, other: 3, closed: 4 };
 
 /** A card's count of work in one state, with the state's icon; nothing when there is none. */
 function Fact({ work, state }: { work: ProjectWork[]; state: Counted }) {

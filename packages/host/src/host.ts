@@ -25,7 +25,7 @@ import { hostAddresses } from './addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
   type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope,
+  type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
@@ -561,7 +561,7 @@ export class Host {
 
   /** A project as clients see it, by the ID of its folder. */
   private project(row: ProjectRow): Project {
-    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, outsideHome: !this.inHome(row.folder) };
+    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, outsideHome: !this.inHome(row.folder), workspaces: [] }; // TODO(work-0023): planning.json's workspaces
   }
   /** Whether a project's folder is one of the home's planning folders. */
   private inHome(folder: string) {
@@ -588,7 +588,8 @@ export class Host {
   }
   /** What a project's card says: from its planning folder, with the work agents are working on now. */
   private async summaryOf(row: ProjectRow, live: ProjectSummary['live']): Promise<ProjectSummary | null> {
-    try { return { ...await projectSummary(row.folder), live }; } catch { return null; }
+    // TODO(work-0023): the summary, steps, update and outcome of each work item, and the closed work.
+    try { const summary = await projectSummary(row.folder); return { ...summary, active: summary.active.map(work => ({ ...work, summary: null, steps: null, updated: null, outcome: null })), closed: [], live }; } catch { return null; }
   }
   /** The work agents are working on now, by project row, as the hooks record it; none when it cannot be read. */
   private readLiveWork() {
@@ -613,7 +614,7 @@ export class Host {
   private async pathOf(folderId: string): Promise<string | null> {
     return this.folders.pathOf(folderId) ?? (await this.projectRow(folderId).catch(() => null))?.folder ?? null;
   }
-  private async createProject(name: string, repositories: Methods['projects.create']['params']['repositories']): Promise<Project> {
+  private async createProject(name: string, repositories: ProjectRepository[]): Promise<Project> {
     if (!this.options.templates) throw new HostError('unavailable', `New projects cannot be created on ${this.access.name} by this Atlas.`);
     try {
       const row = await createProject(this.database, { name, repositories }, await this.options.templates());
@@ -708,7 +709,9 @@ export class Host {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
       case 'projects.list': return this.projects(true) as never;
-      case 'projects.create': { const { name, repositories } = p as Methods['projects.create']['params']; return this.createProject(name, repositories) as never; }
+      case 'projects.create': { const { name, repositories } = p as Methods['projects.create']['params']; return this.createProject(name, repositories ?? []) as never; }
+      // TODO(work-0023): scan the folder for Git checkouts.
+      case 'projects.scan': throw new HostError('unavailable', 'Not implemented yet.');
       case 'projects.update': return this.updateProject(p as Methods['projects.update']['params']) as never;
       case 'projects.adopt': return this.adoptProject((p as { folderId: string }).folderId) as never;
       case 'folders.subscribe': {

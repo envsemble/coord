@@ -234,7 +234,7 @@ export class AtlasWindow {
     return null;
   }
   async createProject(name: string, repositories: ProjectRepository[]): Promise<Project> {
-    const created = await this.client().request('projects.create', { name, repositories }, { timeout: 60000 });
+    const created = await this.client().request('projects.create', { name, workspaces: [], repositories }, { timeout: 60000 });
     return (await this.projects()).find(project => project.folderId === created.folderId) ?? created;
   }
   /**
