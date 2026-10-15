@@ -15,7 +15,8 @@ test.afterEach(async () => { await close(launched); launched = undefined; });
 test('the Work tab lists each work item with its model, planning and implementation, subagents, plan revisions and steps', async () => {
   launched = await launchProject();
   const { window } = launched;
-  await expect(window.getByRole('tablist', { name: 'Statistics sections' }).locator('[role="tab"][aria-selected="true"]')).toHaveText('Work');
+  // The same segmented control as the work list's filter.
+  await expect(window.getByRole('radiogroup', { name: 'Statistics sections' }).getByRole('radio', { name: 'Work' })).toBeChecked();
   await expect(window.locator('.stats-grid .stat').first().locator('.stat-value')).toHaveText('2');
   const agentTime = window.locator('.stats-grid .stat', { hasText: 'Agent time' });
   await expect(agentTime.locator('.stat-value')).toHaveText('6 h 48 min');
@@ -56,7 +57,7 @@ test('the Work tab lists each work item with its model, planning and implementat
 test('the Models tab plots completed work over time by implementing model, with a table and a tooltip', async () => {
   launched = await launchProject();
   const { window } = launched;
-  await window.getByRole('tablist', { name: 'Statistics sections' }).getByRole('tab', { name: 'Models over time' }).click();
+  await window.getByRole('radiogroup', { name: 'Statistics sections' }).getByRole('radio', { name: 'Models over time' }).click();
   await expect(window.locator('.chart-dot')).toHaveCount(1);
   await expect(window.locator('.chart-legend')).toContainText('GPT-6.1 Sol');
   await expect(window.locator('.chart-legend .provider-mark')).toHaveAttribute('data-plain', '');

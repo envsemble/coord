@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, close, expectProjects, launch, launchProject, newProjectButton, openProject, projectCards, projectHome, removeDirectory, showFiles, sidebar, sidebarProject, type Launched } from './app';
+import { addProject, close, expectProjects, launch, launchProject, newProjectButton, openProject, projectCards, projectHome, projectSearch, removeDirectory, showFiles, sidebar, sidebarProject, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
@@ -218,7 +218,7 @@ test('New Project makes a planning folder from the templates; a project is renam
   // The search goes through them too, opening the group while it searches.
   await group.locator('summary').click();
   await expect(archived).toBeHidden();
-  const search = sidebar(window).getByRole('searchbox', { name: 'Search projects' });
+  const search = await projectSearch(window);
   await search.fill('north');
   await expect(archived).toBeVisible();
   await expect(projectCards(window)).toHaveCount(0);
@@ -360,7 +360,7 @@ test('the search above the projects filters their cards by every word in a name 
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expectProjects(window, ['Northwind', 'Coord']);
-  const search = sidebar(window).getByRole('searchbox', { name: 'Search projects' });
+  const search = await projectSearch(window);
   await search.fill('COORD');
   await expectProjects(window, ['Coord']);
   await search.fill('wind north');
@@ -380,6 +380,12 @@ test('the search above the projects filters their cards by every word in a name 
   await search.fill('');
   await expectProjects(window, ['Northwind', 'Coord']);
   await expect(sidebar(window)).not.toContainText('No projects match.');
+  // Escape closes the search and clears it.
+  await search.fill('north');
+  await expectProjects(window, ['Northwind']);
+  await search.press('Escape');
+  await expect(search).toHaveCount(0);
+  await expectProjects(window, ['Northwind', 'Coord']);
 });
 
 test('the side column of a work item stays still while the page scrolls, and scrolls on its own when it is taller than the window', async () => {

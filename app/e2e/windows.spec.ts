@@ -14,7 +14,10 @@ test('a home without projects starts empty, with New Project and the search abov
   await expect(sidebar(window)).toContainText('No projects yet.');
   await expect(projectCards(window)).toHaveCount(0);
   await expect(newProjectButton(window)).toBeVisible();
-  await expect(sidebar(window).getByRole('searchbox', { name: 'Search projects' })).toBeVisible();
+  // A quiet strip: Projects, with Search and New Project; the search field opens from Search.
+  await expect(sidebar(window).getByRole('heading', { name: 'Projects' })).toBeVisible();
+  await expect(sidebar(window).getByRole('button', { name: 'Search projects', exact: true })).toBeVisible();
+  await expect(sidebar(window).getByRole('searchbox', { name: 'Search projects' })).toHaveCount(0);
   // The old New Project… item at the end of the list is gone.
   await expect(sidebar(window).getByRole('button', { name: 'New Project…' })).toHaveCount(0);
   await expect(window.getByRole('heading', { name: 'Open a project' })).toBeVisible();

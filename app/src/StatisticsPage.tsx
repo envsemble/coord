@@ -2,7 +2,7 @@
 // reports, plan revisions, ledger steps), how that changes as new models arrive, and how
 // documents are used.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button, Counter, EmptyState, IconButton, Notice, Popover, SegmentedControl, Select, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Tabs, Text } from '@envsemble/envui';
+import { Button, Counter, EmptyState, IconButton, Notice, Popover, SegmentedControl, Select, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import { InfoIcon, StatisticsIcon } from './icons';
 import type { Snapshot } from './types';
@@ -47,8 +47,10 @@ export function Statistics({ snapshot, repository }: { snapshot: Snapshot; repos
       </div>
     </Popover>
   </div>}>
-    <Tabs className="statistics-nav" aria-label="Statistics sections" value={tab} onValueChange={value => { if (value) setTab(value as StatisticsTab); }}
-      items={tabs.map(item => ({ value: item.id, button: <Button variant="secondary">{item.label}</Button>, content: item.id === tab ? <div className="statistics-body">{body}</div> : null }))} />
+    {/* The same control as the work list's filter above it on the project page. */}
+    <SegmentedControl className="statistics-nav" aria-label="Statistics sections" value={tab} onValueChange={value => setTab(value as StatisticsTab)}
+      options={tabs.map(item => ({ value: item.id, label: item.label }))} />
+    <div className="statistics-body">{body}</div>
   </Page>;
 }
 
