@@ -48,14 +48,15 @@ function Fact({ work, state }: { work: ProjectWork[]; state: Counted }) {
 }
 
 /**
- * What resting on a card shows: the project's folder and repositories, the work agents are on now,
- * then each blocked, implementing and draft item (blocked first, its blocker on hover), and when the
- * folder last changed.
+ * What resting on a card shows: the project's folder and repositories, the work agents are on now
+ * (first, with the live dot), then each other blocked, implementing and draft item (blocked first, its
+ * blocker on hover), and when the folder last changed. Each item is listed once.
  */
 function ProjectDetails({ project }: { project: Project }) {
   const summary = project.summary ?? null;
   const titles = new Map(summary?.active.map(item => [item.id, item.title]) ?? []);
-  const listed = (summary?.active ?? []).filter(item => item.state !== 'other').sort((a, b) => stateOrder[a.state] - stateOrder[b.state]);
+  const live = new Set(summary?.live.map(item => item.workId));
+  const listed = (summary?.active ?? []).filter(item => item.state !== 'other' && !live.has(item.id)).sort((a, b) => stateOrder[a.state] - stateOrder[b.state]);
   const note = projectNote(project);
   return <div className="project-details">
     <Text as="h3" variant="body" className="project-details-name">{project.name}</Text>
@@ -63,7 +64,7 @@ function ProjectDetails({ project }: { project: Project }) {
     {note && <p className="project-details-line muted">{note}</p>}
     {summary && summary.repositories.length > 0 && <p className="project-details-line muted">{summary.repositories.join(' · ')}</p>}
     {summary && (summary.live.length > 0 || listed.length > 0) && <ul className="project-details-work">
-      {summary.live.map(item => <li key={'live:' + item.workId} data-tone="live"><span className="project-live-dot" aria-hidden="true" /><span className="project-details-id">{workNumber(item.workId)}</span><span className="project-details-title">Agent working · {titles.get(item.workId) ?? item.workId}</span></li>)}
+      {summary.live.map(item => <li key={'live:' + item.workId} data-tone="live"><span className="project-live-dot" aria-hidden="true" /><span className="project-details-id">{workNumber(item.workId)}</span><span className="project-details-title">{titles.get(item.workId) ?? item.workId}</span><span className="project-details-live">agent working</span></li>)}
       {listed.slice(0, 8).map(item => <li key={item.id} data-tone={item.state} title={item.blocked ?? undefined}>{stateIcons[item.state as Counted]}<span className="project-details-id">{workNumber(item.id)}</span><span className="project-details-title">{item.title}</span></li>)}
       {listed.length > 8 && <li className="muted">+{listed.length - 8} more</li>}
     </ul>}

@@ -110,6 +110,7 @@ body { margin: 0; }
 .project-details-work [data-tone='live'] .project-live-dot { margin-inline: 0.25rem; }
 .project-details-id { flex: none; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .project-details-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-details-live { flex: none; margin-inline-start: auto; color: var(--color-tone-success); }
 .project-group { display: grid; gap: var(--space-2); }
 .project-group > summary { padding: var(--space-2); border-radius: var(--radius-standard); color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; cursor: pointer; }
 .project-group > summary:hover { background: var(--color-surface-hover, transparent); }
