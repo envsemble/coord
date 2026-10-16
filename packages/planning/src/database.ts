@@ -227,6 +227,11 @@ export class HomeDatabase {
     }
     return live;
   }
+  /** What changes whenever a work report is recorded or removed: how many there are and the newest's row. */
+  reportsMark(): string {
+    const row = this.db.prepare('SELECT count(*) AS reports, ifnull(max(id), 0) AS newest FROM work_report').get() as Row;
+    return row.reports + ':' + row.newest;
+  }
   /** Change a project's cached name, state or position; a new position moves the others along. */
   updateProject(id: number, change: { name?: string; state?: ProjectState; position?: number; folder?: string }) {
     this.transaction(() => {

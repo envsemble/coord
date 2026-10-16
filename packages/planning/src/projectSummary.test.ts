@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HomeDatabase } from './database.ts';
+import { createReport, insertReport, type ReportInput } from './statistics.ts';
 import { projectSummary } from './projectSummary.ts';
 
 function temporary(t: TestContext) {
@@ -49,13 +50,13 @@ function planningFolder(root: string) {
 test('a project\'s summary lists its active work with where each item stands, and its repositories', async t => {
   const root = path.join(temporary(t), 'shop');
   planningFolder(root);
-  const none = { summary: null, steps: null, updated: null, outcome: null };
+  const none = { summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null };
   const unstepped = { steps: { done: 0, total: 0, planning: { done: 0, total: 0 } } };
   const other = (id: string, title = id.slice(-4), more = {}) => ({ id, title, state: 'other', blocked: null, ...none, ...more });
   assert.deepEqual(await projectSummary(root), {
     repositories: ['shop', 'web'],
     active: [
-      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null },
+      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null, step: { title: 'Show', status: 'doing', phase: 'implementation' }, completed: null, statistics: null },
       { id: 'work-0002', title: '0002', state: 'blocked', blocked: 'Waiting for the acquirer', ...none, ...unstepped },
       { id: 'work-0003', title: '0003', state: 'blocked', blocked: 'Waiting for review', ...none, ...unstepped },
       other('work-0004', '0004', unstepped), other('work-0005'), other('work-0006'),
@@ -64,7 +65,7 @@ test('a project\'s summary lists its active work with where each item stands, an
     ],
     closed: [
       { id: 'work-0011', title: 'Coupons', state: 'closed', blocked: null, ...none, updated: '2026-09-30', outcome: 'abandoned' },
-      { id: 'work-0010', title: 'Wish list', state: 'closed', blocked: null, ...none, updated: '2026-09-20', outcome: 'complete' },
+      { id: 'work-0010', title: 'Wish list', state: 'closed', blocked: null, ...none, updated: '2026-09-20', outcome: 'complete', completed: '2026-09-20' },
       { id: 'work-0007', title: '0007', state: 'closed', blocked: null, ...none, ...unstepped },
     ],
     updated: null,
@@ -89,8 +90,56 @@ test('a folder without a readable registry has no summary, and odd entries in on
   write(path.join(root, 'list', 'planning.json'), '[]');
   await assert.rejects(projectSummary(path.join(root, 'list')), /not an object/);
   write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ repositories: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001' }, { id: 'work-0001', path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
-  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null }], closed: [], updated: null });
+  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null }], closed: [], updated: null });
 });
+
+test('each work item has the step being worked on or next, and what agents spent on it, from all the project\'s reports at once', async t => {
+  const home = temporary(t);
+  const root = path.join(home, 'planning', 'shop');
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Shop', repositories: [], work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('archive/0004')] }));
+  write(path.join(root, 'active/0001/plan.md'), plan('in_progress', 'title: Saved cards\n'));
+  write(path.join(root, 'active/0001/ledger.md'), ledger(null, 'steps:\n  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Store"\n    status: todo\n  - title: "Show"\n    status: doing\n'));
+  write(path.join(root, 'active/0002/plan.md'), plan('not_started', 'title: Gift cards\ndesign_status: draft\n'));
+  write(path.join(root, 'active/0002/ledger.md'), ledger(null, 'steps:\n  - title: "Understand the request"\n    status: done\n    phase: planning\n  - title: "Settle the design"\n    status: todo\n    phase: planning\n  - title: "Build"\n    status: todo\n'));
+  write(path.join(root, 'active/0003/plan.md'), plan('in_progress'));
+  write(path.join(root, 'active/0003/ledger.md'), ledger(null, 'steps:\n  - title: "Done"\n    status: done\n  - status: doing\n'));
+  write(path.join(root, 'archive/0004/plan.md'), plan('complete', 'design_status: accepted\ncompleted_at: "2026-09-20"\n'));
+  const database = HomeDatabase.open(home);
+  try { await reported(database, home, root); } finally { database.close(); }
+});
+
+/** The test above, with its home database open (closed before the folder is removed). */
+async function reported(database: HomeDatabase, home: string, root: string) {
+  const shop = database.addProject(root, 'Shop');
+  const other = database.addProject(path.join(home, 'planning', 'other'), 'Other');
+  const opus = 'claude-opus', haiku = 'claude-haiku';
+  const tokens = (input: number, output: number) => ({ input, cacheRead: 0, cacheWrite: 0, output });
+  const report = (project: number, work: string, at: string, more: Partial<ReportInput>) => insertReport(database, project, work, createReport({ model: opus, session: 's1', at: new Date(at), ...more }));
+  // Measured planning, measured implementation with a second model and two subagents, then an hour estimated before stages were recorded.
+  report(shop.id, 'work-0001', '2026-10-01T10:00:00Z', { stage: 'planning', measured: { since: '2026-10-01T09:50:00.000Z', agentMs: 600_000, models: [{ model: opus, agentMs: 600_000, ...tokens(100, 50) }] } });
+  report(shop.id, 'work-0001', '2026-10-01T11:00:00Z', {
+    stage: 'implementation', measured: {
+      since: '2026-10-01T10:00:00.000Z', agentMs: 1_200_000, models: [{ model: opus, agentMs: 900_000, ...tokens(200, 100) }, { model: haiku, agentMs: 300_000, ...tokens(40, 10) }],
+      subagents: { count: 2, agentMs: 400_000, tokens: 30, agents: [{ id: 'a1', model: haiku, agentMs: 300_000, tokens: 20 }, { id: 'a2', model: null, agentMs: 100_000, tokens: 10 }] },
+    },
+  });
+  report(shop.id, 'work-0001', '2026-10-01T12:00:00Z', {});
+  // Another project's report for the same work ID is not this one's.
+  report(other.id, 'work-0002', '2026-10-01T12:00:00Z', {});
+  const summary = await projectSummary(root, { database, projectId: shop.id });
+  const brief = (id: string) => [...summary.active, ...summary.closed].find(work => work.id === id)!;
+  assert.deepEqual(brief('work-0001').step, { title: 'Show', status: 'doing', phase: 'implementation' }, 'the step being worked on before the next');
+  assert.deepEqual(brief('work-0002').step, { title: 'Settle the design', status: 'todo', phase: 'planning' }, 'else the next, with its phase');
+  assert.equal(brief('work-0003').step, null, 'a step without a title is none');
+  assert.deepEqual([brief('work-0004').step, brief('work-0004').completed], [null, '2026-09-20']);
+  assert.deepEqual(brief('work-0001').statistics, {
+    agentMs: 600_000 + 1_200_000 + 3_600_000, tokens: 150 + 300 + 50, primaryModel: opus, otherModels: 1,
+    planning: { agentMs: 600_000, tokens: 150 }, implementation: { agentMs: 1_200_000, tokens: 350 },
+    subagents: 2, lastReport: '2026-10-01T12:00:00.000Z',
+  }, 'counted as the plan page counts them; the hour without a stage is in the totals only');
+  assert.deepEqual(['work-0002', 'work-0003', 'work-0004'].map(id => brief(id).statistics), [null, null, null], 'work without reports has none');
+  assert.equal((await projectSummary(root)).active[0].statistics, null, 'without the database, none');
+}
 
 test('live work is what sessions in a turn, seen lately, are linked to', t => {
   const home = temporary(t);

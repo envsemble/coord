@@ -27,7 +27,7 @@ export { WorkError, summaryLimit, workStatus, createWork, acceptWork, startWork,
 export { findPlanning, insideFolder, readRegistry, resolvePlanningFolder, normalizeRemote, remoteWithoutCredentials, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type ProjectBrief, type Whereabouts, type WorkBrief } from './resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './checkPaths.ts';
 export { adoptPlanningFolder, type Adopted } from './adopt.ts';
-export { projectSummary, type ProjectSummary, type ProjectWork, type ProjectWorkState } from './projectSummary.ts';
+export { projectSummary, workStatisticsBrief, type ProjectSummary, type ProjectWork, type ProjectWorkState, type ProjectWorkStatistics } from './projectSummary.ts';
 export { createProject, readTemplates, setProjectWorkspaces, type ProjectTemplates } from './project.ts';
 export { checkedWorkspaces, scanWorkspace, scanWorkspaces, workspaceLimit, type ProjectRepository, type SkippedCheckout, type WorkspaceScan } from './workspaces.ts';
 export { setRegistryMember, setRegistryName } from './registryText.ts';

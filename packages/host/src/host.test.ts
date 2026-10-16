@@ -45,7 +45,7 @@ function freePort(): Promise<number> {
   });
 }
 /** A host on a home of its own, with the fixture as its project `planning`. */
-async function start(t: TestContext, options: { data?: string; loopbackPort?: number; listingTimeout?: number } = {}) {
+async function start(t: TestContext, options: { data?: string; loopbackPort?: number; listingTimeout?: number; liveCheck?: number } = {}) {
   const data = options.data ?? realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-data-')));
   const planning = path.join(data, 'planning', 'planning');
   cpSync(fixture, planning, { recursive: true });
@@ -394,6 +394,92 @@ test('a project whose planning.json cannot be read is listed without a summary',
   writeFileSync(path.join(data, 'planning', 'broken', 'planning.json'), '{ "name": "Broken", ');
   const listed = await owner.connection.request('projects.list', {});
   assert.deepEqual(listed.map(project => [project.name, project.summary === null]).sort(), [['Northwind', false], ['broken', true]]);
+});
+
+test('the project list has each work item\'s step, completion and statistics from the home database\'s reports', async t => {
+  const { host, origin, data } = await start(t, { liveCheck: 100 });
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await owner.connection.request('projects.list', {});
+  const project = host.database.projectByFolder(path.join(data, 'planning', 'planning'))!;
+  const measured = (since: string, agentMs: number, output: number) => ({ since, agentMs, models: [{ model: 'claude-opus', agentMs, input: 0, cacheRead: 0, cacheWrite: 0, output }] });
+  insertReport(host.database, project.id, 'work-0001', createReport({ model: 'claude-opus', session: 's1', stage: 'planning', at: new Date('2026-10-01T10:00:00Z'), measured: measured('2026-10-01T09:00:00.000Z', 3_600_000, 1000) }));
+  insertReport(host.database, project.id, 'work-0001', createReport({ model: 'claude-sonnet', session: 's2', stage: 'implementation', at: new Date('2026-10-02T10:00:00Z'), measured: { ...measured('2026-10-02T09:30:00.000Z', 1_800_000, 500), models: [{ model: 'claude-sonnet', agentMs: 1_800_000, input: 0, cacheRead: 0, cacheWrite: 0, output: 500 }] } }));
+  const summary = (await projectNamed(owner.connection)).summary!;
+  const work = (id: string) => [...summary.active, ...summary.closed].find(item => item.id === id)!;
+  assert.deepEqual(work('work-0001').step, { title: 'Add authoriseWithToken to the acquirer gateway, with the challenge_required path (shop#58)', status: 'doing', phase: 'implementation' });
+  assert.deepEqual(work('work-0001').statistics, {
+    agentMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
+    subagents: 0, lastReport: '2026-10-02T10:00:00.000Z',
+  });
+  assert.deepEqual([work('work-0002').statistics, work('work-0003').step, work('work-0001').completed], [null, null, null], 'no reports, no steps (a ledger from before steps), open');
+  assert.equal(work('work-0004').completed, '2026-09-24');
+  // A report recorded with nothing else changing reaches clients with the next check.
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const told = owner.lists.length;
+  insertReport(host.database, project.id, 'work-0002', createReport({ model: 'claude-opus', session: 's3', stage: 'planning', at: new Date('2026-10-03T10:00:00Z') }));
+  const sent = () => owner.lists.at(-1)?.find(item => item.name === 'Northwind')?.summary?.active.find(item => item.id === 'work-0002')?.statistics;
+  await until(() => owner.lists.length > told && sent()?.lastReport === '2026-10-03T10:00:00.000Z', 5000, () => owner.lists.length);
+});
+
+test('the search covers every active project, in the home or outside it, best first, and stays fresh as files change', async t => {
+  const { host, origin, data, planning } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  const device = await pairDevice(t, host, owner.connection);
+  // Another project in the home, hidden; one outside it, active.
+  const hidden = path.join(data, 'planning', 'hidden');
+  cpSync(fixture, hidden, { recursive: true });
+  writeFileSync(path.join(hidden, 'knowledge', 'secret.md'), '# Hidden walrus\n');
+  const outside = path.join(temporary(t, 'atlas-outside-'), 'Coord planning');
+  cpSync(fixture, outside, { recursive: true });
+  writeFileSync(path.join(outside, 'planning.json'), readFileSync(path.join(outside, 'planning.json'), 'utf8').replace('"Northwind"', '"Coord"'));
+  writeFileSync(path.join(outside, 'knowledge', 'walrus.md'), '# Outside walrus\n\nA walrus lives outside the home.\n');
+  const database = HomeDatabase.open(data);
+  try { database.addProject(realpathSync.native(outside), 'Coord', null, 'active'); } finally { database.close(); }
+  const listed = await owner.connection.request('projects.list', {});
+  const northwind = listed.find(project => project.path === planning)!, coord = listed.find(project => project.name === 'Coord')!;
+  await owner.connection.request('projects.update', { folderId: listed.find(project => project.path === hidden)!.folderId, state: 'hidden' });
+  const search = (query: string, limit?: number) => device.connection.request('search.query', limit === undefined ? { query } : { query, limit });
+  // Each kind, where it opens (the two projects have the same plans: Northwind's best).
+  const first = async (query: string, project = 'Northwind') => (await search(query)).find(hit => hit.project === project)!;
+  assert.deepEqual(await first('Saved payment methods'), { kind: 'plan', title: 'Saved payment methods', snippet: null, folderId: northwind.folderId, project: 'Northwind', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: null, element: null });
+  assert.deepEqual(await first('#0002').then(hit => [hit.kind, hit.work]), ['plan', 'work-0002']);
+  assert.deepEqual(await first('Sandbox run forced').then(hit => [hit.kind, hit.work, hit.path]), ['step', 'work-0001', 'active/0001-saved-payment-methods/plan.md']);
+  assert.deepEqual(await first('Order status').then(hit => [hit.kind, hit.path, hit.anchor]), ['heading', 'active/0002-order-fulfilment-model/plan.md', 'order-status']);
+  assert.deepEqual((await search('carrier')).filter(hit => hit.kind === 'term' && hit.project === 'Northwind').map(hit => [hit.title, hit.path, hit.anchor]), [['Carrier', 'active/0002-order-fulfilment-model/CONTEXT.md', 'shipments']]);
+  assert.deepEqual((await search('conceptual model')).filter(hit => hit.kind === 'diagram' && hit.project === 'Northwind').map(hit => [hit.title, hit.path, hit.work]), [['Fulfilment · conceptual model', 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', 'work-0002']]);
+  assert.deepEqual(await first('savedpaymentmethod').then(hit => [hit.kind, hit.element, hit.work]), ['element', 'SavedPaymentMethod', 'work-0001']);
+  assert.deepEqual(await first('Payments constraints').then(hit => [hit.kind, hit.path, hit.work]), ['document', 'knowledge/shop/payments-constraints.md', null]);
+  assert.deepEqual(await first('Coord', 'Coord').then(hit => [hit.kind, hit.folderId, hit.path]), ['project', coord.folderId, null]);
+  const text = await first('lives outside', 'Coord');
+  assert.deepEqual([text.kind, text.project, text.snippet], ['document', 'Coord', 'A walrus lives outside the home.'], 'text, with its snippet');
+  // Every active project, never a hidden one; best first, at most the limit.
+  const walrus = await search('walrus');
+  assert.deepEqual(walrus.map(hit => [hit.project, hit.title]), [['Coord', 'Outside walrus']], 'a hidden project is not searched');
+  const both = await search('saved payment methods');
+  assert.deepEqual([...new Set(both.slice(0, 2).map(hit => hit.kind + ':' + hit.project))].sort(), ['plan:Coord', 'plan:Northwind'], 'both active projects\' plans first');
+  assert.equal((await search('e')).length, 50, 'at most 50 by default');
+  assert.deepEqual(await search('e', 3), (await search('e')).slice(0, 3), 'or the limit given');
+  // A file written and changed in a project no window has open, and a diagram changed: the search follows.
+  const found = async (query: string) => (await search(query)).map(hit => hit.title);
+  const eventually = async (query: string, expected: string[]) => {
+    let seen: string[] = [];
+    for (const deadline = Date.now() + 10000; JSON.stringify(seen = await found(query)) !== JSON.stringify(expected) && Date.now() < deadline;) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.deepEqual(seen, expected, query);
+  };
+  const notes = path.join(planning, 'knowledge', 'notes.md');
+  writeFileSync(notes, '# Notes\n\nThe narwhal migrates.\n');
+  await eventually('narwhal', ['Notes']);
+  writeFileSync(notes, '# Notes\n\nThe beluga migrates.\n');
+  await eventually('narwhal', []);
+  assert.deepEqual(await found('beluga'), ['Notes']);
+  const diagram = path.join(planning, 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml');
+  writeFileSync(diagram, readFileSync(diagram, 'utf8').replace('@enduml', 'class Lighthouse\n@enduml'));
+  await eventually('lighthouse', ['Lighthouse']);
+  // The request is checked.
+  for (const params of [{ query: '' }, { query: 'x'.repeat(201) }, { query: 'x', limit: 0 }, { query: 'x', limit: 201 }, { limit: 5 }]) {
+    await assert.rejects(owner.connection.request('search.query', params as never), (error: HostRequestError) => error.code === 'invalid-argument', JSON.stringify(params));
+  }
+  assert.deepEqual(await search('   '), [], 'a query of spaces finds nothing');
 });
 
 test('plan and ledger edits in a project no window has open reach the project list, once they settle', async t => {

@@ -21,6 +21,7 @@
     "./session": "./src/session.ts",
     "./paths": "./src/paths.ts",
     "./provenance": "./src/provenance.ts",
+    "./search": "./src/search.ts",
     "./types": "./src/types.ts"
   },
   "scripts": {
