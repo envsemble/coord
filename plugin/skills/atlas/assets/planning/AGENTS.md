@@ -4,7 +4,7 @@ This repository preserves intended work, decisions, implementation evidence, and
 
 ## Discovery and task scope
 
-Planning folders live in the Atlas home (`~/.atlas/planning/<name>`, or under `ATLAS_HOME`). A session in one of the workspace folders `planning.json` lists (`workspaces`) belongs to this project; elsewhere a checkout belongs to the planning folder whose `planning.json` registers its Git remote. Atlas names that folder and its active work at session start, and the Atlas tool `where` (or `atlas where`) finds it on request. An explicit location from the user is valid too. Do not search the machine for other `planning` folders; agents reach this one by its absolute path from any checkout or worktree, because setup grants the home to every session.
+Planning folders live in the Atlas home (`~/.atlas/planning/<name>`, or under `ATLAS_HOME`). A session in one of the workspace folders `planning.json` lists (`workspaces`) belongs to this project; elsewhere a checkout belongs to the planning folder whose `planning.json` registers its Git remote. Atlas names that folder and its active work at session start, and the Atlas tool `where` finds it on request. An explicit location from the user is valid too. Do not search the machine for other `planning` folders; agents reach this one by its absolute path from any checkout or worktree, because setup grants the home to every session.
 
 A planning-dependent operation requires a usable planning repository: local Git history, governance, scope registry, and entry points. If none matches the checkout, explain what is missing and offer to set one up with the `atlas` skill in the same conversation. Stay in the project the session belongs to unless the user asks for work across projects. Its absence does not block ordinary authorized coding.
 
@@ -20,7 +20,7 @@ Keep canonical product documentation in its owning repository and link to it. Pr
 
 ## Structured state and prose
 
-Structured state changes only through the Atlas tools (or the matching `atlas work` commands): creating and registering work items, accepting a design, starting implementation with its steps, changing steps and `blocked`, closing with the open-items check, archiving, and reopening. They validate each change and refuse with the reason. Everything else is an ordinary file edited directly: plan bodies, ledger notes, glossaries, ADRs, knowledge, and diagrams. After an edit, Atlas checks the planning files that changed and reports problems to fix; `atlas check` runs the same checks on request.
+Structured state changes only through the Atlas tools: creating and registering work items, accepting a design, starting implementation with its steps, changing steps and `blocked`, closing with the open-items check, archiving, and reopening. They validate each change and refuse with the reason. Everything else is an ordinary file edited directly: plan bodies, the ledger's final-review list, glossaries, ADRs, knowledge, and diagrams. After an edit, Atlas checks the planning files that changed and reports problems to fix; `atlas check` runs the same checks on request.
 
 ## Record useful knowledge immediately
 
@@ -36,7 +36,7 @@ Plan metadata is governed by `PLANS.md`. Design acceptance, implementation compl
 
 Ask the user before opening a work item; only work big enough to plan needs one. Its plan carries a `summary` (two or three plain sentences: what the work is, why, and where it stands) and its ledger the planning steps from the start: keep both current as the design settles and the work moves. The complete `atlas-implement` workflow runs only when the user asks for it by name. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
 
-Starting implementation records the selected plan path and planning Git revision in the work item's ledger, so commit the plan first. A later edit must not silently change its agreed scope. Keep the ledger's steps current through the Atlas tools at meaningful transitions, so progress and the work left can be viewed; missing historical status stays unknown. Keep the ledger body concise and resumable: actual progress, verification evidence, relevant product revisions/PRs, consequential departures, unresolved delivery milestones, and next actions.
+Commit the plan before starting implementation, so its history shows what was agreed. A later edit must not silently change its agreed scope. Keep the ledger's steps current through the Atlas tools at meaningful transitions, so progress and the work left can be viewed; missing historical status stays unknown. The ledger has no other prose: the plan's summary says where the work stands, and commits and PRs carry the evidence.
 
 Work statistics are measured by Atlas's hooks from each agent session, split into planning and implementation by the work's stage; agents do not report them by hand where the hooks run.
 
