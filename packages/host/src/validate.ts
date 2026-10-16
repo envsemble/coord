@@ -127,6 +127,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'host.session': none,
   'projects.list': none,
   'projects.create': object({ name: projectName, workspaces: array(absolutePath, 20), repositories: optional(array(repositoryInput, 50)) }),
+  'search.query': object({ query: string({ min: 1, max: 200 }), limit: optional(integer(1, 200)) }),
   'projects.scan': object({ folder: absolutePath }),
   'projects.adopt': object({ folderId }),
   'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(array(absolutePath, 20)) }),

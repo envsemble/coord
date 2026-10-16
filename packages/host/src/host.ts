@@ -656,7 +656,8 @@ export class Host {
   }
   /** What the hub shows of a project's plans: from its planning folder, with the work agents are working on now. */
   private async summaryOf(row: ProjectRow, live: ProjectSummary['live']): Promise<ProjectSummary | null> {
-    try { return { ...await projectSummary(row.folder), live }; } catch { return null; }
+    // TODO(work-0023 amendment): each work item's step, completion and statistics.
+    try { const summary = await projectSummary(row.folder); const brief = (work: (typeof summary.active)[number]) => ({ step: null, completed: null, statistics: null, ...work }); return { ...summary, active: summary.active.map(brief), closed: summary.closed.map(brief), live }; } catch { return null; }
   }
   /** The work agents are working on now, by project row, as the hooks record it; none when it cannot be read. */
   private readLiveWork() {
@@ -803,6 +804,8 @@ export class Host {
         if (params.workspaces?.length) this.ownerOnly(connection, 'choose the folders a project covers');
         return this.createProject(params) as never;
       }
+      // TODO(work-0023 amendment): search every active project.
+      case 'search.query': return [] as never;
       case 'projects.scan': return this.scanFolder((p as Methods['projects.scan']['params']).folder) as never;
       case 'projects.update': {
         const params = p as Methods['projects.update']['params'];

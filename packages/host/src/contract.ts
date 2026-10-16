@@ -8,7 +8,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '@envsemb
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 6;
+export const protocolVersion = 7;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -65,6 +65,33 @@ export interface ProjectWork {
   updated: string | null;
   /** How closed work ended: its `implementation_status` complete, or the plan's `design_status` superseded or abandoned. */
   outcome: 'complete' | 'superseded' | 'abandoned' | null;
+  /** The step being worked on (the first `doing`), else the next to do (the first `todo`); null without one. */
+  step: { title: string; status: 'doing' | 'todo'; phase: 'planning' | 'implementation' } | null;
+  /** The plan's `completed_at` (a date, YYYY-MM-DD); null while open. */
+  completed: string | null;
+  /** What agents spent on it, from the home database's reports; null when none were recorded. */
+  statistics: ProjectWorkStatistics | null;
+}
+/**
+ * A work item's statistics for the hub: agent time (measured and estimated, as the plan page counts
+ * it), tokens, the model that did most of it and how many others took part, time and tokens by stage,
+ * subagents, and the last report. Plan revisions are left to the Statistics page (they need Git).
+ */
+export interface ProjectWorkStatistics {
+  agentMs: number; tokens: number | null; primaryModel: string | null; otherModels: number;
+  planning: { agentMs: number; tokens: number | null }; implementation: { agentMs: number; tokens: number | null };
+  subagents: number; lastReport: string | null;
+}
+/** What the search finds: plans, steps, documents and their headings, diagrams and their elements, glossary terms and projects. */
+export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
+/**
+ * A search result in one of the computer's active projects: what it is, its title, a short snippet
+ * around the match (null when the title matched), and where it opens: the project (`folderId`), the
+ * work item, the file in the planning folder (`path`, POSIX-relative), a heading anchor, or a diagram element.
+ */
+export interface SearchResult {
+  kind: SearchKind; title: string; snippet: string | null;
+  folderId: string; project: string; work: string | null; path: string | null; anchor: string | null; element: string | null;
 }
 /**
  * A project's repositories, its work (`active/`, in the registry's order, and `closed`: `archive/`,
@@ -124,6 +151,8 @@ export interface Methods {
    * repositories given, when `repositories` is set).
    */
   'projects.create': { params: { name: string; workspaces: string[]; repositories?: ProjectRepository[] }; result: Project };
+  /** Search every active project of the computer, best matches first (at most `limit`, default 50). */
+  'search.query': { params: { query: string; limit?: number }; result: SearchResult[] };
   /** The Git checkouts in a folder on this computer, for a new project's preview. */
   'projects.scan': { params: { folder: string }; result: WorkspaceScan };
   /**
@@ -164,6 +193,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'host.session': 'computer',
   'projects.list': 'computer',
   'projects.create': 'computer',
+  'search.query': 'computer',
   // A folder on this computer, by path: the app's own, like plan.importRead.
   'projects.scan': 'owner',
   'projects.update': 'computer',
