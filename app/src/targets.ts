@@ -15,6 +15,8 @@ export const isPage = (place: Place): place is PagePlace => 'page' in place;
 export const placeProject = (place: Place): string | null => !isPage(place) ? place.project : place.page === 'projects' ? null : place.project;
 
 export const workTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor });
+/** A work item's plan with one of its ledger steps (by its title) pointed out in its progress. */
+export const stepTarget = (work: string, step: string): Target => ({ kind: 'work', work, anchor: null, step });
 /** A work item's ledger, shown in place of the plan. */
 export const ledgerTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor, view: 'ledger' });
 /** A work item's diagram by its path in the work folder (null: its first), at an element. */

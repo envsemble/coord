@@ -36,6 +36,8 @@ test("a place is a plan, a diagram or a file of a project, or one of the window'
   assert.equal((target({ kind: 'diagram', work: 'work-0001', path: 'diagrams/order.puml', element: 'Order' }) as { element?: string }).element, 'Order');
   assert.deepEqual(target({ kind: 'work', work: 'work-0001', anchor: 'provenance', view: 'ledger' }), { kind: 'work', work: 'work-0001', anchor: 'provenance', view: 'ledger' }, 'a work item shows its ledger in place of the plan');
   assert.deepEqual(target({ kind: 'work', work: 'work-0001', view: null }), { kind: 'work', work: 'work-0001', view: null });
+  assert.deepEqual(target({ kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' }), { kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' }, 'a plan with a ledger step the search found');
+  assert.throws(() => target({ kind: 'work', work: 'work-0001', step: 'x'.repeat(513) }));
   for (const view of ['plan', 'diagrams', 'Ledger', 1]) assert.throws(() => target({ kind: 'work', work: 'work-0001', view }), /view/, String(view));
   for (const bad of [{ kind: 'project' }, { kind: 'view', view: 'work' }, { kind: 'diagram', work: 'work-0001', path: '../../planning.json' }, { kind: 'file', path: '../secret' }]) assert.throws(() => target(bad), JSON.stringify(bad));
   assert.deepEqual(place({ project, target: { kind: 'file', path: 'README.md' }, extra: 1 }), { project, target: { kind: 'file', path: 'README.md' } });

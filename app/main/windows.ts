@@ -218,6 +218,11 @@ export class AtlasWindow {
     if (computer === this.computer) this.listed = new Map(projects.map(entry => [entry.project.folderId, entry]));
     return projects.map(entry => entry.project);
   }
+  /** The folder IDs of the window's active projects, as last listed (listed now when none were). */
+  async activeProjects(): Promise<Set<string>> {
+    if (!this.listed.size) await this.projects();
+    return new Set([...this.listed.values()].filter(entry => entry.project.state === 'active').map(entry => entry.project.folderId));
+  }
   /** A project's row in the home database, by its folder ID (listed again when it is not known yet). */
   async projectRow(folderId: string): Promise<number> {
     if (!this.listed.has(folderId)) await this.projects();

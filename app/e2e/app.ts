@@ -11,6 +11,7 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
+import type { AtlasBridge } from '../shared/contract.ts';
 
 const appDirectory = path.resolve(import.meta.dirname, '..');
 const fixture = path.join(import.meta.dirname, 'fixtures', 'planning');
@@ -191,12 +192,27 @@ export async function goHome(window: Page) {
   await expectHub(window);
 }
 
-/** The title bar's menu button. */
-export const menuButton = (window: Page) => window.locator('.env-title-bar').getByRole('button', { name: 'Menu', exact: true });
-/** Choose an item of the title bar's menu. */
+/** The title bar's File menu, by its trigger. */
+export const fileMenu = (window: Page) => window.locator('.env-title-bar').getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'File', exact: true });
+/** Choose an item of the title bar's File menu. */
 export async function chooseMenu(window: Page, item: string) {
-  await menuButton(window).click();
-  await window.getByRole('menu', { name: 'Menu' }).getByRole('menuitem', { name: item, exact: true }).click();
+  await fileMenu(window).click();
+  await window.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: item, exact: true }).click();
+}
+/** The projects as the window's computer lists them, asked through the window's bridge. */
+export const listedProjects = (window: Page) => window.evaluate(async () => {
+  const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.projects();
+  return result.ok ? result.value : [];
+});
+/** The second row's sections, by name: Plans, Projects or Statistics. */
+export const section = (window: Page, name: 'Plans' | 'Projects' | 'Statistics') => window.getByRole('navigation', { name: 'Sections' }).locator(`[data-section="${name.toLowerCase()}"]`);
+/** The search popup: the hub's search field, the title bar's search and Ctrl+P open it. */
+export const searchPopup = (window: Page) => window.getByRole('dialog', { name: 'Search' });
+/** Show one project's plans in the hub, by its project filter. */
+export async function filterHub(window: Page, project: string) {
+  await window.getByRole('combobox', { name: 'Project' }).click();
+  await window.getByRole('option', { name: project, exact: true }).click();
+  await expectHub(window, project);
 }
 /** Run an item of main's application menu (the system's menu bar on macOS, hidden elsewhere, holding the shortcuts). */
 export async function applicationMenu(app: ElectronApplication, menu: string, item: string) {
@@ -206,9 +222,9 @@ export async function applicationMenu(app: ElectronApplication, menu: string, it
   }, [menu, item] as const);
 }
 
-/** Open the Projects page from the menu. */
+/** Open the Projects page from its section. */
 export async function openProjects(window: Page) {
-  await chooseMenu(window, 'Projects');
+  await section(window, 'Projects').click();
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
 }
 /**

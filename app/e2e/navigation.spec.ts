@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, applicationMenu, close, expectHub, goHome, hubRows, launchProject, menuButton, openPlan, pageScroll, projectHome, removeDirectory, showFiles, type Launched } from './app';
+import { addProject, applicationMenu, close, expectHub, fileMenu, filterHub, goHome, hubRows, launchProject, openPlan, pageScroll, projectHome, removeDirectory, searchPopup, showFiles, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 const homes: string[] = [];
@@ -46,9 +46,9 @@ test('back and forward step through the hub, a plan, its ledger and a diagram', 
   const { window, app } = launched;
   const back = window.getByRole('button', { name: 'Back' });
   const forward = window.getByRole('button', { name: 'Forward' });
-  // The arrows come first after the logo, before the menu and the computer.
+  // The arrows come first after the logo, before File and the computer.
   const left = async (target: ReturnType<Page['locator']>) => (await target.boundingBox())!.x;
-  const order = [await left(back), await left(forward), await left(menuButton(window)), await left(window.getByRole('button', { name: /^Computer:/ }))];
+  const order = [await left(back), await left(forward), await left(fileMenu(window)), await left(window.getByRole('button', { name: /^Computer:/ }))];
   expect(order).toEqual([...order].sort((a, b) => a - b));
   await expect(back).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft BrowserBack');
   await expect(forward).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowRight BrowserForward');
@@ -60,7 +60,7 @@ test('back and forward step through the hub, a plan, its ledger and a diagram', 
   await showsPayments(window, 'ledger');
   await expect(window.locator('.about').getByRole('link', { name: 'Plan' })).toBeVisible();
   await window.keyboard.press('Control+P');
-  const palette = window.getByRole('dialog', { name: 'Quick open' });
+  const palette = searchPopup(window);
   await palette.getByRole('combobox').fill('Checkout · proposed payment methods');
   await expect(palette.getByRole('option').first()).toContainText('Checkout · proposed payment methods');
   await palette.getByRole('combobox').press('Enter');
@@ -123,16 +123,30 @@ test('going back finds a plan where it was left, and fields and the file panel k
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect.poll(async () => Math.abs(await pageScroll(window) - position)).toBeLessThan(2);
 
-  // A field keeps Alt+←; the application menu's fallback for that key is ignored too.
+  // A field keeps Alt+← (the hub's search field, focus back in it once the search closes); the
+  // application menu's fallback for that key is ignored too.
   await window.keyboard.press('Alt+ArrowRight');
   await expectHub(window);
-  const search = window.getByRole('searchbox', { name: 'Search plans' });
-  await search.click();
+  const field = window.getByRole('searchbox', { name: 'Search' });
+  await field.click();
+  await window.keyboard.press('Escape');
+  await expect(searchPopup(window)).toHaveCount(0);
+  await expect(field).toBeFocused();
+  await window.keyboard.press('Alt+ArrowLeft');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu:command', 'goBack'));
+  await window.waitForTimeout(400);
+  await expectHub(window);
+  await expect(field).toBeFocused();
+  // So does the search's own field, which keeps its keys to itself.
+  await window.keyboard.press('Control+P');
+  const search = searchPopup(window).getByRole('combobox');
+  await expect(search).toBeFocused();
   await window.keyboard.press('Alt+ArrowLeft');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu:command', 'goBack'));
   await window.waitForTimeout(400);
   await expectHub(window);
   await expect(search).toBeFocused();
+  await window.keyboard.press('Escape');
 
   // In the file panel, Alt+← goes back rather than collapsing the folder.
   await openPlan(window, 'Customer order notifications');
@@ -154,7 +168,7 @@ test('a link into a sibling project in the home opens there; one to a folder no 
   writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## Elsewhere\n\nSee [the fulfilment model](../../../northwind/active/0002-order-fulfilment-model/plan.md) and [nothing](../../../nowhere/README.md).\n');
   launched = await launchProject(home);
   const { window } = launched;
-  await window.getByRole('searchbox', { name: 'Search plans' }).fill('payment coord');
+  await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Coord');
   await expect(window.locator('.prose .outside-reference', { hasText: 'nothing' })).toBeVisible();
@@ -262,7 +276,7 @@ test('the mouse buttons close an open menu without going back, and one press goe
   const windowReports = (command: 'browser-backward' | 'browser-forward') => app.evaluate(({ BrowserWindow }, name) => { BrowserWindow.getAllWindows()[0].emit('app-command', {}, name); }, command);
 
   // A menu open as the button goes down: the press only closes it, also when the window reports it.
-  await menuButton(window).click();
+  await fileMenu(window).click();
   await expect(window.getByRole('menu')).toBeVisible();
   expect(await mouseButton(window, 3)).toBe(true);
   await windowReports('browser-backward');
@@ -294,7 +308,7 @@ test('in a narrow window the arrows stay clear of the menu, and keep focus at th
   launched = await launchProject();
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(640, 600); });
-  const menu = (await menuButton(window).boundingBox())!;
+  const menu = (await fileMenu(window).boundingBox())!;
   const back = window.getByRole('button', { name: 'Back' });
   const forward = (await window.getByRole('button', { name: 'Forward' }).boundingBox())!;
   expect(forward.x + forward.width).toBeLessThanOrEqual(menu.x);

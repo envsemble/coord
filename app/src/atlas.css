@@ -18,12 +18,21 @@ body { margin: 0; }
 /* A window that is starting, or reading its folder. */
 .page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
 
-/* The title bar: the logo (leading to the hub), back and forward, the menu and the computer at the
-   start; search, the file panel, record health and the theme at the end, before the window buttons
-   the system draws. The window frame's content scrolls below it. */
-.workbench { --topbar-height: max(calc(env(titlebar-area-height, 0px) + 0.0625rem), var(--title-bar-height)); --app-sticky-top: 0px; }
+/* Two rows at the top, GitHub style. The title bar: the logo (leading to the hub), back and forward,
+   File and the computer at the start; search, the file panel, record health and the theme at the end,
+   before the window buttons the system draws. Below it the sections, one line under both rows. The
+   window frame's content scrolls below them. */
+.workbench { --section-bar-height: 2.75rem; --topbar-height: calc(max(calc(env(titlebar-area-height, 0px) + 0.0625rem), var(--title-bar-height)) + var(--section-bar-height)); --app-sticky-top: 0px; }
+.workbench-top > .workbench-title-bar { border-block-end-color: transparent; }
+/* The sections drag the window like the title bar above them. */
+.section-bar { box-sizing: border-box; display: flex; align-items: flex-end; gap: var(--space-1); block-size: var(--section-bar-height); padding: 0 var(--space-3) 0.1875rem; border-block-end: 0.0625rem solid var(--color-border-strong); background: var(--color-canvas); overflow-x: auto; scrollbar-width: none; -webkit-app-region: drag; app-region: drag; user-select: none; }
+.section-bar > * { flex: none; -webkit-app-region: no-drag; app-region: no-drag; }
+/* The section shown: its name in bold, underlined on the row's bottom line. */
+.section-tab { position: relative; }
+.section-tab[aria-current='page'] { font-weight: 600; }
+.section-tab[aria-current='page']::after { content: ''; position: absolute; inset-inline: var(--space-2); inset-block-end: -0.1875rem; block-size: 0.125rem; border-radius: 0.0625rem; background: var(--color-tone-accent); }
 .title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
-/* In a narrow window the arrows and the menu keep their width; the computer's name gives way. */
+/* In a narrow window the arrows and File keep their width; the computer's name gives way. */
 .title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
 .title-bar-start > .computer-trigger { min-inline-size: 0; }
 .title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
@@ -61,20 +70,36 @@ body { margin: 0; }
 @keyframes project-live { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tone-success) 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 0.375rem transparent; } }
 @media (prefers-reduced-motion: reduce) { .project-live-dot { animation: none; } }
 
-/* The hub: the plans in their groups, one compact row each. The title link covers the row; its
-   other details stay above it. */
-.hub-search { inline-size: min(22rem, 100%); }
+/* The hub: the plans in their groups, one full-width row each; work in progress and blocked work in
+   larger rows. The title link covers the row; its other details stay above it. */
+.hub-search { inline-size: min(28rem, 100%); }
 .hub-note { margin: 0; }
 .hub-group { display: grid; gap: var(--space-2); }
 .hub-group-heading { margin: 0; }
-.hub-row :is(.hub-row-steps, .hub-row-updated, .hub-row-live) { position: relative; }
+.hub-row :is(.hub-row-steps, .hub-row-updated, .hub-row-live, .hub-row-model, .hub-row-step, .hub-row-ended) { position: relative; }
 .hub-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-inline-size: 0; }
 .hub-row-number, .hub-row-project { color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
 /* The summary on one line; the plan page has it all. */
 .hub-row-summary { display: block; overflow: hidden; color: var(--color-text-muted); text-overflow: ellipsis; white-space: nowrap; }
 .hub-row-side { display: flex; align-items: center; gap: var(--space-4); color: var(--color-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .hub-row-steps { display: inline-flex; align-items: center; gap: var(--space-2); }
-.hub-row-live { display: inline-flex; padding: 0.25rem; }
+.hub-row-live { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0.25rem; color: var(--color-tone-success); font: var(--type-body-small); }
+/* A larger row: its summary on up to two lines, its progress and step, then what agents spent on it. */
+.hub-row-large .hub-row-summary { display: -webkit-box; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.hub-row-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); margin-block-start: var(--space-2); color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
+.hub-row-large .step-bar-compact { inline-size: 10rem; }
+.hub-row-step { color: var(--color-text-primary); }
+/* The step worked on in its phase's colour, as the plan page draws it; the next to do stays neutral. */
+.hub-row-step[data-status='doing'] { font-weight: 600; color: var(--color-tone-success); }
+.hub-row-step[data-status='doing'][data-phase='planning'] { color: var(--color-tone-accent); }
+.hub-row-blocked { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-tone-danger); font-weight: 600; }
+.hub-row-blocked-icon { flex: none; inline-size: 1rem; block-size: 1rem; }
+.hub-row-model { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--color-text-primary); }
+.hub-row-ended { color: var(--color-text-primary); }
+
+/* The search: where a result is, then the words it was found in. */
+.search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-snippet { font-style: italic; }
 
 /* The Projects page: each project with its folders and repositories, the hidden and archived after. */
 .projects-intro { margin: 0; }
@@ -131,6 +156,9 @@ body { margin: 0; }
 .step-icon[data-status='done'] { color: var(--color-tone-done); }
 .step-icon[data-status='doing'] { color: var(--color-tone-success); }
 .ledger-step-done span { color: var(--color-text-muted); }
+/* A step the search found, marked for a moment. */
+.ledger-step { border-radius: var(--radius-standard); transition: background-color var(--motion-duration-medium) var(--motion-ease); }
+.ledger-step[data-found] { background: color-mix(in srgb, var(--color-tone-accent) 18%, transparent); }
 .ledger-step-doing span { font-weight: 600; }
 /* Planning steps (settling the design) are told apart from implementation steps by a calm accent, in
    their marks and their part of the bar; their phase is also in their names. */

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { close, launch, launchProject, openPlan, projectHome, removeDirectory, type Launched } from './app';
+import { close, launch, launchProject, openPlan, projectHome, removeDirectory, searchPopup, type Launched } from './app';
 
 let launched: Launched | undefined;
 let folder: string;
@@ -10,10 +10,10 @@ test.beforeEach(() => { ({ dataDirectory, folder } = projectHome()); });
 test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(dataDirectory); });
 
 async function openDiagrams(window: Page, title: string) {
-  // Quick open finds the diagrams of the open plan's project.
+  // The search finds the diagrams of the open plan's project.
   if (await window.locator('.hub').count()) await openPlan(window, 'Customer order notifications');
   await window.keyboard.press('Control+P');
-  const palette = window.getByRole('dialog', { name: 'Quick open' });
+  const palette = searchPopup(window);
   await palette.getByRole('combobox').fill(title);
   await expect(palette.getByRole('option').first()).toContainText(title);
   await palette.getByRole('combobox').press('Enter');

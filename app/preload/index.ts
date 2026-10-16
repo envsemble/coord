@@ -23,6 +23,7 @@ const api: AtlasBridge = {
   info: () => call('window:info'),
   projects: () => call('projects:list'),
   createProject: (name, workspaces) => call('projects:create', name, workspaces),
+  search: query => call('search:query', query),
   scanFolder: folder => call('projects:scan', folder),
   chooseFolder: () => call('projects:chooseFolder'),
   updateProject: (project, change) => call('projects:update', project, change),

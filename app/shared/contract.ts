@@ -6,18 +6,18 @@
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, Snapshot, ViewEventInput, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
 } from '@envsemble/atlas-host/contract';
 import type { DocumentContent } from '@envsemble/atlas-planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, Snapshot, ViewEventInput, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
 };
 
 export const invokeChannels = [
   'window:info',
-  'projects:list', 'projects:create', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
+  'projects:list', 'projects:create', 'search:query', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
   'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
@@ -47,7 +47,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
+  'toggleFiles', 'quickOpen', 'newProject', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -100,12 +100,12 @@ export interface AccessChange { hostId: string | null; state: AccessState }
 export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 /**
- * What a window shows of a project: a work item's plan or, in its place, its ledger (`view`), one of
- * its diagrams (by its path in the work folder, null for its first; `element` names an element of
+ * What a window shows of a project: a work item's plan or, in its place, its ledger (`view`), with a
+ * ledger step the search found pointed out in its progress (`step`, by its title), one of its diagrams (by its path in the work folder, null for its first; `element` names an element of
  * it), or a file.
  */
 export type Target =
-  | { kind: 'work'; work: string; anchor?: string | null; view?: 'ledger' | null }
+  | { kind: 'work'; work: string; anchor?: string | null; view?: 'ledger' | null; step?: string | null }
   | { kind: 'diagram'; work: string; path: string | null; element?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its folder ID): a plan, a diagram or a file. */
@@ -171,6 +171,8 @@ export interface AtlasBridge {
   projects(): Promise<Result<Project[]>>;
   /** A new project on the window's computer, from the bundled templates, covering workspace folders there. */
   createProject(name: string, workspaces: string[]): Promise<Result<Project>>;
+  /** Search every active project of the window's computer: plans, steps, documents, headings, diagrams, elements, glossary terms and projects, best first. */
+  search(query: string): Promise<Result<SearchResult[]>>;
   /** The Git checkouts in a folder on this computer, as a new project would register them. */
   scanFolder(folder: string): Promise<Result<WorkspaceScan>>;
   /** A folder on this computer, chosen in the system's folder dialog; null when none was chosen. */

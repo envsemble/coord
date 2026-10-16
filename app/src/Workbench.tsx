@@ -1,8 +1,9 @@
-// A window: envUI's window frame with its own title bar (the logo, back and forward, the menu, the
-// computer, search, the file panel, record health, the theme and the window buttons) above one place
-// at a time: the hub, where it starts and returns when nothing else is open, a plan, a diagram or a
-// file of a project, or one of the menu's pages (Projects, Statistics). The file panel slides in over
-// a project's page from the right with the files of its project.
+// A window: envUI's window frame with two rows at the top, the title bar (the logo, back and forward,
+// File, the computer, search, the file panel, record health, the theme and the window buttons) and the
+// sections (Plans, Projects, Statistics), above one place at a time: the hub, where it starts and
+// returns when nothing else is open, a plan, a diagram or a file of a project, or the Projects or
+// Statistics page. The file panel slides in over a project's page from the right with the files of
+// its project.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Button, EmptyState, IconButton, Kbd, Notice, PanelDock, PanelDockHeader, Popover, Select, Spinner, Text, TitleBar, Tooltip, useToast, WindowFrame, type PanelDockMode } from '@envsemble/envui';
 import { ThemeMenu } from './ThemeMenu';
@@ -15,15 +16,17 @@ import { samePath, siblingProject } from './links';
 import { canGoBack, canGoForward, currentEntry, keyStep, moveProject, record, samePlace, startHistory, step } from './history';
 import { workNumber } from './format';
 import { Explorer, nodeForTarget } from './Explorer';
-import { QuickOpen } from './QuickOpen';
+import { SearchPopup } from './SearchPopup';
+import type { SearchDestination } from './search';
 import { ImportDialog } from './ImportDialog';
 import { FileView, WorkPage } from './WorkPage';
 import { AtlasWorkPanel } from './AtlasWorkPanel';
 import { Hub, type HubFilters } from './Hub';
-import { ProjectsPage, type ProjectActions } from './ProjectsPage';
+import { NewProjectDialog, ProjectsPage, type ProjectActions } from './ProjectsPage';
+import { hubItems, inState } from './hubPlans';
 import { Statistics } from './StatisticsPage';
 import { Gone, Page } from './Pages';
-import { modifierKey, TitleBarStart, type WorkbenchMenus } from './AppMenu';
+import { modifierKey, SectionBar, TitleBarStart, type Section, type WorkbenchMenus } from './AppMenu';
 import { revealIds } from './explorerModel';
 import { WorkbenchContext, type Notify, type WorkbenchApi } from './workbenchContext';
 
@@ -35,6 +38,8 @@ const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+sh
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
 const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
+/** Whether the hub's search field has focus. */
+const inSearchField = () => Boolean(document.activeElement?.closest('.hub-search'));
 const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButtons)) || [...document.querySelectorAll(keepsHistoryButtons)].some(element => element.checkVisibility());
 
 /** A project's folder as the window follows it: its state, its snapshot once read, and the revision it was read at. */
@@ -201,9 +206,35 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   }, [projectPlace?.project, node?.id]);
 
   // ---- Commands -----------------------------------------------------------------------------------
-  const [quickOpen, setQuickOpen] = useState(false);
+  // The search popup and its query, which the hub's search field shows and types into too.
+  const [search, setSearch] = useState<string | null>(null);
+  // Focus the hub's field gets back, as the search closes or the window comes forward again, does not
+  // open the search; focus moved into it by the user does. Leaving the field ends that.
+  const searchQuiet = useRef(false);
+  // Whether the search opened from the hub's field, where focus returns as it closes.
+  const searchOpen = useRef<{ fromField: boolean } | null>(null);
+  /** Open the search, with a query typed (none keeps what it has); `focused`: the hub's field took focus. */
+  const openSearch = useCallback((query?: string, focused = false) => {
+    if (focused && searchQuiet.current) return;
+    searchOpen.current ??= { fromField: inSearchField() };
+    setSearch(current => query ?? current ?? '');
+  }, []);
+  const closeSearch = useCallback(() => { searchQuiet.current = searchOpen.current?.fromField ?? false; searchOpen.current = null; setSearch(null); }, []);
+  /** The hub's field lost focus: to the user moving on, not to the window going to the background. */
+  const windowAway = useRef(false);
+  const searchFieldLeft = useCallback(() => { if (document.hasFocus() && !windowAway.current) searchQuiet.current = false; }, []);
+  // Away from the hub, its field is gone: shown again, focus moved into it opens the search.
+  useEffect(() => { if (!hubShown) searchQuiet.current = false; }, [hubShown]);
+  useEffect(() => {
+    const away = () => { windowAway.current = true; if (inSearchField()) searchQuiet.current = true; };
+    const back = () => { windowAway.current = false; };
+    window.addEventListener('blur', away);
+    window.addEventListener('focus', back);
+    return () => { window.removeEventListener('blur', away); window.removeEventListener('focus', back); };
+  }, []);
+  const [creatingProject, setCreatingProject] = useState(false);
   const [importing, setImporting] = useState<{ preview: ImportPreview; project: string } | null>(null);
-  const [hubFilters, setHubFilters] = useState<HubFilters>({ query: '', state: 'open' });
+  const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
   const projectOf = useCallback((folderId: string | null) => projects?.find(project => project.folderId === folderId), [projects]);
 
   const exportWork = useCallback(async (project: string, work: string) => {
@@ -226,24 +257,30 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     }
   }, [projects, place, notify]);
   /** The Statistics page: of the project of the plan last open, else the first project. */
-  const showStatistics = useCallback(() => {
+  const statisticsProject = useCallback(() => {
     const all = projects ?? [];
-    const project = projectOf(lastProject.current) ?? all.find(item => item.state === 'active') ?? all[0];
-    go(statisticsPlace(project?.folderId ?? null));
-  }, [projects, projectOf, go]);
+    return (projectOf(lastProject.current) ?? all.find(item => item.state === 'active') ?? all[0])?.folderId ?? null;
+  }, [projects, projectOf]);
+  const showStatistics = useCallback(() => go(statisticsPlace(statisticsProject())), [statisticsProject, go]);
+  // Statistics asked for before the projects were listed show the first once they are.
+  const waitingStatistics = isPage(place) && place.page === 'statistics' && !place.project;
+  useEffect(() => {
+    if (waitingStatistics && projects?.length) replace(statisticsPlace(statisticsProject()));
+  }, [waitingStatistics, projects, statisticsProject, replace]);
   const filesOffered = Boolean(projectPlace);
 
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
       case 'toggleFiles': if (filesOffered) setFiles(mode => mode === 'open' || mode === 'maximized' ? null : 'open'); break;
-      case 'quickOpen': setQuickOpen(true); break;
+      case 'quickOpen': openSearch(); break;
+      case 'newProject': setCreatingProject(true); break;
       case 'projects': go(projectsPlace()); break;
       case 'statistics': showStatistics(); break;
       case 'importPlan': void startImport(); break;
       case 'goBack': navigate(-1); break;
       case 'goForward': navigate(1); break;
     }
-  }, [filesOffered, go, showStatistics, startImport, navigate]);
+  }, [filesOffered, go, showStatistics, startImport, navigate, openSearch]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
@@ -277,8 +314,12 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       lastShortcut.current = { command, time: Date.now() };
       runCommand(command);
     };
+    // A back or forward key that a popup keeps to itself (the search's field) is still noted, so its
+    // echo from the application menu is ignored too.
+    const note = (event: KeyboardEvent) => { const by = keyStep(event, info.platform); if (by) lastShortcut.current = { command: by < 0 ? 'goBack' : 'goForward', time: Date.now() }; };
+    window.addEventListener('keydown', note, true);
     window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    return () => { window.removeEventListener('keydown', note, true); window.removeEventListener('keydown', key); };
   }, [runCommand, navigate, info.platform]);
   // The mouse's back and forward buttons act as they are released; nothing else takes their presses.
   // A menu or dialog open as the button goes down closes on that press, which then does nothing more.
@@ -344,8 +385,10 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const entryPositions = useRef(new Map<number, number>());
   const revisit = entryPositions.current.has(currentEntry(history));
   const anchored = Boolean(projectPlace && 'anchor' in projectPlace.target && projectPlace.target.anchor) && !revisit;
-  // A step back or forward finds a document where it was left, not at the heading it was opened at.
-  const placed: Place = projectPlace && revisit && 'anchor' in projectPlace.target && projectPlace.target.anchor ? { ...projectPlace, target: { ...projectPlace.target, anchor: null } as Target } : place;
+  // A step back or forward finds a document where it was left, not at the heading it was opened at
+  // (nor at the ledger step the search found).
+  const found = projectPlace && 'anchor' in projectPlace.target && (projectPlace.target.anchor || (projectPlace.target.kind === 'work' && projectPlace.target.step));
+  const placed: Place = projectPlace && revisit && found ? { ...projectPlace, target: { ...projectPlace.target, anchor: null, ...projectPlace.target.kind === 'work' && { step: null } } as Target } : place;
   // Forget the positions of what no step back or forward shows.
   useEffect(() => {
     const kept = new Set(history.entries.map(scrollKey));
@@ -393,34 +436,45 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     goForward: () => navigate(1),
     canGoBack: canGoBack(history),
     canGoForward: canGoForward(history),
-    projects: () => runCommand('projects'),
-    statistics: () => runCommand('statistics'),
+    newProject: () => runCommand('newProject'),
     importPlan: () => runCommand('importPlan'),
   };
+  // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
+  const section: Section = isPage(place) && place.page !== 'hub' ? place.page : 'plans';
+  const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
+  const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.filter(project => project.state === 'active').length }, [projects]);
+  /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
+  const choose = useCallback((destination: SearchDestination) => {
+    if ('place' in destination) go(destination.place);
+    else void openPath(destination.project, destination.path, destination.anchor);
+  }, [go, openPath]);
   const filesVisible = filesOffered && (files === 'open' || files === 'maximized');
   const fills = projectPlace?.target.kind === 'diagram' && Boolean(readSnapshot);
   // As tall as the room below the title bar allows.
   const filePanel = files && projectPlace && scope ? [{ id: 'files', title: 'Files', label: 'Files', mode: files, active: true, icon: <FolderOpenIcon />, preferredWidth: 360, height: 100000, tooltip: 'Files of ' + scope.projectName }] : [];
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} />;
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
-  else if (isPage(placed) && !placed.project) content = <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
+  else if (isPage(placed) && !placed.project) content = !projects ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the projects" /></div> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
   else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope}
     statisticsControls={<Select className="statistics-project" density="compact" aria-label="Project" value={reading} onValueChange={value => { if (value) go(statisticsPlace(value)); }}
       options={(projects ?? []).filter(project => project.state === 'active' || project.folderId === reading).map(project => ({ value: project.folderId, label: project.name }))} />} />;
 
-  return <WindowFrame className="workbench" scrollRef={setScroller} titleBar={<TitleBar className="workbench-title-bar"
+  return <WindowFrame className="workbench" scrollRef={setScroller} titleBar={<div className="workbench-top"><TitleBar className="workbench-title-bar"
     start={<TitleBarStart info={info} workbench={menus} onError={warn} />}
     end={<>
-      <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
+      {/* On the hub, its own search field is the search. */}
+      {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
       <Tooltip content={filesOffered ? 'Files (' + modifierKey(info.platform) + '+Shift+E)' : 'Files: open a plan first'} side="bottom">
         <IconButton variant="text" className="files-button" icon={<FolderOpenIcon />} aria-label="Files" aria-pressed={filesVisible} aria-disabled={!filesOffered || undefined}
           aria-keyshortcuts={(info.platform === 'darwin' ? 'Meta' : 'Control') + '+Shift+E'} onClick={() => runCommand('toggleFiles')} />
       </Tooltip>
       {scope && <Health issues={scope.snapshot.issues} open={work => go({ project: scope.project, target: workTarget(work) })} />}
       <ThemeMenu />
-    </>} />}>
+    </>} />
+    <SectionBar section={section} counts={counts} go={goSection} />
+  </div>}>
     <div className={'workbench-body' + (fills ? ' is-filled' : '')}>
       <div ref={page} className="workbench-page">{content}</div>
       <ScrollMemory scroller={scroller} scrollKey={scrollKey(placed)} shown={placeId(placed)} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
@@ -431,7 +485,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
         </WorkbenchContext.Provider>}
       </PanelDock>}
     </div>
-    {quickOpen && projects && <QuickOpen projects={projects} open={projectPlace && scope ? { project: scope.project, snapshot: scope.snapshot } : null} onPick={go} onClose={() => setQuickOpen(false)} />}
+    {search !== null && projects && <SearchPopup projects={projects} open={projectPlace && scope ? { project: scope.project, snapshot: scope.snapshot } : null} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
+    {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
     {importing && <ImportDialog preview={importing.preview} project={projectOf(importing.project)?.name ?? 'this project'}
       onCancel={() => { void api.cancelImport(importing.preview.token).catch(() => undefined); setImporting(null); }}
       onConfirm={async () => {
@@ -533,7 +588,7 @@ function ProjectContent({ place, folder, project, scope, statisticsControls }: {
   </WorkbenchContext.Provider>;
 }
 
-/** The title bar's search: quick open for every plan, and the documents and diagrams of the open plan's project. */
+/** The title bar's search: plans, documents, diagrams and projects (away from the hub, whose search field opens the same). */
 function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
   return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
     <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>
