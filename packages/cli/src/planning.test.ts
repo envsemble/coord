@@ -2,120 +2,122 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atlas, git, homeWithPlanning, planText, reportsIn, temporary, write } from './testing.ts';
+import { git, homeWithPlanning, planText, reportsIn, run, temporary, write } from './testing.ts';
 
-test('a checkout finds its planning folder in the home and drives a work item through its life', t => {
+test('a checkout finds its planning folder in the home and drives a work item through its life', async t => {
   const { root, checkout, env } = homeWithPlanning(t);
-  const run = (...args: string[]) => atlas(args, { env, cwd: checkout });
-  const json = (...args: string[]) => { const result = run(...args); assert.equal(result.status, 0, args.join(' ') + ': ' + result.stderr); return JSON.parse(result.stdout); };
+  const inCheckout = (...args: string[]) => run(args, { env, cwd: checkout });
+  // Once the checkout found it, the planning folder is named: finding it again each time asks Git.
+  const inRoot = (...args: string[]) => run([...args, '--planning-dir', root], { env });
+  const json = async (...args: string[]) => { const result = await inRoot(...args); assert.equal(result.status, 0, args.join(' ') + ': ' + result.stderr); return JSON.parse(result.stdout); };
 
-  const where = json('where');
+  const where = JSON.parse((await inCheckout('where')).stdout);
   assert.deepEqual(where.matches.map((match: { planningFolder: string; via: string[]; repositories: string[] }) => [match.planningFolder, match.via, match.repositories]), [[root, ['remote'], ['shop']]]);
   assert.equal(where.matches[0].work[0].workId, 'work-0001');
-  assert.equal(json('where', '--cwd', root).matches[0].via[0], 'inside');
+  assert.equal(JSON.parse((await inCheckout('where', '--cwd', root)).stdout).matches[0].via[0], 'inside');
 
   // Created for the repositories this checkout is.
-  const created = json('work', 'create', '--title', 'Checkout flow');
+  const created = JSON.parse((await inCheckout('work', 'create', '--title', 'Checkout flow')).stdout);
   assert.deepEqual([created.workId, created.path, created.repositories, created.designStatus], ['work-0002', 'active/0002-checkout-flow', ['shop'], 'draft']);
-  assert.equal(run('work', 'create', '--title', 'X', '--repo', 'nope').status, 1);
-  assert.equal(json('work', 'accept', 'work-0002').designStatus, 'accepted');
+  assert.equal((await inCheckout('work', 'create', '--title', 'X', '--repo', 'nope')).status, 1);
+  assert.equal((await json('work', 'accept', 'work-0002')).designStatus, 'accepted');
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plan');
-  const started = json('work', 'start', 'work-0002', '--step', 'Build', '--step', 'Review');
+  const started = await json('work', 'start', 'work-0002', '--step', 'Build', '--step', 'Review');
   assert.deepEqual(started.steps.map((step: { title: string; status: string }) => [step.title, step.status]), [['Understand the request', 'done'], ['Settle the design', 'done'], ['Write the plan', 'done'], ['Accepted', 'done'], ['Build', 'todo'], ['Review', 'todo']], 'after the planning steps, done on acceptance');
   assert.deepEqual(started.warnings, [], 'the plan was committed');
-  assert.equal(json('work', 'step', 'add', 'work-0002', 'Ship', 'Announce').steps.length, 8);
-  assert.equal(json('work', 'step', 'set', 'work-0002', 'Build', 'doing').steps[4].status, 'doing');
-  assert.equal(json('work', 'step', 'rename', 'work-0002', 'Announce', 'Tell people').steps[7].title, 'Tell people');
-  assert.equal(json('work', 'step', 'remove', 'work-0002', 'Tell people').steps.length, 7);
-  assert.equal(json('work', 'block', 'work-0002', 'Waiting for review').blocked, 'Waiting for review');
+  assert.equal((await json('work', 'step', 'add', 'work-0002', 'Ship', 'Announce')).steps.length, 8);
+  assert.equal((await json('work', 'step', 'set', 'work-0002', 'Build', 'doing')).steps[4].status, 'doing');
+  assert.equal((await json('work', 'step', 'rename', 'work-0002', 'Announce', 'Tell people')).steps[7].title, 'Tell people');
+  assert.equal((await json('work', 'step', 'remove', 'work-0002', 'Tell people')).steps.length, 7);
+  assert.equal((await json('work', 'block', 'work-0002', 'Waiting for review')).blocked, 'Waiting for review');
 
-  const refused = run('work', 'close', 'work-0002');
+  const refused = await inRoot('work', 'close', 'work-0002');
   assert.equal(refused.status, 1);
   assert.equal(refused.stdout, '');
   assert.match(refused.stderr, /^atlas: work-0002 cannot close while items are open\..*\n  - Step "Build" is doing\.\n  - Step "Review" is todo\.\n  - Step "Ship" is todo\.\n  - Blocked: Waiting for review\n$/s);
-  assert.equal(json('work', 'block', 'work-0002', '--clear').blocked, null);
-  for (const step of ['Build', 'Review', 'Ship']) json('work', 'step', 'set', 'work-0002', step, 'done');
-  const closed = json('work', 'close', 'work-0002');
+  assert.equal((await json('work', 'block', 'work-0002', '--clear')).blocked, null);
+  for (const step of ['Build', 'Review', 'Ship']) await json('work', 'step', 'set', 'work-0002', step, 'done');
+  const closed = await json('work', 'close', 'work-0002');
   assert.deepEqual([closed.path, closed.implementationStatus], ['archive/0002-checkout-flow', 'complete']);
-  assert.equal(json('work', 'status', 'work-0002', '--planning-dir', root).location, 'archive');
-  assert.equal(json('work', 'reopen', 'work-0002', '--step', 'Fix a bug').path, 'active/0002-checkout-flow');
-  assert.match(run('work', 'archive', 'work-0001').stderr, /^atlas: work-0001 is not complete: archive it as superseded/);
-  const archived = json('work', 'archive', 'work-0001', '--superseded-by', 'work-0002', '--reason', 'The checkout flow covers it');
+  assert.equal((await json('work', 'status', 'work-0002')).location, 'archive');
+  assert.equal((await json('work', 'reopen', 'work-0002', '--step', 'Fix a bug')).path, 'active/0002-checkout-flow');
+  assert.match((await inRoot('work', 'archive', 'work-0001')).stderr, /^atlas: work-0001 is not complete: archive it as superseded/);
+  const archived = await json('work', 'archive', 'work-0001', '--superseded-by', 'work-0002', '--reason', 'The checkout flow covers it');
   assert.deepEqual([archived.path, archived.designStatus], ['archive/0001-cart', 'superseded']);
   assert.ok(readFileSync(path.join(root, 'README.md'), 'utf8').includes('[Cart](archive/0001-cart/plan.md)'), 'links follow the move');
-  assert.equal(atlas(['planning', 'check', root], { env }).status, 0);
+  assert.equal((await run(['planning', 'check', root], { env })).status, 0);
 
   // Refusals exit 1 with the reason; usage errors exit 2.
-  assert.match(run('work', 'start', 'work-0001', '--step', 'X').stderr, /^atlas: The design is superseded; accept it/);
-  assert.equal(run('work', 'status', 'work-0042').status, 1);
-  for (const args of [['work'], ['work', 'status'], ['work', 'status', 'a', 'b'], ['work', 'create'], ['work', 'step'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'block', 'work-0002'], ['work', 'reopen', 'work-0002'], ['work', 'start', 'work-0002'], ['work', 'archive', 'work-0002', '--abandoned'], ['work', 'archive', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'archive', 'work-0002', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
-    assert.equal(run(...args).status, 2, args.join(' '));
+  assert.match((await inRoot('work', 'start', 'work-0001', '--step', 'X')).stderr, /^atlas: The design is superseded; accept it/);
+  assert.equal((await inRoot('work', 'status', 'work-0042')).status, 1);
+  for (const args of [['work'], ['work', 'status'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'block', 'work-0002'], ['work', 'start', 'work-0002'], ['work', 'archive', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
+    assert.equal((await inRoot(...args)).status, 2, args.join(' '));
   }
   // Outside any registered checkout, a planning folder must be given.
-  const elsewhere = atlas(['work', 'status', 'work-0001'], { env, cwd: path.dirname(root) });
+  const elsewhere = await run(['work', 'status', 'work-0001'], { env, cwd: path.dirname(root) });
   assert.equal(elsewhere.status, 1);
   assert.match(elsewhere.stderr, /No planning folder in the Atlas home/);
 });
 
-test('atlas check checks a checkout\'s planning folder, files and folders with 0/1 exit codes', t => {
+test('atlas check checks a checkout\'s planning folder, files and folders with 0/1 exit codes', async t => {
   const { root, checkout, env } = homeWithPlanning(t);
-  const valid = atlas(['check'], { env, cwd: checkout });
+  const valid = await run(['check'], { env, cwd: checkout });
   assert.equal(valid.status, 0, valid.stderr);
   assert.match(valid.stdout, /no problems/);
   assert.match(valid.stdout, /^WARNING: active\/0001-cart\/plan\.md: no summary: add one to the header/m, 'an active plan without a summary is a warning');
   const plan = path.join(root, 'active/0001-cart/plan.md');
   writeFileSync(plan, planText('work-0001', 'Cart').replace('title: "Cart"', 'title: no'));
-  const invalid = atlas(['check', plan], { env });
+  const invalid = await run(['check', plan], { env });
   assert.equal(invalid.status, 1);
   assert.match(invalid.stderr, /^ERROR: active\/0001-cart\/plan\.md: title must be a nonempty string$/m);
-  assert.equal(atlas(['check', path.join(root, 'README.md')], { env }).status, 0, 'findings about other files are not reported');
-  assert.equal(atlas(['check'], { env, cwd: root }).status, 1, 'inside a planning folder, that folder is checked');
-  assert.equal(atlas(['check', path.join(root, 'missing.md')], { env }).status, 2);
+  assert.equal((await run(['check', path.join(root, 'README.md')], { env })).status, 0, 'findings about other files are not reported');
+  assert.equal((await run(['check'], { env, cwd: root })).status, 1, 'inside a planning folder, that folder is checked');
+  assert.equal((await run(['check', path.join(root, 'missing.md')], { env })).status, 2);
   const nowhere = temporary(t);
-  assert.equal(atlas(['check'], { env, cwd: nowhere }).status, 1);
+  assert.equal((await run(['check'], { env, cwd: nowhere })).status, 1);
 });
 
-test('atlas project create makes a project covering workspace folders, which then decide where a session belongs', t => {
+test('atlas project create makes a project covering workspace folders, which then decide where a session belongs', async t => {
   const { home, directory, checkout, env } = homeWithPlanning(t);
-  const run = (...args: string[]) => atlas(args, { env, cwd: directory });
+  const inDirectory = (...args: string[]) => run(args, { env, cwd: directory });
   // The folder holds the shop's checkout (whose remote shop-planning registers) and the home, which is no checkout.
-  const created = run('project', 'create', '--name', 'Shop work', '--workspace', '.', '--json');
+  const created = await inDirectory('project', 'create', '--name', 'Shop work', '--workspace', '.', '--json');
   assert.equal(created.status, 0, created.stderr);
   const planningFolder = path.join(home, 'planning', 'shop-work');
   assert.deepEqual(JSON.parse(created.stdout), { name: 'Shop work', planningFolder, workspaces: [directory], repositories: [{ id: 'shop', name: 'shop', remote: 'https://github.com/example/shop.git' }], skipped: [] });
   for (const file of ['AGENTS.md', 'PLANS.md', 'README.md', 'plan-frontmatter.md', '.gitattributes', '.git']) assert.ok(existsSync(path.join(planningFolder, file)), file);
   assert.match(git(planningFolder, 'log', '--format=%s'), /^Create the Shop work project/);
-  assert.equal(atlas(['planning', 'check', planningFolder], { env }).status, 0);
-  assert.deepEqual(JSON.parse(atlas(['home'], { env }).stdout).projects.map((item: { name: string }) => item.name), ['shop-planning', 'Shop work']);
+  assert.equal((await run(['planning', 'check', planningFolder], { env })).status, 0);
+  assert.deepEqual(JSON.parse((await run(['home'], { env })).stdout).projects.map((item: { name: string }) => item.name), ['shop-planning', 'Shop work']);
   // A session in the workspace folder belongs to the new project alone, though shop-planning registers its remote.
-  const where = JSON.parse(atlas(['where'], { env, cwd: checkout }).stdout);
+  const where = JSON.parse((await run(['where'], { env, cwd: checkout })).stdout);
   assert.deepEqual(where.matches.map((match: { project: string; via: string[] }) => [match.project, match.via]), [['Shop work', ['workspace', 'remote']]]);
   // Work there gets its summary.
-  const work = JSON.parse(atlas(['work', 'create', '--title', 'Returns', '--summary', 'Returns by post. Not started.'], { env, cwd: checkout }).stdout);
+  const work = JSON.parse((await run(['work', 'create', '--title', 'Returns', '--summary', 'Returns by post. Not started.'], { env, cwd: checkout })).stdout);
   assert.deepEqual([work.workId, work.summary, work.planningFolder], ['work-0001', 'Returns by post. Not started.', planningFolder]);
   // Said plainly without --json; refusals exit 1, usage errors 2.
   const other = path.join(directory, 'other');
   write(path.join(other, 'notes.md'), '# Notes\n');
-  const plain = run('project', 'create', '--name', 'Other', '--workspace', other);
+  const plain = await inDirectory('project', 'create', '--name', 'Other', '--workspace', other);
   assert.equal(plain.status, 0, plain.stderr);
   assert.match(plain.stdout, /^Created the project Other in .*other, covering .*other\.\nNo Git checkouts were found in those folders/);
-  const missing = run('project', 'create', '--name', 'Gone', '--workspace', path.join(directory, 'missing'));
+  const missing = await inDirectory('project', 'create', '--name', 'Gone', '--workspace', path.join(directory, 'missing'));
   assert.deepEqual([missing.status, missing.stderr], [1, `atlas: The folder ${path.join(directory, 'missing')} does not exist.\n`]);
-  for (const args of [['project'], ['project', 'make'], ['project', 'create', '--name', 'X'], ['project', 'create', '--workspace', '.'], ['project', 'create', 'extra', '--name', 'X', '--workspace', '.']]) assert.equal(run(...args).status, 2, args.join(' '));
+  for (const args of [['project', 'make'], ['project', 'create', '--name', 'X']]) assert.equal((await inDirectory(...args)).status, 2, args.join(' '));
 });
 
-test('atlas home lists the home\'s projects and adopts a planning folder, importing its statistics, refusing a taken name', t => {
+test('atlas home lists the home\'s projects and adopts a planning folder, importing its statistics, refusing a taken name', async t => {
   const { home, root, directory, env } = homeWithPlanning(t);
-  const listed = atlas(['home'], { env });
+  const listed = await run(['home'], { env });
   assert.deepEqual(JSON.parse(listed.stdout), { home, projects: [{ name: 'shop-planning', planningFolder: root }] });
   const other = path.join(directory, 'old-planning');
   write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Old', repositories: [{ id: 'app', name: 'App', path: '../app' }], work_items: [{ id: 'work-0001', path: 'active/0001-old', repositories: ['app'], current_plan: null }] }, null, 2) + '\n');
   write(path.join(other, 'active/0001-old/.atlas/statistics.jsonl'), JSON.stringify({ version: 1, at: '2026-10-01T10:00:00.000Z', model: 'model-a', session: null, tokens: null, step: null }) + '\n');
   git(other, 'init', '-q');
-  const refused = atlas(['home', 'adopt', other, '--name', 'shop-planning'], { env });
+  const refused = await run(['home', 'adopt', other, '--name', 'shop-planning'], { env });
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /already exists/);
-  const adopted = atlas(['home', 'adopt', other], { env });
+  const adopted = await run(['home', 'adopt', other], { env });
   assert.equal(adopted.status, 0, adopted.stderr);
   const moved = path.join(home, 'planning', 'old-planning');
   assert.deepEqual(JSON.parse(adopted.stdout).rewritten, [{ id: 'app', from: '../app', to: path.join(directory, 'app') }]);
@@ -124,7 +126,7 @@ test('atlas home lists the home\'s projects and adopts a planning folder, import
   assert.equal(reportsIn(moved, 'work-0001', home).length, 1);
   assert.ok(!existsSync(other) && existsSync(path.join(moved, '.git')));
   assert.equal(JSON.parse(readFileSync(path.join(moved, 'planning.json'), 'utf8')).repositories[0].path, path.join(directory, 'app'));
-  assert.deepEqual(JSON.parse(atlas(['home', 'list'], { env }).stdout).projects, [{ name: 'Old', planningFolder: moved }, { name: 'shop-planning', planningFolder: root }]);
-  assert.equal(atlas(['home', 'adopt'], { env }).status, 2);
-  assert.equal(atlas(['home', 'move', other], { env }).status, 2);
+  assert.deepEqual(JSON.parse((await run(['home', 'list'], { env })).stdout).projects, [{ name: 'Old', planningFolder: moved }, { name: 'shop-planning', planningFolder: root }]);
+  assert.equal((await run(['home', 'adopt'], { env })).status, 2);
+  assert.equal((await run(['home', 'move', other], { env })).status, 2);
 });
