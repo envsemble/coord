@@ -38,6 +38,8 @@ const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+sh
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
 const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
+/** Whether the hub's search field has focus. */
+const inSearchField = () => Boolean(document.activeElement?.closest('.hub-search'));
 const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButtons)) || [...document.querySelectorAll(keepsHistoryButtons)].some(element => element.checkVisibility());
 
 /** A project's folder as the window follows it: its state, its snapshot once read, and the revision it was read at. */
@@ -206,16 +208,30 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // ---- Commands -----------------------------------------------------------------------------------
   // The search popup and its query, which the hub's search field shows and types into too.
   const [search, setSearch] = useState<string | null>(null);
-  const searchClosed = useRef(0);
-  /**
-   * Open the search, with a query typed (none keeps what it has). Focus coming back to the hub's field
-   * as the search closes does not open it again.
-   */
+  // Focus the hub's field gets back, as the search closes or the window comes forward again, does not
+  // open the search; focus moved into it by the user does. Leaving the field ends that.
+  const searchQuiet = useRef(false);
+  // Whether the search opened from the hub's field, where focus returns as it closes.
+  const searchOpen = useRef<{ fromField: boolean } | null>(null);
+  /** Open the search, with a query typed (none keeps what it has); `focused`: the hub's field took focus. */
   const openSearch = useCallback((query?: string, focused = false) => {
-    if (focused && Date.now() - searchClosed.current < 500) return;
+    if (focused && searchQuiet.current) return;
+    searchOpen.current ??= { fromField: inSearchField() };
     setSearch(current => query ?? current ?? '');
   }, []);
-  const closeSearch = useCallback(() => { searchClosed.current = Date.now(); setSearch(null); }, []);
+  const closeSearch = useCallback(() => { searchQuiet.current = searchOpen.current?.fromField ?? false; searchOpen.current = null; setSearch(null); }, []);
+  /** The hub's field lost focus: to the user moving on, not to the window going to the background. */
+  const windowAway = useRef(false);
+  const searchFieldLeft = useCallback(() => { if (document.hasFocus() && !windowAway.current) searchQuiet.current = false; }, []);
+  // Away from the hub, its field is gone: shown again, focus moved into it opens the search.
+  useEffect(() => { if (!hubShown) searchQuiet.current = false; }, [hubShown]);
+  useEffect(() => {
+    const away = () => { windowAway.current = true; if (inSearchField()) searchQuiet.current = true; };
+    const back = () => { windowAway.current = false; };
+    window.addEventListener('blur', away);
+    window.addEventListener('focus', back);
+    return () => { window.removeEventListener('blur', away); window.removeEventListener('focus', back); };
+  }, []);
   const [creatingProject, setCreatingProject] = useState(false);
   const [importing, setImporting] = useState<{ preview: ImportPreview; project: string } | null>(null);
   const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
@@ -369,8 +385,10 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const entryPositions = useRef(new Map<number, number>());
   const revisit = entryPositions.current.has(currentEntry(history));
   const anchored = Boolean(projectPlace && 'anchor' in projectPlace.target && projectPlace.target.anchor) && !revisit;
-  // A step back or forward finds a document where it was left, not at the heading it was opened at.
-  const placed: Place = projectPlace && revisit && 'anchor' in projectPlace.target && projectPlace.target.anchor ? { ...projectPlace, target: { ...projectPlace.target, anchor: null } as Target } : place;
+  // A step back or forward finds a document where it was left, not at the heading it was opened at
+  // (nor at the ledger step the search found).
+  const found = projectPlace && 'anchor' in projectPlace.target && (projectPlace.target.anchor || (projectPlace.target.kind === 'work' && projectPlace.target.step));
+  const placed: Place = projectPlace && revisit && found ? { ...projectPlace, target: { ...projectPlace.target, anchor: null, ...projectPlace.target.kind === 'work' && { step: null } } as Target } : place;
   // Forget the positions of what no step back or forward shows.
   useEffect(() => {
     const kept = new Set(history.entries.map(scrollKey));
@@ -424,7 +442,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
   const section: Section = isPage(place) && place.page !== 'hub' ? place.page : 'plans';
   const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
-  const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.length }, [projects]);
+  const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.filter(project => project.state === 'active').length }, [projects]);
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
   const choose = useCallback((destination: SearchDestination) => {
     if ('place' in destination) go(destination.place);
@@ -436,7 +454,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const filePanel = files && projectPlace && scope ? [{ id: 'files', title: 'Files', label: 'Files', mode: files, active: true, icon: <FolderOpenIcon />, preferredWidth: 360, height: 100000, tooltip: 'Files of ' + scope.projectName }] : [];
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} />;
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   else if (isPage(placed) && !placed.project) content = !projects ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the projects" /></div> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
   else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope}

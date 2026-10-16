@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CommandPalette, type CommandPaletteItem } from '@envsemble/envui';
 import { DiagramIcon, FileIcon, FolderIcon, LedgerIcon, PlanIcon, SearchIcon } from './icons';
 import type { DiagramIndexEntry, Project, SearchKind, SearchResult, Snapshot, Target } from './types';
@@ -7,7 +7,7 @@ import { rankItems, type QuickItem } from './quickMatch';
 import { hubGroups, hubItems, hubStatus } from './hubPlans';
 import { diagramTarget, fileTarget, workTarget, type Place } from './targets';
 import { workNumber } from './format';
-import { hostEntries, mergeEntries, pathKey, searchKindLabels, workKey, type SearchDestination, type SearchEntry } from './search';
+import { hostEntries, listEntries, pathKey, workKey, type SearchDestination, type SearchEntry } from './search';
 import { StatusIcon } from './ui';
 
 interface Entry extends QuickItem, Omit<SearchEntry, 'kind'> { icon: ReactNode }
@@ -37,17 +37,15 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
     return () => { current = false; };
   }, [project]);
 
-  // The host's results, asked for once typing pauses. An answer older than one shown is dropped.
-  const [found, setFound] = useState<SearchResult[]>([]);
-  const asked = useRef(0);
-  const answered = useRef(0);
+  // The host's results, asked for once typing pauses, and shown only for the query they answer: an
+  // answer that comes after the query changed is dropped.
+  const [found, setFound] = useState<{ query: string; results: SearchResult[] } | null>(null);
   const text = query.trim();
   useEffect(() => {
-    if (!text) { answered.current = ++asked.current; setFound([]); return; }
+    if (!text) return;
     let current = true;
     const timer = window.setTimeout(() => {
-      const ask = ++asked.current;
-      const take = (results: SearchResult[]) => { if (ask > answered.current) { answered.current = ask; if (current) setFound(results); } };
+      const take = (results: SearchResult[]) => { if (current) setFound({ query: text, results }); };
       api.search(text).then(take, () => take([]));
     }, searchDelay);
     return () => { current = false; window.clearTimeout(timer); };
@@ -82,12 +80,12 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const icons = useMemo(() => new Map(entries.map(entry => [entry.id, entry.icon])), [entries]);
   const results = useMemo(() => {
     const local = rankItems(entries, query).map(({ icon: _icon, ...entry }) => ({ ...entry, kind: localKinds[entry.kind] }));
-    return mergeEntries(text ? hostEntries(found, projects) : [], local);
+    return listEntries(local, text && found?.query === text ? hostEntries(found.results, projects) : []);
   }, [entries, query, text, found, projects]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
   // The name read out includes where it is, so many plan.md files stay apart.
   const items: CommandPaletteItem[] = results.map(entry => ({
-    id: entry.id, label: entry.label, textValue: [entry.label, entry.detail, entry.snippet].filter(Boolean).join(', '), icon: icons.get(entry.id) ?? kindIcons[entry.kind], group: searchKindLabels[entry.kind],
+    id: entry.id, label: entry.label, textValue: [entry.label, entry.detail, entry.snippet].filter(Boolean).join(', '), icon: icons.get(entry.id) ?? kindIcons[entry.kind], group: entry.group,
     detail: entry.snippet ? <><span className="search-where">{entry.detail}</span><span className="search-snippet">{entry.snippet}</span></> : entry.detail,
   }));
 

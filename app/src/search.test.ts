@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostEntries, mergeEntries, pathKey, resultDestination, workKey, type SearchEntry } from './search.ts';
+import { hostEntries, listEntries, pathKey, resultDestination, workKey, type SearchEntry } from './search.ts';
 import type { Project, SearchResult } from './types.ts';
 
 const folder = 'f-' + '1'.repeat(32);
@@ -12,7 +12,8 @@ const atlas: Project = {
 
 test('each kind of result opens where it is: a plan, a plan at a step, a document at its heading, a diagram at its element, a project in the hub', () => {
   assert.deepEqual(resultDestination(result({ work: 'work-0023' })), { place: { project: folder, target: { kind: 'work', work: 'work-0023', anchor: null } } });
-  assert.deepEqual(resultDestination(result({ kind: 'step', work: 'work-0023', path: 'active/0023-plans-hub/plan.md' })), { place: { project: folder, target: { kind: 'work', work: 'work-0023', anchor: null } } });
+  // A step opens its plan with the step pointed out in its progress.
+  assert.deepEqual(resultDestination(result({ kind: 'step', title: 'Build the hub', work: 'work-0023', path: 'active/0023-plans-hub/plan.md' })), { place: { project: folder, target: { kind: 'work', work: 'work-0023', anchor: null, step: 'Build the hub' } } });
   assert.deepEqual(resultDestination(result({ kind: 'heading', work: 'work-0023', path: 'active/0023-plans-hub/plan.md', anchor: 'why' })), { project: folder, path: 'active/0023-plans-hub/plan.md', anchor: 'why' });
   assert.deepEqual(resultDestination(result({ kind: 'document', path: 'knowledge/shop.md' })), { project: folder, path: 'knowledge/shop.md', anchor: null });
   assert.deepEqual(resultDestination(result({ kind: 'term', path: 'CONTEXT.md', anchor: 'plan' })), { project: folder, path: 'CONTEXT.md', anchor: 'plan' });
@@ -35,11 +36,19 @@ test("the host's results say their project and work item, and the snippet", () =
   assert.equal(new Set([plan.id, heading.id, project.id]).size, 3);
 });
 
-test("the window's own entries follow the host's, without repeating them, grouped by kind where each kind first came", () => {
+test("the host's results go below what the window lists already, without repeating it, so the highlighted result stays where it is", () => {
   const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', project: null } }, key });
-  const host = [entry('heading', 'heading'), entry('plan', 'plan', workKey(folder, 'work-0023')), entry('doc', 'document', pathKey(folder, 'a.md'))];
-  const local = [entry('diagram', 'diagram'), entry('plan again', 'plan', workKey(folder, 'work-0023')), entry('other plan', 'plan', workKey(folder, 'work-0024')), entry('doc again', 'document', pathKey(folder, 'a.md'))];
-  assert.deepEqual(mergeEntries(host, local).map(item => item.id), ['heading', 'plan', 'other plan', 'doc', 'diagram']);
-  // While the host finds nothing, the window's own entries, grouped.
-  assert.deepEqual(mergeEntries([], [entry('p1', 'plan'), entry('d1', 'diagram'), entry('p2', 'plan')]).map(item => item.id), ['p1', 'p2', 'd1']);
+  const local = [entry('plan', 'plan', workKey(folder, 'work-0023')), entry('diagram', 'diagram'), entry('other plan', 'plan', workKey(folder, 'work-0024')), entry('doc', 'document', pathKey(folder, 'a.md'))];
+  const host = [entry('heading', 'heading'), entry('plan again', 'plan', workKey(folder, 'work-0023')), entry('doc again', 'document', pathKey(folder, 'a.md')), entry('summary plan', 'plan', workKey(folder, 'work-0025')), entry('heading 2', 'heading')];
+  const listed = listEntries(local, host);
+  // What was shown before the host answered stays first and in its order.
+  const before = listEntries(local, []).map(item => item.id);
+  assert.deepEqual(before, ['plan', 'other plan', 'diagram', 'doc']);
+  assert.deepEqual(listed.slice(0, before.length).map(item => item.id), before);
+  assert.deepEqual(listed.map(item => [item.id, item.group]), [
+    ['plan', 'Plans'], ['other plan', 'Plans'], ['diagram', 'Diagrams'], ['doc', 'Documents'],
+    ['heading', 'Headings'], ['heading 2', 'Headings'], ['summary plan', 'More plans'],
+  ]);
+  // Only the host's.
+  assert.deepEqual(listEntries([], host.slice(0, 2)).map(item => item.group), ['Headings', 'Plans']);
 });

@@ -92,7 +92,7 @@ The window is envUI's window frame, and it draws two rows at the top, GitHub sty
 | Shortcut | Action |
 | --- | --- |
 | Alt+← / Alt+→ (⌘[ / ⌘] on macOS) | Back / forward |
-| Ctrl+P | Quick open |
+| Ctrl+P | Search |
 | Ctrl+Shift+E | Show or hide Files |
 | Ctrl+Shift+N | New window |
 | Ctrl+Shift+W | Close the window |

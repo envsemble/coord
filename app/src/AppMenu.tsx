@@ -92,14 +92,17 @@ function HistoryButtons({ platform, workbench }: { platform: string; workbench: 
 
 export type Section = 'plans' | 'projects' | 'statistics';
 
-/** The second row: the window's sections, the one shown marked, with the open plans and the projects counted (once listed). */
+/**
+ * The second row: the window's sections, the one shown underlined as on GitHub, with the open plans
+ * and the active projects counted (once listed).
+ */
 export function SectionBar({ section, counts, go }: { section: Section; counts: { plans: number; projects: number } | null; go(section: Section): void }) {
   const item = (id: Section, label: string, icon: ReactNode, count?: number, countLabel?: string) => <NavigationItem size="compact" className="section-tab" data-section={id}
-    selected={section === id} aria-current={section === id ? 'page' : undefined} icon={icon} onClick={() => go(id)}
+    aria-current={section === id ? 'page' : undefined} icon={icon} onClick={() => go(id)}
     trailing={count === undefined ? undefined : <Counter value={count} aria-label={countLabel} />}>{label}</NavigationItem>;
   return <nav className="section-bar" aria-label="Sections">
     {item('plans', 'Plans', <WorkIcon />, counts?.plans, counts ? counts.plans + ' open' : undefined)}
-    {item('projects', 'Projects', <FolderIcon />, counts?.projects, counts ? counts.projects + ' in all' : undefined)}
+    {item('projects', 'Projects', <FolderIcon />, counts?.projects, counts ? counts.projects + ' active' : undefined)}
     {item('statistics', 'Statistics', <StatisticsIcon />)}
   </nav>;
 }

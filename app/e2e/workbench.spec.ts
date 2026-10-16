@@ -78,6 +78,22 @@ test("the hub's search field opens the search with what is typed and never filte
   await window.waitForTimeout(600);
   await expect(popup).toHaveCount(0);
   await expect(field).toHaveValue('');
+  // Nor does the window going to the background and coming back, which focuses the field again.
+  await field.evaluate(element => {
+    globalThis.dispatchEvent(new Event('blur'));
+    element.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    globalThis.dispatchEvent(new Event('focus'));
+    element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+  });
+  await window.waitForTimeout(400);
+  await expect(popup).toHaveCount(0);
+  // Moving away from the field and back into it does.
+  await window.keyboard.press('Tab');
+  await expect(field).not.toBeFocused();
+  await window.keyboard.press('Shift+Tab');
+  await expect(popup).toBeVisible();
+  await window.keyboard.press('Escape');
+  await expect(field).toBeFocused();
   await window.keyboard.type('fulfil coord');
   await expect(input).toHaveValue('fulfil coord');
   await expect(hubRows(window)).toHaveCount(6);
@@ -429,13 +445,18 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   const sections = window.getByRole('navigation', { name: 'Sections' });
   await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*6/, /^Projects\s*2/, /^Statistics$/]);
   await expect(sections.getByRole('button', { name: 'Plans 6 open', exact: true })).toBeVisible();
-  await expect(sections.getByRole('button', { name: 'Projects 2 in all', exact: true })).toBeVisible();
+  await expect(sections.getByRole('button', { name: 'Projects 2 active', exact: true })).toBeVisible();
   const [top, below] = [(await bar.boundingBox())!, (await sections.boundingBox())!];
   expect(Math.abs(top.y + top.height - below.y)).toBeLessThan(1);
   expect(below.height).toBeLessThanOrEqual(48);
   // A plan belongs to Plans; each section shows its page and is marked.
   const current = sections.locator('[aria-current="page"]');
   await expect(current).toHaveAttribute('data-section', 'plans');
+  // As on GitHub, the section shown is underlined, not filled.
+  const look = (name: 'plans' | 'projects') => sections.locator(`[data-section="${name}"]`).evaluate(element => ({ underline: getComputedStyle(element, '::after').content !== 'none', fill: getComputedStyle(element).backgroundColor }));
+  const [shown, other] = [await look('plans'), await look('projects')];
+  expect([shown.underline, other.underline]).toEqual([true, false]);
+  expect(shown.fill).toBe(other.fill);
   await section(window, 'Projects').click();
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
   await expect(current).toHaveAttribute('data-section', 'projects');
@@ -446,10 +467,10 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await section(window, 'Plans').click();
   await expectHub(window);
   await expect(current).toHaveAttribute('data-section', 'plans');
-  // The counts follow the projects: an archived project's plans leave Plans.
+  // The counts follow the projects: an archived project and its plans are not counted.
   await openProjects(window);
   await projectAction(window, 'Coord', 'Archive');
-  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*3/, /^Projects\s*2/, /^Statistics$/]);
+  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*3/, /^Projects\s*1/, /^Statistics$/]);
   await projectAction(window, 'Coord', 'Restore');
   await expect(sections.locator('.section-tab').first()).toHaveText(/^Plans\s*6/);
 
@@ -564,21 +585,25 @@ test("the search shows the host's results grouped by kind with their project, wo
     result({ kind: 'element', title: 'Shipment', work: 'work-0002', path: 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', element: 'Shipment' }),
     result({ kind: 'heading', title: 'Current checkout', snippet: 'card details are typed in again on every order', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: 'current-checkout' }),
     result({ kind: 'document', title: 'Payments constraints', snippet: 'tokens only, never card numbers', path: 'knowledge/shop/payments-constraints.md' }),
-    result({ kind: 'step', title: 'Bounce and complaint webhook handling', work: 'work-0003', path: 'active/0003-customer-notifications/plan.md' }),
+    result({ kind: 'step', title: 'Wire placeOrderWithSavedMethod into checkout', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md' }),
     result({ kind: 'project', title: 'Coord', folderId: coord, project: 'Coord' }),
   ];
-  // The host's search, stubbed: these results for any query; a query with "slow" in it answers late with a plan.
+  // The host's search, stubbed: these results for any query, the queries asked and answered noted. A
+  // query with "slow" in it answers late with a plan; one starting with "saved" a little late.
   await app.evaluate(({ ipcMain }, stubbed) => {
-    const asked: string[] = [];
-    (globalThis as { asked?: string[] }).asked = asked;
+    const noted = { asked: [] as string[], answered: [] as string[] };
+    (globalThis as { noted?: typeof noted }).noted = noted;
     ipcMain.removeHandler('search:query');
     ipcMain.handle('search:query', async (_event, query: string) => {
-      asked.push(query);
-      if (query.includes('slow')) { await new Promise(resolve => setTimeout(resolve, 1500)); return { ok: true, value: [{ ...stubbed[0], kind: 'plan', title: 'Stale answer', work: 'work-0002', path: null, element: null }] }; }
-      return { ok: true, value: stubbed };
+      noted.asked.push(query);
+      const late = query.includes('slow') ? 1500 : query.startsWith('saved') ? 1000 : 0;
+      if (late) await new Promise(resolve => setTimeout(resolve, late));
+      noted.answered.push(query);
+      return { ok: true, value: query.includes('slow') ? [{ ...stubbed[0], kind: 'plan', title: 'Stale answer', work: 'work-0002', path: null, element: null }] : stubbed };
     });
   }, results);
-  const asked = () => app.evaluate(() => (globalThis as { asked?: string[] }).asked ?? []);
+  const noted = () => app.evaluate(() => (globalThis as { noted?: { asked: string[]; answered: string[] } }).noted!);
+  const asked = async () => (await noted()).asked;
   const palette = searchPopup(window);
   const input = palette.getByRole('combobox');
   const choose = async (title: string) => {
@@ -602,17 +627,33 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect(window.locator('.prose h2', { hasText: 'Current checkout' })).toBeInViewport();
 
-  // A diagram's element, a document, a plan at a step and a project.
+  // A diagram's element, a plan at a step (pointed out in its progress), a document and a project.
   await choose('Shipment');
   await expect(window.locator('.model-picker-title')).toHaveText('Fulfilment · conceptual model');
   await window.locator('.model-picker-button').hover();
   await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Shipment');
+  await choose('Wire placeOrderWithSavedMethod into checkout');
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  const step = window.locator('.about .ledger-step[data-found]');
+  await expect(step).toHaveText('Wire placeOrderWithSavedMethod into checkout');
+  await expect(step).toBeInViewport();
+  await expect(step).toHaveCount(0, { timeout: 5000 });
   await choose('Payments constraints');
   await expect(window.locator('.reader-name')).toContainText('payments-constraints.md');
-  await choose('Bounce and complaint webhook handling');
-  await expect(window.locator('.work-header h1')).toHaveText('Customer order notifications');
   await choose('Coord');
   await expectHub(window, 'Coord');
+
+  // The host's results come below those shown: the result highlighted meanwhile is the one Enter opens.
+  await window.keyboard.press('Control+P');
+  await input.fill('saved payment');
+  await expect(palette.getByRole('option')).toHaveCount(2);
+  await input.press('ArrowDown');
+  await expect(palette.getByRole('option').nth(1)).toHaveAttribute('data-highlighted', '');
+  await expect(palette.getByRole('option')).toHaveCount(7);
+  await expect(palette.getByRole('option').nth(1)).toHaveAttribute('data-highlighted', '');
+  await input.press('Enter');
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await expect(window.locator('.work-main .breadcrumb')).toContainText('Coord');
 
   // An answer to an earlier query that comes after a later one's is not shown.
   await window.keyboard.press('Control+P');
@@ -620,7 +661,8 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect.poll(asked).toContain('qqq slow');
   await input.fill('qqq fast');
   await expect(palette.getByRole('option')).toHaveCount(5);
-  await window.waitForTimeout(2000);
+  await expect.poll(async () => (await noted()).answered.slice(-2), { timeout: 5000 }).toEqual(['qqq fast', 'qqq slow']);
+  await window.waitForTimeout(300);
   await expect(palette.getByRole('option', { name: /^Stale answer/ })).toHaveCount(0);
   await expect(palette.getByRole('option')).toHaveCount(5);
   await input.press('Escape');

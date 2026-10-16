@@ -71,7 +71,8 @@ const steps = { done: 3, total: 8, planning: { done: 3, total: 3 } };
 test('work in progress shows its progress, the step being worked on, and what agents spent on it', () => {
   const facts = hubRowFacts(work('work-0023', 'implementing', { steps, updated: '2026-10-14', step: { title: 'Build the hub', status: 'doing', phase: 'implementation' }, statistics: statistics() }));
   assert.equal(facts.size, 'large');
-  assert.deepEqual(facts.progress, { done: 3, total: 8, planning: 3, text: '3 of 8' });
+  // The step worked on is in progress in the bar too.
+  assert.deepEqual(facts.progress, { done: 3, doing: 1, total: 8, planning: { done: 3, doing: 0 }, text: '3 of 8' });
   assert.deepEqual(facts.step, { label: 'Now', title: 'Build the hub', phase: 'implementation' });
   assert.equal(facts.blocked, null);
   assert.deepEqual(facts.model, { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', provider: 'anthropic', others: 2 });
@@ -85,6 +86,7 @@ test('work in progress shows its progress, the step being worked on, and what ag
   // The step to do next, in its phase; one subagent; no stage recorded.
   const next = hubRowFacts(work('work-0023', 'implementing', { steps, step: { title: 'Settle the design', status: 'todo', phase: 'planning' }, statistics: statistics({ subagents: 1, planning: { agentMs: 0, tokens: null }, implementation: { agentMs: 0, tokens: null } }) }));
   assert.deepEqual(next.step, { label: 'Next', title: 'Settle the design', phase: 'planning' });
+  assert.deepEqual(next.progress, { done: 3, doing: 0, total: 8, planning: { done: 3, doing: 0 }, text: '3 of 8' });
   assert.equal(next.subagents, '1 subagent');
   assert.deepEqual(next.time, { total: '3 h 20 min', planning: null, implementation: null });
 });
@@ -107,7 +109,7 @@ test('work without steps or statistics (as the host gives it before it has them)
 test('drafts and other open work show their planning progress, and model, time and tokens when recorded', () => {
   const draft = hubRowFacts(work('work-0024', 'draft', { steps: { done: 1, total: 4, planning: { done: 1, total: 4 } }, step: { title: 'Settle the design', status: 'doing', phase: 'planning' }, statistics: statistics({ otherModels: 0, tokens: null }) }));
   assert.equal(draft.size, 'standard');
-  assert.deepEqual(draft.progress, { done: 1, total: 4, planning: 1, text: '1 of 4 planning' });
+  assert.deepEqual(draft.progress, { done: 1, doing: 1, total: 4, planning: { done: 1, doing: 1 }, text: '1 of 4 planning' });
   // A smaller row: no step, no split of the time, no subagents.
   assert.deepEqual([draft.step, draft.subagents, draft.tokens], [null, null, null]);
   assert.deepEqual(draft.time, { total: '3 h 20 min', planning: null, implementation: null });

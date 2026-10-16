@@ -2,6 +2,7 @@
 // steps (settling the design) and implementation steps form one list, told apart by colour, and by
 // name for assistive technology.
 // The plan export viewer draws the same markup (packages/planning/viewer/ui.tsx).
+import { useEffect, useRef, useState } from 'react';
 import { stepCounts, stepSummary } from '@envsemble/atlas-planning/ledger';
 import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/atlas-planning/types';
 import { CompleteIcon, InProgressIcon, OpenIcon } from './icons';
@@ -32,16 +33,33 @@ export function StepIcon({ status, phase = 'implementation' }: { status: LedgerS
   return status === 'done' ? <CompleteIcon filled {...props} /> : status === 'doing' ? <InProgressIcon {...props} /> : <OpenIcon {...props} />;
 }
 
-/** The progress bar and count over every step, planning and implementation, then the steps in one list. */
-export function LedgerSteps({ steps }: { steps: LedgerStep[] }) {
+/** How long a step the search found stays marked. */
+const foundFor = 2500;
+
+/**
+ * The progress bar and count over every step, planning and implementation, then the steps in one list.
+ * A step the search found (`found`, by its title) is scrolled into view and marked for a moment.
+ */
+export function LedgerSteps({ steps, found = null }: { steps: LedgerStep[]; found?: string | null }) {
+  const list = useRef<HTMLOListElement>(null);
+  const [marked, setMarked] = useState<string | null>(null);
+  const shown = Boolean(found && steps.some(step => step.title === found));
+  useEffect(() => {
+    if (!found || !shown) return;
+    setMarked(found);
+    const item = [...list.current?.children ?? []].find(element => (element as HTMLElement).dataset.step === found);
+    item?.scrollIntoView({ block: 'nearest' });
+    const timer = window.setTimeout(() => setMarked(null), foundFor);
+    return () => window.clearTimeout(timer);
+  }, [found, shown]);
   const counts = stepCounts(steps);
   const planning = stepCounts(steps.filter(step => stepPhase(step) === 'planning'));
   return <div className="ledger-progress">
     <StepBar counts={counts} planning={planning} />
     <p className="ledger-progress-summary">{stepSummary(counts)}</p>
-    {steps.length > 0 && <ol className="ledger-steps">{steps.map(step => {
+    {steps.length > 0 && <ol ref={list} className="ledger-steps">{steps.map(step => {
       const phase = stepPhase(step);
-      return <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase}
+      return <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase} data-step={step.title} data-found={marked === step.title ? '' : undefined}
         title={(phase === 'planning' ? 'Planning' : 'Implementation') + ' step: ' + step.title + ', ' + statusLabels[step.status].toLowerCase()}>
         <StepIcon status={step.status} phase={phase} /><span>{step.title}</span>
       </li>;

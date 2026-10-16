@@ -21,9 +21,9 @@ export interface HubFilters { state: HubState }
 
 /** Steps done of all, the planning steps among them in their own colour. */
 function Progress({ progress, wide }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean }) {
-  const left = progress.total - progress.done;
+  const left = progress.total - progress.done - progress.doing;
   return <span className="hub-row-steps" title={progress.text + ' steps done'}>
-    <StepBar counts={{ total: progress.total, done: progress.done, doing: 0, todo: left, remaining: left }} planning={{ done: progress.planning, doing: 0 }} compact />
+    <StepBar counts={{ total: progress.total, done: progress.done, doing: progress.doing, todo: left, remaining: left + progress.doing }} planning={progress.planning} compact />
     <span className="hub-row-steps-text">{wide ? progress.text : progress.text.replace(' planning', '')}</span>
   </span>;
 }
@@ -68,7 +68,7 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
     {(facts.progress || facts.step || facts.blocked) && <span className="hub-row-line hub-row-now">
       {facts.progress && <Progress progress={facts.progress} wide />}
       {facts.blocked ? <span className="hub-row-blocked"><BlockedIcon className="hub-row-blocked-icon" />Blocked: {facts.blocked}</span>
-        : facts.step && <span className="hub-row-step" data-phase={facts.step.phase} title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>{facts.step.label}: {facts.step.title}</span>}
+        : facts.step && <span className="hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'} title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>{facts.step.label}: {facts.step.title}</span>}
     </span>}
     <span className="hub-row-line hub-row-stats">{spent}<Changed value={facts.changed} /></span>
   </Row>;
@@ -86,12 +86,14 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   </Row>;
 }
 
-export function Hub({ projects, error, filter, filters, setFilters, go, query, search }: {
+export function Hub({ projects, error, filter, filters, setFilters, go, query, search, left }: {
   projects: Project[] | null; error: string; filter: string | null; filters: HubFilters; setFilters(filters: HubFilters): void; go(place: Place): void;
   /** The search's query while it is open; the field shows it. */
   query: string;
-  /** Open the search with what was typed (none: what it has); `focused`: the field took focus, which the search giving it back does not reopen. */
+  /** Open the search with what was typed (none: what it has); `focused`: the field took focus (the window decides whether that opens it). */
   search(query?: string, focused?: boolean): void;
+  /** The search field lost focus. */
+  left(): void;
 }) {
   const items = useMemo(() => hubItems(projects ?? [], filter), [projects, filter]);
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
@@ -114,7 +116,7 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
   return <Page className="hub" title={filtered?.name ?? 'Plans'} toolbar={<>
     {/* The search: it opens the search popup with what is typed, and never filters this list. */}
     <SearchField className="hub-search" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog"
-      onValueChange={search} onFocus={() => search(undefined, true)} onClick={() => search()} />
+      onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
     <span className="spacer" />
     <Select className="hub-project" density="compact" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
       options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name }))]} />

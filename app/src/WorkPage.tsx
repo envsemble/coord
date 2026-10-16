@@ -52,7 +52,7 @@ function useScrollsMark<T extends HTMLElement>() {
  * the plan again), its dates, statistics and recent activity. It stays where it is while the page
  * scrolls, and scrolls on its own.
  */
-function About({ work, snapshot, showing }: { work: Work; snapshot: Snapshot; showing: 'plan' | 'ledger' }) {
+function About({ work, snapshot, showing, found }: { work: Work; snapshot: Snapshot; showing: 'plan' | 'ledger'; found: string | null }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
   const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
@@ -69,7 +69,7 @@ function About({ work, snapshot, showing }: { work: Work; snapshot: Snapshot; sh
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
     {hasStatus && progress && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
-      {progress.steps ? <LedgerSteps steps={progress.steps} /> : <>
+      {progress.steps ? <LedgerSteps steps={progress.steps} found={found} /> : <>
         {progress.current && <p className="about-current">{progress.current}</p>}
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
@@ -123,7 +123,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
-      <About work={work} snapshot={snapshot} showing={showing} />
+      <About work={work} snapshot={snapshot} showing={showing} found={target.step ?? null} />
     </div>
   </div>;
 }

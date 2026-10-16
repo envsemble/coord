@@ -131,7 +131,17 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'window:info': { args: [], handle: window => window.info() },
     'projects:list': { args: [], handle: window => remoteErrors(window.projects()) },
     // The host's search of every active project; a paired computer's host searches its own.
-    'search:query': { args: [searchQuery], handle: (window, query: string) => remoteErrors(window.client().request('search.query', { query, limit: 50 }, { timeout: 20000 })) },
+    'search:query': {
+      args: [searchQuery],
+      handle: async (window, query: string) => {
+        const computer = window.computer;
+        const results = await remoteErrors(window.client().request('search.query', { query, limit: 50 }, { timeout: 20000 }));
+        if (computer === null) return results;
+        // This app keeps its own hidden and archived state for another computer's projects: their results go.
+        const active = await window.activeProjects();
+        return results.filter(result => active.has(result.folderId));
+      },
+    },
     'projects:create': { args: [projectName, workspaces], handle: (window, name: string, folders: string[]) => remoteErrors(window.createProject(name, folders)) },
     // A folder on this computer: on another computer's projects, the folder is only found as the project is created there.
     'projects:scan': {

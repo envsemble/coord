@@ -18,7 +18,7 @@ export const folderPath = string({ min: 1, max: limits.path, pattern: fullPath }
 const anchor = optional(nullable(string({ max: 512 })));
 export const target: Validator<Target> = (value, at = 'target') => {
   const kind = object({ kind: oneOf(['work', 'diagram', 'file'] as const) })(value, at).kind;
-  if (kind === 'work') return object<Extract<Target, { kind: 'work' }>>({ kind: oneOf(['work'] as const), work: workId, anchor, view: optional(nullable(oneOf(['ledger'] as const))) })(value, at);
+  if (kind === 'work') return object<Extract<Target, { kind: 'work' }>>({ kind: oneOf(['work'] as const), work: workId, anchor, view: optional(nullable(oneOf(['ledger'] as const))), step: anchor })(value, at);
   if (kind === 'diagram') return object<Extract<Target, { kind: 'diagram' }>>({ kind: oneOf(['diagram'] as const), work: workId, path: nullable(diagramPath), element: anchor })(value, at);
   return object<Extract<Target, { kind: 'file' }>>({ kind: oneOf(['file'] as const), path: relativePath, anchor })(value, at);
 };

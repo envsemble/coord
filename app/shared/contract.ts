@@ -6,13 +6,13 @@
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
 } from '@envsemble/atlas-host/contract';
 import type { DocumentContent } from '@envsemble/atlas-planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
 };
 
 export const invokeChannels = [
@@ -100,12 +100,12 @@ export interface AccessChange { hostId: string | null; state: AccessState }
 export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 /**
- * What a window shows of a project: a work item's plan or, in its place, its ledger (`view`), one of
- * its diagrams (by its path in the work folder, null for its first; `element` names an element of
+ * What a window shows of a project: a work item's plan or, in its place, its ledger (`view`), with a
+ * ledger step the search found pointed out in its progress (`step`, by its title), one of its diagrams (by its path in the work folder, null for its first; `element` names an element of
  * it), or a file.
  */
 export type Target =
-  | { kind: 'work'; work: string; anchor?: string | null; view?: 'ledger' | null }
+  | { kind: 'work'; work: string; anchor?: string | null; view?: 'ledger' | null; step?: string | null }
   | { kind: 'diagram'; work: string; path: string | null; element?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its folder ID): a plan, a diagram or a file. */

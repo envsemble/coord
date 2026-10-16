@@ -1,10 +1,10 @@
 // The search popup's results: the host's search of every active project (plans, steps, documents,
-// headings, diagrams, elements, glossary terms and projects), with what the window finds itself
-// (every plan from the project list, and the documents and diagrams of the open plan's project)
-// after it. They show grouped by kind, the kind of the best match first. Pure, so it is unit-tested.
+// headings, diagrams, elements, glossary terms and projects), below what the window finds itself
+// (every plan from the project list, and the documents and diagrams of the open plan's project).
+// They show grouped by kind. Pure, so it is unit-tested.
 import type { Project, SearchKind, SearchResult } from './types';
 import { workNumber } from './format';
-import { diagramTarget, hubPlace, workTarget, type Place } from './targets';
+import { diagramTarget, hubPlace, stepTarget, workTarget, type Place } from './targets';
 
 export const searchKindLabels: Record<SearchKind, string> = {
   plan: 'Plans', step: 'Steps', document: 'Documents', heading: 'Headings', diagram: 'Diagrams', element: 'Elements', term: 'Glossary terms', project: 'Projects',
@@ -34,9 +34,12 @@ export function resultDestination(result: SearchResult): SearchDestination {
   const project = result.folderId;
   switch (result.kind) {
     case 'project': return { place: hubPlace(project) };
-    // A step opens its plan.
-    case 'plan': case 'step':
+    case 'plan':
       if (result.work) return { place: { project, target: workTarget(result.work) } };
+      break;
+    // A step opens its plan, the step pointed out in its progress.
+    case 'step':
+      if (result.work) return { place: { project, target: stepTarget(result.work, result.title) } };
       break;
     case 'diagram': case 'element':
       if (result.path) return { project, path: result.path, anchor: result.element ?? result.anchor };
@@ -64,14 +67,28 @@ export function hostEntries(results: SearchResult[], projects: Project[]): Searc
   });
 }
 
-/**
- * The host's results first, as it ranked them, then the window's own entries it did not find
- * (ranked by the window); grouped by kind, each group where its first entry was.
- */
-export function mergeEntries(host: SearchEntry[], local: SearchEntry[]): SearchEntry[] {
-  const found = new Set(host.map(entry => entry.key).filter(Boolean));
-  const all = [...host, ...local.filter(entry => !entry.key || !found.has(entry.key))];
+/** A result as listed, under the heading of its group. */
+export interface ListedEntry extends SearchEntry { group: string }
+
+/** Entries grouped by kind, each group where its first entry was. */
+function grouped(entries: SearchEntry[]) {
   const order: SearchKind[] = [];
-  for (const entry of all) if (!order.includes(entry.kind)) order.push(entry.kind);
-  return order.flatMap(kind => all.filter(entry => entry.kind === kind));
+  for (const entry of entries) if (!order.includes(entry.kind)) order.push(entry.kind);
+  return order.flatMap(kind => entries.filter(entry => entry.kind === kind));
+}
+
+/**
+ * What the window finds itself (as it ranked it), then the host's results it does not list already
+ * (as the host ranked them), each part grouped by kind; a kind listed above already is "More …"
+ * below. The host answers later, so its results go below those shown and the highlighted one stays
+ * where it is.
+ */
+export function listEntries(local: SearchEntry[], host: SearchEntry[]): ListedEntry[] {
+  const keys = new Set(local.map(entry => entry.key).filter(Boolean));
+  const kinds = new Set(local.map(entry => entry.kind));
+  const more = grouped(host.filter(entry => !entry.key || !keys.has(entry.key)));
+  return [
+    ...grouped(local).map(entry => ({ ...entry, group: searchKindLabels[entry.kind] })),
+    ...more.map(entry => ({ ...entry, group: kinds.has(entry.kind) ? 'More ' + searchKindLabels[entry.kind].toLowerCase() : searchKindLabels[entry.kind] })),
+  ];
 }

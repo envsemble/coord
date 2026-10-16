@@ -61,8 +61,11 @@ type Phase = 'planning' | 'implementation';
 /** What a hub row says of its plan, formatted as the plan page and the Statistics page do. */
 export interface HubRowFacts {
   size: HubRowSize;
-  /** Steps done of all of them, the planning steps among them done; on a draft or other open work only the planning steps, when it has some. */
-  progress: { done: number; total: number; planning: number; text: string } | null;
+  /**
+   * Steps done and in progress (the step worked on, as the project list names one) of all of them, the
+   * planning steps among them; on a draft or other open work only the planning steps, when it has some.
+   */
+  progress: { done: number; doing: number; total: number; planning: { done: number; doing: number }; text: string } | null;
   /** The step being worked on (Now) or next to do (Next), on a large row that is not blocked. */
   step: { label: 'Now' | 'Next'; title: string; phase: Phase } | null;
   /** Why blocked work is blocked, in place of its step. */
@@ -81,7 +84,7 @@ export interface HubRowFacts {
 }
 
 /** The size of a plan's row: by where it stands. */
-export const rowSize = (work: ProjectWork): HubRowSize => work.state === 'closed' ? 'closed' : work.state === 'blocked' || work.state === 'implementing' ? 'large' : 'standard';
+const rowSize = (work: ProjectWork): HubRowSize => work.state === 'closed' ? 'closed' : work.state === 'blocked' || work.state === 'implementing' ? 'large' : 'standard';
 
 /** When a plan last changed: an agent report the day of its plan's date or later says it more precisely. */
 export function lastChange(work: ProjectWork): string | null {
@@ -95,12 +98,14 @@ export function hubRowFacts(work: ProjectWork): HubRowFacts {
   const statistics = work.statistics;
   const steps = work.steps && work.steps.total > 0 ? work.steps : null;
   let progress: HubRowFacts['progress'] = null;
-  if (steps && size === 'large') progress = { done: steps.done, total: steps.total, planning: steps.planning.done, text: steps.done + ' of ' + steps.total };
+  const doing = work.step?.status === 'doing' ? work.step.phase : null;
+  const all = steps && { done: steps.done, doing: doing ? 1 : 0, total: steps.total, planning: { done: steps.planning.done, doing: doing === 'planning' ? 1 : 0 }, text: steps.done + ' of ' + steps.total };
+  if (all && size === 'large') progress = all;
   else if (steps && size === 'standard') {
     // A draft is still being planned: its planning steps say how far, when it has them.
     const planned = steps.planning.total > 0 ? steps.planning : null;
-    progress = planned ? { done: planned.done, total: planned.total, planning: planned.done, text: planned.done + ' of ' + planned.total + ' planning' }
-      : { done: steps.done, total: steps.total, planning: steps.planning.done, text: steps.done + ' of ' + steps.total };
+    const early = doing === 'planning' ? 1 : 0;
+    progress = planned ? { done: planned.done, doing: early, total: planned.total, planning: { done: planned.done, doing: early }, text: planned.done + ' of ' + planned.total + ' planning' } : all;
   }
   const blocked = work.state === 'blocked' ? work.blocked?.trim() || 'No reason given' : null;
   const step = size === 'large' && !blocked && work.step ? { label: work.step.status === 'doing' ? 'Now' as const : 'Next' as const, title: work.step.title, phase: work.step.phase } : null;

@@ -123,9 +123,21 @@ test('going back finds a plan where it was left, and fields and the file panel k
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect.poll(async () => Math.abs(await pageScroll(window) - position)).toBeLessThan(2);
 
-  // A field keeps Alt+←; the application menu's fallback for that key is ignored too.
+  // A field keeps Alt+← (the hub's search field, focus back in it once the search closes); the
+  // application menu's fallback for that key is ignored too.
   await window.keyboard.press('Alt+ArrowRight');
   await expectHub(window);
+  const field = window.getByRole('searchbox', { name: 'Search' });
+  await field.click();
+  await window.keyboard.press('Escape');
+  await expect(searchPopup(window)).toHaveCount(0);
+  await expect(field).toBeFocused();
+  await window.keyboard.press('Alt+ArrowLeft');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu:command', 'goBack'));
+  await window.waitForTimeout(400);
+  await expectHub(window);
+  await expect(field).toBeFocused();
+  // So does the search's own field, which keeps its keys to itself.
   await window.keyboard.press('Control+P');
   const search = searchPopup(window).getByRole('combobox');
   await expect(search).toBeFocused();
