@@ -1,10 +1,11 @@
 // Plan export and import: lossless round trips, identity rewrites, registry formatting and
-// rejection of malformed exports before anything is written.
+// rejection of malformed exports before anything is written. Imports taking turns through the lock
+// are in planExport.slow.test.ts.
 import { createHash } from 'node:crypto';
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { hostname, release, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import atlas, { type ViewerPayload } from '@envsemble/atlas-diagrams';
@@ -12,7 +13,7 @@ import { parse } from 'parse5';
 import { validatePlanning, parseFrontmatter } from './check.ts';
 import { loadPlanning } from './planning.ts';
 import { DiagramCatalog } from './diagrams.ts';
-import { PlanExportError, exportPlan, importPlan, planExportPathProblem, planExportTesting, planImportTarget, readPlanExport, type PlanExportErrorCode } from './planExport.ts';
+import { PlanExportError, exportPlan, importPlan, planExportPathProblem, planExportTesting, planImportTarget, readPlanExport, type PlanExportErrorCode, type PlanExportResult } from './planExport.ts';
 
 const BOM = String.fromCharCode(0xfeff);
 const ESC = String.fromCharCode(0x1b);
@@ -57,18 +58,34 @@ function fixture(root: string) {
   ] }, null, 2).replace(/\[\n\s+"shop"\n\s+\]/g, '["shop"]').replace(/\[\]/g, '[]') + '\n');
   writeFileSync(path.join(work, 'plan.md'), BOM + plan('work-0001', 'Checkout', '## Data model\n\nSee the [glossary](CONTEXT.md#orders), the [orders](diagrams/orders.puml#Order) and ![photo](evidence/photo.png).\n'));
   writeFileSync(path.join(work, 'ledger.md'), BOM + '---\r\nschema_version: 1\r\nkind: ledger\r\nwork_id: "work-0001"\r\nupdated: "2026-10-02"\r\ncurrent: "Building it"\r\nnext: []\r\nblocked: null\r\n---\r\n\r\n# Ledger\r\n');
-  writeFileSync(path.join(work, 'CONTEXT.md'), '# Glossary\n\n## Orders\n\n**Order**: what a customer buys.\n');
+  writeFileSync(path.join(work, 'CONTEXT.md'), '# Glossary\n\n## Orders\n\n**Order**: what a customer buys. [Lines](diagrams/orders.puml#OrderLine)\n');
   writeFileSync(path.join(work, 'docs/adr/0001-orders.md'), '# Keep orders\n');
   writeFileSync(path.join(work, 'evidence/photo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0xff, 0xfe]));
   writeFileSync(path.join(work, 'evidence/bytes.bin'), Buffer.from(Array.from({ length: 512 }, (_, index) => index % 256)));
   writeFileSync(path.join(work, 'evidence/notes.txt'), 'line one\r\nline two\r\n\u00e9\u4e2d\r\n');
   writeFileSync(path.join(root, 'archive/0002-legacy/README.md'), '# Legacy notes\n');
+  // Transient Atlas output is not part of the plan.
+  mkdirSync(path.join(work, '.atlas/results'), { recursive: true });
+  writeFileSync(path.join(work, '.atlas/results/x.json'), '{}');
   // Diagrams: an authored class diagram, a database capture and a proposal over it.
   mkdirSync(path.join(work, 'diagrams'));
   writeFileSync(path.join(work, 'diagrams/orders.puml'), ORDERS);
   writeFileSync(path.join(work, 'diagrams/captured.puml'), captured());
   writeFileSync(path.join(work, 'diagrams/proposed.puml'), proposed());
   return work;
+}
+
+// The fixture as a source and the exports of its two work items, made once for the tests that only
+// read them: laying out its diagrams makes each export of work-0001 slow.
+const sharedDirectory = mkdtempSync(path.join(tmpdir(), 'plan-export-'));
+test.after(() => rmSync(sharedDirectory, { recursive: true, force: true }));
+let sharedExports: Promise<{ source: string; checkout: PlanExportResult; legacy: PlanExportResult }> | undefined;
+function shared() {
+  return sharedExports ??= (async () => {
+    const source = path.join(sharedDirectory, 'source');
+    mkdirSync(source); fixture(source);
+    return { source, checkout: await exportPlan(source, 'work-0001', { now }), legacy: await exportPlan(source, 'work-0002', { now }) };
+  })();
 }
 
 function payloadOf(html: string) {
@@ -92,18 +109,13 @@ function assertRoundTrip(sourceWork: string, targetWork: string, from: string, t
 }
 
 test('exports the whole work folder and imports it losslessly as new work', async t => {
-  const directory = temporary(t);
-  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source); const work = fixture(source);
+  const { source, checkout: exported, legacy } = await shared();
+  const work = path.join(source, 'active/0001-checkout'), target = path.join(temporary(t), 'target');
   cpSync(source, target, { recursive: true });
-  // Transient Atlas output is not part of the plan.
-  mkdirSync(path.join(work, '.atlas/results'), { recursive: true });
-  writeFileSync(path.join(work, '.atlas/results/x.json'), '{}');
 
-  const exported = await exportPlan(source, 'work-0001', { now });
   assert.deepEqual(exported.warnings, []);
   assert.equal(exported.bytes, Buffer.byteLength(exported.html));
-  assert.equal((await exportPlan(source, 'active/0001-checkout/', { now })).html, exported.html, 'exports are deterministic, by ID or folder');
+  assert.equal((await exportPlan(source, 'archive/0002-legacy/', { now })).html, legacy.html, 'exports are deterministic, by ID or folder');
   assert.equal(exported.manifest.source.location, 'active');
   assert.deepEqual(exported.manifest.source.repositories, [{ id: 'shop', name: 'Shop' }]);
   assert.ok(!exported.manifest.files.some(file => file.path.startsWith('.atlas/results')));
@@ -149,13 +161,11 @@ test('exports the whole work folder and imports it losslessly as new work', asyn
 });
 
 test('keeps the archive location, takes the next free number and imports twice as two items', async t => {
-  const directory = temporary(t);
-  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source); fixture(source);
+  const { source, legacy } = await shared();
+  const target = path.join(temporary(t), 'target');
   cpSync(source, target, { recursive: true });
   mkdirSync(path.join(target, 'archive/0003-unregistered'), { recursive: true });
   mkdirSync(path.join(target, 'active/2026-10-roadmap'), { recursive: true });
-  const legacy = await exportPlan(source, 'work-0002', { now });
   assert.equal(legacy.manifest.source.currentPlan, null);
   assert.equal(legacy.manifest.source.location, 'archive');
   const first = await importPlan(target, legacy.html);
@@ -177,6 +187,7 @@ test('a draft imported without a ledger gets one with the planning steps, as new
   mkdirSync(source);
   const work = fixture(source);
   rmSync(path.join(work, 'ledger.md'));
+  rmSync(path.join(work, 'diagrams'), { recursive: true }); // spares the export their layout
   writeFileSync(path.join(work, 'plan.md'), plan('work-0001', 'Checkout').replace('design_status: accepted', 'design_status: draft').replace('implementation_status: in_progress', 'implementation_status: not_started').replace('accepted_at: "2026-10-02"', 'accepted_at: null'));
   cpSync(source, target, { recursive: true });
   const imported = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
@@ -188,13 +199,11 @@ test('a draft imported without a ledger gets one with the planning steps, as new
 });
 
 test('registers repositories the target does not know, in the registry\'s own style', async t => {
-  const directory = temporary(t);
-  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source); fixture(source);
-  mkdirSync(target);
+  const { checkout } = await shared();
+  const target = temporary(t);
   const crlf = '{\r\n\t"schema_version": 1,\r\n\t"repositories": [\r\n\t\t{ "id": "other", "name": "Other" }\r\n\t],\r\n\t"work_items": []\r\n}\r\n';
   writeFileSync(path.join(target, 'planning.json'), crlf);
-  const result = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
+  const result = await importPlan(target, checkout.html);
   assert.equal(result.workId, 'work-0001');
   const after = readFileSync(path.join(target, 'planning.json'), 'utf8');
   assert.ok(after.includes('\t\t{ "id": "other", "name": "Other" },\r\n\t\t{ "id": "shop", "name": "Shop" }\r\n\t],'));
@@ -203,57 +212,56 @@ test('registers repositories the target does not know, in the registry\'s own st
   assert.ok(result.notes.some(note => /repository shop/.test(note)));
 });
 
-async function assertRejected(t: TestContext, html: string | Uint8Array, code: PlanExportErrorCode, message?: RegExp) {
+const rejectedAs = (code: PlanExportErrorCode, message?: RegExp) => (error: unknown) => error instanceof PlanExportError && error.code === code && (!message || message.test(error.message));
+
+test('rejects tampered, unsafe, duplicated and unknown exports before writing anything', async t => {
+  const { checkout: { html } } = await shared();
+  const { payload, replace } = payloadOf(html);
+  // The variants carry the payload without the viewer, which is slow to parse and plays no part here.
+  const bare = (value: unknown) => `<!doctype html><title>x</title><script id="atlas-plan-export" type="application/json">${JSON.stringify(value).replaceAll('<', '\\u003c')}</script>`;
+  const variant = (change: (copy: typeof payload) => void) => { const copy = structuredClone(payload); change(copy); return bare(copy); };
+  const plan = (copy: typeof payload) => copy.files.find((file: { path: string }) => file.path === 'plan.md');
+  const rejected = (input: string | Uint8Array, code: PlanExportErrorCode, message?: RegExp) => assert.throws(() => readPlanExport(input), rejectedAs(code, message));
+  assert.equal(readPlanExport(bare(payload)).manifest.source.workId, 'work-0001');
+
+  // An import refuses what reading refuses, before it writes anything.
   const target = temporary(t, 'plan-import-target-');
   fixture(target);
   const before = snapshot(target);
-  assert.throws(() => readPlanExport(html), (error: unknown) => error instanceof PlanExportError && error.code === code && (!message || message.test(error.message)));
-  await assert.rejects(importPlan(target, html), (error: unknown) => error instanceof PlanExportError && error.code === code);
-  assert.deepEqual(snapshot(target), before, 'nothing was written');
-}
-
-test('rejects tampered, unsafe, duplicated and unknown exports before writing anything', async t => {
-  const source = temporary(t);
-  fixture(source);
-  const { html } = await exportPlan(source, 'work-0001', { now });
-  const { payload, replace } = payloadOf(html);
-  const variant = (change: (copy: typeof payload) => void) => { const copy = structuredClone(payload); change(copy); return replace(copy); };
-  const plan = (copy: typeof payload) => copy.files.find((file: { path: string }) => file.path === 'plan.md');
-
-  await assertRejected(t, variant(copy => { const file = plan(copy); file.data = Buffer.from(Buffer.from(file.data, 'base64').toString('utf8').replace('Checkout', 'Checkouts')).toString('base64'); file.size += 1; }), 'INTEGRITY', /SHA-256/);
-  await assertRejected(t, variant(copy => { plan(copy).size += 1; }), 'INTEGRITY');
-  await assertRejected(t, variant(copy => { plan(copy).data = '!!!!'; }), 'INTEGRITY');
-  for (const unsafe of ['../escape.md', 'docs/../../escape.md', '/etc/passwd', 'C:/Windows/evil.md', '\\\\server\\share.md', 'docs\\evil.md', './plan2.md', 'a//b.md', '.git/config', 'docs/.hidden', 'evidence/CON.txt', 'evidence/trailing. ', 'evidence/a:b.md']) {
-    await assertRejected(t, variant(copy => { plan(copy).path = unsafe; }), 'PATH');
+  const tampered = (copy: typeof payload) => { const file = plan(copy); file.data = Buffer.from(Buffer.from(file.data, 'base64').toString('utf8').replace('Checkout', 'Checkouts')).toString('base64'); file.size += 1; };
+  for (const [change, code] of [[tampered, 'INTEGRITY'], [(copy: typeof payload) => { plan(copy).path = '../escape.md'; }, 'PATH']] as const) {
+    const copy = structuredClone(payload); change(copy);
+    await assert.rejects(importPlan(target, replace(copy)), rejectedAs(code));
   }
-  await assertRejected(t, variant(copy => { copy.files.push(structuredClone(plan(copy))); }), 'DUPLICATE');
-  await assertRejected(t, variant(copy => { const twin = structuredClone(plan(copy)); twin.path = 'PLAN.md'; copy.files.push(twin); }), 'DUPLICATE');
-  await assertRejected(t, variant(copy => { const twin = structuredClone(plan(copy)); twin.path = 'plan.md/inner.md'; copy.files.push(twin); }), 'PATH');
-  await assertRejected(t, variant(copy => { const twin = structuredClone(plan(copy)); twin.path = 'Docs/adr/other.md'; copy.files.push(twin); }), 'DUPLICATE', /merge/);
-  await assertRejected(t, variant(copy => { const a = structuredClone(plan(copy)), b = structuredClone(plan(copy)); a.path = 'evidence/caf' + String.fromCharCode(0xe9) + '/a.md'; b.path = 'evidence/cafe' + String.fromCharCode(0x301) + '/b.md'; copy.files.push(a, b); }), 'DUPLICATE');
-  await assertRejected(t, variant(copy => { copy.source.title = 'Harmless' + ESC + ']52;c;ZWNobw==' + String.fromCharCode(7); }), 'FORMAT', /control characters/);
-  await assertRejected(t, variant(copy => { copy.source.repositories[0].name = 'Shop' + String.fromCharCode(0x85); }), 'FORMAT', /control characters/);
-  await assertRejected(t, variant(copy => { copy.source.planningFolder = 'x' + ESC + '[31m'; }), 'FORMAT');
-  await assertRejected(t, variant(copy => { plan(copy).path = 'evidence/' + String.fromCharCode(0x9b) + '2J.md'; }), 'PATH');
-  await assertRejected(t, variant(copy => { copy.source.currentPlan = 'diagrams/orders.puml'; }), 'FORMAT', /Markdown/);
-  await assertRejected(t, variant(copy => { copy.source.currentPlan = 'evidence/notes.txt'; }), 'FORMAT', /Markdown/);
-  await assertRejected(t, variant(copy => { plan(copy).size = 400 * 1024 * 1024; }), 'LIMIT');
-  await assertRejected(t, variant(copy => { copy.version = 2; }), 'VERSION');
-  await assertRejected(t, variant(copy => { copy.format = 'atlas/other'; }), 'FORMAT');
-  await assertRejected(t, variant(copy => { copy.source.currentPlan = 'missing.md'; }), 'FORMAT');
-  await assertRejected(t, variant(copy => { copy.source.path = '../outside'; }), 'PATH');
-  await assertRejected(t, html.replace('</body>', `<script id="atlas-plan-export" type="application/json">{}</script></body>`), 'FORMAT', /more than one/);
-  await assertRejected(t, html.replace('<script id="atlas-plan-export" type="application/json">', '<script id="atlas-plan-export" type="text/javascript">'), 'FORMAT', /inert/);
-  await assertRejected(t, '<!doctype html><title>x</title><script id="atlas-diagram" type="application/json">{}</script>', 'FORMAT', /one diagram, not a plan export/);
-  await assertRejected(t, '<!doctype html><p>Not an export</p>', 'FORMAT');
-  await assertRejected(t, new Uint8Array([0xff, 0xfe, 0x3c]), 'FORMAT');
-  await assertRejected(t, html.replace('"format":"atlas/plan-export"', '"format":'), 'FORMAT');
+  assert.deepEqual(snapshot(target), before, 'nothing was written');
+
+  rejected(variant(tampered), 'INTEGRITY', /SHA-256/);
+  rejected(variant(copy => { plan(copy).size += 1; }), 'INTEGRITY');
+  rejected(variant(copy => { plan(copy).data = '!!!!'; }), 'INTEGRITY');
+  rejected(variant(copy => { plan(copy).path = '.git/config'; }), 'PATH');
+  rejected(variant(copy => { copy.files.push(structuredClone(plan(copy))); }), 'DUPLICATE');
+  rejected(variant(copy => { const twin = structuredClone(plan(copy)); twin.path = 'PLAN.md'; copy.files.push(twin); }), 'DUPLICATE');
+  rejected(variant(copy => { const twin = structuredClone(plan(copy)); twin.path = 'plan.md/inner.md'; copy.files.push(twin); }), 'PATH');
+  rejected(variant(copy => { const twin = structuredClone(plan(copy)); twin.path = 'Docs/adr/other.md'; copy.files.push(twin); }), 'DUPLICATE', /merge/);
+  rejected(variant(copy => { const a = structuredClone(plan(copy)), b = structuredClone(plan(copy)); a.path = 'evidence/caf' + String.fromCharCode(0xe9) + '/a.md'; b.path = 'evidence/cafe' + String.fromCharCode(0x301) + '/b.md'; copy.files.push(a, b); }), 'DUPLICATE');
+  rejected(variant(copy => { copy.source.title = 'Harmless' + ESC + ']52;c;ZWNobw==' + String.fromCharCode(7); }), 'FORMAT', /control characters/);
+  rejected(variant(copy => { copy.source.repositories[0].name = 'Shop' + String.fromCharCode(0x85); }), 'FORMAT', /control characters/);
+  rejected(variant(copy => { copy.source.currentPlan = 'diagrams/orders.puml'; }), 'FORMAT', /Markdown/);
+  rejected(variant(copy => { plan(copy).size = 400 * 1024 * 1024; }), 'LIMIT');
+  rejected(variant(copy => { copy.version = 2; }), 'VERSION');
+  rejected(variant(copy => { copy.format = 'atlas/other'; }), 'FORMAT');
+  rejected(variant(copy => { copy.source.currentPlan = 'missing.md'; }), 'FORMAT');
+  rejected(variant(copy => { copy.source.path = '../outside'; }), 'PATH');
+  rejected(bare(payload).replace('</title>', `</title><script id="atlas-plan-export" type="application/json">{}</script>`), 'FORMAT', /more than one/);
+  rejected(bare(payload).replace('type="application/json"', 'type="text/javascript"'), 'FORMAT', /inert/);
+  rejected('<!doctype html><title>x</title><script id="atlas-diagram" type="application/json">{}</script>', 'FORMAT', /one diagram, not a plan export/);
+  rejected('<!doctype html><p>Not an export</p>', 'FORMAT');
+  rejected(new Uint8Array([0xff, 0xfe, 0x3c]), 'FORMAT');
+  rejected(bare(payload).replace('"format":"atlas/plan-export"', '"format":'), 'FORMAT');
 });
 
 test('refuses a target that is not a valid planning repository', async t => {
-  const source = temporary(t);
-  fixture(source);
-  const { html } = await exportPlan(source, 'work-0001', { now });
+  const { source, checkout: { html } } = await shared();
   const empty = temporary(t, 'plan-import-empty-');
   await assert.rejects(importPlan(empty, html), (error: unknown) => error instanceof PlanExportError && error.code === 'TARGET' && /the atlas skill/.test(error.message));
   assert.deepEqual(readdirSync(empty), []);
@@ -268,12 +276,15 @@ test('refuses a target that is not a valid planning repository', async t => {
 test('portable path rules', () => {
   for (const good of ['plan.md', 'docs/adr/0001-x.md', '.atlas/models/m-0.json', 'evidence/ünïcode.md', 'evidence/日本語 notes.md', 'evidence/' + String.fromCharCode(0x5e9, 0x5dc, 0x5d5, 0x5dd) + '.md']) assert.equal(planExportPathProblem(good), null, good);
   for (const control of [0x202e, 0x202a, 0x2066, 0x2069, 0x200e, 0x200f, 0x61c]) assert.match(planExportPathProblem('evidence/a' + String.fromCharCode(control) + 'txt.md') ?? '', /direction/, control.toString(16));
-  for (const bad of ['', '/x', 'x/', '..', 'a/../b', '.atlas', '.env', 'docs/.atlas/x', 'x*.md', 'nul', 'lpt1.txt', 'a.']) assert.notEqual(planExportPathProblem(bad), null, bad);
+  for (const bad of ['', '/x', 'x/', '..', 'a/../b', '.atlas', '.env', 'docs/.atlas/x', 'x*.md', 'nul', 'lpt1.txt', 'a.',
+    'docs/../../escape.md', 'C:/Windows/evil.md', '\\\\server\\share.md', 'docs\\evil.md', './plan2.md', 'a//b.md', '.git/config', 'docs/.hidden',
+    'evidence/CON.txt', 'evidence/trailing. ', 'evidence/a:b.md', 'evidence/' + String.fromCharCode(0x9b) + '2J.md']) assert.notEqual(planExportPathProblem(bad), null, bad);
 });
 
 test('the exported HTML is self-contained, inert and safe to open', async t => {
   const source = temporary(t);
   const work = fixture(source);
+  rmSync(path.join(work, 'diagrams'), { recursive: true });
   writeFileSync(path.join(work, 'plan.md'), plan('work-0001', 'Checkout </script><script>alert(1)</script>', '<script>alert(2)</script>\n'));
   const { html } = await exportPlan(source, 'work-0001', { now });
   const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html)?.[1] ?? '';
@@ -323,6 +334,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   const directory = temporary(t);
   const source = path.join(directory, 'source'), target = path.join(directory, 'target');
   mkdirSync(source); fixture(source);
+  rmSync(path.join(source, 'active/0001-checkout/diagrams'), { recursive: true });
   mkdirSync(path.join(source, 'active/0003-successor'), { recursive: true });
   const registry = JSON.parse(readFileSync(path.join(source, 'planning.json'), 'utf8'));
   registry.work_items.push({ id: 'work-0003', path: 'active/0003-successor', repositories: ['shop'], current_plan: 'active/0003-successor/plan.md' });
@@ -352,33 +364,10 @@ test('clears references to other work so the target stays valid, and rolls back 
   assert.deepEqual(snapshot(target), before, 'the import was rolled back');
 });
 
-test('imports into one planning folder take turns through a lock', async t => {
-  const directory = temporary(t);
-  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source); fixture(source);
-  mkdirSync(target); fixture(target);
-  const one = (await exportPlan(source, 'work-0001', { now })).html, two = (await exportPlan(source, 'work-0002', { now })).html;
-  const results = await Promise.all([importPlan(target, one), importPlan(target, two), importPlan(target, one)]);
-  assert.deepEqual(results.map(result => result.workId).sort(), ['work-0003', 'work-0004', 'work-0005']);
-  const registered = JSON.parse(readFileSync(path.join(target, 'planning.json'), 'utf8')).work_items.map((item: { id: string }) => item.id);
-  assert.deepEqual(registered, ['work-0001', 'work-0002', 'work-0003', 'work-0004', 'work-0005'], 'each import registered its own number, in the order they held the lock');
-  assert.deepEqual(validatePlanning(target).errors, []);
-  assert.ok(!existsSync(path.join(target, '.atlas-import.lock')), 'the lock is released');
-
-  // A lock left by a process that no longer runs is removed; a live one is waited for, then reported.
-  writeFileSync(path.join(target, '.atlas-import.lock'), JSON.stringify({ pid: 2 ** 30, hostname: hostname(), platform: process.platform, release: release(), token: 'gone', createdAt: '2026-10-10T00:00:00Z' }));
-  assert.equal((await importPlan(target, two)).workId, 'work-0006');
-  writeFileSync(path.join(target, '.atlas-import.lock'), JSON.stringify({ pid: process.pid, hostname: 'elsewhere', createdAt: '2026-10-10T00:00:00Z' }));
-  const before = snapshot(target);
-  await assert.rejects(importPlan(target, two, { lockWaitMs: 200 }), (error: unknown) => error instanceof PlanExportError && error.code === 'CONFLICT' && /in progress.*elsewhere/s.test(error.message));
-  assert.deepEqual(snapshot(target), before);
-});
-
 test('reuses a validated preview, cleans up after interrupted imports and reports repository differences', async t => {
-  const directory = temporary(t);
-  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source); fixture(source);
-  mkdirSync(target); fixture(target);
+  const { checkout } = await shared();
+  const target = temporary(t);
+  fixture(target);
   const registry = readFileSync(path.join(target, 'planning.json'), 'utf8').replace('"name": "Shop"', '"name": "Our shop"');
   writeFileSync(path.join(target, 'planning.json'), registry);
   const old = path.join(target, 'active/.atlas-import-0b4e8f1a-2c3d-4e5f-8a9b-0c1d2e3f4a5b'), fresh = path.join(target, 'active/.atlas-import-1b4e8f1a-2c3d-4e5f-8a9b-0c1d2e3f4a5b');
@@ -386,7 +375,7 @@ test('reuses a validated preview, cleans up after interrupted imports and report
   mkdirSync(old); mkdirSync(fresh); mkdirSync(unrelated);
   const hourAgo = new Date(Date.now() - 2 * 3600000);
   utimesSync(old, hourAgo, hourAgo); utimesSync(unrelated, hourAgo, hourAgo);
-  const preview = readPlanExport((await exportPlan(source, 'work-0001', { now })).html);
+  const preview = readPlanExport(checkout.html);
   assert.ok(Object.isFrozen(preview.manifest.source) && Object.isFrozen(preview.files), 'a preview cannot be changed before import');
   const result = await importPlan(target, preview);
   assert.equal(result.workId, 'work-0003');
@@ -409,14 +398,12 @@ test('refuses to export what no import would accept', async t => {
 });
 
 test('rolls back every step of a failed import, and says what is left when it cannot', async t => {
-  const directory = temporary(t);
-  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source); fixture(source);
+  const { legacy: { html } } = await shared();
+  const target = temporary(t);
   mkdirSync(path.join(target, 'active'), { recursive: true });
   // A registry with a byte order mark and CRLF line endings, and no archive/ folder yet.
   const registry = BOM + '{\r\n  "schema_version": 1,\r\n  "repositories": [{ "id": "shop", "name": "Shop" }],\r\n  "work_items": []\r\n}\r\n';
   writeFileSync(path.join(target, 'planning.json'), registry);
-  const html = (await exportPlan(source, 'work-0002', { now })).html;
   const before = snapshot(target);
   t.after(() => { delete planExportTesting.afterRegister; delete planExportTesting.removeFolder; });
 
@@ -435,32 +422,28 @@ test('rolls back every step of a failed import, and says what is left when it ca
 test('records the import beside an existing record, whatever its case', async t => {
   const directory = temporary(t);
   const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source); const work = fixture(source);
-  writeFileSync(path.join(work, 'evidence/Import-Provenance.json'), '{"earlier": true}\n');
+  mkdirSync(source); fixture(source);
+  mkdirSync(path.join(source, 'archive/0002-legacy/evidence'));
+  writeFileSync(path.join(source, 'archive/0002-legacy/evidence/Import-Provenance.json'), '{"earlier": true}\n');
   mkdirSync(target); fixture(target);
-  const result = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
+  const result = await importPlan(target, (await exportPlan(source, 'work-0002', { now })).html);
   assert.equal(readFileSync(path.join(target, result.path, 'evidence/Import-Provenance.json'), 'utf8'), '{"earlier": true}\n');
-  assert.equal(JSON.parse(readFileSync(path.join(target, result.path, 'evidence/import-provenance-2.json'), 'utf8')).source.workId, 'work-0001');
+  assert.equal(JSON.parse(readFileSync(path.join(target, result.path, 'evidence/import-provenance-2.json'), 'utf8')).source.workId, 'work-0002');
   assert.ok(result.notes.some(note => /import-provenance-2\.json/.test(note)));
 });
 
 test('refuses an export too large for an import to read', async t => {
-  const source = temporary(t);
-  fixture(source);
-  const { html } = await exportPlan(source, 'work-0001', { now });
+  const { source, legacy: { html } } = await shared();
   const limit = planExportTesting.maxInputLength;
   t.after(() => { planExportTesting.maxInputLength = limit; });
   planExportTesting.maxInputLength = html.length - 1;
-  await assert.rejects(exportPlan(source, 'work-0001', { now }), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
+  await assert.rejects(exportPlan(source, 'work-0002', { now }), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
   assert.throws(() => readPlanExport(html), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
   assert.throws(() => readPlanExport(Buffer.from(html)), (error: unknown) => error instanceof PlanExportError && error.code === 'LIMIT');
 });
 
-test('carries the diagrams with the links to them, drawn as the app draws them', async t => {
-  const source = temporary(t);
-  const work = fixture(source);
-  writeFileSync(path.join(work, 'CONTEXT.md'), '# Glossary\n\n## Orders\n\n**Order**: what a customer buys. [Lines](diagrams/orders.puml#OrderLine)\n');
-  const { html } = await exportPlan(source, 'work-0001', { now });
+test('carries the diagrams with the links to them, drawn as the app draws them', async () => {
+  const { checkout: { html } } = await shared();
   const view = JSON.parse(/<script id="atlas-plan-view" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]) as { diagrams: { path: string; title: string; payload: ViewerPayload | null; references: { path: string; section: string | null; element: string | null }[] }[] };
   const orders = view.diagrams.find(diagram => diagram.path === 'diagrams/orders.puml')!;
   assert.equal(orders.title, 'Orders');

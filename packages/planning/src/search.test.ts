@@ -210,11 +210,11 @@ test('a folder that takes long to read is waited for a while, then answered from
   slow = true;
   index.invalidate();
   let started = Date.now();
-  assert.deepEqual((await index.search(searchQuery('coupons')!, 'Shop', 200)).map(hit => hit.kind).sort(), ['plan'], 'the last read');
-  assert.ok(Date.now() - started >= 190 && Date.now() - started < 1000);
+  assert.deepEqual((await index.search(searchQuery('coupons')!, 'Shop', 100)).map(hit => hit.kind).sort(), ['plan'], 'the last read');
+  assert.ok(Date.now() - started >= 90 && Date.now() - started < 1000);
   started = Date.now();
-  await index.search(searchQuery('coupons')!, 'Shop', 200);
+  await index.search(searchQuery('coupons')!, 'Shop', 100);
   assert.ok(Date.now() - started < 100, 'a read that is late already is not waited for again');
   const never = new Slow(root);
-  assert.deepEqual(await never.search(searchQuery('coupons')!, 'Shop', 100), [], 'a folder never read finds nothing');
+  assert.deepEqual(await never.search(searchQuery('coupons')!, 'Shop', 50), [], 'a folder never read finds nothing');
 });

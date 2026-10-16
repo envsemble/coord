@@ -81,7 +81,9 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
   // Diagrams render with the shared viewer and respond to selection.
   await page.evaluate(`location.hash = 'tab=diagrams'`);
   await page.waitFor(`document.querySelector('.atlas-panel [data-element-kind="node"][data-element-id="Order"]')`);
-  await new Promise(resolve => setTimeout(resolve, 1000)); // let the camera settle after fitting
+  // The camera settles after fitting: the node stays put for three looks in a row.
+  await page.evaluate(`window.__still = 0`);
+  await page.waitFor(`(() => { const rect = document.querySelector('[data-element-kind="node"][data-element-id="Order"]').getBoundingClientRect(); const place = rect.left + ',' + rect.top + ',' + rect.width; window.__still = place === window.__place ? window.__still + 1 : 0; window.__place = place; return window.__still >= 3; })()`);
   const box = await page.evaluate<{ x: number; y: number }>(`(() => { const rect = document.querySelector('[data-element-kind="node"][data-element-id="Order"]').getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; })()`);
   const hit = await page.evaluate<string>(`document.elementFromPoint(${box.x}, ${box.y})?.closest('[data-node-id]')?.getAttribute('data-node-id') ?? document.elementFromPoint(${box.x}, ${box.y})?.outerHTML.slice(0, 200)`);
   assert.equal(hit, 'Order', 'the node is visible at its centre');

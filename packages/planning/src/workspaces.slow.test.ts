@@ -1,14 +1,15 @@
+// Workspace folders: the Git checkouts a scan finds, and the projects made from them. Each test makes
+// checkouts and asks Git about every one.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validatePlanning } from './check.ts';
 import { HomeDatabase } from './database.ts';
 import { createProject, readTemplates, setProjectWorkspaces } from './project.ts';
-import { setRegistryMember } from './registryText.ts';
 import { scanWorkspace } from './workspaces.ts';
 
 const templates = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../plugin/skills/atlas/assets/planning');
@@ -19,14 +20,21 @@ function temporary(t: TestContext) {
   return directory;
 }
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, '-c', 'user.name=Atlas Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args], { encoding: 'utf8', windowsHide: true });
+// Made once for the file: a checkout with one commit, which the others copy, and the workspace folder.
+const shared = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-workspaces-')));
+test.after(() => rmSync(shared, { recursive: true, force: true, maxRetries: 5 }));
+const template = path.join(shared, 'template');
 /** A Git checkout at `folder` with these remotes (name, URL) and one commit. */
 function checkout(folder: string, remotes: [string, string][] = []) {
-  mkdirSync(folder, { recursive: true });
-  git(folder, 'init', '-q', '-b', 'main');
-  for (const [name, url] of remotes) git(folder, 'remote', 'add', name, url);
-  writeFileSync(path.join(folder, 'README.md'), '# Readme\n');
-  git(folder, 'add', '-A');
-  git(folder, 'commit', '-q', '-m', 'Start');
+  if (!existsSync(template)) {
+    mkdirSync(template);
+    git(template, 'init', '-q', '-b', 'main');
+    writeFileSync(path.join(template, 'README.md'), '# Readme\n');
+    git(template, 'add', '-A');
+    git(template, 'commit', '-q', '-m', 'Start');
+  }
+  cpSync(template, folder, { recursive: true });
+  appendFileSync(path.join(folder, '.git/config'), remotes.map(([name, url]) => `[remote "${name}"]\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/${name}/*\n`).join(''));
   return folder;
 }
 
@@ -35,8 +43,9 @@ function checkout(folder: string, remotes: [string, string][] = []) {
  * worktree of the first, a second clone of the second, one without a remote, a plain folder, and a
  * checkout one level too deep.
  */
-function workspace(directory: string) {
-  const folder = path.join(directory, 'workspace');
+function workspace() {
+  const folder = path.join(shared, 'workspace');
+  if (existsSync(folder)) return folder;
   checkout(path.join(folder, 'web'), [['upstream', 'https://github.com/upstream/forked.git'], ['origin', 'git@github.com:example/Shop-Web.git']]);
   checkout(path.join(folder, 'api'), [['origin', 'https://someone:token@gitlab.com/example/api']]);
   git(path.join(folder, 'web'), 'worktree', 'add', '-q', path.join(folder, 'aa-web-feature'), '-b', 'feature');
@@ -49,7 +58,7 @@ function workspace(directory: string) {
 
 test('a workspace folder\'s checkouts are the folder and the folders directly inside it, each repository once', async t => {
   const directory = temporary(t);
-  const folder = workspace(directory);
+  const folder = workspace();
   assert.deepEqual(await scanWorkspace(folder), {
     folder,
     repositories: [
@@ -84,7 +93,7 @@ test('a workspace folder\'s checkouts are the folder and the folders directly in
 
 test('a project made from workspace folders registers their checkouts; changing its folders registers what new ones hold', async t => {
   const directory = temporary(t);
-  const folder = workspace(directory);
+  const folder = workspace();
   const home = path.join(directory, 'home');
   const database = HomeDatabase.open(home);
   try {
@@ -146,7 +155,7 @@ test('repositories sent back from previews keep their paths and get IDs of their
 
 test('setting workspace folders keeps work registered while the folders were scanned', async t => {
   const directory = temporary(t);
-  const folder = workspace(directory);
+  const folder = workspace();
   const database = HomeDatabase.open(path.join(directory, 'home'));
   try {
     const row = await createProject(database, { name: 'Shop', workspaces: [], repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop.git' }] }, await readTemplates(templates));
@@ -161,12 +170,4 @@ test('setting workspace folders keeps work registered while the folders were sca
     else assert.match(String(created.reason), /changed meanwhile/);
     assert.ok(set.status === 'fulfilled' || created.status === 'fulfilled');
   } finally { database.close(); }
-});
-
-test('a registry member is set where it is, or added after the first of its neighbours the registry has', () => {
-  const compact = '{"schema_version": 1, "name": "Shop", "repositories": [], "work_items": []}';
-  assert.equal(setRegistryMember(compact, 'workspaces', ['/work'], ['name']), '{"schema_version": 1, "name": "Shop", "workspaces": ["/work"], "repositories": [], "work_items": []}');
-  const pretty = '﻿{\r\n\t"schema_version": 1,\r\n\t"workspaces": [\r\n\t\t"/a"\r\n\t],\r\n\t"work_items": []\r\n}\r\n';
-  assert.equal(setRegistryMember(pretty, 'workspaces', ['/a', '/b'], ['name']), '﻿{\r\n\t"schema_version": 1,\r\n\t"workspaces": [\r\n\t\t"/a",\r\n\t\t"/b"\r\n\t],\r\n\t"work_items": []\r\n}\r\n');
-  assert.equal(setRegistryMember('{\n  "work_items": []\n}\n', 'workspaces', [], ['name', 'schema_version']), '{\n  "workspaces": [],\n  "work_items": []\n}\n', 'first when it has none of them');
 });

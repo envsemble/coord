@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from './registryText.ts';
+import { appendRegistryEntries, RegistryFormatError, setRegistryMember, updateRegistryEntry } from './registryText.ts';
 
 const BOM = String.fromCharCode(0xfeff);
 const entry = { id: 'work-0005', path: 'active/0005-example', repositories: ['shop', 'planning'], current_plan: 'active/0005-example/plan.md' };
@@ -53,4 +53,12 @@ test('a registry is named in place, keeping every other byte', async () => {
   assert.equal(named, '{\n  "schema_version": 1,\n  "name": "Coord",\n  "repositories": [],\n  "work_items": []\n}\n');
   assert.equal(setRegistryName(named, 'Coord "web"'), named.replace('"Coord"', '"Coord \\"web\\""'));
   assert.equal(setRegistryName('{"schema_version": 1}', 'One'), '{"schema_version": 1, "name": "One"}');
+});
+
+test('a registry member is set where it is, or added after the first of its neighbours the registry has', () => {
+  const compact = '{"schema_version": 1, "name": "Shop", "repositories": [], "work_items": []}';
+  assert.equal(setRegistryMember(compact, 'workspaces', ['/work'], ['name']), '{"schema_version": 1, "name": "Shop", "workspaces": ["/work"], "repositories": [], "work_items": []}');
+  const pretty = '﻿{\r\n\t"schema_version": 1,\r\n\t"workspaces": [\r\n\t\t"/a"\r\n\t],\r\n\t"work_items": []\r\n}\r\n';
+  assert.equal(setRegistryMember(pretty, 'workspaces', ['/a', '/b'], ['name']), '﻿{\r\n\t"schema_version": 1,\r\n\t"workspaces": [\r\n\t\t"/a",\r\n\t\t"/b"\r\n\t],\r\n\t"work_items": []\r\n}\r\n');
+  assert.equal(setRegistryMember('{\n  "work_items": []\n}\n', 'workspaces', [], ['name', 'schema_version']), '{\n  "workspaces": [],\n  "work_items": []\n}\n', 'first when it has none of them');
 });

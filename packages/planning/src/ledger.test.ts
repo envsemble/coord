@@ -21,11 +21,17 @@ test('titles are trimmed and compared for uniqueness after trimming', () => {
 });
 
 test('version 1 stays readable with its extra fields; version 2 is exact', () => {
-  const legacy = ledgerStatus({ schema_version: 1, kind: 'ledger', work_id: 'work-0007', updated: null, current: 'Focus', next: ['Later'], blocked: null, note: 'kept' }, 'work-0007');
+  const version1 = { schema_version: 1, kind: 'ledger', work_id: 'work-0007', updated: null, current: 'Focus', next: ['Later'], blocked: null };
+  const legacy = ledgerStatus({ ...version1, note: 'kept' }, 'work-0007');
   assert.deepEqual(legacy, { version: 1, current: 'Focus', next: ['Later'], blocked: null, updated: null, steps: null });
+  assert.throws(() => ledgerStatus({ ...version1, next: 'Guess a phase' }, 'work-0007'), /next/);
+  assert.throws(() => ledgerStatus({ ...version1, current: '' }, 'work-0007'), /current/);
   assert.throws(() => ledgerStatus({ ...base, steps: [], next: [] }, 'work-0007'), /steps replace current and next/);
   assert.throws(() => ledgerStatus({ ...base, steps: [] }, 'work-0008'), /work_id/);
   assert.throws(() => ledgerStatus({ ...base, updated: '2026-02-30', steps: [] }, 'work-0007'), /updated/);
   assert.throws(() => ledgerStatus({ ...base, blocked: '', steps: [] }, 'work-0007'), /blocked/);
   assert.throws(() => ledgerStatus({ ...base, steps: [['Not a step']] }, 'work-0007'), /title and a status/);
+  assert.throws(() => ledgerStatus({ ...base, steps: [{ title: 'One', status: 'started' }] }, 'work-0007'), /status must be todo, doing or done/);
+  assert.throws(() => ledgerStatus({ ...base, steps: [{ title: 'One' }] }, 'work-0007'), /status must be todo, doing or done/);
+  assert.throws(() => ledgerStatus({ ...base, steps: 'all of them' }, 'work-0007'), /steps must be a list/);
 });
