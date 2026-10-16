@@ -61,7 +61,7 @@ planning folder given by --planning-dir, else the current folder, and exit 0 on 
 1 for an invalid export or a refused folder and 2 on usage errors.
 usage log exits 0 even when it cannot record, so a logging problem never fails the task (2 only for
 usage errors); it reports gaps on stderr.
-work report records a ledger transition: its time, the model and the step, in the Atlas home's
+work report records a step transition: its time, the model and the step, in the Atlas home's
 database under the planning folder's project, which the app summarizes. Inside Claude Code or Codex it reads the
 session, the model, and the agent's working time and tokens since the session's previous report
 from the session's own log on this computer; elsewhere give --model, and --session and --tokens

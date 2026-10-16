@@ -736,7 +736,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
       else notes.push(`ledger.md has no work_id: ${source.workId} status line, so it was kept as exported.`);
     } else if (target.path.startsWith('active/') && source.currentPlan && designOf(contents.get(source.currentPlan)!) === 'draft') {
       // A draft without a ledger is planned from here, as new work is: with the planning steps.
-      await writeFile(path.join(temporary, 'ledger.md'), planningLedger(target.workId, source.title, localDate()), { flag: 'wx' });
+      await writeFile(path.join(temporary, 'ledger.md'), planningLedger(target.workId, localDate()), { flag: 'wx' });
       notes.push('The draft had no ledger; it got one with the planning steps.');
     }
 

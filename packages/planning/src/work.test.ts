@@ -90,11 +90,11 @@ test('new work has its planning steps from the start: added to while designing, 
   // While designing, steps are planning steps (after the others); agents rename and remove them to fit the work.
   await setStepStatus(root, 'work-0004', 'Understand the request', 'done', today);
   await renameStep(root, 'work-0004', 'Settle the design', 'Settle the refund rules', today);
-  await removeStep(root, 'work-0004', 'Write the plan', 'The rules are the plan', today);
+  await removeStep(root, 'work-0004', 'Write the plan', today);
   const added = await addSteps(root, 'work-0004', ['Ask finance'], today);
   assert.deepEqual(added.steps.map(step => [step.title, step.status, step.phase]), [['Understand the request', 'done', 'planning'], ['Settle the refund rules', 'todo', 'planning'], ['Accepted', 'todo', 'planning'], ['Ask finance', 'todo', 'planning']]);
   await assert.rejects(closeWork(root, 'work-0004', today), /only accepted work is closed/);
-  // Accepting marks every planning step done; starting appends the implementation steps and the selection.
+  // Accepting marks every planning step done; starting appends the implementation steps.
   const accepted = await acceptWork(root, 'work-0004', today);
   assert.deepEqual([accepted.progress, accepted.changed], ['All 4 steps done', ['active/0004-refunds/plan.md', 'active/0004-refunds/ledger.md']]);
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plan');
@@ -102,7 +102,7 @@ test('new work has its planning steps from the start: added to while designing, 
   const started = await startWork(root, 'work-0004', { steps: ['Build', 'Ship'] }, today);
   assert.deepEqual(started.steps.map(step => [step.title, step.status, step.phase]), [['Understand the request', 'done', 'planning'], ['Settle the refund rules', 'done', 'planning'], ['Accepted', 'done', 'planning'], ['Ask finance', 'done', 'planning'], ['Build', 'todo', undefined], ['Ship', 'todo', undefined]]);
   assert.deepEqual([started.implementationStatus, started.progress, started.warnings], ['in_progress', '4 of 6 steps done · 2 left', []]);
-  assert.match(ledger(), /\n# Ledger: Refunds\n\n## Selection\n\n- \*\*Work item:\*\* work-0004, \[plan\]\(plan\.md\), accepted on 2026-10-14\.\n- \*\*Selected plan:\*\* `active\/0004-refunds\/plan\.md` at planning revision `[0-9a-f]{40}`\.\n\n## Progress\n\n- 2026-10-14: work created; planning started\.\n- 2026-10-14: removed the step "Write the plan" \(todo\): The rules are the plan\.\n- 2026-10-14: design accepted; planning done\.\n- 2026-10-14: implementation started\.\n$/);
+  assert.match(ledger(), /\n  - title: "Ship"\n    status: todo\n---\n$/, 'the ledger is only its header: no prose');
   await assert.rejects(startWork(root, 'work-0004', { steps: ['Again'] }, today), /implementation has started already; add steps with step_add/);
   // From then on, added steps are implementation steps; closing needs every step done.
   assert.deepEqual((await addSteps(root, 'work-0004', ['Announce'], today)).steps.at(-1), { title: 'Announce', status: 'todo' });
@@ -112,7 +112,7 @@ test('new work has its planning steps from the start: added to while designing, 
   assert.deepEqual(errorsOf(root), []);
 });
 
-test('work in progress or partly done without a started ledger starts once, with one selection', async t => {
+test('work in progress or partly done without a started ledger starts once', async t => {
   const root = planningFolder(temporary(t));
   const accepted = { design_status: 'accepted', accepted_at: '"2026-10-02"' };
   // An older plan in progress, adopted without a ledger, gets one when it starts.
@@ -121,15 +121,11 @@ test('work in progress or partly done without a started ledger starts once, with
   const started = await startWork(root, 'work-0001', { steps: ['Build'] }, today);
   assert.deepEqual([started.ledger, started.steps], ['active/0001-existing/ledger.md', [{ title: 'Build', status: 'todo' }]]);
   await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /implementation has started already/);
-  // Partly done work whose ledger has only its planning steps: one Selection, and no second start.
+  // Partly done work whose ledger has only its planning steps starts once.
   writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { ...accepted, repositories: '[tools]', implementation_status: 'partial' }));
-  write(path.join(root, 'active/0002-other/ledger.md'), planningLedger('work-0002', 'Other', '2026-10-01').replace(/status: (?:doing|todo)/g, 'status: done'));
+  write(path.join(root, 'active/0002-other/ledger.md'), planningLedger('work-0002', '2026-10-01').replace(/status: (?:doing|todo)/g, 'status: done'));
   await startWork(root, 'work-0002', { steps: ['Finish'] }, today);
-  assert.equal(read(root, 'active/0002-other/ledger.md').match(/^## Selection$/gm)?.length, 1);
-  writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { ...accepted, repositories: '[tools]', implementation_status: 'partial' }));
-  write(path.join(root, 'active/0002-other/ledger.md'), read(root, 'active/0002-other/ledger.md').replace(/  - title: "Finish"\n    status: todo\n/, ''));
-  await assert.rejects(startWork(root, 'work-0002', { steps: ['Finish'] }, today), /implementation has started already/, 'a ledger with its selection has started');
-  assert.equal(read(root, 'active/0002-other/ledger.md').match(/^## Selection$/gm)?.length, 1);
+  await assert.rejects(startWork(root, 'work-0002', { steps: ['Again'] }, today), /implementation has started already/);
 });
 
 test('a ledger whose steps have no phase reads as before, and a phase is planning or implementation', async t => {
@@ -149,23 +145,18 @@ test('a ledger whose steps have no phase reads as before, and a phase is plannin
   assert.match(errorsOf(root).join('\n'), /Ledger step 1 phase must be planning or implementation/);
 });
 
-test('the design is accepted, then implementation starts with a ledger that records the selection', async t => {
+test('the design is accepted, then implementation starts with a ledger of its steps', async t => {
   const root = planningFolder(temporary(t));
   await assert.rejects(startWork(root, 'work-0001', { steps: ['Build'] }, today), /accept it before implementation starts/);
   const accepted = await acceptWork(root, 'work-0001', today);
   assert.deepEqual([accepted.designStatus, accepted.acceptedAt, accepted.updated], ['accepted', '2026-10-14', '2026-10-14']);
   assert.match((await acceptWork(root, 'work-0001', today)).warnings[0], /already accepted on 2026-10-14/);
   assert.equal(read(root, 'active/0001-existing/plan.md'), plan('work-0001', { updated: '"2026-10-14"', design_status: 'accepted', accepted_at: '"2026-10-14"' }), 'only the changed lines are rewritten');
-  const revision = git(root, 'rev-parse', 'HEAD').trim();
   const started = await startWork(root, 'work-0001', { steps: ['Build the cart', 'Review'] }, today);
   assert.equal(started.implementationStatus, 'in_progress');
   assert.deepEqual(started.steps, [{ title: 'Build the cart', status: 'todo' }, { title: 'Review', status: 'todo' }]);
   assert.equal(started.progress, '0 of 2 steps done · 2 left');
-  assert.match(started.warnings[0], /uncommitted changes/, 'the accepted plan was not committed yet');
-  const ledger = read(root, 'active/0001-existing/ledger.md');
-  assert.ok(ledger.includes('steps:\n  - title: "Build the cart"\n    status: todo\n  - title: "Review"\n    status: todo\n---'));
-  assert.ok(ledger.includes(`- **Selected plan:** \`active/0001-existing/plan.md\` at planning revision \`${revision}\`.`));
-  assert.ok(ledger.includes('[plan](plan.md), accepted on 2026-10-14'));
+  assert.match(read(root, 'active/0001-existing/ledger.md'), /\nsteps:\n  - title: "Build the cart"\n    status: todo\n  - title: "Review"\n    status: todo\n---\n$/);
   assert.deepEqual(errorsOf(root), []);
   await assert.rejects(startWork(root, 'work-0001', { steps: ['Again'] }, today), /implementation has started already/);
   await assert.rejects(startWork(root, 'work-0002', { steps: ['A', 'A'] }, today), /unique/);
@@ -179,7 +170,7 @@ test('a draft from before planning steps gets its ledger from its first planning
   const added = await addSteps(root, 'work-0001', ['Settle the refunds', 'Accepted'], today);
   assert.deepEqual(added.steps, [{ title: 'Settle the refunds', status: 'todo', phase: 'planning' }, { title: 'Accepted', status: 'todo', phase: 'planning' }]);
   const folder = readdirSync(path.join(root, 'active')).find(name => name.startsWith('0001'))!;
-  assert.match(readFileSync(path.join(root, 'active', folder, 'ledger.md'), 'utf8'), /planning steps added/);
+  assert.match(readFileSync(path.join(root, 'active', folder, 'ledger.md'), 'utf8'), /\n  - title: "Accepted"\n    status: todo\n    phase: planning\n---\n$/);
   assert.deepEqual(errorsOf(root), []);
   assert.deepEqual((await addSteps(root, 'work-0001', ['Write the plan'], today)).steps.map(step => step.title), ['Settle the refunds', 'Accepted', 'Write the plan']);
   await acceptWork(root, 'work-0001', today);
@@ -187,7 +178,7 @@ test('a draft from before planning steps gets its ledger from its first planning
   assert.deepEqual(started.steps.map(step => step.status), ['done', 'done', 'done', 'todo']);
 });
 
-test('steps are added, set, renamed and removed with a reason, and blocked is set and cleared', async t => {
+test('steps are added, set, renamed and removed, and blocked is set and cleared', async t => {
   const root = planningFolder(temporary(t));
   await acceptWork(root, 'work-0001', today);
   await startWork(root, 'work-0001', { steps: ['Build'] }, today);
@@ -200,13 +191,11 @@ test('steps are added, set, renamed and removed with a reason, and blocked is se
   await assert.rejects(setStepStatus(root, 'work-0001', 'Build', 'finished' as never, today), /todo, doing or done/);
   assert.equal((await renameStep(root, 'work-0001', 'Test', 'Test it', today)).steps[1].title, 'Test it');
   await assert.rejects(renameStep(root, 'work-0001', 'Test it', 'Ship', today), /already has a step "Ship"/);
-  await assert.rejects(removeStep(root, 'work-0001', 'Ship', '', today), /reason must be nonempty/);
-  const removed = await removeStep(root, 'work-0001', 'Ship', 'Moved to work-0002', today);
+  const removed = await removeStep(root, 'work-0001', 'Ship', today);
   assert.deepEqual(removed.steps.map(step => step.title), ['Build', 'Test it']);
-  assert.match(read(root, 'active/0001-existing/ledger.md'), /## Progress\n\n- 2026-10-14: implementation started\.\n- 2026-10-14: removed the step "Ship" \(todo\): Moved to work-0002\.\n$/);
   const blocked = await setBlocked(root, 'work-0001', 'Waiting for the API key', today);
   assert.equal(blocked.blocked, 'Waiting for the API key');
-  assert.match(read(root, 'active/0001-existing/ledger.md'), /^blocked: "Waiting for the API key"$/m);
+  assert.match(read(root, 'active/0001-existing/ledger.md'), /^blocked: "Waiting for the API key"\n[^]*---\n$/m, 'only the header changes');
   assert.equal((await setBlocked(root, 'work-0001', null, today)).blocked, null);
   assert.deepEqual(errorsOf(root), []);
 });
@@ -238,7 +227,6 @@ test('closing refuses while items are open, then completes and archives, repairi
   assert.equal(read(root, 'README.md'), '# Planning\n\n- [Existing](archive/0001-existing/plan.md)\n- [Ledger][ledger]\n\n[ledger]: <archive/0001-existing/ledger.md>\n\n```\n[not a link](active/0001-existing/plan.md)\n```\n');
   assert.ok(read(root, 'active/0002-other/plan.md').includes('[the first](../../archive/0001-existing/plan.md#why)'));
   assert.ok(read(root, 'archive/0001-existing/plan.md').includes('[the other work](../../active/0002-other/plan.md) and [the glossary](../../knowledge/glossary.md)'));
-  assert.ok(read(root, 'archive/0001-existing/ledger.md').includes('[plan](plan.md)'));
   assert.ok(closed.changed.includes('README.md') && closed.changed.includes('active/0002-other/plan.md'));
   assert.deepEqual(errorsOf(root), []);
   await assert.rejects(archiveWork(root, 'work-0001', {}, today), /not in active/);
@@ -247,7 +235,6 @@ test('closing refuses while items are open, then completes and archives, repairi
   const reopened = await reopenWork(root, 'work-0001', { steps: ['Fix the follow-up'] }, { today: '2026-10-17' });
   assert.deepEqual([reopened.path, reopened.implementationStatus, reopened.completedAt, reopened.updated], ['active/0001-existing', 'in_progress', null, '2026-10-17']);
   assert.deepEqual(reopened.steps.at(-1), { title: 'Fix the follow-up', status: 'todo' });
-  assert.match(read(root, 'active/0001-existing/ledger.md'), /- 2026-10-17: reopened with the step "Fix the follow-up"\./);
   assert.ok(read(root, 'README.md').includes('[Existing](active/0001-existing/plan.md)'));
   assert.deepEqual(errorsOf(root), []);
   // Work that is not complete is archived only as superseded or abandoned, with the reason recorded.
@@ -263,13 +250,13 @@ test('closing refuses while items are open, then completes and archives, repairi
   assert.deepEqual(errorsOf(root), []);
   const status = await workStatus(root, 'work-0001');
   assert.deepEqual(status.statistics, { reports: 0, agentMinutes: 0, tokens: null, primaryModel: null });
-  // Superseded work with open steps: the ledger says by what, and reopening accepts it again.
+  // Superseded work with open steps: the plan says by what, and reopening accepts it again.
   await assert.rejects(archiveWork(root, 'work-0001', {}, today), (error: WorkError) => error.problems.includes('Step "Fix the follow-up" is todo.'));
   // Naming the work that supersedes it is enough.
   const superseded = await archiveWork(root, 'work-0001', { supersededBy: 'work-0002', reason: 'Folded into the tools work' }, today);
   assert.deepEqual([superseded.location, superseded.designStatus], ['archive', 'superseded']);
   assert.match(read(root, 'archive/0001-existing/plan.md'), /^superseded_by: "work-0002"$/m);
-  assert.match(read(root, 'archive/0001-existing/ledger.md'), /- 2026-10-14: archived as superseded by work-0002: Folded into the tools work\.\n$/);
+  assert.match(read(root, 'archive/0001-existing/plan.md'), /## Outcome\n\n- 2026-10-14: Archived as superseded by work-0002: Folded into the tools work\.\n$/);
   assert.deepEqual(errorsOf(root), []);
   const again = await reopenWork(root, 'work-0001', { steps: ['Pick it up again'] }, today);
   assert.deepEqual([again.designStatus, again.location], ['accepted', 'active']);

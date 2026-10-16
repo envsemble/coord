@@ -1,5 +1,5 @@
 // `atlas mcp`: the planning-state operations for an agent harness, over stdio. The same operations
-// as the work commands, called in-process. Prose (plans, ledger notes, glossaries) and diagrams are
+// as the work commands, called in-process. Prose (plans, glossaries, the final-review list) and diagrams are
 // files agents edit directly, so there are no tools for them.
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -20,7 +20,7 @@ const instructions = 'Atlas keeps plans in projects: planning folders in the Atl
   + "a session in one of a project's workspace folders belongs to that project. When several projects match, ask the user which one to plan in and pass its planningFolder. "
   + 'Create a project with project_create only when the user asks for one or agrees to it. '
   + 'Change planning state only through these tools: create a work item (ask the user first, and only for work big enough to plan), accept its design, start implementation with its steps, '
-  + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, ledger notes, glossaries and diagrams directly as files in the planning folder. The tools never commit; commit planning changes yourself.';
+  + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, glossaries and diagrams directly as files in the planning folder. The tools never commit; commit planning changes yourself.';
 
 const planningFolder = { type: 'string', description: "Absolute path of the project's planning folder. Omit it to use the one your checkout belongs to; give it when several projects register the checkout's repository." };
 const cwd = { type: 'string', description: 'Absolute path of the checkout you work in, to find its planning folder. Defaults to the folder the session started in.' };
@@ -77,7 +77,7 @@ const tools: Tool[] = [
   },
   {
     name: 'work_start',
-    description: 'Start implementing an accepted plan: implementation in progress, these steps (one per meaningful deliverable or milestone, all todo) after the planning steps in the ledger, and the plan\'s Git revision. Commit the plan first.',
+    description: 'Start implementing an accepted plan: implementation in progress, these steps (one per meaningful deliverable or milestone, all todo) after the planning steps in the ledger. Commit the plan first.',
     inputSchema: object({ work, steps: { ...titles('The agreed steps, in order.'), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
   },
   {
@@ -95,9 +95,9 @@ const tools: Tool[] = [
     run: (root, input) => renameStep(root, input.work!, input.step as string, input.to as string),
   },
   {
-    name: 'step_remove', description: 'Remove a ledger step that was transferred or dropped; the reason is written into the ledger. Never drop an agreed step without one.',
-    inputSchema: object({ work, step: title, reason: { type: 'string', description: 'Why it is removed, and where it went if it was transferred.' } }, ['work', 'step', 'reason']),
-    run: (root, input) => removeStep(root, input.work!, input.step as string, input.reason as string),
+    name: 'step_remove', description: 'Remove a ledger step that was transferred or dropped. Never drop an agreed step silently: tell the user why.',
+    inputSchema: object({ work, step: title }, ['work', 'step']),
+    run: (root, input) => removeStep(root, input.work!, input.step as string),
   },
   {
     name: 'work_block', description: 'Set the ledger\'s blocked to the reason the work cannot go on; call it without a reason to clear blocked once it can.',
@@ -110,7 +110,7 @@ const tools: Tool[] = [
   },
   {
     name: 'work_archive',
-    description: 'Move a work folder from active/ to archive/ without closing it, repairing links. Work that is not complete needs a disposition: superseded (name the work that replaces it) or abandoned (give the reason); it becomes the plan\'s design_status, and the reason goes into the ledger. Finished work is closed with work_close instead.',
+    description: 'Move a work folder from active/ to archive/ without closing it, repairing links. Work that is not complete needs a disposition: superseded (name the work that replaces it) or abandoned (give the reason); it becomes the plan\'s design_status, and the reason goes into the plan\'s Outcome. Finished work is closed with work_close instead.',
     inputSchema: object({
       work, disposition: { type: 'string', enum: ['superseded', 'abandoned'], description: 'Why the work stops: replaced by other work, or dropped.' },
       supersededBy: { ...work, description: 'For superseded work: the work item that replaces it. Naming it implies superseded.' }, reason: { type: 'string', description: 'Why; required for abandoned work, and only given with a disposition.' },

@@ -21,7 +21,7 @@ export const planningUsage = `  atlas where [--cwd <dir>]
   atlas work step add <work-id> <title>... [--planning-dir <dir>]
   atlas work step set <work-id> <title> <todo|doing|done> [--planning-dir <dir>]
   atlas work step rename <work-id> <title> <new-title> [--planning-dir <dir>]
-  atlas work step remove <work-id> <title> --reason <why> [--planning-dir <dir>]
+  atlas work step remove <work-id> <title> [--planning-dir <dir>]
   atlas work block <work-id> (<reason> | --clear) [--planning-dir <dir>]
   atlas work close <work-id> [--planning-dir <dir>]
   atlas work archive <work-id> [--superseded-by <work-id> | --abandoned] [--reason <why>] [--planning-dir <dir>]
@@ -134,7 +134,7 @@ export async function work(operation: string | undefined, args: string[], out: O
       const [action, ...rest] = args;
       if (!steps.includes(action)) throw new UsageError('unknown work step command: ' + (action ?? '(none)'), usageOf('atlas work step'));
       if (wantsHelp(rest)) { out.stdout(line); return 0; }
-      const { positional, values } = parseOptions(rest, { values: ['planning-dir', ...action === 'remove' ? ['reason'] : []] }, line);
+      const { positional, values } = parseOptions(rest, { values: ['planning-dir'] }, line);
       const id = positional[0];
       if (action === 'add') {
         if (positional.length < 2) throw new UsageError('the following arguments are required: ' + (id ? 'title' : 'work-id, title'), line);
@@ -148,8 +148,7 @@ export async function work(operation: string | undefined, args: string[], out: O
         print(out, await renameStep(await planningDir(values, id), id, title, to));
       } else {
         const [, title] = positionals(positional, ['work-id', 'title'], line);
-        if (!values.reason) throw new UsageError('the following arguments are required: --reason (a step is never removed silently)', line);
-        print(out, await removeStep(await planningDir(values, id), id, title, values.reason));
+        print(out, await removeStep(await planningDir(values, id), id, title));
       }
       return 0;
     }

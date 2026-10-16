@@ -55,7 +55,7 @@ test('version and help describe the one atlas command', () => {
   assert.equal(shown.stdout.trim(), version);
   const help = atlas(['help']);
   assert.equal(help.status, 0);
-  for (const usage of ['atlas where', 'atlas work create --title <title>', 'atlas work step remove <work-id> <title> --reason <why>', 'atlas work close <work-id>', 'atlas check [<path>...]', 'atlas home adopt <folder>', 'atlas mcp', 'atlas hook <SessionStart|PostToolUse|Stop|SubagentStop>', 'atlas setup [--dry-run]', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files', 'atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>]']) assert.ok(help.stdout.includes(usage), usage);
+  for (const usage of ['atlas where', 'atlas work create --title <title>', 'atlas work step remove <work-id> <title>', 'atlas work close <work-id>', 'atlas check [<path>...]', 'atlas home adopt <folder>', 'atlas mcp', 'atlas hook <SessionStart|PostToolUse|Stop|SubagentStop>', 'atlas setup [--dry-run]', 'atlas planning check <planning-root>', 'atlas plan export <work-id|work-folder>', 'atlas plan import <file>', '--dry-run', 'atlas usage log <planning-root> --files', 'atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>]']) assert.ok(help.stdout.includes(usage), usage);
   assert.equal(atlas([]).status, 0);
 });
 

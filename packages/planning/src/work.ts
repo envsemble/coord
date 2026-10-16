@@ -1,5 +1,5 @@
 // The planning-state operations: create and register work, accept its design, start implementation
-// with a ledger, change its steps and `blocked`, close it once nothing is open, and archive or reopen
+// with its steps, change them and `blocked`, close it once nothing is open, and archive or reopen
 // it. The atlas command and the MCP server both call these. Each validates its input, refuses with
 // the reason when the work is not in a state that allows it, records the date in the plan's
 // `updated`, and changes files the way a careful person would (only the lines that change). Nothing
@@ -11,7 +11,6 @@ import { parseFrontmatter, type Metadata } from './check.ts';
 import { appendToSection, setFields, setSteps } from './headerText.ts';
 import { ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
 import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from './registryText.ts';
-import { runProgram } from './run.ts';
 import { stepLimit, workStatistics } from './statistics.ts';
 import type { LedgerStep, LedgerStepStatus } from './types.ts';
 
@@ -212,12 +211,12 @@ export const summaryLimit = 1000;
 /** The steps every work item starts with, designing it until the user accepts the plan; agents rename them to fit the work. */
 export const planningSteps = ['Understand the request', 'Settle the design', 'Write the plan', 'Accepted'];
 
-/** A new work item's ledger: its planning steps (by default the usual ones, the first under way). */
-export function planningLedger(workId: string, title: string, today: string, steps = planningSteps.map((step, index) => ({ title: step, status: index ? 'todo' : 'doing' })), note = 'work created; planning started.') {
+/** A new work item's ledger: only its header, with its planning steps (by default the usual ones, the first under way). */
+export function planningLedger(workId: string, today: string, steps = planningSteps.map((step, index) => ({ title: step, status: index ? 'todo' : 'doing' }))) {
   return [
     '---', 'schema_version: 2', 'kind: ledger', 'work_id: ' + workId, `updated: "${today}"`, 'blocked: null', 'steps:',
     ...steps.flatMap(step => ['  - title: ' + JSON.stringify(step.title), '    status: ' + step.status, '    phase: planning']),
-    '---', '', '# Ledger: ' + title, '', '## Progress', '', `- ${today}: ${note}`, '',
+    '---', '',
   ].join('\n');
 }
 /**
@@ -256,7 +255,7 @@ export async function createWork(input: string, request: { title: string; reposi
   await mkdir(file(root, location), { recursive: true });
   try {
     await writeFile(file(root, plan), planText, { flag: 'wx' });
-    await writeFile(file(root, location + '/ledger.md'), planningLedger(workId, title, today), { flag: 'wx' });
+    await writeFile(file(root, location + '/ledger.md'), planningLedger(workId, today), { flag: 'wx' });
     if (await readFile(path.join(root, 'planning.json'), 'utf8') !== registry.text) throw new WorkError('planning.json changed meanwhile; nothing was created. Try again.');
     await writeText(path.join(root, 'planning.json'), registryText);
   } catch (error) {
@@ -276,54 +275,26 @@ export async function acceptWork(root: string, workId: string, options: Operatio
   const changed = [await writePlan(loaded, { design_status: 'accepted', accepted_at: today }, today)];
   if (loaded.ledgerText !== null && loaded.ledgerSteps?.some(step => step.phase === 'planning' && step.status !== 'done')) {
     const steps = loaded.ledgerSteps.map(step => step.phase === 'planning' ? { ...step, status: 'done' as const } : step);
-    changed.push(await writeLedger(loaded, appendToSection(setFields(setSteps(loaded.ledgerText, steps), { updated: today }), `- ${today}: design accepted; planning done.`)));
+    changed.push(await writeLedger(loaded, setFields(setSteps(loaded.ledgerText, steps), { updated: today })));
   }
   return result(loaded.root, workId, changed);
 }
 
-async function planningRevision(root: string, plan: string) {
-  const warnings: string[] = [];
-  let revision: string | null = null;
-  try {
-    revision = (await runProgram('git', ['-C', root, 'rev-parse', 'HEAD'], { timeout: 15000 })).stdout.trim() || null;
-    const changes = (await runProgram('git', ['-C', root, 'status', '--porcelain', '--', plan], { timeout: 15000 })).stdout.trim();
-    if (changes) warnings.push(`The plan ${plan} has uncommitted changes; the selection records the revision before them. Commit the plan so the selection names what is implemented.`);
-  } catch { warnings.push('The planning folder has no Git history, so the selection records no revision.'); }
-  return { revision, warnings };
-}
-/** The ledger's Selection section: the plan implemented and the planning folder's Git revision. */
-function selection(loaded: Loaded, revision: string | null) {
-  const accepted = text(loaded.planMetadata.accepted_at);
-  const planLink = path.posix.relative(loaded.entry.path, loaded.plan);
-  return [
-    '## Selection', '',
-    `- **Work item:** ${loaded.entry.id}, [plan](${planLink})${accepted ? ', accepted on ' + accepted : ''}.`,
-    `- **Selected plan:** \`${loaded.plan}\`${revision ? ' at planning revision `' + revision + '`' : ' (no planning Git revision)'}.`,
-  ];
-}
-function newLedger(loaded: Loaded, titles: string[], today: string, revision: string | null) {
-  const title = text(loaded.planMetadata.title) ?? loaded.entry.id;
+/** A ledger for work without one: only its header, with these steps. */
+function newLedger(loaded: Loaded, titles: string[], today: string) {
   return [
     '---', 'schema_version: 2', 'kind: ledger', 'work_id: ' + loaded.entry.id, `updated: "${today}"`, 'blocked: null',
     ...(titles.length ? ['steps:', ...titles.flatMap(step => ['  - title: ' + JSON.stringify(step), '    status: todo'])] : ['steps: []']),
-    '---', '', '# Ledger: ' + title, '', ...selection(loaded, revision),
-    '', '## Progress', '', `- ${today}: implementation started.`, '',
+    '---', '',
   ].join('\n');
 }
-/** A ledger from planning with the implementation steps after its planning steps, and the Selection section before its Progress. */
-function startedLedger(loaded: Loaded, titles: string[], today: string, revision: string | null) {
-  const eol = loaded.ledgerText!.includes('\r\n') ? '\r\n' : '\n';
-  const next = setFields(setSteps(loaded.ledgerText!, [...loaded.ledgerSteps!, ...titles.map(title => ({ title, status: 'todo' as const }))]), { updated: today });
-  const lines = next.split(/\r?\n/), progress = lines.findIndex(line => line.trim() === '## Progress');
-  if (progress >= 0) lines.splice(progress, 0, ...selection(loaded, revision), '');
-  const selected = progress >= 0 ? lines.join(eol) : next.replace(/(?:\r?\n)*$/, '') + eol + eol + selection(loaded, revision).join(eol) + eol;
-  return appendToSection(selected, `- ${today}: implementation started.`);
-}
+/** The ledger with these todo steps after its steps. */
+const withSteps = (loaded: Loaded, titles: string[], today: string) =>
+  setFields(setSteps(loaded.ledgerText!, [...loaded.ledgerSteps!, ...titles.map(title => ({ title, status: 'todo' as const }))]), { updated: today });
 
 /**
- * Start implementation: `implementation_status: in_progress`, the given steps after the ledger's
- * planning steps (in a new ledger for work without one), and a Selection section naming the plan and
- * the planning folder's Git revision.
+ * Start implementation: `implementation_status: in_progress` and the given steps after the ledger's
+ * planning steps (in a new ledger for work without one).
  */
 export async function startWork(root: string, workId: string, request: { steps: string[] }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
@@ -332,29 +303,27 @@ export async function startWork(root: string, workId: string, request: { steps: 
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; accept it before implementation starts.`);
   if (loaded.planMetadata.implementation_status === 'complete') throw new WorkError('The implementation is already complete; reopen the work instead.');
-  // Started once already: the ledger has its implementation steps or its selection. Work in progress without either gets them now.
-  if (loaded.ledgerSteps?.some(step => step.phase !== 'planning') || (loaded.ledgerText !== null && /^## Selection[ \t]*\r?$/m.test(loaded.ledgerText))) {
+  // Started once already: the ledger has its implementation steps. Work in progress without them gets them now.
+  if (loaded.ledgerSteps?.some(step => step.phase !== 'planning')) {
     throw new WorkError('The implementation has started already; add steps with step_add instead.');
   }
   const taken = titles.filter(title => loaded.ledgerSteps?.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   if (locationOf(loaded.entry.path) === 'archive') throw new WorkError('The work is archived; reopen it instead.');
-  const { revision, warnings } = await planningRevision(loaded.root, loaded.plan);
-  const ledger = await writeLedger(loaded, loaded.ledgerText === null ? newLedger(loaded, titles, today, revision) : startedLedger(loaded, titles, today, revision));
+  const ledger = await writeLedger(loaded, loaded.ledgerText === null ? newLedger(loaded, titles, today) : withSteps(loaded, titles, today));
   const plan = await writePlan(loaded, { implementation_status: 'in_progress' }, today);
-  return result(loaded.root, workId, [ledger, plan], warnings);
+  return result(loaded.root, workId, [ledger, plan]);
 }
 
-/** Change the ledger's steps (and fields), noting `note` in its Progress section, and record the date. */
-async function changeLedger(root: string, workId: string, options: OperationOptions, change: (steps: LedgerStep[], loaded: Loaded) => { steps?: LedgerStep[]; fields?: Record<string, string | null>; note?: string }) {
+/** Change the ledger's steps (and fields), and record the date. */
+async function changeLedger(root: string, workId: string, options: OperationOptions, change: (steps: LedgerStep[], loaded: Loaded) => { steps?: LedgerStep[]; fields?: Record<string, string | null> }) {
   const today = dateOf(options);
   const loaded = await load(root, workId);
   if (loaded.ledgerText === null || loaded.ledgerSteps === null) throw new WorkError(`${workId} has no ledger yet; start its implementation first.`);
-  const { steps, fields, note } = change(loaded.ledgerSteps.map(step => ({ ...step })), loaded);
+  const { steps, fields } = change(loaded.ledgerSteps.map(step => ({ ...step })), loaded);
   let next = loaded.ledgerText;
   if (steps) next = setSteps(next, steps);
   next = setFields(next, { ...fields, updated: today });
-  if (note) next = appendToSection(next, `- ${today}: ${note}`);
   const ledger = await writeLedger(loaded, next);
   const plan = await writePlan(loaded, {}, today);
   return result(loaded.root, workId, [ledger, plan]);
@@ -378,8 +347,7 @@ export async function addSteps(root: string, workId: string, titles: string[], o
   const unledgered = await load(root, workId);
   if (unledgered.ledgerText === null && !implementing(unledgered) && locationOf(unledgered.entry.path) === 'active') {
     const today = dateOf(options);
-    const title = typeof unledgered.planMetadata.title === 'string' && unledgered.planMetadata.title.trim() ? unledgered.planMetadata.title.trim() : workId;
-    const ledger = await writeLedger(unledgered, planningLedger(workId, title, today, added.map(step => ({ title: step, status: 'todo' })), 'planning steps added.'));
+    const ledger = await writeLedger(unledgered, planningLedger(workId, today, added.map(step => ({ title: step, status: 'todo' }))));
     const plan = await writePlan(unledgered, {}, today);
     return result(unledgered.root, workId, [ledger, plan]);
   }
@@ -412,20 +380,18 @@ export async function renameStep(root: string, workId: string, title: string, to
   });
 }
 
-/** Remove a step, writing why into the ledger's Progress section: an agreed step is never dropped silently. */
-export async function removeStep(root: string, workId: string, title: string, reason: string, options: OperationOptions = {}) {
-  const why = oneLine(reason, 'The reason', 1000);
+/** Remove a step that was transferred or dropped. */
+export async function removeStep(root: string, workId: string, title: string, options: OperationOptions = {}) {
   return changeLedger(root, workId, options, steps => {
-    const index = find(steps, title);
-    const [removed] = steps.splice(index, 1);
-    return { steps, note: `removed the step "${removed.title}" (${removed.status}): ${why.replace(/\.$/, '')}.` };
+    steps.splice(find(steps, title), 1);
+    return { steps };
   });
 }
 
 /** Set `blocked` to a reason, or clear it with null. */
 export async function setBlocked(root: string, workId: string, reason: string | null, options: OperationOptions = {}) {
   const value = reason === null ? null : oneLine(reason, 'The reason', 1000);
-  return changeLedger(root, workId, options, () => ({ fields: { blocked: value }, ...value && { note: 'blocked: ' + value.replace(/\.$/, '') + '.' } }));
+  return changeLedger(root, workId, options, () => ({ fields: { blocked: value } }));
 }
 
 /** What keeps a work item open: steps not done, and `blocked`. */
@@ -523,7 +489,7 @@ export interface ArchiveRequest { disposition?: 'superseded' | 'abandoned' | nul
  * Archive the work: move its folder from active/ to archive/. Work that is not complete needs a
  * disposition: `superseded` by another registered work item (naming it implies superseded), or
  * `abandoned` with the reason. It becomes the plan's design_status (and superseded_by), and the
- * reason goes into the ledger, or the plan without one, so archiving never hides open work. A reason
+ * reason goes into the plan's Outcome, so archiving never hides open work. A reason
  * comes only with a disposition, so it is never dropped.
  */
 export async function archiveWork(root: string, workId: string, request: ArchiveRequest = {}, options: OperationOptions = {}): Promise<WorkResult> {
@@ -547,8 +513,7 @@ export async function archiveWork(root: string, workId: string, request: Archive
   const changed = [...moved];
   if (disposition) {
     const note = `archived as ${disposition}${supersededBy ? ' by ' + supersededBy : ''}${reason ? ': ' + reason.replace(/\.$/, '') : ''}.`;
-    if (loaded.ledgerText !== null) changed.push(await writeLedger(loaded, appendToSection(setFields(loaded.ledgerText, { updated: today }), `- ${today}: ${note}`)));
-    else loaded.planText = appendToSection(loaded.planText, `- ${today}: ${note[0].toUpperCase() + note.slice(1)}`, '## Outcome');
+    loaded.planText = appendToSection(loaded.planText, `- ${today}: ${note[0].toUpperCase() + note.slice(1)}`, '## Outcome');
   }
   changed.push(await writePlan(loaded, disposition ? { design_status: disposition, ...supersededBy && { superseded_by: supersededBy } } : {}, today));
   return result(loaded.root, workId, [...new Set(changed)]);
@@ -567,7 +532,7 @@ export async function closeWork(root: string, workId: string, options: Operation
   if (loaded.ledgerSteps === null) throw new WorkError(`${workId} has no ledger: its implementation never started. Start it with its steps, or archive it as superseded or abandoned.`);
   if (!loaded.ledgerSteps.some(step => step.phase !== 'planning')) throw new WorkError(`${workId}'s ledger has no implementation steps: start it with the agreed steps and finish them before closing.`);
   const open = openItems(loaded);
-  if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or record in the ledger why one is dropped and remove it.`, open);
+  if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or remove a dropped one with step_remove.`, open);
   const moved = await move(loaded, 'archive');
   return result(loaded.root, workId, [...moved, await writePlan(loaded, { implementation_status: 'complete', completed_at: today }, today)]);
 }
@@ -585,15 +550,7 @@ export async function reopenWork(root: string, workId: string, request: { steps:
   const taken = titles.filter(title => loaded.ledgerSteps?.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   const changed = await move(loaded, 'active');
-  if (loaded.ledgerText === null) {
-    const { revision } = await planningRevision(loaded.root, loaded.plan);
-    changed.push(await writeLedger(loaded, newLedger(loaded, titles, today, revision)));
-  } else {
-    let next = setSteps(loaded.ledgerText, [...loaded.ledgerSteps!, ...titles.map(title => ({ title, status: 'todo' as const }))]);
-    next = setFields(next, { updated: today });
-    next = appendToSection(next, `- ${today}: reopened with ${titles.length === 1 ? 'the step' : 'the steps'} ${titles.map(title => '"' + title + '"').join(', ')}.`);
-    changed.push(await writeLedger(loaded, next));
-  }
+  changed.push(await writeLedger(loaded, loaded.ledgerText === null ? newLedger(loaded, titles, today) : withSteps(loaded, titles, today)));
   changed.push(await writePlan(loaded, { implementation_status: 'in_progress', completed_at: null, ...disposed && { design_status: 'accepted', superseded_by: null } }, today));
   return result(loaded.root, workId, changed);
 }
