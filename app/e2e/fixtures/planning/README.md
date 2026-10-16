@@ -13,15 +13,15 @@ This local Git repository holds planned work, implementation records and scoped 
 
 | Work | Status | Entry |
 |---|---|---|
-| 0001 — Saved payment methods | Accepted; implementation in progress on shop#58 | [Plan](active/0001-saved-payment-methods/plan.md), [ledger](active/0001-saved-payment-methods/ledger.md) |
+| 0001 — Saved payment methods | Accepted; implementation in progress on shop#58 | [Plan](active/0001-saved-payment-methods/plan.md) |
 | 0002 — Order fulfilment model | Draft; conceptual model being grilled | [Plan](active/0002-order-fulfilment-model/plan.md), [glossary](active/0002-order-fulfilment-model/CONTEXT.md) |
-| 0003 — Customer order notifications | Accepted; in-app delivered, email blocked on provider approval | [Plan](active/0003-customer-notifications/plan.md), [ledger](active/0003-customer-notifications/ledger.md) |
+| 0003 — Customer order notifications | Accepted; in-app delivered, email blocked on provider approval | [Plan](active/0003-customer-notifications/plan.md) |
 
 ## Archived work
 
 | Work | Outcome | Entry |
 |---|---|---|
-| 0004 — Inventory reservations at checkout | Complete 2026-09-24; shop#41 and shop#44 merged | [Plan](archive/0004-inventory-reservations/plan.md), [ledger](archive/0004-inventory-reservations/ledger.md) |
+| 0004 — Inventory reservations at checkout | Complete 2026-09-24; shop#41 and shop#44 merged | [Plan](archive/0004-inventory-reservations/plan.md) |
 
 Numbers show registration order, not priority. Current code, tests and the shop's own documentation establish present behaviour; plans record intent and rationale.
 
