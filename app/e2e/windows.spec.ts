@@ -2,22 +2,11 @@ import { renameSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { addProject, chooseMenu, close, expectHub, filterHub, launch, launchProject, openPlan, openProjects, planningFixture, projectAction, projectHome, projectRow, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
+import { addProject, chooseMenu, close, expectHub, filterHub, goHome, launch, launchProject, openPlan, openProjects, planningFixture, projectAction, projectHome, projectRow, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
-
-test('a home without projects opens on the hub, which points to the Projects page to make one', async () => {
-  launched = await launch();
-  const { window } = launched;
-  await expect(window.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
-  await expect(window.locator('.hub')).toContainText('Projects › New project');
-  await window.locator('.hub').getByRole('button', { name: 'Projects' }).click();
-  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
-  await expect(window.locator('.projects-page')).toContainText('No projects yet.');
-  await expect(window.getByRole('button', { name: 'New project', exact: true })).toBeVisible();
-});
 
 /** New Window from the application menu, in the first window. */
 async function newWindow(app: ElectronApplication): Promise<Page> {
@@ -30,7 +19,7 @@ async function newWindow(app: ElectronApplication): Promise<Page> {
   return page;
 }
 
-test('a second launch brings the running app forward, and windows open again showing what they showed next time', async () => {
+test('a second launch brings the running app forward, and windows open again showing what they showed next time; a window closed by hand is forgotten', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   launched = await launchProject(home);
@@ -51,6 +40,21 @@ test('a second launch brings the running app forward, and windows open again sho
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(2);
   const shown = async () => (await Promise.all(launched!.app.windows().map(page => page.locator('.hub h1, .work-header h1').first().textContent()))).sort();
   await expect.poll(shown).toEqual(['Plans', 'Saved payment methods']);
+
+  // The newer window closes by hand; the one left keeps its place when Atlas quits, and opens alone next time.
+  const again = launched.app;
+  await again.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
+  await expect.poll(() => windowTitles(again).then(titles => titles.length)).toBe(1);
+  await expect.poll(() => again.windows().length).toBe(1);
+  const left = again.windows()[0];
+  await goHome(left);
+  await openPlan(left, 'Order fulfilment model');
+  await left.waitForTimeout(600);
+  await again.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => undefined);
+  await again.waitForEvent('close').catch(() => undefined);
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(1);
+  await expect(launched.window.locator('.work-header h1')).toHaveText('Order fulfilment model');
 });
 
 test('a plan of a project whose folder is not a planning folder at the start shows again when it is', async () => {
@@ -127,28 +131,17 @@ test('a project moved into the home moves along in every window; a refused move 
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
 });
 
-test('a window closed by hand is forgotten; the last one stays for the next start', async () => {
-  const home = projectHome();
-  homes.push(home.dataDirectory);
-  launched = await launchProject(home);
-  const { app } = launched;
-  await openPlan(launched.window, 'Order fulfilment model');
-  await newWindow(app);
-  await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(2);
-  // The new window closes by hand; the first keeps its plan when Atlas quits.
-  await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
-  await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(1);
-  await launched.window.waitForTimeout(600);
-  await app.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => undefined);
-  await app.waitForEvent('close').catch(() => undefined);
-  launched = await launch({ dataDirectory: home.dataDirectory });
-  await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(1);
-  await expect(launched.window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-});
-
-test('About Atlas, from the menu, shows the version in the window and copies the details', async () => {
+test('a home without projects opens on the hub, which points to the Projects page to make one; About Atlas, from the menu, shows the version in the window and copies the details', async () => {
   launched = await launch();
   const { app, window } = launched;
+  await expect(window.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
+  await expect(window.locator('.hub')).toContainText('Projects › New project');
+  await window.locator('.hub').getByRole('button', { name: 'Projects' }).click();
+  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
+  await expect(window.locator('.projects-page')).toContainText('No projects yet.');
+  await expect(window.getByRole('button', { name: 'New project', exact: true })).toBeVisible();
+
+  // About Atlas, from the File menu.
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
   await chooseMenu(window, 'About Atlas');
   const about = window.getByRole('dialog', { name: 'Atlas' });

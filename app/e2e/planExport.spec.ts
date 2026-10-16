@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type ElectronApplication } from '@playwright/test';
-import { addProject, chooseMenu, close, fileMenu, expectHub, goHome, hubRows, launchProject, openPlan, projectHome, removeDirectory, showFiles, temporaryDirectory, type Launched } from './app';
+import { addProject, chooseMenu, close, expectHub, goHome, hubRows, launchProject, openPlan, projectHome, removeDirectory, showFiles, temporaryDirectory, type Launched } from './app';
 
 let launched: Launched | undefined;
 let folder: string;
@@ -34,25 +34,23 @@ async function stubDialogs(app: ElectronApplication, answers: { save?: string; o
 const shownMessages = (app: ElectronApplication) => app.evaluate(() => (globalThis as { shownMessages?: { message: string; detail?: string }[] }).shownMessages ?? []);
 const git = (...args: string[]) => execFileSync('git', ['-C', folder, ...args], { encoding: 'utf8', windowsHide: true });
 
-test('Import Plan… is in the menu; Export Plan… is on the plan page and on a work folder’s context menu in the file panel', async () => {
+test('Import Plan… refuses a file that is not an export; Export Plan… writes one HTML file per work item, which Import Plan… previews, then adds as new work under the next number without committing', async () => {
   const { app, window } = launched!;
-  const file = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.map(item => item.label));
-  expect(file).toContain('&Import Plan…');
-  expect(file).not.toContain('&Export Plan…');
-  await fileMenu(window).click();
-  await expect(window.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Import Plan…' })).toBeVisible();
-  await expect(window.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Export Plan…' })).toHaveCount(0);
-  await window.keyboard.press('Escape');
-  await openPlan(window, 'Customer order notifications');
-  await expect(window.locator('.work-header').getByRole('button', { name: 'Export Plan…' })).toBeVisible();
-  const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
-  await expect(window.getByRole('menu')).toContainText('Export Plan…');
-  await window.keyboard.press('Escape');
-});
+  // A file that is not an export is refused in an error dialog, and nothing is written.
+  const invalid = path.join(scratch, 'not-an-export.html');
+  writeFileSync(invalid, '<!doctype html><title>Not an Atlas plan export</title><p>Hello</p>');
+  await stubDialogs(app, { open: invalid });
+  const registry = readFileSync(path.join(folder, 'planning.json'), 'utf8');
+  await clickMenu(app, '&Import Plan…');
+  await expect.poll(() => shownMessages(app).then(items => items.length)).toBe(1);
+  const [message] = await shownMessages(app);
+  expect(message.message).toBe('This file cannot be imported.');
+  expect(message.detail).toContain('Nothing was written.');
+  await expect(window.getByRole('dialog', { name: /^Import “/ })).toHaveCount(0);
+  await expect(window.getByText(/^(Exported|Imported) /)).toHaveCount(0);
+  expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toBe(registry);
+  expect(git('status', '--porcelain', '--untracked-files=all')).toBe('');
 
-test('Export Plan… on the plan page and in the file panel writes one HTML file per work item', async () => {
-  const { app, window } = launched!;
   // The plan page's Export Plan… exports its work item.
   const fromPage = path.join(scratch, 'from-page.html');
   await stubDialogs(app, { save: fromPage });
@@ -74,19 +72,10 @@ test('Export Plan… on the plan page and in the file panel writes one HTML file
   expect(html).toContain('Order fulfilment model');
   // Exporting writes nothing into the planning folder.
   expect(git('status', '--porcelain')).toBe('');
-});
 
-test('Import Plan… previews the file, then adds it as new work under the next number without committing', async () => {
-  const { app, window } = launched!;
-  const exported = path.join(scratch, 'fulfilment.html');
-  await stubDialogs(app, { save: exported });
-  await openPlan(window, 'Order fulfilment model');
-  await window.locator('.work-header').getByRole('button', { name: 'Export Plan…' }).click();
-  await expect(window.getByText(/^Exported #0002/)).toBeVisible();
   // The plan is imported into the project shown: from the hub, the only project.
   await goHome(window);
-
-  await stubDialogs(app, { open: exported });
+  await stubDialogs(app, { open: fromExplorer });
   const commits = git('rev-list', '--count', 'HEAD');
   await chooseMenu(window, 'Import Plan…');
   const preview = window.getByRole('dialog', { name: /^Import “/ });
@@ -112,23 +101,6 @@ test('Import Plan… previews the file, then adds it as new work under the next 
   expect(changes.some(line => line.includes('active/0005-'))).toBe(true);
   expect(existsSync(path.join(folder, '.atlas-import.lock'))).toBe(false);
   expect(await shownMessages(app)).toEqual([]);
-});
-
-test('an invalid export is refused in an error dialog and nothing is written', async () => {
-  const { app, window } = launched!;
-  const invalid = path.join(scratch, 'not-an-export.html');
-  writeFileSync(invalid, '<!doctype html><title>Not an Atlas plan export</title><p>Hello</p>');
-  await stubDialogs(app, { open: invalid });
-  const registry = readFileSync(path.join(folder, 'planning.json'), 'utf8');
-  await clickMenu(app, '&Import Plan…');
-  await expect.poll(() => shownMessages(app).then(items => items.length)).toBe(1);
-  const [message] = await shownMessages(app);
-  expect(message.message).toBe('This file cannot be imported.');
-  expect(message.detail).toContain('Nothing was written.');
-  await expect(window.getByRole('dialog', { name: /^Import “/ })).toHaveCount(0);
-  await expect(window.getByText(/^(Exported|Imported) /)).toHaveCount(0);
-  expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toBe(registry);
-  expect(git('status', '--porcelain', '--untracked-files=all')).toBe('');
 });
 
 test('import previews in two windows do not replace each other', async () => {

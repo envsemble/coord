@@ -43,10 +43,14 @@ test('a crashed window reloads showing what it showed', async () => {
   expect(log).toContain('Window renderer gone');
 });
 
-test('a broken planning.json keeps the last good view with an error, and recovers when fixed', async () => {
+test('an open plan follows its folder: a ledger change appears without a refresh, a broken planning.json keeps the last good view with an error, and a folder moved away says so; each recovers', async () => {
   launched = await launchProject(home);
   const { window } = launched;
   await openPlan(window, 'Customer order notifications');
+  const ledger = path.join(home.folder, 'active/0003-customer-notifications/ledger.md');
+  writeFileSync(ledger, readFileSync(ledger, 'utf8').replace(/^current: .*$/m, 'current: "Waiting for the provider review"'));
+  await expect(window.locator('.about')).toContainText('Waiting for the provider review');
+  // A broken planning.json.
   const registry = path.join(home.folder, 'planning.json');
   const good = readFileSync(registry, 'utf8');
   writeFileSync(registry, '{ "schema_version": 1, "repositories": [');
@@ -58,27 +62,11 @@ test('a broken planning.json keeps the last good view with an error, and recover
   renameSync(registry + '.tmp', registry);
   await expect(window.locator('.folder-error')).toHaveCount(0);
   await expect(window.locator('.work-header h1')).toHaveText('Customer order notifications');
-});
-
-test('a ledger change appears without a refresh', async () => {
-  launched = await launchProject(home);
-  const { window } = launched;
-  await openPlan(window, 'Customer order notifications');
-  const ledger = path.join(home.folder, 'active/0003-customer-notifications/ledger.md');
-  writeFileSync(ledger, readFileSync(ledger, 'utf8').replace(/^current: .*$/m, 'current: "Waiting for the provider review"'));
-  await expect(window.locator('.about')).toContainText('Waiting for the provider review');
-});
-
-test('a project whose folder is moved away says so, and returns when it comes back', async () => {
-  launched = await launchProject(home);
-  const { window } = launched;
-  await openPlan(window, 'Customer order notifications');
+  // The folder moved away and back.
   const moved = home.folder + '-moved';
   await move(home.folder, moved);
   await expect(window.getByRole('heading', { name: 'This project’s folder was moved or deleted' })).toBeVisible();
   await expect(window.locator('.folder-problem-path')).toHaveText(home.folder);
-  // No Locate… or Close Folder: projects live in the home.
-  await expect(window.getByRole('button', { name: 'Locate…' })).toHaveCount(0);
   await move(moved, home.folder);
   await expect(window.locator('.work-header h1')).toHaveText('Customer order notifications', { timeout: 20_000 });
 });

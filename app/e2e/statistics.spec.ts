@@ -4,7 +4,7 @@
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, close, filterHub, goHome, launch, launchProject, openPlan, pageScroll, projectHome, removeDirectory, section, type Launched } from './app';
+import { addProject, close, filterHub, goHome, launch, launchProject, openPlan, pageScroll, projectHome, removeDirectory, section, settledScroll, type Launched } from './app';
 
 let launched: Launched | undefined;
 /** Numbers as the window formats them, whatever the system locale. */
@@ -19,12 +19,12 @@ async function openStatistics(window: Page, project = 'Northwind') {
   await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(new RegExp(project));
 }
 
-test('Statistics, a section of its own, shows one project at a time: the project of the plan last open, else the first', async () => {
+test('Statistics, a section of its own, shows one project at a time: the project of the plan last open, else the first; a wheel over its table scrolls the page', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launch({ dataDirectory: home.dataDirectory });
-  const { window } = launched;
+  const { window, app } = launched;
   await openStatistics(window, 'Northwind');
   await expect(window.locator('.work-statistics-table')).toBeVisible();
   // The picker shows another project's.
@@ -43,18 +43,14 @@ test('Statistics, a section of its own, shows one project at a time: the project
   // A plan keeps its own statistics in its side column.
   await window.locator('.work-statistics-table tr', { hasText: 'Saved payment methods' }).getByRole('link').click();
   await expect(window.locator('.about-section h2', { hasText: 'Statistics' })).toBeVisible();
-});
 
-test('a wheel over the work statistics table scrolls the page', async () => {
-  launched = await launchProject();
-  const { window, app } = launched;
+  // A wheel over the work statistics table scrolls the page.
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(1200, 520); });
-  await openStatistics(window);
+  await openStatistics(window, 'Coord');
   const table = window.getByRole('table', { name: 'Work statistics' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
   await table.evaluate(element => element.scrollIntoView({ block: 'center' }));
-  await window.waitForTimeout(300);
-  const before = await pageScroll(window);
+  const before = await settledScroll(window);
   const delta = before > 300 ? -250 : 250;
   // As far as the page can scroll that way, up to the wheel's step.
   const room = Math.min(100, await window.evaluate(down => { const element = document.querySelector('.env-window-frame-content')!; return down ? element.scrollHeight - element.clientHeight - element.scrollTop : element.scrollTop; }, delta > 0));
@@ -68,7 +64,7 @@ test('a wheel over the work statistics table scrolls the page', async () => {
   await expect.poll(async () => Math.abs(await pageScroll(window) - before)).toBeGreaterThan(room - 2);
 });
 
-test('the Work tab lists each work item with its model, planning and implementation, subagents, plan revisions and steps', async () => {
+test("the Work tab lists each work item with its model, planning and implementation, subagents, plan revisions and steps; the Models tab plots completed work over time by implementing model; a work item's About sidebar sums up its statistics", async () => {
   launched = await launchProject();
   const { window } = launched;
   await openStatistics(window);
@@ -108,12 +104,8 @@ test('the Work tab lists each work item with its model, planning and implementat
   await expect(inventory.locator('td').nth(5)).toHaveText('—');
   const draft = window.locator('.work-statistics-table tr', { hasText: 'Order fulfilment model' });
   await expect(draft.locator('td').nth(1)).toHaveText('—');
-});
 
-test('the Models tab plots completed work over time by implementing model, with a table and a tooltip', async () => {
-  launched = await launchProject();
-  const { window } = launched;
-  await openStatistics(window);
+  // The Models tab plots completed work over time by implementing model, with a table and a tooltip.
   await window.getByRole('radiogroup', { name: 'Statistics sections' }).getByRole('radio', { name: 'Models over time' }).click();
   await expect(window.locator('.chart-dot')).toHaveCount(1);
   await expect(window.locator('.chart-legend')).toContainText('GPT-6.1 Sol');
@@ -136,11 +128,10 @@ test('the Models tab plots completed work over time by implementing model, with 
   await expect(window.locator('.chart-tooltip')).toContainText('Inventory reservations');
   await window.keyboard.press('Enter');
   await expect(window.locator('.work-header h1')).toHaveText(/^Inventory reservations/);
-});
 
-test('a work item\'s About sidebar sums up its statistics, by stage and with its subagents, with what agent time and tokens stand for on hover and focus', async () => {
-  launched = await launchProject();
-  const { window } = launched;
+  // A work item's About sidebar sums up its statistics, by stage and with its subagents, with what
+  // agent time and tokens stand for on hover and focus.
+  await goHome(window);
   await openPlan(window, 'Saved payment methods');
   const statistics = window.locator('.about-section', { has: window.locator('h2', { hasText: 'Statistics' }) });
   await expect(statistics.locator('.work-statistics-primary')).toHaveText('Claude Opus 5.5');

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { close, launchProject, openPlan, type Launched } from './app';
+import { close, hubRows, launchProject, type Launched } from './app';
 
 let launched: Launched | undefined;
 /** The project's folder ID, as the bridge names it. */
@@ -10,12 +10,10 @@ test.beforeEach(async () => {
     const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { folderId: string }[] }> } }).atlas.projects();
     return result.value[0].folderId;
   });
-  // Any press before is long past; the commands below come without one.
-  await launched.window.waitForTimeout(2100);
 });
 test.afterEach(async () => { await close(launched); launched = undefined; });
 
-test('the window is isolated and sandboxed, with a strict content security policy', async () => {
+test('the window is isolated and sandboxed, with a strict content security policy; the file protocol serves only the projects it follows, and it cannot navigate away or open windows', async () => {
   const { window: atlasWindow, app } = launched!;
   const page = await atlasWindow.evaluate(() => ({
     require: typeof (globalThis as { require?: unknown }).require,
@@ -39,9 +37,52 @@ test('the window is isolated and sandboxed, with a strict content security polic
   // Inline script is refused by the policy.
   const inline = await atlasWindow.evaluate(() => { const script = document.createElement('script'); script.textContent = 'window.__inline = 1'; document.head.append(script); return (window as unknown as { __inline?: number }).__inline ?? null; });
   expect(inline).toBeNull();
+
+  // A plan of the project shows, so the window follows its folder. It opens by a click from the page,
+  // which is no person's press, so none is pending below.
+  await hubRows(atlasWindow, 'Customer order notifications').first().getByRole('link', { name: 'Customer order notifications', exact: true }).evaluate(link => (link as HTMLElement).click());
+  await expect(atlasWindow.locator('.work-header h1')).toHaveText('Customer order notifications');
+  // Requests through the window's own session, as its pages make them.
+  const status = await app.evaluate(async ({ BrowserWindow }, folderId) => {
+    const session = BrowserWindow.getAllWindows()[0].webContents.session;
+    const get = (url: string) => session.fetch(url).then(response => response.status, () => 'blocked');
+    return {
+      readme: await get(`atlas://planning/${folderId}/README.md`),
+      escape: await get(`atlas://planning/${folderId}/..%2F..%2Fsecret.txt`),
+      hidden: await get(`atlas://planning/${folderId}/active/0001-saved-payment-methods/.atlas/plan.md`),
+      unfollowed: await get('atlas://planning/f-' + '0'.repeat(32) + '/README.md'),
+      app: await get('atlas://app/index.html'),
+      appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
+      other: await get('atlas://elsewhere/README.md'),
+    };
+  }, project);
+  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404 });
+  // The page itself cannot reach the network or read planning files with fetch.
+  const fetched = await atlasWindow.evaluate(async folderId => ({
+    remote: await fetch('https://example.com/').then(() => 'loaded', () => 'blocked'),
+    planning: await fetch(`atlas://planning/${folderId}/README.md`).then(() => 'loaded', () => 'blocked'),
+  }), project);
+  expect(fetched).toEqual({ remote: 'blocked', planning: 'blocked' });
+  // Web links go to the system browser; record them instead of starting one. A page that sends the
+  // window there on its own (no click) is asked about first; the person allows one and declines one.
+  await app.evaluate(({ dialog, shell }) => {
+    const opened: string[] = [];
+    const asked: string[] = [];
+    Object.assign(globalThis, { openedExternally: opened, askedExternally: asked });
+    shell.openExternal = (async (url: string) => { opened.push(url); }) as typeof shell.openExternal;
+    dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { asked.push(options.detail ?? ''); return { response: asked.length === 1 ? 0 : 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
+  });
+  await atlasWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); });
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(1);
+  await atlasWindow.evaluate(() => { location.href = 'https://example.com/away'; });
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(2);
+  const state = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.webContents.getURL()));
+  expect(state).toEqual(['atlas://app/index.html']);
+  expect(await app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally)).toEqual(['https://example.com/new', 'https://example.com/away']);
+  expect(await app.evaluate(() => (globalThis as { openedExternally?: string[] }).openedExternally)).toEqual(['https://example.com/new']);
 });
 
-test('messages are checked: wrong arguments, unknown projects and paths outside a project are refused with structured errors', async () => {
+test('messages are checked: wrong arguments, unknown projects and paths outside a project are refused with structured errors, and the folder dialog answers on this computer only, one at a time', async () => {
   const { window: atlasWindow, app } = launched!;
   // Commands a page could misuse ask first without a person's press; the person declines here.
   await app.evaluate(({ dialog }) => {
@@ -94,10 +135,8 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   expect(results.external).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.ok).toBe(true);
-});
 
-test('the folder dialog and a folder scan answer the window on this computer only, one dialog at a time', async () => {
-  const { window: atlasWindow, app } = launched!;
+  // The folder dialog.
   await app.evaluate(({ dialog }) => {
     dialog.showOpenDialog = (async (_window: unknown, options: { properties?: string[] }) => {
       (globalThis as unknown as { openedFor: string[] }).openedFor = options.properties ?? [];
@@ -105,15 +144,15 @@ test('the folder dialog and a folder scan answer the window on this computer onl
       return { canceled: true, filePaths: [] };
     }) as unknown as typeof dialog.showOpenDialog;
   });
-  const results = await atlasWindow.evaluate(async () => {
+  const chosen = await atlasWindow.evaluate(async () => {
     const bridge = (window as unknown as { atlas: unknown }).atlas as Record<string, (...args: unknown[]) => Promise<unknown>>;
     const first = bridge.chooseFolder();
     const second = await bridge.chooseFolder();
     return { first: await first, second };
   });
   // Cancelled, the dialog chose nothing; a second one while it is open is refused.
-  expect(results.first).toEqual({ ok: true, value: null });
-  expect(results.second).toMatchObject({ ok: false, error: { code: 'unavailable' } });
+  expect(chosen.first).toEqual({ ok: true, value: null });
+  expect(chosen.second).toMatchObject({ ok: false, error: { code: 'unavailable' } });
   expect(await app.evaluate(() => (globalThis as unknown as { openedFor: string[] }).openedFor)).toContain('openDirectory');
 });
 
@@ -153,49 +192,4 @@ test('each press allows one command a page could misuse, and not its release or 
     'opened https://example.com/key', 'asked https://example.com/repeat', 'asked https://example.com/key-release',
     'asked A device that uses it can work on the projects.',
   ]);
-});
-
-test('the file protocol serves only the projects this window follows, and the window cannot navigate away or open windows', async () => {
-  const { window: atlasWindow, app } = launched!;
-  // A plan of the project shows, so the window follows its folder; the press is long past below.
-  await openPlan(atlasWindow, 'Customer order notifications');
-  await atlasWindow.waitForTimeout(2100);
-  // Requests through the window's own session, as its pages make them.
-  const status = await app.evaluate(async ({ BrowserWindow }, folderId) => {
-    const session = BrowserWindow.getAllWindows()[0].webContents.session;
-    const get = (url: string) => session.fetch(url).then(response => response.status, () => 'blocked');
-    return {
-      readme: await get(`atlas://planning/${folderId}/README.md`),
-      escape: await get(`atlas://planning/${folderId}/..%2F..%2Fsecret.txt`),
-      hidden: await get(`atlas://planning/${folderId}/active/0001-saved-payment-methods/.atlas/plan.md`),
-      unfollowed: await get('atlas://planning/f-' + '0'.repeat(32) + '/README.md'),
-      app: await get('atlas://app/index.html'),
-      appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
-      other: await get('atlas://elsewhere/README.md'),
-    };
-  }, project);
-  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404 });
-  // The page itself cannot reach the network or read planning files with fetch.
-  const page = await atlasWindow.evaluate(async folderId => ({
-    remote: await fetch('https://example.com/').then(() => 'loaded', () => 'blocked'),
-    planning: await fetch(`atlas://planning/${folderId}/README.md`).then(() => 'loaded', () => 'blocked'),
-  }), project);
-  expect(page).toEqual({ remote: 'blocked', planning: 'blocked' });
-  // Web links go to the system browser; record them instead of starting one. A page that sends the
-  // window there on its own (no click) is asked about first; the person allows one and declines one.
-  await app.evaluate(({ dialog, shell }) => {
-    const opened: string[] = [];
-    const asked: string[] = [];
-    Object.assign(globalThis, { openedExternally: opened, askedExternally: asked });
-    shell.openExternal = (async (url: string) => { opened.push(url); }) as typeof shell.openExternal;
-    dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { asked.push(options.detail ?? ''); return { response: asked.length === 1 ? 0 : 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
-  });
-  await atlasWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); });
-  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(1);
-  await atlasWindow.evaluate(() => { location.href = 'https://example.com/away'; });
-  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(2);
-  const state = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.webContents.getURL()));
-  expect(state).toEqual(['atlas://app/index.html']);
-  expect(await app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally)).toEqual(['https://example.com/new', 'https://example.com/away']);
-  expect(await app.evaluate(() => (globalThis as { openedExternally?: string[] }).openedExternally)).toEqual(['https://example.com/new']);
 });

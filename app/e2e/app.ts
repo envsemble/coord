@@ -246,6 +246,17 @@ export async function projectAction(window: Page, name: string, action: string) 
 
 /** The element the window's content scrolls in, below the title bar. */
 export const pageScroll = (window: Page) => window.evaluate(() => document.querySelector('.env-window-frame-content')!.scrollTop);
+/** The content's scroll position once it has settled. */
+export async function settledScroll(window: Page) {
+  let position = -1;
+  await expect.poll(async () => {
+    const top = await pageScroll(window);
+    const steady = Math.abs(top - position) < 0.5;
+    position = top;
+    return steady;
+  }, { intervals: [200] }).toBe(true);
+  return position;
+}
 
 /**
  * Launch the app on a home with the fixture project (or the home given), and wait for the hub to list

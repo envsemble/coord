@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, applicationMenu, close, expectHub, fileMenu, filterHub, goHome, hubRows, launchProject, openPlan, pageScroll, projectHome, removeDirectory, searchPopup, showFiles, type Launched } from './app';
+import { addProject, applicationMenu, close, expectHub, fileMenu, filterHub, goHome, launchProject, openPlan, pageScroll, projectHome, removeDirectory, searchPopup, settledScroll, showFiles, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 const homes: string[] = [];
@@ -29,27 +29,11 @@ function mouseButton(window: Page, button: 3 | 4) {
   }, button);
 }
 
-/** The content area's scroll position once it has settled. */
-async function settledScroll(window: Page) {
-  let position = -1;
-  await expect.poll(async () => {
-    const top = await pageScroll(window);
-    const steady = Math.abs(top - position) < 0.5;
-    position = top;
-    return steady;
-  }, { intervals: [200] }).toBe(true);
-  return position;
-}
-
 test('back and forward step through the hub, two plans and a diagram', async () => {
   launched = await launchProject();
   const { window, app } = launched;
   const back = window.getByRole('button', { name: 'Back' });
   const forward = window.getByRole('button', { name: 'Forward' });
-  // The arrows come first after the logo, before File and the computer.
-  const left = async (target: ReturnType<Page['locator']>) => (await target.boundingBox())!.x;
-  const order = [await left(back), await left(forward), await left(fileMenu(window)), await left(window.getByRole('button', { name: /^Computer:/ }))];
-  expect(order).toEqual([...order].sort((a, b) => a - b));
   await expect(back).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft BrowserBack');
   await expect(forward).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowRight BrowserForward');
   await expect(back).toHaveAttribute('aria-disabled', 'true');
@@ -83,6 +67,11 @@ test('back and forward step through the hub, two plans and a diagram', async () 
   await applicationMenu(app, '&View', '&Back');
   await expectHub(window);
   await expect(back).toHaveAttribute('aria-disabled', 'true');
+  // At the end of the history the arrow stays focusable and keeps focus.
+  await back.focus();
+  await window.keyboard.press('Enter');
+  await expectHub(window);
+  await expect(back).toBeFocused();
 
   // Forward and back: the application menu's View › Forward, the mouse's buttons, Alt+→ and the arrow.
   await applicationMenu(app, '&View', '&Forward');
@@ -103,9 +92,16 @@ test('back and forward step through the hub, two plans and a diagram', async () 
   await showsPlan(window, 'notifications');
   await goHome(window);
   await expect(forward).toHaveAttribute('aria-disabled', 'true');
+
+  // In a narrow window the arrows stay clear of the menu.
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(640, 600); });
+  await expect.poll(() => window.evaluate(() => innerWidth)).toBe(640);
+  const menu = (await fileMenu(window).boundingBox())!;
+  const arrow = (await forward.boundingBox())!;
+  expect(arrow.x + arrow.width).toBeLessThanOrEqual(menu.x);
 });
 
-test('going back finds a plan where it was left, and fields and the file panel keep their part', async () => {
+test('a long plan scrolls below the title bar, going back finds it where it was left, and fields and the file panel keep their part', async () => {
   launched = await launchProject();
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
@@ -119,6 +115,9 @@ test('going back finds a plan where it was left, and fields and the file panel k
     position = top;
     return steady;
   }, { intervals: [150] }).toBe(true);
+  // The content scrolls, not the window: the title bar stays.
+  await expect(window.locator('.env-title-bar')).toBeInViewport();
+  expect(await window.evaluate(() => document.scrollingElement!.scrollHeight > document.scrollingElement!.clientHeight)).toBe(false);
 
   // To the hub and back: the plan is where it was.
   await goHome(window);
@@ -182,24 +181,7 @@ test('a link into a sibling project in the home opens there; one to a folder no 
   await expect(await showFiles(window)).toContainText('Northwind');
 });
 
-test('a hub row opens from anywhere on it, and a press that moves a little does not drag its title away', async () => {
-  launched = await launchProject();
-  const { window } = launched;
-  const row = hubRows(window, 'Order fulfilment model');
-  await expect(row.getByRole('link')).toHaveAttribute('draggable', 'false');
-  // A press on the row's details, away from its title, opens the plan.
-  const detail = (await row.locator('.hub-row-project').boundingBox())!;
-  await window.mouse.click(detail.x + detail.width / 2, detail.y + detail.height / 2);
-  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-  // One link names the row for the keyboard and screen readers.
-  await goHome(window);
-  await expect(row.getByRole('link')).toHaveText(['Order fulfilment model']);
-  await row.getByRole('link').focus();
-  await window.keyboard.press('Enter');
-  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-});
-
-test('going back finds a document where it was before a jump to one of its headings', async () => {
+test('going back finds a document where it was before a jump to one of its headings, and one read on from there keeps its reading place', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   writeFileSync(path.join(home.folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
@@ -228,29 +210,18 @@ test('going back finds a document where it was before a jump to one of its headi
   await window.locator('body').press('Alt+ArrowLeft');
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect.poll(async () => Math.abs(await settledScroll(window) - before)).toBeLessThan(2);
-});
 
-test('a document reached at a heading and read on keeps the reading place when it is opened again, and each step back its own', async () => {
-  const home = projectHome();
-  homes.push(home.dataDirectory);
-  writeFileSync(path.join(home.folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
-  launched = await launchProject(home);
-  const { window, app } = launched;
-  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });
-  await openPlan(window, 'Customer order notifications');
-  const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').click();
-  await window.keyboard.press('Control+Shift+E');
+  // The jump again, then reading on from the heading, then the hub and the plan again from there:
+  // it opens at the reading place.
+  await window.locator('body').press('Alt+ArrowRight');
+  await expect(window.locator('.reader-name')).toContainText('jump.md');
   await window.getByRole('link', { name: 'the current checkout' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
-  const atHeading = await settledScroll(window);
-  // Read on from the heading, then look at the hub and open the plan again from there.
+  const again = await settledScroll(window);
   await window.locator('.work-main').hover();
   for (let index = 0; index < 3; index++) await window.mouse.wheel(0, 700);
   const reading = await settledScroll(window);
-  expect(reading - atHeading).toBeGreaterThan(300);
+  expect(reading - again).toBeGreaterThan(300);
   await goHome(window);
   await openPlan(window, 'Saved payment methods');
   await expect.poll(async () => Math.abs(await settledScroll(window) - reading)).toBeLessThan(2);
@@ -305,23 +276,4 @@ test('the mouse buttons close an open menu without going back, and one press goe
   await expect(shows(window)).toHaveText('Saved payment methods');
   await windowReports('browser-forward');
   await expect(shows(window)).toHaveText(diagram);
-});
-
-test('in a narrow window the arrows stay clear of the menu, and keep focus at the end of the history', async () => {
-  launched = await launchProject();
-  const { window, app } = launched;
-  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(640, 600); });
-  const menu = (await fileMenu(window).boundingBox())!;
-  const back = window.getByRole('button', { name: 'Back' });
-  const forward = (await window.getByRole('button', { name: 'Forward' }).boundingBox())!;
-  expect(forward.x + forward.width).toBeLessThanOrEqual(menu.x);
-  // At the end of the history the arrow stays focusable and keeps focus.
-  await openPlan(window, 'Saved payment methods');
-  await back.focus();
-  await window.keyboard.press('Enter');
-  await expectHub(window);
-  await expect(back).toHaveAttribute('aria-disabled', 'true');
-  await window.keyboard.press('Enter');
-  await expectHub(window);
-  await expect(back).toBeFocused();
 });

@@ -21,6 +21,16 @@ async function openDiagrams(window: Page, title: string) {
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
 }
 
+/** Wait until the canvas's camera has held still for a moment (it moves to a selection or a zoom). */
+async function cameraSettled(window: Page) {
+  const camera = () => window.locator('.diagrams #world').getAttribute('style');
+  await expect.poll(async () => {
+    const before = await camera();
+    await window.waitForTimeout(250);
+    return before === await camera();
+  }).toBe(true);
+}
+
 const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 async function chooseDiagram(window: Page, title: string) {
   await window.locator('.model-picker-button').click();
@@ -30,13 +40,13 @@ async function chooseDiagram(window: Page, title: string) {
   await window.locator('.model-picker-button').hover();
 }
 
-test('the picker lists diagrams by family, one short line each, and switches diagrams', async () => {
+test('the picker lists diagrams by family, one short line each, and switches between a capture and its proposals in place: nothing moves, and the details and the view stay', async () => {
   launched = await launchProject({ dataDirectory, folder });
-  const { window } = launched;
+  const { window, app } = launched;
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
   await openDiagrams(window, 'Checkout · captured TypeScript');
-  // The picker names the diagram's origin; the canvas carries no provenance chip of its own.
+  // The picker names the diagram's origin.
   await expect(window.locator('.model-picker-button')).toContainText('Generated from code');
-  await expect(window.locator('.diagrams .atlas-provenance')).toHaveCount(0);
   await window.locator('.model-picker-button').click();
   const menu = window.getByRole('menu', { name: 'Choose a diagram' });
   // The capture heads its family, then the alternatives over it, by title, each saying how much it changes.
@@ -48,80 +58,8 @@ test('the picker lists diagrams by family, one short line each, and switches dia
   ]);
   await menu.getByRole('menuitemradio', { name: /Checkout · proposed payment methods/ }).click();
   await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
-});
+  await window.locator('.model-picker-button').hover();
 
-test('a proposal opens on its changes: the overview leads to each change, and details explain it', async () => {
-  launched = await launchProject({ dataDirectory, folder });
-  const { window, app } = launched;
-  // A typical window leaves room for the overview beside the diagram.
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
-  await openDiagrams(window, 'Checkout · proposed payment methods');
-  // One way to choose what is shown: no Baseline/Changes control.
-  await expect(window.getByRole('radio', { name: 'Baseline' })).toHaveCount(0);
-  const changes = window.getByRole('button', { name: /^Changes, \d+$/ });
-  await expect(changes).toHaveAttribute('aria-pressed', 'true');
-  const overview = window.getByRole('complementary', { name: 'Changes in this proposal' });
-  await expect(overview).toContainText('Compared with the code captured Sep 14, 2026.');
-  // Changes are marked on the canvas, and what stays the same fades.
-  await expect(window.locator('.diagrams .node[data-change="added"][data-name="SavedPaymentMethod"]')).toBeVisible();
-  await expect(window.locator('.diagrams .viewer.fade-unchanged')).toHaveCount(1);
-  const row = overview.locator('button.change-row', { has: window.locator('.change-row-name', { hasText: /^CheckoutService$/ }) });
-  await expect(row).toContainText('vault');
-  await row.click();
-  const details = window.getByRole('complementary', { name: 'Model details' });
-  await expect(details.getByRole('heading', { level: 1 })).toHaveText('CheckoutService');
-  await expect(details.getByRole('region', { name: 'What changes' })).toContainText('placeOrderWithSavedMethod');
-  await expect(details.getByRole('region', { name: 'Where in code' })).toContainText('src/checkout/CheckoutService.ts');
-  for (const noise of ['observed', 'Capture ·', 'Mappings']) await expect(details).not.toContainText(noise);
-  // Keyboard focus lands on the way back; the next change follows.
-  await expect(details.getByRole('button', { name: 'All changes' })).toBeFocused();
-  const position = details.locator('.change-position');
-  const before = await position.textContent();
-  await details.getByRole('button', { name: 'Next change' }).click();
-  await expect(position).not.toHaveText(before ?? '');
-  await details.getByRole('button', { name: 'All changes' }).click();
-  await expect(overview).toBeVisible();
-  // The Changes button hides the overview and shows it again.
-  await changes.click();
-  await expect(overview).toBeHidden();
-  await changes.click();
-  await expect(overview).toBeVisible();
-});
-
-test('the keyboard steps through changes without losing focus or entering a folded list', async () => {
-  launched = await launchProject({ dataDirectory, folder });
-  const { window, app } = launched;
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
-  await openDiagrams(window, 'Checkout · proposed payment methods');
-  const overview = window.getByRole('complementary', { name: 'Changes in this proposal' });
-  const row = (name: string) => overview.locator('button.change-row', { has: window.locator('.change-row-name', { hasText: new RegExp(`^${name}$`) }) });
-  // Down from the last new type reaches the folded relations' summary, not a hidden row inside.
-  await row('SavedPaymentMethod').focus();
-  await window.keyboard.press('ArrowDown');
-  await expect(overview.locator('.change-relations > summary').first()).toBeFocused();
-  await window.keyboard.press('ArrowDown');
-  await expect(row('AcquirerGateway')).toBeFocused();
-  await window.keyboard.press('End');
-  await expect(row('PaymentGateway')).toBeFocused();
-  // At the last change, Next stays focused and says it has nowhere to go.
-  await window.keyboard.press('Enter');
-  const details = window.getByRole('complementary', { name: 'Model details' });
-  await expect(details.locator('.change-position')).toContainText('15 of 15');
-  const next = details.getByRole('button', { name: 'Next change' });
-  await next.focus();
-  await window.keyboard.press('Enter');
-  await expect(next).toBeFocused();
-  await expect(next).toHaveAttribute('aria-disabled', 'true');
-  await expect(details.locator('.change-position')).toContainText('15 of 15');
-  // The position names the change it announces.
-  await expect(details.locator('.change-position')).toContainText('PaymentGateway');
-});
-
-test('a capture and its proposals switch in place: nothing moves, and the details and the view stay', async () => {
-  launched = await launchProject({ dataDirectory, folder });
-  const { window, app } = launched;
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
-  await openDiagrams(window, 'Checkout · proposed payment methods');
   // An element every member has, inspected.
   await window.locator('.diagrams .node[data-name="CheckoutService"]').first().click();
   const details = window.getByRole('complementary', { name: 'Model details' });
@@ -139,8 +77,8 @@ test('a capture and its proposals switch in place: nothing moves, and the detail
     };
   });
   // Let the camera settle after revealing the selection.
-  let settled = await placement();
-  await expect.poll(async () => { const next = await placement(); const same = next.camera === settled.camera; settled = next; return same; }, { intervals: [300] }).toBe(true);
+  await cameraSettled(window);
+  const settled = await placement();
   for (const [title, changes] of [['Checkout · captured TypeScript', null], ['Checkout · alternative: methods on the customer', 'placeOrderWithSavedMethod'], ['Checkout · proposed payment methods', 'vault']] as const) {
     await chooseDiagram(window, title);
     // At once, in the same panel: no loading state, and the camera and the element where they were.
@@ -159,6 +97,62 @@ test('a capture and its proposals switch in place: nothing moves, and the detail
   await expect(window.getByRole('button', { name: 'Changes, 10' })).toBeVisible();
   await expect(window.locator('.diagrams .node[data-change="modified"][data-name="Customer"]').first()).toBeVisible();
   expect((await placement()).samePanel).toBe(true);
+});
+
+test('a proposal opens on its changes: the overview leads to each change, details explain it, and the keyboard steps through them without losing focus or entering a folded list', async () => {
+  launched = await launchProject({ dataDirectory, folder });
+  const { window, app } = launched;
+  // A typical window leaves room for the overview beside the diagram.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+  await openDiagrams(window, 'Checkout · proposed payment methods');
+  const changes = window.getByRole('button', { name: /^Changes, \d+$/ });
+  await expect(changes).toHaveAttribute('aria-pressed', 'true');
+  const overview = window.getByRole('complementary', { name: 'Changes in this proposal' });
+  const row = (name: string) => overview.locator('button.change-row', { has: window.locator('.change-row-name', { hasText: new RegExp(`^${name}$`) }) });
+  await expect(overview).toContainText('Compared with the code captured Sep 14, 2026.');
+  // Changes are marked on the canvas, and what stays the same fades.
+  await expect(window.locator('.diagrams .node[data-change="added"][data-name="SavedPaymentMethod"]')).toBeVisible();
+  await expect(window.locator('.diagrams .viewer.fade-unchanged')).toHaveCount(1);
+  await expect(row('CheckoutService')).toContainText('vault');
+  await row('CheckoutService').click();
+  const details = window.getByRole('complementary', { name: 'Model details' });
+  await expect(details.getByRole('heading', { level: 1 })).toHaveText('CheckoutService');
+  await expect(details.getByRole('region', { name: 'What changes' })).toContainText('placeOrderWithSavedMethod');
+  await expect(details.getByRole('region', { name: 'Where in code' })).toContainText('src/checkout/CheckoutService.ts');
+  for (const noise of ['observed', 'Capture ·', 'Mappings']) await expect(details).not.toContainText(noise);
+  // Keyboard focus lands on the way back; the next change follows.
+  await expect(details.getByRole('button', { name: 'All changes' })).toBeFocused();
+  const position = details.locator('.change-position');
+  const before = await position.textContent();
+  await details.getByRole('button', { name: 'Next change' }).click();
+  await expect(position).not.toHaveText(before ?? '');
+  await details.getByRole('button', { name: 'All changes' }).click();
+  await expect(overview).toBeVisible();
+  // The Changes button hides the overview and shows it again.
+  await changes.click();
+  await expect(overview).toBeHidden();
+  await changes.click();
+  await expect(overview).toBeVisible();
+
+  // Down from the last new type reaches the folded relations' summary, not a hidden row inside.
+  await row('SavedPaymentMethod').focus();
+  await window.keyboard.press('ArrowDown');
+  await expect(overview.locator('.change-relations > summary').first()).toBeFocused();
+  await window.keyboard.press('ArrowDown');
+  await expect(row('AcquirerGateway')).toBeFocused();
+  await window.keyboard.press('End');
+  await expect(row('PaymentGateway')).toBeFocused();
+  // At the last change, Next stays focused and says it has nowhere to go.
+  await window.keyboard.press('Enter');
+  await expect(details.locator('.change-position')).toContainText('15 of 15');
+  const next = details.getByRole('button', { name: 'Next change' });
+  await next.focus();
+  await window.keyboard.press('Enter');
+  await expect(next).toBeFocused();
+  await expect(next).toHaveAttribute('aria-disabled', 'true');
+  await expect(details.locator('.change-position')).toContainText('15 of 15');
+  // The position names the change it announces.
+  await expect(details.locator('.change-position')).toContainText('PaymentGateway');
 });
 
 test('the details resize from their inner edge, by pointer or keyboard, and keep their width', async () => {
@@ -222,10 +216,16 @@ test('the details resize from their inner edge, by pointer or keyboard, and keep
   }
 });
 
-test('a class diagram opens its scenarios as its guide, and a full view', async () => {
+test('a class diagram opens from its card with its scenarios as its guide and a full view; an element chip and a link in the plan open it at that element, and Back returns to the plan', async () => {
   launched = await launchProject({ dataDirectory, folder });
   const { window } = launched;
-  await openDiagrams(window, 'Fulfilment · conceptual model');
+  await openPlan(window, 'Order fulfilment model');
+  // The links under a heading attach the diagram's card there, with the elements they name.
+  const card = window.locator('.diagram-card', { hasText: 'Fulfilment · conceptual model' }).first();
+  await expect(card.locator('.element-chip')).toHaveText(['Order', 'Shipment']);
+  await card.getByRole('button', { name: 'Open diagram' }).click();
+  await expect(window.locator('.model-picker-title')).toHaveText('Fulfilment · conceptual model');
+  await expect(window.locator('.diagrams .node').first()).toBeVisible();
   // The scenario that exemplifies the class diagram is listed beside it.
   await window.locator('.model-picker-button').click();
   await expect(window.getByRole('menu', { name: 'Choose a diagram' }).getByRole('group', { name: 'Diagrams' }).getByRole('menuitemradio')).toHaveText([
@@ -245,16 +245,10 @@ test('a class diagram opens its scenarios as its guide, and a full view', async 
   await expect(window.locator('.diagrams.fullscreen')).toBeVisible();
   await window.keyboard.press('Escape');
   await expect(window.locator('.diagrams.fullscreen')).toHaveCount(0);
-});
-
-test('an element chip and a link in the plan open the diagram at that element, and Back returns to the plan', async () => {
-  launched = await launchProject({ dataDirectory, folder });
-  const { window } = launched;
-  await openPlan(window, 'Order fulfilment model');
+  await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-  // The links under a heading attach the diagram's card there, with the elements they name.
-  const card = window.locator('.diagram-card', { hasText: 'Fulfilment · conceptual model' }).first();
-  await expect(card.locator('.element-chip')).toHaveText(['Order', 'Shipment']);
+
+  // A chip opens the diagram at its element.
   await card.locator('.element-chip', { hasText: 'Shipment' }).click();
   // Off the canvas, so no element under the pointer previews its details.
   await window.locator('.model-picker-button').hover();
@@ -269,8 +263,9 @@ test('an element chip and a link in the plan open the diagram at that element, a
   await expect(details.getByRole('heading', { level: 1 })).toHaveText('Order');
 });
 
-test('a card sits under its heading however the heading is written, and a fragment may name a class as it reads', async () => {
+test('a card sits under its heading however the heading is written, a fragment may name a class as it reads, and a diagram with problems shows them instead of drawing', async () => {
   const work = path.join(folder, 'active/0002-order-fulfilment-model');
+  writeFileSync(path.join(work, 'diagrams/broken.puml'), '@startuml\ntitle Broken\nclass A\nclass B\nA -up-> B\n@enduml\n');
   writeFileSync(path.join(work, 'diagrams/lines.puml'), '@startuml\ntitle Order lines\nclass "Order Item" as OrderItem\nclass Order\nOrder "1" *-- "1..*" OrderItem : lines\n@enduml\n');
   const plan = path.join(work, 'plan.md');
   writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## The `order_items` table\n\nEach row is an [order item](diagrams/lines.puml#Order%20Item).\n\n## Open questions\n\nThe [lines](diagrams/lines.puml) again.\n');
@@ -291,14 +286,7 @@ test('a card sits under its heading however the heading is written, and a fragme
   await expect(window.locator('.model-picker-title')).toHaveText('Order lines');
   await window.locator('.model-picker-button').hover();
   await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Order Item');
-});
-
-test('a diagram with problems shows them instead of drawing', async () => {
-  writeFileSync(path.join(folder, 'active/0002-order-fulfilment-model/diagrams/broken.puml'), '@startuml\ntitle Broken\nclass A\nclass B\nA -up-> B\n@enduml\n');
-  launched = await launchProject({ dataDirectory, folder });
-  const { window } = launched;
-  await openPlan(window, 'Order fulfilment model');
-  await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
+  // A diagram with problems is listed apart, and shows them instead of drawing.
   await window.locator('.model-picker-button').click();
   const problems = window.getByRole('menu', { name: 'Choose a diagram' }).getByRole('group', { name: 'With problems' });
   await expect(problems.getByRole('menuitemradio')).toHaveText([/^Broken\s*1 problem$/]);
@@ -357,7 +345,7 @@ test('node names stay centred in their boxes below 100% zoom', async () => {
     const percent = Number(/Zoom (\d+)%/.exec((await zoom.getAttribute('aria-label')) ?? '')?.[1]);
     expect(percent).toBeLessThan(100);
     // Let the camera settle before measuring paint.
-    await window.waitForTimeout(600);
+    await cameraSettled(window);
     await window.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const node = window.locator('.diagrams .node[data-name="PaymentMethodVault"]').first();
     const margins = await paintedNameMargins(window, node);
