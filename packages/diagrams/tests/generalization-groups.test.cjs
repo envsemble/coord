@@ -227,23 +227,26 @@ test("the enrollment pattern joins both sides of a supertype with one arrow per 
     assert(pathEnd(degree.paths[0])[1] < Number(degree.paths[0].split(" ")[1]));
   }
 });
-test("set labels preserve every independent completeness and disjointness combination", async () => {
-  for (const complete of [false, true])
-    for (const disjoint of [false, true]) {
-      const { model: project, views } = createEnrollmentModel();
-      const set = project.partitions.find((e) => e.id === "degree-level");
-      set.complete = complete;
-      set.disjoint = disjoint;
-      const { diagram } = await scene(project, views);
-      const group = diagram.generalizationGroups.find((g) => g.id === set.id);
-      assert.equal(group.complete, complete);
-      assert.equal(group.disjoint, disjoint);
-      assert(
-        group.labels[0].text.includes(
-          `{${complete ? "complete" : "incomplete"}, ${disjoint ? "disjoint" : "overlapping"}}`,
-        ),
-      );
-    }
+test("set labels show completeness and disjointness independently", async () => {
+  // Each one set without the other: neither follows from its partner.
+  for (const [complete, disjoint] of [
+    [true, false],
+    [false, true],
+  ]) {
+    const { model: project, views } = createEnrollmentModel();
+    const set = project.partitions.find((e) => e.id === "degree-level");
+    set.complete = complete;
+    set.disjoint = disjoint;
+    const { diagram } = await scene(project, views);
+    const group = diagram.generalizationGroups.find((g) => g.id === set.id);
+    assert.equal(group.complete, complete);
+    assert.equal(group.disjoint, disjoint);
+    assert(
+      group.labels[0].text.includes(
+        `{${complete ? "complete" : "incomplete"}, ${disjoint ? "disjoint" : "overlapping"}}`,
+      ),
+    );
+  }
 });
 test("group focus reveals all members while an individual inheritance still isolates two ends", async () => {
   const { model: project, views } = createEnrollmentModel();

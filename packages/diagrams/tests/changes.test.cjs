@@ -76,8 +76,10 @@ async function prepared(includeArtifacts = false) {
   });
   return prepared.get("proposal.puml");
 }
-async function preparedProposal() {
-  return (await prepared()).payload;
+// The tests only read the proposal's payload: it is prepared once.
+let proposal;
+function preparedProposal() {
+  return (proposal ??= prepared().then((viewer) => viewer.payload));
 }
 
 test("the change view keeps removed members in place and marks every change", async () => {

@@ -22,8 +22,15 @@ const external = [
   .filter((name) => name !== "@envsemble/envui")
   .flatMap((name) => [name, `${name}/*`]);
 
+// Each module compiles once per test file: the tests only read its exports.
+const loaded = new Map();
+
 /** Compiles a source module (and envUI) to CommonJS and returns its exports. */
 function loadComponents(entryPoint = "src/index.js") {
+  if (!loaded.has(entryPoint)) loaded.set(entryPoint, compile(entryPoint));
+  return loaded.get(entryPoint);
+}
+function compile(entryPoint) {
   const code = buildSync({
     absWorkingDir: root,
     entryPoints: [entryPoint],

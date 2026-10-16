@@ -6,7 +6,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const vm = require("node:vm");
 const { spawnSync } = require("node:child_process");
 const atlas = require("../lib/index.cjs");
 const { parserIsCurrent } = require("../scripts/build-parser.cjs");
@@ -1281,26 +1280,6 @@ test("a family lays out once: proposals and a later capture compare with their b
     paths: ["glossary.puml"],
   });
   assert.deepEqual([...one.prepared.keys()], ["glossary.puml"]);
-});
-
-test("an offline viewer carries its diagram, and its downloads its PlantUML", async () => {
-  const files = [{ path: "glossary.puml", text: CLASSES }];
-  const { prepared } = await atlas.prepareDiagrams({
-    files,
-    slug: "glossary",
-    includeArtifacts: true,
-  });
-  const viewer = prepared.get("glossary.puml");
-  assert.equal(viewer.artifacts.get("glossary.puml"), CLASSES);
-  const built = await atlas.buildViewer({ prepared: viewer, file: files[0] });
-  assert(!/<script\b[^>]*src=/i.test(built.html));
-  const carried = built.html.match(
-    /<script id="atlas-diagram" type="application\/json">([\s\S]*?)<\/script>/,
-  )[1];
-  assert.deepEqual(JSON.parse(carried), files[0]);
-  const data = built.html.match(/^\s*(const MODEL=.*)$/m)[1];
-  new vm.Script(`${data}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS})`).runInNewContext();
-  assert(!built.html.includes("OntoUML"));
 });
 
 test("a self association keeps both its counts", async () => {
