@@ -6,18 +6,18 @@
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, Snapshot, ViewEventInput, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
 } from '@envsemble/atlas-host/contract';
 import type { DocumentContent } from '@envsemble/atlas-planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, Snapshot, ViewEventInput, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
 };
 
 export const invokeChannels = [
   'window:info',
-  'projects:list', 'projects:create', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
+  'projects:list', 'projects:create', 'search:query', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
   'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
@@ -47,7 +47,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
+  'toggleFiles', 'quickOpen', 'newProject', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -171,6 +171,8 @@ export interface AtlasBridge {
   projects(): Promise<Result<Project[]>>;
   /** A new project on the window's computer, from the bundled templates, covering workspace folders there. */
   createProject(name: string, workspaces: string[]): Promise<Result<Project>>;
+  /** Search every active project of the window's computer: plans, steps, documents, headings, diagrams, elements, glossary terms and projects, best first. */
+  search(query: string): Promise<Result<SearchResult[]>>;
   /** The Git checkouts in a folder on this computer, as a new project would register them. */
   scanFolder(folder: string): Promise<Result<WorkspaceScan>>;
   /** A folder on this computer, chosen in the system's folder dialog; null when none was chosen. */

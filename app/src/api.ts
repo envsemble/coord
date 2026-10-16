@@ -27,6 +27,7 @@ export const api: Unwrapped = {
   info: () => unwrap(bridge().info()),
   projects: () => unwrap(bridge().projects()),
   createProject: (name, workspaces) => unwrap(bridge().createProject(name, workspaces)),
+  search: query => unwrap(bridge().search(query)),
   scanFolder: folder => unwrap(bridge().scanFolder(folder)),
   chooseFolder: () => unwrap(bridge().chooseFolder()),
   updateProject: (project, change) => unwrap(bridge().updateProject(project, change)),
