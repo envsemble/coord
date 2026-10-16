@@ -77,18 +77,32 @@ function grouped(entries: SearchEntry[]) {
   return order.flatMap(kind => entries.filter(entry => entry.kind === kind));
 }
 
+/** How many of the window's own entries of a kind show after the host's results. */
+export const ownPerKind = 5;
+
+/** The second of two parts of the list: its entries' groups, "More …" for a kind the first part has. */
+function after(first: SearchEntry[], second: SearchEntry[], cap: number): ListedEntry[] {
+  const keys = new Set(first.map(entry => entry.key).filter(Boolean));
+  const kinds = new Set(first.map(entry => entry.kind));
+  const counts = new Map<SearchKind, number>();
+  const kept = second.filter(entry => {
+    if (entry.key && keys.has(entry.key)) return false;
+    const count = (counts.get(entry.kind) ?? 0) + 1;
+    counts.set(entry.kind, count);
+    return count <= cap;
+  });
+  return grouped(kept).map(entry => ({ ...entry, group: kinds.has(entry.kind) ? 'More ' + searchKindLabels[entry.kind].toLowerCase() : searchKindLabels[entry.kind] }));
+}
+
 /**
- * What the window finds itself (as it ranked it), then the host's results it does not list already
- * (as the host ranked them), each part grouped by kind; a kind listed above already is "More …"
- * below. The host answers later, so its results go below those shown and the highlighted one stays
- * where it is.
+ * The list: what the window finds itself (as it ranked it) until the host answers. Then the host's
+ * results first (as it ranked them), and the window's own entries it did not return, at most
+ * `ownPerKind` of a kind; each part grouped by kind, a kind listed above already "More …" below.
+ * When the user had moved the highlight before the host answered (`below`), its results go below
+ * those shown instead, so the highlighted one stays where it is.
  */
-export function listEntries(local: SearchEntry[], host: SearchEntry[]): ListedEntry[] {
-  const keys = new Set(local.map(entry => entry.key).filter(Boolean));
-  const kinds = new Set(local.map(entry => entry.kind));
-  const more = grouped(host.filter(entry => !entry.key || !keys.has(entry.key)));
-  return [
-    ...grouped(local).map(entry => ({ ...entry, group: searchKindLabels[entry.kind] })),
-    ...more.map(entry => ({ ...entry, group: kinds.has(entry.kind) ? 'More ' + searchKindLabels[entry.kind].toLowerCase() : searchKindLabels[entry.kind] })),
-  ];
+export function listEntries(local: SearchEntry[], host: SearchEntry[], below = false): ListedEntry[] {
+  const plain = (entries: SearchEntry[]) => grouped(entries).map(entry => ({ ...entry, group: searchKindLabels[entry.kind] }));
+  if (!host.length) return plain(local);
+  return below ? [...plain(local), ...after(local, host, Infinity)] : [...plain(host), ...after(host, local, ownPerKind)];
 }

@@ -15,6 +15,11 @@ const localKinds: Record<QuickItem['kind'], SearchKind> = { work: 'plan', diagra
 const kindIcons: Record<SearchKind, ReactNode> = {
   plan: <PlanIcon />, step: <LedgerIcon />, document: <FileIcon />, heading: <FileIcon />, diagram: <DiagramIcon />, element: <DiagramIcon />, term: <SearchIcon />, project: <FolderIcon />,
 };
+/** Whether the user moved the highlight off the first result (by key or pointer). */
+function highlightMoved() {
+  const options = [...document.querySelectorAll('.search-popup [role="option"]')];
+  return options.findIndex(option => option.hasAttribute('data-highlighted')) > 0;
+}
 /** How long typing pauses before the host is asked. */
 const searchDelay = 150;
 
@@ -38,14 +43,15 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   }, [project]);
 
   // The host's results, asked for once typing pauses, and shown only for the query they answer: an
-  // answer that comes after the query changed is dropped.
-  const [found, setFound] = useState<{ query: string; results: SearchResult[] } | null>(null);
+  // answer that comes after the query changed is dropped. They go first, unless the user has moved
+  // the highlight meanwhile (`below`).
+  const [found, setFound] = useState<{ query: string; results: SearchResult[]; below: boolean } | null>(null);
   const text = query.trim();
   useEffect(() => {
     if (!text) return;
     let current = true;
     const timer = window.setTimeout(() => {
-      const take = (results: SearchResult[]) => { if (current) setFound({ query: text, results }); };
+      const take = (results: SearchResult[]) => { if (current) setFound({ query: text, results, below: highlightMoved() }); };
       api.search(text).then(take, () => take([]));
     }, searchDelay);
     return () => { current = false; window.clearTimeout(timer); };
@@ -80,7 +86,8 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const icons = useMemo(() => new Map(entries.map(entry => [entry.id, entry.icon])), [entries]);
   const results = useMemo(() => {
     const local = rankItems(entries, query).map(({ icon: _icon, ...entry }) => ({ ...entry, kind: localKinds[entry.kind] }));
-    return listEntries(local, text && found?.query === text ? hostEntries(found.results, projects) : []);
+    const answered = text && found?.query === text ? found : null;
+    return listEntries(local, answered ? hostEntries(answered.results, projects) : [], answered?.below);
   }, [entries, query, text, found, projects]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
   // The name read out includes where it is, so many plan.md files stay apart.

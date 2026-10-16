@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, startHistory, step, type History } from './history.ts';
-import { diagramTarget, fileTarget, hubPlace, ledgerTarget, projectsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from './targets.ts';
+import { diagramTarget, fileTarget, hubPlace, ledgerTarget, projectsPlace, statisticsPlace, stepTarget, workTarget, type Place, type ProjectPlace } from './targets.ts';
 import type { Target } from './types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
@@ -27,6 +27,13 @@ test('each new place shown follows the current entry; the same place again adds 
   assert.equal(samePlace(plan, other), false);
   assert.equal(samePlace(plan, at(ledgerTarget('work-0001'))), false, "a work item's plan and its ledger are two places");
   assert.equal(samePlace(plan, at({ kind: 'work', work: 'work-0001', anchor: null, view: null })), true);
+  // A plan at a ledger step the search found is a place of its own, kept with its step.
+  const found = at(stepTarget('work-0001', 'Build the hub'));
+  assert.equal(samePlace(plan, found), false);
+  assert.equal(samePlace(found, at({ kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' })), true);
+  const stepped = record(startHistory(plan), found);
+  assert.deepEqual(stepped.entries, [plan, found]);
+  assert.deepEqual(step(step(stepped, -1)!.history, 1)!.place, found);
   assert.equal(record(startHistory(plan), at(ledgerTarget('work-0001'))).entries.length, 2, 'showing the ledger in place is a step back to the plan');
 });
 
