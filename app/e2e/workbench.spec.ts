@@ -145,9 +145,9 @@ test("a plan opens from the hub with its summary, its side column and its ledger
   writeFileSync(path.join(work, 'ledger.md'), readFileSync(path.join(work, 'ledger.md'), 'utf8').replace(/    status: done\n/g, match => planning++ < 2 ? match + '    phase: planning\n' : match));
   launched = await launchProject(home);
   const { window } = launched;
-  // The hub shows the summary on one line, and the steps done with the planning ones in their colour.
+  // The hub shows the summary on the title's hover, and the steps done with the planning ones in their colour.
   const row = hubRows(window, 'Saved payment methods');
-  await expect(row.locator('.hub-row-summary')).toHaveText(summary);
+  await expect(row.getByRole('link')).toHaveAttribute('title', summary);
   await expect(row.locator('.hub-row-steps')).toHaveText('2 of 7');
   await expect(row.locator('.step-bar-planning-done')).toHaveCount(1);
   await openPlan(window, 'Saved payment methods');
@@ -705,7 +705,8 @@ test('work in progress and blocked work get larger rows with their step and what
   await expect(row.locator('.hub-row-live')).toContainText('agent working');
   const stats = row.locator('.hub-row-stats');
   await expect(stats).toContainText('Claude Opus 5.5 +2');
-  await expect(stats).toContainText('3 h 20 min agent time (planning 1 h, implementation 2 h 20 min)');
+  await expect(stats).toContainText('3 h 20 min');
+  await expect(stats.locator('.cell-note')).toHaveAttribute('title', 'Agent time: planning 1 h, implementation 2 h 20 min');
   await expect(stats).toContainText('3 subagents');
   await expect(stats).toContainText(await window.evaluate(() => new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(1_250_000) + ' tokens'));
   // Blocked work shows why in place of the step.
@@ -715,7 +716,7 @@ test('work in progress and blocked work get larger rows with their step and what
   const draft = hubRows(window, 'Order fulfilment model');
   await expect(draft.locator('.hub-row-steps')).toHaveText('1 of 3');
   await expect(draft.locator('.hub-row-stats')).toContainText('Claude Opus 5.5');
-  await expect(draft.locator('.hub-row-stats')).toContainText('3 h 20 min agent time');
+  await expect(draft.locator('.hub-row-stats')).toContainText('3 h 20 min');
   await expect(draft.locator('.hub-row-stats')).not.toContainText('planning 1 h');
   // Closed work: how it ended, when, and its totals.
   await window.getByRole('radiogroup', { name: 'Plan state' }).getByRole('radio', { name: /^Closed/ }).click();
@@ -723,7 +724,7 @@ test('work in progress and blocked work get larger rows with their step and what
   await expect(closed).toHaveAttribute('data-size', 'closed');
   await expect(closed.locator('.hub-row-ended')).toContainText('Complete');
   await expect(closed.locator('.hub-row-ended .muted')).toHaveAttribute('title', /2026|Sep/);
-  await expect(closed.locator('.hub-row-side')).toContainText('3 h 20 min');
+  await expect(closed.locator('.hub-row-stats')).toContainText('3 h 20 min');
   // Rows, one per line, as wide as the list.
   await window.getByRole('radiogroup', { name: 'Plan state' }).getByRole('radio', { name: /^Open/ }).click();
   const boxes = await Promise.all((await hubRows(window).all()).map(item => item.boundingBox()));

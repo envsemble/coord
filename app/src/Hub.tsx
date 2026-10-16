@@ -1,11 +1,11 @@
 // The hub: where a window starts, and the plan list and nothing else. Every plan of every active
-// project, grouped by where it stands, one full-width row each: work in progress and blocked work
-// with the most (its summary, progress, the step being worked on or why it is blocked, and what
-// agents spent on it), drafts and other open work less, closed work how it ended. A project filter
-// (part of the place, so back and forward and a plan's breadcrumb set it) and a state filter narrow
-// it; the search field above them opens the search. One click opens a plan.
+// project, grouped by where it stands, a table each with the same columns: work in progress and
+// blocked work in taller rows with the step being worked on or why it is blocked, drafts and other
+// open work in compact ones, closed work with how it ended. A project filter (part of the place, so
+// back and forward and a plan's breadcrumb set it) and a state filter narrow it; the search field
+// above them opens the search. One click opens a plan.
 import { useMemo, type MouseEvent } from 'react';
-import { Button, EmptyState, GroupedRows, Link, Notice, Row, SearchField, SegmentedControl, Select, Spinner, Text } from '@envsemble/envui';
+import { Button, EmptyState, Link, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { BlockedIcon, WorkIcon } from './icons';
 import type { Project } from './types';
 import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
@@ -28,62 +28,52 @@ function Progress({ progress, wide }: { progress: NonNullable<HubRowFacts['progr
   </span>;
 }
 
-/** What agents spent on it: the main model and how many others, agent time (split by phase on a large row), tokens and subagents. */
+/** What agents spent on it: the main model and how many others, then agent time, tokens and subagents (the time's split by phase on hover). */
 function Spent({ facts }: { facts: HubRowFacts }) {
   const { model, time, tokens, subagents } = facts;
   const split = time && [time.planning && 'planning ' + time.planning, time.implementation && 'implementation ' + time.implementation].filter(Boolean).join(', ');
-  const parts = [
-    model && <span key="model" className="hub-row-model" title={model.id}><ProviderMark provider={model.provider} />{model.name}{model.others > 0 && <span className="muted"> +{model.others}</span>}</span>,
-    time && <span key="time">{time.total} agent time{split ? <span className="muted"> ({split})</span> : null}</span>,
-    tokens && <span key="tokens">{tokens}</span>,
-    subagents && <span key="subagents">{subagents}</span>,
-  ].filter(Boolean);
-  return parts.length ? <>{parts}</> : null;
+  const totals = [time?.total, tokens, subagents].filter(Boolean).join(' · ');
+  if (!model && !totals) return <span className="muted">—</span>;
+  return <span className="hub-row-stats">
+    {model && <span className="hub-row-model" title={model.id}><ProviderMark provider={model.provider} />{model.name}{model.others > 0 && <span className="muted"> +{model.others}</span>}</span>}
+    {totals && <small className="cell-note" title={split ? 'Agent time: ' + split : undefined}>{totals}</small>}
+  </span>;
 }
 
 /** When it last changed, relative, with the date on hover. */
 const Changed = ({ value }: { value: string | null }) => value ? <span className="hub-row-updated" title={'Changed ' + absoluteDate(value)}>{relativeDate(value)}</span> : null;
 
-/** A plan: the whole row opens it (its title link covers the row). */
+/** Plan, project, progress, agents, changed: the same widths in every group, so the columns line up. */
+const columnWidths = [44, 13, 15, 18, 10];
+
+/**
+ * A plan: the whole row opens it. A plan in progress says where it stands under its title: why it is
+ * blocked, else the step being worked on or next. Its summary shows on the title's hover.
+ */
 function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   const { work, project } = item;
   const status = hubStatus(work);
   const facts = hubRowFacts(work);
   const open = (event: MouseEvent) => { event.preventDefault(); go({ project: project.folderId, target: workTarget(work.id) }); };
-  const live = item.live && <span className="hub-row-live" role="img" aria-label="An agent is working on it"><span className="project-live-dot" />{facts.size === 'large' && <span aria-hidden="true">agent working</span>}</span>;
-  const spent = <Spent facts={facts} />;
-  const title = <span className="hub-row-title">
-    <StatusIcon status={status} />
-    <Link href="#" underline={false} data-row-target="" draggable={false} onClick={open}>{work.title}</Link>
-    <span className="hub-row-number">{workNumber(work.id)}</span>
-    <span className="hub-row-project">{project.name}</span>
-    {facts.size === 'large' && live}
-  </span>;
-  const summary = work.summary ? <span className="hub-row-summary" title={work.summary}>{work.summary}</span> : undefined;
-  const props = {
-    interactive: true, 'data-work': work.id, 'data-size': facts.size, title, detail: summary,
-    onClick: (event: MouseEvent) => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) open(event); },
-  };
-  if (facts.size === 'large') return <Row {...props} className="hub-row hub-row-large">
-    {(facts.progress || facts.step || facts.blocked) && <span className="hub-row-line hub-row-now">
-      {facts.progress && <Progress progress={facts.progress} wide />}
-      {facts.blocked ? <span className="hub-row-blocked"><BlockedIcon className="hub-row-blocked-icon" />Blocked: {facts.blocked}</span>
-        : facts.step && <span className="hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'} title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>{facts.step.label}: {facts.step.title}</span>}
-    </span>}
-    <span className="hub-row-line hub-row-stats">{spent}<Changed value={facts.changed} /></span>
-  </Row>;
-  if (facts.size === 'closed') return <Row {...props} className="hub-row hub-row-closed" action={<span className="hub-row-side">
-    <span className="hub-row-ended">{facts.ended!.label}{facts.ended!.date && <span className="muted" title={absoluteDate(facts.ended!.date)}> {relativeDate(facts.ended!.date)}</span>}</span>
-    {facts.time && <span>{facts.time.total}</span>}
-    {facts.tokens && <span>{facts.tokens}</span>}
-  </span>} />;
-  return <Row {...props} className="hub-row" action={<span className="hub-row-side">
-    {facts.progress && <Progress progress={facts.progress} />}
-    {live}
-    <Changed value={facts.changed} />
-  </span>}>
-    {(facts.model || facts.time || facts.tokens) && <span className="hub-row-line hub-row-stats">{spent}</span>}
-  </Row>;
+  const large = facts.size === 'large';
+  return <TableRow interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '')} data-work={work.id} data-size={facts.size}
+    onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) open(event); }}>
+    <TableCell>
+      <span className="hub-row-title">
+        <StatusIcon status={status} />
+        <Link href="#" underline={false} draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
+        <span className="hub-row-number">{workNumber(work.id)}</span>
+        {item.live && <span className="hub-row-live" role="img" aria-label="An agent is working on it"><span className="project-live-dot" />{large && <span aria-hidden="true">agent working</span>}</span>}
+      </span>
+      {large && (facts.blocked ? <small className="cell-note hub-row-blocked"><BlockedIcon className="hub-row-blocked-icon" />Blocked: {facts.blocked}</small>
+        : facts.step && <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'} title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>{facts.step.label}: {facts.step.title}</small>)}
+    </TableCell>
+    <TableCell><span className="hub-row-project">{project.name}</span></TableCell>
+    <TableCell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}</span>
+      : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</TableCell>
+    <TableCell><Spent facts={facts} /></TableCell>
+    <TableCell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</TableCell>
+  </TableRow>;
 }
 
 export function Hub({ projects, error, filter, filters, setFilters, go, query, search, left }: {
@@ -127,7 +117,10 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
     {unread.length > 0 && <Text variant="caption" tone="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>
       <Text as="h2" variant="section-heading" className="hub-group-heading">{group.label} <span className="muted">{group.items.length}</span></Text>
-      <GroupedRows className="hub-list" aria-label={group.label}>{group.items.map(item => <HubRow key={item.project.folderId + ':' + item.work.id} item={item} go={go} />)}</GroupedRows>
+      <Table className="hub-list" aria-label={group.label} density={group.id === 'active' ? 'standard' : 'compact'} columnWidths={columnWidths}>
+        <TableHead><TableRow><TableHeaderCell>Plan</TableHeaderCell><TableHeaderCell>Project</TableHeaderCell><TableHeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</TableHeaderCell><TableHeaderCell>Agents</TableHeaderCell><TableHeaderCell numeric>Changed</TableHeaderCell></TableRow></TableHead>
+        <TableBody>{group.items.map(item => <HubRow key={item.project.folderId + ':' + item.work.id} item={item} go={go} />)}</TableBody>
+      </Table>
     </section>)}
     {!groups.length && <EmptyState className="page-empty" icon={<WorkIcon />} title={empty} />}
   </Page>;
