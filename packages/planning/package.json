@@ -39,9 +39,9 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@envsemble/envui": "0.6.0",
+    "@envsemble/envui": "0.7.0",
     "@shikijs/langs": "4.5.0",
-    "@shikijs/themes": "4.5.0",
+    "@pierre/theme": "2.0.0",
     "@types/mdast": "4.0.4",
     "@types/node": "^24",
     "@types/react": "^19",

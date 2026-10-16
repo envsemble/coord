@@ -329,7 +329,7 @@ export function PlanViewer({ data }: { data: PlanData }) {
   // item's tabs (and the theme), then the tab.
   return <main className="plan-export">
     <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note" title="Read-only plan export">
-      {payload.source.workId} from <Code appearance="subtle">{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code appearance="subtle">atlas plan import &lt;file&gt;</Code>
+      {payload.source.workId} from <Code>{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code>atlas plan import &lt;file&gt;</Code>
     </Notice>
     <div className={'work-page section-' + tab}>{body}</div>
   </main>;

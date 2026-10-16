@@ -83,7 +83,7 @@ function About({ work, snapshot, showing, found }: { work: Work; snapshot: Snaps
       <WorkStatisticsSummary work={work} statistics={statistics} />
     </AboutSection>}
     {commits.length > 0 && <AboutSection title="Recent activity">
-      <ul className="about-commits">{commits.map(entry => <li key={entry.id}><CommitIcon className="about-commit-icon" /><div><span className="commit-title">{entry.title}</span><span className="muted"><Code appearance="subtle">{entry.id.slice(0, 7)}</Code> · <span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span></div></li>)}</ul>
+      <ul className="about-commits">{commits.map(entry => <li key={entry.id}><CommitIcon className="about-commit-icon" /><div><span className="commit-title">{entry.title}</span><span className="muted"><Code>{entry.id.slice(0, 7)}</Code> · <span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span></div></li>)}</ul>
     </AboutSection>}
   </aside>;
 }

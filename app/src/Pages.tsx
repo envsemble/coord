@@ -26,5 +26,5 @@ export function RepositorySelect({ snapshot, repository, setRepository }: Reposi
 }
 
 export function Gone({ title, detail }: { title: string; detail: string }) {
-  return <Page><EmptyState className="page-empty" icon={<ErrorIcon />} title={title} description={<Code appearance="subtle">{detail}</Code>} /></Page>;
+  return <Page><EmptyState className="page-empty" icon={<ErrorIcon />} title={title} description={<Code>{detail}</Code>} /></Page>;
 }

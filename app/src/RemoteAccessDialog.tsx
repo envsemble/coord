@@ -125,7 +125,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
           <div className="pairing-text">
             <p className="pairing-expiry">Expires in {Math.floor(remaining / 60000)}:{String(Math.floor(remaining / 1000) % 60).padStart(2, '0')} · works once</p>
             <p className="pairing-grant">{link.label ? <strong>{link.label}: </strong> : null}the whole computer{link.manageAccess ? ', and Manage access' : ''}.</p>
-            <Code appearance="subtle" className="pairing-link">{link.url}</Code>
+            <Code className="pairing-link">{link.url}</Code>
             <div className="row-actions">
               {link.url && <CopyButton text={link.url} label="Copy link" />}
               <CopyButton text={link.code} label="Copy code only" />

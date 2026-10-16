@@ -23,7 +23,7 @@ const tabs: { id: StatisticsTab; label: string }[] = [{ id: 'work', label: 'Work
 /** Categorical slots for the three models with the most recent completed work, set per theme in atlas.css. */
 const seriesColors = ['var(--atlas-chart-1)', 'var(--atlas-chart-2)', 'var(--atlas-chart-3)'];
 const otherColor = 'var(--atlas-chart-other)';
-const reportHint = <>The Atlas plugin records them when an agent session that worked on a work item stops, reading the model, agent time and tokens from the session's own log. Run <Code appearance="subtle">atlas setup</Code> to install it; without it, agents report with <Code appearance="subtle">atlas work report</Code>.</>;
+const reportHint = <>The Atlas plugin records them when an agent session that worked on a work item stops, reading the model, agent time and tokens from the session's own log. Run <Code>atlas setup</Code> to install it; without it, agents report with <Code>atlas work report</Code>.</>;
 
 const formatMetric = (metric: TrendMetric, value: number | null) => value === null ? '—'
   : metric === 'tokens' ? compactNumber(value) : metric === 'agentMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
@@ -44,7 +44,7 @@ export function Statistics({ snapshot, controls }: { snapshot: Snapshot; control
     <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
-        <p>The model, agent time and tokens come from reports the Atlas plugin records when an agent session stops (or, without the plugin, <Code appearance="subtle">atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time the agent worked, from each prompt to the end of its turn, with its helpers' work at the same time counted once and the time it waited for a person left out. Tokens are then counted for each model, by kind.</p>
+        <p>The model, agent time and tokens come from reports the Atlas plugin records when an agent session stops (or, without the plugin, <Code>atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time the agent worked, from each prompt to the end of its turn, with its helpers' work at the same time counted once and the time it waited for a person left out. Tokens are then counted for each model, by kind.</p>
         <p>Older reports, and agents whose log Atlas cannot read, are estimated: agent time adds up the time between a session's reports, leaving out breaks of more than two hours, and tokens are what the agent reported. The implementing model is the one that did most of the work.</p>
         <p>Agent time and tokens are split by the work item's stage when each report was made: planning until its plan is accepted, and while a session amends an accepted plan; implementation after. Reports from before stages were recorded show as "Stage not recorded". Each subagent counts once, with its own working time added up.</p>
         <p>Plan revisions count the commits that changed a plan after it was added, up to its completion, from this project's Git history. Moving a plan to the archive is not a revision.</p>
@@ -83,7 +83,7 @@ function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
       <StatsCard label="Median plan revisions" value={revisions === null ? '—' : formatMetric('planRevisions', revisions)} note={plural(completed.length, 'completed work item')} />
     </div>
     {!reported.length && <Notice tone="info">No agent reports yet. {reportHint}</Notice>}
-    {invalid > 0 && <Notice tone="warning">{invalid} {invalid === 1 ? 'line' : 'lines'} of statistics files are not valid reports and are ignored. <Code appearance="subtle">atlas planning check</Code> names the files.</Notice>}
+    {invalid > 0 && <Notice tone="warning">{invalid} {invalid === 1 ? 'line' : 'lines'} of statistics files are not valid reports and are ignored. <Code>atlas planning check</Code> names the files.</Notice>}
     {rows.length ? <Table className="work-statistics-table" aria-label="Work statistics" stickyHeader>
       <TableHead><TableRow>
         <TableHeaderCell>Work</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell>{stages.map(stage => <TableHeaderCell key={stage} numeric>{stageLabels[stage]}</TableHeaderCell>)}<TableHeaderCell numeric>Subagents</TableHeaderCell><TableHeaderCell numeric>Plan revisions</TableHeaderCell><TableHeaderCell numeric>Steps</TableHeaderCell>
