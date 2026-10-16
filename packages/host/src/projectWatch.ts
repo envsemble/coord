@@ -4,7 +4,8 @@
 // folders coming, going or moving between active/ and archive/ count; other files do not. A folder
 // that is replaced (moved away and back, deleted and made again) is watched again, and a watch that
 // fails (Linux running out of inotify watches, say) is tried again later, less often each time;
-// meanwhile the home's planning folder is still watched for projects coming and going.
+// meanwhile the home's planning folder is still watched for projects coming and going. Any other
+// change it sees is told as the project it is in, for the search to look at that project again.
 import { watch } from 'node:fs';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -16,6 +17,8 @@ export interface ProjectWatchOptions {
   log: Logger;
   /** Something the project list shows changed. */
   changed(): void;
+  /** Something changed in a project's planning folder (null: in any of them). */
+  touched?(folder: string | null): void;
   /** The first wait before a failed watch is tried again (5 s), doubled each time up to five minutes. */
   retryDelay?: number;
 }
@@ -71,7 +74,7 @@ export class ProjectListWatch {
     this.watcher = watchFolder(this.root, {
       debounce: 300, maxWait: 5000,
       ignore: relative => ignoredInHome(this.inHome(relative)),
-      relevant: relative => projectListChange(relative === null ? null : this.inHome(relative)) !== false,
+      relevant: relative => this.options.touched ? relative === null || !ignoredInHome(this.inHome(relative)) : projectListChange(relative === null ? null : this.inHome(relative)) !== false,
       onChange: paths => { void this.changedPaths(paths); },
       onError: error => this.failed(error),
     });
@@ -103,11 +106,14 @@ export class ProjectListWatch {
     if (this.closed) return;
     this.watcher?.close();
     this.watcher = null;
+    // Changes while it was not watched were missed.
+    this.touch(['']);
     void this.start();
   }
 
   private async changedPaths(paths: string[]) {
     if (this.closed) return;
+    this.touch(paths);
     // The folder was replaced: watch the one there now.
     if (await identityOf(this.root) !== this.identity) { this.restart(); this.options.changed(); return; }
     const changes = paths.map(relative => projectListChange(this.inHome(relative)));
@@ -127,6 +133,16 @@ export class ProjectListWatch {
       changed = registry?.work_items.some(item => typeof item?.current_plan === 'string' && item.current_plan === plan) ?? false;
     }
     if (changed && !this.closed) this.options.changed();
+  }
+
+  /** Tell which projects the changed paths are in: the home's own folder is all of them. */
+  private touch(paths: string[]) {
+    const touched = this.options.touched;
+    if (!touched) return;
+    if (!this.home) { touched(this.root); return; }
+    const projects = new Set(paths.map(relative => relative.replaceAll('\\', '/').split('/').filter(Boolean)[0] ?? ''));
+    if (projects.has('')) touched(null);
+    else for (const name of projects) touched(path.join(this.root, name));
   }
 
   close() {

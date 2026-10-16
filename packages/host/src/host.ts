@@ -22,12 +22,13 @@ import {
   adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary,
   readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates,
 } from '@envsemble/atlas-planning';
+import { compareHits, PlanningSearch, searchQuery } from '@envsemble/atlas-planning/search';
 import { AccessStore, newToken } from './access.ts';
 import { hostAddresses } from './addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
   type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope, type WorkspaceScan,
+  type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope, type SearchResult, type WorkspaceScan,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folder.ts';
@@ -158,6 +159,8 @@ export class Host {
   /** Folders in the home's planning folder that are not planning folders, by name, with how often the projects were listed again for them. */
   private readonly unfinishedProjects = new Map<string, number>();
   private projectsLookAgain: ReturnType<typeof setTimeout> | null = null;
+  /** Each active project's search index, by folder key, built on its first search. */
+  private readonly searches = new Map<string, PlanningSearch>();
   /** Clients preparing an export or reading an import now; each does one at a time. */
   private readonly preparing = new Set<string>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
@@ -547,6 +550,8 @@ export class Host {
   private event<E extends EventName>(connection: Connection, event: E, data: Events[E]) { connection.send({ event, data }); }
   private folderChanged(state: FolderState) {
     for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', state);
+    const folder = this.folders.pathOf(state.folderId);
+    if (folder) this.searchTouched(folder);
     // A project's name lives in its planning.json.
     this.projectsChanged();
   }
@@ -608,7 +613,7 @@ export class Host {
    * or not a window has a project open. Projects outside the home are watched as they are listed.
    */
   private watchProjects() {
-    this.projectsWatcher = new ProjectListWatch(homePlanningDirectory(this.options.home), true, { log: this.options.log, changed: () => this.projectsChanged() });
+    this.projectsWatcher = new ProjectListWatch(homePlanningDirectory(this.options.home), true, { log: this.options.log, changed: () => this.projectsChanged(), touched: folder => this.searchTouched(folder) });
     void mkdir(homePlanningDirectory(this.options.home), { recursive: true }).then(() => this.lookForUnfinishedProjects(true), () => undefined);
   }
   /** Watch the listed active projects outside the home, and stop watching the rest. */
@@ -618,7 +623,7 @@ export class Host {
     // it is watched, so a hidden or archived project's folder is left free.
     const wanted = new Map(rows.filter(row => row.state === 'active' && !this.inHome(row.folder)).map(row => [folderKey(row.folder), row.folder]));
     for (const [key, watcher] of this.outsideWatches) if (!wanted.has(key)) { watcher.close(); this.outsideWatches.delete(key); }
-    for (const [key, folder] of wanted) if (!this.outsideWatches.has(key)) this.outsideWatches.set(key, new ProjectListWatch(folder, false, { log: this.options.log, changed: () => this.projectsChanged() }));
+    for (const [key, folder] of wanted) if (!this.outsideWatches.has(key)) this.outsideWatches.set(key, new ProjectListWatch(folder, false, { log: this.options.log, changed: () => this.projectsChanged(), touched: changed => this.searchTouched(changed) }));
   }
 
   // ---- Folders and access ----------------------------------------------------------------------
@@ -669,6 +674,32 @@ export class Host {
     if (key === this.liveKey) return;
     this.liveKey = key;
     this.projectsChanged();
+  }
+  /**
+   * Search every active project: each one's index is built on its first search and looked at again
+   * when the watches tell of a change in it. Hidden and archived projects are not searched, and their
+   * indexes are let go.
+   */
+  private async search(text: string, limit = 50): Promise<SearchResult[]> {
+    const query = searchQuery(text);
+    if (!query) return [];
+    const projects = (await this.projects()).filter(project => project.state === 'active');
+    const wanted = new Set(projects.map(project => folderKey(project.path)));
+    for (const key of this.searches.keys()) if (!wanted.has(key)) this.searches.delete(key);
+    const found = await Promise.all(projects.map(async project => {
+      const key = folderKey(project.path);
+      let index = this.searches.get(key);
+      if (!index) this.searches.set(key, index = new PlanningSearch(project.path));
+      return (await index.search(query, project.name)).map(hit => ({ hit, project }));
+    }));
+    return found.flat().sort((a, b) => compareHits(a.hit, b.hit)).slice(0, limit).map(({ hit, project }): SearchResult => ({
+      kind: hit.kind, title: hit.title, snippet: hit.snippet, folderId: project.folderId, project: project.name, work: hit.work, path: hit.path, anchor: hit.anchor, element: hit.element,
+    }));
+  }
+  /** Something changed in a project's planning folder (null: in any): its search index looks again. */
+  private searchTouched(folder: string | null) {
+    if (folder === null) { for (const index of this.searches.values()) index.invalidate(); return; }
+    this.searches.get(folderKey(canonicalProjectFolderSync(folder)))?.invalidate();
   }
   /** A project by its folder's ID. */
   private async projectRow(folderId: string): Promise<ProjectRow> {
@@ -803,8 +834,7 @@ export class Host {
         if (params.workspaces?.length) this.ownerOnly(connection, 'choose the folders a project covers');
         return this.createProject(params) as never;
       }
-      // TODO(work-0023 amendment): search every active project.
-      case 'search.query': return [] as never;
+      case 'search.query': { const { query, limit } = p as Methods['search.query']['params']; return this.search(query, limit) as never; }
       case 'projects.scan': return this.scanFolder((p as Methods['projects.scan']['params']).folder) as never;
       case 'projects.update': {
         const params = p as Methods['projects.update']['params'];
