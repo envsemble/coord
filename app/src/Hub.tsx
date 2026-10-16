@@ -5,8 +5,8 @@
 // back and forward and a plan's breadcrumb set it) and a state filter narrow it; the search field
 // above them opens the search. One click opens a plan.
 import { useMemo, type MouseEvent } from 'react';
-import { Button, EmptyState, Link, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
-import { BlockedIcon, WorkIcon } from './icons';
+import { Button, EmptyState, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
+import { WorkIcon } from './icons';
 import type { Project } from './types';
 import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
 import { absoluteDate, relativeDate, workNumber } from './format';
@@ -48,7 +48,8 @@ const columnWidths = [44, 13, 15, 18, 10];
 
 /**
  * A plan: the whole row opens it. A plan in progress says where it stands under its title: why it is
- * blocked, else the step being worked on or next. Its summary shows on the title's hover.
+ * blocked, else the step being worked on or next. Its summary shows on the title's hover. The status
+ * icon carries the colour; the text stays neutral.
  */
 function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   const { work, project } = item;
@@ -61,11 +62,11 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
     <TableCell>
       <span className="hub-row-title">
         <StatusIcon status={status} />
-        <Link href="#" underline={false} draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
+        <a href="#" className="hub-row-link" draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</a>
         <span className="hub-row-number">{workNumber(work.id)}</span>
         {item.live && <span className="hub-row-live" role="img" aria-label="An agent is working on it"><span className="project-live-dot" />{large && <span aria-hidden="true">agent working</span>}</span>}
       </span>
-      {large && (facts.blocked ? <small className="cell-note hub-row-blocked"><BlockedIcon className="hub-row-blocked-icon" />Blocked: {facts.blocked}</small>
+      {large && (facts.blocked ? <small className="cell-note hub-row-blocked">Blocked: {facts.blocked}</small>
         : facts.step && <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'} title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>{facts.step.label}: {facts.step.title}</small>)}
     </TableCell>
     <TableCell><span className="hub-row-project">{project.name}</span></TableCell>
@@ -117,7 +118,7 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
     {unread.length > 0 && <Text variant="caption" tone="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>
       <Text as="h2" variant="section-heading" className="hub-group-heading">{group.label} <span className="muted">{group.items.length}</span></Text>
-      <Table className="hub-list" aria-label={group.label} density={group.id === 'active' ? 'standard' : 'compact'} columnWidths={columnWidths}>
+      <Table className="hub-list" aria-label={group.label} columnWidths={columnWidths}>
         <TableHead><TableRow><TableHeaderCell>Plan</TableHeaderCell><TableHeaderCell>Project</TableHeaderCell><TableHeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</TableHeaderCell><TableHeaderCell>Agents</TableHeaderCell><TableHeaderCell numeric>Changed</TableHeaderCell></TableRow></TableHead>
         <TableBody>{group.items.map(item => <HubRow key={item.project.folderId + ':' + item.work.id} item={item} go={go} />)}</TableBody>
       </Table>
