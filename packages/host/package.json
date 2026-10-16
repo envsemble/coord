@@ -22,7 +22,8 @@
     "./plan-worker": "./src/planWorker.ts"
   },
   "scripts": {
-    "test": "node --import ../../scripts/test-home.mjs --test \"src/*.test.ts\"",
+    "test": "node ../../scripts/test-tier.mjs full --import ../../scripts/test-home.mjs src",
+    "test:quick": "node ../../scripts/test-tier.mjs quick --import ../../scripts/test-home.mjs src",
     "check:types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -38,21 +38,24 @@ The [architecture](docs/architecture.md), [agent](docs/agent-interface.md) and a
 
 ## Checks
 
-Run relevant capability tests while changing behavior, then:
+The tests come in tiers, from quick to slow; run the quickest one that can catch the mistake:
+
+1. **Quick, while working:** `npm run test:quick` (in a package, or at the root for all of them) and `npm run check:types`. In-process tests, in seconds.
+2. **Full, before a PR:** `npm test`, which adds each package's `*.slow.test.*` files (tests that start processes, browsers or toolchains), and `npm run test:skills` when the plugin changed.
+3. **Milestones and releases:** the packaged app's end-to-end suite and the remaining checks:
 
 ```sh
 npm run format:check
-npm run check:types
-npm test
-npm run test:skills
 npm run build
 npm run check
 npm run check:package
 npm run check:performance
-npm run check:review
-npm run review:example -- artifacts/review
 npm run check:release
+npm run package --workspace @envsemble/atlas-app
+npm run test:e2e
 ```
+
+A new test covers behaviour no existing test covers, at the cheapest tier that can catch the mistake, with one or two representative cases rather than every combination, and waits for conditions rather than fixed times. A test that starts processes, browsers or toolchains, or takes more than about a second, goes in a `*.slow.test.*` file next to its quick one. End-to-end tests are for what only the real app shows: windows, menus, IPC, persistence across restarts, security and packaging. [AGENTS.md](AGENTS.md) gives agents the same rules.
 
 `npm run format` fixes formatting. Commit the generated `index.html`, `downloads/` and `dist/` in `packages/diagrams` together with source. The app's end-to-end suite drives the packaged app (`npm run package`, then `npm run test:e2e`; the [app guide](app/README.md#develop) has the options). Full database verification requires `ATLAS_TEST_POSTGRES` targeting a disposable PostgreSQL 17 fixture; credentials belong in the environment, never models. Clean-package checks exercise Node/React, actual TS/Java capture and offline output; export/reopen has dedicated fixtures. Windows-specific and POSIX-specific tests disclose skips.
 
