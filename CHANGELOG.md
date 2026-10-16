@@ -9,6 +9,9 @@
 - **Plan summaries:** plans carry a `summary` header, a few plain sentences on what the work is and where it stands; `atlas check` warns when an active plan has none, and `where` and the hub show it.
 - **Workspace folders:** a project covers workspace folders (`workspaces` in planning.json); an agent session in one of them belongs to that project, before any match by Git remote. A project is created from a name and a folder, in the app, by an agent with the new `project_create` tool, or with `atlas project create`; Atlas registers the Git checkouts it finds there. Only the app on the computer itself may choose a project's folders.
 - **New projects appear at once:** a project created outside the app shows up without a restart.
+- **Ledgers are their steps:** the tools write only the ledger's header (its steps and `blocked`) and no prose: `work_start` adds no Selection section, and `step_remove` (`atlas work step remove`) takes no reason. `work_archive` writes its reason into the plan's Outcome. The app's Ledger view is gone: the steps show in the About column, and the ledger opens as a file. During implementation the ledger also keeps a short final-review list.
+- **atlas-implement reviews in at most three rounds:** each step gets one review, and another round follows only blockers or majors, at most three per step. Minors, a bot's included, go on the final-review list, worked through once before readiness. Quick checks of what changed run while working, and the slow suites only at milestones and before handoff. Worktrees are removed once unused, and the agent says which branch, in which folder, holds the latest work.
+- **Skills name only the commands no tool covers:** `atlas check`, `atlas capture`, `atlas home adopt`, `atlas plan import` and `atlas work report`; the tools replace `atlas where`, `atlas work` and `atlas project create` there.
 
 ## 0.7.1 — Skills by name and work across projects — 2026-10-15
 
