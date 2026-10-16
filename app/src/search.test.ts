@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostEntries, listEntries, pathKey, resultDestination, workKey, type SearchEntry } from './search.ts';
+import { hostEntries, listEntries, ownPerKind, pathKey, resultDestination, workKey, type SearchEntry } from './search.ts';
 import type { Project, SearchResult } from './types.ts';
 
 const folder = 'f-' + '1'.repeat(32);
@@ -36,19 +36,29 @@ test("the host's results say their project and work item, and the snippet", () =
   assert.equal(new Set([plan.id, heading.id, project.id]).size, 3);
 });
 
-test("the host's results go below what the window lists already, without repeating it, so the highlighted result stays where it is", () => {
-  const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', project: null } }, key });
-  const local = [entry('plan', 'plan', workKey(folder, 'work-0023')), entry('diagram', 'diagram'), entry('other plan', 'plan', workKey(folder, 'work-0024')), entry('doc', 'document', pathKey(folder, 'a.md'))];
-  const host = [entry('heading', 'heading'), entry('plan again', 'plan', workKey(folder, 'work-0023')), entry('doc again', 'document', pathKey(folder, 'a.md')), entry('summary plan', 'plan', workKey(folder, 'work-0025')), entry('heading 2', 'heading')];
-  const listed = listEntries(local, host);
-  // What was shown before the host answered stays first and in its order.
-  const before = listEntries(local, []).map(item => item.id);
-  assert.deepEqual(before, ['plan', 'other plan', 'diagram', 'doc']);
-  assert.deepEqual(listed.slice(0, before.length).map(item => item.id), before);
-  assert.deepEqual(listed.map(item => [item.id, item.group]), [
-    ['plan', 'Plans'], ['other plan', 'Plans'], ['diagram', 'Diagrams'], ['doc', 'Documents'],
-    ['heading', 'Headings'], ['heading 2', 'Headings'], ['summary plan', 'More plans'],
+const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', project: null } }, key });
+const local = [entry('plan', 'plan', workKey(folder, 'work-0023')), entry('diagram', 'diagram'), entry('other plan', 'plan', workKey(folder, 'work-0024')), entry('doc', 'document', pathKey(folder, 'a.md'))];
+const host = [entry('heading', 'heading'), entry('plan again', 'plan', workKey(folder, 'work-0023')), entry('doc again', 'document', pathKey(folder, 'a.md')), entry('summary plan', 'plan', workKey(folder, 'work-0025')), entry('heading 2', 'heading')];
+
+test("until the host answers, or when it finds nothing, the window's own entries, grouped by kind", () => {
+  assert.deepEqual(listEntries(local, []).map(item => [item.id, item.group]), [['plan', 'Plans'], ['other plan', 'Plans'], ['diagram', 'Diagrams'], ['doc', 'Documents']]);
+});
+
+test("once the host answers, its results come first, then at most a few of the window's own entries of a kind that it did not return", () => {
+  assert.deepEqual(listEntries(local, host).map(item => [item.id, item.group]), [
+    ['heading', 'Headings'], ['heading 2', 'Headings'], ['plan again', 'Plans'], ['summary plan', 'Plans'], ['doc again', 'Documents'],
+    ['diagram', 'Diagrams'], ['other plan', 'More plans'],
   ]);
-  // Only the host's.
-  assert.deepEqual(listEntries([], host.slice(0, 2)).map(item => item.group), ['Headings', 'Plans']);
+  // Dozens of loose matches of the window's own do not bury the host's results.
+  const loose = Array.from({ length: 40 }, (_, index) => entry('loose ' + index, 'plan', workKey(folder, 'work-' + String(100 + index).padStart(4, '0'))));
+  const listed = listEntries(loose, host);
+  assert.deepEqual(listed.slice(0, host.length).map(item => item.id), ['heading', 'heading 2', 'plan again', 'summary plan', 'doc again']);
+  assert.equal(listed.filter(item => item.group === 'More plans').length, ownPerKind);
+});
+
+test("when the user has moved the highlight, the host's results go below those shown, so the highlighted one stays where it is", () => {
+  const listed = listEntries(local, host, true);
+  const before = listEntries(local, []).map(item => item.id);
+  assert.deepEqual(listed.slice(0, before.length).map(item => item.id), before);
+  assert.deepEqual(listed.slice(before.length).map(item => [item.id, item.group]), [['heading', 'Headings'], ['heading 2', 'Headings'], ['summary plan', 'More plans']]);
 });

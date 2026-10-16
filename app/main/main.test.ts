@@ -115,6 +115,8 @@ test('a window saves the place it shows as a row of its project, and an older wi
   const plan = { project, target: { kind: 'work' as const, work: 'work-0001', anchor: null, view: 'ledger' as const } };
   assert.deepEqual(placeRow(plan), { project, kind: 'work', target: '{"work":"work-0001","anchor":null,"view":"ledger"}' });
   assert.deepEqual(savedPlace(project, placeRow(plan)!), plan);
+  // A ledger step the search found is pointed out once, not again at the next start.
+  assert.deepEqual(placeRow({ project, target: { kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' } }), { project, kind: 'work', target: '{"work":"work-0001","anchor":null}' });
   // The hub filtered to a project, and a project's statistics, are rows of that project.
   for (const page of [{ page: 'hub' as const, project }, { page: 'statistics' as const, project }]) assert.deepEqual(savedPlace(project, placeRow(page)!), page);
   // The hub of every project and the Projects page are no row: a window without one opens on the hub.

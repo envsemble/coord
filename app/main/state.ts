@@ -29,11 +29,15 @@ export function savedPlace(project: string, row: Pick<TabRow, 'kind' | 'target'>
     return { project, target: savedTarget({ ...saved, kind: row.kind }) };
   } catch { return null; }
 }
-/** How a place is saved: a row of its project, or none for a page of no project (which loads as the hub). */
+/**
+ * How a place is saved: a row of its project, or none for a page of no project (which loads as the
+ * hub). A ledger step the search found is not kept: it is pointed out once.
+ */
 export function placeRow(place: Place): { project: string; kind: TabKind; target: string | null } | null {
   if (!('page' in place)) {
     const { kind, ...rest } = place.target;
-    return { project: place.project, kind, target: JSON.stringify(rest) };
+    const { step: _found, ...kept } = rest as typeof rest & { step?: string | null };
+    return { project: place.project, kind, target: JSON.stringify(kept) };
   }
   if (place.page === 'projects' || !place.project) return null;
   return { project: place.project, kind: 'project', target: place.page === 'statistics' ? JSON.stringify({ page: 'statistics' }) : null };
