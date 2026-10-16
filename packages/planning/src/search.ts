@@ -2,18 +2,24 @@
 // documents (title, path, headings and text), glossary terms in CONTEXT.md files, diagrams (file
 // name and title) and their elements. A project's index is built on its first search and kept in
 // memory; it is marked stale when the folder changes, and then reads again only the files whose size
-// or time changed. Git's folder, hidden folders, dependencies, evidence and anything but Markdown and
-// diagrams are left out, and files over a size are known by their name only.
+// or time changed. Git's folder, hidden folders, dependencies, work items' evidence and anything but
+// Markdown and diagrams are left out, and files over a size are known by their name only.
+//
+// Markdown is read line by line, in time linear in its size, never parsed whole: a parser can take
+// minutes over some files (large tables, deep quotes), and indexing runs on the host's main thread,
+// which it gives back between files. Only a heading's own line goes through the Markdown parser, for
+// the text its anchor is made of.
 //
 // Matching ignores case and accents, and every word of the query must match, in any order. Exact and
 // prefix title matches rank first, then titles with every word, then other fields (a path, a summary),
-// then text; at each, plans and projects come before the rest, and text last; then the latest changed.
+// then text. Within each, plans and projects come first, then steps, documents, headings, diagrams,
+// elements and terms, an exact title before a prefix, then the latest changed.
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { Nodes, Root } from 'mdast';
+import type { Nodes } from 'mdast';
 import atlas from '@envsemble/atlas-diagrams';
 import { parseFrontmatter } from './check.ts';
-import { documentAnchors, markdownBody, parseMarkdown } from './headings.ts';
+import { headingAnchors, markdownBody, parseMarkdown } from './headings.ts';
 
 export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
 /**
@@ -31,16 +37,19 @@ export interface SearchQuery { text: string; words: string[]; number: number | n
 export const searchFileLimit = 2 * 1024 * 1024;
 /** How long an index is trusted without a change being reported, in case one was missed. */
 const trusted = 60_000;
-const skippedFolders = new Set(['node_modules', '__pycache__', 'dist', 'build', 'evidence', 'artifacts']);
-const blocks = new Set(['paragraph', 'heading', 'listItem', 'tableCell', 'tableRow', 'code', 'blockquote', 'thematicBreak', 'footnoteDefinition']);
+/** Folders never read wherever they are, besides hidden ones; a work item's `evidence` is left out too, as the home's watch leaves it. */
+const skippedFolders = new Set(['node_modules', '__pycache__']);
+/** Headings go through the Markdown parser up to this length; longer ones, and those after the first thousand, are read plainly. */
+const headingLimit = 1000;
+const kindOrder: Record<SearchKind, number> = { plan: 0, project: 0, step: 1, document: 2, heading: 3, diagram: 4, element: 5, term: 6 };
 
 const foldedCharacters = new Map<string, string>();
 /**
- * Text for matching: lower case, without accents, and as long as the original, so a match's position
- * is its position in the text.
+ * Text for matching: composed (NFC), lower case, without accents, and as long as the composed text,
+ * so a match's position is its position in it.
  */
 export function fold(text: string): string {
-  return text.replace(/[A-Z]|[^\x00-\x7f]/gu, character => {
+  return text.normalize('NFC').replace(/[A-Z]|[^\x00-\x7f]/gu, character => {
     let folded = foldedCharacters.get(character);
     if (folded === undefined) {
       const plain = character.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -61,13 +70,19 @@ export function searchQuery(text: string): SearchQuery | null {
   return { text: whole.replace(/^#+/, ''), words, number: number ? Number(number[1]) : null };
 }
 
-/** Best first: by tier, then plans and projects before the rest and text last, then the latest changed, then by title. */
+/**
+ * Best first: exact and prefix titles together, then titles with every word at a word's start, then
+ * titles with them within, other fields, and text; within each by kind (plans and projects first),
+ * an exact title before a prefix, the latest changed, and by title.
+ */
 export function compareHits(a: RankedHit, b: RankedHit) {
-  return a.tier - b.tier || a.order - b.order || b.changed - a.changed || a.title.localeCompare(b.title);
+  const group = (hit: RankedHit) => Math.max(0, hit.tier - 1);
+  return group(a) - group(b) || a.order - b.order || a.tier - b.tier || b.changed - a.changed || a.title.localeCompare(b.title);
 }
 
-interface Field { text: string; folded: string }
-const field = (text: string): Field => ({ text, folded: fold(text) });
+/** Text to match, composed (NFC) and folded; words shorter than `minimum` do not match it (`#1` against a path). */
+interface Field { text: string; folded: string; minimum: number }
+const field = (text: string, minimum = 1): Field => { const composed = text.normalize('NFC'); return { text: composed, folded: fold(composed), minimum }; };
 /** Something the index can find: its titles (any can match), other fields, and text; `elsewhere`: found by its titles as something else (a plan's file as its work item). */
 interface Entry {
   kind: SearchKind; title: string; names: string[]; fields: Field[]; body: Field | null; number: number | null; elsewhere?: boolean;
@@ -110,17 +125,18 @@ export function snippetOf(source: Field, words: string[], width = 120): string |
 
 function matchEntry(entry: Entry, query: SearchQuery): RankedHit | null {
   const hit = (tier: number, snippet: string | null): RankedHit => ({
-    kind: entry.kind, title: entry.title, snippet, work: entry.work, path: entry.path, anchor: entry.anchor, element: entry.element,
-    tier, order: tier === 5 ? 2 : entry.kind === 'plan' || entry.kind === 'project' ? 0 : 1, changed: entry.changed,
+    kind: entry.kind, title: entry.title.normalize('NFC'), snippet, work: entry.work, path: entry.path, anchor: entry.anchor, element: entry.element,
+    tier, order: kindOrder[entry.kind], changed: entry.changed,
   });
   if (entry.number !== null && entry.number === query.number) return hit(0, null);
   let best: number | null = null;
   for (const name of entry.names) { const tier = titleTier(name, query); if (tier !== null && (best === null || tier < best)) best = tier; }
   if (best !== null) return entry.elsewhere ? null : hit(best, null);
   const named = entry.names.join(' ');
-  if (entry.fields.length && query.words.every(word => named.includes(word) || entry.fields.some(item => item.folded.includes(word)))) {
-    const source = entry.fields.find(item => query.words.some(word => !named.includes(word) && item.folded.includes(word)))!;
-    return hit(4, snippetOf(source, query.words.filter(word => source.folded.includes(word))));
+  const inField = (item: Field, word: string) => word.length >= item.minimum && item.folded.includes(word);
+  if (entry.fields.length && query.words.every(word => named.includes(word) || entry.fields.some(item => inField(item, word)))) {
+    const source = entry.fields.find(item => query.words.some(word => !named.includes(word) && inField(item, word)))!;
+    return hit(4, snippetOf(source, query.words.filter(word => inField(source, word))));
   }
   if (entry.body && query.words.every(word => named.includes(word) || entry.body!.folded.includes(word))) {
     return hit(5, snippetOf(entry.body, query.words.filter(word => entry.body!.folded.includes(word))));
@@ -142,37 +158,95 @@ interface FileRecord { size: number; mtime: number; parsed: Parsed }
 function headingText(node: Nodes): string {
   return node.type === 'text' || node.type === 'inlineCode' ? node.value : node.type !== 'image' && node.type !== 'imageReference' && 'children' in node ? node.children.map(headingText).join('') : '';
 }
-/** A Markdown tree's text, one line per block, without the heading given (its title). */
-function plainText(tree: Root, title?: Nodes): string {
-  const parts: string[] = [];
-  const walk = (node: Nodes) => {
-    if (node === title) return;
-    if (node.type === 'text' || node.type === 'inlineCode' || node.type === 'code') parts.push(node.value);
-    else if (node.type === 'image') parts.push(node.alt ?? '');
-    else if (node.type === 'break') parts.push(' ');
-    else if (node.type !== 'html' && node.type !== 'definition' && 'children' in node) for (const child of node.children) walk(child);
-    if (blocks.has(node.type)) parts.push('\n');
-  };
-  walk(tree);
-  return parts.join('').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+/** A line's text without its Markdown: markers, emphasis, link targets and tags. Every pattern is bounded, so a line takes time linear in its length. */
+function lineText(line: string) {
+  return line.replace(/^[ \t]{0,3}(?:>[ \t]?)*/, '').replace(/^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?/, '').replace(/^#{1,6}(?=[ \t]|$)/, '')
+    .replace(/!?\[([^\]\n]{0,200})\]\([^)\n]{0,200}\)/g, '$1').replace(/<\/?[A-Za-z][^<>\n]{0,200}>/g, '').replace(/\*\*|__|[*`~|]/g, ' ');
 }
-/** A glossary's terms: paragraphs that start with a term in bold and a colon, under their headings. */
-function glossaryTerms(tree: Root, anchors: Map<Nodes, string>) {
+/**
+ * A heading's text as the readers draw it, untrimmed as its anchor is made from it: its own Markdown
+ * (an ATX line, or a setext paragraph with its underline) through the parser, with the document's
+ * link definitions.
+ */
+function renderedHeading(markdown: string, definitions: string[]) {
+  if (markdown.length > headingLimit) return lineText(markdown.replace(/\n[ \t]*[=-]+[ \t]*$/, '')).replace(/\s+/g, ' ').trim();
+  const tree = parseMarkdown(markdown + (markdown.includes('[') && definitions.length ? '\n\n' + definitions.join('\n') : ''));
+  const heading = tree.children[0];
+  return heading?.type === 'heading' ? headingText(heading) : lineText(markdown).trim();
+}
+
+const fence = /^[ \t]{0,3}(`{3,}|~{3,})/;
+const atx = /^[ \t]{0,3}(#{1,6})(?:[ \t]+|$)/;
+/** A quote's markers and a list item's marker before a heading in them. */
+const containerPrefix = /^[ \t]{0,3}(?:(?:>[ \t]?)+(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?|(?:[-*+]|\d{1,9}[.)])[ \t]+)/;
+const underline = /^[ \t]{0,3}(=+|-+)[ \t]*$/;
+const container = /^[ \t]{0,3}(?:>|[-*+][ \t]|\d{1,9}[.)][ \t]|\|)/;
+const definition = /^[ \t]{0,3}\[[^\]\n]{1,200}\]:[ \t]*\S/;
+const glossaryTerm = /^\*\*([^*\n]{1,200}?)(?::\*\*|\*\*[ \t]*:)/;
+
+/**
+ * A Markdown document read line by line: its title, its headings (ATX and setext, outside code
+ * fences, numbered as the readers number them), a glossary's terms (a paragraph starting with a term
+ * in bold and a colon, under its heading), and its text without the title's own heading.
+ */
+export function readMarkdown(relative: string, source: string, metadata: Record<string, unknown> | null): Parsed {
+  const lines = markdownBody(source).split(/\r?\n/);
+  const definitions = lines.filter(line => definition.test(line)).slice(0, 100);
+  const anchor = headingAnchors();
+  const glossary = /(^|\/)context\.md$/i.test(relative);
+  const headings: { text: string; anchor: string; depth: number; line: number }[] = [];
   const terms: { term: string; anchor: string | null }[] = [];
-  let section: string | null = null;
-  for (const node of tree.children) {
-    if (node.type === 'heading') section = anchors.get(node) ?? section;
-    if (node.type !== 'paragraph' || node.children[0]?.type !== 'strong') continue;
-    const [strong, next] = node.children;
-    const term = headingText(strong).trim();
-    const colon = term.endsWith(':') || (next?.type === 'text' && next.value.startsWith(':'));
-    if (colon && term.replace(/:$/, '').trim()) terms.push({ term: term.replace(/:$/, '').trim(), anchor: section });
+  const text: string[] = [];
+  // The fence a code block opened with, the lines of the paragraph so far, and whether the lines
+  // since the last blank one are in a list, quote or table (where an underline is no heading).
+  let open: string | null = null, paragraph: number[] = [], nested = false;
+  const heading = (markdown: string, depth: number, line: number) => {
+    const read = headings.length < 1000 ? renderedHeading(markdown, definitions) : lineText(markdown).trim();
+    headings.push({ text: read.trim(), anchor: anchor(read), depth, line });
+  };
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const opened = fence.exec(line);
+    if (open !== null) {
+      if (opened && opened[1][0] === open[0] && opened[1].length >= open.length && !line.trim().slice(opened[1].length)) open = null;
+      else text.push(line);
+      continue;
+    }
+    if (opened) { open = opened[1]; paragraph = []; nested = false; continue; }
+    if (!line.trim()) { paragraph = []; nested = false; text.push(''); continue; }
+    const inner = line.length <= headingLimit * 2 ? line.replace(containerPrefix, '') : '';
+    const hashes = atx.exec(inner);
+    if (hashes) {
+      heading(inner.trimStart(), hashes[1].length, text.length);
+      text.push(lineText(line));
+      paragraph = []; nested = false;
+      continue;
+    }
+    const under = underline.exec(line);
+    if (under && paragraph.length && !nested) {
+      heading(paragraph.map(at => lines[at]).join('\n') + '\n' + line, under[1][0] === '=' ? 1 : 2, text.length - paragraph.length);
+      paragraph = [];
+      continue;
+    }
+    if (container.test(line)) nested = true;
+    else if (!nested) {
+      if (glossary && !paragraph.length) { const term = glossaryTerm.exec(line); if (term) terms.push({ term: term[1].trim(), anchor: headings.at(-1)?.anchor ?? null }); }
+      paragraph.push(index);
+    }
+    text.push(lineText(line));
   }
-  return terms;
+  const first = headings.find(item => item.depth === 1 && item.text);
+  const title = (typeof metadata?.title === 'string' && metadata.title.trim()) || first?.text || path.posix.basename(relative);
+  // The title's own heading is the title, not text.
+  if (first && fold(first.text) === fold(title)) text[first.line] = '';
+  return {
+    metadata, title, headings: headings.filter(item => item.text).map(({ text, anchor }) => ({ text, anchor })), terms: glossary ? terms : undefined,
+    text: text.join('\n').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim(),
+  };
 }
 
 function parseFile(relative: string, source: string): Parsed {
-  const text = source.replace(/^﻿/, '');
+  const text = source.replace(/^\uFEFF/, '');
   if (/\.puml$/i.test(relative)) {
     const fallback = path.posix.basename(relative).replace(/\.[^.]*$/, '');
     try {
@@ -182,14 +256,7 @@ function parseFile(relative: string, source: string): Parsed {
   }
   let metadata: Record<string, unknown> | null = null;
   try { metadata = parseFrontmatter(text, { entryLists: ['steps'] }); } catch { /* A header that does not parse reads as none. */ }
-  const tree = parseMarkdown(markdownBody(text));
-  const anchors = documentAnchors(tree);
-  const headings = [...anchors].map(([node, anchor]) => ({ node, text: headingText(node).trim(), anchor })).filter(heading => heading.text);
-  const first = headings.find(heading => heading.node.depth === 1);
-  const title = (typeof metadata?.title === 'string' && metadata.title.trim()) || first?.text || path.posix.basename(relative);
-  const parsed: Parsed = { metadata, title, headings: headings.map(({ text, anchor }) => ({ text, anchor })), text: plainText(tree, first && fold(first.text) === fold(title) ? first.node : undefined) };
-  if (/(^|\/)context\.md$/i.test(relative)) parsed.terms = glossaryTerms(tree, anchors as Map<Nodes, string>);
-  return parsed;
+  return readMarkdown(relative, text, metadata);
 }
 
 /** The Markdown and diagram files of a planning folder, with their sizes and times. */
@@ -199,7 +266,11 @@ async function listFiles(root: string, relative = ''): Promise<{ relative: strin
   await Promise.all(entries.map(async entry => {
     if (entry.name.startsWith('.') || entry.isSymbolicLink()) return;
     const child = relative ? relative + '/' + entry.name : entry.name;
-    if (entry.isDirectory()) { if (!skippedFolders.has(entry.name.toLowerCase())) result.push(...await listFiles(root, child)); return; }
+    if (entry.isDirectory()) {
+      const evidence = /^(?:active|archive)\/[^/]+\/evidence$/.test(child);
+      if (!skippedFolders.has(entry.name) && !evidence) result.push(...await listFiles(root, child));
+      return;
+    }
     if (!entry.isFile() || !(/\.(md|puml)$/i.test(entry.name) || child === 'planning.json')) return;
     const info = await stat(path.join(root, child)).catch(() => null);
     if (info) result.push({ relative: child, size: info.size, mtime: info.mtimeMs });
@@ -221,20 +292,33 @@ export class PlanningSearch {
   readonly root: string;
   private files = new Map<string, FileRecord>();
   private entries: Entry[] = [];
+  /** No planning.json was found (or the folder has not been read yet): nothing is found in it. */
+  private missing = true;
   private stale = true;
   private checked = 0;
   private refreshing: Promise<void> | null = null;
+  private refreshStarted = 0;
   constructor(root: string) { this.root = root; }
 
   /** Something in the folder changed: the next search looks again. */
   invalidate() { this.stale = true; }
 
-  /** Everything in the folder that matches, unordered; the project itself under `name`. */
-  async search(query: SearchQuery, name: string): Promise<RankedHit[]> {
+  /**
+   * Everything in the folder that matches, unordered; the project itself under `name`. A search waits
+   * at most `wait` ms for the folder to be read again (a folder on a share that stopped answering),
+   * then answers from what it read before, if anything; one that has been read for longer already is
+   * not waited for again.
+   */
+  async search(query: SearchQuery, name: string, wait = Number.POSITIVE_INFINITY): Promise<RankedHit[]> {
     while (this.stale || Date.now() - this.checked >= trusted) {
-      this.refreshing ??= this.refresh().finally(() => { this.refreshing = null; });
-      await this.refreshing;
+      if (!this.refreshing) {
+        this.refreshStarted = Date.now();
+        this.refreshing = this.refresh().finally(() => { this.refreshing = null; });
+      }
+      const left = this.refreshStarted + wait - Date.now();
+      if (left <= 0 || !await within(this.refreshing, left)) break;
     }
+    if (this.missing) return [];
     const hits: RankedHit[] = [];
     const project: Entry = { kind: 'project', title: name, names: [fold(name)], fields: [], body: null, number: null, work: null, path: null, anchor: null, element: null, changed: Math.max(0, ...[...this.files.values()].map(file => file.mtime)) };
     for (const entry of [project, ...this.entries]) { const hit = matchEntry(entry, query); if (hit) hits.push(hit); }
@@ -246,7 +330,7 @@ export class PlanningSearch {
     this.stale = false;
     const started = Date.now();
     try {
-      const listed = await listFiles(this.root);
+      const listed = await this.list();
       const files = new Map<string, FileRecord>();
       let changed = listed.length !== this.files.size;
       await inTurns(listed, 16, async file => {
@@ -256,21 +340,35 @@ export class PlanningSearch {
         let parsed: Parsed = {};
         if (file.relative !== 'planning.json' && file.size <= searchFileLimit) {
           try { parsed = parseFile(file.relative, await readFile(path.join(this.root, file.relative), 'utf8')); } catch { /* Gone or unreadable: known by its name. */ }
+          // Give the thread back between files.
+          await new Promise(resolve => setImmediate(resolve));
         }
         files.set(file.relative, { size: file.size, mtime: file.mtime, parsed });
       });
       if (changed) {
         let registry: { work_items?: unknown } | null = null;
-        try { registry = JSON.parse((await readFile(path.join(this.root, 'planning.json'), 'utf8')).replace(/^﻿/, '')); } catch { /* No work items then. */ }
+        try { registry = JSON.parse((await readFile(path.join(this.root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, '')); } catch { /* No work items then. */ }
         this.entries = gather(files, registry);
       }
       this.files = files;
+      this.missing = !files.has('planning.json');
     } catch {
       this.files = new Map();
       this.entries = [];
+      this.missing = true;
     }
     this.checked = started;
   }
+  /** The folder's files to index (tests make it slow). */
+  protected list() { return listFiles(this.root); }
+}
+
+/** Whether a promise settles within `ms`. */
+async function within(pending: Promise<unknown>, ms: number): Promise<boolean> {
+  if (!Number.isFinite(ms)) return pending.then(() => true, () => true);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), ms); timer.unref?.(); });
+  try { return await Promise.race([pending.then(() => true, () => true), late]); } finally { clearTimeout(timer); }
 }
 
 /** The index's entries from its files and registry. */
@@ -291,7 +389,7 @@ function gather(files: Map<string, FileRecord>, registry: { work_items?: unknown
     const number = /(\d+)$/.exec(item.id)?.[1] ?? null;
     const summary = text(metadata?.summary);
     entries.push({
-      ...base, kind: 'plan', title, names: [fold(title)], fields: [...summary ? [field(summary)] : [], ...number === null ? [] : [field(number)]], number: number === null ? null : Number(number),
+      ...base, kind: 'plan', title, names: [fold(title)], fields: [...summary ? [field(summary)] : [], ...number === null ? [] : [field(number, 2)]], number: number === null ? null : Number(number),
       work: item.id, path: item.plan, changed: plan?.mtime ?? 0,
     });
     const steps = ledger?.parsed.metadata?.steps;
@@ -317,7 +415,7 @@ function gather(files: Map<string, FileRecord>, registry: { work_items?: unknown
     // A plan is found as its work item; its text and headings are found here.
     const isPlan = plans.has(sameKey(relative));
     const shown = title ?? name;
-    entries.push({ ...base, ...at, kind: 'document', title: shown, names: [fold(shown)], fields: isPlan ? [] : [field(relative)], elsewhere: isPlan, body: file.parsed.text ? field(file.parsed.text) : null });
+    entries.push({ ...base, ...at, kind: 'document', title: shown, names: [fold(shown)], fields: isPlan ? [] : [field(relative, 2)], elsewhere: isPlan, body: file.parsed.text ? field(file.parsed.text) : null });
     const titled = fold(shown);
     for (const heading of headings ?? []) {
       if (fold(heading.text) === titled) continue;

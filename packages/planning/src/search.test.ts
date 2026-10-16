@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { compareHits, fold, PlanningSearch, searchFileLimit, searchQuery, snippetOf, type RankedHit } from './search.ts';
+import { compareHits, fold, PlanningSearch, readMarkdown, searchFileLimit, searchQuery, snippetOf, type RankedHit } from './search.ts';
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-search-')));
@@ -112,7 +112,87 @@ test('matching folds case and accents in place, and snippets are short passages 
   assert.deepEqual(searchQuery('#0023'), { text: '0023', words: ['0023'], number: 23 });
   assert.equal(searchQuery(' # '), null);
   const long = 'Lorem ipsum dolor sit amet. '.repeat(10) + 'The flamingo stands on one leg.\n\nAnother line. ' + 'Consectetur adipiscing elit. '.repeat(10);
-  const snippet = snippetOf({ text: long, folded: fold(long) }, ['flamingo'])!;
+  const snippet = snippetOf({ text: long, folded: fold(long), minimum: 1 }, ['flamingo'])!;
   assert.match(snippet, /^….*flamingo stands.*…$/);
   assert.ok(snippet.length <= 125 && !snippet.includes('\n'), snippet);
+});
+
+test('headings read line by line have the anchors the readers give them', async () => {
+  const { readdirSync, readFileSync, statSync } = await import('node:fs');
+  const { documentAnchors, markdownBody, parseMarkdown } = await import('./headings.ts');
+  const tricky = [
+    '# Title', '', '## The `code` and *emphasis*', '', '## A [link](https://example.test) and [a reference][ref]', '',
+    '```md', '# Not a heading', '```', '', 'Setext heading', '==============', '', 'A paragraph', 'over two lines', '---', '',
+    '- a list item', '---', '', '> ## In a quote', '', '## Closed ##', '', '## Outcome', '', '## Outcome', '', '#NoSpace', '',
+    '    # Indented code', '', '## ![image](x.png) Picture', '', '[ref]: https://example.test',
+  ].join('\n');
+  const fixture = path.resolve(import.meta.dirname, '../../../app/e2e/fixtures/planning');
+  const files = (function walk(folder: string): string[] {
+    return readdirSync(folder).flatMap(name => { const full = path.join(folder, name); return statSync(full).isDirectory() ? walk(full) : /\.md$/.test(name) ? [full] : []; });
+  })(fixture);
+  for (const [name, source] of [['tricky.md', tricky], ...files.map(file => [path.relative(fixture, file), readFileSync(file, 'utf8')])]) {
+    const expected = [...documentAnchors(parseMarkdown(markdownBody(source))).values()];
+    const read = readMarkdown(name, source, null).headings!.map(heading => heading.anchor);
+    assert.deepEqual(read, expected, name);
+  }
+});
+
+test('indexing takes time linear in a file\'s size and gives the thread back between files', async t => {
+  const root = temporary(t);
+  planningFolder(root);
+  // Files that take a Markdown parser minutes: a large table, quotes nested deep, unclosed links.
+  write(path.join(root, 'knowledge/table.md'), '# Table\n\n| a | b |\n|---|---|\n' + '| cell | `x` |\n'.repeat(130_000));
+  write(path.join(root, 'knowledge/quotes.md'), '# Quotes\n\n' + Array.from({ length: 1000 }, (_, depth) => '>'.repeat(depth) + ' line').join('\n') + '\n');
+  write(path.join(root, 'knowledge/links.md'), '# Links\n\n' + '[a]('.repeat(250_000) + '\n');
+  write(path.join(root, 'knowledge/tags.md'), '# Tags\n\n' + '<a'.repeat(400_000) + '\n');
+  let gap = 0, last = Date.now();
+  const timer = setInterval(() => { gap = Math.max(gap, Date.now() - last); last = Date.now(); }, 10);
+  const started = Date.now();
+  try {
+    const hits = await new PlanningSearch(root).search(searchQuery('quotes')!, 'Shop');
+    assert.ok(hits.some(hit => hit.title === 'Quotes'));
+  } finally { clearInterval(timer); }
+  assert.ok(Date.now() - started < 5000, `indexed in ${Date.now() - started} ms`);
+  assert.ok(gap < 1000, `the thread was held for ${gap} ms at most`);
+});
+
+test('across kinds, exact and prefix titles rank together: a plan before headings named exactly so', async t => {
+  const root = temporary(t);
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Shop', repositories: [], work_items: [{ id: 'work-0003', path: 'active/0003-design', current_plan: 'active/0003-design/plan.md' }] }));
+  write(path.join(root, 'active/0003-design/plan.md'), '---\nkind: plan\ntitle: Design system tokens\n---\n\n# Design system tokens\n');
+  for (let index = 0; index < 60; index++) write(path.join(root, `knowledge/note-${index}.md`), `# Note ${index}\n\n## Design\n\nText.\n`);
+  write(path.join(root, 'knowledge/build/built.md'), '# Built notes\n');
+  write(path.join(root, 'knowledge/Cafe\u0301.md'), '# Cafe\u0301 menu\n');
+  const index = new PlanningSearch(root);
+  const hits = (await index.search(searchQuery('design')!, 'Shop')).sort(compareHits);
+  assert.deepEqual([hits[0].kind, hits[0].title], ['plan', 'Design system tokens']);
+  assert.ok(hits.slice(1, 61).every(hit => hit.kind === 'heading' && hit.title === 'Design'));
+  assert.deepEqual((await index.search(searchQuery('built')!, 'Shop')).map(hit => hit.path), ['knowledge/build/built.md'], 'a folder named build is read');
+  assert.deepEqual((await index.search(searchQuery('café')!, 'Shop')).map(hit => hit.title), ['Caf\u00e9 menu'], 'a decomposed title is composed');
+  assert.deepEqual((await index.search(searchQuery('#3')!, 'Shop')).sort(compareHits).slice(0, 1).map(hit => [hit.kind, hit.tier]), [['plan', 0]], 'a plan by its number');
+  write(path.join(root, 'knowledge/v2/readme.md'), '# Readme\n');
+  index.invalidate();
+  assert.ok(!(await index.search(searchQuery('#2')!, 'Shop')).some(hit => hit.path === 'knowledge/v2/readme.md'), 'a one-character word does not match paths');
+  assert.ok((await index.search(searchQuery('v2')!, 'Shop')).some(hit => hit.path === 'knowledge/v2/readme.md' && hit.tier === 4), 'longer words do');
+});
+
+test('a folder that takes long to read is waited for a while, then answered from what was read before', async t => {
+  const root = temporary(t);
+  planningFolder(root);
+  let slow = false;
+  class Slow extends PlanningSearch {
+    protected override list() { return slow ? new Promise<never>(() => undefined) : super.list(); }
+  }
+  const index = new Slow(root);
+  assert.ok((await index.search(searchQuery('coupons')!, 'Shop', 1000)).length);
+  slow = true;
+  index.invalidate();
+  let started = Date.now();
+  assert.deepEqual((await index.search(searchQuery('coupons')!, 'Shop', 200)).map(hit => hit.kind).sort(), ['plan'], 'the last read');
+  assert.ok(Date.now() - started >= 190 && Date.now() - started < 1000);
+  started = Date.now();
+  await index.search(searchQuery('coupons')!, 'Shop', 200);
+  assert.ok(Date.now() - started < 100, 'a read that is late already is not waited for again');
+  const never = new Slow(root);
+  assert.deepEqual(await never.search(searchQuery('coupons')!, 'Shop', 100), [], 'a folder never read finds nothing');
 });
