@@ -396,6 +396,25 @@ test('a project whose planning.json cannot be read is listed without a summary',
   assert.deepEqual(listed.map(project => [project.name, project.summary === null]).sort(), [['Northwind', false], ['broken', true]]);
 });
 
+test('the project list has each work item\'s step, completion and statistics from the home database\'s reports', async t => {
+  const { host, origin, data } = await start(t);
+  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
+  await owner.connection.request('projects.list', {});
+  const project = host.database.projectByFolder(path.join(data, 'planning', 'planning'))!;
+  const measured = (since: string, agentMs: number, output: number) => ({ since, agentMs, models: [{ model: 'claude-opus', agentMs, input: 0, cacheRead: 0, cacheWrite: 0, output }] });
+  insertReport(host.database, project.id, 'work-0001', createReport({ model: 'claude-opus', session: 's1', stage: 'planning', at: new Date('2026-10-01T10:00:00Z'), measured: measured('2026-10-01T09:00:00.000Z', 3_600_000, 1000) }));
+  insertReport(host.database, project.id, 'work-0001', createReport({ model: 'claude-sonnet', session: 's2', stage: 'implementation', at: new Date('2026-10-02T10:00:00Z'), measured: { ...measured('2026-10-02T09:30:00.000Z', 1_800_000, 500), models: [{ model: 'claude-sonnet', agentMs: 1_800_000, input: 0, cacheRead: 0, cacheWrite: 0, output: 500 }] } }));
+  const summary = (await projectNamed(owner.connection)).summary!;
+  const work = (id: string) => [...summary.active, ...summary.closed].find(item => item.id === id)!;
+  assert.deepEqual(work('work-0001').step, { title: 'Add authoriseWithToken to the acquirer gateway, with the challenge_required path (shop#58)', status: 'doing', phase: 'implementation' });
+  assert.deepEqual(work('work-0001').statistics, {
+    agentMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
+    subagents: 0, lastReport: '2026-10-02T10:00:00.000Z',
+  });
+  assert.deepEqual([work('work-0002').statistics, work('work-0003').step, work('work-0001').completed], [null, null, null], 'no reports, no steps (a ledger from before steps), open');
+  assert.equal(work('work-0004').completed, '2026-09-24');
+});
+
 test('plan and ledger edits in a project no window has open reach the project list, once they settle', async t => {
   const { host, origin, planning } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);

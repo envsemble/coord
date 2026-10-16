@@ -654,10 +654,9 @@ export class Host {
     const live = this.readLiveWork();
     return Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
   }
-  /** What the hub shows of a project's plans: from its planning folder, with the work agents are working on now. */
+  /** What the hub shows of a project's plans: from its planning folder and its reports, with the work agents are working on now. */
   private async summaryOf(row: ProjectRow, live: ProjectSummary['live']): Promise<ProjectSummary | null> {
-    // TODO(work-0023 amendment): each work item's step, completion and statistics.
-    try { const summary = await projectSummary(row.folder); const brief = (work: (typeof summary.active)[number]) => ({ step: null, completed: null, statistics: null, ...work }); return { ...summary, active: summary.active.map(brief), closed: summary.closed.map(brief), live }; } catch { return null; }
+    try { return { ...await projectSummary(row.folder, { database: this.database, projectId: row.id }), live }; } catch { return null; }
   }
   /** The work agents are working on now, by project row, as the hooks record it; none when it cannot be read. */
   private readLiveWork() {

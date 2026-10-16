@@ -1,13 +1,16 @@
 // What the app's project list says about a project, read from its planning folder: the repositories
-// it plans for, its work (each item's title, summary, steps, last change and where it stands: active
-// work blocked, being implemented, a draft plan or otherwise, and closed work with how it ended), and
-// when the folder last changed. It reads the registry and the headers of plans and ledgers only, and
-// asks Git for the last commit. A registry that cannot be read is an error, which the list shows as
-// a project it could not read; anything unreadable within it counts as nothing.
+// it plans for, its work (each item's title, summary, steps and the step being worked on, last change
+// and where it stands: active work blocked, being implemented, a draft plan or otherwise, and closed
+// work with how and when it ended), what agents spent on each item, and when the folder last changed.
+// It reads the registry and the headers of plans and ledgers only, the project's reports in the home
+// database at once, and asks Git for the last commit. A registry that cannot be read is an error,
+// which the list shows as a project it could not read; anything unreadable within it counts as nothing.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from './check.ts';
+import type { HomeDatabase } from './database.ts';
 import { runProgram } from './run.ts';
+import { storedReports, summarizeReports, type StatisticsReport } from './statistics.ts';
 
 /**
  * Where a work item stands, as the app's status decides it: blocked first, then implementing, then a
@@ -28,6 +31,23 @@ export interface ProjectWork {
   updated: string | null;
   /** How closed work ended: superseded or abandoned (the plan's design_status), else complete; null while open. */
   outcome: 'complete' | 'superseded' | 'abandoned' | null;
+  /** The step being worked on (the ledger's first `doing`), else the next (its first `todo`), with its phase; null without one. */
+  step: { title: string; status: 'doing' | 'todo'; phase: 'planning' | 'implementation' } | null;
+  /** The plan's `completed_at`. */
+  completed: string | null;
+  /** What agents spent on it, from its reports in the home database; null without reports. */
+  statistics: ProjectWorkStatistics | null;
+}
+/**
+ * A work item's statistics in brief, counted as the plan page counts them (see summarizeReports):
+ * agent time (measured and estimated), tokens, the main model and how many others took part, the
+ * planning and implementation stages (reports from before stages count in the totals only),
+ * subagents and the last report. Plan revisions need Git, so they are left out.
+ */
+export interface ProjectWorkStatistics {
+  agentMs: number; tokens: number | null; primaryModel: string | null; otherModels: number;
+  planning: { agentMs: number; tokens: number | null }; implementation: { agentMs: number; tokens: number | null };
+  subagents: number; lastReport: string | null;
 }
 export interface ProjectSummary {
   /** The IDs of the repositories it plans for, without the planning folder's own entry. */
@@ -51,8 +71,30 @@ const inside = (root: string, relative: unknown) =>
   typeof relative === 'string' && relative && !relative.includes('\\') && !relative.split('/').includes('..') ? path.join(root, ...relative.split('/')) : null;
 const text = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
 
-/** A work item from its registry entry, plan header and ledger header. */
-async function workOf(root: string, entry: { id: string; path: string; title?: unknown; current_plan?: unknown }, closed: boolean): Promise<ProjectWork> {
+/** A work item's reports in brief; null without any. */
+export function workStatisticsBrief(reports: StatisticsReport[]): ProjectWorkStatistics | null {
+  if (!reports.length) return null;
+  const summary = summarizeReports(reports);
+  const stage = (usage: { agentMs: number; tokens: number | null }) => ({ agentMs: usage.agentMs, tokens: usage.tokens });
+  // Other models as the plan page lists them: those that did anything at all.
+  const others = summary.models.filter(model => model.model !== summary.primaryModel && (model.agentMs > 0 || (model.tokens ?? 0) > 0 || model.reports > 0));
+  return {
+    agentMs: summary.agentMs, tokens: summary.tokens, primaryModel: summary.primaryModel, otherModels: others.length,
+    planning: stage(summary.stages.planning), implementation: stage(summary.stages.implementation),
+    subagents: summary.subagents.count, lastReport: summary.lastReport,
+  };
+}
+
+type Step = { title?: unknown; status?: unknown; phase?: unknown };
+/** The first step being worked on, else the first to do. */
+function currentStep(steps: Step[]): ProjectWork['step'] {
+  const titled = steps.filter(step => text(step?.title));
+  const step = titled.find(item => item.status === 'doing') ?? titled.find(item => item.status === 'todo');
+  return step ? { title: text(step.title)!, status: step.status as 'doing' | 'todo', phase: step.phase === 'planning' ? 'planning' : 'implementation' } : null;
+}
+
+/** A work item from its registry entry, plan header, ledger header and reports. */
+async function workOf(root: string, entry: { id: string; path: string; title?: unknown; current_plan?: unknown }, closed: boolean, reports: StatisticsReport[]): Promise<ProjectWork> {
   const folder = inside(root, entry.path), plan = inside(root, entry.current_plan);
   const [ledger, planHeader] = await Promise.all([folder ? header(path.join(folder, 'ledger.md'), ['steps']) : null, plan ? header(plan) : null]);
   const blocked = closed ? null : text(ledger?.blocked);
@@ -60,25 +102,35 @@ async function workOf(root: string, entry: { id: string; path: string; title?: u
   const state: ProjectWorkState = closed ? 'closed' : blocked ? 'blocked' : implementation === 'in_progress' ? 'implementing'
     : !['partial', 'complete'].includes(String(implementation)) && design === 'draft' ? 'draft' : 'other';
   const outcome = !closed ? null : design === 'superseded' || design === 'abandoned' ? design : implementation === 'complete' ? 'complete' : null;
-  const steps = Array.isArray(ledger?.steps) ? (ledger.steps as { status?: unknown; phase?: unknown }[]) : null;
-  const counted = (list: { status?: unknown }[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
+  const steps = Array.isArray(ledger?.steps) ? (ledger.steps as Step[]) : null;
+  const counted = (list: Step[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
   return {
     id: entry.id, title: text(planHeader?.title) ?? text(entry.title) ?? entry.path.split('/').at(-1)!, state, blocked,
     summary: text(planHeader?.summary), steps: steps && { ...counted(steps), planning: counted(steps.filter(step => step?.phase === 'planning')) },
     updated: text(planHeader?.updated) ?? text(planHeader?.completed_at), outcome,
+    step: steps && currentStep(steps), completed: text(planHeader?.completed_at), statistics: workStatisticsBrief(reports),
   };
 }
 
-/** A planning folder's summary for the project list; throws when its planning.json cannot be read. */
-export async function projectSummary(root: string): Promise<ProjectSummary> {
+/**
+ * A planning folder's summary for the project list; throws when its planning.json cannot be read.
+ * With the home database and the project's row in it, each work item has its statistics; reports
+ * that cannot be read count as none.
+ */
+export async function projectSummary(root: string, options: { database?: HomeDatabase; projectId?: number } = {}): Promise<ProjectSummary> {
   const source = await readFile(path.join(root, 'planning.json'), 'utf8');
   const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { repositories?: unknown; work_items?: unknown } | null;
   if (!registry || typeof registry !== 'object' || Array.isArray(registry)) throw new Error('planning.json is not an object.');
   const repositories = (Array.isArray(registry.repositories) ? registry.repositories : [])
     .filter(entry => typeof entry?.id === 'string' && entry.path !== '.').map(entry => entry.id as string);
   const entries = (Array.isArray(registry.work_items) ? registry.work_items : []).filter(entry => typeof entry?.id === 'string' && typeof entry.path === 'string');
+  // Every work item's reports in one query.
+  let reports = new Map<string, StatisticsReport[]>();
+  if (options.database && options.projectId !== undefined) {
+    try { reports = storedReports(options.database, options.projectId); } catch { /* No statistics then. */ }
+  }
   const [active, closed] = await Promise.all(['active/', 'archive/'].map(location =>
-    Promise.all(entries.filter(entry => entry.path.startsWith(location)).map(entry => workOf(root, entry, location === 'archive/')))));
+    Promise.all(entries.filter(entry => entry.path.startsWith(location)).map(entry => workOf(root, entry, location === 'archive/', reports.get(entry.id) ?? [])))));
   // The latest change first; on the same day, the later registration.
   const number = (id: string) => Number(/[0-9]+$/.exec(id)?.[0] ?? 0);
   closed.sort((a, b) => (b.updated ?? '').localeCompare(a.updated ?? '') || number(b.id) - number(a.id));
