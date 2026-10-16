@@ -313,6 +313,13 @@ export function insertReport(database: HomeDatabase, projectId: number, workId: 
   });
 }
 
+/** A map's list under a key, made when there is none. */
+function listed<K, V>(map: Map<K, V[]>, key: K): V[] {
+  let list = map.get(key);
+  if (!list) map.set(key, list = []);
+  return list;
+}
+
 /** The reports recorded for a project's work items (all of them, or the ones given), by work item, oldest first. */
 export function storedReports(database: HomeDatabase, projectId: number, workIds?: string[]): Map<string, StatisticsReport[]> {
   const scope = workIds ? ' AND work_id IN (' + workIds.map(() => '?').join(',') + ')' : '';
@@ -323,11 +330,11 @@ export function storedReports(database: HomeDatabase, projectId: number, workIds
     const list = measuredIds.join(',');
     for (const row of database.db.prepare(`SELECT * FROM report_model WHERE report_id IN (${list}) ORDER BY id`).all() as Row[]) {
       const entry: MeasuredModel = { model: String(row.model), agentMs: Number(row.agent_ms), input: Number(row.input), cacheRead: Number(row.cache_read), cacheWrite: Number(row.cache_write), output: Number(row.output) };
-      models.set(Number(row.report_id), [...models.get(Number(row.report_id)) ?? [], entry]);
+      listed(models, Number(row.report_id)).push(entry);
     }
     for (const row of database.db.prepare(`SELECT * FROM report_subagent WHERE report_id IN (${list}) ORDER BY id`).all() as Row[]) {
       const entry: MeasuredSubagent = { id: String(row.agent), model: (row.model as string | null) ?? null, agentMs: Number(row.agent_ms), tokens: Number(row.tokens) };
-      agents.set(Number(row.report_id), [...agents.get(Number(row.report_id)) ?? [], entry]);
+      listed(agents, Number(row.report_id)).push(entry);
     }
   }
   const result = new Map<string, StatisticsReport[]>();
@@ -341,7 +348,7 @@ export function storedReports(database: HomeDatabase, projectId: number, workIds
       if (helpers?.length) report.measured.subagents = { count: helpers.length, agentMs: helpers.reduce((total, agent) => total + agent.agentMs, 0), tokens: helpers.reduce((total, agent) => total + agent.tokens, 0), agents: helpers };
     }
     const workId = String(row.work_id);
-    result.set(workId, [...result.get(workId) ?? [], report]);
+    listed(result, workId).push(report);
   }
   return result;
 }
