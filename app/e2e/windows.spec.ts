@@ -2,7 +2,7 @@ import { renameSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { addProject, chooseMenu, close, expectHub, launch, launchProject, openPlan, openProjects, planningFixture, projectAction, projectHome, projectRow, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
+import { addProject, chooseMenu, close, expectHub, filterHub, launch, launchProject, openPlan, openProjects, planningFixture, projectAction, projectHome, projectRow, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
@@ -58,7 +58,7 @@ test('a plan of a project whose folder is not a planning folder at the start sho
   homes.push(home.dataDirectory);
   const coord = addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launchProject(home);
-  await launched.window.getByRole('searchbox', { name: 'Search plans' }).fill('coord notifications');
+  await filterHub(launched.window, 'Coord');
   await openPlan(launched.window, 'Customer order notifications');
   await launched.window.waitForTimeout(600);
   await close(launched);
@@ -76,7 +76,7 @@ test('a plan of a project whose folder is not a planning folder at the start sho
 
 /** Open a plan of the project Shop from the hub, and see it read from its folder. */
 async function openShopPlan(window: Page, title: string) {
-  await window.getByRole('searchbox', { name: 'Search plans' }).fill('shop ' + title);
+  if (!await window.locator('.hub h1', { hasText: 'Shop' }).count()) await filterHub(window, 'Shop');
   await openPlan(window, title);
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
   await expect(window.locator('.reader .prose')).toContainText('Outcome');
@@ -117,7 +117,7 @@ test('a project moved into the home moves along in every window; a refused move 
   await expect(second.locator('.work-header h1')).toHaveText('Customer order notifications');
   await expect(second.locator('.reader .prose')).toContainText('Outcome');
   await second.keyboard.press('Alt+ArrowLeft');
-  await expectHub(second);
+  await expectHub(second, 'Shop');
   await second.keyboard.press('Alt+ArrowRight');
   await expect(second.locator('.work-header h1')).toHaveText('Customer order notifications');
   await expect(second.locator('.work-main .breadcrumb')).toContainText('Shop');

@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
-  addProject, applicationMenu, chooseMenu, close, expectHub, expectProjects, goHome, hubRows, launch, launchProject, menuButton, openPlan, openProjects, pageScroll,
-  projectAction, projectHome, projectRow, removeDirectory, showFiles, temporaryDirectory, type Launched,
+  addProject, applicationMenu, chooseMenu, close, expectHub, expectProjects, fileMenu, filterHub, goHome, hubRows, launch, launchProject, openPlan, openProjects, pageScroll,
+  listedProjects, projectAction, projectHome, projectRow, removeDirectory, searchPopup, section, showFiles, temporaryDirectory, type Launched,
 } from './app';
 
 let launched: Launched | undefined;
@@ -52,28 +52,49 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   await expect(window.getByRole('button', { name: 'Back', exact: true })).not.toHaveAttribute('aria-disabled', 'true');
 });
 
-test("the hub's search, project filter and state filter narrow its plans; the project filter is a place of its own", async () => {
+test("the hub's search field opens the search with what is typed and never filters the hub; the project and state filters narrow its plans", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expect(hubRows(window)).toHaveCount(6);
-  const search = window.getByRole('searchbox', { name: 'Search plans' });
-  await search.fill('payment');
-  await expect(hubRows(window)).toHaveCount(2);
-  await search.fill('#0003 coord');
-  await expect(hubRows(window)).toHaveCount(1);
-  await expect(hubRows(window).locator('.hub-row-project')).toHaveText('Coord');
-  await search.fill('nothing like this');
-  await expect(window.getByRole('heading', { name: 'No plans match' })).toBeVisible();
-  await search.fill('');
+  // The title bar has no search of its own on the hub: the hub's field is the search.
+  await expect(window.locator('.env-title-bar').getByRole('button', { name: 'Search', exact: true })).toHaveCount(0);
+  const field = window.getByRole('searchbox', { name: 'Search' });
+  const popup = searchPopup(window);
+  const input = popup.getByRole('combobox');
+  // A click opens the search; what is typed goes there, and the hub's list stays as it is.
+  await field.click();
+  await expect(popup).toBeVisible();
+  await window.keyboard.type('payment');
+  await expect(input).toHaveValue('payment');
+  await expect(popup.getByRole('option', { name: /^Saved payment methods/ })).toHaveCount(2);
+  await expect(hubRows(window)).toHaveCount(6);
+  await window.keyboard.press('Escape');
+  await expect(popup).toHaveCount(0);
+  // Focus back in the field does not open it again; typing there does, carrying what was typed over.
+  await expect(field).toBeFocused();
+  await window.waitForTimeout(600);
+  await expect(popup).toHaveCount(0);
+  await expect(field).toHaveValue('');
+  await window.keyboard.type('fulfil coord');
+  await expect(input).toHaveValue('fulfil coord');
+  await expect(hubRows(window)).toHaveCount(6);
+  await popup.getByRole('option', { name: /Order fulfilment model.*Coord/ }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  await expect(window.locator('.work-main .breadcrumb')).toContainText('Coord');
+  // Focusing the field from the keyboard opens it too.
+  await goHome(window);
+  await window.getByRole('searchbox', { name: 'Search' }).focus();
+  await expect(popup).toBeVisible();
+  await expect(input).toHaveValue('');
+  await window.keyboard.press('Escape');
+  await expect(hubRows(window)).toHaveCount(6);
   // The project filter: All projects by default.
   const filter = window.getByRole('combobox', { name: 'Project' });
   await expect(filter).toHaveText(/All projects/);
-  await filter.click();
-  await window.getByRole('option', { name: 'Coord' }).click();
-  await expectHub(window, 'Coord');
+  await filterHub(window, 'Coord');
   await expect(hubRows(window)).toHaveCount(3);
   await expect(hubRows(window).locator('.hub-row-project')).toHaveText(['Coord', 'Coord', 'Coord']);
   // Back and forward set it.
@@ -91,7 +112,7 @@ test("the hub's search, project filter and state filter narrow its plans; the pr
   await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row')).toContainText('Inventory reservations');
   await state.getByRole('radio', { name: /^All/ }).click();
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
-  // The search and state filter stay while the window shows something else.
+  // The state filter stays while the window shows something else.
   await openPlan(window, 'Saved payment methods');
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(state.getByRole('radio', { name: /^All/ })).toHaveAttribute('aria-checked', 'true');
@@ -111,7 +132,7 @@ test("a plan opens from the hub with its summary, its side column and its ledger
   // The hub shows the summary on one line, and the steps done with the planning ones in their colour.
   const row = hubRows(window, 'Saved payment methods');
   await expect(row.locator('.hub-row-summary')).toHaveText(summary);
-  await expect(row.locator('.hub-row-steps')).toHaveText('2/7');
+  await expect(row.locator('.hub-row-steps')).toHaveText('2 of 7');
   await expect(row.locator('.step-bar-planning-done')).toHaveCount(1);
   await openPlan(window, 'Saved payment methods');
   await expect(window.locator('.work-header .work-summary')).toHaveText(summary);
@@ -198,7 +219,7 @@ test('a window shows one place at a time, and shows it again at the next start',
   addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launch({ dataDirectory: home.dataDirectory });
   let { window } = launched;
-  await window.getByRole('searchbox', { name: 'Search plans' }).fill('coord payment');
+  await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Coord');
   await window.locator('.about').getByRole('link', { name: 'Ledger' }).click();
@@ -382,44 +403,95 @@ test('a project gets and loses workspace folders on the Projects page', async ()
   await expect(dialog.getByRole('button', { name: 'Add' })).toBeDisabled();
 });
 
-test('the title bar holds the logo, back and forward, one menu, the computer, search, Files, record health and the theme', async () => {
-  launched = await launchProject();
+test('two rows at the top: the logo, back and forward, File, the computer, search, Files, record health and the theme; below them the sections with their counts', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  addProject(home.dataDirectory, 'coord', 'Coord');
+  launched = await launch({ dataDirectory: home.dataDirectory });
   const { window, app } = launched;
+  await expect(hubRows(window)).toHaveCount(6);
   const bar = window.locator('.env-title-bar');
-  await expect(window.getByRole('menubar')).toHaveCount(0);
-  const left = async (name: string) => (await bar.getByRole('button', { name, exact: true }).boundingBox())!.x;
-  const order = [await left('All plans'), await left('Back'), await left('Forward'), await left('Menu'), await left('Search'), await left('Files'), await left('Theme')];
+  // File is a word, not an icon; there is no other menu.
+  await expect(bar.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem')).toHaveText(['File']);
+  await expect(bar.getByRole('button', { name: 'Menu', exact: true })).toHaveCount(0);
+  await openPlan(window, 'Customer order notifications');
+  const left = async (name: string, role: 'button' | 'menuitem' = 'button') => (await bar.getByRole(role, { name, exact: true }).boundingBox())!.x;
+  const order = [await left('All plans'), await left('Back'), await left('Forward'), await left('File', 'menuitem'), await left('Search'), await left('Files'), await left('Theme')];
   expect(order).toEqual([...order].sort((a, b) => a - b));
   await expect(bar.getByRole('button', { name: /^Computer:/ })).toBeVisible();
   const regions = await window.evaluate(() => {
     const region = (element: Element | null) => element ? getComputedStyle(element).getPropertyValue('-webkit-app-region') : null;
-    return { bar: region(document.querySelector('.env-title-bar')), search: region(document.querySelector('.search-button')) };
+    return { bar: region(document.querySelector('.env-title-bar')), search: region(document.querySelector('.search-button')), sections: region(document.querySelector('.section-bar')), tab: region(document.querySelector('.section-tab')) };
   });
-  expect(regions).toEqual({ bar: 'drag', search: 'no-drag' });
-  // The one menu.
-  await menuButton(window).click();
-  const menu = window.getByRole('menu', { name: 'Menu' });
+  expect(regions).toEqual({ bar: 'drag', search: 'no-drag', sections: 'drag', tab: 'no-drag' });
+
+  // The second row, right below the first and compact: Plans with the open plans, Projects with the projects, Statistics.
+  const sections = window.getByRole('navigation', { name: 'Sections' });
+  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*6/, /^Projects\s*2/, /^Statistics$/]);
+  await expect(sections.getByRole('button', { name: 'Plans 6 open', exact: true })).toBeVisible();
+  await expect(sections.getByRole('button', { name: 'Projects 2 in all', exact: true })).toBeVisible();
+  const [top, below] = [(await bar.boundingBox())!, (await sections.boundingBox())!];
+  expect(Math.abs(top.y + top.height - below.y)).toBeLessThan(1);
+  expect(below.height).toBeLessThanOrEqual(48);
+  // A plan belongs to Plans; each section shows its page and is marked.
+  const current = sections.locator('[aria-current="page"]');
+  await expect(current).toHaveAttribute('data-section', 'plans');
+  await section(window, 'Projects').click();
+  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
+  await expect(current).toHaveAttribute('data-section', 'projects');
+  await section(window, 'Statistics').click();
+  await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
+  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(/Northwind/);
+  await expect(current).toHaveAttribute('data-section', 'statistics');
+  await section(window, 'Plans').click();
+  await expectHub(window);
+  await expect(current).toHaveAttribute('data-section', 'plans');
+  // The counts follow the projects: an archived project's plans leave Plans.
+  await openProjects(window);
+  await projectAction(window, 'Coord', 'Archive');
+  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*3/, /^Projects\s*2/, /^Statistics$/]);
+  await projectAction(window, 'Coord', 'Restore');
+  await expect(sections.locator('.section-tab').first()).toHaveText(/^Plans\s*6/);
+
+  // File holds the commands; Projects and Statistics are sections now.
+  await fileMenu(window).click();
+  const menu = window.getByRole('menu', { name: 'File' });
   await expect(menu.getByRole('menuitem')).toHaveText([
-    /^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'Projects', 'Statistics', 'Import Plan…', 'Connect to Another Atlas…', 'Remote Access…',
+    /^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Connect to Another Atlas…', 'Remote Access…',
     /^Zoom In/, /^Zoom Out/, /^Actual Size/, /^Full Screen\s*F11$/, 'Open Logs', 'About Atlas', 'Exit',
   ]);
-  for (const gone of ['Export Plan…', 'Close Tab', 'Close All Tabs', 'New Project…', 'Show Sidebar', 'Hide Sidebar']) await expect(menu.getByRole('menuitem', { name: gone })).toHaveCount(0);
+  for (const gone of ['Projects', 'Statistics', 'Export Plan…', 'Close Tab', 'Show Sidebar']) await expect(menu.getByRole('menuitem', { name: gone })).toHaveCount(0);
   await window.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
+  // Alt+F opens it from the keyboard, at its first item.
+  await window.keyboard.press('Alt+F');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /^New Window/ })).toBeFocused();
+  await window.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  // New Project… opens its dialog where the window is.
+  await chooseMenu(window, 'New Project…');
+  await expect(window.getByRole('dialog', { name: 'New project' })).toBeVisible();
+  await window.keyboard.press('Escape');
+  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
   await chooseMenu(window, 'About Atlas');
   await expect(window.getByRole('dialog', { name: 'Atlas' })).toBeVisible();
   await window.keyboard.press('Escape');
-  // Main's application menu keeps the shortcuts (and is the menu bar on macOS).
+  // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with the sections in View.
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   expect(items).toEqual([
-    ['&File', ['New &Window CmdOrCtrl+Shift+N', '&Projects', '&Statistics', '&Import Plan…', 'Co&nnect to Another Atlas…', 'Re&mote Access…', 'Close Win&dow CmdOrCtrl+Shift+W', 'E&xit']],
+    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Co&nnect to Another Atlas…', 'Re&mote Access…', 'Close Win&dow CmdOrCtrl+Shift+W', 'E&xit']],
     ['&Edit', ['Undo CommandOrControl+Z', 'Redo Control+Y', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
-    ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11']],
+    ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Projects', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11']],
     ['&Help', ['Open &Logs', '&About Atlas']],
   ]);
+  await applicationMenu(app, '&File', 'New &Project…');
+  await expect(window.getByRole('dialog', { name: 'New project' })).toBeVisible();
+  await window.keyboard.press('Escape');
   // The shortcuts: search, Files on a plan, back and forward.
+  await section(window, 'Plans').click();
   await window.keyboard.press('Control+P');
-  await expect(window.getByRole('dialog', { name: 'Quick open' })).toBeVisible();
+  await expect(searchPopup(window)).toBeVisible();
   await window.keyboard.press('Escape');
   await openPlan(window, 'Saved payment methods');
   await window.keyboard.press('Control+Shift+E');
@@ -428,30 +500,33 @@ test('the title bar holds the logo, back and forward, one menu, the computer, se
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Edit's keys act on the focused field.
-  const search = window.getByRole('searchbox', { name: 'Search plans' });
-  await search.fill('fulfil');
-  await search.selectText();
+  await window.keyboard.press('Control+P');
+  const input = searchPopup(window).getByRole('combobox');
+  await input.fill('fulfil');
+  await input.selectText();
   await window.keyboard.press('Control+C');
   await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe('fulfil');
+  await window.keyboard.press('Escape');
   // Projects and Statistics come from the application menu too.
-  await applicationMenu(app, '&File', '&Projects');
+  await applicationMenu(app, '&View', '&Projects');
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
-  await applicationMenu(app, '&File', '&Statistics');
+  await applicationMenu(app, '&View', 'S&tatistics');
   await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
 });
 
-test("quick open finds the plans of every active project, and the documents and diagrams of the open plan's project", async () => {
+test("the search finds the plans of every active project, and the documents and diagrams of the open plan's project, while the host finds nothing", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expect(hubRows(window).first()).toBeVisible();
-  const palette = window.getByRole('dialog', { name: 'Quick open' });
+  const palette = searchPopup(window);
   const input = palette.getByRole('combobox');
   await window.keyboard.press('Control+P');
   await input.fill('order fulfil');
   // Both projects' plans, each saying which project it is in; no documents from the hub.
+  await expect(palette.getByRole('group', { name: 'Plans' })).toBeVisible();
   await expect(palette.getByRole('option', { name: /^Order fulfilment model/ })).toHaveCount(2);
   await input.fill('payments-cons');
   await expect(palette.getByRole('option')).toHaveCount(0);
@@ -459,17 +534,160 @@ test("quick open finds the plans of every active project, and the documents and 
   await palette.getByRole('option', { name: /Order fulfilment model.*Coord/ }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Coord');
-  // On a plan, the documents and diagrams of its project are found too.
-  await window.keyboard.press('Control+P');
+  // On a plan, the title bar's search finds the documents and diagrams of its project too.
+  await window.locator('.env-title-bar').getByRole('button', { name: 'Search', exact: true }).click();
   await input.fill('reservation proposal');
   await expect(palette.getByRole('option').first()).toContainText('Inventory · reservation proposal');
+  await expect(palette.getByRole('group', { name: 'Diagrams' })).toBeVisible();
   await input.press('Enter');
   await expect(window.locator('.model-picker-title')).toHaveText('Inventory · reservation proposal');
   await window.keyboard.press('Control+P');
   await input.fill('payments-cons');
   await expect(palette.getByRole('option').first()).toContainText('payments-constraints.md');
+  await expect(palette.getByRole('group', { name: 'Documents' })).toBeVisible();
   await input.press('Escape');
   await expect(palette).toHaveCount(0);
+});
+
+test("the search shows the host's results grouped by kind with their project, work item and snippet, opens each where it is, and shows nothing stale", async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  addProject(home.dataDirectory, 'coord', 'Coord');
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  const { window, app } = launched;
+  await expect(hubRows(window).first()).toBeVisible();
+  const listed = await listedProjects(window);
+  const folderOf = (name: string) => listed.find(project => project.name === name)!.folderId;
+  const northwind = folderOf('Northwind'), coord = folderOf('Coord');
+  const result = (change: Record<string, unknown>) => ({ kind: 'plan', title: '', snippet: null, folderId: northwind, project: 'Northwind', work: null, path: null, anchor: null, element: null, ...change });
+  const results = [
+    result({ kind: 'element', title: 'Shipment', work: 'work-0002', path: 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', element: 'Shipment' }),
+    result({ kind: 'heading', title: 'Current checkout', snippet: 'card details are typed in again on every order', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: 'current-checkout' }),
+    result({ kind: 'document', title: 'Payments constraints', snippet: 'tokens only, never card numbers', path: 'knowledge/shop/payments-constraints.md' }),
+    result({ kind: 'step', title: 'Bounce and complaint webhook handling', work: 'work-0003', path: 'active/0003-customer-notifications/plan.md' }),
+    result({ kind: 'project', title: 'Coord', folderId: coord, project: 'Coord' }),
+  ];
+  // The host's search, stubbed: these results for any query; a query with "slow" in it answers late with a plan.
+  await app.evaluate(({ ipcMain }, stubbed) => {
+    const asked: string[] = [];
+    (globalThis as { asked?: string[] }).asked = asked;
+    ipcMain.removeHandler('search:query');
+    ipcMain.handle('search:query', async (_event, query: string) => {
+      asked.push(query);
+      if (query.includes('slow')) { await new Promise(resolve => setTimeout(resolve, 1500)); return { ok: true, value: [{ ...stubbed[0], kind: 'plan', title: 'Stale answer', work: 'work-0002', path: null, element: null }] }; }
+      return { ok: true, value: stubbed };
+    });
+  }, results);
+  const asked = () => app.evaluate(() => (globalThis as { asked?: string[] }).asked ?? []);
+  const palette = searchPopup(window);
+  const input = palette.getByRole('combobox');
+  const choose = async (title: string) => {
+    await window.keyboard.press('Control+P');
+    await input.fill('qqq');
+    await palette.getByRole('option', { name: new RegExp('^' + title) }).click();
+  };
+
+  // Typing asks once it pauses; the results come grouped by kind, each with its project, work item and snippet.
+  await window.keyboard.press('Control+P');
+  await input.pressSequentially('qqq');
+  await expect(palette.getByRole('option')).toHaveCount(5);
+  await expect.poll(asked).toEqual(['qqq']);
+  for (const group of ['Elements', 'Headings', 'Documents', 'Steps', 'Projects']) await expect(palette.getByRole('group', { name: group })).toHaveCount(1);
+  const heading = palette.getByRole('option', { name: /^Current checkout/ });
+  await expect(heading).toContainText('Northwind · #0001 Saved payment methods');
+  await expect(heading).toContainText('card details are typed in again on every order');
+  // The keyboard moves through them.
+  await input.press('ArrowDown');
+  await input.press('Enter');
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await expect(window.locator('.prose h2', { hasText: 'Current checkout' })).toBeInViewport();
+
+  // A diagram's element, a document, a plan at a step and a project.
+  await choose('Shipment');
+  await expect(window.locator('.model-picker-title')).toHaveText('Fulfilment · conceptual model');
+  await window.locator('.model-picker-button').hover();
+  await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Shipment');
+  await choose('Payments constraints');
+  await expect(window.locator('.reader-name')).toContainText('payments-constraints.md');
+  await choose('Bounce and complaint webhook handling');
+  await expect(window.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await choose('Coord');
+  await expectHub(window, 'Coord');
+
+  // An answer to an earlier query that comes after a later one's is not shown.
+  await window.keyboard.press('Control+P');
+  await input.fill('qqq slow');
+  await expect.poll(asked).toContain('qqq slow');
+  await input.fill('qqq fast');
+  await expect(palette.getByRole('option')).toHaveCount(5);
+  await window.waitForTimeout(2000);
+  await expect(palette.getByRole('option', { name: /^Stale answer/ })).toHaveCount(0);
+  await expect(palette.getByRole('option')).toHaveCount(5);
+  await input.press('Escape');
+});
+
+test('work in progress and blocked work get larger rows with their step and what agents spent; drafts their planning progress; closed work how it ended', async () => {
+  launched = await launchProject();
+  const { window, app } = launched;
+  // Blocked work says why, from its ledger.
+  const blocked = hubRows(window, 'Customer order notifications');
+  await expect(blocked).toHaveAttribute('data-size', 'large');
+  await expect(blocked.locator('.hub-row-blocked')).toContainText('Blocked: Mailcourier account approval');
+  await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-steps')).toHaveText('2 of 7');
+  await expect(hubRows(window, 'Order fulfilment model')).toHaveAttribute('data-size', 'standard');
+
+  // The project list with each plan's step and statistics, as the host gives them.
+  const listed = await listedProjects(window);
+  const summary = listed[0].summary!;
+  const statistics = { agentMs: 12_000_000, tokens: 1_250_000, primaryModel: 'claude-opus-5-5', otherModels: 2, planning: { agentMs: 3_600_000, tokens: 250_000 }, implementation: { agentMs: 8_400_000, tokens: 1_000_000 }, subagents: 3, lastReport: null };
+  const change = (id: string, values: Record<string, unknown>) => {
+    for (const list of [summary.active, summary.closed]) for (const work of list) if (work.id === id) Object.assign(work, values);
+  };
+  change('work-0001', { step: { title: 'Add authoriseWithToken to the acquirer gateway', status: 'doing', phase: 'implementation' }, statistics, steps: { done: 2, total: 7, planning: { done: 1, total: 1 } } });
+  change('work-0003', { step: { title: 'Enable the email channel', status: 'todo', phase: 'implementation' } });
+  change('work-0002', { steps: { done: 1, total: 3, planning: { done: 1, total: 3 } }, statistics: { ...statistics, otherModels: 0, subagents: 0 } });
+  change('work-0004', { completed: '2026-09-24', statistics });
+  summary.live = [{ workId: 'work-0001', since: new Date().toISOString() }];
+  await app.evaluate(({ ipcMain }, projects) => {
+    ipcMain.removeHandler('projects:list');
+    ipcMain.handle('projects:list', () => ({ ok: true, value: projects }));
+  }, listed);
+  // The hub lists the projects again as the window comes forward.
+  await window.evaluate(() => globalThis.dispatchEvent(new Event('focus')));
+
+  const row = hubRows(window, 'Saved payment methods');
+  await expect(row.locator('.hub-row-step')).toHaveText('Now: Add authoriseWithToken to the acquirer gateway');
+  await expect(row.locator('.hub-row-step')).toHaveAttribute('data-phase', 'implementation');
+  await expect(row.locator('.step-bar-planning-done')).toHaveCount(1);
+  await expect(row.locator('.step-bar-done')).toHaveCount(1);
+  await expect(row.locator('.hub-row-live')).toContainText('agent working');
+  const stats = row.locator('.hub-row-stats');
+  await expect(stats).toContainText('Claude Opus 5.5 +2');
+  await expect(stats).toContainText('3 h 20 min agent time (planning 1 h, implementation 2 h 20 min)');
+  await expect(stats).toContainText('3 subagents');
+  await expect(stats).toContainText(await window.evaluate(() => new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(1_250_000) + ' tokens'));
+  // Blocked work shows why in place of the step.
+  await expect(blocked.locator('.hub-row-blocked')).toBeVisible();
+  await expect(blocked.locator('.hub-row-step')).toHaveCount(0);
+  // A draft: its planning progress, model and time, in a smaller row.
+  const draft = hubRows(window, 'Order fulfilment model');
+  await expect(draft.locator('.hub-row-steps')).toHaveText('1 of 3');
+  await expect(draft.locator('.hub-row-stats')).toContainText('Claude Opus 5.5');
+  await expect(draft.locator('.hub-row-stats')).toContainText('3 h 20 min agent time');
+  await expect(draft.locator('.hub-row-stats')).not.toContainText('planning 1 h');
+  // Closed work: how it ended, when, and its totals.
+  await window.getByRole('radiogroup', { name: 'Plan state' }).getByRole('radio', { name: /^Closed/ }).click();
+  const closed = hubRows(window, 'Inventory reservations at checkout');
+  await expect(closed).toHaveAttribute('data-size', 'closed');
+  await expect(closed.locator('.hub-row-ended')).toContainText('Complete');
+  await expect(closed.locator('.hub-row-ended .muted')).toHaveAttribute('title', /2026|Sep/);
+  await expect(closed.locator('.hub-row-side')).toContainText('3 h 20 min');
+  // Rows, one per line, as wide as the list.
+  await window.getByRole('radiogroup', { name: 'Plan state' }).getByRole('radio', { name: /^Open/ }).click();
+  const boxes = await Promise.all((await hubRows(window).all()).map(item => item.boundingBox()));
+  const list = (await window.locator('.hub-list').first().boundingBox())!;
+  for (const box of boxes) expect(Math.abs(box!.width - list.width)).toBeLessThan(2);
+  expect(new Set(boxes.map(box => Math.round(box!.x))).size).toBe(1);
 });
 
 test('a long plan scrolls below the title bar, and each place keeps its position', async () => {

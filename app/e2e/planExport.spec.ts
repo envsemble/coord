@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type ElectronApplication } from '@playwright/test';
-import { addProject, chooseMenu, close, expectHub, goHome, hubRows, launchProject, openPlan, projectHome, removeDirectory, showFiles, temporaryDirectory, type Launched } from './app';
+import { addProject, chooseMenu, close, fileMenu, expectHub, goHome, hubRows, launchProject, openPlan, projectHome, removeDirectory, showFiles, temporaryDirectory, type Launched } from './app';
 
 let launched: Launched | undefined;
 let folder: string;
@@ -39,9 +39,9 @@ test('Import Plan… is in the menu; Export Plan… is on the plan page and on a
   const file = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.map(item => item.label));
   expect(file).toContain('&Import Plan…');
   expect(file).not.toContain('&Export Plan…');
-  await window.locator('.env-title-bar').getByRole('button', { name: 'Menu', exact: true }).click();
-  await expect(window.getByRole('menu', { name: 'Menu' }).getByRole('menuitem', { name: 'Import Plan…' })).toBeVisible();
-  await expect(window.getByRole('menu', { name: 'Menu' }).getByRole('menuitem', { name: 'Export Plan…' })).toHaveCount(0);
+  await fileMenu(window).click();
+  await expect(window.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Import Plan…' })).toBeVisible();
+  await expect(window.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Export Plan…' })).toHaveCount(0);
   await window.keyboard.press('Escape');
   await openPlan(window, 'Customer order notifications');
   await expect(window.locator('.work-header').getByRole('button', { name: 'Export Plan…' })).toBeVisible();

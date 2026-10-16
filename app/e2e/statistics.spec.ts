@@ -4,7 +4,7 @@
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, chooseMenu, close, goHome, launch, launchProject, openPlan, pageScroll, projectHome, removeDirectory, type Launched } from './app';
+import { addProject, close, filterHub, goHome, launch, launchProject, openPlan, pageScroll, projectHome, removeDirectory, section, type Launched } from './app';
 
 let launched: Launched | undefined;
 /** Numbers as the window formats them, whatever the system locale. */
@@ -12,14 +12,14 @@ const compact = (window: import('@playwright/test').Page, value: number) => wind
 const whole = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => number.toLocaleString(), value);
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
-/** The menu's Statistics page, of the project given or the one it chooses. */
+/** The Statistics section, of the project given or the one it chooses. */
 async function openStatistics(window: Page, project = 'Northwind') {
-  await chooseMenu(window, 'Statistics');
+  await section(window, 'Statistics').click();
   await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
   await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(new RegExp(project));
 }
 
-test('Statistics, from the menu, shows one project at a time: the project of the plan last open, else the first', async () => {
+test('Statistics, a section of its own, shows one project at a time: the project of the plan last open, else the first', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
@@ -37,7 +37,7 @@ test('Statistics, from the menu, shows one project at a time: the project of the
   await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(/Northwind/);
   // After a plan of Coord, Statistics shows Coord's.
   await goHome(window);
-  await window.getByRole('searchbox', { name: 'Search plans' }).fill('coord');
+  await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');
   await openStatistics(window, 'Coord');
   // A plan keeps its own statistics in its side column.
