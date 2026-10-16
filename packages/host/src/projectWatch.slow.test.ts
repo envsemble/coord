@@ -25,10 +25,10 @@ test('a project folder that cannot be watched yet is tried again, less often eac
   await until(() => warnings.length >= 2);
   const waits = warnings.map(detail => (detail as { retryIn: number }).retryIn);
   assert.ok(waits[1] > waits[0], 'the waits grow: ' + waits.join(', '));
-  // Once the folder is there, the next try watches it.
+  // Once the folder is there, the next try watches it (made at once, before any try can see half of it).
   mkdirSync(path.join(root, 'active', '0001-cart'), { recursive: true });
   writeFileSync(path.join(root, 'planning.json'), '{}');
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  await until(() => (watcher as unknown as { identity: string | null }).identity !== null);
   const before = changes;
   writeFileSync(path.join(root, 'active', '0001-cart', 'ledger.md'), '# Ledger\n');
   await until(() => changes > before);
