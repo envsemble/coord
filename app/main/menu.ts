@@ -13,9 +13,7 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
       label: '&File',
       submenu: [
         { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { manager.create(window()?.computer ?? null); } },
-        { type: 'separator' },
-        { label: '&Projects', click: () => manager.sendMenu('projects') },
-        { label: '&Statistics', click: () => manager.sendMenu('statistics') },
+        { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
         { type: 'separator' },
         { label: '&Import Plan…', click: () => manager.sendMenu('importPlan') },
         { type: 'separator' },
@@ -33,6 +31,10 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         // The window takes these keys itself, except in a field, where they reach this menu and the window ignores them.
         { label: '&Back', accelerator: mac ? 'Cmd+[' : 'Alt+Left', click: () => manager.sendMenu('goBack') },
         { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
+        { type: 'separator' },
+        // The window's sections; Plans is the logo's.
+        { label: '&Projects', click: () => manager.sendMenu('projects') },
+        { label: 'S&tatistics', click: () => manager.sendMenu('statistics') },
         { type: 'separator' },
         { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
         { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('toggleFiles') },
