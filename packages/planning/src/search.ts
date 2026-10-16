@@ -5,10 +5,10 @@
 // or time changed. Git's folder, hidden folders, dependencies, work items' evidence and anything but
 // Markdown and diagrams are left out, and files over a size are known by their name only.
 //
-// Markdown is read line by line, in time linear in its size, never parsed whole: a parser can take
-// minutes over some files (large tables, deep quotes), and indexing runs on the host's main thread,
-// which it gives back between files. Only a heading's own line goes through the Markdown parser, for
-// the text its anchor is made of.
+// Markdown up to 64 KB goes through the readers' parser, for exactly their heading anchors; larger
+// documents, and those nested deep, are read line by line, in time linear in their size, as the parser
+// can take minutes over some (large tables, deep quotes, unclosed links). Indexing runs on the host's
+// main thread, which it gives back between files.
 //
 // Matching ignores case and accents, and every word of the query must match, in any order. Exact and
 // prefix title matches rank first, then titles with every word, then other fields (a path, a summary),
@@ -16,10 +16,10 @@
 // elements and terms, an exact title before a prefix, then the latest changed.
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { Nodes } from 'mdast';
+import type { Nodes, Root } from 'mdast';
 import atlas from '@envsemble/atlas-diagrams';
 import { parseFrontmatter } from './check.ts';
-import { headingAnchors, markdownBody, parseMarkdown } from './headings.ts';
+import { documentAnchors, headingAnchors, markdownBody, parseMarkdown } from './headings.ts';
 
 export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
 /**
@@ -39,7 +39,11 @@ export const searchFileLimit = 2 * 1024 * 1024;
 const trusted = 60_000;
 /** Folders never read wherever they are, besides hidden ones; a work item's `evidence` is left out too, as the home's watch leaves it. */
 const skippedFolders = new Set(['node_modules', '__pycache__']);
-/** Headings go through the Markdown parser up to this length; longer ones, and those after the first thousand, are read plainly. */
+/** Markdown documents up to this size go through the parser whole. */
+const fullParseLimit = 64 * 1024;
+/** A line with more containers than this (quotes, list items) is parsed only line by line: the parser's time grows with the square of the depth. */
+const deeplyNested = /^(?:[ \t]*(?:>|[-*+][ \t]|\d{1,9}[.)][ \t])){33}/m;
+/** In documents read line by line, headings go through the Markdown parser up to this length; longer ones, and those after the first thousand, are read plainly. */
 const headingLimit = 1000;
 const kindOrder: Record<SearchKind, number> = { plan: 0, project: 0, step: 1, document: 2, heading: 3, diagram: 4, element: 5, term: 6 };
 
@@ -154,10 +158,61 @@ interface Parsed {
 }
 interface FileRecord { size: number; mtime: number; parsed: Parsed }
 
-/** The text a heading reads, as its anchor is made from it: code keeps its text, images have none. */
-function headingText(node: Nodes): string {
-  return node.type === 'text' || node.type === 'inlineCode' ? node.value : node.type !== 'image' && node.type !== 'imageReference' && 'children' in node ? node.children.map(headingText).join('') : '';
+/** A footnote's number as the readers show it, by its label; null for one without a definition (it reads as written). */
+type FootnoteNumber = (label: string) => string | null;
+/** The text a heading reads, as its anchor is made from it: code keeps its text, images have none, a footnote reference reads as its number. */
+function headingText(node: Nodes, footnote: FootnoteNumber = () => null): string {
+  if (node.type === 'footnoteReference') return footnote(node.identifier) ?? '';
+  return node.type === 'text' || node.type === 'inlineCode' ? node.value : node.type !== 'image' && node.type !== 'imageReference' && 'children' in node ? node.children.map(child => headingText(child, footnote)).join('') : '';
 }
+
+// ---- Through the parser: documents up to fullParseLimit, with exactly the readers' anchors --------
+
+const blocks = new Set(['paragraph', 'heading', 'listItem', 'tableCell', 'tableRow', 'code', 'blockquote', 'thematicBreak', 'footnoteDefinition']);
+/** A Markdown tree's text, one line per block, without the heading given (its title). */
+function plainText(tree: Root, title?: Nodes): string {
+  const parts: string[] = [];
+  const walk = (node: Nodes) => {
+    if (node === title) return;
+    if (node.type === 'text' || node.type === 'inlineCode' || node.type === 'code') parts.push(node.value);
+    else if (node.type === 'image') parts.push(node.alt ?? '');
+    else if (node.type === 'break') parts.push(' ');
+    else if (node.type !== 'html' && node.type !== 'definition' && 'children' in node) for (const child of node.children) walk(child);
+    if (blocks.has(node.type)) parts.push('\n');
+  };
+  walk(tree);
+  return parts.join('').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+}
+/** A glossary's terms: paragraphs that start with a term in bold and a colon, under their headings. */
+function glossaryTerms(tree: Root, anchors: Map<Nodes, string>) {
+  const terms: { term: string; anchor: string | null }[] = [];
+  let section: string | null = null;
+  for (const node of tree.children) {
+    if (node.type === 'heading') section = anchors.get(node) ?? section;
+    if (node.type !== 'paragraph' || node.children[0]?.type !== 'strong') continue;
+    const [strong, next] = node.children;
+    const term = headingText(strong).trim();
+    const colon = term.endsWith(':') || (next?.type === 'text' && next.value.startsWith(':'));
+    if (colon && term.replace(/:$/, '').trim()) terms.push({ term: term.replace(/:$/, '').trim(), anchor: section });
+  }
+  return terms;
+}
+/** A Markdown document as the readers parse it: its title, headings, a glossary's terms, its text without the title's heading. */
+function parsedMarkdown(relative: string, body: string, metadata: Record<string, unknown> | null): Parsed {
+  const tree = parseMarkdown(body);
+  const anchors = documentAnchors(tree);
+  const headings = [...anchors].map(([node, anchor]) => ({ node, text: headingText(node).trim(), anchor })).filter(heading => heading.text);
+  const first = headings.find(heading => heading.node.depth === 1);
+  const title = (typeof metadata?.title === 'string' && metadata.title.trim()) || first?.text || path.posix.basename(relative);
+  return {
+    metadata, title, headings: headings.map(({ text, anchor }) => ({ text, anchor })),
+    terms: /(^|\/)context\.md$/i.test(relative) ? glossaryTerms(tree, anchors as Map<Nodes, string>) : undefined,
+    text: plainText(tree, first && fold(first.text) === fold(title) ? first.node : undefined),
+  };
+}
+
+// ---- Line by line: larger documents, in time linear in their size ---------------------------------
+
 /** A line's text without its Markdown: markers, emphasis, link targets and tags. Every pattern is bounded, so a line takes time linear in its length. */
 function lineText(line: string) {
   return line.replace(/^[ \t]{0,3}(?:>[ \t]?)*/, '').replace(/^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?/, '').replace(/^#{1,6}(?=[ \t]|$)/, '')
@@ -166,74 +221,109 @@ function lineText(line: string) {
 /**
  * A heading's text as the readers draw it, untrimmed as its anchor is made from it: its own Markdown
  * (an ATX line, or a setext paragraph with its underline) through the parser, with the document's
- * link definitions.
+ * definitions.
  */
-function renderedHeading(markdown: string, definitions: string[]) {
+function renderedHeading(markdown: string, definitions: string[], footnote: FootnoteNumber) {
   if (markdown.length > headingLimit) return lineText(markdown.replace(/\n[ \t]*[=-]+[ \t]*$/, '')).replace(/\s+/g, ' ').trim();
   const tree = parseMarkdown(markdown + (markdown.includes('[') && definitions.length ? '\n\n' + definitions.join('\n') : ''));
   const heading = tree.children[0];
-  return heading?.type === 'heading' ? headingText(heading) : lineText(markdown).trim();
+  return heading?.type === 'heading' ? headingText(heading, footnote) : lineText(markdown).trim();
 }
 
+const quotes = /^(?:[ \t]{0,3}>[ \t]?)+/;
+const listItem = /^([ \t]{0,3}(?:[-*+]|\d{1,9}[.)]))(?:[ \t]{1,4}|$)/;
 const fence = /^[ \t]{0,3}(`{3,}|~{3,})/;
 const atx = /^[ \t]{0,3}(#{1,6})(?:[ \t]+|$)/;
-/** A quote's markers and a list item's marker before a heading in them. */
-const containerPrefix = /^[ \t]{0,3}(?:(?:>[ \t]?)+(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?|(?:[-*+]|\d{1,9}[.)])[ \t]+)/;
 const underline = /^[ \t]{0,3}(=+|-+)[ \t]*$/;
-const container = /^[ \t]{0,3}(?:>|[-*+][ \t]|\d{1,9}[.)][ \t]|\|)/;
+const tableDelimiter = /^[ \t]{0,3}\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
+const htmlStart = /^[ \t]{0,3}<(?:!--|\/?[A-Za-z][A-Za-z0-9-]*(?:[\s/>]|$))/;
 const definition = /^[ \t]{0,3}\[[^\]\n]{1,200}\]:[ \t]*\S/;
+const footnoteDefinition = /^[ \t]{0,3}\[\^([^\]\s]{1,100})\]:/;
+const footnoteReference = /\[\^([^\]\s]{1,100})\]/g;
 const glossaryTerm = /^\*\*([^*\n]{1,200}?)(?::\*\*|\*\*[ \t]*:)/;
 
 /**
- * A Markdown document read line by line: its title, its headings (ATX and setext, outside code
- * fences, numbered as the readers number them), a glossary's terms (a paragraph starting with a term
- * in bold and a colon, under its heading), and its text without the title's own heading.
+ * A Markdown document read line by line, for documents too large to parse: its title, its headings
+ * (ATX and setext, in quotes and lists too, outside code fences, HTML blocks and comments, numbered as
+ * the readers number them), a glossary's terms (a paragraph starting with a term in bold and a colon,
+ * under its heading), and its text without the title's own heading. Close to the parser, not exact:
+ * headings inside footnotes, for one, are not read.
  */
-export function readMarkdown(relative: string, source: string, metadata: Record<string, unknown> | null): Parsed {
-  const lines = markdownBody(source).split(/\r?\n/);
+export function scanMarkdown(relative: string, body: string, metadata: Record<string, unknown> | null): Parsed {
+  const lines = body.split(/\r?\n/);
   const definitions = lines.filter(line => definition.test(line)).slice(0, 100);
+  const footnotes = new Set(lines.flatMap(line => { const match = footnoteDefinition.exec(line); return match ? [match[1].toUpperCase()] : []; }));
+  // Footnotes are numbered by their first reference.
+  const order: string[] = [];
+  const footnote: FootnoteNumber = label => { const index = order.indexOf(label.toUpperCase()); return index < 0 ? null : String(index + 1); };
   const anchor = headingAnchors();
   const glossary = /(^|\/)context\.md$/i.test(relative);
   const headings: { text: string; anchor: string; depth: number; line: number }[] = [];
   const terms: { term: string; anchor: string | null }[] = [];
   const text: string[] = [];
-  // The fence a code block opened with, the lines of the paragraph so far, and whether the lines
-  // since the last blank one are in a list, quote or table (where an underline is no heading).
-  let open: string | null = null, paragraph: number[] = [], nested = false;
+  // The open code fence (with the quote depth it opened at), HTML block or comment; the list item's
+  // content column; the paragraph's lines (their content) and the container it is in; a table.
+  let fenced: { marker: string; depth: number } | null = null, html: 'block' | 'comment' | null = null, column = 0;
+  let paragraph: string[] = [], container = '', table = false;
   const heading = (markdown: string, depth: number, line: number) => {
-    const read = headings.length < 1000 ? renderedHeading(markdown, definitions) : lineText(markdown).trim();
+    const read = headings.length < 1000 ? renderedHeading(markdown, definitions, footnote) : lineText(markdown).trim();
     headings.push({ text: read.trim(), anchor: anchor(read), depth, line });
   };
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
-    const opened = fence.exec(line);
-    if (open !== null) {
-      if (opened && opened[1][0] === open[0] && opened[1].length >= open.length && !line.trim().slice(opened[1].length)) open = null;
-      else text.push(line);
+    const quoted = quotes.exec(line);
+    const depth = quoted ? (quoted[0].match(/>/g) ?? []).length : 0;
+    let content = quoted ? line.slice(quoted[0].length) : line;
+    if (fenced && depth >= fenced.depth) {
+      const close = fence.exec(content.slice(Math.min(column, /^[ \t]*/.exec(content)![0].length)));
+      if (close && close[1][0] === fenced.marker[0] && close[1].length >= fenced.marker.length && !content.trim().slice(close[1].length)) fenced = null;
+      else text.push(content);
       continue;
     }
-    if (opened) { open = opened[1]; paragraph = []; nested = false; continue; }
-    if (!line.trim()) { paragraph = []; nested = false; text.push(''); continue; }
-    const inner = line.length <= headingLimit * 2 ? line.replace(containerPrefix, '') : '';
-    const hashes = atx.exec(inner);
-    if (hashes) {
-      heading(inner.trimStart(), hashes[1].length, text.length);
-      text.push(lineText(line));
-      paragraph = []; nested = false;
-      continue;
+    // A quote that ends closes the code in it.
+    fenced = null;
+    if (html === 'comment') { if (line.includes('-->')) html = null; continue; }
+    if (!content.trim()) { paragraph = []; table = false; if (html === 'block') html = null; if (!depth) column = 0; text.push(''); continue; }
+    if (html === 'block') { text.push(lineText(content)); continue; }
+    if (!definition.test(content)) for (const match of content.matchAll(footnoteReference)) {
+      const label = match[1].toUpperCase();
+      if (footnotes.has(label) && !order.includes(label)) order.push(label);
     }
-    const under = underline.exec(line);
-    if (under && paragraph.length && !nested) {
-      heading(paragraph.map(at => lines[at]).join('\n') + '\n' + line, under[1][0] === '=' ? 1 : 2, text.length - paragraph.length);
+    // A list item's content, or a line within one.
+    const item = listItem.exec(content);
+    const indent = /^[ \t]*/.exec(content)![0].length;
+    let fresh = false;
+    if (item && !underline.test(content)) { column = item[0].length; content = content.slice(column); fresh = true; }
+    else if (column && indent >= column) content = content.slice(column);
+    // A line left of the item's content is not in it (a paragraph's lazy continuation at most).
+    const here = depth + ':' + (fresh || indent >= column ? column : 0);
+    if (fence.test(content)) { fenced = { marker: fence.exec(content)![1], depth }; paragraph = []; continue; }
+    if (htmlStart.test(content) && (!paragraph.length || /^[ \t]{0,3}<!--/.test(content))) {
+      html = /^[ \t]{0,3}<!--/.test(content) ? (content.includes('-->') ? null : 'comment') : 'block';
+      if (html === null) continue;
       paragraph = [];
       continue;
     }
-    if (container.test(line)) nested = true;
-    else if (!nested) {
-      if (glossary && !paragraph.length) { const term = glossaryTerm.exec(line); if (term) terms.push({ term: term[1].trim(), anchor: headings.at(-1)?.anchor ?? null }); }
-      paragraph.push(index);
+    const hashes = content.length <= headingLimit * 2 ? atx.exec(content) : null;
+    if (hashes) {
+      heading(content.trimStart(), hashes[1].length, text.length);
+      text.push(lineText(content));
+      paragraph = [];
+      continue;
     }
-    text.push(lineText(line));
+    const under = underline.exec(content);
+    if (under && paragraph.length && container === here && !fresh) {
+      heading(paragraph.join('\n') + '\n' + content, under[1][0] === '=' ? 1 : 2, text.length - paragraph.length);
+      paragraph = [];
+      continue;
+    }
+    if (paragraph.length === 1 && tableDelimiter.test(content) && content.includes('|')) { paragraph = []; table = true; }
+    if (table || /^[ \t]{4}/.test(content) && !paragraph.length) { text.push(lineText(content)); continue; }
+    if (fresh || container !== here) paragraph = [];
+    if (glossary && !paragraph.length) { const term = glossaryTerm.exec(content); if (term) terms.push({ term: term[1].trim(), anchor: headings.at(-1)?.anchor ?? null }); }
+    paragraph.push(content);
+    container = here;
+    text.push(lineText(content));
   }
   const first = headings.find(item => item.depth === 1 && item.text);
   const title = (typeof metadata?.title === 'string' && metadata.title.trim()) || first?.text || path.posix.basename(relative);
@@ -243,6 +333,19 @@ export function readMarkdown(relative: string, source: string, metadata: Record<
     metadata, title, headings: headings.filter(item => item.text).map(({ text, anchor }) => ({ text, anchor })), terms: glossary ? terms : undefined,
     text: text.join('\n').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim(),
   };
+}
+
+/**
+ * A Markdown document's title, headings, terms and text: through the parser, as the readers read it,
+ * when it is small and not nested deep (where the parser takes time growing with the square of the
+ * depth, and runs out of stack); line by line otherwise.
+ */
+export function readMarkdown(relative: string, source: string, metadata: Record<string, unknown> | null): Parsed {
+  const body = markdownBody(source);
+  if (body.length <= fullParseLimit && !deeplyNested.test(body)) {
+    try { return parsedMarkdown(relative, body, metadata); } catch { /* Read line by line instead. */ }
+  }
+  return scanMarkdown(relative, body, metadata);
 }
 
 function parseFile(relative: string, source: string): Parsed {
@@ -310,12 +413,14 @@ export class PlanningSearch {
    * not waited for again.
    */
   async search(query: SearchQuery, name: string, wait = Number.POSITIVE_INFINITY): Promise<RankedHit[]> {
+    // At most `wait` in all, however many reads a change during one starts.
+    const deadline = Date.now() + wait;
     while (this.stale || Date.now() - this.checked >= trusted) {
       if (!this.refreshing) {
         this.refreshStarted = Date.now();
         this.refreshing = this.refresh().finally(() => { this.refreshing = null; });
       }
-      const left = this.refreshStarted + wait - Date.now();
+      const left = Math.min(deadline, this.refreshStarted + wait) - Date.now();
       if (left <= 0 || !await within(this.refreshing, left)) break;
     }
     if (this.missing) return [];

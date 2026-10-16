@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { compareHits, fold, PlanningSearch, readMarkdown, searchFileLimit, searchQuery, snippetOf, type RankedHit } from './search.ts';
+import { compareHits, fold, PlanningSearch, readMarkdown, scanMarkdown, searchFileLimit, searchQuery, snippetOf, type RankedHit } from './search.ts';
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-search-')));
@@ -117,24 +117,44 @@ test('matching folds case and accents in place, and snippets are short passages 
   assert.ok(snippet.length <= 125 && !snippet.includes('\n'), snippet);
 });
 
-test('headings read line by line have the anchors the readers give them', async () => {
-  const { readdirSync, readFileSync, statSync } = await import('node:fs');
-  const { documentAnchors, markdownBody, parseMarkdown } = await import('./headings.ts');
-  const tricky = [
+/** Documents whose headings a line-by-line reading could get wrong. */
+const synthetic: Record<string, string> = {
+  'tricky.md': [
     '# Title', '', '## The `code` and *emphasis*', '', '## A [link](https://example.test) and [a reference][ref]', '',
     '```md', '# Not a heading', '```', '', 'Setext heading', '==============', '', 'A paragraph', 'over two lines', '---', '',
     '- a list item', '---', '', '> ## In a quote', '', '## Closed ##', '', '## Outcome', '', '## Outcome', '', '#NoSpace', '',
     '    # Indented code', '', '## ![image](x.png) Picture', '', '[ref]: https://example.test',
-  ].join('\n');
+  ].join('\n'),
+  'comment.md': '<!--\n## Steps\n-->\n\n## Steps\n\n<!-- ## Inline --> text\n\n## Steps\n',
+  'html.md': '<div>\n\n## Inside a block\n\n</div>\n\n<details>\n## Not a heading\nA paragraph\n---\n</details>\n\n## After\n',
+  'quoted-fence.md': '> ```\n> # Not a heading\n> ```\n\n# Heading\n\n> ~~~\n> ## Also code\n\n## Out of the quote\n',
+  'setext.md': '- Item heading\n  ---\n\n> Quoted heading\n> ===\n\n1. Numbered\n   heading\n   ---\n\n- Lazy\n---\n',
+  'footnotes.md': 'Text[^b].\n\n## A[^a]\n\n## B[^b] and A[^a] again\n\n## Unknown[^z]\n\n[^a]: First.\n[^b]: Second.\n',
+};
+
+test('documents up to the size limit have exactly the readers\' heading anchors', async () => {
+  const { documentAnchors, markdownBody, parseMarkdown } = await import('./headings.ts');
+  for (const [name, source] of Object.entries(synthetic)) {
+    const expected = [...documentAnchors(parseMarkdown(markdownBody(source))).values()];
+    assert.deepEqual(readMarkdown(name, source, null).headings!.map(heading => heading.anchor), expected, name);
+  }
+});
+
+test('larger documents read line by line have the readers\' anchors in these cases too', async () => {
+  const { readdirSync, readFileSync, statSync } = await import('node:fs');
+  const { documentAnchors, markdownBody, parseMarkdown } = await import('./headings.ts');
   const fixture = path.resolve(import.meta.dirname, '../../../app/e2e/fixtures/planning');
   const files = (function walk(folder: string): string[] {
     return readdirSync(folder).flatMap(name => { const full = path.join(folder, name); return statSync(full).isDirectory() ? walk(full) : /\.md$/.test(name) ? [full] : []; });
   })(fixture);
-  for (const [name, source] of [['tricky.md', tricky], ...files.map(file => [path.relative(fixture, file), readFileSync(file, 'utf8')])]) {
+  const documents = [...Object.entries(synthetic), ...files.map(file => [path.relative(fixture, file), readFileSync(file, 'utf8')])];
+  for (const [name, source] of documents) {
     const expected = [...documentAnchors(parseMarkdown(markdownBody(source))).values()];
-    const read = readMarkdown(name, source, null).headings!.map(heading => heading.anchor);
-    assert.deepEqual(read, expected, name);
+    assert.deepEqual(scanMarkdown(name, markdownBody(source), null).headings!.map(heading => heading.anchor), expected, name);
   }
+  // A document over the limit is read line by line.
+  const large = synthetic['comment.md'] + 'Filler text.\n'.repeat(6000);
+  assert.deepEqual(readMarkdown('large.md', large, null).headings!.map(heading => heading.anchor), ['steps', 'steps-1']);
 });
 
 test('indexing takes time linear in a file\'s size and gives the thread back between files', async t => {
@@ -145,6 +165,8 @@ test('indexing takes time linear in a file\'s size and gives the thread back bet
   write(path.join(root, 'knowledge/quotes.md'), '# Quotes\n\n' + Array.from({ length: 1000 }, (_, depth) => '>'.repeat(depth) + ' line').join('\n') + '\n');
   write(path.join(root, 'knowledge/links.md'), '# Links\n\n' + '[a]('.repeat(250_000) + '\n');
   write(path.join(root, 'knowledge/tags.md'), '# Tags\n\n' + '<a'.repeat(400_000) + '\n');
+  // Small, but nested deep: the parser would take seconds and run out of stack.
+  write(path.join(root, 'knowledge/deep.md'), '# Deep\n\n' + '>'.repeat(30_000) + ' x\n');
   let gap = 0, last = Date.now();
   const timer = setInterval(() => { gap = Math.max(gap, Date.now() - last); last = Date.now(); }, 10);
   const started = Date.now();
