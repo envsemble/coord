@@ -7,14 +7,14 @@ let launched: (Launched & { folder: string }) | undefined;
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
-/** What the window shows: the hub, a work item (on its plan or its ledger), a file or a diagram. */
+/** What the window shows: the hub, a work item, a file or a diagram. */
 const shows = (window: Page) => window.locator('.hub h1, .work-header h1, .reader-name strong, .model-picker-title').first();
-/** The last step of a work item's trail: its number while the plan shows, Ledger while the ledger does. */
+/** The last step of a work item's trail: its number. */
 const trailEnd = (window: Page) => window.locator('.work-main .breadcrumb [aria-current="page"]');
-/** Shows the work item Saved payment methods, on its plan or, in its place, its ledger. */
-async function showsPayments(window: Page, view: 'plan' | 'ledger') {
-  await expect(shows(window)).toHaveText('Saved payment methods');
-  await expect(trailEnd(window)).toHaveText(view === 'plan' ? '#0001' : 'Ledger');
+/** Shows the work item Saved payment methods (#0001), or Customer order notifications (#0003). */
+async function showsPlan(window: Page, plan: 'payments' | 'notifications') {
+  await expect(shows(window)).toHaveText(plan === 'payments' ? 'Saved payment methods' : 'Customer order notifications');
+  await expect(trailEnd(window)).toHaveText(plan === 'payments' ? '#0001' : '#0003');
 }
 
 /** The mouse's back (3) or forward (4) button, pressed and released over the page; true when the release was taken. */
@@ -41,7 +41,7 @@ async function settledScroll(window: Page) {
   return position;
 }
 
-test('back and forward step through the hub, a plan, its ledger and a diagram', async () => {
+test('back and forward step through the hub, two plans and a diagram', async () => {
   launched = await launchProject();
   const { window, app } = launched;
   const back = window.getByRole('button', { name: 'Back' });
@@ -54,13 +54,16 @@ test('back and forward step through the hub, a plan, its ledger and a diagram', 
   await expect(forward).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowRight BrowserForward');
   await expect(back).toHaveAttribute('aria-disabled', 'true');
 
-  // The hub, then a plan, its ledger in the plan's place, and a diagram.
+  // The hub, then a plan, another plan from the search, and a diagram.
   await openPlan(window, 'Saved payment methods');
-  await window.locator('.about').getByRole('link', { name: 'Ledger' }).click();
-  await showsPayments(window, 'ledger');
-  await expect(window.locator('.about').getByRole('link', { name: 'Plan' })).toBeVisible();
+  await showsPlan(window, 'payments');
   await window.keyboard.press('Control+P');
   const palette = searchPopup(window);
+  await palette.getByRole('combobox').fill('Customer order notifications');
+  await expect(palette.getByRole('option').first()).toContainText('Customer order notifications');
+  await palette.getByRole('combobox').press('Enter');
+  await showsPlan(window, 'notifications');
+  await window.keyboard.press('Control+P');
   await palette.getByRole('combobox').fill('Checkout · proposed payment methods');
   await expect(palette.getByRole('option').first()).toContainText('Checkout · proposed payment methods');
   await palette.getByRole('combobox').press('Enter');
@@ -70,9 +73,9 @@ test('back and forward step through the hub, a plan, its ledger and a diagram', 
 
   // Back: the title bar's arrow, Alt+←, and View › Back of the application menu.
   await back.click();
-  await showsPayments(window, 'ledger');
+  await showsPlan(window, 'notifications');
   await window.keyboard.press('Alt+ArrowLeft');
-  await showsPayments(window, 'plan');
+  await showsPlan(window, 'payments');
   // Alt+← leaves the menu alone: no menu opens.
   await expect(window.getByRole('menu')).toHaveCount(0);
   // (The same key's echo from the application menu, a moment later, is ignored.)
@@ -83,21 +86,21 @@ test('back and forward step through the hub, a plan, its ledger and a diagram', 
 
   // Forward and back: the application menu's View › Forward, the mouse's buttons, Alt+→ and the arrow.
   await applicationMenu(app, '&View', '&Forward');
-  await showsPayments(window, 'plan');
+  await showsPlan(window, 'payments');
   await window.waitForTimeout(400);
   expect(await mouseButton(window, 4)).toBe(true);
-  await showsPayments(window, 'ledger');
+  await showsPlan(window, 'notifications');
   expect(await mouseButton(window, 3)).toBe(true);
-  await showsPayments(window, 'plan');
+  await showsPlan(window, 'payments');
   await window.keyboard.press('Alt+ArrowRight');
-  await showsPayments(window, 'ledger');
+  await showsPlan(window, 'notifications');
   await forward.click();
   await expect(shows(window)).toHaveText('Checkout · proposed payment methods');
   await expect(forward).toHaveAttribute('aria-disabled', 'true');
 
   // Showing something new drops what was ahead.
   await back.click();
-  await showsPayments(window, 'ledger');
+  await showsPlan(window, 'notifications');
   await goHome(window);
   await expect(forward).toHaveAttribute('aria-disabled', 'true');
 });

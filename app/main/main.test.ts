@@ -72,10 +72,10 @@ test('windows, their places per computer and the shared settings are kept in the
     assert.deepEqual(state.tabs(window, null).map(tab => [tab.projectId, tab.kind, tab.active]), [[local.id, 'work', true], [missing.id, 'file', false]], 'the missing folder keeps its tab, no longer active');
     state.saveTabs(window, null, [], [local.id, missing.id]);
     assert.deepEqual(state.tabs(window, null), [], 'once loaded, closing them removes them');
-    // A work item's tab showing its ledger loads back showing it, saved and read as the window does.
-    const { kind, ...rest } = { kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' } satisfies Target;
+    // A work item's tab at a step the search found loads back at it, saved and read as the window does.
+    const { kind, ...rest } = { kind: 'work', work: 'work-0001', anchor: null, step: 'Build' } satisfies Target;
     state.saveTabs(window, null, [{ projectId: local.id, kind, target: JSON.stringify(rest), active: true }], [local.id]);
-    assert.deepEqual(state.tabs(window, null).map(saved => tabTarget({ kind: saved.kind, ...saved.target && JSON.parse(saved.target) })), [{ kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' }]);
+    assert.deepEqual(state.tabs(window, null).map(saved => tabTarget({ kind: saved.kind, ...saved.target && JSON.parse(saved.target) })), [{ kind: 'work', work: 'work-0001', anchor: null, step: 'Build' }]);
     // Twenty tabs kept for a folder not listed, then forty of another project: a window holds forty,
     // its own first, so its saves keep passing once the folder is listed again.
     const tab = (projectId: number, index: number) => ({ projectId, kind: 'file' as const, target: `{"path":"${index}.md"}`, active: false });
@@ -112,8 +112,8 @@ test('Atlas refuses to start without its sandbox, and a released build refuses d
 
 test('a window saves the place it shows as a row of its project, and an older window loads its active tab', () => {
   const project = 'f-' + 'a'.repeat(32);
-  const plan = { project, target: { kind: 'work' as const, work: 'work-0001', anchor: null, view: 'ledger' as const } };
-  assert.deepEqual(placeRow(plan), { project, kind: 'work', target: '{"work":"work-0001","anchor":null,"view":"ledger"}' });
+  const plan = { project, target: { kind: 'work' as const, work: 'work-0001', anchor: null } };
+  assert.deepEqual(placeRow(plan), { project, kind: 'work', target: '{"work":"work-0001","anchor":null}' });
   assert.deepEqual(savedPlace(project, placeRow(plan)!), plan);
   // A ledger step the search found is pointed out once, not again at the next start.
   assert.deepEqual(placeRow({ project, target: { kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' } }), { project, kind: 'work', target: '{"work":"work-0001","anchor":null}' });

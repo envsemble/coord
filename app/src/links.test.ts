@@ -2,36 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveLink, siblingProject, siblingReference } from './links.ts';
 import type { Document, Work } from './types.ts';
-import { documentTarget, hubPlace, ledgerTarget, placeId, scrollKey, statisticsPlace, workTarget } from './targets.ts';
+import { documentTarget, hubPlace, placeId, scrollKey, statisticsPlace, workTarget } from './targets.ts';
 
 const file = { path: 'active/0001-example/docs/decision.md' } as Document;
 const work = { path: 'active/0001-example', id: 'work-0001' } as Work;
 
-test('links to a plan open the work item, to its ledger the work item showing the ledger, and to other documents files with their heading', () => {
+test('links to a plan open the work item, and to other documents, its ledger too, files with their heading', () => {
   const owner = { id: 'work-0001', path: 'active/0001-example', currentPlan: 'active/0001-example/plan.md', ledger: 'active/0001-example/ledger.md' } as Work;
   const plan = { path: 'active/0001-example/plan.md', workId: 'work-0001', category: 'plan' } as Document;
   const ledger = { path: 'active/0001-example/ledger.md', workId: 'work-0001', category: 'ledger' } as Document;
   const nested = { path: 'active/0001-example/docs/decision #1.md', workId: 'work-0001', category: 'decision' } as Document;
   const knowledge = { path: 'knowledge/terms.md', workId: null, category: 'knowledge' } as Document;
   assert.deepEqual(documentTarget(plan, owner, 'whats-new'), { kind: 'work', work: 'work-0001', anchor: 'whats-new' });
-  assert.deepEqual(documentTarget(ledger, owner, 'provenance'), { kind: 'work', work: 'work-0001', anchor: 'provenance', view: 'ledger' });
-  assert.deepEqual(documentTarget(ledger, owner), ledgerTarget('work-0001'));
-  assert.deepEqual(documentTarget(ledger, undefined), { kind: 'file', path: ledger.path, anchor: null }, 'the file panel, which names no work item, opens it as a file');
+  assert.deepEqual(documentTarget(ledger, owner), { kind: 'file', path: ledger.path, anchor: null }, 'the ledger is a file like any other');
   assert.deepEqual(documentTarget(nested, owner, 'déjà-vu--choices'), { kind: 'file', path: nested.path, anchor: 'déjà-vu--choices' });
   assert.deepEqual(documentTarget(knowledge, undefined, 'api_contract'), { kind: 'file', path: 'knowledge/terms.md', anchor: 'api_contract' });
   const project = 'f-' + 'a'.repeat(32);
   const id = (target: ReturnType<typeof documentTarget>, of = project) => placeId({ project: of, target });
   assert.equal(id(documentTarget(plan, owner, 'a')), id(documentTarget(plan, owner)), 'a plan is one thing, wherever it was opened');
-  assert.equal(id(documentTarget(ledger, owner)), id(documentTarget(plan, owner)), "the ledger shows in the plan's place");
   assert.notEqual(id(documentTarget(nested, owner)), id(documentTarget(plan, owner)));
   assert.notEqual(id(documentTarget(plan, owner)), id(documentTarget(plan, owner), 'f-' + 'b'.repeat(32)), 'another project, another thing');
 });
 
-test('the plan and the ledger of a work item keep their own scroll positions', () => {
+test('a work item and the hub keep their own scroll positions', () => {
   const project = 'f-' + 'a'.repeat(32);
-  assert.equal(scrollKey({ project, target: ledgerTarget('work-0001') }), project + ':work:work-0001:ledger');
   assert.equal(scrollKey({ project, target: workTarget('work-0001') }), project + ':work:work-0001');
-  assert.equal(scrollKey({ project, target: ledgerTarget('work-0001', 'provenance') }), scrollKey({ project, target: ledgerTarget('work-0001') }), 'a heading is a place in the same document');
+  assert.equal(scrollKey({ project, target: workTarget('work-0001', 'why') }), scrollKey({ project, target: workTarget('work-0001') }), 'a heading is a place in the same document');
   // The hub is one page whatever it is filtered to, which keeps its own position.
   assert.equal(placeId(hubPlace(project)), placeId(hubPlace()));
   assert.notEqual(scrollKey(hubPlace(project)), scrollKey(hubPlace()));

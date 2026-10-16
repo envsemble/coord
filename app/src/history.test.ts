@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, startHistory, step, type History } from './history.ts';
-import { diagramTarget, fileTarget, hubPlace, ledgerTarget, projectsPlace, statisticsPlace, stepTarget, workTarget, type Place, type ProjectPlace } from './targets.ts';
+import { diagramTarget, fileTarget, hubPlace, projectsPlace, statisticsPlace, stepTarget, workTarget, type Place, type ProjectPlace } from './targets.ts';
 import type { Target } from './types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
@@ -25,8 +25,7 @@ test('each new place shown follows the current entry; the same place again adds 
   assert.equal(samePlace(at(fileTarget('a.md')), at(fileTarget('a.md', 'intro'))), false);
   assert.equal(samePlace(at(diagramTarget('work-0001', 'd.puml')), at(diagramTarget('work-0001', 'd.puml', 'Order'))), false);
   assert.equal(samePlace(plan, other), false);
-  assert.equal(samePlace(plan, at(ledgerTarget('work-0001'))), false, "a work item's plan and its ledger are two places");
-  assert.equal(samePlace(plan, at({ kind: 'work', work: 'work-0001', anchor: null, view: null })), true);
+  assert.equal(samePlace(plan, at({ kind: 'work', work: 'work-0001', anchor: null, step: null })), true);
   // A plan at a ledger step the search found is a place of its own, kept with its step.
   const found = at(stepTarget('work-0001', 'Build the hub'));
   assert.equal(samePlace(plan, found), false);
@@ -34,7 +33,6 @@ test('each new place shown follows the current entry; the same place again adds 
   const stepped = record(startHistory(plan), found);
   assert.deepEqual(stepped.entries, [plan, found]);
   assert.deepEqual(step(step(stepped, -1)!.history, 1)!.place, found);
-  assert.equal(record(startHistory(plan), at(ledgerTarget('work-0001'))).entries.length, 2, 'showing the ledger in place is a step back to the plan');
 });
 
 test("the hub's project filter, the Projects page and a project's statistics are places too", () => {

@@ -9,7 +9,7 @@ import type { LedgerStep } from './types.ts';
 
 const plan = (implementation: string) => ['---', 'schema_version: 1', 'kind: plan', 'id: work-0001', 'title: Example work', 'repositories: [example]', 'created: null', 'updated: "2026-10-06"', 'design_status: accepted', 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '# Original plan', ''].join('\n');
 
-test('the default record follows implementation, and a nested historical ledger never becomes the main record', async () => {
+test('a work item reads its plan, never its ledger, whatever its implementation', async () => {
   const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'planning-work-')));
   try {
     const root = path.join(temporary, 'planning');
@@ -23,7 +23,7 @@ test('the default record follows implementation, and a nested historical ledger 
       await writeFile(path.join(root, folder, 'plan.md'), plan(implementation));
       const work = (await loadPlanning(root)).work[0];
       assert.ok(work.documents.some(file => file.path.endsWith('/supporting/ledger.md')));
-      assert.equal(defaultDocument(work)?.path, folder + (implementation === 'not_started' ? '/plan.md' : '/ledger.md'));
+      assert.equal(defaultDocument(work)?.path, folder + '/plan.md');
     }
     await rename(ledger, path.join(root, folder, 'supporting/older-ledger.md'));
     assert.equal(defaultDocument((await loadPlanning(root)).work[0])?.path, folder + '/plan.md');

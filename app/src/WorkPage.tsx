@@ -1,10 +1,10 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Badge, Breadcrumbs, Button, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
-import { CommitIcon, DownloadIcon, LedgerIcon, PlanIcon } from './icons';
+import { CommitIcon, DownloadIcon } from './icons';
 import type { Document, Snapshot, Target, Work } from './types';
-import { defaultDocument, primaryDocuments } from './work';
-import { hubPlace, ledgerTarget, workTarget } from './targets';
+import { defaultDocument, planDocument } from './work';
+import { hubPlace, workTarget } from './targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from './format';
 import { designNote, workStatus } from './status';
 import { RepositoryBadge, StatusBadge } from './ui';
@@ -48,22 +48,16 @@ function useScrollsMark<T extends HTMLElement>() {
 }
 
 /**
- * The side column: the work's progress, then the link that shows its ledger in place of the plan (or
- * the plan again), its dates, statistics and recent activity. It stays where it is while the page
- * scrolls, and scrolls on its own.
+ * The side column: the work's progress, its dates, statistics and recent activity. It stays where it
+ * is while the page scrolls, and scrolls on its own.
  */
-function About({ work, snapshot, showing, found }: { work: Work; snapshot: Snapshot; showing: 'plan' | 'ledger'; found: string | null }) {
+function About({ work, snapshot, found }: { work: Work; snapshot: Snapshot; found: string | null }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
   const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   const commits = snapshot.history.filter(entry => entry.workIds.includes(work.id)).slice(0, 5);
   const statistics = work.statistics;
-  const { plan, ledger } = primaryDocuments(work);
-  // The other of the plan and the ledger, shown in place of the one on the page.
-  const other = showing === 'ledger' ? plan && <TargetLink target={workTarget(work.id)}><PlanIcon />Plan</TargetLink>
-    : ledger && <TargetLink target={ledgerTarget(work.id)}><LedgerIcon />Ledger</TargetLink>;
-  const switcher = other && <p className="about-ledger">{other}</p>;
   const column = useScrollsMark<HTMLElement>();
   return <aside ref={column} className="about" aria-label="About this work">
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
@@ -73,9 +67,7 @@ function About({ work, snapshot, showing, found }: { work: Work; snapshot: Snaps
         {progress.current && <p className="about-current">{progress.current}</p>}
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
-      {switcher}
     </AboutSection>}
-    {!(hasStatus && progress) && switcher}
     {dates.length > 0 && <AboutSection title="About">
       <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}</dl>
     </AboutSection>}
@@ -89,16 +81,14 @@ function About({ work, snapshot, showing, found }: { work: Work; snapshot: Snaps
 }
 
 /**
- * A work item: its plan (or, without one, its ledger or first document), or its ledger in the plan's
- * place, with the title as its heading and the work number; beside it the work's progress with the
- * link between the plan and the ledger, its dates, statistics and recent activity. Diagrams open from
- * their cards in the plan.
+ * A work item: its plan (or, without one, its README or first document), with the title as its
+ * heading and the work number; beside it the work's progress, its dates, statistics and recent
+ * activity. Diagrams open from their cards in the plan.
  */
 export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
   const { listed, exportPlan } = useWorkbench();
-  const { plan, ledger } = primaryDocuments(work);
-  const showing = target.view === 'ledger' && ledger ? 'ledger' : 'plan';
-  const reading: Document | undefined = showing === 'ledger' ? ledger : plan ?? defaultDocument(work);
+  const plan = planDocument(work);
+  const reading: Document | undefined = defaultDocument(work);
   const status = workStatus(work);
   const note = designNote(work);
   const summary = listed(work.id)?.summary;
@@ -106,7 +96,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   return <div className="work-page">
     <div className="work-layout">
       <div className="work-main">
-        <Trail items={showing === 'ledger' ? [{ label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Ledger' }] : [{ label: workNumber(work.id) }]} />
+        <Trail items={[{ label: workNumber(work.id) }]} />
         <header className="work-header">
           <Text as="h1" variant="page-heading">{work.title}</Text>
           <div className="work-header-meta">
@@ -123,7 +113,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
-      <About work={work} snapshot={snapshot} showing={showing} found={target.step ?? null} />
+      <About work={work} snapshot={snapshot} found={target.step ?? null} />
     </div>
   </div>;
 }

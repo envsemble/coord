@@ -12,7 +12,7 @@ const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
 const row = (id: string) => `[role="treeitem"][data-id="${id}"]`;
-/** The last step of a work item's trail: its number while the plan shows, Ledger while the ledger does. */
+/** The last step of a work item's trail: its number. */
 const trailEnd = (window: Page) => window.locator('.work-main .breadcrumb [aria-current="page"]');
 /** A Git checkout with a remote, as a workspace folder holds them. */
 function checkout(folder: string, remote: string) {
@@ -134,7 +134,7 @@ test("the hub's search field opens the search with what is typed and never filte
   await expect(state.getByRole('radio', { name: /^All/ })).toHaveAttribute('aria-checked', 'true');
 });
 
-test("a plan opens from the hub with its summary, its side column and its ledger in the plan's place; its project leads to the project's plans", async () => {
+test("a plan opens from the hub with its summary and its side column; its project leads to the project's plans", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   const work = path.join(home.folder, 'active/0001-saved-payment-methods');
@@ -162,28 +162,13 @@ test("a plan opens from the hub with its summary, its side column and its ledger
   const colour = (index: number) => steps.nth(index).locator('.step-icon').evaluate(element => getComputedStyle(element).color);
   expect(await colour(0)).not.toBe(await colour(2));
   await expect(window.locator('.about .step-bar-planning-done')).toHaveCount(1);
-  // The side column keeps progress, dates and statistics, with the link to the ledger under the progress steps.
+  // The side column keeps progress, dates and statistics; the steps are the ledger, with no view of their own.
   await expect(window.locator('.about .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
   await expect(window.locator('.about .ledger-step')).toHaveCount(7);
-  const progress = window.locator('.about .about-section', { has: window.locator('.ledger-step') });
-  const ledgerLink = progress.getByRole('link', { name: 'Ledger' });
-  await expect(ledgerLink).toBeVisible();
-  expect(await progress.locator('.ledger-step').last().evaluate((step, link) => Boolean(step.compareDocumentPosition(link!) & Node.DOCUMENT_POSITION_FOLLOWING), await ledgerLink.elementHandle())).toBe(true);
+  await expect(window.locator('.about').getByRole('link', { name: 'Ledger' })).toHaveCount(0);
   await expect(trailEnd(window)).toHaveText('#0001');
   // Export Plan is on the page.
   await expect(window.locator('.work-header').getByRole('button', { name: 'Export Plan…' })).toBeVisible();
-  // Ledger shows the ledger in the plan's place, and Plan takes its link's place.
-  await ledgerLink.click();
-  await expect(trailEnd(window)).toHaveText('Ledger');
-  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
-  await expect(window.locator('.reader .prose h1')).toHaveText('Saved payment methods: ledger');
-  await expect(progress.getByRole('link', { name: 'Ledger' })).toHaveCount(0);
-  await window.keyboard.press('Alt+ArrowLeft');
-  await expect(trailEnd(window)).toHaveText('#0001');
-  await window.keyboard.press('Alt+ArrowRight');
-  await expect(trailEnd(window)).toHaveText('Ledger');
-  await window.locator('.about').getByRole('link', { name: 'Plan' }).click();
-  await expect(trailEnd(window)).toHaveText('#0001');
   // A diagram opens from its card in the plan; Back returns to the plan.
   await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
   await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
@@ -238,8 +223,6 @@ test('a window shows one place at a time, and shows it again at the next start',
   await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Coord');
-  await window.locator('.about').getByRole('link', { name: 'Ledger' }).click();
-  await expect(trailEnd(window)).toHaveText('Ledger');
   await window.waitForTimeout(600);
   await close(launched);
 
@@ -247,7 +230,7 @@ test('a window shows one place at a time, and shows it again at the next start',
   window = launched.window;
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Coord');
-  await expect(trailEnd(window)).toHaveText('Ledger');
+  await expect(trailEnd(window)).toHaveText('#0001');
   // The hub filtered to a project comes back too.
   await window.locator('.work-main .breadcrumb').getByRole('button', { name: 'Coord' }).click();
   await expectHub(window, 'Coord');

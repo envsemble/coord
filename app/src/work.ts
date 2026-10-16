@@ -1,17 +1,12 @@
 import type { Document, LedgerStep, Work } from './types';
 
-export function primaryDocuments(work: Work): { plan?: Document; ledger?: Document } {
-  return {
-    plan: work.documents.find(file => file.path === work.currentPlan),
-    ledger: work.documents.find(file => file.path === work.ledger),
-  };
-}
+export const planDocument = (work: Work): Document | undefined => work.documents.find(file => file.path === work.currentPlan);
 
+/** What a work item's page reads: its plan, else its README, else its first document other than its ledger. */
 export function defaultDocument(work: Work): Document | undefined {
-  const { plan, ledger } = primaryDocuments(work);
-  const started = ['in_progress', 'partial', 'complete'].includes(work.implementation);
-  return (started ? ledger ?? plan : plan ?? ledger)
-    ?? work.documents.find(file => file.name.toLowerCase() === 'readme.md') ?? work.documents[0];
+  return planDocument(work)
+    ?? work.documents.find(file => file.name.toLowerCase() === 'readme.md')
+    ?? work.documents.find(file => file.path !== work.ledger);
 }
 
 export type StepPhase = 'planning' | 'implementation';

@@ -198,8 +198,6 @@ body { margin: 0; }
 .about:is(:hover, :focus-within) { scrollbar-color: var(--color-border-strong) transparent; }
 .about[data-scrolls] { overscroll-behavior: contain; }
 .about-section { display: grid; gap: var(--space-2); }
-.about-ledger { margin: 0; }
-.about-ledger a { display: inline-flex; align-items: center; gap: var(--space-2); }
 .about-heading { display: block; }
 .about-note { color: var(--color-text-muted); font-weight: 400; }
 .about-current { margin: 0; }
