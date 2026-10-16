@@ -5,7 +5,7 @@
 // back and forward and a plan's breadcrumb set it) and a state filter narrow it; the search field
 // above them opens the search. One click opens a plan.
 import { useMemo, type MouseEvent } from 'react';
-import { Button, EmptyState, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
+import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { WorkIcon } from './icons';
 import type { Project } from './types';
 import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
@@ -15,6 +15,7 @@ import { StatusIcon } from './ui';
 import { StepBar } from './LedgerProgress';
 import { ProviderMark } from './AiModel';
 import { Page } from './Pages';
+import { modifierKey } from './AppMenu';
 
 /** The hub's state filter, kept while the window is open. */
 export interface HubFilters { state: HubState }
@@ -77,7 +78,7 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   </TableRow>;
 }
 
-export function Hub({ projects, error, filter, filters, setFilters, go, query, search, left }: {
+export function Hub({ projects, error, filter, filters, setFilters, go, query, search, left, platform }: {
   projects: Project[] | null; error: string; filter: string | null; filters: HubFilters; setFilters(filters: HubFilters): void; go(place: Place): void;
   /** The search's query while it is open; the field shows it. */
   query: string;
@@ -85,6 +86,8 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
   search(query?: string, focused?: boolean): void;
   /** The search field lost focus. */
   left(): void;
+  /** The computer's platform, for the search's shortcut keys. */
+  platform: string;
 }) {
   const items = useMemo(() => hubItems(projects ?? [], filter), [projects, filter]);
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
@@ -105,15 +108,18 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
   </Page>;
   const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
   return <Page className="hub" title={filtered?.name ?? 'Plans'} toolbar={<>
-    {/* The search: it opens the search popup with what is typed, and never filters this list. */}
-    <SearchField className="hub-search" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog"
-      onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
     <span className="spacer" />
     <Select className="hub-project" density="compact" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
       options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name }))]} />
     <SegmentedControl aria-label="Plan state" size="compact" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
       options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
   </>}>
+    {/* The search, centred above the plans: it opens the search popup with what is typed, and never filters this list. */}
+    <div className="hub-search-bar">
+      <SearchField className="hub-search" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog" compact={false} showLabel={false}
+        aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
+        onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
+    </div>
     {error && <Notice tone="warning">{error}</Notice>}
     {unread.length > 0 && <Text variant="caption" tone="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>

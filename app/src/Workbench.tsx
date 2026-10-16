@@ -454,7 +454,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const filePanel = files && projectPlace && scope ? [{ id: 'files', title: 'Files', label: 'Files', mode: files, active: true, icon: <FolderOpenIcon />, preferredWidth: 360, height: 100000, tooltip: 'Files of ' + scope.projectName }] : [];
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} />;
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   else if (isPage(placed) && !placed.project) content = !projects ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the projects" /></div> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
   else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope}
