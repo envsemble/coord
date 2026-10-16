@@ -45,7 +45,7 @@ function freePort(): Promise<number> {
   });
 }
 /** A host on a home of its own, with the fixture as its project `planning`. */
-async function start(t: TestContext, options: { data?: string; loopbackPort?: number; listingTimeout?: number } = {}) {
+async function start(t: TestContext, options: { data?: string; loopbackPort?: number; listingTimeout?: number; liveCheck?: number } = {}) {
   const data = options.data ?? realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-host-data-')));
   const planning = path.join(data, 'planning', 'planning');
   cpSync(fixture, planning, { recursive: true });
@@ -397,7 +397,7 @@ test('a project whose planning.json cannot be read is listed without a summary',
 });
 
 test('the project list has each work item\'s step, completion and statistics from the home database\'s reports', async t => {
-  const { host, origin, data } = await start(t);
+  const { host, origin, data } = await start(t, { liveCheck: 100 });
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
   await owner.connection.request('projects.list', {});
   const project = host.database.projectByFolder(path.join(data, 'planning', 'planning'))!;
@@ -413,6 +413,12 @@ test('the project list has each work item\'s step, completion and statistics fro
   });
   assert.deepEqual([work('work-0002').statistics, work('work-0003').step, work('work-0001').completed], [null, null, null], 'no reports, no steps (a ledger from before steps), open');
   assert.equal(work('work-0004').completed, '2026-09-24');
+  // A report recorded with nothing else changing reaches clients with the next check.
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const told = owner.lists.length;
+  insertReport(host.database, project.id, 'work-0002', createReport({ model: 'claude-opus', session: 's3', stage: 'planning', at: new Date('2026-10-03T10:00:00Z') }));
+  const sent = () => owner.lists.at(-1)?.find(item => item.name === 'Northwind')?.summary?.active.find(item => item.id === 'work-0002')?.statistics;
+  await until(() => owner.lists.length > told && sent()?.lastReport === '2026-10-03T10:00:00.000Z', 5000, () => owner.lists.length);
 });
 
 test('the search covers every active project, in the home or outside it, best first, and stays fresh as files change', async t => {

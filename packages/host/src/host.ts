@@ -61,8 +61,10 @@ export interface HostOptions {
   heartbeat?: number;
   /** How long a listing for clients may take before the next one goes ahead without it (60 s). */
   listingTimeout?: number;
-  /** Milliseconds between checks of the work agents are working on, for the projects' live dots (15 s). */
+  /** Milliseconds between checks of the work agents are working on and of new reports, for the projects' live dots and statistics (15 s). */
   liveCheck?: number;
+  /** How long a search waits for a project's folder to be read before answering without what changed (5 s). */
+  searchWait?: number;
 }
 
 interface Credential { scopes: Set<Scope>; deviceId: string | null; label: string }
@@ -667,30 +669,38 @@ export class Host {
   private readLiveWork() {
     try { return this.database.liveWork(); } catch { return new Map<number, ProjectSummary['live']>(); }
   }
-  /** The work agents are working on, as last told to clients: when it changes, the projects are told again. */
+  /**
+   * The work agents are working on and the reports recorded, as last told to clients: when either
+   * changes, the projects are told again (with their statistics).
+   */
   private liveKey = '';
   private checkLiveWork() {
-    const key = JSON.stringify([...this.readLiveWork()].map(([project, work]) => [project, work.map(item => item.workId)]));
+    let reports = '';
+    try { reports = this.database.reportsMark(); } catch { /* Unreadable for now: as before. */ }
+    const key = reports + JSON.stringify([...this.readLiveWork()].map(([project, work]) => [project, work.map(item => item.workId)]));
     if (key === this.liveKey) return;
     this.liveKey = key;
     this.projectsChanged();
   }
   /**
-   * Search every active project: each one's index is built on its first search and looked at again
-   * when the watches tell of a change in it. Hidden and archived projects are not searched, and their
-   * indexes are let go.
+   * Search every active project, as the database lists them (without reading their folders, which
+   * may be on a share that stopped answering): each one's index is built on its first search and
+   * looked at again when the watches tell of a change in it. A project whose folder takes longer than
+   * a few seconds to read answers from what was read before, so it never holds up the others. Hidden
+   * and archived projects are not searched, and their indexes are let go.
    */
   private async search(text: string, limit = 50): Promise<SearchResult[]> {
     const query = searchQuery(text);
     if (!query) return [];
-    const projects = (await this.projects()).filter(project => project.state === 'active');
-    const wanted = new Set(projects.map(project => folderKey(project.path)));
+    const projects = this.database.projects().filter(row => row.state === 'active');
+    const wanted = new Set(projects.map(row => folderKey(row.folder)));
     for (const key of this.searches.keys()) if (!wanted.has(key)) this.searches.delete(key);
-    const found = await Promise.all(projects.map(async project => {
-      const key = folderKey(project.path);
+    const found = await Promise.all(projects.map(async row => {
+      const key = folderKey(row.folder);
       let index = this.searches.get(key);
-      if (!index) this.searches.set(key, index = new PlanningSearch(project.path));
-      return (await index.search(query, project.name)).map(hit => ({ hit, project }));
+      if (!index) this.searches.set(key, index = new PlanningSearch(row.folder));
+      const project = { folderId: this.folders.idOf(row.folder), name: row.name };
+      return (await index.search(query, row.name, this.options.searchWait ?? 5000)).map(hit => ({ hit, project }));
     }));
     return found.flat().sort((a, b) => compareHits(a.hit, b.hit)).slice(0, limit).map(({ hit, project }): SearchResult => ({
       kind: hit.kind, title: hit.title, snippet: hit.snippet, folderId: project.folderId, project: project.name, work: hit.work, path: hit.path, anchor: hit.anchor, element: hit.element,
