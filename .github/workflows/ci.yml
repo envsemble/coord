@@ -1,27 +1,54 @@
 name: CI
-# Runs for main only while the account has no Actions minutes to spare: PRs into dev are
-# validated locally (see CONTRIBUTING). Run it by hand on any branch with workflow_dispatch.
+# Runs on pull requests into dev and main once they are ready for review, on Linux only. Every job
+# runs on the runner the envsemble organization variable CI_RUNNER names.
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
   # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
   packages: read
+  # The changes job lists the pull request's files.
+  pull-requests: read
+defaults:
+  run:
+    shell: bash
+# A new push cancels the run for the pull request's older head.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
+  changes:
+    name: Changes
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ${{ vars.CI_RUNNER }}
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.files.outputs.code }}
+    steps:
+      # A pull request that changes only documentation (Markdown files and docs/) skips the checks
+      # below. They then report skipped, which a required check accepts. Markdown the product ships
+      # or tests (the plugin's skills, extras and the end-to-end fixtures) is not documentation.
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          PRODUCT: ^(plugin|extras|app/e2e/fixtures)/
+        run: |
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$NUMBER/files" --jq '.[].filename')
+          if grep -vE '(\.md$|^docs/)' <<<"$files" | grep -q . || grep -qE "$PRODUCT" <<<"$files"; then
+            echo code=true >> "$GITHUB_OUTPUT"
+          else
+            echo code=false >> "$GITHUB_OUTPUT"
+          fi
   node:
-    name: Node (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
+    name: Node
+    needs: changes
+    # Runs unless the changes job found documentation only, also when it failed.
+    if: ${{ !cancelled() && !github.event.pull_request.draft && needs.changes.outputs.code != 'false' }}
+    runs-on: ${{ vars.CI_RUNNER }}
+    timeout-minutes: 20
     env:
       WRANGLER_SEND_METRICS: "false"
     steps:
@@ -38,11 +65,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      # GitHub service containers run only on Linux runners, so the
-      # PostgreSQL 17 capture fixture exists only on Linux. The disposable
-      # fixture uses trust authentication and has no credentials.
+      # The disposable PostgreSQL 17 capture fixture uses trust authentication and has no credentials.
       - name: Start the PostgreSQL 17 fixture
-        if: runner.os == 'Linux'
         run: |
           docker run --detach --name atlas-postgres --publish 5432:5432 \
             --env POSTGRES_USER=atlas_fixture --env POSTGRES_DB=atlas_fixture \
@@ -56,9 +80,6 @@ jobs:
           done
           [ "$status" = healthy ]
           echo "ATLAS_TEST_POSTGRES=postgresql://atlas_fixture@127.0.0.1:5432/atlas_fixture" >> "$GITHUB_ENV"
-      - name: Note the skipped PostgreSQL fixture
-        if: runner.os != 'Linux'
-        run: echo "::notice title=PostgreSQL fixture skipped::The PostgreSQL 17 capture test runs on Linux only; GitHub service containers are unavailable on ${{ runner.os }}."
       - run: npm ci
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -75,22 +96,18 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: atlas-${{ matrix.os }}-${{ github.sha }}
+          name: atlas-${{ github.sha }}
           path: |
             artifacts/
             app/artifacts/
           if-no-files-found: error
           retention-days: 7
   skills:
-    name: Skills (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
+    name: Skills
+    needs: changes
+    if: ${{ !cancelled() && !github.event.pull_request.draft && needs.changes.outputs.code != 'false' }}
+    runs-on: ${{ vars.CI_RUNNER }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -104,17 +121,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks need only Node.
       - run: npm run test:skills
-  desktop:
-    name: Desktop (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  e2e:
+    name: End-to-end
+    needs: changes
+    # Only for releases: pull requests into main.
+    if: ${{ !cancelled() && !github.event.pull_request.draft && needs.changes.outputs.code != 'false' && github.base_ref == 'main' }}
+    runs-on: ${{ vars.CI_RUNNER }}
     timeout-minutes: 40
-    defaults:
-      run:
-        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -129,25 +142,18 @@ jobs:
       # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, which Chromium's
       # sandbox needs. Allow them (see the app README) rather than running without the sandbox.
       - name: Allow the Chromium sandbox
-        if: runner.os == 'Linux'
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo apt-get update && sudo apt-get install --yes xvfb
-      # Unsigned NSIS installer on Windows, AppImage on Linux, in app/release.
+      # The AppImage, in app/release.
       - run: npm run package --workspace @envsemble/atlas-app
       - name: End-to-end tests against the packaged app
-        env:
-          # Also install and uninstall the Windows installer on the disposable runner.
-          ATLAS_E2E_INSTALLER: "1"
-        run: |
-          if [ "$RUNNER_OS" = Linux ]; then xvfb-run --auto-servernum npm run test:e2e --workspace @envsemble/atlas-app
-          else npm run test:e2e --workspace @envsemble/atlas-app; fi
+        run: xvfb-run --auto-servernum npm run test:e2e --workspace @envsemble/atlas-app
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: atlas-desktop-${{ matrix.os }}-${{ github.sha }}
+          name: atlas-desktop-${{ github.sha }}
           path: |
-            app/release/*.exe
             app/release/*.AppImage
             app/playwright-report/
             app/test-results/
@@ -155,19 +161,26 @@ jobs:
           retention-days: 7
   verify:
     name: CI
-    needs: [node, skills, desktop]
-    if: always()
-    runs-on: ubuntu-latest
+    needs: [changes, node, skills, e2e]
+    # Skipped, and so passing, for drafts and for documentation only.
+    if: ${{ !cancelled() && !github.event.pull_request.draft && needs.changes.outputs.code != 'false' }}
+    runs-on: ${{ vars.CI_RUNNER }}
+    timeout-minutes: 5
     steps:
       - name: Require all verification jobs to pass
         env:
           NODE: ${{ needs.node.result }}
           SKILLS: ${{ needs.skills.result }}
-          DESKTOP: ${{ needs.desktop.result }}
-        run: test "$NODE" = success && test "$SKILLS" = success && test "$DESKTOP" = success
+          E2E: ${{ needs.e2e.result }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          test "$NODE" = success && test "$SKILLS" = success
+          # The end-to-end suite runs only for pull requests into main.
+          test "$E2E" = success || { test "$E2E" = skipped && test "$BASE" = dev; }
   betterleaks:
     name: Betterleaks
-    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ${{ vars.CI_RUNNER }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4

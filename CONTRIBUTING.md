@@ -60,14 +60,7 @@ npm run check:release
 
 PR/MR descriptions should identify the behavior change, supported scope, evidence and validation. Link consequential decisions to their planning context, and for design changes link the diagrams that show them. Human acceptance and merge stay separate from generated findings. Versioned artifacts can be checked with [release assembly](docs/releases.md); no publishing/deployment is implied.
 
-CI runs only for `main`, on pushes to it and on pull requests into it. There, `CI` and `Betterleaks` are required checks; the scanner is version- and hash-pinned and scans the retained Git history. Pull requests into `dev` get no CI for now, so before asking for review:
-
-- run the checks above locally, including the end-to-end suite;
-- run the Node and plugin suites on Linux too where you can, for example in a container;
-- scan the branch's history with the same Betterleaks version (`betterleaks git . --redact`);
-- say in the PR what ran.
-
-**Run workflow** on the repository's Actions tab still runs CI on any branch.
+CI runs on Linux for pull requests into `dev` and `main` once they are ready for review; drafts run nothing, and a new push cancels the run for the older head. It runs the checks above and the plugin suite, and for pull requests into `main`, the releases, also the end-to-end suite against the packaged app. A pull request that changes only documentation (Markdown files and `docs/`) skips them. `CI` and `Betterleaks` are required checks; the scanner is version- and hash-pinned and scans the retained Git history. Every job runs on the runner the organization variable `CI_RUNNER` names.
 
 ## Branding and licensing
 

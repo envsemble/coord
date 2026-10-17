@@ -21,7 +21,7 @@
     "dev": "node scripts/electron.mjs electron-vite dev --watch --",
     "build": "npm run check:types && electron-vite build",
     "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.atlasEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
-    "test": "tsx --import ../scripts/test-home.mjs --test \"src/*.test.ts\" && node --import ../scripts/test-home.mjs --test \"main/*.test.ts\" \"shared/*.test.ts\"",
+    "test": "tsx --import ../scripts/test-home.mjs --test --test-timeout=120000 --test-force-exit \"src/*.test.ts\" && node --import ../scripts/test-home.mjs --test --test-timeout=120000 --test-force-exit \"main/*.test.ts\" \"shared/*.test.ts\"",
     "test:e2e": "node scripts/electron.mjs playwright test",
     "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
