@@ -28,10 +28,17 @@ The desktop app's installers are not part of the release ZIP. The ZIP is the sam
 
 ## GitHub Releases
 
-Pushing a version tag on `main` (`v0.7.2`) runs the release workflow (`.github/workflows/release.yml`):
+Pushing a version tag on `main` (`git fetch origin && git tag v0.7.2 origin/main && git push origin v0.7.2`) runs the release workflow (`.github/workflows/release.yml`):
 
-1. It checks that the tagged commit is on `main`, that the tag is the version in `package.json`, and that `CHANGELOG.md` has a section for it, which becomes the release notes. Then it creates a draft release.
+1. It checks that the tagged commit is a commit of `main` itself, not one merged into it, that the tag is the version in `package.json`, and that `CHANGELOG.md` has a section for it, which becomes the release notes. Then it creates a draft release.
 2. A Linux job assembles the release ZIP and builds the AppImage; a Windows job builds the installer and tests it by installing it for the runner's user, starting it and uninstalling it. Each adds its files to the draft.
-3. The draft is published only when both jobs pass; otherwise it is deleted. Fix the problem and push the tag again.
+3. The draft is published only when both jobs pass; otherwise it stays an unpublished draft.
+
+When a job fails by chance (a flaky test or runner), **Re-run failed jobs** on the run fills the draft and publishes it. When the release needs a fix, merge it into `main` and move the tag to the new commit; the next run replaces the draft:
+
+```sh
+git push origin :refs/tags/v0.7.2
+git fetch origin && git tag -f v0.7.2 origin/main && git push origin v0.7.2
+```
 
 The files go straight into the release rather than into workflow artifacts. The Windows job is the only Windows run in Atlas's CI.
