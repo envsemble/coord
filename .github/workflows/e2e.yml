@@ -2,7 +2,7 @@ name: End-to-end
 # The end-to-end suite against the packaged app, for pull requests into main (the releases) once
 # they are ready for review. It is a workflow of its own so that pull requests into dev never report
 # an End-to-end check: a pull request retargeted to main then waits for one. The job runs on the
-# runner the envsemble organization variable CI_RUNNER names.
+# Linux runner the envsemble organization variable CI_LINUX_RUNNER names.
 on:
   pull_request:
     branches: [main]
@@ -22,7 +22,7 @@ jobs:
   e2e:
     name: End-to-end
     if: ${{ !github.event.pull_request.draft }}
-    runs-on: ${{ vars.CI_RUNNER }}
+    runs-on: ${{ vars.CI_LINUX_RUNNER }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -48,13 +48,14 @@ jobs:
       - run: npm run package --workspace @envsemble/atlas-app
       - name: End-to-end tests against the packaged app
         run: xvfb-run --auto-servernum npm run test:e2e --workspace @envsemble/atlas-app
+      # Only a failure keeps anything: its report, for the organization's artifact retention. A
+      # refused upload never fails the job.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ failure() }}
+        continue-on-error: true
         with:
-          name: atlas-desktop-${{ github.sha }}
+          name: end-to-end-failure-${{ github.sha }}
           path: |
-            app/release/*.AppImage
             app/playwright-report/
             app/test-results/
-          if-no-files-found: warn
-          retention-days: 7
+          if-no-files-found: ignore

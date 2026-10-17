@@ -1,7 +1,7 @@
 name: CI
-# Runs on pull requests into dev and main once they are ready for review, on Linux only. Every job
-# runs on the runner the envsemble organization variable CI_RUNNER names. The end-to-end suite has
-# its own workflow, for pull requests into main (e2e.yml).
+# One job for pull requests into dev and main once they are ready for review, on the Linux runner
+# the envsemble organization variable CI_LINUX_RUNNER names. The end-to-end suite has its own
+# workflow, for pull requests into main (e2e.yml), and releases have theirs (release.yml).
 on:
   pull_request:
     branches: [dev, main]
@@ -10,7 +10,7 @@ permissions:
   contents: read
   # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
   packages: read
-  # The changes job lists the pull request's files.
+  # The first step lists the pull request's files.
   pull-requests: read
 defaults:
   run:
@@ -20,18 +20,24 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
-  changes:
-    name: Changes
+  ci:
+    name: CI
     if: ${{ !github.event.pull_request.draft }}
-    runs-on: ${{ vars.CI_RUNNER }}
-    timeout-minutes: 5
-    outputs:
-      code: ${{ steps.files.outputs.code }}
+    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    timeout-minutes: 20
+    env:
+      WRANGLER_SEND_METRICS: "false"
     steps:
-      # A pull request that changes only documentation (Markdown files and docs/) skips the checks
-      # below. They then report skipped, which a required check accepts. Markdown the product ships
-      # or tests (the plugin's skills, extras and the end-to-end fixtures) is not documentation.
-      - id: files
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # A pull request that changes only documentation (Markdown files and docs/) runs only this
+      # step and Betterleaks. Markdown the product ships or tests (the plugin's skills, extras and
+      # the end-to-end fixtures) is not documentation. If listing the files fails, the checks run.
+      - name: List the changed files
+        id: changes
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           NUMBER: ${{ github.event.pull_request.number }}
@@ -44,32 +50,23 @@ jobs:
             echo code=true >> "$GITHUB_OUTPUT"
           else
             echo code=false >> "$GITHUB_OUTPUT"
+            echo "::notice title=Documentation only::The checks are skipped; Betterleaks still runs."
           fi
-  verify:
-    name: CI
-    needs: changes
-    # Runs unless the changes job found documentation only, also when it failed.
-    if: ${{ !cancelled() && !github.event.pull_request.draft && needs.changes.outputs.code != 'false' }}
-    runs-on: ${{ vars.CI_RUNNER }}
-    timeout-minutes: 20
-    env:
-      WRANGLER_SEND_METRICS: "false"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
+        if: ${{ steps.changes.outputs.code != 'false' }}
         with:
           node-version: "24"
           cache: npm
           registry-url: https://npm.pkg.github.com
           scope: "@envsemble"
       - uses: actions/setup-java@v4
+        if: ${{ steps.changes.outputs.code != 'false' }}
         with:
           distribution: temurin
           java-version: "21"
       # The disposable PostgreSQL 17 capture fixture uses trust authentication and has no credentials.
       - name: Start the PostgreSQL 17 fixture
+        if: ${{ steps.changes.outputs.code != 'false' }}
         run: |
           docker run --detach --name atlas-postgres --publish 5432:5432 \
             --env POSTGRES_USER=atlas_fixture --env POSTGRES_DB=atlas_fixture \
@@ -84,40 +81,32 @@ jobs:
           [ "$status" = healthy ]
           echo "ATLAS_TEST_POSTGRES=postgresql://atlas_fixture@127.0.0.1:5432/atlas_fixture" >> "$GITHUB_ENV"
       - run: npm ci
+        if: ${{ steps.changes.outputs.code != 'false' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run format:check && npm run check:types
+        if: ${{ steps.changes.outputs.code != 'false' }}
       # Workspace tests: diagrams, planning (reader and ported helpers), the atlas command and the app.
       - run: npm test
+        if: ${{ steps.changes.outputs.code != 'false' }}
       # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks.
       - run: npm run test:skills
+        if: ${{ steps.changes.outputs.code != 'false' }}
       - run: npm run build --workspace @envsemble/atlas-app
+        if: ${{ steps.changes.outputs.code != 'false' }}
       - run: npm run check && npm run check:package && npm run check:performance
+        if: ${{ steps.changes.outputs.code != 'false' }}
       # The plan export viewer bundles the diagram viewer built above, so it is rebuilt after it.
       - run: npm run build --workspace @envsemble/atlas-planning
+        if: ${{ steps.changes.outputs.code != 'false' }}
       - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist packages/planning/dist
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      # The release assembles reproducibly; nothing is kept from it.
       - run: npm run check:release
-      - run: npm run release:assemble -- artifacts/release
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: atlas-${{ github.sha }}
-          path: |
-            artifacts/
-            app/artifacts/
-          if-no-files-found: error
-          retention-days: 7
-  betterleaks:
-    name: Betterleaks
-    if: ${{ !github.event.pull_request.draft }}
-    runs-on: ${{ vars.CI_RUNNER }}
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Install pinned Betterleaks
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      # Also after a failed check, so one run reports both.
+      - name: Scan the history with Betterleaks
+        if: ${{ !cancelled() }}
         env:
           BETTERLEAKS_VERSION: "1.8.1"
           BETTERLEAKS_SHA256: "efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a"
