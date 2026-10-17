@@ -224,4 +224,4 @@ The app depends on the diagram package (`@envsemble/atlas-diagrams`, in `package
 
 **Understand the model** opens a class diagram's scenarios beside it: the object diagrams that exemplify it, each assessed against it as expected valid or invalid. Closing it returns to the diagram without discarding its camera or selection; the assessment does not establish domain accuracy.
 
-From the repository root, `npm run release:assemble` builds one versioned Atlas ZIP from the committed Git tree, including this app's source; the installers are separate CI artifacts (see [releases](../docs/releases.md)). See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md).
+From the repository root, `npm run release:assemble` builds one versioned Atlas ZIP from the committed Git tree, including this app's source; the installers are built separately with `npm run package` (see [releases](../docs/releases.md)). See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md).

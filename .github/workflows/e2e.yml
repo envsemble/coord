@@ -1,0 +1,60 @@
+name: End-to-end
+# The end-to-end suite against the packaged app, for pull requests into main (the releases) once
+# they are ready for review. It is a workflow of its own so that pull requests into dev never report
+# an End-to-end check: a pull request retargeted to main then waits for one. The job runs on the
+# runner the envsemble organization variable CI_RUNNER names.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+  # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
+  packages: read
+defaults:
+  run:
+    shell: bash
+# A new push cancels the run for the pull request's older head.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    name: End-to-end
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ${{ vars.CI_RUNNER }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, which Chromium's
+      # sandbox needs. Allow them where the kernel has the setting (see the app README) rather than
+      # running without the sandbox.
+      - name: Allow the Chromium sandbox
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          sudo apt-get update && sudo apt-get install --yes xvfb
+      # The AppImage, in app/release.
+      - run: npm run package --workspace @envsemble/atlas-app
+      - name: End-to-end tests against the packaged app
+        run: xvfb-run --auto-servernum npm run test:e2e --workspace @envsemble/atlas-app
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-desktop-${{ github.sha }}
+          path: |
+            app/release/*.AppImage
+            app/playwright-report/
+            app/test-results/
+          if-no-files-found: warn
+          retention-days: 7
