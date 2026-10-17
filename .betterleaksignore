@@ -6,3 +6,5 @@
 4c18d163e7d970c638a50cfb6e4417972b8d4569:.github/workflows/ci.yml:generic-password:16
 4291a80fdf97b769073abe5aab98c5407b2109a6:.gitlab-ci.yml:generic-credential-uri:13
 4291a80fdf97b769073abe5aab98c5407b2109a6:.gitlab-ci.yml:generic-password:11
+# A made-up remote with credentials in a test that checks Atlas leaves them out of what it reports.
+f75ead27090adf668527bc743b68feaba3a37457:packages/planning/src/work.test.ts:generic-credential-uri:177

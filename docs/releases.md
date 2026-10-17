@@ -24,4 +24,22 @@ Install the included tarball with `npm install ./envsemble-atlas-diagrams-<versi
 
 The app in `app/` depends on the diagram package through the npm workspace; there is no separately pinned tarball.
 
-The desktop app's installers are not part of the release ZIP. The ZIP is the same bytes in every timezone and on every operating system, while the unsigned NSIS installer and the AppImage are per-platform builds of about 125 MB that electron-builder does not produce byte for byte. The `Desktop` CI job builds both from the same commit with `npm run package`, runs the end-to-end suite against them, and keeps them as workflow artifacts. The ZIP carries the app's source and lockfile, so the installers can be rebuilt from it. GitHub Actions assembles artifacts; the default-branch name affects badge status but does not publish an artifact release. Required checks are `CI` and `Betterleaks`.
+The desktop app's installers are not part of the release ZIP. The ZIP is the same bytes in every timezone and on every operating system, while the unsigned NSIS installer and the AppImage are per-platform builds of about 125 MB that electron-builder does not produce byte for byte. `npm run package` builds the installer on Windows and the AppImage on Linux. The ZIP carries the app's source and lockfile, so the installers can be rebuilt from it. CI checks that the release assembles reproducibly and keeps nothing from it.
+
+## GitHub Releases
+
+Pushing a version tag on `main` (`git fetch origin && git tag v0.7.2 origin/main && git push origin v0.7.2`) runs the release workflow (`.github/workflows/release.yml`):
+
+1. It checks that the tagged commit is a commit of `main` itself, not one merged into it, that the tag is the version in `package.json`, and that `CHANGELOG.md` has a section for it, which becomes the release notes. Then it creates a draft release.
+2. A Linux job assembles the release ZIP and builds the AppImage; a Windows job builds the installer and tests it by installing it for the runner's user, starting it and uninstalling it. Each adds its files to the draft.
+3. The draft is published only when both jobs pass; otherwise it stays an unpublished draft.
+
+When a job fails by chance (a flaky test or runner), **Re-run failed jobs** on the latest run for the tag fills the draft and publishes it. When a failed release needs a fix, merge it into `main` and move the tag to the new commit; the next run replaces the draft:
+
+```sh
+git fetch origin && git tag -f v0.7.2 origin/main && git push --force origin v0.7.2
+```
+
+A published release is never replaced: a run for its tag stops, and an older run's uploads stop once the tag has moved. Release a fix to a published version as a new version.
+
+The files go straight into the release rather than into workflow artifacts. The Windows job is the only Windows run in Atlas's CI.
