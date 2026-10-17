@@ -54,7 +54,7 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 
 | Path | What it is |
 | --- | --- |
-| `main/` | The main process: windows, the menu, the `atlas:` protocol, the message handlers, the log, saved state and the connections to Atlas hosts. It starts this computer's host (`packages/host`, in `main/hostProcess.ts`) in a utility process; the host reads and watches planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
+| `main/` | The main process: windows, the menu, the `atlas:` protocol, the message handlers, the log, saved state and the connections to Atlas hosts. It starts this computer's host (`packages/host`, in `main/host/hostProcess.ts`) in a utility process; the host reads and watches planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
 | `preload/` | The bridge: `window.atlas`, one method per message. |
 | `shared/` | The message contract and the validator every message argument goes through. |
 | `src/` | The React window, built on [envUI](https://github.com/envsemble/envUI) (`@envsemble/envui`): its window frame and title bar, tree, command palette, menus, dialogs, notices, rows, tables and Material Symbols. `src/atlas.css` lays out Atlas's own regions with envUI tokens only. |

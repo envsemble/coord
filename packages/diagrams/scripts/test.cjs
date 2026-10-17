@@ -7,13 +7,14 @@ const quick = process.argv.includes("--quick");
 const args = process.argv.slice(2).filter((arg) => arg !== "--quick");
 const files = fs
   .readdirSync(directory)
-  .filter((file) => file.endsWith(".test.cjs") && !(quick && file.endsWith(".slow.test.cjs")))
+  .filter(
+    (file) =>
+      file.endsWith(".test.cjs") && !(quick && file.endsWith(".slow.test.cjs")),
+  )
   .sort()
   .map((file) => path.join(directory, file));
-const result = spawnSync(
-  process.execPath,
-  ["--test", ...args, ...files],
-  { stdio: "inherit" },
-);
+const result = spawnSync(process.execPath, ["--test", ...args, ...files], {
+  stdio: "inherit",
+});
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

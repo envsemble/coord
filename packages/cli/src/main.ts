@@ -7,8 +7,8 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '@envsemble/atlas-planning';
 import { parseOptions, UsageError, type Output } from './args.ts';
-import { check, home, planningUsage, project, where, work } from './planning.ts';
-import { capture, CaptureError } from './capture.ts';
+import { check, home, planningUsage, project, where, work } from './commands/planning.ts';
+import { capture, CaptureError } from './commands/capture.ts';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -232,9 +232,9 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === '--version' || command === '-v' || command === 'version') { out.stdout(version); return 0; }
     if (!command || ['help', '--help', '-h'].includes(command)) { out.stdout(usage); return 0; }
     // A hook never fails the session, whatever happens.
-    if (command === 'hook') { const { hook } = await import('./hook.ts'); return await hook(args.slice(1), out); }
-    if (command === 'mcp') { const { serveMcp } = await import('./mcp.ts'); return await serveMcp(args.slice(1), out); }
-    if (command === 'setup') { const { setup } = await import('./setup.ts'); return await setup(args.slice(1), out); }
+    if (command === 'hook') { const { hook } = await import('./commands/hook.ts'); return await hook(args.slice(1), out); }
+    if (command === 'mcp') { const { serveMcp } = await import('./commands/mcp.ts'); return await serveMcp(args.slice(1), out); }
+    if (command === 'setup') { const { setup } = await import('./commands/setup.ts'); return await setup(args.slice(1), out); }
     if (command === 'where') return await where(args.slice(1), out);
     if (command === 'check') return await check(args.slice(1), out);
     if (command === 'capture') return await capture(args.slice(1), out);

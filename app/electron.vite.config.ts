@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 import { defaultClientConditions, searchForWorkspaceRoot, type Plugin } from 'vite';
 import { themeStorageKey } from './shared/theme';
 
-// The production policy is also sent as a header by the atlas:// protocol (main/protocol.ts).
+// The production policy is also sent as a header by the atlas:// protocol (main/windows/protocol.ts).
 // Development allows the Vite client (inline React refresh preamble, HMR socket) on localhost only.
 const productionPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'";
 const developmentPolicy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'";
@@ -75,8 +75,8 @@ export default defineConfig({
       // The diagram package (CommonJS with native and lazily loaded dependencies) stays in
       // node_modules; everything else, including the planning reader, is bundled.
       externalizeDeps: { include: ['@envsemble/atlas-diagrams'] },
-      // The app's main process and the Atlas host it runs in a utility process (main/hostProcess.ts).
-      lib: { entry: { index: resolve(import.meta.dirname, 'main/index.ts'), host: resolve(import.meta.dirname, 'main/hostProcess.ts') } },
+      // The app's main process and the Atlas host it runs in a utility process (main/host/hostProcess.ts).
+      lib: { entry: { index: resolve(import.meta.dirname, 'main/index.ts'), host: resolve(import.meta.dirname, 'main/host/hostProcess.ts') } },
       sourcemap: true,
       // ws loads these optional native speed-ups only when installed; Atlas does not ship them.
       rolldownOptions: { external: ['bufferutil', 'utf-8-validate'] },

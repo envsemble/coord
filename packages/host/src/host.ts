@@ -23,19 +23,19 @@ import {
   readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type ProjectRow, type ProjectTemplates,
 } from '@envsemble/atlas-planning';
 import { compareHits, PlanningSearch, searchQuery } from '@envsemble/atlas-planning/search';
-import { AccessStore, newToken } from './access.ts';
-import { hostAddresses } from './addresses.ts';
+import { AccessStore, newToken } from './access/access.ts';
+import { hostAddresses } from './access/addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
   type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
   type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope, type SearchResult, type WorkspaceScan,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
-import type { FolderSession } from './folder.ts';
-import { FolderRegistry, pathKey } from './folders.ts';
-import { ProjectListWatch } from './projectWatch.ts';
-import { exportFileName } from './planExportName.ts';
-import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
+import type { FolderSession } from './folders/folder.ts';
+import { FolderRegistry, pathKey } from './folders/folders.ts';
+import { ProjectListWatch } from './folders/projectWatch.ts';
+import { exportFileName } from './export/planExportName.ts';
+import { PlanWorkerClient, type WorkerLike } from './export/planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
 
 export interface HostOptions {

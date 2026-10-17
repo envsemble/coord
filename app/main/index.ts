@@ -1,7 +1,7 @@
 // The Atlas desktop app's main process: single instance, windows that each show one computer's
 // projects, the application menu, and the typed message channel the windows use. Projects are read
 // by the Atlas host of the computer they are on: this computer's, which this process starts in a
-// utility process (main/localHost.ts), or a paired computer's. The app keeps its own state in the
+// utility process (main/host/localHost.ts), or a paired computer's. The app keeps its own state in the
 // home database (main/state.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -9,15 +9,15 @@ import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'e
 import { hostRunning } from '@envsemble/atlas-host';
 import { atlasHome, HomeDatabase, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome } from '@envsemble/atlas-planning';
 import icon from '../build/icon.png?asset';
-import { Connections } from './connections.ts';
-import { dropImports, registerIpc } from './ipc.ts';
-import { LocalHost } from './localHost.ts';
+import { Connections } from './host/connections.ts';
+import { dropImports, registerIpc } from './windows/ipc.ts';
+import { LocalHost } from './host/localHost.ts';
 import { RotatingLog } from './log.ts';
-import { buildMenu } from './menu.ts';
+import { buildMenu } from './windows/menu.ts';
 import { refusalMessage, startupRefusal, type Refusal } from './refusal.ts';
-import { scheme } from './protocol.ts';
+import { scheme } from './windows/protocol.ts';
 import { DesktopState } from './state.ts';
-import { WindowManager } from './windows.ts';
+import { WindowManager } from './windows/windows.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
 

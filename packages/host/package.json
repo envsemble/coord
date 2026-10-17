@@ -19,7 +19,7 @@
     "./client": "./src/client.ts",
     "./validate": "./src/validate.ts",
     "./serve": "./src/serve.ts",
-    "./plan-worker": "./src/planWorker.ts"
+    "./plan-worker": "./src/export/planWorker.ts"
   },
   "scripts": {
     "test": "node ../../scripts/test-tier.mjs full --import ../../scripts/test-home.mjs src",

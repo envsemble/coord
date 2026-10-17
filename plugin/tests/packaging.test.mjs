@@ -61,9 +61,9 @@ const textFiles = () =>
   );
 
 // The command's usage lines (main.ts and the planning commands) and the MCP server's tool names, read from the code.
-const CLI = path.join(REPO, "packages", "cli", "src");
+const CLI = path.join(REPO, "packages", "cli", "src", "commands");
 const USAGE = [
-  read(path.join(CLI, "main.ts")),
+  read(path.join(CLI, "..", "main.ts")),
   read(path.join(CLI, "planning.ts")),
 ]
   .flatMap((text) => [...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)$/gm)])

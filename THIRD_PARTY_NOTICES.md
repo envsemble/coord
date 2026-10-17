@@ -12,7 +12,7 @@ The `atlas` skill's interview and domain-modeling methods are adapted from Matt 
 
 The interface icons are envUI's Material Symbols. The reusable viewer imports them from envUI; the offline build bundles the icons it uses. No icon or font service or CDN is required.
 
-The AI providers' marks beside model names in the app's statistics (Claude's spark for Anthropic, the OpenAI blossom, the Gemini sparkle, Mistral AI's M and the DeepSeek whale) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 15.22.0 for OpenAI's, the last release that included it. Only the path data is copied, in `app/src/AiModel.tsx`. The marks are trademarks of their owners and only identify their models; showing them implies no endorsement or affiliation.
+The AI providers' marks beside model names in the app's statistics (Claude's spark for Anthropic, the OpenAI blossom, the Gemini sparkle, Mistral AI's M and the DeepSeek whale) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 15.22.0 for OpenAI's, the last release that included it. Only the path data is copied, in `app/src/ui/AiModel.tsx`. The marks are trademarks of their owners and only identify their models; showing them implies no endorsement or affiliation.
 
 Vite 8.3.3 and its React plugin 6.1.2 provide the development server and Fast Refresh under their upstream MIT licenses, distributed with the npm dependencies. They are not bundled into offline HTML or required by the library at runtime.
 

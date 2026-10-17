@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { RotatingLog } from './log.ts';
-import { containedFile, contentSecurityPolicy, originOf } from './protocol.ts';
+import { containedFile, contentSecurityPolicy, originOf } from './windows/protocol.ts';
 import { HomeDatabase } from '@envsemble/atlas-planning';
 import { DesktopState, placeRow, savedPlace } from './state.ts';
 import { target as tabTarget } from '../shared/validate.ts';

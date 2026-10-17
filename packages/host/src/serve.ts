@@ -7,11 +7,11 @@ import QRCode from 'qrcode';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { legacyDataDirectory, legacySettings, pendingHomeFiles, prepareHome, readTemplates } from '@envsemble/atlas-planning';
-import { hostAddresses } from './addresses.ts';
+import { hostAddresses } from './access/addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
-import { impostorHolder } from './access.ts';
+import { impostorHolder } from './access/access.ts';
 import { Host } from './host.ts';
-import type { WorkerLike } from './planWorkerClient.ts';
+import type { WorkerLike } from './export/planWorkerClient.ts';
 import { listenAddress } from './validate.ts';
 
 export interface ServeOptions { address: string | null; port: number | null; home: string | null; version: string; interactive: boolean }
@@ -40,7 +40,7 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   }
   const host = new Host({
     home, version: options.version, log, owner: '`atlas serve`',
-    createPlanWorker: () => new Worker(new URL('./planWorker.ts', import.meta.url)) as unknown as WorkerLike,
+    createPlanWorker: () => new Worker(new URL('./export/planWorker.ts', import.meta.url)) as unknown as WorkerLike,
     networkOverride: { address, port: options.port ?? defaultPort },
     // The planning templates the atlas skill bundles, in this checkout.
     templates: () => readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../plugin/skills/atlas/assets/planning')),

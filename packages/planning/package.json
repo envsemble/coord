@@ -15,13 +15,13 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./diagrams": "./src/diagrams.ts",
-    "./headings": "./src/headings.ts",
-    "./ledger": "./src/ledger.ts",
-    "./session": "./src/session.ts",
-    "./paths": "./src/paths.ts",
-    "./provenance": "./src/provenance.ts",
-    "./search": "./src/search.ts",
+    "./diagrams": "./src/reading/diagrams.ts",
+    "./headings": "./src/reading/headings.ts",
+    "./ledger": "./src/work/ledger.ts",
+    "./session": "./src/reading/session.ts",
+    "./paths": "./src/system/paths.ts",
+    "./provenance": "./src/reading/provenance.ts",
+    "./search": "./src/reading/search.ts",
     "./types": "./src/types.ts"
   },
   "scripts": {

@@ -9,9 +9,9 @@ import { Help } from '@envsemble/envui/icons/Help';
 import { Pending } from '@envsemble/envui/icons/Pending';
 import { RadioButtonUnchecked } from '@envsemble/envui/icons/RadioButtonUnchecked';
 import { SkipNext } from '@envsemble/envui/icons/SkipNext';
-import { stepCounts, stepSummary } from '../src/ledger.ts';
+import { stepCounts, stepSummary } from '../src/work/ledger.ts';
 import type { LedgerStep, LedgerStepStatus } from '../src/types.ts';
-import type { Provenance } from '../src/provenance.ts';
+import type { Provenance } from '../src/reading/provenance.ts';
 import type { PlanView } from './data.ts';
 
 export function ProvenanceBadge({ provenance }: { provenance: Provenance }) {

@@ -9,7 +9,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HomeDatabase } from '@envsemble/atlas-planning';
-import { AccessStore, hostRunning, lockAddress, normalizeCode } from './access.ts';
+import { AccessStore, hostRunning, lockAddress, normalizeCode } from './access/access.ts';
 import { HostRequestError, describeHost, pairWithHost, parsePairing } from './client.ts';
 import { acceptableHost, attachment } from './host.ts';
 import { pairRequest, accessSettings } from './validate.ts';

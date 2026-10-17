@@ -12,5 +12,5 @@
     "verbatimModuleSyntax": true,
     "types": []
   },
-  "include": [".", "../src/provenance.ts"]
+  "include": [".", "../src/reading/provenance.ts"]
 }

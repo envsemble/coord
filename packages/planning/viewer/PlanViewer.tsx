@@ -17,9 +17,9 @@ import { Folder } from '@envsemble/envui/icons/Folder';
 import { FolderOpen } from '@envsemble/envui/icons/FolderOpen';
 import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDiagram } from './data.ts';
 import { Markdown, scrollToHeading } from './Markdown.tsx';
-import { markdownBody } from '../src/headings.ts';
+import { markdownBody } from '../src/reading/headings.ts';
 import { LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
-import { elementId, modelSummary, type ProvenanceKind } from '../src/provenance.ts';
+import { elementId, modelSummary, type ProvenanceKind } from '../src/reading/provenance.ts';
 
 type Tab = 'plan' | 'ledger' | 'diagrams' | 'files';
 interface Route { tab: Tab | null; file: string | null; anchor: string | null; diagram: string | null; element: string | null }

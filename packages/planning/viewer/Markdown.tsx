@@ -6,7 +6,7 @@ import { Button, Card } from '@envsemble/envui';
 import { Markdown as EnvMarkdown } from '@envsemble/envui/content';
 import { AccountTree } from '@envsemble/envui/icons/AccountTree';
 import { OpenInNew } from '@envsemble/envui/icons/OpenInNew';
-import { headingAnchors, sectionAnchors } from '../src/headings.ts';
+import { headingAnchors, sectionAnchors } from '../src/reading/headings.ts';
 import { blobURL, imageType, type ExportFile, type ViewDiagram } from './data.ts';
 import { ProvenanceBadge } from './ui.tsx';
 

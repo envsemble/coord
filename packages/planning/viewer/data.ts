@@ -1,5 +1,5 @@
 // The plan export's embedded data. Both elements are inert JSON; nothing in them is executed.
-import type { Provenance } from '../src/provenance.ts';
+import type { Provenance } from '../src/reading/provenance.ts';
 import type { WorkProgress } from '../src/types.ts';
 
 export interface ExportFile { path: string; size: number; sha256: string; data: string }
