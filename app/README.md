@@ -11,7 +11,7 @@ Atlas is built for Windows and Linux. Builds are unsigned, by decision for a sin
 - **Windows:** run `Atlas-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user only, without administrator rights (you can pick the folder), and adds Atlas to the Start menu. Uninstall it from **Settings › Apps**; your Atlas home is kept.
 - **Linux:** make `Atlas-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
 
-Both come from `npm run package` in a checkout (they land in `app/release/`): the installer on Windows, the AppImage on Linux. CI's `End-to-end` job keeps the AppImage of each pull request into `main` as an artifact.
+Both come from `npm run package` in a checkout (they land in `app/release/`): the installer on Windows, the AppImage on Linux. The `End-to-end` CI workflow keeps the AppImage of each pull request into `main` as an artifact.
 
 To open a folder from a terminal or a file manager's "Open with", pass it on the command line: `Atlas.exe C:\work\planning` or `./Atlas-<version>-x86_64.AppImage ~/work/planning`. If Atlas is already running, the folder opens in that instance; a folder that is already open just gets focus.
 
