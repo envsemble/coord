@@ -34,11 +34,12 @@ Pushing a version tag on `main` (`git fetch origin && git tag v0.7.2 origin/main
 2. A Linux job assembles the release ZIP and builds the AppImage; a Windows job builds the installer and tests it by installing it for the runner's user, starting it and uninstalling it. Each adds its files to the draft.
 3. The draft is published only when both jobs pass; otherwise it stays an unpublished draft.
 
-When a job fails by chance (a flaky test or runner), **Re-run failed jobs** on the run fills the draft and publishes it. When the release needs a fix, merge it into `main` and move the tag to the new commit; the next run replaces the draft:
+When a job fails by chance (a flaky test or runner), **Re-run failed jobs** on the latest run for the tag fills the draft and publishes it. When a failed release needs a fix, merge it into `main` and move the tag to the new commit; the next run replaces the draft:
 
 ```sh
-git push origin :refs/tags/v0.7.2
-git fetch origin && git tag -f v0.7.2 origin/main && git push origin v0.7.2
+git fetch origin && git tag -f v0.7.2 origin/main && git push --force origin v0.7.2
 ```
+
+A published release is never replaced: a run for its tag stops, and an older run's uploads stop once the tag has moved. Release a fix to a published version as a new version.
 
 The files go straight into the release rather than into workflow artifacts. The Windows job is the only Windows run in Atlas's CI.
