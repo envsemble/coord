@@ -1,4 +1,4 @@
-// Small presentational pieces matching the app's (app/src/ui.tsx, status.ts, format.ts, LedgerProgress.tsx), on envUI.
+// Small presentational pieces matching the app's (app/src/ui: ui.tsx, status.ts, format.ts, LedgerProgress.tsx), on envUI.
 import type { ReactNode } from 'react';
 import { Badge } from '@envsemble/envui';
 import { Block } from '@envsemble/envui/icons/Block';
@@ -51,7 +51,7 @@ export function bytes(value: number) { return value < 1024 ? value + ' B' : valu
 export function workNumber(id: string) { return id.replace('work-', '#'); }
 
 /**
- * The ledger's agreed steps, as the app shows them (app/src/LedgerProgress.tsx): planning steps
+ * The ledger's agreed steps, as the app shows them (app/src/ui/LedgerProgress.tsx): planning steps
  * (`phase: planning`) and implementation steps in one list, the planning ones in their own colour.
  */
 const stepLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };

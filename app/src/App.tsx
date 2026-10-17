@@ -4,12 +4,12 @@ import { defaultUiState } from '../shared/contract';
 import { api } from './api';
 import { EmptyState, Spinner, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
-import { ErrorIcon } from './icons';
-import { Workbench } from './Workbench';
-import { ConnectDialog } from './ConnectDialog';
-import { RemoteAccessDialog } from './RemoteAccessDialog';
-import { AppActionsContext, ComputersDialog, type AppActions } from './Computers';
-import { AboutDialog } from './AboutDialog';
+import { ErrorIcon } from './ui/icons';
+import { Workbench } from './workbench/Workbench';
+import { ConnectDialog } from './remote/ConnectDialog';
+import { RemoteAccessDialog } from './remote/RemoteAccessDialog';
+import { AppActionsContext, ComputersDialog, type AppActions } from './remote/Computers';
+import { AboutDialog } from './menu/AboutDialog';
 
 type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'about' } | null;
 

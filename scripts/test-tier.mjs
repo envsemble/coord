@@ -5,7 +5,7 @@
 //
 //   node scripts/test-tier.mjs <quick|full> [--runner <tsx>] [--import <module>]... <folder>...
 //
-// Folders are relative to the working directory; test files are found directly inside them.
+// Folders are relative to the working directory; test files are found anywhere inside them.
 import { spawnSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import path from "node:path";
@@ -26,7 +26,8 @@ for (let index = 0; index < rest.length; index++) {
   else folders.push(rest[index]);
 }
 const files = folders.flatMap((folder) =>
-  readdirSync(folder)
+  readdirSync(folder, { recursive: true })
+    .map((name) => name.split(path.sep).join("/"))
     .filter(
       (name) =>
         /\.test\.(?:ts|tsx|mjs|cjs)$/.test(name) &&
