@@ -54,7 +54,7 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 
 | Path | What it is |
 | --- | --- |
-| `main/` | The main process: windows, the menu, the `atlas:` protocol, the message handlers, the log, saved state and the connections to Atlas hosts. It starts this computer's host (`packages/host`, in `main/host/hostProcess.ts`) in a utility process; the host reads and watches planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
+| `main/` | The main process: windows, the menu, the `atlas:` protocol, the message handlers, the log, saved state and the connections to Atlas hosts. It starts this computer's host (`packages/atlas/src/host`, in `main/host/hostProcess.ts`) in a utility process; the host reads and watches planning folders through `packages/atlas/src/planning` and prepares diagrams with `packages/diagrams`. |
 | `preload/` | The bridge: `window.atlas`, one method per message. |
 | `shared/` | The message contract and the validator every message argument goes through. |
 | `src/` | The React window, built on [envUI](https://github.com/envsemble/envUI) (`@envsemble/envui`): its window frame and title bar, tree, command palette, menus, dialogs, notices, rows, tables and Material Symbols. `src/atlas.css` lays out Atlas's own regions with envUI tokens only. |
@@ -110,7 +110,7 @@ Atlas watches each open project's planning folder, and the home's planning folde
 
 ## Import and export
 
-**Export Plan…**, on a plan's page (also on a work folder's context menu in Files), saves a work item as one self-contained HTML file that opens offline in any browser. **Import Plan…**, in **File**, imports into the project shown (a plan of it, its statistics, or the hub filtered to it; with a single project, that one), and previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused in an error dialog before anything is written. If an import has to be rolled back and some files could not be removed, an error dialog lists them as reported. Both run the [plan export](../docs/plan-export.md) code from `packages/planning` in a worker thread, so large files do not block the window. The export viewer (`packages/planning/viewer`) is built from the same envUI components and shares `src/atlas.css`, the layout of Atlas's own regions, with the app.
+**Export Plan…**, on a plan's page (also on a work folder's context menu in Files), saves a work item as one self-contained HTML file that opens offline in any browser. **Import Plan…**, in **File**, imports into the project shown (a plan of it, its statistics, or the hub filtered to it; with a single project, that one), and previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused in an error dialog before anything is written. If an import has to be rolled back and some files could not be removed, an error dialog lists them as reported. Both run the [plan export](../docs/plan-export.md) code from `packages/atlas/src/planning` in a worker thread, so large files do not block the window. The export viewer (`packages/atlas/viewer`) is built from the same envUI components and shares `src/atlas.css`, the layout of Atlas's own regions, with the app.
 
 ## Security and privacy
 
@@ -192,7 +192,7 @@ Two sources remain distinct: documents opened in Atlas and agent-reported consul
 
 Agent consultation is recorded with `atlas usage log <planning-root> --files …` (see [the atlas command](../docs/command.md)). It needs only Node. No model calls, API keys, or paid API account are needed.
 
-Usage is local, in the home database, outside the planning and product repositories, under the project. The app and the `atlas` command share it; the shared reader lives in `packages/planning`. Stable work IDs preserve per-document use through active/archive moves within the same root.
+Usage is local, in the home database, outside the planning and product repositories, under the project. The app and the `atlas` command share it; the shared reader lives in `packages/atlas/src/planning`. Stable work IDs preserve per-document use through active/archive moves within the same root.
 
 Events retain document identity, source, timestamp, known task/session IDs, available Git revision, and content hash. Bodies and transcripts are not stored. Views of the same document within 30 seconds in one window session are deduplicated. Agent reports deduplicate paths within each batch; they remain self-reported. Missing identities and incomplete collection are shown honestly. Failed writes are recorded as gaps in collection when the database can take them. Logging failure does not block reading or authorized implementation work.
 

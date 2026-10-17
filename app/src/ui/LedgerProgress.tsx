@@ -1,10 +1,10 @@
 // The ledger's agreed steps: a progress bar with the work left, and the steps themselves. Planning
 // steps (settling the design) and implementation steps form one list, told apart by colour, and by
 // name for assistive technology.
-// The plan export viewer draws the same markup (packages/planning/viewer/ui.tsx).
+// The plan export viewer draws the same markup (packages/atlas/viewer/ui.tsx).
 import { useEffect, useRef, useState } from 'react';
-import { stepCounts, stepSummary } from '@envsemble/atlas-planning/ledger';
-import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/atlas-planning/types';
+import { stepCounts, stepSummary } from '@envsemble/atlas/planning/ledger';
+import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/atlas/planning/types';
 import { CompleteIcon, InProgressIcon, OpenIcon } from './icons';
 import { stepPhase, type StepPhase } from '../work/work';
 

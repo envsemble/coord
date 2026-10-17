@@ -2,7 +2,7 @@
 // Projects page, a project's statistics) or something of one project (a plan, a diagram or a file).
 // A work item's diagrams share one place, which switches between them in place.
 import type { Document, PagePlace, Place, ProjectPlace, Target, Work } from '../types';
-import { workRelative } from '@envsemble/atlas-planning/paths';
+import { workRelative } from '@envsemble/atlas/planning/paths';
 
 export type { PagePlace, Place, ProjectPlace };
 

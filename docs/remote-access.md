@@ -114,7 +114,7 @@ One process per Atlas home manages remote access.
 
 ## How it works
 
-The Atlas host (`packages/host`) is a Node server written with [Hono](https://hono.dev). It reads planning folders with the same code as the `atlas` command, watches them for changes and pushes those changes to connected clients.
+The Atlas host (`packages/atlas/src/host`) is a Node server written with [Hono](https://hono.dev). It reads planning folders with the same code as the `atlas` command, watches them for changes and pushes those changes to connected clients.
 
 The desktop app runs the host in a separate utility process and is its first client. Its main process connects to the host as the **owner**, over a loopback listener on a random port, with a token created at each start and kept only in memory. The app's windows still talk to their main process through the checked message list, and never reach the host directly.
 

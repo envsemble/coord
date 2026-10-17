@@ -8,8 +8,8 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { safeStorage } from 'electron';
-import type { HomeDatabase } from '@envsemble/atlas-planning';
-import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events } from '@envsemble/atlas-host';
+import type { HomeDatabase } from '@envsemble/atlas/planning';
+import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events } from '@envsemble/atlas/host';
 import type { Computer, ComputerStatus } from '../../shared/contract.ts';
 import { boolean, object, optional, string } from '../../shared/validate.ts';
 import type { LocalHost } from './localHost.ts';

@@ -16,7 +16,7 @@ import type { AtlasBridge } from '../shared/contract.ts';
 const appDirectory = path.resolve(import.meta.dirname, '..');
 const fixture = path.join(import.meta.dirname, 'fixtures', 'planning');
 /** This checkout's atlas command, which adopts the fixture into a home as a user would. */
-const command = path.resolve(appDirectory, '..', 'packages', 'cli', 'bin', 'atlas.js');
+const command = path.resolve(appDirectory, '..', 'packages', 'atlas', 'bin', 'atlas.js');
 
 /** The AppImage or Windows installer built by `npm run package`, when present. */
 export function packagedInstaller(): string | null {

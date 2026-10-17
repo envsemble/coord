@@ -10,7 +10,7 @@ import { Help } from '@envsemble/envui/icons/Help';
 import { Schedule } from '@envsemble/envui/icons/Schedule';
 import { SmartToy } from '@envsemble/envui/icons/SmartToy';
 import { Token } from '@envsemble/envui/icons/Token';
-import type { ModelUsage, TokenKinds } from '@envsemble/atlas-planning/types';
+import type { ModelUsage, TokenKinds } from '@envsemble/atlas/planning/types';
 import { CommitIcon } from '../ui/icons';
 import type { Work, WorkStatistics } from '../types';
 import { aiModel, providerNames } from '../ui/aiModels';

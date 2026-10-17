@@ -1,13 +1,13 @@
 // Validators for the messages the window sends to the main process. The generic validators and the
-// planning shapes are the host's (packages/host/src/validate.ts); this module adds what only the
+// planning shapes are the host's (packages/atlas/src/host/validate.ts); this module adds what only the
 // desktop window sends. Unknown object keys are dropped.
 import { appCommands, fullPath, limits, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type Target, type UiState } from './contract.ts';
-import { diagramPath, folderId, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas-host/validate';
+import { diagramPath, folderId, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
   ValidationError, argumentsOf, array, boolean, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
   port, projectName, relativePath, string, token, viewEvent, workId, type Validator,
-} from '@envsemble/atlas-host/validate';
+} from '@envsemble/atlas/host/validate';
 
 export const command = oneOf(appCommands);
 export const themePreference = oneOf(themePreferences);

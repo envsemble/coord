@@ -6,7 +6,7 @@ import type { DiagramEntry, Target, Work } from '../types';
 import { api } from '../api';
 import { diagramTarget } from '../navigation/targets';
 import { selectDiagram } from '../workbench/diagramSelection';
-import { elementId, modelSummary } from '@envsemble/atlas-planning/provenance';
+import { elementId, modelSummary } from '@envsemble/atlas/planning/provenance';
 import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { DiagramIcon } from '../ui/icons';

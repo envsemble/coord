@@ -72,10 +72,10 @@ async function check() {
     assert(files["packages/diagrams/examples/shop/diagrams/checkout.puml"]);
     assert(files["app/package.json"]);
     assert(files["app/src/App.tsx"]);
-    assert(files["packages/planning/src/reading/planning.ts"]);
-    assert(files["packages/planning/src/check/check.ts"]);
-    assert(files["packages/cli/package.json"]);
-    assert(files["packages/cli/bin/atlas.js"]);
+    assert(files["packages/atlas/src/planning/reading/planning.ts"]);
+    assert(files["packages/atlas/src/planning/check/check.ts"]);
+    assert(files["packages/atlas/package.json"]);
+    assert(files["packages/atlas/bin/atlas.js"]);
     assert(
       !Object.keys(files).some((name) =>
         /(?:^|\/)(?:check_planning|log_consultation)\.py$/.test(name),

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, realpath, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadPlanning } from '@envsemble/atlas-planning';
+import { loadPlanning } from '@envsemble/atlas/planning';
 import { defaultDocument, stepPhase } from './work.ts';
 import type { LedgerStep } from '../types.ts';
 

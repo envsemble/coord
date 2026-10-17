@@ -4,8 +4,8 @@
 // kept in the home database, so they open again at the next start. Each window has its own
 // in-memory session, so its `atlas:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
-import type { HomeDatabase } from '@envsemble/atlas-planning';
-import type { AccessState, ClientStatus, FolderState, HostClient, Project } from '@envsemble/atlas-host';
+import type { HomeDatabase } from '@envsemble/atlas/planning';
+import type { AccessState, ClientStatus, FolderState, HostClient, Project } from '@envsemble/atlas/host';
 import type { EventChannel, MenuCommand, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
 import { AtlasError } from '../errors.ts';
 import type { Connections } from '../host/connections.ts';

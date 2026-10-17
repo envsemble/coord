@@ -52,13 +52,13 @@ function themeStartup(): Plugin {
 const envUISource = process.env.ENVUI_SOURCE === '1';
 const envUIRoot = envUISource ? realpathSync(resolve(import.meta.dirname, 'node_modules/@envsemble/envui')) : null;
 
-// The planning package's plan export reads two files next to its own module: its package.json
+// The atlas package's plan export reads two of its files (src/packageFiles.ts): its package.json
 // (for the version it records) and dist/plan-viewer.html (the export template). Bundled into
 // out/main, those paths resolve to out/package.json and out/dist/plan-viewer.html.
 function planningFiles(): Plugin {
-  const planning = resolve(import.meta.dirname, '../packages/planning');
+  const planning = resolve(import.meta.dirname, '../packages/atlas');
   return {
-    name: 'atlas-planning-files',
+    name: 'atlas-package-files',
     writeBundle(options) {
       const out = resolve(options.dir ?? dirname(options.file!), '..');
       const { version } = JSON.parse(readFileSync(resolve(planning, 'package.json'), 'utf8')) as { version: string };

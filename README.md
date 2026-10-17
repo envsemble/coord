@@ -15,14 +15,13 @@ Atlas keeps plans, decisions and diagrams where both a coding agent and its huma
 
 ![The Atlas hub in the light theme on the computer Workstation: eight open plans of the projects Northwind, Platform and Field app, grouped as In progress (one blocked, three being implemented, two with an agent's live dot), Drafts and Other open work, each row with its state, title, number, project, one-line summary, steps done with the planning steps in their own colour, and when it changed](app/assets/atlas-desktop.jpg)
 
-| Part                                 | What it does                                                                                                                                                      |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [App](app/README.md)                 | The desktop app for Windows and Linux: one hub with every plan of every project, and each plan with its ledger, knowledge, Git activity, statistics and diagrams. |
-| [Plugin](docs/agent-interface.md)    | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas`, `atlas-grill` and `atlas-implement` skills, and the hooks.                               |
-| [`atlas` command](docs/command.md)   | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.                        |
-| [Diagram package](packages/diagrams) | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.                 |
-| [Planning reader](packages/planning) | The planning-folder reader and planning operations shared by the app, the host and the command, including [plan export and import](docs/plan-export.md).          |
-| [Host](packages/host)                | Serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, to the devices you pair.                                          |
+| Part                                       | What it does                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [App](app/README.md)                       | The desktop app for Windows and Linux: one hub with every plan of every project, and each plan with its ledger, knowledge, Git activity, statistics and diagrams.                                                                                                                                     |
+| [Plugin](docs/agent-interface.md)          | The Atlas plugin for Claude Code and Codex: the MCP server, the `atlas`, `atlas-grill` and `atlas-implement` skills, and the hooks.                                                                                                                                                                   |
+| [`atlas` command](docs/command.md)         | Planning-state operations, checks, the MCP server and hooks, setup, plan export and import, and the headless host, for agents and scripts.                                                                                                                                                            |
+| [Diagram package](packages/diagrams)       | Reads and checks diagrams, captures code and databases, lays out and renders diagrams, and exports offline HTML. Used by the app and the command.                                                                                                                                                     |
+| [Planning reader and host](packages/atlas) | The planning-folder reader and planning operations shared by the app, the host and the command, including [plan export and import](docs/plan-export.md), and the host, which serves planning folders to the desktop app and, with [remote access](docs/remote-access.md) on, to the devices you pair. |
 
 ## Get started
 
@@ -32,7 +31,7 @@ Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for E
 
    ```sh
    npm ci
-   npm link --workspace @envsemble/atlas-cli
+   npm link --workspace @envsemble/atlas
    atlas setup
    ```
 

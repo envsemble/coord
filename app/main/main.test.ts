@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, originOf } from './windows/protocol.ts';
-import { HomeDatabase } from '@envsemble/atlas-planning';
+import { HomeDatabase } from '@envsemble/atlas/planning';
 import { DesktopState, placeRow, savedPlace } from './state.ts';
 import { target as tabTarget } from '../shared/validate.ts';
 import type { Target } from '../shared/contract.ts';

@@ -2,13 +2,13 @@
 // is on `invokeChannels`; every message main can push is on `eventChannels`. Only types and
 // constants live here, so the preload, main and renderer can all import it.
 // A window shows the projects of one computer: this one, or another one this app paired with. The
-// planning data is the Atlas host's (packages/host/src/contract.ts): main forwards the window's
+// planning data is the Atlas host's (packages/atlas/src/host/contract.ts): main forwards the window's
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
   ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, SearchKind, SearchResult, Snapshot, ViewEventInput, WorkspaceScan,
-} from '@envsemble/atlas-host/contract';
-import type { DocumentContent } from '@envsemble/atlas-planning/types';
+} from '@envsemble/atlas/host/contract';
+import type { DocumentContent } from '@envsemble/atlas/planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,

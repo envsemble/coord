@@ -1,5 +1,5 @@
-import { HostRequestError } from '@envsemble/atlas-host';
-import { PlanningError } from '@envsemble/atlas-planning';
+import { HostRequestError } from '@envsemble/atlas/host';
+import { PlanningError } from '@envsemble/atlas/planning';
 import type { AtlasErrorValue, ErrorCode } from '../shared/contract.ts';
 import { ValidationError } from '../shared/validate.ts';
 

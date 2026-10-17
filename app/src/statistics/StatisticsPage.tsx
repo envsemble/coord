@@ -15,7 +15,7 @@ import { ModelName } from '../ui/AiModel';
 import { ScatterChart, type ChartSeries } from './ScatterChart';
 import { TargetLink, useWorkbench } from '../workbench/workbenchContext';
 import { Page, RepositorySelect } from '../ui/Pages';
-import type { StageUsage } from '@envsemble/atlas-planning/types';
+import type { StageUsage } from '@envsemble/atlas/planning/types';
 import { colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, stageLabels, stageUsage, subagentShare, tokenRows, tokenText, trendMetrics, workRows, type StageKey, type TrendMetric, type WorkRow } from '../work/workStatistics';
 
 type StatisticsTab = 'work' | 'models' | 'documents';

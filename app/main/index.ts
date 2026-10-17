@@ -6,8 +6,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
-import { hostRunning } from '@envsemble/atlas-host';
-import { atlasHome, HomeDatabase, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome } from '@envsemble/atlas-planning';
+import { hostRunning } from '@envsemble/atlas/host';
+import { atlasHome, HomeDatabase, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome } from '@envsemble/atlas/planning';
 import icon from '../build/icon.png?asset';
 import { Connections } from './host/connections.ts';
 import { dropImports, registerIpc } from './windows/ipc.ts';

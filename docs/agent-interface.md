@@ -49,7 +49,7 @@ Every tool but `where` and `project_create` takes an optional `planningFolder` (
 
 Only planning state has tools. Plan bodies, the ledger's final-review list, glossaries, ADRs, knowledge and diagrams are files the agent edits like any other; anything that can be a skill is not a tool. The tools never commit: the agent commits planning changes itself.
 
-To configure an MCP client by hand, start `atlas mcp` (on Windows, `node <checkout>/packages/cli/bin/atlas.js mcp`). Its stdout carries only MCP messages.
+To configure an MCP client by hand, start `atlas mcp` (on Windows, `node <checkout>/packages/atlas/bin/atlas.js mcp`). Its stdout carries only MCP messages.
 
 ## Hooks
 

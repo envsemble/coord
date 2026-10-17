@@ -1,5 +1,5 @@
 import type { Document, Work } from '../types';
-import { samePath } from '@envsemble/atlas-planning/paths';
+import { samePath } from '@envsemble/atlas/planning/paths';
 
 export { samePath };
 export type Destination = { file?: Document; work?: Work; anchor?: string; external?: string };

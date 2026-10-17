@@ -2,7 +2,7 @@
 // and a button that copies text.
 import { useState, type SVGProps } from 'react';
 import { Badge, Button } from '@envsemble/envui';
-import type { Provenance } from '@envsemble/atlas-planning/provenance';
+import type { Provenance } from '@envsemble/atlas/planning/provenance';
 import type { WorkStatus } from './status';
 import { api } from '../api';
 import { AbandonedIcon, BlockedIcon, CheckIcon, CompleteIcon, CopyIcon, DraftIcon, InProgressIcon, OpenIcon, SupersededIcon, UnknownIcon } from './icons';

@@ -2,7 +2,7 @@
 // window's requests about it go through the host connection; its state follows the host's folder
 // events and the connection's status. The revision counts up here, in main, so a host that restarted
 // (and counts from zero again) never makes the window ignore fresh data.
-import type { ClientStatus, FolderState, HostClient } from '@envsemble/atlas-host';
+import type { ClientStatus, FolderState, HostClient } from '@envsemble/atlas/host';
 import type { FolderChange, FolderStatus } from '../../shared/contract.ts';
 
 export class FolderView {

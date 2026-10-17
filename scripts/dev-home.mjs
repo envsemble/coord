@@ -19,7 +19,7 @@ import path from "node:path";
 const repository = path.resolve(import.meta.dirname, "..");
 const home = path.join(repository, "artifacts", "dev-home");
 const bin = path.join(repository, "artifacts", "dev-bin");
-const command = path.join(repository, "packages", "cli", "bin", "atlas.js");
+const command = path.join(repository, "packages", "atlas", "bin", "atlas.js");
 
 const demo = path.join(home, "planning", "demo");
 if (!existsSync(demo)) {

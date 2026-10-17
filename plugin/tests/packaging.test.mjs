@@ -61,7 +61,7 @@ const textFiles = () =>
   );
 
 // The command's usage lines (main.ts and the planning commands) and the MCP server's tool names, read from the code.
-const CLI = path.join(REPO, "packages", "cli", "src", "commands");
+const CLI = path.join(REPO, "packages", "atlas", "src", "cli", "commands");
 const USAGE = [
   read(path.join(CLI, "..", "main.ts")),
   read(path.join(CLI, "planning.ts")),
@@ -345,7 +345,7 @@ test("relative links resolve and stay inside their skill set", () => {
 test("the plugin manifests agree with each other and the repository", () => {
   const version = json(path.join(REPO, "package.json")).version;
   assert.equal(
-    json(path.join(REPO, "packages", "cli", "package.json")).version,
+    json(path.join(REPO, "packages", "atlas", "package.json")).version,
     version,
     "the command's version",
   );
@@ -401,7 +401,7 @@ test("the plugin's hooks are the four Atlas handles", () => {
     );
   }
   assert.match(
-    read(path.join(REPO, "packages", "cli", "src", "main.ts")),
+    read(path.join(REPO, "packages", "atlas", "src", "cli", "main.ts")),
     new RegExp(`atlas hook <${HOOK_EVENTS.join("\\|")}>`),
   );
 });

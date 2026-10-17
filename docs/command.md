@@ -8,14 +8,14 @@ From a checkout:
 
 ```sh
 npm ci
-npm link --workspace @envsemble/atlas-cli
+npm link --workspace @envsemble/atlas
 atlas --version
 atlas setup
 ```
 
-`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @envsemble/atlas-cli` removes it. Inside the checkout, `npx atlas …` works without linking. `atlas setup` then makes Atlas part of every agent session on this computer; see [below](#setup).
+`npm link` puts `atlas` on the PATH (Windows and Linux) as a link to this checkout, so keep the checkout in place; it always runs the checkout's current code. `npm rm --global @envsemble/atlas` removes it. Inside the checkout, `npx atlas …` works without linking. `atlas setup` then makes Atlas part of every agent session on this computer; see [below](#setup).
 
-On Windows the link is a `.cmd`/`.ps1` shim that only shells can run. An MCP client you configure by hand should start `node <checkout>/packages/cli/bin/atlas.js mcp` instead.
+On Windows the link is a `.cmd`/`.ps1` shim that only shells can run. An MCP client you configure by hand should start `node <checkout>/packages/atlas/bin/atlas.js mcp` instead.
 
 ## Commands
 

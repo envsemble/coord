@@ -1,8 +1,8 @@
 // What the Statistics page and a work item's About sidebar show about work: the model, agent time
 // and tokens from agent reports (recorded by the hooks, or atlas work report), by stage, with the
 // subagents that worked, plan revisions from Git, and ledger steps. Pure, so it is unit-tested.
-import { stepCounts } from '@envsemble/atlas-planning/ledger';
-import type { StageUsage, TokenKinds, WorkStage } from '@envsemble/atlas-planning/types';
+import { stepCounts } from '@envsemble/atlas/planning/ledger';
+import type { StageUsage, TokenKinds, WorkStage } from '@envsemble/atlas/planning/types';
 import type { ModelUsage, Snapshot, Work, WorkStatistics } from '../types';
 import { absoluteDate, compactNumber, duration, median, plural } from '../ui/format';
 
