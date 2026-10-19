@@ -88,7 +88,7 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
           {facts.step && facts.step.label + ': ' + facts.step.title}{facts.step && waiting && ' · '}{waiting && <>waiting <Waited activity={waiting} /></>}
         </small>)}
     </TableCell>
-    <TableCell><span className="hub-row-project">{project.name}</span></TableCell>
+    <TableCell><span className="hub-row-project" title={project.name}>{project.name}</span></TableCell>
     <TableCell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} activity={activity} /> : <span className="muted">—</span>}</TableCell>
     <TableCell><Spent item={item} facts={facts} /></TableCell>

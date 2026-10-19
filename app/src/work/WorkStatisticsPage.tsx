@@ -15,6 +15,7 @@ import { workStatus } from '../ui/status';
 import { ModelKey, StatsCard } from '../statistics/StatisticsPage';
 import { useWorkbench } from '../workbench/workbenchContext';
 import { Trail } from './WorkPage';
+import { Page } from '../ui/Pages';
 import { activityKey, sessionTitle, useWorkSessions, useWorkTimeline } from './WorkSessions';
 import { AgentTime, measuredSection, shortId, useHostNow } from './LiveAgentTime';
 import { liveActiveMs, liveAgentMs, type LiveActivity } from './agentTime';
@@ -201,15 +202,14 @@ export function WorkStatisticsPage({ work }: { work: Work }) {
   const sessions = useWorkSessions(work.id, key)?.sessions ?? [];
   const timeline = useWorkTimeline(work.id, key);
   const statistics = work.statistics;
-  return <div className="page plan-statistics-page">
+  // Headed like a project's statistics: the breadcrumb, then the heading, here with the plan's title.
+  return <Page className="plan-statistics-page" heading={<div className="page-heading-stack">
     <Trail items={[{ label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Statistics' }]} />
-    <header className="page-header plan-statistics-header">
-      <Text as="h1" variant="page-heading">Statistics</Text>
-      <Text tone="muted">{work.title}</Text>
-    </header>
+    <div className="plan-statistics-header"><Text as="h1" variant="page-heading">Statistics</Text><Text tone="muted">{work.title}</Text></div>
+  </div>}>
     <Headline work={work} live={live} sessions={sessions} timeline={timeline} />
     {timeline && <Timeline timeline={timeline} sessions={sessions} live={live} />}
     <Section title="By model and effort"><ByModel work={work} /></Section>
     {statistics && statistics.reports > 0 && <Text variant="caption" tone="muted">{agentTimeNote(statistics)}</Text>}
-  </div>;
+  </Page>;
 }

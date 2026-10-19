@@ -8,11 +8,11 @@
 // folder. Workspace folders are paths on the project's own computer, so they are only chosen in Atlas
 // there.
 import { useEffect, useState } from 'react';
-import { Badge, Button, Dialog, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
+import { Badge, Button, Dialog, EmptyState, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
 import { AddIcon, ChevronRightIcon, CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, RepositoryIcon, StatisticsIcon } from '../ui/icons';
 import { StatusIcon } from '../ui/ui';
 import { statuses } from '../ui/status';
-import { plural, relativeDate } from '../ui/format';
+import { absoluteDate, plural, relativeDate } from '../ui/format';
 import { initials, projectFacts } from './projectLook';
 import type { Project, ProjectChangeRequest, WorkspaceScan } from '../types';
 import { fullPath } from '../../shared/contract';
@@ -231,7 +231,7 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
             <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
             {project.outsideHome && <Badge title="Agents do not find it until it is moved into the Atlas home">Outside the Atlas home</Badge>}
           </span>
-          <small className="cell-note">{facts ? [plural(facts.open, 'open plan'), facts.updated && 'changed ' + relativeDate(facts.updated)].filter(Boolean).join(' · ') : 'Its planning folder could not be read'}</small>
+          <small className="cell-note" title={facts ? [plural(facts.open, 'open plan'), facts.updated && 'changed ' + absoluteDate(facts.updated)].filter(Boolean).join(' · ') : undefined}>{facts ? [plural(facts.open, 'open plan'), facts.updated && 'changed ' + relativeDate(facts.updated)].filter(Boolean).join(' · ') : 'Its planning folder could not be read'}</small>
         </span>
       </span>
     </TableCell>
@@ -275,7 +275,7 @@ export function ProjectsPage({ projects, error, computer, local, actions }: { pr
     <Text variant="caption" tone="muted" className="projects-intro">The planning folders in the Atlas home on {computer}.</Text>
     {error && <Notice tone="warning">{error}</Notice>}
     {projects === null ? <Spinner label="Loading projects" />
-      : !projects.length ? <Text variant="body" tone="muted">No projects yet.</Text>
+      : !projects.length ? <EmptyState className="page-empty" align="center" icon={<NewProjectIcon />} title="No projects yet" description="Plans live in projects. Make one here, or ask an agent to." />
       : <>
         {active.length > 0 && list(active, 'Projects')}
         {aside.length > 0 && <section className="projects-aside">
