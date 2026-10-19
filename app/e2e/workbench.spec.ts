@@ -414,7 +414,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await fileMenu(window).click();
   const menu = window.getByRole('menu', { name: 'File' });
   await expect(menu.getByRole('menuitem')).toHaveText([
-    /^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Connect to Another Atlas…', 'Remote Access…',
+    /^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Open Files In', 'Connect to Another Atlas…', 'Remote Access…',
     /^Zoom In/, /^Zoom Out/, /^Actual Size/, /^Full Screen\s*F11$/, 'Open Logs', 'About Atlas', 'Exit',
   ]);
   await window.keyboard.press('Escape');
