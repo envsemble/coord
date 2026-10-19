@@ -41,6 +41,10 @@ test('plan and ledger edits in a project no window has open reach the project li
   // A plan's header: its summary.
   writeFileSync(plan, readFileSync(plan, 'utf8').replace('title: Saved payment methods\n', 'title: Saved payment methods\nsummary: "Cards saved at checkout."\n'));
   await until(() => owner.lists.some(list => work(list, 'work-0001')?.summary === 'Cards saved at checkout.'), 10000, () => owner.lists.length);
+  // A handoff: the plan that continues says so, and the work it continues is told it is continued.
+  writeFileSync(plan, readFileSync(plan, 'utf8').replace('continues: [work-0004]', 'continues: [work-0004, work-0002]'));
+  await until(() => work(owner.lists.at(-1)!, 'work-0002')?.continuedIn?.some(link => link.workId === 'work-0001') ?? false, 10000, () => owner.lists.length);
+  assert.deepEqual(work(owner.lists.at(-1)!, 'work-0001')!.continues!.map(link => link.workId), ['work-0004', 'work-0002']);
   // A ledger's step.
   const ledger = path.join(planning, 'active/0001-saved-payment-methods/ledger.md');
   const before = work(owner.lists.at(-1)!, 'work-0001')!.steps!.done;
