@@ -1,6 +1,7 @@
 import { createContext, useContext, type MouseEvent, type ReactNode } from 'react';
 import { Link } from '@envsemble/envui';
 import type { Place, ProjectWork, Snapshot, Target } from '../types';
+import type { LiveActivity } from '../work/agentTime';
 
 /** `project`: open it in another project of the window's computer than the one shown (by folder ID). */
 export interface OpenOptions { project?: string }
@@ -20,6 +21,8 @@ export interface WorkbenchApi {
   go(place: Place): void;
   /** A work item as the project list sums it up (its summary among others), when it lists it. */
   listed(work: string): ProjectWork | undefined;
+  /** What agents do on a work item now, as the project list says; null when nobody is on it. */
+  activity(work: string): LiveActivity | null;
   /** The project of the window's computer in a sibling folder of this one's in the Atlas home, by the folder's name (its folder ID), if one is listed. */
   sibling(folder: string): string | null;
   /** Open a document, work folder or diagram of another project by its path there, once that project is read. */

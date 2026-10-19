@@ -44,9 +44,9 @@ export function Statistics({ snapshot, controls }: { snapshot: Snapshot; control
     <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
-        <p>The model, agent time and tokens come from reports the Atlas plugin records when an agent session stops (or, without the plugin, <Code>atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time the agent worked, from each prompt to the end of its turn, with its helpers' work at the same time counted once and the time it waited for a person left out. Tokens are then counted for each model, by kind.</p>
+        <p>The model, agent time and tokens come from reports the Atlas plugin records when an agent session stops (or, without the plugin, <Code>atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time each agent worked, from each prompt to the end of its turn, with the time it waited for a person left out. Agent time adds up every agent's: each session and each subagent in full, also while they work at once; a plan's agent time shows on hover the time at least one of them was working. Tokens are then counted for each model, by kind.</p>
         <p>Older reports, and agents whose log Atlas cannot read, are estimated: agent time adds up the time between a session's reports, leaving out breaks of more than two hours, and tokens are what the agent reported. The implementing model is the one that did most of the work.</p>
-        <p>Agent time and tokens are split by the work item's stage when each report was made: planning until its plan is accepted, and while a session amends an accepted plan; implementation after. Reports from before stages were recorded show as "Stage not recorded". Each subagent counts once, with its own working time added up.</p>
+        <p>Agent time and tokens are split by the work item's stage when each report was made: planning until its plan is accepted, and while a session amends an accepted plan; implementation after. Reports from before stages were recorded show as "Stage not recorded". Each subagent counts once, with its own working time.</p>
         <p>Plan revisions count the commits that changed a plan after it was added, up to its completion, from this project's Git history. Moving a plan to the archive is not a revision.</p>
         <p>The three models whose completed work is most recent each have a colour; other models share "Other". Durations of work items are calendar time between acceptance and completion, not engineering time.</p>
         <p>Agent reports of documents are self-reported consultation; views are documents opened in Atlas. Unreported access is unknown, and zero use does not mean a record has no value.</p>
@@ -99,8 +99,9 @@ function StageCell({ usage }: { usage: StageUsage | null }) {
 }
 
 function WorkStatisticsRow({ row, stages }: { row: WorkRow; stages: StageKey[] }) {
+  const { activity } = useWorkbench();
   const { work, statistics } = row;
-  const status = workStatus(work);
+  const status = workStatus(work, activity(work.id)?.state ?? null);
   const primary = statistics?.models.find(model => model.model === statistics.primaryModel);
   const others = statistics ? otherModels(statistics) : [];
   return <TableRow interactive>

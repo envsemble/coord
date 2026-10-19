@@ -3,11 +3,11 @@
 import { useMemo } from 'react';
 import { IconButton, MenuItem, MenuSeparator, Tooltip, Tree, type TreeItem } from '@envsemble/envui';
 import { CollapseAllIcon, DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from '../ui/icons';
-import type { Document, Snapshot, Target } from '../types';
+import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
 import { buildIndex, fileId, folderId, revealIds, visibleRows, type ExplorerRow } from './explorerModel';
 import { diagramTarget, documentTarget, fileTarget, isDiagramFile, workTarget } from '../navigation/targets';
-import { workStatus } from '../ui/status';
+import { workStatus, type WorkStatus } from '../ui/status';
 import { workNumber } from '../ui/format';
 import { StatusIcon } from '../ui/ui';
 import { useWorkbench } from './workbenchContext';
@@ -30,10 +30,11 @@ type Row = TreeItem & { row: ExplorerRow };
 export function Explorer({ snapshot, expanded, setExpanded, selected }: {
   snapshot: Snapshot; expanded: string[]; setExpanded(next: string[]): void; selected: string | null;
 }) {
-  const { project, projectName, open, notify, remote, exportPlan } = useWorkbench();
+  const { project, projectName, open, notify, remote, exportPlan, activity } = useWorkbench();
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
-  const rows = useMemo(() => visibleRows(index, expandedSet).map(row => treeItem(row)), [index, expandedSet]);
+  // A work folder's status, with what agents do on it now.
+  const rows = useMemo(() => visibleRows(index, expandedSet).map(row => treeItem(row, work => workStatus(work, activity(work.id)?.state ?? null))), [index, expandedSet, activity]);
   // A file opens as a file, a diagram file of a work item as its diagram.
   const fileOpens = (file: Document) => documentTarget(file, isDiagramFile(file.path) ? snapshot.work.find(work => work.id === file.workId) : undefined);
   const setOpen = (id: string, value: boolean) => {
@@ -87,11 +88,11 @@ export function Explorer({ snapshot, expanded, setExpanded, selected }: {
   </div>;
 }
 
-function treeItem(row: ExplorerRow): Row {
+function treeItem(row: ExplorerRow, statusOf: (work: Work) => WorkStatus): Row {
   const base = { id: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
   switch (row.kind) {
     case 'work': {
-      const status = workStatus(row.work!);
+      const status = statusOf(row.work!);
       return { ...base, label: row.name, icon: <StatusIcon status={status} />, detail: row.work!.title, title: `${workNumber(row.work!.id)} ${row.work!.title} · ${status.label} · ${row.path}` };
     }
     case 'folder': return { ...base, label: row.name, icon: row.expanded ? <FolderOpenIcon className="explorer-folder" /> : <FolderIcon className="explorer-folder" />, title: row.path };

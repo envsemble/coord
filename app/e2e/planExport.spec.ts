@@ -51,11 +51,11 @@ test('Import Plan… refuses a file that is not an export; Export Plan… writes
   expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toBe(registry);
   expect(git('status', '--porcelain', '--untracked-files=all')).toBe('');
 
-  // The plan page's Export Plan… exports its work item.
+  // The plan page's Export Plan…, beside its breadcrumb, exports its work item.
   const fromPage = path.join(scratch, 'from-page.html');
   await stubDialogs(app, { save: fromPage });
   await openPlan(window, 'Saved payment methods');
-  await window.locator('.work-header').getByRole('button', { name: 'Export Plan…' }).click();
+  await window.locator('.work-trail').getByRole('button', { name: 'Export Plan…' }).click();
   await expect(window.getByText('Exported #0001 to ' + fromPage)).toBeVisible();
   expect(readFileSync(fromPage, 'utf8')).toMatch(/^<!doctype html>/i);
 
@@ -88,7 +88,7 @@ test('Import Plan… refuses a file that is not an export; Export Plan… writes
   await preview.getByRole('button', { name: 'Import' }).click();
   await expect(window.getByText(/^Imported as #0005/)).toBeVisible();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-  await expect(window.locator('.work-header .work-number')).toHaveText('#0005');
+  await expect(window.locator('.work-trail .breadcrumb')).toContainText('#0005');
   const imported = (await showFiles(window)).locator('[role="treeitem"][data-id^="d:active/0005-"]');
   await expect(imported).toBeVisible();
   await expect(imported).toContainText('Order fulfilment model');

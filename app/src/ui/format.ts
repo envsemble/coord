@@ -42,8 +42,12 @@ export function plural(count: number, word: string, many = word + 's') { return 
 export function compactNumber(value: number) {
   return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 }
-/** Agent time: "45 min", "3 h 20 min", "2 d 4 h". */
-export function duration(milliseconds: number) {
+/** Agent time: "45 min", "3 h 20 min", "2 d 4 h"; with `seconds`, while it counts up, "3 h 20 min 5 s" (up to two days). */
+export function duration(milliseconds: number, seconds = false) {
+  if (seconds && milliseconds < 48 * 3600000) {
+    const total = Math.max(0, Math.floor(milliseconds / 1000)), hours = Math.floor(total / 3600), minutes = Math.floor(total / 60) % 60;
+    return [hours && hours + ' h', (hours || minutes) && minutes + ' min', total % 60 + ' s'].filter(Boolean).join(' ');
+  }
   const minutes = Math.round(milliseconds / 60000);
   if (minutes < 1) return milliseconds > 0 ? '< 1 min' : '0 min';
   if (minutes < 60) return minutes + ' min';

@@ -1,14 +1,16 @@
 // The hub: where a window starts, and the plan list and nothing else. Every plan of every active
-// project, grouped by where it stands, a table each with the same columns: work in progress and
-// blocked work in taller rows with the step being worked on or why it is blocked, drafts and other
-// open work in compact ones, closed work with how it ended. A project filter (part of the place, so
-// back and forward and a plan's breadcrumb set it) and a state filter narrow it; the search field
-// above them opens the search. One click opens a plan.
+// project, grouped by its status, a table each with the same columns: work under way (agents on it,
+// blocked or paused) in taller rows with the step being worked on or why it is blocked, drafts and
+// ready plans in compact ones, closed work with how it ended. While agents work on a plan its status
+// and its step pulse and its agent time counts up; while one waits for the person they are amber and
+// the row says for how long. A project filter (part of the place, so back and forward and a plan's
+// breadcrumb set it) and a state filter narrow it; the search field above them opens the search. One
+// click opens a plan.
 import { useMemo, type MouseEvent } from 'react';
 import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
-import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
+import { hubGroups, hubItems, hubRowFacts, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
 import { absoluteDate, relativeDate, workNumber } from '../ui/format';
 import { hubPlace, projectsPlace, workTarget, type Place } from '../navigation/targets';
 import { StatusIcon } from '../ui/ui';
@@ -16,28 +18,38 @@ import { StepBar } from '../ui/LedgerProgress';
 import { ProviderMark } from '../ui/AiModel';
 import { Page } from '../ui/Pages';
 import { modifierKey } from '../menu/AppMenu';
+import { AgentTime, Waited } from '../work/LiveAgentTime';
+import type { LiveActivity } from '../work/agentTime';
 
 /** The hub's state filter, kept while the window is open. */
 export interface HubFilters { state: HubState }
 
-/** Steps done of all, the planning steps among them in their own colour. */
-function Progress({ progress, wide }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean }) {
+/** Steps done of all, the planning steps among them in their own colour, the one in progress showing what agents do. */
+function Progress({ progress, wide, activity }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean; activity: LiveActivity | null }) {
   const left = progress.total - progress.done - progress.doing;
   return <span className="hub-row-steps" title={progress.text + ' steps done'}>
-    <StepBar counts={{ total: progress.total, done: progress.done, doing: progress.doing, todo: left, remaining: left + progress.doing }} planning={progress.planning} compact />
+    <StepBar counts={{ total: progress.total, done: progress.done, doing: progress.doing, todo: left, remaining: left + progress.doing }} planning={progress.planning} compact live={activity?.state} />
     <span className="hub-row-steps-text">{wide ? progress.text : progress.text.replace(' planning', '')}</span>
   </span>;
 }
 
-/** What agents spent on it: the main model and how many others, then agent time, tokens and subagents (the time's split by phase on hover). */
-function Spent({ facts }: { facts: HubRowFacts }) {
+/**
+ * What agents spent on it: the main model and how many others, then agent time (counting up while
+ * agents work, its report by stage on hover), tokens and subagents.
+ */
+function Spent({ item, facts }: { item: HubItem; facts: HubRowFacts }) {
   const { model, time, tokens, subagents } = facts;
-  const split = time && [time.planning && 'planning ' + time.planning, time.implementation && 'implementation ' + time.implementation].filter(Boolean).join(', ');
-  const totals = [time?.total, tokens, subagents].filter(Boolean).join(' · ');
-  if (!model && !totals) return <span className="muted">—</span>;
+  const { activity } = item;
+  const timed = Boolean(time) || activity?.state === 'working';
+  const rest = [tokens, subagents].filter(Boolean).join(' · ');
+  if (!model && !timed && !rest) return <span className="muted">—</span>;
+  const stages = ([['Planning', time?.planning], ['Implementation', time?.implementation]] as const).flatMap(([label, value]) => value ? [{ label, value }] : []);
   return <span className="hub-row-stats">
     {model && <span className="hub-row-model" title={model.id}><ProviderMark provider={model.provider} />{model.name}{model.others > 0 && <span className="muted"> +{model.others}</span>}</span>}
-    {totals && <small className="cell-note" title={split ? 'Agent time: ' + split : undefined}>{totals}</small>}
+    {(timed || rest) && <small className="cell-note">
+      {timed && <AgentTime totals={item.work.statistics ?? { agentMs: 0, activeMs: 0, unmergedMs: 0 }} activity={activity} sections={[{ heading: 'By stage', rows: stages }]} description="Every agent's working time, added up" />}
+      {timed && rest ? ' · ' + rest : rest}
+    </small>}
   </span>;
 }
 
@@ -48,14 +60,15 @@ const Changed = ({ value }: { value: string | null }) => value ? <span className
 const columnWidths = [44, 13, 15, 18, 10];
 
 /**
- * A plan: the whole row opens it. A plan in progress says where it stands under its title: why it is
- * blocked, else the step being worked on or next. Its summary shows on the title's hover. The status
- * icon carries the colour; the text stays neutral.
+ * A plan: the whole row opens it. A plan under way says where it stands under its title: why it is
+ * blocked, else the step being worked on or next, and how long an agent has waited for the person.
+ * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
+ * but for that line, which pulses while agents work and is amber while one waits.
  */
 function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
-  const { work, project } = item;
-  const status = hubStatus(work);
-  const facts = hubRowFacts(work);
+  const { work, project, status, activity } = item;
+  const facts = hubRowFacts(work, status);
+  const waiting = activity?.state === 'waiting' ? activity : null;
   const open = (event: MouseEvent) => { event.preventDefault(); go({ project: project.folderId, target: workTarget(work.id) }); };
   const large = facts.size === 'large';
   return <TableRow interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '')} data-work={work.id} data-size={facts.size}
@@ -65,15 +78,17 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
         <StatusIcon status={status} />
         <a href="#" className="hub-row-link" draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</a>
         <span className="hub-row-number">{workNumber(work.id)}</span>
-        {item.live && <span className="hub-row-live" role="img" aria-label="An agent is working on it"><span className="project-live-dot" />{large && <span aria-hidden="true">agent working</span>}</span>}
       </span>
       {large && (facts.blocked ? <small className="cell-note hub-row-blocked">Blocked: {facts.blocked}</small>
-        : facts.step && <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'} title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>{facts.step.label}: {facts.step.title}</small>)}
+        : (facts.step || waiting) && <small className="cell-note hub-row-step" data-phase={facts.step?.phase} data-status={facts.step?.label === 'Now' ? 'doing' : 'todo'} data-live={waiting ? 'waiting' : facts.step?.label === 'Now' ? activity?.state : undefined}
+          title={facts.step ? (facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step' : undefined}>
+          {facts.step && facts.step.label + ': ' + facts.step.title}{facts.step && waiting && ' · '}{waiting && <>waiting <Waited activity={waiting} /></>}
+        </small>)}
     </TableCell>
     <TableCell><span className="hub-row-project">{project.name}</span></TableCell>
     <TableCell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}</span>
-      : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</TableCell>
-    <TableCell><Spent facts={facts} /></TableCell>
+      : facts.progress ? <Progress progress={facts.progress} wide={large} activity={activity} /> : <span className="muted">—</span>}</TableCell>
+    <TableCell><Spent item={item} facts={facts} /></TableCell>
     <TableCell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</TableCell>
   </TableRow>;
 }

@@ -29,6 +29,7 @@ import { Gone, Page } from '../ui/Pages';
 import { modifierKey, SectionBar, TitleBarStart, type Section, type WorkbenchMenus } from '../menu/AppMenu';
 import { revealIds } from './explorerModel';
 import { WorkbenchContext, type Notify, type WorkbenchApi } from './workbenchContext';
+import { arrived, liveActivity } from '../work/agentTime';
 
 const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as const;
 
@@ -69,6 +70,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     const off = api.onProjectsChanged(change => { if (change.projects) { asked++; listed(change.projects); } else load(); });
     return () => { current = false; off(); };
   }, []);
+  // Live agent time counts on the host's clock from when each listing arrived here.
+  useEffect(() => { for (const project of projects ?? []) if (project.summary) arrived(project.summary); }, [projects]);
   const [folders, setFolders] = useState<Record<string, Folder>>({});
   const following = useRef(new Set<string>());
   const latest = useRef(new Map<string, number>());
@@ -423,6 +426,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       project: reading, projectName: owner?.name ?? readSnapshot.name, snapshot: readSnapshot, revision: readFolder?.change?.revision ?? 0,
       open: show, go, retarget: target => show(target),
       listed: work => owner?.summary ? [...owner.summary.active, ...owner.summary.closed].find(item => item.id === work) : undefined,
+      activity: work => liveActivity(owner?.summary, work),
       sibling: folder => siblingProject(projects ?? [], reading, folder),
       openPath: (other, path, anchor) => { void openPath(other, path, anchor); },
       notify, remote: info.computer.hostId === null ? null : { hostId: info.computer.hostId, hostName: info.computer.name },
@@ -430,6 +434,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     };
   }, [reading, readSnapshot, readFolder?.change?.revision, projects, projectOf, go, openPath, notify, info.computer, ui.inspectorWidth, setInspectorWidth, exportWork]);
 
+  // A plan is open: its page or its diagrams.
+  const planOpen = projectPlace && (projectPlace.target.kind === 'work' || projectPlace.target.kind === 'diagram') ? { project: projectPlace.project, work: projectPlace.target.work } : null;
   const menus: WorkbenchMenus = {
     goHome: () => go(hubPlace()),
     goBack: () => navigate(-1),
@@ -438,6 +444,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     canGoForward: canGoForward(history),
     newProject: () => runCommand('newProject'),
     importPlan: () => runCommand('importPlan'),
+    exportPlan: planOpen && (() => { void exportWork(planOpen.project, planOpen.work); }),
   };
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
   const section: Section = isPage(place) && place.page !== 'hub' ? place.page : 'plans';

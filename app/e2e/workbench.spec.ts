@@ -24,7 +24,7 @@ function checkout(folder: string, remote: string) {
 const titles = (launchedApp: Launched) => launchedApp.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()));
 const groupRows = (window: Page, group: string) => window.getByRole('region', { name: group }).locator('.hub-row');
 
-test('a window opens on the hub: every plan of every active project, grouped by where it stands, each one click from its plan', async () => {
+test('a window opens on the hub: every plan of every active project, grouped by its status, each one click from its plan', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
@@ -32,9 +32,9 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   const { window } = launched;
   await expectHub(window);
   await expect.poll(() => titles(launched!)).toEqual(['Atlas']);
-  // Blocked and being implemented first, then the drafts; each row says its project.
-  await expect(window.locator('.hub-group-heading')).toHaveText([/^In progress\s*4$/, /^Drafts\s*2$/]);
-  await expect(groupRows(window, 'In progress').locator('.status-icon').first()).toHaveAttribute('aria-label', 'Blocked');
+  // With no agent on them: blocked, then paused (implementation started), then the drafts; each row says its project.
+  await expect(window.locator('.hub-group-heading')).toHaveText([/^Blocked\s*2$/, /^Paused\s*2$/, /^Drafts\s*2$/]);
+  await expect(groupRows(window, 'Blocked').locator('.status-icon').first()).toHaveAttribute('aria-label', 'Blocked');
   await expect(groupRows(window, 'Drafts')).toHaveText([/Order fulfilment model\s*#0002\s*(Northwind|Coord)/, /Order fulfilment model\s*#0002\s*(Northwind|Coord)/]);
   await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-project')).toHaveText(['Northwind', 'Coord']);
   // One click on the row, away from its title, opens the plan; Back returns to the hub.
@@ -246,7 +246,7 @@ test("the file panel shows the open plan's project, and is not offered on the hu
   // The open plan's folder is revealed.
   const work = panel.locator(row('d:active/0001-saved-payment-methods'));
   await expect(work).toContainText('Saved payment methods');
-  await expect(work.locator('.status-icon')).toHaveAttribute('aria-label', 'In progress');
+  await expect(work.locator('.status-icon')).toHaveAttribute('aria-label', 'Paused');
   // A work folder expands and opens its plan; a diagram file opens as a diagram, any other file as a file.
   await work.click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');

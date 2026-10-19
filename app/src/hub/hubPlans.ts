@@ -1,31 +1,34 @@
 // The hub's plans: every plan of every active project (or of the project it is filtered to), from the
-// project list's summaries, grouped by where they stand: blocked and being implemented first, then
-// drafts, then other open work; closed work only when asked for. And what each row says of its plan.
-import type { Project, ProjectWork, ProjectWorkState } from '../types';
-import type { WorkStatus } from '../ui/status';
+// project list's summaries, grouped by their status: those waiting for the person first, then those
+// agents work on, blocked and paused work, then drafts and ready plans; closed work only when asked
+// for. And what each row says of its plan.
+import type { Project, ProjectWork } from '../types';
+import { statuses, type ActivityState, type WorkStatus, type WorkStatusKey } from '../ui/status';
+import { liveActivity, type LiveActivity } from '../work/agentTime';
 import { aiModel, type Provider } from '../ui/aiModels';
 import { compactNumber, duration, plural } from '../ui/format';
 
 /** Which plans the hub lists: open ones (the default), closed ones, or all. */
 export type HubState = 'open' | 'closed' | 'all';
-/** A plan in the hub: the work item, its project, and whether an agent works on it now. */
-export interface HubItem { project: Project; work: ProjectWork; live: boolean }
-export interface HubGroup { id: 'active' | 'draft' | 'other' | 'closed'; label: string; items: HubItem[] }
+/** A plan in the hub: the work item, its project, what agents do on it now, and its status. */
+export interface HubItem { project: Project; work: ProjectWork; activity: LiveActivity | null; status: WorkStatus }
+type HubGroupId = 'waiting' | 'working' | 'blocked' | 'paused' | 'draft' | 'ready' | 'closed';
+export interface HubGroup { id: HubGroupId; label: string; items: HubItem[] }
 
-const groupOf: Record<ProjectWorkState, HubGroup['id']> = { blocked: 'active', implementing: 'active', draft: 'draft', other: 'other', closed: 'closed' };
-const groupLabels: Record<HubGroup['id'], string> = { active: 'In progress', draft: 'Drafts', other: 'Other open work', closed: 'Closed' };
-const stateOrder: Record<ProjectWorkState, number> = { blocked: 0, implementing: 1, draft: 2, other: 3, closed: 4 };
+const groupOrder: HubGroupId[] = ['waiting', 'working', 'blocked', 'paused', 'draft', 'ready', 'closed'];
+const groupLabels: Record<HubGroupId, string> = { waiting: 'Needs you', working: 'Working', blocked: 'Blocked', paused: 'Paused', draft: 'Drafts', ready: 'Ready', closed: 'Closed' };
+/** The group of a status as the hub gives it: its own while open, closed work together. */
+const groupOf = (key: WorkStatusKey): HubGroupId => (groupOrder as string[]).includes(key) ? key as HubGroupId : 'closed';
 
-/** A plan's status as the hub shows it, in the app's status vocabulary. */
-export function hubStatus(work: ProjectWork): WorkStatus {
-  switch (work.state) {
-    case 'blocked': return { key: 'blocked', label: 'Blocked', tone: 'danger' };
-    case 'implementing': return { key: 'in_progress', label: 'In progress', tone: 'open' };
-    case 'draft': return { key: 'draft', label: 'Draft plan', tone: 'muted' };
-    case 'other': return { key: 'not_started', label: 'Open', tone: 'muted' };
-    case 'closed': return work.outcome === 'superseded' ? { key: 'superseded', label: 'Superseded', tone: 'muted' }
-      : work.outcome === 'abandoned' ? { key: 'abandoned', label: 'Abandoned', tone: 'muted' } : { key: 'complete', label: 'Complete', tone: 'done' };
-  }
+/**
+ * A plan's status as the hub shows it, in the app's status vocabulary: how closed work ended, else
+ * what agents do on it, else where it stands. Other open work (not a draft, not started or partly
+ * done) shows as ready: the project list does not tell them apart.
+ */
+export function hubStatus(work: ProjectWork, activity: ActivityState = null): WorkStatus {
+  if (work.state === 'closed') return work.outcome === 'superseded' ? statuses.superseded : work.outcome === 'abandoned' ? statuses.abandoned : statuses.complete;
+  if (activity) return statuses[activity];
+  return work.state === 'blocked' ? statuses.blocked : work.state === 'implementing' ? statuses.paused : work.state === 'draft' ? statuses.draft : statuses.ready;
 }
 
 /**
@@ -36,8 +39,10 @@ export function hubItems(projects: Project[], filter: string | null): HubItem[] 
   return projects.filter(project => filter === null ? project.state === 'active' : project.folderId === filter).flatMap(project => {
     const summary = project.summary;
     if (!summary) return [];
-    const live = new Set(summary.activity.filter(item => item.state === 'working').map(item => item.workId));
-    return [...summary.active, ...summary.closed].map(work => ({ project, work, live: live.has(work.id) }));
+    return [...summary.active, ...summary.closed].map(work => {
+      const activity = work.state === 'closed' ? null : liveActivity(summary, work.id);
+      return { project, work, activity, status: hubStatus(work, activity?.state ?? null) };
+    });
   });
 }
 
@@ -45,17 +50,16 @@ export function hubItems(projects: Project[], filter: string | null): HubItem[] 
 export const inState = (item: HubItem, state: HubState) => state === 'all' || (state === 'closed') === (item.work.state === 'closed');
 
 /**
- * The plans in the state asked for, in their groups (only those with plans): blocked before being
- * implemented, then the most recently changed first.
+ * The plans in the state asked for, in their groups (only those with plans), each the most recently
+ * changed first.
  */
 export function hubGroups(items: HubItem[], state: HubState): HubGroup[] {
   const shown = items.filter(item => inState(item, state)).sort((a, b) =>
-    stateOrder[a.work.state] - stateOrder[b.work.state] || (b.work.updated ?? '').localeCompare(a.work.updated ?? '')
-    || a.project.position - b.project.position || b.work.id.localeCompare(a.work.id));
-  return (['active', 'draft', 'other', 'closed'] as const).map(id => ({ id, label: groupLabels[id], items: shown.filter(item => groupOf[item.work.state] === id) })).filter(group => group.items.length);
+    (b.work.updated ?? '').localeCompare(a.work.updated ?? '') || a.project.position - b.project.position || b.work.id.localeCompare(a.work.id));
+  return groupOrder.map(id => ({ id, label: groupLabels[id], items: shown.filter(item => groupOf(item.status.key) === id) })).filter(group => group.items.length);
 }
 
-/** How much a row says: work in progress and blocked work the most, closed work how it ended. */
+/** How much a row says: work under way (agents on it, blocked or paused) the most, closed work how it ended. */
 export type HubRowSize = 'large' | 'standard' | 'closed';
 type Phase = 'planning' | 'implementation';
 /** What a hub row says of its plan, formatted as the plan page and the Statistics page do. */
@@ -83,8 +87,8 @@ export interface HubRowFacts {
   changed: string | null;
 }
 
-/** The size of a plan's row: by where it stands. */
-const rowSize = (work: ProjectWork): HubRowSize => work.state === 'closed' ? 'closed' : work.state === 'blocked' || work.state === 'implementing' ? 'large' : 'standard';
+/** The size of a plan's row: by its status. */
+const rowSize = (status: WorkStatus): HubRowSize => groupOf(status.key) === 'closed' ? 'closed' : ['working', 'waiting', 'blocked', 'paused'].includes(status.key) ? 'large' : 'standard';
 
 /** When a plan last changed: an agent report the day of its plan's date or later says it more precisely. */
 export function lastChange(work: ProjectWork): string | null {
@@ -93,8 +97,8 @@ export function lastChange(work: ProjectWork): string | null {
   return !work.updated || report.slice(0, 10) >= work.updated ? report : work.updated;
 }
 
-export function hubRowFacts(work: ProjectWork): HubRowFacts {
-  const size = rowSize(work);
+export function hubRowFacts(work: ProjectWork, status = hubStatus(work)): HubRowFacts {
+  const size = rowSize(status);
   const statistics = work.statistics;
   const steps = work.steps && work.steps.total > 0 ? work.steps : null;
   let progress: HubRowFacts['progress'] = null;
@@ -107,7 +111,7 @@ export function hubRowFacts(work: ProjectWork): HubRowFacts {
     const early = doing === 'planning' ? 1 : 0;
     progress = planned ? { done: planned.done, doing: early, total: planned.total, planning: { done: planned.done, doing: early }, text: planned.done + ' of ' + planned.total + ' planning' } : all;
   }
-  const blocked = work.state === 'blocked' ? work.blocked?.trim() || 'No reason given' : null;
+  const blocked = status.key === 'blocked' ? work.blocked?.trim() || 'No reason given' : null;
   const step = size === 'large' && !blocked && work.step ? { label: work.step.status === 'doing' ? 'Now' as const : 'Next' as const, title: work.step.title, phase: work.step.phase } : null;
   const primary = statistics?.primaryModel ? aiModel(statistics.primaryModel) : null;
   const split = (agentMs: number) => size === 'large' && agentMs > 0 ? duration(agentMs) : null;
@@ -118,7 +122,7 @@ export function hubRowFacts(work: ProjectWork): HubRowFacts {
     time,
     tokens: statistics?.tokens ? compactNumber(statistics.tokens) + ' tokens' : null,
     subagents: size === 'large' && statistics?.subagents ? plural(statistics.subagents, 'subagent') : null,
-    ended: size === 'closed' ? { label: hubStatus(work).label, date: work.completed } : null,
+    ended: size === 'closed' ? { label: status.label, date: work.completed } : null,
     changed: lastChange(work),
   };
 }

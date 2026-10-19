@@ -4,7 +4,7 @@ import { DiagramIcon, FileIcon, FolderIcon, LedgerIcon, PlanIcon, SearchIcon } f
 import type { DiagramIndexEntry, Project, SearchKind, SearchResult, Snapshot, Target } from '../types';
 import { api } from '../api';
 import { rankItems, type QuickItem } from './quickMatch';
-import { hubGroups, hubItems, hubStatus } from '../hub/hubPlans';
+import { hubGroups, hubItems } from '../hub/hubPlans';
 import { diagramTarget, fileTarget, workTarget, type Place } from './targets';
 import { workNumber } from '../ui/format';
 import { hostEntries, listEntries, pathKey, workKey, type SearchDestination, type SearchEntry } from './search';
@@ -60,9 +60,9 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const entries = useMemo(() => {
     // Every plan of the active projects, and of the open one whatever its state, in the hub's order.
     const listed = [...hubItems(projects, null), ...project && projects.find(item => item.folderId === project)?.state !== 'active' ? hubItems(projects, project) : []];
-    const all: Entry[] = hubGroups(listed, 'all').flatMap(group => group.items).map(({ project: owner, work }) => ({
+    const all: Entry[] = hubGroups(listed, 'all').flatMap(group => group.items).map(({ project: owner, work, status }) => ({
       id: owner.folderId + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id), snippet: null,
-      destination: { place: { project: owner.folderId, target: workTarget(work.id) } }, key: workKey(owner.folderId, work.id), icon: <StatusIcon status={hubStatus(work)} decorative />,
+      destination: { place: { project: owner.folderId, target: workTarget(work.id) } }, key: workKey(owner.folderId, work.id), icon: <StatusIcon status={status} decorative />,
     }));
     if (open) {
       const { snapshot } = open;

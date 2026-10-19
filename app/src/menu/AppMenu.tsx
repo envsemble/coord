@@ -14,7 +14,7 @@ import { api, AtlasError } from '../api';
 import { ComputerMenu, useAppActions } from '../remote/Computers';
 import { FolderIcon, StatisticsIcon, WorkIcon } from '../ui/icons';
 
-/** What the window adds to the title bar: the hub, back and forward, a new project and importing a plan. */
+/** What the window adds to the title bar: the hub, back and forward, a new project, importing a plan and exporting the one open. */
 export interface WorkbenchMenus {
   goHome(): void;
   goBack(): void;
@@ -23,6 +23,8 @@ export interface WorkbenchMenus {
   canGoForward: boolean;
   newProject(): void;
   importPlan(): void;
+  /** Export the plan open; null when none is. */
+  exportPlan: (() => void) | null;
 }
 
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
@@ -43,6 +45,7 @@ export function FileMenu({ info, workbench, onError }: { info: WindowInfo; workb
       <MenuItem onClick={workbench.newProject}>New Project…</MenuItem>
       <MenuSeparator />
       <MenuItem onClick={workbench.importPlan}>Import Plan…</MenuItem>
+      {workbench.exportPlan && <MenuItem onClick={workbench.exportPlan}>Export Plan…</MenuItem>}
       <MenuSeparator />
       <MenuItem onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
       <MenuItem onClick={actions.remoteAccess}>Remote Access…</MenuItem>
