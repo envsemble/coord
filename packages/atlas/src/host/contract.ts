@@ -166,6 +166,8 @@ export interface ResolvedReference {
  */
 export interface WorkSession {
   session: string; harness: 'claude-code' | 'codex' | 'unknown';
+  /** The session's own title, as its harness names it (Claude Code's latest `ai-title`, Codex's thread name); null when it has none. */
+  title: string | null;
   model: string | null; effort: string | null;
   state: 'working' | 'waiting' | 'ended';
   startedAt: string; lastSeen: string; agentMs: number;

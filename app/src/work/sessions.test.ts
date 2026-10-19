@@ -13,7 +13,7 @@ test('the timeline line says how long the work was planned, implemented and wait
 });
 
 test('a plan\'s sessions: the one waiting with its message, its message\'s beginning, and the branches they worked on', () => {
-  const session = (id: string, state: WorkSession['state'], lastSeen: string, message: string | null): WorkSession => ({ session: id, harness: 'claude-code', model: null, effort: null, state, startedAt: lastSeen, lastSeen, agentMs: 0, folder: null, resume: null, message });
+  const session = (id: string, state: WorkSession['state'], lastSeen: string, message: string | null): WorkSession => ({ session: id, harness: 'claude-code', title: null, model: null, effort: null, state, startedAt: lastSeen, lastSeen, agentMs: 0, folder: null, resume: null, message });
   assert.equal(waitingSession([session('a', 'waiting', '2026-10-19T10:00:00Z', 'Older'), session('b', 'waiting', '2026-10-19T11:00:00Z', '**Needs your decision:** which?'), session('c', 'ended', '2026-10-19T12:00:00Z', 'Done')])!.session, 'b');
   assert.deepEqual(excerpt('First paragraph.\n\nSecond.'), { text: 'First paragraph.', more: true });
   assert.deepEqual(excerpt('**Needs your decision:** merge it?'), { text: '**Needs your decision:** merge it?', more: false }, 'Markdown stays whole');
