@@ -1,6 +1,5 @@
-// Watches planning folders for what the project list shows, so the hub stays current without any
-// window having a project open: the home's planning folder (every project in it), or one project's
-// planning folder outside the home. A project's planning.json, its plans and ledgers and its work
+// Watches the home's planning folder (every project in it) for what the project list shows, so the
+// hub stays current without any window having a project open. A project's planning.json, its plans and ledgers and its work
 // folders coming, going or moving between active/ and archive/ count; other files do not. A folder
 // that is replaced (moved away and back, deleted and made again) is watched again, and a watch that
 // fails (Linux running out of inotify watches, say) is tried again later, less often each time;
@@ -44,20 +43,14 @@ export class ProjectListWatch {
   private generation = 0;
 
   readonly root: string;
-  private readonly home: boolean;
   private readonly options: ProjectWatchOptions;
-  /** `home`: the home's planning folder, whose folders are projects; otherwise one project's planning folder. */
-  constructor(root: string, home: boolean, options: ProjectWatchOptions) {
-    this.root = root; this.home = home; this.options = options;
+  /** `root`: the home's planning folder, whose folders are projects. */
+  constructor(root: string, options: ProjectWatchOptions) {
+    this.root = root; this.options = options;
     void this.start();
   }
 
-  /** A path relative to the watched folder as the home's rules see it: `<project>/…`. */
-  private inHome(relative: string) {
-    return this.home ? relative : path.basename(this.root) + (relative ? '/' + relative : '');
-  }
   private async folders() {
-    if (!this.home) return JSON.stringify([await folderNames(path.join(this.root, 'active')), await folderNames(path.join(this.root, 'archive'))]);
     const projects = await folderNames(this.root);
     return JSON.stringify(await Promise.all(projects.map(async name => [name, await folderNames(path.join(this.root, name, 'active')), await folderNames(path.join(this.root, name, 'archive'))])));
   }
@@ -65,7 +58,7 @@ export class ProjectListWatch {
   private async start() {
     const generation = ++this.generation;
     if (this.closed) return;
-    if (this.home) await mkdir(this.root, { recursive: true }).catch(() => undefined);
+    await mkdir(this.root, { recursive: true }).catch(() => undefined);
     const identity = await identityOf(this.root), shape = await this.folders();
     if (this.closed || generation !== this.generation) return;
     this.identity = identity;
@@ -73,8 +66,8 @@ export class ProjectListWatch {
     this.watcher?.close();
     this.watcher = watchFolder(this.root, {
       debounce: 300, maxWait: 5000,
-      ignore: relative => ignoredInHome(this.inHome(relative)),
-      relevant: relative => this.options.touched ? relative === null || !ignoredInHome(this.inHome(relative)) : projectListChange(relative === null ? null : this.inHome(relative)) !== false,
+      ignore: relative => ignoredInHome(relative),
+      relevant: relative => this.options.touched ? relative === null || !ignoredInHome(relative) : projectListChange(relative) !== false,
       onChange: paths => { void this.changedPaths(paths); },
       onError: error => this.failed(error),
     });
@@ -89,14 +82,12 @@ export class ProjectListWatch {
     this.watcher?.close();
     this.watcher = null;
     const delay = Math.min(5 * 60_000, (this.options.retryDelay ?? 5000) * 2 ** this.failures++);
-    this.options.log.warn(this.home ? 'The projects folder is watched only for projects coming and going for now' : 'A project folder is not watched for now', { folder: this.root, message: error.message, retryIn: delay });
-    if (this.home) {
-      try {
-        const shallow = watch(this.root, () => this.options.changed());
-        shallow.on('error', () => shallow.close());
-        this.watcher = { close: () => shallow.close() };
-      } catch { /* Watched again after the wait. */ }
-    }
+    this.options.log.warn('The projects folder is watched only for projects coming and going for now', { folder: this.root, message: error.message, retryIn: delay });
+    try {
+      const shallow = watch(this.root, () => this.options.changed());
+      shallow.on('error', () => shallow.close());
+      this.watcher = { close: () => shallow.close() };
+    } catch { /* Watched again after the wait. */ }
     if (this.retry) clearTimeout(this.retry);
     this.retry = setTimeout(() => { this.retry = null; this.restart(); }, delay);
     this.retry.unref?.();
@@ -116,7 +107,7 @@ export class ProjectListWatch {
     this.touch(paths);
     // The folder was replaced: watch the one there now.
     if (await identityOf(this.root) !== this.identity) { this.restart(); this.options.changed(); return; }
-    const changes = paths.map(relative => projectListChange(this.inHome(relative)));
+    const changes = paths.map(relative => projectListChange(relative));
     let changed = changes.includes(true);
     // A folder reported: only folders coming, going or moving count (the shape is kept current either way).
     if (changes.includes('folders')) {
@@ -128,7 +119,7 @@ export class ProjectListWatch {
       if (changed) break;
       if (changes[index] !== 'maybe') continue;
       const parts = relative.replaceAll('\\', '/').split('/').filter(Boolean);
-      const [project, plan] = this.home ? [path.join(this.root, parts[0]), parts.slice(1).join('/')] : [this.root, parts.join('/')];
+      const [project, plan] = [path.join(this.root, parts[0]), parts.slice(1).join('/')];
       const registry = await readRegistry(project).catch(() => null);
       changed = registry?.work_items.some(item => typeof item?.current_plan === 'string' && item.current_plan === plan) ?? false;
     }
@@ -139,7 +130,6 @@ export class ProjectListWatch {
   private touch(paths: string[]) {
     const touched = this.options.touched;
     if (!touched) return;
-    if (!this.home) { touched(this.root); return; }
     const projects = new Set(paths.map(relative => relative.replaceAll('\\', '/').split('/').filter(Boolean)[0] ?? ''));
     if (projects.has('')) touched(null);
     else for (const name of projects) touched(path.join(this.root, name));

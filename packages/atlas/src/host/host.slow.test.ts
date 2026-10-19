@@ -107,39 +107,6 @@ test('a listing that hangs is given up, so later changes still reach clients, an
   assert.deepEqual(owner.lists.map(list => list[0].name), ['Northwind 2']);
 });
 
-test('a project outside the home is watched for its plans and ledgers, and again once its folder is replaced', async t => {
-  const { host, origin, data } = await start(t);
-  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
-  const outside = path.join(temporary(t, 'atlas-outside-'), 'Shop planning');
-  cpSync(fixture, outside, { recursive: true });
-  const database = HomeDatabase.open(data);
-  try { database.addProject(realpathSync.native(outside), 'Shop', null, 'active'); } finally { database.close(); }
-  await owner.connection.request('projects.list', {});
-  const summary = () => owner.lists.at(-1)?.find(project => project.path === realpathSync.native(outside))?.summary?.active.find(item => item.id === 'work-0001')?.summary;
-  const plan = path.join(outside, 'active/0001-saved-payment-methods/plan.md');
-  const say = (text: string) => writeFileSync(plan, readFileSync(plan, 'utf8').replace(/^title: Saved payment methods\n(?:summary: .*\n)?/m, `title: Saved payment methods\nsummary: "${text}"\n`));
-  // The folder is watched a moment after it is listed, and again a moment after it is replaced (each
-  // start of its watch has the next number); a change before that is not seen.
-  const watches = () => (host as unknown as { outsideWatches: Map<string, { generation: number; watcher: unknown }> }).outsideWatches;
-  const watching = (after: number) => until(() => [...watches().values()].some(watch => watch.generation > after && watch.watcher !== null), 15000);
-  await watching(0);
-  say('Watched outside the home.');
-  await until(() => summary() === 'Watched outside the home.', 10000, () => owner.lists.length);
-  // The folder replaced by a copy of itself: the new one is watched.
-  const before = [...watches().values()][0].generation;
-  rmSync(outside, { recursive: true, force: true, maxRetries: 10 });
-  cpSync(fixture, outside, { recursive: true });
-  await watching(before);
-  say('Watched again.');
-  await until(() => summary() === 'Watched again.', 10000, () => owner.lists.length);
-  // Archived, it is no longer watched (on Windows, a watch keeps the folders above it from being renamed).
-  assert.equal(watches().size, 1);
-  const shop = (await owner.connection.request('projects.list', {})).find(project => project.path === realpathSync.native(outside))!;
-  await owner.connection.request('projects.update', { folderId: shop.folderId, state: 'archived' });
-  await owner.connection.request('projects.list', {});
-  assert.equal(watches().size, 0);
-});
-
 test('a project made outside the app appears when its planning.json comes, a moment after its folder', async t => {
   const { host, origin, data } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
@@ -148,6 +115,6 @@ test('a project made outside the app appears when its planning.json comes, a mom
   const folder = path.join(data, 'planning', 'by-hand');
   mkdirSync(folder);
   await until(() => (host as unknown as { unfinishedProjects: Map<string, number> }).unfinishedProjects.has('by-hand'));
-  writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'By hand', repositories: [], work_items: [] }));
+  writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'By hand', folders: [], work_items: [] }));
   await until(() => owner.lists.some(list => list.some(project => project.name === 'By hand')), 10000, () => owner.lists.map(list => list.map(project => project.name)));
 });

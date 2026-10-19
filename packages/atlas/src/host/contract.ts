@@ -8,7 +8,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../plann
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 11;
+export const protocolVersion = 12;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -34,16 +34,15 @@ export type ProjectState = 'active' | 'archived';
 /**
  * A project of this computer: a planning folder in its Atlas home, with its name (from its
  * planning.json, else the folder's), its place in the computer's order and its state. `folderId`
- * identifies it in every request about its folder. A project from before the home (`outsideHome`)
- * is listed until it is moved into the home; agents do not find it until then.
+ * identifies it in every request about its folder.
  */
 export interface Project {
-  folderId: string; name: string; path: string; position: number; state: ProjectState; outsideHome: boolean;
+  folderId: string; name: string; path: string; position: number; state: ProjectState;
   /**
-   * The workspace folders the project covers on this computer (planning.json's `workspaces`, absolute
-   * paths): an agent session in one of them, or inside one, belongs to this project.
+   * The folders the project covers on this computer (planning.json's `folders`, absolute paths): an
+   * agent session in one of them, or inside one, belongs to this project.
    */
-  workspaces: string[];
+  folders: string[];
   /** What the hub shows of the project's plans (the project list has it; null when its folder could not be read). */
   summary?: ProjectSummary | null;
 }
@@ -136,32 +135,30 @@ export interface WorkActivity {
   sessions: SessionActivity[];
 }
 /**
- * A project's repositories, its work (`active/`, in the registry's order, and `closed`: `archive/`,
- * newest first), its last change, what agents are doing on its work now, and the host's clock when
- * it was listed (`now`), against which clients count live agent time.
+ * A project's work (`active/`, in the registry's order, and `closed`: `archive/`, newest first), its
+ * last change, what agents are doing on its work now, and the host's clock when it was listed
+ * (`now`), against which clients count live agent time.
  */
-export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; closed: ProjectWork[]; updated: string | null; activity: WorkActivity[]; now: string }
+export interface ProjectSummary { active: ProjectWork[]; closed: ProjectWork[]; updated: string | null; activity: WorkActivity[]; now: string }
 /**
- * A reference a planning file makes, as the reader finds it: a PR or issue (`repo#22`, a GitHub URL;
- * `value` its number), a commit (`repo@4ab195a`, a bare hash; `value` the hash) or a file in a
- * repository (a path; `value` the path, `line` its line). `repository` is what the text names: a
- * registered repository ID or name, `owner/name` from a URL, or null when it names none.
+ * A reference a planning file makes, as the reader finds it: a PR or issue (`owner/repo#22`, a GitHub
+ * URL; `value` its number), a commit (`owner/repo@4ab195a`; `value` the hash) or a file in one of the
+ * project's folders (a path; `value` the path, `line` its line). `repository` is the `owner/repo` the
+ * text names, or null when it names none; a PR or commit without one leads nowhere.
  */
 export interface ReferenceInput { kind: 'pull' | 'commit' | 'path'; repository: string | null; value: string; line: number | null }
-/** A file on the host's computer, in one of the project's local checkouts. */
+/** A file on the host's computer, in one of the project's folders. */
 export interface ReferenceFile { path: string; line: number | null }
 /**
- * Where a reference leads. `url`: its page on the repository's host (a PR, an issue, a commit), when
- * the repository's remote names one. `file`: the file on this computer, for a path (from the plan's
- * repositories first, then the project's, then any checkout that has it). `repository`: the registered
- * repository it was found in. `pull`: a PR's or issue's title and state, when `gh` can tell. `title`: a
- * commit's subject, when a local checkout has it. `choices`: the other repositories a bare hash is in.
+ * Where a reference leads. `url`: its page on GitHub (a PR, an issue, a commit). `file`: the file on
+ * this computer, for a path (in one of the project's folders, or a folder directly inside one, the
+ * first that has it). `repository`: the `owner/repo` it names. `pull`: a PR's or issue's title and
+ * state, and `title` a commit's subject, when `gh` can tell.
  */
 export interface ResolvedReference {
   url: string | null; file: ReferenceFile | null; repository: string | null;
   pull: { title: string; state: 'open' | 'draft' | 'merged' | 'closed'; checks: 'passing' | 'failing' | 'pending' | null } | null;
   title: string | null;
-  choices: { repository: string; url: string | null; title: string | null }[];
 }
 /**
  * An agent session on a work item, from the home database: its harness, the model and reasoning
@@ -182,7 +179,7 @@ export interface WorkSession {
 /** A commit a session on the work item made, or a PR it opened, as its hooks saw them. */
 export interface WorkProduct {
   kind: 'commit' | 'pull'; session: string; at: string;
-  /** The registered repository, else the checkout's folder name; null when unknown. */
+  /** The repository as `owner/repo`, from the checkout's remote or the PR's address; else the checkout's folder name; null when unknown. */
   repository: string | null;
   /** The commit's hash, or the PR's number. */
   id: string;
@@ -231,11 +228,6 @@ export interface ProjectStatistics {
   buckets: ProjectStatisticsBucket[];
   models: { model: string | null; effort: string | null; agentMs: number; tokens: number | null }[];
 }
-/** A repository a project covers: its ID in planning.json, its name and its Git remote. */
-export interface ProjectRepository { id: string; name: string; remote: string | null }
-/** The Git checkouts found in a workspace folder (the folder itself and the folders directly inside it), as a new project would register them. */
-export interface WorkspaceScan { folder: string; repositories: ProjectRepository[] }
-
 export interface Snapshot extends PlanningIndex {
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
@@ -275,16 +267,12 @@ export interface Methods {
   'host.session': { params: Record<string, never>; result: SessionInfo };
   /** The computer's projects (the planning folders in its home), in their order. */
   'projects.list': { params: Record<string, never>; result: Project[] };
-  /**
-   * A new project: a planning folder in the home made from the templates, as its own Git repository,
-   * covering the workspace folders given and registering the repositories found in them (or the
-   * repositories given, when `repositories` is set).
-   */
-  'projects.create': { params: { name: string; workspaces: string[]; repositories?: ProjectRepository[] }; result: Project };
+  /** A new project: a planning folder in the home made from the templates, as its own Git repository, covering the folders given. */
+  'projects.create': { params: { name: string; folders: string[] }; result: Project };
   /** Search every active project of the computer, best matches first (at most `limit`, default 50). */
   'search.query': { params: { query: string; limit?: number }; result: SearchResult[] };
   /** Resolve the references a planning file of the project makes (each in order; null when it leads nowhere). */
-  'references.resolve': { params: { folderId: string; work: string | null; items: ReferenceInput[] }; result: (ResolvedReference | null)[] };
+  'references.resolve': { params: { folderId: string; items: ReferenceInput[] }; result: (ResolvedReference | null)[] };
   /** A work item's sessions, newest first, and the commits and PRs they made, newest first. */
   'work.sessions': { params: { folderId: string; work: string }; result: { sessions: WorkSession[]; products: WorkProduct[] } };
   /** A work item's time and its sessions' working and waiting stretches. */
@@ -293,15 +281,8 @@ export interface Methods {
   'project.statistics': { params: { folderId: string; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
   /** Several projects' statistics together, as one (all plans: the app's active projects), for a period as project.statistics has it. */
   'projects.statistics': { params: { folderIds: string[]; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
-  /** The Git checkouts in a folder on this computer, for a new project's preview. */
-  'projects.scan': { params: { folder: string }; result: WorkspaceScan };
-  /**
-   * Rename a project (its planning.json's name), archive it or bring it back, move it in the order, or set
-   * its workspace folders (registering the repositories found in folders it did not cover before).
-   */
-  'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number; workspaces?: string[] }; result: Project };
-  /** Move a project outside the home into it, with its statistics; it keeps its place, state and tabs, under a new folder ID. */
-  'projects.adopt': { params: { folderId: string }; result: Project };
+  /** Rename a project (its planning.json's name), archive it or bring it back, move it in the order, or set its folders. */
+  'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number; folders?: string[] }; result: Project };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
   'folders.unsubscribe': { params: { folderId: string }; result: null };
   'folder.snapshot': { params: { folderId: string }; result: Snapshot };
@@ -338,10 +319,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'work.timeline': 'computer',
   'project.statistics': 'computer',
   'projects.statistics': 'computer',
-  // A folder on this computer, by path: the app's own, like plan.importRead.
-  'projects.scan': 'owner',
   'projects.update': 'computer',
-  'projects.adopt': 'computer',
   'folders.subscribe': 'computer',
   'folders.unsubscribe': 'computer',
   'folder.snapshot': 'computer',

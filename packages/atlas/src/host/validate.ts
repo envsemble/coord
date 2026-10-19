@@ -2,7 +2,7 @@
 // host's own stored state. Validators return the checked value or throw ValidationError; unknown
 // object keys are dropped, never passed through. The desktop app reuses the generic ones for the
 // messages its windows send (app/shared/validate.ts).
-import type { AccessSettings, MethodName, Methods, PairRequest, ProjectRepository } from './contract.ts';
+import type { AccessSettings, MethodName, Methods, PairRequest } from './contract.ts';
 
 export class ValidationError extends Error {}
 export type Validator<T> = (value: unknown, at?: string) => T;
@@ -109,9 +109,6 @@ const networkSettings = object<AccessSettings['network']>({ enabled: boolean, ad
 export const accessSettings: Validator<AccessSettings> = object<AccessSettings>({ network: networkSettings });
 /** A project's name: one line, at most 100 characters, not blank. */
 export const projectName = deviceText(100);
-const repositoryInput: Validator<ProjectRepository> = object<ProjectRepository>({
-  id: string({ min: 1, max: 64, pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ }), name: deviceText(100), remote: nullable(string({ min: 1, max: 500, pattern: /^[^\u0000-\u001f\u007f-\u009f]+$/ })),
-});
 export const pairRequest: Validator<PairRequest> = object<PairRequest>({
   code: pairingCode,
   device: object<PairRequest['device']>({ name: deviceText(80), platform: deviceText(40) }),
@@ -122,16 +119,14 @@ const none = object<Record<string, never>>({});
 export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['params']> } = {
   'host.session': none,
   'projects.list': none,
-  'projects.create': object({ name: projectName, workspaces: array(absolutePath, 20), repositories: optional(array(repositoryInput, 50)) }),
+  'projects.create': object({ name: projectName, folders: array(absolutePath, 20) }),
   'search.query': object({ query: string({ min: 1, max: 200 }), limit: optional(integer(1, 200)) }),
-  'references.resolve': object({ folderId, work: nullable(workId), items: array(object({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) }), 500) }),
+  'references.resolve': object({ folderId, items: array(object({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) }), 500) }),
   'work.sessions': object({ folderId, work: workId }),
   'work.timeline': object({ folderId, work: workId }),
   'project.statistics': object({ folderId, from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
   'projects.statistics': object({ folderIds: array(folderId, 500), from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
-  'projects.scan': object({ folder: absolutePath }),
-  'projects.adopt': object({ folderId }),
-  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(array(absolutePath, 20)) }),
+  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(array(absolutePath, 20)) }),
   'folders.subscribe': object({ folderId }),
   'folders.unsubscribe': object({ folderId }),
   'folder.snapshot': object({ folderId }),

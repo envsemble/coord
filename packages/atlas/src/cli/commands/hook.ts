@@ -2,7 +2,7 @@
 // event as JSON on stdin and read JSON from stdout. A hook never breaks a session: on any failure it
 // prints nothing, exits 0 and notes the failure in the home's logs/hooks.log.
 //
-// SessionStart tells the agent the projects its checkout's repository belongs to and their active
+// SessionStart tells the agent the projects its folder belongs to and their active
 // work. PostToolUse checks the files the agent edited in the home's planning folders (blocking with
 // the problems so it fixes them), links the session to the work item it edits or calls an Atlas tool
 // on (in the home database). Stop (with
@@ -109,16 +109,16 @@ function recordReport(database: HomeDatabase, session: string, item: Link, prepa
 // ---- SessionStart -------------------------------------------------------------------------------
 
 /**
- * The context of a session no project registers: the home's active projects (or how to make one),
+ * The context of a session in no project's folders: the home's active projects (or how to make one),
  * and that the agent asks which one the work belongs to. Short, as every such session gets it.
  */
 function contextOutsideProjects(where: Whereabouts): string {
-  const folder = where.checkout ?? where.cwd;
-  if (!where.projects.length) return `Atlas: no project registers this folder (${folder}), and the Atlas home (${where.home}) has no projects yet; when the user wants to plan, make one with their agreement (the Atlas tool project_create, or atlas project create), or the user makes one in the app.`;
-  const lines = [`Atlas: no project registers this folder (${folder}). Active projects in the Atlas home:`];
+  const folder = where.cwd;
+  if (!where.projects.length) return `Atlas: no project covers this folder (${folder}), and the Atlas home (${where.home}) has no projects yet; when the user wants to plan, make one with their agreement (the Atlas tool project_create, or atlas project create), or the user makes one in the app.`;
+  const lines = [`Atlas: no project covers this folder (${folder}). Active projects in the Atlas home:`];
   for (const project of where.projects.slice(0, 15)) lines.push(`- "${project.project}": ${project.planningFolder} (${project.work.length} active work ${project.work.length === 1 ? 'item' : 'items'})`);
   if (where.projects.length > 15) lines.push(`- …and ${where.projects.length - 15} more.`);
-  lines.push("When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's repositories and active work.");
+  lines.push("When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's folders and active work.");
   return lines.join('\n');
 }
 
@@ -127,8 +127,8 @@ export function sessionContext(where: Whereabouts): string {
   if (!where.matches.length) return contextOutsideProjects(where);
   const lines: string[] = [];
   for (const match of where.matches) {
-    lines.push(`Atlas project "${match.project}" for this ${match.via.includes('workspace') ? 'workspace folder' : 'checkout'}: planning folder ${match.planningFolder}${match.repositories.length ? ' (repositories: ' + match.repositories.join(', ') + ')' : ''}.`);
-    if (!match.work.length) lines.push('No active work for this checkout.');
+    lines.push(`Atlas project "${match.project}" for this folder: planning folder ${match.planningFolder}.`);
+    if (!match.work.length) lines.push('No active work in this project.');
     else lines.push('Active work:');
     for (const item of match.work.slice(0, 10)) {
       const doing = item.steps.filter(step => step.status === 'doing').map(step => step.title);
@@ -137,9 +137,9 @@ export function sessionContext(where: Whereabouts): string {
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Atlas tool where).`);
   }
-  if (where.matches.length > 1) lines.push(`Several projects register this checkout's repository (${where.matches.map(match => match.project).join(', ')}): before planning, ask the user which project to plan in, and give its planning folder to the Atlas tools.`);
+  if (where.matches.length > 1) lines.push(`Several projects cover this folder (${where.matches.map(match => match.project).join(', ')}): before planning, ask the user which project to plan in, and give its planning folder to the Atlas tools.`);
   lines.push('Planning: when the user designs something or asks for work big enough to plan, ask before opening a work item; small tasks stay plain coding. Change planning state (work items, steps, blocked, closing, archiving) through the Atlas tools; edit plan prose, glossaries and diagrams directly as files in the planning folder.');
-  lines.push('In planning files, write PRs as repo#N and commits as repo@hash, so Atlas links them; when you stop to wait for the user, begin your message with the question or decision you need.');
+  lines.push('In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them; when you stop to wait for the user, begin your message with the question or decision you need.');
   lines.push('When you open work that continues other work (follow-ups moved off work that is closing, a next phase), record the handoff: work_create with continues, or work_continue.');
   return lines.join('\n');
 }

@@ -47,19 +47,20 @@ test('hooks give the session its planning context, check and link planning edits
   /** Whether the database has the session's agent in a turn (the app's Working). */
   const working = () => withDatabase(base.ATLAS_HOME!, database => Number((database.db.prepare('SELECT working FROM session WHERE id = ?').get(session) as { working: number }).working));
 
-  // SessionStart: the project, its planning folder and active work, and how to plan; outside a registered checkout, the home's projects.
+  // SessionStart: the project, its planning folder and active work, and how to plan; outside every project's folders, the home's projects.
   const started = await hook('SessionStart', { source: 'startup' });
   assert.equal(started.hookSpecificOutput.hookEventName, 'SessionStart');
   const context: string = started.hookSpecificOutput.additionalContext;
-  assert.ok(context.includes(`Atlas project "shop-planning" for this checkout: planning folder ${root} (repositories: shop).`), context);
+  assert.ok(context.includes(`Atlas project "shop-planning" for this folder: planning folder ${root}.`), context);
+  assert.match(context, /write PRs and issues as owner\/repo#N and commits as owner\/repo@hash/);
   assert.ok(!context.includes('Several projects'), context);
   assert.ok(context.includes('- work-0001 "Cart" (draft, not_started): no ledger yet. Plan: ' + path.join(root, 'active', '0001-cart', 'plan.md')), context);
   assert.match(context, /ask before opening a work item/);
   const elsewhere = temporary(t);
   assert.equal(await contextIn(env, elsewhere), [
-    `Atlas: no project registers this folder (${realpathSync.native(elsewhere)}). Active projects in the Atlas home:`,
+    `Atlas: no project covers this folder (${realpathSync.native(elsewhere)}). Active projects in the Atlas home:`,
     `- "shop-planning": ${realpathSync.native(root)} (1 active work item)`,
-    "When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's repositories and active work.",
+    "When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's folders and active work.",
   ].join('\n'));
 
   // PostToolUse: a valid edit of a draft plan links the session, without amending; what the check
@@ -98,12 +99,12 @@ test('hooks give the session its planning context, check and link planning edits
   assert.equal(withDatabase(base.ATLAS_HOME!, database => (database.db.prepare('SELECT count(*) AS n FROM document_use').get() as { n: number }).n), 0);
 
   // Codex: apply_patch names its files in the patch, relative to the session's folder.
-  assert.equal((await run(['work', 'create', '--title', 'Payments', '--summary', 'Payments by card.', '--repo', 'shop', '--planning-dir', root], { env })).status, 0);
+  assert.equal((await run(['work', 'create', '--title', 'Payments', '--summary', 'Payments by card.', '--planning-dir', root], { env })).status, 0);
   const patch = '*** Begin Patch\n*** Update File: active/0002-payments/plan.md\n@@\n-# Payments\n+# Payments today\n*** End Patch\n';
   assert.equal(await hookIn(env, 'PostToolUse', { session_id: session, transcript_path: null, cwd: root, hook_event_name: 'PostToolUse', model: 'gpt-5.5', permission_mode: 'default', tool_name: 'apply_patch', tool_input: { command: patch }, tool_response: 'Done', tool_use_id: 'call_1', turn_id: 't1' }), '');
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
   // An Atlas MCP tool call that changes a work item links it, from its input or its result; reading one does not.
-  await run(['work', 'create', '--title', 'Refunds', '--repo', 'shop', '--planning-dir', root], { env });
+  await run(['work', 'create', '--title', 'Refunds', '--planning-dir', root], { env });
   const about = { tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] };
   await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__work_status', ...about });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
@@ -146,7 +147,7 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual({ ...state(), waiting: typeof state().waiting }, { working: 0, turn, waiting: 'string' });
   await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
   assert.deepEqual(state(), { working: 1, turn, waiting: null });
-  // A commit the session makes is recorded for the work item it is on, with its repository and page;
+  // A commit the session makes is recorded for the work item it is on, with its repository (owner/repo, from the checkout's remote) and page;
   // an amended one replaces it, and one on a detached HEAD has no branch.
   const commit = (command: string, stdout: string) => hook('ToolUse', { tool_name: 'Bash', tool_input: { command }, tool_response: { stdout, stderr: '' } });
   await commit('git add -A && git commit -m "Add the cart"', '[main 0f0f0f0] Add a cart\n 1 file changed, 1 insertion(+)\n');
@@ -157,8 +158,8 @@ test('hooks give the session its planning context, check and link planning edits
   const project = withDatabase(base.ATLAS_HOME!, database => database.projectByFolder(realpathSync.native(root))!.id);
   const sessions = (local = true) => withDatabaseAsync(base.ATLAS_HOME!, database => workSessions(database, project, 'work-0003', { local }));
   assert.deepEqual((await sessions()).products.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
-    [{ kind: 'commit', repository: 'shop', id: '9e8d7c6', title: 'Try it', url: 'https://github.com/example/shop/commit/9e8d7c6', branch: null },
-      { kind: 'commit', repository: 'shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
+    [{ kind: 'commit', repository: 'example/shop', id: '9e8d7c6', title: 'Try it', url: 'https://github.com/example/shop/commit/9e8d7c6', branch: null },
+      { kind: 'commit', repository: 'example/shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
   // While it waits, the session shows its turn's last message, and how to resume it in the folder it
   // started in (as its log says, wherever its hooks ran since); a paired device gets no folder.
   const [waiter] = (await sessions()).sessions;
@@ -234,29 +235,30 @@ test('a stop clears amending only for edits its report counted', async t => {
   assert.equal(linksIn(base.ATLAS_HOME!)[0].amending, false, 'the report counted the edit');
 });
 
-test('a session in a checkout that several projects register is told to ask which one to plan in', async t => {
+test('a session in a folder that several projects cover is told to ask which one to plan in', async t => {
   const { checkout, home, env } = homeWithPlanning(t);
   const other = path.join(home, 'planning', 'coord');
-  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Coord', repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop' }], work_items: [] }));
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Coord', folders: [checkout], work_items: [] }));
   const context = await contextIn(env, checkout);
-  assert.ok(context.includes('Atlas project "shop-planning"') && context.includes(`Atlas project "Coord" for this checkout: planning folder ${realpathSync.native(other)}`), context);
-  assert.match(context, /Several projects register this checkout's repository \(Coord, shop-planning\): before planning, ask the user which project to plan in/);
+  assert.ok(context.includes('Atlas project "shop-planning"') && context.includes(`Atlas project "Coord" for this folder: planning folder ${realpathSync.native(other)}`), context);
+  assert.match(context, /Several projects cover this folder \(Coord, shop-planning\): before planning, ask the user which project to plan in/);
   // The tools need the project: a work item only one of them registers names it; otherwise it is asked for.
-  const created = await run(['work', 'create', '--title', 'Payments', '--repo', 'shop'], { env, cwd: checkout });
+  const created = await run(['work', 'create', '--title', 'Payments'], { env, cwd: checkout });
   assert.equal(created.status, 1);
-  assert.match(created.stderr, /Several projects register this checkout's repository: Coord \(.*\), shop-planning \(.*\)\. Ask the user which project to plan in/);
+  assert.match(created.stderr, /Several projects cover this folder: Coord \(.*\), shop-planning \(.*\)\. Ask the user which project to plan in/);
   assert.equal((await run(['work', 'status', 'work-0001'], { env, cwd: checkout })).status, 0);
   const where = JSON.parse((await run(['where', '--cwd', checkout], { env })).stdout);
   assert.deepEqual(where.matches.map((match: { project: string }) => match.project), ['Coord', 'shop-planning']);
-  // Once Coord covers the folder the checkout is in, the session belongs to Coord alone.
-  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Coord', workspaces: [path.dirname(checkout)], repositories: [{ id: 'shop', name: 'Shop', remote: 'https://github.com/example/shop' }], work_items: [] }));
-  assert.match(await contextIn(env, checkout), /^Atlas project "Coord" for this workspace folder: planning folder .*\(repositories: shop\)\.\nNo active work for this checkout\.\nPlanning: /);
+  // Once Coord covers only the folder around the checkout, the deeper folder decides.
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Coord', folders: [path.dirname(checkout)], work_items: [] }));
+  assert.match(await contextIn(env, checkout), /^Atlas project "shop-planning" for this folder: planning folder .*\.\nActive work:\n/);
+  assert.match(await contextIn(env, path.dirname(checkout)), /^Atlas project "Coord" for this folder: planning folder .*\.\nNo active work in this project\.\nPlanning: /);
 });
 
 test('a session in an empty Atlas home is told there are no projects and how to make one', async t => {
   const directory = temporary(t);
   const home = path.join(directory, 'home');
-  assert.equal(await contextIn({ ...environment, ATLAS_HOME: home }, directory), `Atlas: no project registers this folder (${realpathSync.native(directory)}), and the Atlas home (${home}) has no projects yet; when the user wants to plan, make one with their agreement (the Atlas tool project_create, or atlas project create), or the user makes one in the app.`);
+  assert.equal(await contextIn({ ...environment, ATLAS_HOME: home }, directory), `Atlas: no project covers this folder (${realpathSync.native(directory)}), and the Atlas home (${home}) has no projects yet; when the user wants to plan, make one with their agreement (the Atlas tool project_create, or atlas project create), or the user makes one in the app.`);
 });
 
 test('a hook never breaks the session: bad input prints nothing and is logged', async t => {

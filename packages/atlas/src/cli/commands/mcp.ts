@@ -8,7 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
   acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
-  resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus, type ProjectRepository,
+  resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
 import { parseOptions, UsageError, wantsHelp, type Output } from '../args.ts';
 import { createHomeProject } from './planning.ts';
@@ -16,14 +16,15 @@ import { createHomeProject } from './planning.ts';
 const require = createRequire(import.meta.url);
 const { version } = require('../../../package.json') as { version: string };
 
-const instructions = 'Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). Find the projects and active work for your checkout with where, which also lists every active project in the home; '
-  + "a session in one of a project's workspace folders belongs to that project. When several projects match, ask the user which one to plan in and pass its planningFolder. "
+const instructions = 'Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). Find the projects and active work for your folder with where, which also lists every active project in the home; '
+  + "a session in one of a project's folders belongs to that project. When several projects match, ask the user which one to plan in and pass its planningFolder; when none does, ask which project the work belongs to. "
   + 'Create a project with project_create only when the user asks for one or agrees to it. '
   + 'Change planning state only through these tools: create a work item (ask the user first, and only for work big enough to plan), accept its design, start implementation with its steps, '
-  + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, glossaries and diagrams directly as files in the planning folder. The tools never commit; commit planning changes yourself.';
+  + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, glossaries and diagrams directly as files in the planning folder; '
+  + 'write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), so Atlas links them. The tools never commit; commit planning changes yourself.';
 
-const planningFolder = { type: 'string', description: "Absolute path of the project's planning folder. Omit it to use the one your checkout belongs to; give it when several projects register the checkout's repository." };
-const cwd = { type: 'string', description: 'Absolute path of the checkout you work in, to find its planning folder. Defaults to the folder the session started in.' };
+const planningFolder = { type: 'string', description: "Absolute path of the project's planning folder. Omit it to use the one your folder belongs to; give it when several projects cover your folder, or none does." };
+const cwd = { type: 'string', description: 'Absolute path of the folder you work in, to find its planning folder. Defaults to the folder the session started in.' };
 const work = { type: 'string', description: 'The work item ID, such as work-0012.', pattern: '^work-[0-9]{4,}$' };
 const title = { type: 'string', description: 'A step title, exactly as the ledger has it.' };
 const titles = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
@@ -35,26 +36,22 @@ interface Tool { name: string; description: string; inputSchema: Record<string, 
 const tools: Tool[] = [
   {
     name: 'where',
-    description: "List every active project in the Atlas home (projects: each planning folder, an absolute path, with its name, repositories, workspace folders, active work as titles, summaries and states, and match: whether the checkout belongs to it), and in matches the projects the checkout belongs to, with the active work for its repositories, their steps and blocked. A folder in one of a project's workspace folders belongs to that project alone (the deepest folder wins); elsewhere a checkout matches the projects that register its Git remotes. Works in any folder, in a Git checkout or not. Call it first when you need the plan or ledger of your work; when several projects match, ask the user which one to plan in; when none does, ask which project the work belongs to, or work across them.",
+    description: "List every active project in the Atlas home (projects: each planning folder, an absolute path, with its name, folders, active work as titles, summaries and states, and match: whether your folder belongs to it), and in matches the projects your folder belongs to, with their active work, its steps and blocked. A folder in one of a project's folders belongs to that project (the deepest folder wins when they nest), and so does a folder inside its planning folder; any other folder belongs to no project. Call it first when you need the plan or ledger of your work; when several projects match, ask the user which one to plan in; when none does, ask which project the work belongs to, or work across them.",
     inputSchema: { type: 'object', properties: { cwd }, additionalProperties: false },
     run: (_, input) => findPlanning(input.cwd!),
   },
   {
     name: 'project_create',
-    description: "Create a project in the Atlas home: a planning folder made from Atlas's templates, as its own Git repository, covering the workspace folders given (a session in one of them belongs to the project) and registering the Git checkouts in them (each folder itself and the folders directly inside it; worktrees count as their repository), unless repositories are given. Ask the user before creating one, and check with where that no project already covers the work. Returns its name, planning folder, workspace folders and repositories, and the checkouts skipped because Git did not answer for them (tell the user).",
+    description: "Create a project in the Atlas home: a planning folder made from Atlas's templates, as its own Git repository, covering the folders given (a session in one of them, or inside one, belongs to the project). Ask the user before creating one, and check with where that no project already covers the work. Returns its name, planning folder and folders.",
     inputSchema: {
-      type: 'object', additionalProperties: false, required: ['name', 'workspaces'], properties: {
+      type: 'object', additionalProperties: false, required: ['name', 'folders'], properties: {
         name: { type: 'string', description: "The project's name." },
-        workspaces: { type: 'array', items: { type: 'string' }, minItems: 1, description: 'Absolute paths of the folders on this computer the project covers.' },
-        repositories: {
-          type: 'array', description: 'The repositories to register instead of the checkouts found in the folders.',
-          items: { type: 'object', additionalProperties: false, required: ['id', 'name', 'remote'], properties: { id: { type: 'string', description: 'Lowercase letters and digits joined by hyphens.' }, name: { type: 'string' }, remote: { type: ['string', 'null'], description: 'Its Git remote URL.' } } },
-        },
+        folders: { type: 'array', items: { type: 'string' }, description: 'Absolute paths of the folders on this computer the project covers; it may be empty.' },
       },
     },
     run: (_, input) => {
-      if (!Array.isArray(input.workspaces) || !input.workspaces.length) throw new WorkError('Give the project at least one workspace folder.');
-      return createHomeProject({ name: input.name as string, workspaces: input.workspaces as string[], ...input.repositories !== undefined && { repositories: input.repositories as ProjectRepository[] } });
+      if (!Array.isArray(input.folders)) throw new WorkError('Give the folders the project covers as a list (it may be empty).');
+      return createHomeProject({ name: input.name as string, folders: input.folders as string[] });
     },
   },
   {
@@ -64,12 +61,8 @@ const tools: Tool[] = [
   {
     name: 'work_create',
     description: 'Create and register a work item: the next free number, active/NNNN-slug/plan.md with a draft plan header (with its summary), a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted), and its planning.json entry. Ask the user before creating one: only work big enough to plan needs it. Then write the plan body in plan.md directly, keep the summary in its header current as the work moves, and keep the planning steps true while designing (rename, add or remove them to fit the work).',
-    inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, repositories: titles('Registered repository IDs the work applies to. Omit them to use the repositories your checkout is.'), slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' }, continues: titles('The work items it continues (a handoff): work-0023 in this project, or project:work-0023 in another project of the home, by its planning folder\'s name. Give it when the work picks up where other work left off: follow-ups moved off work that is closing, a next phase, deferred review findings.') }, ['title']),
-    run: async (root, input) => {
-      let repositories = input.repositories as string[] | undefined;
-      if (!repositories?.length) repositories = (await findPlanning(input.cwd ?? process.cwd())).matches.find(match => match.planningFolder === root)?.repositories ?? [];
-      return createWork(root, { title: input.title as string, repositories, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null });
-    },
+    inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' }, continues: titles('The work items it continues (a handoff): work-0023 in this project, or project:work-0023 in another project of the home, by its planning folder\'s name. Give it when the work picks up where other work left off: follow-ups moved off work that is closing, a next phase, deferred review findings.') }, ['title']),
+    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null }),
   },
   {
     name: 'work_accept', description: 'Record that the user accepted the design: design_status accepted, accepted_at today, and every planning step done. Only when the user has agreed to the plan.',
@@ -81,7 +74,7 @@ const tools: Tool[] = [
     inputSchema: object({ work, steps: { ...titles('The agreed steps, in order.'), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
   },
   {
-    name: 'step_add', description: 'Add steps (todo) when agreed scope gains them: before implementation starts they are planning steps (a draft from before planning steps gets its ledger this way), after work_start implementation steps.',
+    name: 'step_add', description: 'Add steps (todo) when agreed scope gains them: before implementation starts they are planning steps, after work_start implementation steps.',
     inputSchema: object({ work, steps: titles('New step titles.') }, ['work', 'steps']), run: (root, input) => addSteps(root, input.work!, input.steps as string[]),
   },
   {

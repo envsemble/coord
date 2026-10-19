@@ -29,18 +29,16 @@ ${planningUsage}
   atlas --version
   atlas help
 
-where finds the projects (planning folders in the Atlas home) that this checkout belongs to (by a
-workspace folder of theirs it is in, else by its Git remotes, by an absolute path hint, or by being
-inside one), with their names and active work; when several match, the work commands need
---planning-dir. project create makes a project in the home covering the workspace folders given,
-registering the Git checkouts in them (each folder and the folders directly inside it). The work
+where finds the projects (planning folders in the Atlas home) that this folder belongs to (by being
+in one of their folders, the deepest winning, or inside the planning folder), with their names and
+active work; when several match, the work commands need --planning-dir. project create makes a
+project in the home covering the folders given. The work
 commands change a work item's planning state: each prints the work item's status as JSON and exits
 0, 1 when it is refused (with the reason and any open items on stderr) and 2 on usage errors.
-They use the planning folder given by --planning-dir, else the one this checkout belongs to. They
+They use the planning folder given by --planning-dir, else the one this folder belongs to. They
 never commit. check checks plans, ledgers, the registry and diagrams of the files or planning
-folders given (default: this checkout's), warns about diagrams no document links, and exits 0
-when valid, 1 on errors. home lists the home's projects; home adopt moves a planning folder into
-the home, importing its old statistics files (the deletion is yours to commit).
+folders given (default: this folder's), warns about diagrams no document links, and exits 0
+when valid, 1 on errors. home lists the home's projects.
 capture captures code or a database as the source configuration file describes (paths in it are
 relative to it) and writes the diagram into the work item's diagrams/<name>.puml (default name
 <identity>-<date>), or to --out; an existing file needs --force. --compares names an earlier
@@ -48,7 +46,7 @@ capture this one is compared with. It prints the capture's summary as JSON and e
 the capture fails or is refused, and 2 on usage errors.
 mcp serves the planning-state operations to an agent harness over stdio. hook runs one harness
 hook (Claude Code or Codex) on the JSON it reads from stdin; it always exits 0. setup creates the
-Atlas home and its database (moving older settings and statistics into it), grants the home to
+Atlas home and its database (or brings the database up to date), grants the home to
 Claude Code and Codex, and installs the Atlas plugin into each harness on PATH; --dry-run prints
 what it would do.
 planning check exits 0 when valid, 1 on errors and 2 on usage errors; it never writes.

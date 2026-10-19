@@ -14,8 +14,7 @@ const keyOf = (value: string) => caseless ? value.toLowerCase() : value;
 /**
  * Fill in each work item's `continues` (from the names its plan gives) and `continuedIn`, in place.
  * Another project is found as the plan's own folder finds it (handoffFolder): by its planning
- * folder's name among the folders beside it, so a project outside the home links only to its
- * neighbours there, and each work item is linked once.
+ * folder's name among the folders beside it in the home, and each work item is linked once.
  * Every link carries its project's folder ID, the same project's included. A reference that names no
  * work item stays, without title or state, and without a folder ID when it names no project.
  */
