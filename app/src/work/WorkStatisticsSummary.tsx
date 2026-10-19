@@ -15,10 +15,10 @@ import type { Work, WorkStatistics } from '../types';
 import { aiModel, providerNames } from '../ui/aiModels';
 import { ProviderMark } from '../ui/AiModel';
 import { Detailed } from '../ui/ui';
-import { compactNumber, duration } from '../ui/format';
+import { compactNumber, duration, plural } from '../ui/format';
 import { agentTimeNote, modelShare, otherModels, shownStages, stageLabels, stageUsage, tokenRows, tokenText, type StageKey } from './workStatistics';
-import type { LiveActivity } from './agentTime';
-import { AgentTime, measuredSection, modelName, shortId, type ReportSection } from './LiveAgentTime';
+import { unreported, type LiveActivity } from './agentTime';
+import { AgentTime, measuredSection, modelName, shortId, type AgentTotals, type ReportSection } from './LiveAgentTime';
 
 const stageIcons: Record<StageKey, typeof Build> = { planning: EditNote, implementation: Build, unknown: Help };
 
@@ -38,20 +38,25 @@ export function TokenBreakdown({ usage }: { usage: { tokens: number | null; toke
 const agentsNamed = 5;
 const agentLabel = (agent: AgentUsage) => [agent.subagent ? 'Subagent ' + shortId(agent.subagent) : agent.session ? 'Session ' + shortId(agent.session) : 'Session not recorded', agent.model && aiModel(agent.model).name].filter(Boolean).join(' · ');
 
+/** The subagent that stands for those older reports counted without naming them. */
+const unlisted = 'unlisted';
+
 /**
  * Agent time by agent: the busiest named, then the rest in one row, so the rows add up to the agent
- * time. The rest counts the agents listed beyond those named and the subagents the statistics count
- * but do not list (however a remainder is listed); time no agent was named for is the rest too.
+ * time. The rest is the agents listed beyond those named, and the subagents older reports counted
+ * without naming them (`unlisted`, as many as the subagents counted but not named); when it is only
+ * those, it says so.
  */
 function byAgent(statistics: WorkStatistics): ReportSection {
-  const agents = statistics.agents, named = agents.slice(0, agentsNamed);
-  if (!agents.length) return { rows: [] };
-  const unlisted = Math.max(0, (statistics.subagents?.count ?? 0) - agents.filter(agent => agent.subagent !== null).length);
-  const more = agents.length - named.length + unlisted;
+  const listed = statistics.agents.filter(agent => agent.subagent !== unlisted), named = listed.slice(0, agentsNamed);
+  if (!statistics.agents.length) return { rows: [] };
+  const unnamed = statistics.agents.some(agent => agent.subagent === unlisted) ? Math.max(1, (statistics.subagents?.count ?? 0) - listed.filter(agent => agent.subagent !== null).length) : 0;
+  const more = listed.length - named.length;
   const rest = Math.max(0, statistics.agentMs - named.reduce((sum, agent) => sum + agent.agentMs, 0));
+  const label = more && unnamed ? more + unnamed + ' more' : more ? more + ' more' : unnamed ? plural(unnamed, 'unnamed subagent') : 'No agent named';
   return { heading: 'By agent', rows: [
     ...named.map(agent => ({ label: agentLabel(agent), value: duration(agent.agentMs) })),
-    ...more || rest >= 30_000 ? [{ label: more ? more + ' more' : 'No agent named', value: duration(rest) }] : [],
+    ...more || unnamed || rest >= 30_000 ? [{ label, value: duration(rest) }] : [],
   ] };
 }
 
@@ -81,8 +86,12 @@ function OtherModels({ statistics }: { statistics: WorkStatistics }) {
   </span>;
 }
 
-/** `activity`: what agents do on the work item now, so its agent time counts up while they work. */
-export function WorkStatisticsSummary({ work, statistics, activity = null }: { work: Work; statistics: WorkStatistics; activity?: LiveActivity | null }) {
+/**
+ * `activity`: what agents do on the work item now, so its agent time counts up while they work, on
+ * top of the project listing's totals (`totals`), which come with the activity; the folder's
+ * statistics, read apart, give the rest.
+ */
+export function WorkStatisticsSummary({ work, statistics, activity = null, totals }: { work: Work; statistics: WorkStatistics; activity?: LiveActivity | null; totals?: AgentTotals | null }) {
   const primary = statistics.models.find(model => model.model === statistics.primaryModel);
   const model = primary && aiModel(primary.model);
   return <div className="work-statistics">
@@ -92,8 +101,8 @@ export function WorkStatisticsSummary({ work, statistics, activity = null }: { w
       <OtherModels statistics={statistics} />
     </div>}
     <ul className="work-statistics-facts">
-      {(statistics.reports > 0 || activity?.state === 'working') && <li><Schedule className="work-statistics-icon" />
-        <AgentTime work={work.id} totals={statistics} activity={activity} sections={agentTimeSections(statistics)} after={[measuredSection(statistics)]} description={agentTimeNote(statistics)} strong />
+      {(statistics.reports > 0 || unreported(activity)) && <li><Schedule className="work-statistics-icon" />
+        <AgentTime totals={totals ?? statistics} activity={activity} sections={agentTimeSections(statistics)} after={[measuredSection(statistics)]} description={agentTimeNote(statistics)} strong />
         <span className="muted">of agent time</span></li>}
       {statistics.tokens !== null && <li><Token className="work-statistics-icon" /><Detailed detail={<TokenBreakdown usage={statistics} />} description={tokenText(statistics)}><strong>{compactNumber(statistics.tokens)}</strong></Detailed><span className="muted">tokens</span></li>}
       {shownStages(statistics).map(stage => {
