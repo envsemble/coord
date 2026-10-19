@@ -250,21 +250,21 @@ export class AtlasWindow {
     for (const [folderId, entry] of this.listed) if (entry.rowId === rowId) return folderId;
     return null;
   }
-  /** A new project covering workspace folders of the window's computer; its host registers the repositories it finds in them. */
-  async createProject(name: string, workspaces: string[]): Promise<Project> {
-    const created = await this.client().request('projects.create', { name, workspaces }, { timeout: 60000 });
+  /** A new project covering folders of the window's computer. */
+  async createProject(name: string, folders: string[]): Promise<Project> {
+    const created = await this.client().request('projects.create', { name, folders }, { timeout: 60000 });
     return (await this.projects()).find(project => project.folderId === created.folderId) ?? created;
   }
   /**
    * Change a project: on this computer through its host, so every device sees it. On a paired
-   * computer, a new name and workspace folders go to its host (they are in the planning folder),
+   * computer, a new name and folders go to its host (they are in the planning folder),
    * while hiding, archiving and the order are this app's own.
    */
   async updateProject(folderId: string, change: ProjectChangeRequest): Promise<Project> {
     const { database } = this.manager.context;
     if (this.computer === null) await this.client().request('projects.update', { folderId, ...change }, { timeout: 60000 });
     else {
-      if (change.name !== undefined || change.workspaces !== undefined) await this.client().request('projects.update', { folderId, name: change.name, workspaces: change.workspaces }, { timeout: 60000 });
+      if (change.name !== undefined || change.folders !== undefined) await this.client().request('projects.update', { folderId, name: change.name, folders: change.folders }, { timeout: 60000 });
       const rowId = await this.projectRow(folderId);
       if (change.state !== undefined || change.position !== undefined) database.updateProject(rowId, { state: change.state, position: change.position });
       this.manager.projectsChanged(this.computer);
@@ -272,31 +272,6 @@ export class AtlasWindow {
     const project = (await this.projects()).find(entry => entry.folderId === folderId);
     if (!project) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
     return project;
-  }
-
-  /**
-   * Move a project outside its computer's Atlas home into it. It keeps its row (on a paired computer,
-   * this app's row follows its new folder), so its order, state and saved place stay; every window
-   * showing that computer follows it under its new folder ID.
-   */
-  async adoptProject(folderId: string): Promise<Project> {
-    const rowId = await this.projectRow(folderId);
-    const moved = await this.client().request('projects.adopt', { folderId }, { timeout: 120000 });
-    if (this.computer !== null) this.manager.context.database.updateProject(rowId, { folder: moved.path });
-    this.manager.projectMoved(this.computer, folderId, moved.folderId);
-    return (await this.projects()).find(project => project.folderId === moved.folderId) ?? moved;
-  }
-  /**
-   * A project of the window's computer moved under a new folder ID: the folder it left is no longer
-   * followed, and its row (with its saved place) goes by the new ID until the projects are listed
-   * again. The page moves its place and history.
-   */
-  projectMoved(from: string, to: string) {
-    const view = this.views.get(from);
-    if (view) { this.views.delete(from); this.revisionFloor = Math.max(this.revisionFloor, view.revision); view.close(); }
-    const entry = this.listed.get(from);
-    if (entry) { this.listed.delete(from); this.listed.set(to, { ...entry, project: { ...entry.project, folderId: to } }); }
-    this.send('projects:changed', { hostId: this.computer, moved: { from, to } });
   }
 
   /** A project's folder, followed from now on (its changes reach the window). */
@@ -536,10 +511,6 @@ export class WindowManager {
     for (const window of this.all()) if (window.computer === hostId) window.send('projects:changed', { hostId, ...listed && { projects: window.list(listed) } });
   }
 
-  /** A project of a computer moved under a new folder ID: the windows showing that computer follow it. */
-  projectMoved(hostId: string | null, from: string, to: string) {
-    for (const window of this.all()) if (window.computer === hostId) window.projectMoved(from, to);
-  }
   /** A folder event from a host reaches the windows following that project. */
   folderChanged(client: HostClient, state: FolderState) {
     for (const window of this.all()) {

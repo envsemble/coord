@@ -1,9 +1,8 @@
 // What a planning file references, as links in the reader's own style: resolved by the host in one
 // batch per document, once it shows, and linked only when they lead somewhere. A PR shows its state
-// beside it; a commit in several repositories offers the choice; a file opens in the editor and an
-// application's link in its application, on this computer only (their paths are the host's).
+// beside it; a file opens in the editor and an application's link in its application, on this
+// computer only (their paths are the host's).
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { Menu, MenuItem } from '@envsemble/envui';
 import { CallMerge } from '@envsemble/envui/icons/CallMerge';
 import { CallSplit } from '@envsemble/envui/icons/CallSplit';
 import { Cancel } from '@envsemble/envui/icons/Cancel';
@@ -40,7 +39,7 @@ const pullRetry = 4000;
  * Resolve a document's references once it shows, in batches; asked again only when they change, and
  * once more for PRs whose state the host was still fetching.
  */
-export function useResolvedReferences(work: string | null, inputs: ReferenceInput[]): Resolutions {
+export function useResolvedReferences(inputs: ReferenceInput[]): Resolutions {
   const { project } = useWorkbench();
   const [resolved, setResolved] = useState<Resolutions>(new Map());
   const key = inputs.map(referenceKey).join('\n');
@@ -48,7 +47,7 @@ export function useResolvedReferences(work: string | null, inputs: ReferenceInpu
     if (!inputs.length) { setResolved(new Map()); return; }
     let current = true;
     const timers: number[] = [];
-    const ask = (items: ReferenceInput[], again: boolean) => api.resolveReferences(project, work, items).then(answers => {
+    const ask = (items: ReferenceInput[], again: boolean) => api.resolveReferences(project, items).then(answers => {
       if (!current) return;
       setResolved(previous => new Map([...previous, ...items.map((input, index) => [referenceKey(input), answers[index] ?? null] as const)]));
       const pending = items.filter((input, index) => input.kind === 'pull' && answers[index]?.url && !answers[index]?.pull);
@@ -56,11 +55,11 @@ export function useResolvedReferences(work: string | null, inputs: ReferenceInpu
     }, () => undefined);
     for (let index = 0; index < inputs.length; index += batch) void ask(inputs.slice(index, index + batch), true);
     return () => { current = false; timers.forEach(timer => window.clearTimeout(timer)); };
-  }, [project, work, key]);
+  }, [project, key]);
   return resolved;
 }
 
-export const ReferencesContext = createContext<{ resolved: Resolutions; work: string | null }>({ resolved: new Map(), work: null });
+export const ReferencesContext = createContext<{ resolved: Resolutions }>({ resolved: new Map() });
 
 const pullStates = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Closed' } as const;
 const checkStates = { passing: 'checks passing', failing: 'checks failing', pending: 'checks running' } as const;
@@ -82,7 +81,7 @@ function Action({ run, title, children }: { run(): void; title?: string; childre
 /** A reference the reader found: a link once it leads somewhere, plain text until then or when it leads nowhere. */
 export function ReferenceLink({ found, children }: { found: Found; children: ReactNode }) {
   const { open, notify, remote, snapshot, project } = useWorkbench();
-  const { resolved, work } = useContext(ReferencesContext);
+  const { resolved } = useContext(ReferencesContext);
   const failed = (error: Error) => notify(error.message, 'warning');
   const openUrl = (url: string) => { api.openExternal(url).catch(failed); };
   if (found.kind === 'work') {
@@ -95,14 +94,8 @@ export function ReferenceLink({ found, children }: { found: Found; children: Rea
   if (!answer) return <>{children}</>;
   const { input } = found;
   if (input.kind === 'path') {
-    if (answer.file && !remote) return <Action run={() => { api.openReference(project, work, input).catch(failed); }} title={'Open in your editor: ' + answer.file.path + (answer.file.line ? ':' + answer.file.line : '')}>{children}</Action>;
+    if (answer.file && !remote) return <Action run={() => { api.openReference(project, input).catch(failed); }} title={'Open in your editor: ' + answer.file.path + (answer.file.line ? ':' + answer.file.line : '')}>{children}</Action>;
     return answer.url ? <Action run={() => openUrl(answer.url!)} title={answer.url}>{children}</Action> : <>{children}</>;
-  }
-  if (input.kind === 'commit' && answer.choices.length) {
-    const options = [{ repository: answer.repository ?? 'This repository', url: answer.url, title: answer.title }, ...answer.choices];
-    return <Menu aria-label="The commit in which repository" density="compact" trigger={<a href="#" title="In more than one repository" onClick={event => event.preventDefault()}>{children}</a>}>
-      {options.map(option => <MenuItem key={option.repository} disabled={!option.url} description={option.title ?? undefined} onClick={() => option.url && openUrl(option.url)}>{option.repository}</MenuItem>)}
-    </Menu>;
   }
   if (!answer.url) return <>{children}</>;
   return <><Action run={() => openUrl(answer.url!)} title={answer.pull?.title ?? answer.title ?? answer.url}>{children}</Action>{answer.pull && <PullMark pull={answer.pull} />}</>;

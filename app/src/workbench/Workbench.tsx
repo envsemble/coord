@@ -12,7 +12,7 @@ import type { FolderChange, Issue, Project, ProjectChangeRequest, Snapshot, Targ
 import { api, AtlasError } from '../api';
 import { documentTarget, hubPlace, isPage, placeId, placeProject, projectsPlace, scrollKey, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from './links';
-import { canGoBack, canGoForward, currentEntry, keyStep, moveProject, record, samePlace, startHistory, step } from '../navigation/history';
+import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';
 import { workNumber } from '../ui/format';
 import { FilesContext, focusPlanFiles, nodeForTarget, placeWork, PlanFiles, type FilesState } from './Explorer';
 import { SearchPopup } from '../navigation/SearchPopup';
@@ -127,12 +127,6 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       return moved ? { ui: { ...current.ui, place: moved.place }, history: moved.history } : current;
     });
   }, []);
-  // A project moved into its computer's home, from this window or another: what shows of it follows its new folder ID.
-  useEffect(() => api.onProjectsChanged(({ moved }) => {
-    if (!moved) return;
-    unfollow(moved.from);
-    setWindowState(current => moveProject(current, moved.from, moved.to));
-  }), [unfollow]);
   // Persist the layout, debounced.
   useEffect(() => {
     const timer = window.setTimeout(() => { api.saveUi(ui).catch(() => undefined); }, 250);
@@ -374,13 +368,6 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const projectActions = useMemo<ProjectActions>(() => ({
     update: updateProject,
     change: (project, change) => updateProject(project, change).catch(error => notify((error as Error).message, 'danger')),
-    // The project comes back under a new folder ID, which every window showing it follows.
-    adopt: project => {
-      api.adoptProject(project.folderId).then(moved => {
-        notify(`Moved ${moved.name} into the Atlas home: ${moved.path}`);
-        return api.projects().then(setProjects);
-      }, error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'danger'); });
-    },
     created: project => {
       setProjects(current => current && !current.some(item => item.folderId === project.folderId) ? [...current, project] : current);
       notify(`Created ${project.name} in ${project.path}`);

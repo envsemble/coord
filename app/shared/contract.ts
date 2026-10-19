@@ -5,21 +5,21 @@
 // planning data is the Atlas host's (packages/atlas/src/host/contract.ts): main forwards the window's
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
-  AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
+  AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project,
   ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  WorkActivity, WorkProduct, WorkSession, WorkspaceScan, WorkTimeline,
+  WorkActivity, WorkProduct, WorkSession, WorkTimeline,
 } from '@envsemble/atlas/host/contract';
 import type { DocumentContent } from '@envsemble/atlas/planning/types';
 
 export type {
-  AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
+  AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project,
   ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  WorkActivity, WorkProduct, WorkSession, WorkspaceScan, WorkTimeline,
+  WorkActivity, WorkProduct, WorkSession, WorkTimeline,
 };
 
 export const invokeChannels = [
   'window:info',
-  'projects:list', 'projects:create', 'search:query', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
+  'projects:list', 'projects:create', 'search:query', 'projects:chooseFolder', 'projects:update', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
@@ -97,15 +97,12 @@ export interface WindowInfo {
  * or its computer is not reachable right now. `revision` counts up with every change.
  */
 export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
-/** What a window changes of a project: its name, its state, its place in the order or its workspace folders. */
-export interface ProjectChangeRequest { name?: string; state?: ProjectState; position?: number; workspaces?: string[] }
+/** What a window changes of a project: its name, its state, its place in the order or its folders. */
+export interface ProjectChangeRequest { name?: string; state?: ProjectState; position?: number; folders?: string[] }
 /** A change of one project's folder, named by its folder ID. */
 export interface ProjectChange extends FolderChange { project: string }
-/**
- * The projects of a computer changed: `projects` as its host listed them, else the window lists them
- * again. `moved`: a project moved under a new folder ID.
- */
-export interface ProjectsChange { hostId: string | null; projects?: Project[]; moved?: { from: string; to: string } }
+/** The projects of a computer changed: `projects` as its host listed them, else the window lists them again. */
+export interface ProjectsChange { hostId: string | null; projects?: Project[] }
 /** Remote access changed on a computer this app manages access for. */
 export interface AccessChange { hostId: string | null; state: AccessState }
 
@@ -139,7 +136,7 @@ export interface UiState {
   pending?: boolean;
 }
 export const defaultUiState: UiState = { place: { page: 'hub', project: null } };
-export const limits = { path: 2048, workspaces: 20, inspectorMin: 240, inspectorMax: 1200 } as const;
+export const limits = { path: 2048, folders: 20, inspectorMin: 240, inspectorMax: 1200 } as const;
 /** A folder's full path: from a drive or a share on Windows, from the root elsewhere. */
 export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
 
@@ -183,18 +180,14 @@ export interface AtlasBridge {
   info(): Promise<Result<WindowInfo>>;
   /** The projects of the window's computer, in their order. */
   projects(): Promise<Result<Project[]>>;
-  /** A new project on the window's computer, from the bundled templates, covering workspace folders there. */
-  createProject(name: string, workspaces: string[]): Promise<Result<Project>>;
+  /** A new project on the window's computer, from the bundled templates, covering folders there. */
+  createProject(name: string, folders: string[]): Promise<Result<Project>>;
   /** Search every active project of the window's computer: plans, steps, documents, headings, diagrams, elements, glossary terms and projects, best first. */
   search(query: string): Promise<Result<SearchResult[]>>;
-  /** The Git checkouts in a folder on this computer, as a new project would register them. */
-  scanFolder(folder: string): Promise<Result<WorkspaceScan>>;
   /** A folder on this computer, chosen in the system's folder dialog; null when none was chosen. */
   chooseFolder(): Promise<Result<string | null>>;
-  /** Rename a project, hide, archive or show it, move it in the order, or set its workspace folders. */
+  /** Rename a project, hide, archive or show it, move it in the order, or set its folders. */
   updateProject(project: string, change: ProjectChangeRequest): Promise<Result<Project>>;
-  /** Move a project outside the computer's Atlas home into it; it comes back under its new folder ID. */
-  adoptProject(project: string): Promise<Result<Project>>;
   /** Start following a project's folder; its state now, and changes as planning:changed. */
   openProject(project: string): Promise<Result<FolderChange>>;
   /** Stop following a project's folder (the window no longer shows it). */
@@ -215,8 +208,8 @@ export interface AtlasBridge {
   allStatistics(from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
   loadUi(): Promise<Result<UiState>>;
   saveUi(state: UiState): Promise<Result<void>>;
-  /** Resolve what a planning file references: PRs, commits, files in the project's repositories (each in order; null leads nowhere). */
-  resolveReferences(project: string, work: string | null, items: ReferenceInput[]): Promise<Result<(ResolvedReference | null)[]>>;
+  /** Resolve what a planning file references: PRs, commits, files in the project's folders (each in order; null leads nowhere). */
+  resolveReferences(project: string, items: ReferenceInput[]): Promise<Result<(ResolvedReference | null)[]>>;
   /** A work item's sessions and the commits and PRs they made. */
   workSessions(project: string, work: string): Promise<Result<{ sessions: WorkSession[]; products: WorkProduct[] }>>;
   /** A work item's time and its sessions' working and waiting stretches. */
@@ -225,7 +218,7 @@ export interface AtlasBridge {
   /** Open a web address in the browser, or an application's link (`t3-thread://`…) in its application, this computer's only. */
   openExternal(url: string): Promise<Result<void>>;
   /** Open the file a path reference names in the editor, at its line; only for a project on this computer. */
-  openReference(project: string, work: string | null, reference: ReferenceInput): Promise<Result<void>>;
+  openReference(project: string, reference: ReferenceInput): Promise<Result<void>>;
   /**
    * Open in: open the file the window shows (`place`, as last saved with saveUi) in the editor without
    * asking (with the system's choice, show it in its folder); only for a project on this computer.

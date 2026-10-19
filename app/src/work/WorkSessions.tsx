@@ -103,8 +103,8 @@ export function NeedsYou({ work, session }: { work: string; session: WorkSession
   // What the message references, as it renders: also a link's address naming a reference.
   const { collected, inputs } = useCollectedReferences();
   const plugins = useMemo((): Plugins => [[rehypeReferences, { collected, addresses: 'all' }]], [collected]);
-  const resolved = useResolvedReferences(work, inputs);
-  const scope = useMemo(() => ({ resolved, work }), [resolved, work]);
+  const resolved = useResolvedReferences(inputs);
+  const scope = useMemo(() => ({ resolved }), [resolved]);
   return <section className="needs-you" aria-label="Why it needs you">
     <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
     <div className="needs-you-actions">

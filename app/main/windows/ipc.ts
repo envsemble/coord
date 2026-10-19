@@ -4,7 +4,6 @@
 // about a project go to the host of the window's computer, this one or a paired one.
 import { createReadStream } from 'node:fs';
 import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
@@ -30,9 +29,9 @@ const computer = nullable(hostId);
 const deviceId = string({ min: 34, max: 34, pattern: /^d-[a-f0-9]{32}$/ });
 const pairingLink = string({ min: 3, max: 2048 });
 const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
-const workspaces = array(folderPath, limits.workspaces);
+const folders = array(folderPath, limits.folders);
 const searchQuery = string({ min: 1, max: 200 });
-const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(workspaces) });
+const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
 
 /** Import previews belong to the window that chose the file. */
 const pendingImports = new Map<string, { window: number; folder: FolderView }>();
@@ -90,28 +89,20 @@ const within = (folder: string, candidate: string) => {
   return !inside.startsWith('..') && !path.isAbsolute(inside);
 };
 
-/** Open the file a path reference names, as the host resolves it in the project's checkouts: never a path the page names itself. */
-async function openReference(manager: WindowManager, window: AtlasWindow, project: string, work: string | null, reference: ReferenceInput) {
+/** Open the file a path reference names, as the host resolves it in the project's folders: never a path the page names itself. */
+async function openReference(manager: WindowManager, window: AtlasWindow, project: string, reference: ReferenceInput) {
   thisComputer(window, 'Files');
   if (reference.kind !== 'path') throw new AtlasError('invalid-argument', 'Only a file reference opens in the editor.');
   const view = await window.readable(project);
-  const [resolved] = await view.request('references.resolve', { folderId: project, work, items: [reference] });
+  const [resolved] = await view.request('references.resolve', { folderId: project, items: [reference] });
   const file = resolved?.file;
-  const missing = () => new AtlasError('not-found', 'This file is not in the project\'s checkouts on this computer.');
+  const missing = () => new AtlasError('not-found', 'This file is not in the project\'s folders on this computer.');
   if (!file || !fullPath.test(file.path)) throw missing();
-  // The file itself, not a link a checkout commits to somewhere else: inside one of the folders the
-  // host finds checkouts in, the project's workspace folders and its repositories' registered paths.
-  // A registered path counts only as a Git checkout, never a drive's root or the home folder.
+  // The file itself, not a link a checkout commits to somewhere else: inside one of the project's
+  // folders or its planning folder.
   const real = await realpath(file.path).catch(() => null);
-  const workspaces = (await window.projects()).find(entry => entry.folderId === project)?.workspaces ?? [];
-  const registered = (await view.request('folder.snapshot', { folderId: project })).repositories.flatMap(repository => repository.path && repository.path !== '.' && path.isAbsolute(repository.path) ? [repository.path] : []);
-  const home = await realpath(homedir()).catch(() => homedir());
-  const realFolder = (folder: string) => realpath(folder).catch(() => null);
-  const checkouts = await Promise.all(registered.map(async folder => {
-    const base = await realFolder(folder);
-    return base && path.parse(base).root !== base && path.relative(home, base) !== '' && await lstat(path.join(base, '.git')).then(() => true, () => false) ? base : null;
-  }));
-  const folders = [...await Promise.all(workspaces.map(realFolder)), ...checkouts].filter((folder): folder is string => folder !== null);
+  const listed = (await window.projects()).find(entry => entry.folderId === project);
+  const folders = (await Promise.all([...listed?.folders ?? [], ...listed ? [listed.path] : []].map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
   if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
   await openInEditor(manager, window, 'this file', real, file.line);
 }
@@ -225,15 +216,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         return results.filter(result => active.has(result.folderId));
       },
     },
-    'projects:create': { args: [projectName, workspaces], handle: (window, name: string, folders: string[]) => remoteErrors(window.createProject(name, folders)) },
-    // A folder on this computer: on another computer's projects, the folder is only found as the project is created there.
-    'projects:scan': {
-      args: [folderPath],
-      handle: (window, folder: string) => {
-        if (window.computer !== null) throw new AtlasError('unavailable', 'Folders on another computer are not looked into before the project is created.');
-        return remoteErrors(owner().request('projects.scan', { folder }));
-      },
-    },
+    'projects:create': { args: [projectName, folders], handle: (window, name: string, folders: string[]) => remoteErrors(window.createProject(name, folders)) },
     'projects:chooseFolder': {
       args: [],
       handle: async window => {
@@ -243,14 +226,6 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'projects:update': { args: [folderId, projectChange], handle: (window, project: string, change: ProjectChangeRequest) => remoteErrors(window.updateProject(project, change)) },
-    'projects:adopt': {
-      args: [folderId],
-      handle: async (window, project: string) => {
-        const name = (await window.projects()).find(entry => entry.folderId === project)?.name ?? 'this project';
-        await confirmed(window, `Move ${name} into the Atlas home?`, 'Move', 'Its folder moves into the Atlas home, where agents find it.');
-        return remoteErrors(window.adoptProject(project));
-      },
-    },
     'project:open': { args: [folderId], handle: async (window, project: string) => (await window.open(project)).change() },
     'project:close': { args: [folderId], handle: (window, project: string) => { window.closeProject(project); } },
     'planning:snapshot': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.snapshot', { folderId: project }) },
@@ -260,7 +235,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'planning:references': { args: [folderId, nullable(workId), relativePath], handle: async (window, project: string, work: string | null, file: string) => (await window.readable(project)).request('folder.references', { folderId: project, work, path: file }) },
     'planning:diagramIndex': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.diagramIndex', { folderId: project }) },
     // What a planning file references, a work item's sessions and its time, from the project's computer.
-    'references:resolve': { args: [folderId, nullable(workId), referenceInputs], handle: async (window, project: string, work: string | null, items: ReferenceInput[]) => remoteErrors((await window.readable(project)).request('references.resolve', { folderId: project, work, items }, { timeout: 30000 })) },
+    'references:resolve': { args: [folderId, referenceInputs], handle: async (window, project: string, items: ReferenceInput[]) => remoteErrors((await window.readable(project)).request('references.resolve', { folderId: project, items }, { timeout: 30000 })) },
     'work:sessions': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.sessions', { folderId: project, work })) },
     'work:timeline': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.timeline', { folderId: project, work })) },
     // Views count in the document use of the computer the project is on.
@@ -283,7 +258,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         await shell.openExternal(external ?? application!);
       },
     },
-    'shell:openReference': { args: [folderId, nullable(workId), referenceInput], handle: (window, project: string, work: string | null, reference: ReferenceInput) => openReference(manager, window, project, work, reference) },
+    'shell:openReference': { args: [folderId, referenceInput], handle: (window, project: string, reference: ReferenceInput) => openReference(manager, window, project, reference) },
     'shell:openShown': { args: [place, relativePath], handle: (window, shown: Place, file: string) => openShown(manager, window, shown, file) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },

@@ -8,7 +8,7 @@ const session = (name: string, state: SessionActivity['state'], countsFrom: stri
 test('agent time counts up on the host\'s clock: each working session adds its time since its last report', () => {
   // The host's clock is two minutes ahead of this computer's.
   const summary: ProjectSummary = {
-    repositories: [], active: [], closed: [], updated: null, now: '2026-10-19T10:02:00Z',
+    active: [], closed: [], updated: null, now: '2026-10-19T10:02:00Z',
     activity: [{ workId: 'work-0023', state: 'working', since: '2026-10-19T09:50:00Z', sessions: [
       session('a', 'working', '2026-10-19T10:00:00Z'), session('b', 'working', '2026-10-19T09:55:00Z'), session('c', 'waiting', null),
     ] }],

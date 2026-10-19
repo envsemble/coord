@@ -43,12 +43,6 @@ export function step(history: History, by: -1 | 1): { history: History; place: P
   return { history: { ...history, index }, place: history.entries[index] };
 }
 
-/** A project moved under a new folder ID: what the window shows of it, and its history, follow it. */
-export function moveProject(state: { ui: UiState; history: History }, from: string, to: string): { ui: UiState; history: History } {
-  const move = (place: Place): Place => 'project' in place && place.project === from ? { ...place, project: to } : place;
-  return { ui: { ...state.ui, place: move(state.ui.place) }, history: { ...state.history, entries: state.history.entries.map(move) } };
-}
-
 type Keys = Pick<KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>;
 /** The keys that go back (-1) or forward (1): Alt+← and Alt+→ (⌘[ and ⌘] on macOS), and a keyboard's Back and Forward keys. */
 export function keyStep(event: Keys, platform: string): -1 | 1 | null {

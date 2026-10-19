@@ -1,20 +1,18 @@
 // The Projects page: every project of the window's computer, active, then archived more quietly,
 // one row each: its avatar (its initials), its name (leading to its plans),
-// its open plans with what agents do on them and when it changed, its repositories and the workspace
-// folders it covers as chips (an agent working in one of them, or inside one, belongs to the
-// project), its planning folder quietly, its statistics, and in its menu what can be done with it:
-// add a workspace folder, rename, archive, restore, move into the Atlas home. A folder is removed
-// from its row, quietly until the row is pointed at. Projects are made here too: a name and a
-// folder. Workspace folders are paths on the project's own computer, so they are only chosen in Atlas
-// there.
-import { useEffect, useState } from 'react';
-import { Badge, Button, Dialog, EmptyState, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
-import { AddIcon, ChevronRightIcon, CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, RepositoryIcon, StatisticsIcon } from '../ui/icons';
+// its open plans with what agents do on them and when it changed, the folders it covers (an agent
+// working in one of them, or inside one, belongs to the project), its statistics, and in its menu
+// what can be done with it: its folders, rename, archive, restore. Projects are made here too: a
+// name and a folder. Folders are paths on the project's own computer, so they are only chosen in
+// Atlas there.
+import { useState } from 'react';
+import { Button, Dialog, EmptyState, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
+import { AddIcon, ChevronRightIcon, CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, StatisticsIcon } from '../ui/icons';
 import { StatusIcon } from '../ui/ui';
 import { statuses } from '../ui/status';
 import { absoluteDate, plural, relativeDate } from '../ui/format';
 import { initials, projectFacts } from './projectLook';
-import type { Project, ProjectChangeRequest, WorkspaceScan } from '../types';
+import type { Project, ProjectChangeRequest } from '../types';
 import { fullPath } from '../../shared/contract';
 import { api, AtlasError } from '../api';
 import { hubPlace, statisticsPlace, type Place } from '../navigation/targets';
@@ -26,8 +24,6 @@ export interface ProjectActions {
   update(project: Project, change: ProjectChangeRequest): Promise<void>;
   /** Change a project; a failure is told in the window, and the promise settles either way. */
   change(project: Project, change: ProjectChangeRequest): Promise<void>;
-  /** Move a project outside the Atlas home into it. */
-  adopt(project: Project): void;
   created(project: Project): void;
   go(place: Place): void;
   /** Tell a failure in the window. */
@@ -36,7 +32,7 @@ export interface ProjectActions {
 
 /** The last part of a folder's path, for a name. */
 export const folderName = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).at(-1) ?? '';
-/** A folder given by its full path, as workspace folders are. */
+/** A folder given by its full path, as a project's folders are. */
 const complete = (folder: string) => fullPath.test(folder.trim());
 
 /** A folder of this computer, typed or chosen in the system's folder dialog. */
@@ -53,36 +49,9 @@ function FolderField({ value, onChange, disabled, autoFocus }: { value: string; 
   </div>;
 }
 
-/** What a new project would register from its folder: the Git checkouts in it, looked into as the folder is chosen. */
-function ScanPreview({ folder }: { folder: string }) {
-  const [scan, setScan] = useState<{ folder: string; result: WorkspaceScan | null; unavailable: boolean; error: string } | null>(null);
-  const path = folder.trim();
-  useEffect(() => {
-    if (!complete(path)) return;
-    let current = true;
-    const timer = window.setTimeout(() => {
-      api.scanFolder(path).then(result => { if (current) setScan({ folder: path, result, unavailable: false, error: '' }); },
-        failure => { if (current) setScan({ folder: path, result: null, unavailable: (failure as AtlasError).code === 'unavailable', error: (failure as Error).message }); });
-    }, 300);
-    return () => { current = false; window.clearTimeout(timer); };
-  }, [path]);
-  if (!complete(path)) return null;
-  if (scan?.folder !== path) return <p className="dialog-note scan-state"><Spinner size="small" label="" />Looking for Git checkouts…</p>;
-  if (scan.unavailable) return <p className="dialog-note scan-later">Atlas finds the Git checkouts in the folder, and in the folders directly inside it, when it creates the project, and registers their remotes as its repositories.</p>;
-  if (!scan.result) return <p className="dialog-error">{scan.error}</p>;
-  if (!scan.result.repositories.length) return <p className="dialog-note scan-none">No Git checkouts in this folder, or in the folders directly inside it.</p>;
-  return <div className="scan-result">
-    <Text as="h3" variant="caption" className="scan-heading">Repositories the project registers</Text>
-    <ul className="scan-repositories">{scan.result.repositories.map(repository => <li key={repository.id}>
-      <strong>{repository.name}</strong><span className="muted">{repository.remote ?? 'No remote'}</span>
-    </li>)}</ul>
-  </div>;
-}
-
 /**
- * New project: a name and a folder (its workspace), made as a planning folder in the computer's
- * Atlas home; the Git checkouts in the folder become its repositories. On another computer it gets a
- * name only: its folders are chosen in Atlas on that computer.
+ * New project: a name and a folder it covers, made as a planning folder in the computer's Atlas home.
+ * On another computer it gets a name only: its folders are chosen in Atlas on that computer.
  */
 export function NewProjectDialog({ computer, local, onClose, onCreated }: { computer: string; local: boolean; onClose(): void; onCreated(project: Project): void }) {
   const [name, setName] = useState('');
@@ -106,10 +75,8 @@ export function NewProjectDialog({ computer, local, onClose, onCreated }: { comp
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="new-project" pending={busy} disabled={!ready}>Create</Button>}>
     <form id="new-project" className="dialog-form" onSubmit={event => { event.preventDefault(); if (ready) void create(); }}>
       <Input label="Name" value={name} onChange={event => { setName(event.target.value); setNamed(Boolean(event.target.value)); }} autoFocus maxLength={100} disabled={busy} placeholder="Coord" />
-      {local ? <>
-        <FolderField value={folder} onChange={chooseFolder} disabled={busy} />
-        <ScanPreview folder={folder} />
-      </> : <p className="dialog-note">Its workspace folders are on {computer}: choose them in Atlas there, on the Projects page.</p>}
+      {local ? <FolderField value={folder} onChange={chooseFolder} disabled={busy} />
+        : <p className="dialog-note">Its folders are on {computer}: choose them in Atlas there, on the Projects page.</p>}
       {error && <Notice tone="error" announce>{error}</Notice>}
     </form>
   </Dialog>;
@@ -135,7 +102,7 @@ export function RenameProjectDialog({ project, onClose, onRename }: { project: P
   </Dialog>;
 }
 
-/** Add a workspace folder to a project: agents working in it, or inside it, belong to the project. */
+/** Add a folder to a project: agents working in it, or inside it, belong to the project. */
 function AddFolderDialog({ project, onClose, onAdd }: { project: Project; onClose(): void; onAdd(folder: string): Promise<void> }) {
   const [folder, setFolder] = useState('');
   const [busy, setBusy] = useState(false);
@@ -147,7 +114,7 @@ function AddFolderDialog({ project, onClose, onAdd }: { project: Project; onClos
     finally { setBusy(false); }
   };
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} pending={busy} size="wide" title={'Add a folder to ' + project.name}
-    description="Agents working in the folder, or in a folder inside it, belong to this project. The Git checkouts in it become its repositories."
+    description="Agents working in the folder, or in a folder inside it, belong to this project."
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="add-folder" pending={busy} disabled={!complete(folder)}>Add</Button>}>
     <form id="add-folder" className="dialog-form" onSubmit={event => { event.preventDefault(); if (complete(folder)) void add(); }}>
       <FolderField value={folder} onChange={setFolder} disabled={busy} autoFocus />
@@ -156,53 +123,46 @@ function AddFolderDialog({ project, onClose, onAdd }: { project: Project; onClos
   </Dialog>;
 }
 
-/** A project's actions: its folders and repositories, its planning folder, rename, archive or restore, and move it into the home. */
+/** A project's actions: its folders, its planning folder, rename, and archive or restore. */
 function ProjectMenu({ project, actions, local, rename, details, busy, change }: { project: Project; actions: ProjectActions; local: boolean; rename(): void; details(): void; busy: boolean; change(change: ProjectChangeRequest): void }) {
   const state = (next: Project['state']) => change({ state: next });
   const failed = (error: Error) => actions.notify(error.message);
   return <Menu aria-label={'Actions for ' + project.name} align="end" density="compact"
     trigger={<IconButton variant="text" icon={<MoreIcon />} aria-label={'Actions for ' + project.name} disabled={busy} />}>
-    <MenuItem onClick={details}>Folders and Repositories…</MenuItem>
+    <MenuItem onClick={details}>Folders…</MenuItem>
     {local && <MenuItem onClick={() => { api.reveal(project.folderId, 'planning.json').catch(failed); }}>Show in Folder</MenuItem>}
     <MenuItem onClick={() => { api.copy(project.path).catch(failed); }}>Copy Path</MenuItem>
     <MenuSeparator />
     <MenuItem onClick={rename}>Rename…</MenuItem>
-    {project.outsideHome && <MenuItem onClick={() => actions.adopt(project)}>Move into the Atlas home</MenuItem>}
     <MenuSeparator />
     {project.state === 'active' ? <MenuItem onClick={() => state('archived')}>Archive</MenuItem> : <MenuItem onClick={() => state('active')}>Restore</MenuItem>}
   </Menu>;
 }
 
 /**
- * A project's folders and repositories: its planning folder, the workspace folders it covers (an
- * agent working in one of them, or inside one, belongs to the project), added and removed here on its
- * own computer, and the repositories it plans for.
+ * A project's folders: its planning folder and the folders it covers (an agent working in one of
+ * them, or inside one, belongs to the project), added and removed here on its own computer.
  */
-function FoldersDialog({ project, computer, local, onClose, onAdd, onChange }: { project: Project; computer: string; local: boolean; onClose(): void; onAdd(): void; onChange(workspaces: string[]): Promise<void> }) {
+function FoldersDialog({ project, computer, local, onClose, onAdd, onChange }: { project: Project; computer: string; local: boolean; onClose(): void; onAdd(): void; onChange(folders: string[]): Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const remove = async (folder: string) => {
     setBusy(true); setError('');
-    try { await onChange(project.workspaces.filter(item => item !== folder)); }
+    try { await onChange(project.folders.filter(item => item !== folder)); }
     catch (failure) { setError((failure as Error).message); }
     finally { setBusy(false); }
   };
-  const repositories = project.summary?.repositories ?? null;
-  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} size="wide" title={project.name + ': folders and repositories'} closeLabel="Close"
+  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} size="wide" title={project.name + ': folders'} closeLabel="Close"
     actions={local ? <Button variant="secondary" startIcon={<AddIcon />} disabled={busy} onClick={onAdd}>Add folder…</Button> : undefined}>
     <div className="dialog-form project-details">
       <section><Text as="h3" variant="caption" className="project-details-heading">Planning folder</Text><bdi className="project-details-path">{project.path}</bdi></section>
       <section>
-        <Text as="h3" variant="caption" className="project-details-heading">Workspace folders</Text>
-        {project.workspaces.length ? <ul className="project-folders project-workspaces">{project.workspaces.map(folder => <li key={folder} className="project-folder">
+        <Text as="h3" variant="caption" className="project-details-heading">Folders</Text>
+        {project.folders.length ? <ul className="project-folders project-workspaces">{project.folders.map(folder => <li key={folder} className="project-folder">
           <FolderIcon /><bdi>{folder}</bdi>
           {local && <IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy} onClick={() => void remove(folder)} />}
-        </li>)}</ul> : <p className="muted">None: agents find the project by its repositories’ remotes.</p>}
+        </li>)}</ul> : <p className="muted">None: agents find the project only in its planning folder.</p>}
         {!local && <p className="muted">Folders are chosen in Atlas on {computer}.</p>}
-      </section>
-      <section>
-        <Text as="h3" variant="caption" className="project-details-heading">Repositories</Text>
-        {repositories === null ? <p className="muted">Its planning folder could not be read.</p> : repositories.length ? <ul className="project-folders">{repositories.map(repository => <li key={repository} className="project-folder"><RepositoryIcon /><span>{repository}</span></li>)}</ul> : <p className="muted">None</p>}
       </section>
       {error && <Notice tone="error" announce>{error}</Notice>}
     </div>
@@ -214,14 +174,14 @@ const shortFolder = (folder: string) => folderName(folder) || folder;
 
 /**
  * One project, a row of the table: its avatar and name (leading to its plans) with its open plans and
- * when it changed, what agents do on it now, its workspace folder, and its statistics and menu, which
+ * when it changed, what agents do on it now, its folder, and its statistics and menu, which
  * wait while a change of it is on its way.
  */
 function ProjectRow({ project, local, actions, rename, details }: { project: Project; local: boolean; actions: ProjectActions; rename(): void; details(): void }) {
   const [busy, setBusy] = useState(false);
   const change = (request: ProjectChangeRequest) => { setBusy(true); void actions.change(project, request).finally(() => setBusy(false)); };
   const facts = projectFacts(project);
-  const [first, ...more] = project.workspaces;
+  const [first, ...more] = project.folders;
   return <TableRow className="project-row" data-project={project.folderId} data-state={project.state} aria-busy={busy || undefined}>
     <TableCell>
       <span className="project-cell">
@@ -229,7 +189,6 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
         <span className="project-name">
           <span className="row-title">
             <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
-            {project.outsideHome && <Badge title="Agents do not find it until it is moved into the Atlas home">Outside the Atlas home</Badge>}
           </span>
           <small className="cell-note" title={facts ? [plural(facts.open, 'open plan'), facts.updated && 'changed ' + absoluteDate(facts.updated)].filter(Boolean).join(' · ') : undefined}>{facts ? [plural(facts.open, 'open plan'), facts.updated && 'changed ' + relativeDate(facts.updated)].filter(Boolean).join(' · ') : 'Its planning folder could not be read'}</small>
         </span>
@@ -239,7 +198,7 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
       {facts.waiting > 0 && <span className="project-fact"><StatusIcon status={statuses.waiting} decorative />{facts.waiting} {facts.waiting === 1 ? 'needs' : 'need'} you</span>}
       {facts.working > 0 && <span className="project-fact"><StatusIcon status={statuses.working} decorative />{facts.working} working</span>}
     </span> : null}</TableCell>
-    <TableCell>{first ? <span className="project-workspace" title={project.workspaces.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="muted">+{more.length}</span>}</span> : <span className="muted">—</span>}</TableCell>
+    <TableCell>{first ? <span className="project-workspace" title={project.folders.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="muted">+{more.length}</span>}</span> : <span className="muted">—</span>}</TableCell>
     <TableCell numeric nowrap>
       <span className="project-actions">
         <Tooltip content="Statistics"><IconButton variant="text" icon={<StatisticsIcon />} aria-label={'Statistics of ' + project.name} onClick={() => actions.go(statisticsPlace(project.folderId))} /></Tooltip>
@@ -249,7 +208,7 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
   </TableRow>;
 }
 
-/** Project, status, workspace folder, actions: the same widths in both tables, so the columns line up. */
+/** Project, status, folder, actions: the same widths in both tables, so the columns line up. */
 const columnWidths = [46, 22, 22, 10];
 
 export function ProjectsPage({ projects, error, computer, local, actions }: { projects: Project[] | null; error: string; computer: string; local: boolean; actions: ProjectActions }) {
@@ -264,7 +223,7 @@ export function ProjectsPage({ projects, error, computer, local, actions }: { pr
   const target = projects?.find(project => project.folderId === adding);
   const details = projects?.find(project => project.folderId === detailed);
   const list = (items: Project[], label: string) => <Table className="project-list" aria-label={label} columnWidths={columnWidths}>
-    <TableHead><TableRow><TableHeaderCell>Project</TableHeaderCell><TableHeaderCell>Agents</TableHeaderCell><TableHeaderCell>Workspace folder</TableHeaderCell><TableHeaderCell numeric aria-label="Actions" /></TableRow></TableHead>
+    <TableHead><TableRow><TableHeaderCell>Project</TableHeaderCell><TableHeaderCell>Agents</TableHeaderCell><TableHeaderCell>Folder</TableHeaderCell><TableHeaderCell numeric aria-label="Actions" /></TableRow></TableHead>
     <TableBody>{items.map(project => <ProjectRow key={project.folderId} project={project} local={local} actions={actions} rename={() => setRenaming(project)} details={() => setDetailed(project.folderId)} />)}</TableBody>
   </Table>;
   return <Page className="projects-page" heading={<div className="page-heading-row">
@@ -287,7 +246,7 @@ export function ProjectsPage({ projects, error, computer, local, actions }: { pr
       </>}
     {creating && <NewProjectDialog computer={computer} local={local} onClose={() => setCreating(false)} onCreated={actions.created} />}
     {renaming && <RenameProjectDialog project={renaming} onClose={() => setRenaming(null)} onRename={name => actions.update(renaming, { name })} />}
-    {details && !target && <FoldersDialog project={details} computer={computer} local={local} onClose={() => setDetailed(null)} onAdd={() => setAdding(details.folderId)} onChange={workspaces => actions.update(details, { workspaces })} />}
-    {target && <AddFolderDialog project={target} onClose={() => setAdding(null)} onAdd={folder => actions.update(target, { workspaces: [...target.workspaces.filter(item => item !== folder), folder] })} />}
+    {details && !target && <FoldersDialog project={details} computer={computer} local={local} onClose={() => setDetailed(null)} onAdd={() => setAdding(details.folderId)} onChange={folders => actions.update(details, { folders })} />}
+    {target && <AddFolderDialog project={target} onClose={() => setAdding(null)} onAdd={folder => actions.update(target, { folders: [...target.folders.filter(item => item !== folder), folder] })} />}
   </Page>;
 }

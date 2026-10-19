@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, moveProject, record, samePlace, startHistory, step, type History } from './history.ts';
+import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, samePlace, startHistory, step, type History } from './history.ts';
 import { diagramTarget, fileTarget, hubPlace, projectsPlace, statisticsPlace, stepTarget, workTarget, type Place, type ProjectPlace } from './targets.ts';
 import type { Target } from '../types.ts';
 
@@ -96,13 +96,4 @@ test('Alt+← and Alt+→ go back and forward, ⌘[ and ⌘] on macOS, and so do
   assert.equal(keyStep(key('ArrowLeft', { alt: true }), 'darwin'), null);
   assert.equal(keyStep(key('BrowserBack'), 'win32'), -1);
   assert.equal(keyStep(key('BrowserForward'), 'darwin'), 1);
-});
-
-test('a project moved under a new folder ID takes the place shown and the history along', () => {
-  const moved = 'f-' + 'c'.repeat(32);
-  const places: Place[] = [other, hubPlace(shop), statisticsPlace(shop), plan];
-  const { ui, history } = moveProject({ ui: { place: plan }, history: places.slice(1).reduce(record, startHistory(places[0])) }, shop, moved);
-  assert.deepEqual(ui.place, at(workTarget('work-0001'), moved));
-  assert.deepEqual(history.entries, [other, hubPlace(moved), statisticsPlace(moved), at(workTarget('work-0001'), moved)]);
-  assert.deepEqual(moveProject({ ui: { place: hub }, history: startHistory(projectsPlace()) }, shop, moved), { ui: { place: hub }, history: startHistory(projectsPlace()) });
 });

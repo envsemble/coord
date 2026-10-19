@@ -127,8 +127,8 @@ export function Reader({ file, snapshot, anchor, references = [], showWork = fal
   // rendering can link, as it renders. A plan's request shows folded.
   const { collected, inputs } = useCollectedReferences();
   const plugins = useMemo((): Plugins => [rehypeHeadingIds, [rehypeReferences, { collected }], ...plan ? [rehypeFoldRequests] : []], [collected, plan]);
-  const resolved = useResolvedReferences(file.workId ?? null, content?.format === 'markdown' ? inputs : []);
-  const referenceScope = useMemo(() => ({ resolved, work: file.workId ?? null }), [resolved, file.workId]);
+  const resolved = useResolvedReferences(content?.format === 'markdown' ? inputs : []);
+  const referenceScope = useMemo(() => ({ resolved }), [resolved]);
   const cardCount = references.length;
   useEffect(() => {
     if (content && anchor) requestAnimationFrame(() => scrollToHeading(anchor));

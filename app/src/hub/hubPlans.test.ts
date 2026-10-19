@@ -7,8 +7,8 @@ import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 const work = (id: string, state: ProjectWork['state'], change: Partial<ProjectWork> = {}): ProjectWork =>
   ({ id, title: 'Work ' + id, state, blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, ...change });
 const project = (name: string, position: number, summary: Partial<ProjectSummary> | null, state: Project['state'] = 'active'): Project => ({
-  folderId: 'f-' + String(position).repeat(32), name, path: '/home/me/.atlas/planning/' + name.toLowerCase(), position, state, outsideHome: false, workspaces: [],
-  summary: summary && { repositories: [], active: [], closed: [], updated: null, activity: [], now: '2026-10-15T10:05:00Z', ...summary },
+  folderId: 'f-' + String(position).repeat(32), name, path: '/home/me/.atlas/planning/' + name.toLowerCase(), position, state, folders: [],
+  summary: summary && { active: [], closed: [], updated: null, activity: [], now: '2026-10-15T10:05:00Z', ...summary },
 });
 
 const atlas = project('Atlas', 1, {

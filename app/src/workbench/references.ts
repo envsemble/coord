@@ -1,11 +1,10 @@
-// What a planning file references, as the reader finds it in its text: PRs and issues (`atlas#22`,
-// a GitHub URL), commits (`atlas@4ab195a`, a bare hash), files in a repository
-// (`app/src/hub/Hub.tsx:68`), other work items (`work-0023`) and applications' links
-// (`t3-thread://…`). The host resolves the first three (references.resolve); the reader links what
-// leads somewhere. Careful with what only looks like a reference: a bare hash counts only as a whole
-// word with letters and digits (or in a code span), never inside another word, a number, a colour or
-// an identifier with dashes; a path needs a folder or a code span and ends in a file's extension.
-// Pure, so it is unit-tested.
+// What a planning file references, as the reader finds it in its text: PRs and issues
+// (`envsemble/atlas#22`, a GitHub URL), commits (`envsemble/atlas@4ab195a`, a GitHub URL), files in
+// the project's folders (`app/src/hub/Hub.tsx:68`), other work items (`work-0023`) and applications'
+// links (`t3-thread://…`). The host resolves the first three (references.resolve); the reader links
+// what leads somewhere. A PR or commit names its repository in full: `atlas#22`, `#22` and a bare hash
+// are text. Careful with what only looks like a reference: a path needs a folder or a code span and
+// ends in a file's extension. Pure, so it is unit-tested.
 import type { ReferenceInput } from '../types';
 
 export type Found =
@@ -31,23 +30,23 @@ export function fromUrl(url: string): ReferenceInput | null {
 }
 
 const name = '[A-Za-z0-9][A-Za-z0-9._-]*';
+/** A repository as a reference names it: `owner/repo`. */
+const repository = name + '/' + name;
 /** `skip`: text no other reference may be found in (a web address that is not GitHub's). */
 const patterns: { pattern: RegExp; found(match: RegExpExecArray, code: boolean): Found | 'skip' | null }[] = [
   // A web address (GitHub's PRs, issues and commits resolve; other addresses are left to markdown).
   { pattern: /https?:\/\/[^\s<>()[\]`'"]+/g, found: match => { const input = fromUrl(trimEnd(match[0])); return input ? { kind: 'host', input } : 'skip'; } },
   { pattern: new RegExp('\\b(?:' + appSchemes.join('|') + '):\\/\\/[^\\s<>()[\\]`\'"]+', 'g'), found: match => ({ kind: 'app', url: trimEnd(match[0]) }) },
   { pattern: /\bwork-\d{4}\b/g, found: match => ({ kind: 'work', work: match[0] }) },
-  // atlas#22: a repository's PR or issue (not a URL's fragment or an HTML entity).
-  { pattern: new RegExp('(?<![\\w/&#.-])(' + name + ')#(\\d{1,7})\\b', 'g'), found: match => ({ kind: 'host', input: { kind: 'pull', repository: match[1], value: match[2], line: null } }) },
-  // atlas@4ab195a: a repository's commit (not an e-mail address).
-  { pattern: new RegExp('(?<![\\w/.-])(' + name + ')@([0-9a-f]{7,40})(?![\\w-]|\\.\\w)', 'g'), found: match => ({ kind: 'host', input: { kind: 'commit', repository: match[1], value: match[2], line: null } }) },
-  // A path in a repository with a file's extension, at a line: in a code span also without a folder.
+  // envsemble/atlas#22: a repository's PR or issue (not a URL's fragment or an HTML entity).
+  { pattern: new RegExp('(?<![\\w/&#.-])(' + repository + ')#(\\d{1,7})\\b', 'g'), found: match => ({ kind: 'host', input: { kind: 'pull', repository: match[1], value: match[2], line: null } }) },
+  // envsemble/atlas@4ab195a: a repository's commit (not an e-mail address).
+  { pattern: new RegExp('(?<![\\w/.-])(' + repository + ')@([0-9a-f]{7,40})(?![\\w-]|\\.\\w)', 'g'), found: match => ({ kind: 'host', input: { kind: 'commit', repository: match[1], value: match[2], line: null } }) },
+  // A path with a file's extension, at a line: in a code span also without a folder.
   {
     pattern: /(?<![\w@:/.-])((?:\.\/)?(?:[\w@+-][\w.@+-]*\/)*[\w@+-][\w.@+-]*\.[A-Za-z][A-Za-z0-9]{0,9})(?::(\d{1,7}))?(?![\w/@(-]|\.\w)/g,
     found: (match, code) => match[1].includes('/') || code ? { kind: 'host', input: { kind: 'path', repository: null, value: match[1].replace(/^\.\//, ''), line: match[2] ? Number(match[2]) : null } } : null,
   },
-  // A bare commit hash: lower-case, with letters and digits, a whole word.
-  { pattern: /(?<![\w#/.@-])[0-9a-f]{7,40}(?![\w/@-]|\.\w)/g, found: match => /\d/.test(match[0]) && /[a-f]/.test(match[0]) ? { kind: 'host', input: { kind: 'commit', repository: null, value: match[0], line: null } } : null },
 ];
 /** An address without the punctuation that ends its sentence. */
 const trimEnd = (value: string) => value.replace(/[.,;:!?]+$/, '');
@@ -73,7 +72,7 @@ export function findReferences(text: string, code = false): Match[] {
 
 /** A node of the document's HTML tree, as the markdown renderer hands it to plugins. */
 interface Node { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: Node[] }
-/** A reference an address names as a whole, as the reader finds one (`app/src/x.ts:12`, `atlas#22`, `t3-thread://…`). */
+/** A reference an address names as a whole, as the reader finds one (`app/src/x.ts:12`, `envsemble/atlas#22`, `t3-thread://…`). */
 export function wholeReference(href: string): Found | null {
   const [match] = findReferences(href, true);
   return match && match.start === 0 && match.end === href.length ? match.found : null;
