@@ -499,7 +499,7 @@
 }
 .atlas-panel .change-token-glyph {
   margin-inline-end: 0.125rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 .atlas-panel .change-token.more {
   color: var(--color-row-detail);
