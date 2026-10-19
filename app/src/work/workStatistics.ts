@@ -167,7 +167,9 @@ export function effortRows(models: ModelUsage[]): EffortRow[] {
     const efforts = model.efforts.map(effort => ({ model: model.model, effort: effort.effort, agentMs: effort.agentMs, tokens: effort.tokens }));
     const agentMs = Math.max(0, model.agentMs - efforts.reduce((sum, row) => sum + row.agentMs, 0));
     const tokens = model.tokens === null ? null : Math.max(0, model.tokens - efforts.reduce((sum, row) => sum + (row.tokens ?? 0), 0));
-    const rest = !efforts.length || agentMs > 0 || (tokens ?? 0) > 0 ? [{ model: model.model, effort: null, agentMs, tokens }] : [];
+    // What rounding leaves over (under a second and a hundredth of its tokens) is no row of its own.
+    const rounding = agentMs < 1000 && (tokens ?? 0) <= (model.tokens ?? 0) / 100;
+    const rest = !efforts.length || !rounding ? [{ model: model.model, effort: null, agentMs, tokens }] : [];
     return [...efforts, ...rest];
   });
 }

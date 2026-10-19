@@ -2,7 +2,7 @@
 // batch per document, once it shows, and linked only when they lead somewhere. A PR shows its state
 // beside it; a commit in several repositories offers the choice; a file opens in the editor and an
 // application's link in its application, on this computer only (their paths are the host's).
-import { createContext, useContext, useEffect, useState, type MouseEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Menu, MenuItem } from '@envsemble/envui';
 import { CallMerge } from '@envsemble/envui/icons/CallMerge';
 import { CallSplit } from '@envsemble/envui/icons/CallSplit';
@@ -12,15 +12,34 @@ import { Pending } from '@envsemble/envui/icons/Pending';
 import type { ReferenceInput, ResolvedReference } from '../types';
 import { api } from '../api';
 import { workTarget } from '../navigation/targets';
-import { referenceKey, type Found } from './references';
+import { referenceKey, type Collected, type Found } from './references';
 import { useWorkbench } from './workbenchContext';
 
 /** The host's answers for a document's references, by their key: an answer, null for none, absent while it is asked. */
 export type Resolutions = ReadonlyMap<string, ResolvedReference | null>;
 
+/**
+ * What a rendering collects for the host to resolve (`collected`, for `rehypeReferences`), and the
+ * references it found, taken once it has rendered and kept while they stay the same.
+ */
+export function useCollectedReferences() {
+  const collected = useRef<Collected>({ inputs: new Map() }).current;
+  const [inputs, setInputs] = useState<ReferenceInput[]>([]);
+  useLayoutEffect(() => {
+    const next = [...collected.inputs.values()];
+    if (next.map(referenceKey).join('\n') !== inputs.map(referenceKey).join('\n')) setInputs(next);
+  });
+  return { collected, inputs };
+}
+
 /** How many references the host resolves in one request (its own limit). */
 const batch = 500;
-/** Resolve a document's references once it shows, in batches; asked again only when they change. */
+/** How long before the host is asked once more about PRs whose state it did not have yet (it fetches them meanwhile). */
+const pullRetry = 4000;
+/**
+ * Resolve a document's references once it shows, in batches; asked again only when they change, and
+ * once more for PRs whose state the host was still fetching.
+ */
 export function useResolvedReferences(work: string | null, inputs: ReferenceInput[]): Resolutions {
   const { project } = useWorkbench();
   const [resolved, setResolved] = useState<Resolutions>(new Map());
@@ -28,14 +47,15 @@ export function useResolvedReferences(work: string | null, inputs: ReferenceInpu
   useEffect(() => {
     if (!inputs.length) { setResolved(new Map()); return; }
     let current = true;
-    const chunks = Array.from({ length: Math.ceil(inputs.length / batch) }, (_, index) => inputs.slice(index * batch, (index + 1) * batch));
-    for (const chunk of chunks) {
-      api.resolveReferences(project, work, chunk).then(answers => {
-        if (!current) return;
-        setResolved(previous => new Map([...previous, ...chunk.map((input, index) => [referenceKey(input), answers[index] ?? null] as const)]));
-      }, () => undefined);
-    }
-    return () => { current = false; };
+    const timers: number[] = [];
+    const ask = (items: ReferenceInput[], again: boolean) => api.resolveReferences(project, work, items).then(answers => {
+      if (!current) return;
+      setResolved(previous => new Map([...previous, ...items.map((input, index) => [referenceKey(input), answers[index] ?? null] as const)]));
+      const pending = items.filter((input, index) => input.kind === 'pull' && answers[index]?.url && !answers[index]?.pull);
+      if (again && pending.length) timers.push(window.setTimeout(() => { void ask(pending, false); }, pullRetry));
+    }, () => undefined);
+    for (let index = 0; index < inputs.length; index += batch) void ask(inputs.slice(index, index + batch), true);
+    return () => { current = false; timers.forEach(timer => window.clearTimeout(timer)); };
   }, [project, work, key]);
   return resolved;
 }

@@ -14,8 +14,8 @@ export type Found =
   | { kind: 'app'; url: string };
 export interface Match { start: number; end: number; found: Found }
 
-/** The schemes of applications' links the reader links (main allows the same and no others). */
-export const appSchemes = ['t3-thread', 't3code', 'vscode', 'vscode-insiders', 'cursor', 'windsurf', 'zed', 'linear', 'slack', 'notion', 'figma'];
+/** The schemes of applications' links the reader links: T3 Code's (main allows the same and no others from a page). */
+export const appSchemes = ['t3-thread', 't3code'];
 
 /** One key per reference, to resolve each once per document and find its answer again. */
 export const referenceKey = (input: ReferenceInput) => [input.kind, input.repository ?? '', input.value, input.line ?? ''].join('\u0000');
@@ -71,25 +71,22 @@ export function findReferences(text: string, code = false): Match[] {
   return matches.sort((a, b) => a.start - b.start);
 }
 
-/**
- * What a markdown document references for the host to resolve, each once: in its text and code spans,
- * and its links' addresses, but not in its code blocks.
- */
-export function documentReferences(markdown: string): ReferenceInput[] {
-  const found = new Map<string, ReferenceInput>();
-  const add = (text: string, code: boolean) => {
-    for (const { found: item } of findReferences(text, code)) if (item.kind === 'host') found.set(referenceKey(item.input), item.input);
-  };
-  const prose = markdown.replace(/^( {0,3})(```|~~~)[^\n]*\n[\s\S]*?(?:^\1\2[^\n]*$|(?![\s\S]))/gm, '');
-  for (const [index, part] of prose.split('`').entries()) add(part, index % 2 === 1);
-  return [...found.values()];
-}
-
 /** A node of the document's HTML tree, as the markdown renderer hands it to plugins. */
 interface Node { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: Node[] }
+/** A reference an address names as a whole, as the reader finds one (`app/src/x.ts:12`, `atlas#22`, `t3-thread://…`). */
+export function wholeReference(href: string): Found | null {
+  const [match] = findReferences(href, true);
+  return match && match.start === 0 && match.end === href.length ? match.found : null;
+}
+
+/** What a document's rendering found for the host to resolve, by key, filled as it renders. */
+export interface Collected { inputs: Map<string, ReferenceInput> }
+const collect = (collected: Collected | undefined, found: Found | null) => { if (collected && found?.kind === 'host') collected.inputs.set(referenceKey(found.input), found.input); };
+
 /** A run of text with its references as links, each carrying what it found (`data-reference`). */
-function linked(text: string, code: boolean): Node[] {
+function linked(text: string, code: boolean, collected: Collected | undefined): Node[] {
   const matches = findReferences(text, code);
+  for (const match of matches) collect(collected, match.found);
   if (!matches.length) return [{ type: 'text', value: text }];
   const parts: Node[] = [];
   let at = 0;
@@ -101,15 +98,25 @@ function linked(text: string, code: boolean): Node[] {
   if (at < text.length) parts.push({ type: 'text', value: text.slice(at) });
   return parts;
 }
-/** Make the references in a document's text and code spans links (not in its links, headings or code blocks). */
-export function rehypeReferences() {
+/**
+ * Make the references in a document's text and code spans links (not in its links, headings or code
+ * blocks), and collect what the host is to resolve (`collected`): those references, and the links'
+ * addresses that are GitHub's PRs, issues or commits, or (`addresses: 'all'`) any address naming a
+ * reference. So the host is asked only about what the document can link.
+ */
+export function rehypeReferences(options: { collected?: Collected; addresses?: 'web' | 'all' } = {}) {
+  const { collected, addresses = 'web' } = options;
   const visit = (node: Node, code: boolean) => {
     if (!node.children) return;
     node.children = node.children.flatMap(child => {
-      if (child.type === 'text') return linked(child.value ?? '', code);
-      if (child.type === 'element' && !/^(?:a|pre|h[1-6])$/.test(child.tagName ?? '')) visit(child, code || child.tagName === 'code');
+      if (child.type === 'text') return linked(child.value ?? '', code, collected);
+      if (child.type === 'element' && child.tagName === 'a') {
+        const href = typeof child.properties?.href === 'string' ? child.properties.href : '';
+        const input = fromUrl(href);
+        collect(collected, input ? { kind: 'host', input } : addresses === 'all' ? wholeReference(href) : null);
+      } else if (child.type === 'element' && !/^(?:pre|h[1-6])$/.test(child.tagName ?? '')) visit(child, code || child.tagName === 'code');
       return [child];
     });
   };
-  return (tree: Node) => visit(tree, false);
+  return (tree: Node) => { collected?.inputs.clear(); visit(tree, false); };
 }

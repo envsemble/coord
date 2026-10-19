@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { accessSync, constants, createReadStream, lstatSync } from 'node:fs';
 import { chmod, lstat, mkdtemp, realpath, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
@@ -101,10 +101,17 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   if (!file || !fullPath.test(file.path)) throw missing();
   // The file itself, not a link a checkout commits to somewhere else: inside one of the folders the
   // host finds checkouts in, the project's workspace folders and its repositories' registered paths.
+  // A registered path counts only as a Git checkout, never a drive's root or the home folder.
   const real = await realpath(file.path).catch(() => null);
   const workspaces = (await window.projects()).find(entry => entry.folderId === project)?.workspaces ?? [];
   const registered = (await view.request('folder.snapshot', { folderId: project })).repositories.flatMap(repository => repository.path && repository.path !== '.' && path.isAbsolute(repository.path) ? [repository.path] : []);
-  const folders = (await Promise.all([...workspaces, ...registered].map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
+  const home = await realpath(homedir()).catch(() => homedir());
+  const realFolder = (folder: string) => realpath(folder).catch(() => null);
+  const checkouts = await Promise.all(registered.map(async folder => {
+    const base = await realFolder(folder);
+    return base && path.parse(base).root !== base && path.relative(home, base) !== '' && await lstat(path.join(base, '.git')).then(() => true, () => false) ? base : null;
+  }));
+  const folders = [...await Promise.all(workspaces.map(realFolder)), ...checkouts].filter((folder): folder is string => folder !== null);
   if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
   await openInEditor(manager, window, 'this file', real, file.line);
 }
@@ -120,6 +127,23 @@ async function openWorkFolder(manager: WindowManager, window: AtlasWindow, proje
   const folder = await realpath(path.resolve(base, entry.path)).catch(() => null);
   if (!folder || !within(base, folder) || !(await lstat(folder)).isDirectory()) throw new AtlasError('forbidden', 'Only a work folder inside the project\'s folder opens.');
   await openInEditor(manager, window, 'this work folder', folder, null);
+}
+
+/**
+ * A program's full path on the PATH (Windows: with the PATHEXT extensions), never in `folder` or the
+ * current one; null when it is not installed.
+ */
+function onPath(name: string, folder: string) {
+  const skipped = new Set([path.resolve(folder).toLowerCase(), path.resolve('.').toLowerCase()]);
+  const extensions = process.platform === 'win32' ? (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
+  for (const directory of (process.env.PATH ?? '').split(path.delimiter).filter(entry => entry && path.isAbsolute(entry))) {
+    if (skipped.has(path.resolve(directory).toLowerCase())) continue;
+    for (const extension of extensions) {
+      const candidate = path.join(directory, name + extension);
+      try { if (lstatSync(candidate).isFile()) return candidate; } catch { /* Not here. */ }
+    }
+  }
+  return null;
 }
 
 /** Whether a program is installed: a full path that exists (Windows), else a name on the PATH. */
@@ -142,8 +166,9 @@ async function resumeSession(manager: WindowManager, window: AtlasWindow, projec
   if (!words || !folder) throw new AtlasError('unavailable', 'Atlas does not know how to resume this session.');
   if (!fullPath.test(folder) || !(await stat(folder).catch(() => null))?.isDirectory()) throw new AtlasError('not-found', 'The session\'s folder is no longer on this computer: ' + folder);
   const windowsTerminal = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe') : null;
-  const launch = terminalFor(process.platform, folder, words, installed, windowsTerminal);
-  if (!launch) throw new AtlasError('unavailable', 'No terminal was found to resume the session in. Run ' + session.resume + ' in ' + folder + '.');
+  const program = process.platform === 'win32' ? onPath(words[0], folder) : null;
+  const launch = terminalFor(process.platform, folder, words, installed, windowsTerminal, program);
+  if (!launch) throw new AtlasError('unavailable', (process.platform === 'win32' ? words[0] + ' was not found on the PATH' : 'No terminal was found') + ' to resume the session in. Run ' + session.resume + ' in ' + folder + '.');
   await confirmed(window, 'Resume this session in a terminal?', 'Resume', words.join(' ') + '\nin ' + folder);
   const args = [...launch.args];
   if (launch.script) {
@@ -153,7 +178,7 @@ async function resumeSession(manager: WindowManager, window: AtlasWindow, projec
     args.push(script);
   }
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(launch.file, args, { cwd: folder, detached: true, stdio: 'ignore', windowsHide: false });
+    const child = spawn(launch.file, args, { cwd: folder, detached: true, stdio: 'ignore', windowsHide: false, env: { ...process.env, ...launch.env } });
     child.once('error', error => reject(new AtlasError('unavailable', 'The terminal could not be started: ' + error.message)));
     child.once('spawn', () => { child.unref(); resolve(); });
   });

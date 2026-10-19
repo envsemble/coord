@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { documentReferences, findReferences, fromUrl } from './references.ts';
+import { findReferences, fromUrl, rehypeReferences, type Collected } from './references.ts';
 
 const found = (text: string, code = false) => findReferences(text, code).map(match => text.slice(match.start, match.end));
 
@@ -20,6 +20,13 @@ test('what only looks like a reference stays text', () => {
   // In a code span a bare file name and a hash in a command count; a call does not.
   assert.deepEqual(found('git show 4ab195a -- package.json', true), ['4ab195a', 'package.json']);
   assert.deepEqual(found('render.call()', true), []);
-  // Code blocks are not looked into; code spans are.
-  assert.deepEqual(documentReferences('See `a1b2c3d`.\n\n```\ndeadbee1\n```\n').map(input => input.value), ['a1b2c3d']);
+  // Only what the reader links is asked about: text, code spans and GitHub addresses of links, not headings or code blocks.
+  const text = (value: string) => ({ type: 'text', value });
+  const element = (tagName: string, children: object[], properties: Record<string, unknown> = {}) => ({ type: 'element', tagName, properties, children });
+  const collected: Collected = { inputs: new Map() };
+  rehypeReferences({ collected })(element('root', [
+    element('h2', [text('Fix atlas#7')]), element('pre', [element('code', [text('deadbee1')])]),
+    element('p', [text('See '), element('code', [text('a1b2c3d')]), text(' and '), element('a', [text('the PR')], { href: 'https://github.com/envsemble/atlas/pull/22' }), element('a', [text('a file')], { href: 'app/src/x.ts:3' })]),
+  ]) as never);
+  assert.deepEqual([...collected.inputs.values()].map(input => input.kind + ' ' + input.value), ['commit a1b2c3d', 'pull 22']);
 });

@@ -16,8 +16,9 @@ import { CommitIcon, DotIcon, FolderOpenIcon } from '../ui/icons';
 import { statuses } from '../ui/status';
 import { RepositoryBadge, StatusIcon } from '../ui/ui';
 import { useWorkbench } from '../workbench/workbenchContext';
-import { PullMark, ReferenceLink, ReferencesContext, useResolvedReferences, type Resolutions } from '../workbench/ReferenceLink';
-import { documentReferences, findReferences, referenceKey, rehypeReferences, type Found } from '../workbench/references';
+import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences, type Resolutions } from '../workbench/ReferenceLink';
+import { referenceKey, rehypeReferences, wholeReference, type Found } from '../workbench/references';
+import type { Plugins } from '../workbench/Reader';
 import { branches, excerpt, harnessNames, sessionStates } from './sessions';
 import type { LiveActivity } from './agentTime';
 
@@ -138,12 +139,6 @@ export function LinksList({ work, repositories, products, pulls }: { work: Work;
   </>;
 }
 
-/** A reference the message names as a whole, as the reader finds one (`app/src/x.ts:12`, `atlas#22`, `t3-thread://…`). */
-function wholeReference(href: string): Found | null {
-  const [match] = findReferences(href, true);
-  return match && match.start === 0 && match.end === href.length ? match.found : null;
-}
-const messagePlugins = [rehypeReferences];
 /**
  * A link in an agent's message, as the reader has links: a reference the message makes (in its text,
  * or as a link's address) once it leads somewhere; a web or mail address to the browser; anything
@@ -172,11 +167,13 @@ export function NeedsYou({ work, session }: { work: string; session: WorkSession
   const [whole, setWhole] = useState(false);
   const message = session.message ?? '';
   const start = excerpt(message);
-  const inputs = useMemo(() => documentReferences(message), [message]);
+  // What the message references, as it renders: also a link's address naming a reference.
+  const { collected, inputs } = useCollectedReferences();
+  const plugins = useMemo((): Plugins => [[rehypeReferences, { collected, addresses: 'all' }]], [collected]);
   const resolved = useResolvedReferences(work, inputs);
   const scope = useMemo(() => ({ resolved, work }), [resolved, work]);
   return <section className="needs-you" aria-label="Why it needs you">
-    <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={messagePlugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
+    <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
     <div className="needs-you-actions">
       {start.more && <Button variant="text" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
       <span className="muted">{sessionLabel(session)} · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>

@@ -7,11 +7,11 @@
 import type { Editor } from '../../shared/contract.ts';
 
 /**
- * Applications' links Atlas hands to the system, which opens the application that owns them: T3
- * Code's threads, editors' own links, and a few work tools'. Never `file:`, `javascript:` or a scheme
- * not listed.
+ * Applications' links a page may hand to the system, which opens the application that owns them:
+ * T3 Code's threads. Never `file:`, `javascript:`, an editor's or any other application's scheme;
+ * main builds editors' links itself (`editorLink`).
  */
-const appSchemes = new Set(['t3-thread:', 't3code:', 'vscode:', 'vscode-insiders:', 'cursor:', 'windsurf:', 'zed:', 'linear:', 'slack:', 'notion:', 'figma:']);
+const appSchemes = new Set(['t3-thread:', 't3code:']);
 
 /** An application's link as the system gets it, or null when its scheme is not allowed or it does not parse. */
 export function appLink(value: string): string | null {
@@ -40,8 +40,8 @@ export function resumeWords(command: string): string[] | null {
   return match ? [...match[1].split(' '), match[2]] : null;
 }
 
-/** A program to start: its file, its arguments, and (macOS) a script it opens, written first. */
-export interface Launch { file: string; args: string[]; script?: { name: string; content: string } }
+/** A program to start: its file, its arguments, what it adds to the environment, and (macOS) a script it opens, written first. */
+export interface Launch { file: string; args: string[]; env?: Record<string, string>; script?: { name: string; content: string } }
 
 /** A word for a POSIX shell, in single quotes. */
 const quoted = (word: string) => "'" + word.replaceAll("'", "'\\''") + "'";
@@ -51,17 +51,29 @@ const linuxTerminals: [string, string[]][] = [
   ['x-terminal-emulator', ['-e']], ['gnome-terminal', ['--']], ['konsole', ['-e']], ['xfce4-terminal', ['-x']], ['kitty', []], ['alacritty', ['-e']], ['xterm', ['-e']],
 ];
 
+/** What cmd reads as its own in a command line, besides spaces in quotes. */
+const cmdSpecial = /[&<>()@^|%!"]/;
+
 /**
  * How to run a command in a new terminal window in a folder (the program starts there): Windows
  * Terminal when it is installed, else a console window of its own; Terminal on macOS, through a
  * script that changes to the folder; on Linux the first terminal found. `has` says whether a program
  * is installed (a full path on Windows, a name on Linux). Null when no terminal is found.
+ *
+ * On Windows the harness runs by its full path on the PATH (`program`, found without the folder), so
+ * a `claude.cmd` in the session's folder never runs instead; cmd keeps the window open when it ends.
+ * A path cmd would read as its own runs by its name in a console of its own, which is told not to
+ * look in the folder (`NoDefaultCurrentDirectoryInExePath`); Windows Terminal starts its tabs with an
+ * environment of its own, so it only gets a full path.
  */
-export function terminalFor(platform: NodeJS.Platform, folder: string, words: string[], has: (program: string) => boolean, windowsTerminal: string | null): Launch | null {
+export function terminalFor(platform: NodeJS.Platform, folder: string, words: string[], has: (program: string) => boolean, windowsTerminal: string | null, program: string | null = null): Launch | null {
   if (platform === 'win32') {
-    // cmd keeps the window open when the command ends, and finds the harness's .cmd or .exe on the PATH.
-    if (windowsTerminal && has(windowsTerminal)) return { file: windowsTerminal, args: ['-d', '.', 'cmd.exe', '/k', ...words] };
-    return { file: 'cmd.exe', args: ['/k', ...words] };
+    const env = { NoDefaultCurrentDirectoryInExePath: '1' };
+    if (program === null) return null;
+    const safe = !cmdSpecial.test(program);
+    const command = [safe ? program : words[0], ...words.slice(1)];
+    if (safe && windowsTerminal && has(windowsTerminal)) return { file: windowsTerminal, args: ['-d', '.', 'cmd.exe', '/k', ...command], env };
+    return { file: 'cmd.exe', args: ['/k', ...command], env };
   }
   if (platform === 'darwin') return { file: 'open', args: ['-a', 'Terminal'], script: { name: 'atlas-resume.command', content: '#!/bin/sh\ncd ' + quoted(folder) + ' && exec ' + words.map(quoted).join(' ') + '\n' } };
   const found = linuxTerminals.find(([name]) => has(name));

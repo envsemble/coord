@@ -11,8 +11,8 @@ import { diagramTarget, documentTarget, workTarget } from '../navigation/targets
 import { bytes, workNumber } from '../ui/format';
 import { ProvenanceBadge } from '../ui/ui';
 import { useWorkbench } from './workbenchContext';
-import { appSchemes, documentReferences, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
-import { PullMark, ReferenceLink, ReferencesContext, useResolvedReferences, type Resolutions } from './ReferenceLink';
+import { appSchemes, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
+import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences, type Resolutions } from './ReferenceLink';
 
 /** The diagrams a document links to, refetched when the folder changes. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
@@ -63,10 +63,9 @@ function sessionId() {
   if (!viewSession) viewSession = crypto.randomUUID();
   return viewSession;
 }
-// What the document references becomes links.
-const rehypePlugins = [rehypeHeadingIds, rehypeReferences];
-// A plan's request shows folded.
-const planPlugins = [rehypeHeadingIds, rehypeReferences, rehypeFoldRequests];
+
+/** What the reader's markdown runs on a document's tree. */
+export type Plugins = NonNullable<ComponentProps<typeof Markdown>['rehypePlugins']>;
 /** An application's link, by its scheme. */
 const appLinkPattern = new RegExp('^(?:' + appSchemes.join('|') + '):', 'i');
 
@@ -135,9 +134,11 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
     // View statistics are optional; a failure never interrupts reading.
     api.recordView(project, { id: crypto.randomUUID(), path: content.path, session: sessionId(), contentHash: content.contentHash || null }).catch(() => undefined);
   }, [content]);
-  // What the document references, resolved in one batch once it shows.
-  const inputs = useMemo(() => content?.format === 'markdown' ? documentReferences(content.body) : [], [content]);
-  const resolved = useResolvedReferences(file.workId ?? null, inputs);
+  // What the document references becomes links, resolved in one batch once it shows: what its
+  // rendering can link, as it renders. A plan's request shows folded.
+  const { collected, inputs } = useCollectedReferences();
+  const plugins = useMemo((): Plugins => [rehypeHeadingIds, [rehypeReferences, { collected }], ...plan ? [rehypeFoldRequests] : []], [collected, plan]);
+  const resolved = useResolvedReferences(file.workId ?? null, content?.format === 'markdown' ? inputs : []);
   const referenceScope = useMemo(() => ({ resolved, work: file.workId ?? null }), [resolved, file.workId]);
   useEffect(() => { onReferences?.(inputs, resolved); }, [inputs, resolved]);
   const cardCount = references.length;
@@ -219,7 +220,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
-        <ReferencesContext.Provider value={referenceScope}><FoldsContext.Provider value={folds}><Markdown rehypePlugins={plan ? planPlugins : rehypePlugins} components={components}>{content.body}</Markdown></FoldsContext.Provider></ReferencesContext.Provider>
+        <ReferencesContext.Provider value={referenceScope}><FoldsContext.Provider value={folds}><Markdown rehypePlugins={plugins} components={components}>{content.body}</Markdown></FoldsContext.Provider></ReferencesContext.Provider>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
       : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(project, file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}
