@@ -154,6 +154,9 @@ body { margin: 0; }
 .project-folder > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
 .project-folder > bdi, .project-folder > span { flex: 1; min-inline-size: 0; }
 .page-heading-stack { display: grid; gap: var(--space-2); }
+/* A statistics page's heading: the breadcrumb over the title at the left, the period at the right. */
+.statistics-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); inline-size: 100%; }
+.statistics-title { display: flex; align-items: center; gap: var(--space-1); }
 /* A folder's path, typed or chosen, with Browse… beside it; then what the folder holds. */
 .folder-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
 .scan-state { display: flex; align-items: center; gap: var(--space-2); }

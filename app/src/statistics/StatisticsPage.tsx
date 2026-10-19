@@ -169,7 +169,8 @@ function StatisticsView({ read, revision, trail, scope, open, all }: {
   }, [key, revision]);
   const shown = result?.key === key ? result : null;
   const statistics = shown?.statistics ?? null;
-  return <Page title="Statistics" className="statistics-page" heading={<div className="page-heading-stack">{trail}<div className="page-heading-row">
+  // The breadcrumb over the title and its explanation at the left, the period at the right across both.
+  return <Page title="Statistics" className="statistics-page" heading={<div className="statistics-heading"><div className="page-heading-stack">{trail}<div className="statistics-title">
     <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
@@ -177,9 +178,9 @@ function StatisticsView({ read, revision, trail, scope, open, all }: {
         <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time {all ? 'the sessions' : 'the project’s sessions'} waited for you, waits at once counted once.{all ? ' All plans are every active project’s together.' : ''}</p>
       </div>
     </Popover>
-    <span className="spacer" />
+  </div></div>
     <SegmentedControl aria-label="Period" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} options={periods.map(item => ({ value: item.id, label: item.label }))} />
-  </div></div>}>
+  </div>}>
     {shown?.error && <Notice tone="warning">{shown.error}</Notice>}
     {!shown ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the statistics" /></div>
       : !statistics ? null
