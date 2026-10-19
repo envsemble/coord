@@ -43,7 +43,9 @@ body { margin: 0; }
 .title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
 .title-bar-start > .computer-trigger { min-inline-size: 0; }
 .title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
-.title-bar-home svg { inline-size: 1.25rem; block-size: 1.25rem; }
+/* The logo is only a picture: the Plans tab goes to every plan. */
+.title-bar-logo { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--control-height, 2.25rem); block-size: var(--control-height, 2.25rem); flex: none; }
+.title-bar-logo svg { inline-size: 1.25rem; block-size: 1.25rem; }
 /* Back and forward, close together after the logo. */
 .history-buttons { display: flex; align-items: center; }
 .computer-trigger { max-inline-size: 16rem; }

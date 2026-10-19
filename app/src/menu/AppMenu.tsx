@@ -14,9 +14,8 @@ import { api, AtlasError } from '../api';
 import { ComputerMenu, useAppActions } from '../remote/Computers';
 import { FolderIcon, WorkIcon } from '../ui/icons';
 
-/** What the window adds to the title bar: the hub, back and forward, a new project, importing a plan and exporting the one open. */
+/** What the window adds to the title bar: back and forward, a new project, importing a plan and exporting the one open. */
 export interface WorkbenchMenus {
-  goHome(): void;
   goBack(): void;
   goForward(): void;
   canGoBack: boolean;
@@ -74,9 +73,7 @@ export function FileMenu({ info, workbench, onError }: { info: WindowInfo; workb
 /** The start of the title bar: the logo, back and forward, File, and the computer. */
 export function TitleBarStart({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
-    <Tooltip content="All plans" side="bottom">
-      <IconButton variant="text" className="title-bar-home" icon={<AtlasMark size={20} label="" />} aria-label="All plans" onClick={workbench.goHome} />
-    </Tooltip>
+    <span className="title-bar-logo" aria-hidden="true"><AtlasMark size={20} label="" /></span>
     <HistoryButtons platform={info.platform} workbench={workbench} />
     <FileMenu info={info} workbench={workbench} onError={onError} />
     <ComputerMenu current={info.computer} onError={onError} />

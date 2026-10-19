@@ -423,7 +423,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await expect(bar.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem')).toHaveText(['File']);
   await openPlan(window, 'Customer order notifications');
   const left = async (name: string, role: 'button' | 'menuitem' = 'button') => (await bar.getByRole(role, { name, exact: true }).boundingBox())!.x;
-  const order = [await left('All plans'), await left('Back'), await left('Forward'), await left('File', 'menuitem'), await left('Search'), await left('Theme')];
+  const order = [await left('Back'), await left('Forward'), await left('File', 'menuitem'), await left('Search'), await left('Theme')];
   expect(order).toEqual([...order].sort((a, b) => a - b));
   await expect(bar.getByRole('button', { name: /^Computer:/ })).toBeVisible();
   const regions = await window.evaluate(() => {

@@ -445,7 +445,6 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // A plan is open: its page or its diagrams.
   const planOpen = projectPlace && (projectPlace.target.kind === 'work' || projectPlace.target.kind === 'diagram') ? { project: projectPlace.project, work: projectPlace.target.work } : null;
   const menus: WorkbenchMenus = {
-    goHome: () => go(hubPlace()),
     goBack: () => navigate(-1),
     goForward: () => navigate(1),
     canGoBack: canGoBack(history),

@@ -186,9 +186,9 @@ export async function openPlan(window: Page, title: string) {
   await hubRows(window, title).first().getByRole('link', { name: title, exact: true }).click();
   await expect(window.locator('.work-header h1')).toHaveText(title);
 }
-/** Go to the hub by the logo in the title bar. */
+/** Go to the hub of every project by the Plans tab. */
 export async function goHome(window: Page) {
-  await window.getByRole('button', { name: 'All plans', exact: true }).click();
+  await window.getByRole('navigation', { name: 'Sections' }).locator('[data-section="plans"]').click();
   await expectHub(window);
 }
 
