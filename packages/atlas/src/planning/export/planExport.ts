@@ -16,7 +16,8 @@ import { describeFiles, isDiagram } from '../reading/diagrams.ts';
 import { appendRegistryEntries, RegistryFormatError } from '../work/registryText.ts';
 import { acquireImportLock, ImportLockBusyError } from '../home/importLock.ts';
 import { localDate, planningLedger } from '../work/work.ts';
-import type { Work } from '../types.ts';
+import type { HandoffLink, Work } from '../types.ts';
+import { handoffLinksAt } from '../work/handoffs.ts';
 import { packageJson, planViewerFile } from '../../packageFiles.ts';
 
 const { version: atlasVersion } = JSON.parse(readFileSync(packageJson, 'utf8')) as { version: string };
@@ -336,7 +337,7 @@ interface ViewDiagram {
 }
 /** Derived viewer data. Import ignores it; the files in the payload are authoritative. */
 interface PlanView {
-  work: Pick<Work, 'id' | 'title' | 'path' | 'design' | 'implementation' | 'created' | 'updated' | 'accepted' | 'completed' | 'progress'> & { location: string; repositories: PlanExportRepository[] };
+  work: Pick<Work, 'id' | 'title' | 'path' | 'design' | 'implementation' | 'created' | 'updated' | 'accepted' | 'completed' | 'progress'> & { location: string; repositories: PlanExportRepository[]; continues: HandoffLink[]; continuedIn: HandoffLink[] };
   plan: string | null; ledger: string | null; documents: ViewDocument[]; diagrams: ViewDiagram[];
 }
 
@@ -473,7 +474,7 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
     throw error;
   }
   const view: PlanView = {
-    work: { id: item.id, title: item.title, path: item.path, design: item.design, implementation: item.implementation, created: item.created, updated: item.updated, accepted: item.accepted, completed: item.completed, progress: item.progress ?? null, location, repositories },
+    work: { id: item.id, title: item.title, path: item.path, design: item.design, implementation: item.implementation, created: item.created, updated: item.updated, accepted: item.accepted, completed: item.completed, progress: item.progress ?? null, location, repositories, ...handoffLinksAt(index.root, item.id) },
     plan: currentPlan,
     ledger: item.ledger ? workRelative(item.ledger, item.path) : null,
     documents: item.documents.map(document => ({ path: workRelative(document.path, item.path), title: document.title, category: document.category, format: document.format })).filter(document => names.includes(document.path)),

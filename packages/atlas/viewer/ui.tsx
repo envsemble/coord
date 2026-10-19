@@ -1,6 +1,8 @@
 // Small presentational pieces matching the app's (app/src/ui: ui.tsx, status.ts, format.ts, LedgerProgress.tsx), on envUI.
 import type { ReactNode } from 'react';
 import { Badge } from '@envsemble/envui';
+import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
+import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import { Block } from '@envsemble/envui/icons/Block';
 import { CheckCircle } from '@envsemble/envui/icons/CheckCircle';
 import { DoNotDisturbOn } from '@envsemble/envui/icons/DoNotDisturbOn';
@@ -10,7 +12,7 @@ import { Pending } from '@envsemble/envui/icons/Pending';
 import { RadioButtonUnchecked } from '@envsemble/envui/icons/RadioButtonUnchecked';
 import { SkipNext } from '@envsemble/envui/icons/SkipNext';
 import { stepCounts, stepSummary } from '../src/planning/work/ledger.ts';
-import type { LedgerStep, LedgerStepStatus } from '../src/planning/types.ts';
+import type { HandoffLink, LedgerStep, LedgerStepStatus } from '../src/planning/types.ts';
 import type { Provenance } from '../src/planning/reading/provenance.ts';
 import type { PlanView } from './data.ts';
 
@@ -51,11 +53,28 @@ export function bytes(value: number) { return value < 1024 ? value + ' B' : valu
 export function workNumber(id: string) { return id.replace('work-', '#'); }
 
 /**
+ * The plan's handoffs as the app's ledger shows them (app/src/work/HandoffLinks.tsx): "Continues #0023 ·
+ * Plans hub" before the steps, "Continued in #0026 · Handoffs" after them, with the project's name
+ * when it is another project's (`own` is the plan's planning folder's name). Text only: an export
+ * opens no other plan; a reference that named no work item at export time is its number alone.
+ */
+export function HandoffEntries({ items = [], kind, own }: { items?: HandoffLink[]; kind: 'continues' | 'continuedIn'; own: string }): ReactNode {
+  return items.map(item => {
+    const project = item.project.toLowerCase() === own.toLowerCase() ? null : item.projectName || item.project;
+    const text = [workNumber(item.workId), item.title, project].filter(Boolean).join(' · ');
+    return <li key={kind + item.project + ':' + item.workId} className="ledger-handoff" data-handoff={kind}>
+      {kind === 'continues' ? <ArrowBack className="ledger-handoff-icon" /> : <ArrowForward className="ledger-handoff-icon" />}
+      <span>{kind === 'continues' ? 'Continues ' : 'Continued in '}<span className="handoff-ref muted" title={item.title === null ? text + ' (not found)' : text}>{text}</span></span>
+    </li>;
+  });
+}
+
+/**
  * The ledger's agreed steps, as the app shows them (app/src/ui/LedgerProgress.tsx): planning steps
  * (`phase: planning`) and implementation steps in one list, the planning ones in their own colour.
  */
 const stepLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };
-export function LedgerSteps({ steps }: { steps: LedgerStep[] }) {
+export function LedgerSteps({ steps, before = null, after = null }: { steps: LedgerStep[]; before?: ReactNode; after?: ReactNode }) {
   const counts = stepCounts(steps);
   const planning = stepCounts(steps.filter(step => step.phase === 'planning'));
   const share = (count: number) => count / counts.total * 100 + '%';
@@ -67,13 +86,13 @@ export function LedgerSteps({ steps }: { steps: LedgerStep[] }) {
       <span className="step-bar-doing" style={{ width: share(counts.doing - planning.doing) }} />
     </span>}
     <p className="ledger-progress-summary">{stepSummary(counts)}</p>
-    {steps.length > 0 && <ol className="ledger-steps">{steps.map(step => {
+    {(steps.length > 0 || before || after) && <ol className="ledger-steps">{before}{steps.map(step => {
       const phase = step.phase === 'planning' ? 'planning' : 'implementation';
       const props = { className: 'step-icon', 'data-status': step.status, 'data-phase': phase, label: phase === 'planning' ? 'Planning step, ' + stepLabels[step.status].toLowerCase() : stepLabels[step.status] };
       return <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase}
         title={(phase === 'planning' ? 'Planning' : 'Implementation') + ' step: ' + step.title + ', ' + stepLabels[step.status].toLowerCase()}>
         {step.status === 'done' ? <CheckCircle filled {...props} /> : step.status === 'doing' ? <Pending {...props} /> : <RadioButtonUnchecked {...props} />}<span>{step.title}</span>
       </li>;
-    })}</ol>}
+    })}{after}</ol>}
   </div>;
 }

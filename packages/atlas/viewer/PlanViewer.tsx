@@ -18,7 +18,7 @@ import { FolderOpen } from '@envsemble/envui/icons/FolderOpen';
 import { blobURL, imageType, textOf, type ExportFile, type PlanData, type ViewDiagram } from './data.ts';
 import { Markdown, scrollToHeading } from './Markdown.tsx';
 import { markdownBody } from '../src/planning/reading/headings.ts';
-import { LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
+import { HandoffEntries, LedgerSteps, ProvenanceBadge, StatusBadge, absoluteDate, bytes, workNumber, workStatus } from './ui.tsx';
 import { elementId, modelSummary, type ProvenanceKind } from '../src/planning/reading/provenance.ts';
 
 type Tab = 'plan' | 'ledger' | 'diagrams' | 'files';
@@ -143,15 +143,20 @@ function AboutSection({ title, note, children }: { title: ReactNode; note?: Reac
 function About({ data }: { data: PlanData }) {
   const { work } = data.view;
   const progress = work.progress;
+  const own = data.payload.source.planningFolder;
+  const handoffs = Boolean(work.continues?.length || work.continuedIn?.length);
+  const before = handoffs ? <HandoffEntries items={work.continues} kind="continues" own={own} /> : null;
+  const after = handoffs ? <HandoffEntries items={work.continuedIn} kind="continuedIn" own={own} /> : null;
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   return <aside className="about" aria-label="About this work">
     {progress && (progress.steps || progress.current || progress.next.length > 0 || progress.blocked) && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && absoluteDate(progress.updated)}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
-      {progress.steps ? <LedgerSteps steps={progress.steps} /> : <>
+      {progress.steps ? <LedgerSteps steps={progress.steps} before={before} after={after} /> : <>
         {progress.current && <p className="about-current">{progress.current}</p>}
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
     </AboutSection>}
+    {handoffs && !progress?.steps && <AboutSection title="Handoffs"><ol className="ledger-steps ledger-handoffs">{before}{after}</ol></AboutSection>}
     <AboutSection title="About">
       {dates.length > 0 && <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{absoluteDate(value)}</dd></div>)}</dl>}
       <p className="about-path" title={work.path}><bdi>{data.payload.source.planningFolder}/{work.path}</bdi></p>

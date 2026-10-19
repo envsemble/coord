@@ -355,6 +355,11 @@ test('clears references to other work so the target stays valid, and rolls back 
   const provenance = JSON.parse(readFileSync(path.join(target, second.path, 'evidence/import-provenance.json'), 'utf8'));
   assert.deepEqual(provenance.identityRewrites.find((item: { field: string }) => item.field === 'superseded_by'), { file: 'plan.md', field: 'superseded_by', from: 'work-0003', to: null });
   assert.deepEqual(validatePlanning(target).errors, []);
+  // The viewer shows the handoffs as they stood at export time: the work it continues, the work continuing it.
+  const viewOf = (html: string) => JSON.parse(/<script id="atlas-plan-view" type="application\/json">(.*?)<\/script>/s.exec(html)![1]).work;
+  const handoff = { folderId: null, project: 'source', projectName: 'source', state: null, outcome: null };
+  assert.deepEqual(viewOf((await exportPlan(source, 'work-0001', { now })).html).continues, [{ ...handoff, workId: 'work-0002', title: null }]);
+  assert.deepEqual(viewOf((await exportPlan(source, 'work-0002', { now })).html).continuedIn, [{ ...handoff, workId: 'work-0001', title: 'Checkout' }]);
 
   // A plan whose metadata names another work ID would leave the target invalid: nothing stays.
   writeFileSync(path.join(source, 'active/0001-checkout/plan.md'), plan('work-0099', 'Checkout'));

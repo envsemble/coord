@@ -1,6 +1,6 @@
 // The plan export's embedded data. Both elements are inert JSON; nothing in them is executed.
 import type { Provenance } from '../src/planning/reading/provenance.ts';
-import type { WorkProgress } from '../src/planning/types.ts';
+import type { HandoffLink, WorkProgress } from '../src/planning/types.ts';
 
 export interface ExportFile { path: string; size: number; sha256: string; data: string }
 export interface ExportPayload {
@@ -21,6 +21,8 @@ export interface PlanView {
     id: string; title: string; path: string; design: string; implementation: string; location: string;
     created: string | null; updated: string | null; accepted: string | null; completed: string | null;
     progress: WorkProgress | null; repositories: { id: string; name: string }[];
+    /** The work it continues and the work continuing it, as they stood at export time; absent in older exports. */
+    continues?: HandoffLink[]; continuedIn?: HandoffLink[];
   };
   plan: string | null; ledger: string | null; documents: ViewDocument[]; diagrams: ViewDiagram[];
 }

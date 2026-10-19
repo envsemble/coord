@@ -3,9 +3,10 @@
 // name (the folder under <home>/planning, compared case-insensitively where the file system is):
 // the one name of a project that is unique in the home and that a rename in the app leaves alone.
 // The earlier plan stores nothing; "continued in" is found from the plans that name it.
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
+import type { HandoffLink } from '../types.ts';
 
 export interface HandoffReference { project: string | null; workId: string }
 
@@ -51,12 +52,58 @@ export function handoffExists(root: string, item: HandoffReference) {
   return folder !== null && entryOf(folder, item.workId) !== undefined;
 }
 
+/** A registered work item's plan header; null when it has none that reads. */
+function headerOf(folder: string, workId: string, entry = entryOf(folder, workId)): Record<string, unknown> | null {
+  const plan = entry?.current_plan;
+  if (typeof plan !== 'string' || plan.split('/').includes('..')) return null;
+  try { return parseFrontmatter(readFileSync(path.join(folder, ...plan.split('/')), 'utf8').replace(/^﻿/, '')) ?? null; }
+  catch { return null; }
+}
 /** The references a work item's plan continues, read from its header. */
 function continuesOf(folder: string, workId: string): HandoffReference[] {
-  const plan = entryOf(folder, workId)?.current_plan;
-  if (typeof plan !== 'string' || plan.split('/').includes('..')) return [];
-  try { return handoffsOf(parseFrontmatter(readFileSync(path.join(folder, ...plan.split('/')), 'utf8').replace(/^﻿/, ''))?.continues).references; }
-  catch { return []; }
+  return handoffsOf(headerOf(folder, workId)?.continues).references;
+}
+
+/**
+ * A work item's handoffs read from the plans of the home's planning folders, for a plan export,
+ * which has no listing to take them from: the work it continues and the work continuing it, each
+ * with its title, project and outcome, and without folder IDs (an export opens no other plan).
+ */
+export function handoffLinksAt(root: string, workId: string): { continues: HandoffLink[]; continuedIn: HandoffLink[] } {
+  const planning = path.dirname(root);
+  let folders: string[] = [];
+  try { folders = readdirSync(planning, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(path.join(planning, entry.name, 'planning.json'))).map(entry => path.join(planning, entry.name)).slice(0, 200); }
+  catch { /* only its own folder */ }
+  if (!folders.some(folder => same(folder, root))) folders.push(root);
+  const names = new Map<string, string>();
+  const nameOf = (folder: string) => {
+    if (!names.has(folder)) { const name = readJson(path.join(folder, 'planning.json'))?.name; names.set(folder, typeof name === 'string' && name.trim() ? name.trim() : path.basename(folder)); }
+    return names.get(folder)!;
+  };
+  const link = (folder: string | null, project: string, id: string, header: Record<string, unknown> | null): HandoffLink => {
+    const design = header?.design_status, implementation = header?.implementation_status;
+    return {
+      folderId: null, project, projectName: folder ? nameOf(folder) : project, workId: id, title: typeof header?.title === 'string' ? header.title : null, state: null,
+      outcome: design === 'superseded' || design === 'abandoned' ? design : implementation === 'complete' ? 'complete' : null,
+    };
+  };
+  const continues = continuesOf(root, workId).map(item => {
+    const folder = handoffFolder(root, item);
+    return link(folder, folder ? path.basename(folder) : item.project!, item.workId, folder ? headerOf(folder, item.workId) : null);
+  });
+  const continuedIn: HandoffLink[] = [];
+  for (const folder of folders) {
+    const items = readJson(path.join(folder, 'planning.json'))?.work_items;
+    if (!Array.isArray(items)) continue;
+    for (const entry of items.slice(0, 2000)) {
+      const id = (entry as { id?: unknown } | null)?.id;
+      if (typeof id !== 'string') continue;
+      const header = headerOf(folder, id, entry as { current_plan?: unknown });
+      const found = handoffsOf(header?.continues).references.some(item => item.workId === workId && same(handoffFolder(folder, item) ?? '', root));
+      if (found) continuedIn.push(link(folder, path.basename(folder), id, header));
+    }
+  }
+  return { continues, continuedIn };
 }
 
 /** Whether following `continues` from these references comes back to the work item: a loop (A continues B continues A). */
