@@ -12,6 +12,7 @@ export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from 
 export { StatisticsReportError, createReport, importStatisticsFiles, insertReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, sessionGap, statisticsFile, storedReports, summarizeReports, workStages, workStatistics, type StatisticsImport, type Measured, type MeasuredInterval, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
 export { codexThreadName, harnessSessions, logTail, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './statistics/sessionLog.ts';
 export { prepareWorkReport, recordWorkReport, remeasureReports, type PreparedReport, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
+export { projectStatistics, type ProjectStatisticsEntry } from './statistics/projectStatistics.ts';
 export { workDates, workSessions, workTimeline, type ProductEntry, type SessionEntry, type TimelineEntry } from './statistics/sessions.ts';
 export { resolveReferences, type ReferenceItem, type ResolvedItem } from './projects/references.ts';
 export type * from './types.ts';

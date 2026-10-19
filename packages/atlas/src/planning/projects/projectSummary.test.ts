@@ -8,6 +8,7 @@ import { HomeDatabase } from '../home/database.ts';
 import { createReport, insertReport, type ReportInput } from '../statistics/statistics.ts';
 import { projectSummary } from './projectSummary.ts';
 import { workTimeline } from '../statistics/sessions.ts';
+import { projectStatistics } from '../statistics/projectStatistics.ts';
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-summary-')));
@@ -197,5 +198,33 @@ test('a plan waits for the person once while its sessions wait at once, and no l
     assert.deepEqual(timeline.lanes.map(lane => [lane.session, lane.working, lane.waiting]), [
       ['a', [], [[at(0), at(40)]]], ['b', [], [[at(30), at(40)]]], ['c', [[at(40), at(50)]], []],
     ]);
+  } finally { database.close(); }
+});
+
+test('a project\'s statistics put time on the days it was worked, by model and effort, with the plans completed', async t => {
+  const directory = temporary(t);
+  const root = path.join(directory, 'shop');
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [item('archive/0001'), item('active/0002')] }));
+  write(path.join(root, 'archive/0001/plan.md'), plan('complete', 'title: Saved cards\ndesign_status: accepted\ncreated: "2026-10-11"\naccepted_at: "2026-10-12"\ncompleted_at: "2026-10-14"\n'));
+  write(path.join(root, 'active/0002/plan.md'), plan('not_started', 'title: Gift cards\n'));
+  const database = HomeDatabase.open(path.join(directory, 'home'));
+  try {
+    const shop = database.addProject(root, 'Shop');
+    // Local times: worked from 22:00 on the 13th to 02:00 on the 14th, at high effort.
+    const local = (day: number, hour: number) => new Date(2026, 9, day, hour);
+    insertReport(database, shop.id, 'work-0001', createReport({ model: 'claude-opus', session: 's1', at: local(14, 2), measured: {
+      since: local(13, 21).toISOString(), agentMs: 4 * 3_600_000, models: [{ model: 'claude-opus', agentMs: 4 * 3_600_000, input: 0, cacheRead: 0, cacheWrite: 0, output: 100 }],
+      intervals: [{ agent: null, start: local(13, 22).toISOString(), end: local(14, 2).toISOString() }],
+      efforts: [{ agent: null, model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }],
+    } }));
+    const statistics = await projectStatistics(database, shop.id, root, { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
+    const hours = (ms: number) => ms / 3_600_000;
+    assert.deepEqual(statistics.buckets.map(bucket => [bucket.start, hours(bucket.agents.reduce((total, entry) => total + entry.agentMs, 0)), bucket.completed.map(plan => plan.id)]), [
+      [local(12, 0).toISOString(), 0, []], [local(13, 0).toISOString(), 2, []], [local(14, 0).toISOString(), 2, ['work-0001']],
+    ], 'the stretch split at local midnight; the plan completed on its day');
+    assert.deepEqual([hours(statistics.current.agentMs), hours(statistics.current.activeMs), statistics.current.plansCompleted, statistics.current.medianImplementingMs! / 86_400_000], [4, 4, 1, 2]);
+    assert.deepEqual([statistics.previous?.agentMs, statistics.previous?.plansCompleted], [0, 0], 'the three days before had nothing');
+    assert.deepEqual(statistics.plans.map(item => [item.id, hours(item.agentMs), item.tokens, item.state]), [['work-0001', 4, 100, 'closed']]);
+    assert.deepEqual(statistics.models, [{ model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }]);
   } finally { database.close(); }
 });

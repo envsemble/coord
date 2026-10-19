@@ -19,7 +19,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
-  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, remeasureReports, resolveReferences, storedReports, workDates, workSessions, workTimeline,
+  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectStatistics, projectSummary, remeasureReports, resolveReferences, storedReports, workDates, workSessions, workTimeline,
   readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type StatisticsReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
@@ -897,8 +897,11 @@ export class Host {
         const { folderId, work } = p as Methods['work.sessions']['params'];
         return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work, { local: connection.owner, logs: this.options.sessionLogs }) as never;
       }
-      // Contract stub: the project's statistics come with the host step.
-      case 'project.statistics': { const { from, to, unit } = p as Methods['project.statistics']['params']; const figures = { agentMs: 0, activeMs: 0, plansCompleted: 0, medianImplementingMs: null, waitedMs: 0 }; return { from, to: to ?? new Date().toISOString(), unit, current: figures, previous: from ? figures : null, buckets: [], plans: [], models: [] } as never; }
+      case 'project.statistics': {
+        const { folderId, from, to, unit } = p as Methods['project.statistics']['params'];
+        const row = await this.projectOfFolder(folderId);
+        return projectStatistics(this.database, row.id, row.folder, { from, to, unit }) as never;
+      }
       case 'work.timeline': {
         const { folderId, work } = p as Methods['work.timeline']['params'];
         const row = await this.projectOfFolder(folderId);

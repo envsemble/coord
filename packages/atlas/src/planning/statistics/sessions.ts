@@ -8,7 +8,7 @@ import { parseFrontmatter } from '../check/check.ts';
 import { waitingWindowMs, type HomeDatabase } from '../home/database.ts';
 import { readRegistry } from '../projects/resolve.ts';
 import { codexThreadName, logTail, sessionFolder, type LogOptions } from './sessionLog.ts';
-import { mergeSpans, storedReports, summarizeReports } from './statistics.ts';
+import { mergeSpans, storedReports, summarizeReports, type StatisticsReport } from './statistics.ts';
 
 type Harness = 'claude-code' | 'codex' | 'unknown';
 /** A work item's session as the host's contract describes it (WorkSession). */
@@ -110,13 +110,13 @@ export async function workDates(root: string, workId: string): Promise<{ created
  * from the reports' intervals (a session working now, from where its time not yet reported counts),
  * and the session's waits. An open stretch ends now.
  */
-export function workTimeline(database: HomeDatabase, projectId: number, workId: string, dates: { created: string | null; accepted: string | null; completed: string | null }, now = Date.now()): TimelineEntry {
+export function workTimeline(database: HomeDatabase, projectId: number, workId: string, dates: { created: string | null; accepted: string | null; completed: string | null }, now = Date.now(), stored?: StatisticsReport[]): TimelineEntry {
   const moment = (day: string | null) => day === null ? null : Date.parse(day.length === 10 ? day + 'T00:00:00Z' : day);
   const created = moment(dates.created), accepted = moment(dates.accepted), completed = moment(dates.completed);
   const plannedMs = created === null ? null : Math.max(0, (accepted ?? completed ?? now) - created);
   const implementingMs = accepted === null ? null : Math.max(0, (completed ?? now) - accepted);
   const iso = (time: number) => new Date(time).toISOString();
-  const reports = storedReports(database, projectId, [workId]).get(workId) ?? [];
+  const reports = stored ?? storedReports(database, projectId, [workId]).get(workId) ?? [];
   const agents = summarizeReports(reports).agents;
   const lanes = new Map<string, { session: string; subagent: string | null; working: [number, number][]; waiting: [number, number][] }>();
   const lane = (session: string, subagent: string | null) => {
