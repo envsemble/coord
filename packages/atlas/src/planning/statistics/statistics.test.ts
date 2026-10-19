@@ -391,7 +391,8 @@ test('a hook names the session\'s log: it is measured with its subagents, whatev
   mkdirSync(path.join(project, session, 'subagents'), { recursive: true });
   const usage = { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 90 };
   const prompt = (minutes: number) => JSON.stringify({ type: 'user', message: { role: 'user', content: 'Placeholder' }, timestamp: at(minutes) });
-  const response = (minutes: number, id: string, model: string, stop = 'end_turn') => JSON.stringify({ type: 'assistant', message: { id, model, role: 'assistant', content: [], stop_reason: stop, usage }, timestamp: at(minutes) });
+  // Claude Code logs each response's reasoning effort: the main agent's high, its helper's medium.
+  const response = (minutes: number, id: string, model: string, stop = 'end_turn') => JSON.stringify({ type: 'assistant', message: { id, model, role: 'assistant', content: [], stop_reason: stop, usage }, effort: 'high', perTurnEffort: model.includes('haiku') ? 'medium' : 'high', timestamp: at(minutes) });
   const log = path.join(project, session + '.jsonl');
   writeFileSync(log, [prompt(0), response(1, 'msg_1', 'claude-opus-5-5'), prompt(10), response(30, 'msg_2', 'claude-opus-5-5')].join('\n') + '\n');
   writeFileSync(path.join(project, session, 'subagents', 'agent-a7.jsonl'), [prompt(12), response(20, 'msg_3', 'claude-haiku-5-5')].join('\n') + '\n');
@@ -404,7 +405,8 @@ test('a hook names the session\'s log: it is measured with its subagents, whatev
   // Every agent adds up; the time at least one worked is their union, and each agent has its share.
   const statistics = (await loadPlanning(root)).work[0].statistics!;
   assert.deepEqual([statistics.subagents, statistics.stages.implementation.agentMs, statistics.activeMs, statistics.unmergedMs], [{ count: 1, agentMs: 8 * 60000 }, 28 * 60000, 20 * 60000, 0]);
-  assert.deepEqual(statistics.agents, [{ session, subagent: null, model: 'claude-opus-5-5', effort: null, agentMs: 20 * 60000 }, { session, subagent: 'a7', model: 'claude-haiku-5-5', effort: null, agentMs: 8 * 60000 }]);
+  assert.deepEqual(statistics.agents, [{ session, subagent: null, model: 'claude-opus-5-5', effort: 'high', agentMs: 20 * 60000 }, { session, subagent: 'a7', model: 'claude-haiku-5-5', effort: 'medium', agentMs: 8 * 60000 }]);
+  assert.deepEqual([statistics.primaryEffort, statistics.models.map(item => [item.model, item.efforts])], ['high', [['claude-opus-5-5', [{ effort: 'high', agentMs: 20 * 60000, tokens: 100 }]], ['claude-haiku-5-5', [{ effort: 'medium', agentMs: 8 * 60000, tokens: 100 }]]]], 'time and tokens by model and effort');
   const elsewhere = path.join(config, 'notes.jsonl');
   writeFileSync(elsewhere, prompt(0) + '\n');
   const unread = await recordWorkReport(root, 'work-0001', { model: 'model-a', at: new Date(at(50)) }, { ...options, transcriptPath: elsewhere });

@@ -3,7 +3,8 @@
 // logs are small synthetic ones written here; the developer's own ~/.claude and ~/.codex are never read.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { zstdCompressSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type SessionLogs, type SessionMeasure } from './sessionLog.ts';
@@ -257,9 +258,9 @@ const codex = {
   aborted: (minutes: number, turn: string) => ({ timestamp: iso(minutes), ordinal: 6, type: 'event_msg', payload: { type: 'turn_aborted', turn_id: turn, reason: 'interrupted' } }),
 };
 
-test('Codex: turns from start to completion or abort, each with its model; tokens from the running count', async t => {
+test('Codex: turns from start to completion or abort, each with its model and reasoning effort; tokens from the running count; compressed rollouts too', async t => {
   const { rollout, environment, home } = folders(t);
-  rollout(thread, [
+  const written = rollout(thread, [
     codex.meta(thread),
     codex.started(0, 't1'), codex.context(0.1, 't1', 'gpt-6.1-sol'), codex.item(1), codex.tokens(2, 1000, 800, 50), codex.complete(10, 't1'),
     codex.started(30, 't2'), codex.context(30, 't2', 'gpt-5-codex'), codex.tokens(31, 3000, 2600, 90), codex.aborted(35, 't2'),
@@ -270,7 +271,12 @@ test('Codex: turns from start to completion or abort, each with its model; token
   assert.equal(minutes(result.agentMs), 10 + 5);
   assert.deepEqual(result.models.map(model => [model.model, minutes(model.agentMs), model.input, model.cacheRead, model.output]), [['gpt-6.1-sol', 10, 200, 800, 50], ['gpt-5-codex', 5, 200, 1800, 40]]);
   assert.equal(result.mainModel, 'gpt-6.1-sol');
+  assert.deepEqual(result.efforts.map(entry => [entry.agent, entry.model, entry.effort, minutes(entry.agentMs), entry.tokens]), [[null, 'gpt-6.1-sol', 'high', 10, 1050], [null, 'gpt-5-codex', 'high', 5, 2040]], 'each turn\'s effort, from its context');
   assert.equal((await measure(logs, null, 60)).mainModel, 'gpt-5-codex', 'without an interval, the latest model');
+  // Codex keeps its rollouts compressed (.jsonl.zst): they read the same.
+  writeFileSync(written + '.zst', zstdCompressSync(readFileSync(written)));
+  rmSync(written);
+  assert.deepEqual(await measure(await sessionLogs([{ harness: 'codex', session: thread }], { environment, home }), -1, 60), result);
 });
 
 test('Codex: a question to the person pauses the turn until the answer', async t => {

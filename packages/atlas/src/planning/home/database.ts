@@ -79,6 +79,26 @@ const migrations = [
   ALTER TABLE session ADD COLUMN state_at TEXT;
   ALTER TABLE session ADD COLUMN focus INTEGER;
   ALTER TABLE session_work ADD COLUMN focused_at TEXT;`,
+  // What sessions did for a work item: the folder a session runs in, the last message of its turn
+  // while it waits for the person, its waits (each with the work item it was on; ended_at null while
+  // it waits), the commits and PRs it made, and each report's time and tokens by model and reasoning
+  // effort (per agent: null for the session's own).
+  `ALTER TABLE session ADD COLUMN cwd TEXT;
+  ALTER TABLE session ADD COLUMN message TEXT;
+  CREATE TABLE session_wait (
+    id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE, project_id INTEGER REFERENCES project(id) ON DELETE CASCADE,
+    work_id TEXT, started_at TEXT NOT NULL, ended_at TEXT);
+  CREATE INDEX session_wait_session ON session_wait(session_id, ended_at);
+  CREATE INDEX session_wait_work ON session_wait(project_id, work_id);
+  CREATE TABLE session_product (
+    id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE, project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    work_id TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('commit', 'pull')), at TEXT NOT NULL, repository TEXT, ident TEXT NOT NULL, title TEXT, url TEXT, branch TEXT,
+    UNIQUE (project_id, work_id, kind, repository, ident));
+  CREATE INDEX session_product_work ON session_product(project_id, work_id, at);
+  CREATE TABLE report_effort (
+    id INTEGER PRIMARY KEY, report_id INTEGER NOT NULL REFERENCES work_report(id) ON DELETE CASCADE, agent TEXT, model TEXT NOT NULL, effort TEXT NOT NULL,
+    agent_ms INTEGER NOT NULL, tokens INTEGER NOT NULL);
+  CREATE INDEX report_effort_report ON report_effort(report_id);`,
 ];
 /** How long a working session counts as live without being seen again: a long tool call can be quiet this long. */
 export const liveWindowMs = 15 * 60_000;

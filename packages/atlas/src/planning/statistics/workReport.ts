@@ -11,7 +11,7 @@ import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
 import { normalizedLocation, readDocument } from '../reading/planning.ts';
 import { harnessSessions, measureIntervals, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionCandidate, type SessionMeasure } from './sessionLog.ts';
-import { createReport, fitStep, insertIntervals, insertReport, spansMs, storedReports, StatisticsReportError, type Measured, type ReportInput, type StatisticsReport } from './statistics.ts';
+import { createReport, fitStep, insertEfforts, insertIntervals, insertReport, spansMs, storedReports, StatisticsReportError, type Measured, type ReportInput, type StatisticsReport } from './statistics.ts';
 import { projectOf, withDatabaseAsync, type HomeDatabase } from '../home/database.ts';
 import type { WorkStage } from '../types.ts';
 
@@ -118,6 +118,7 @@ export async function prepareWorkReport(inputRoot: string, workId: string, input
     const helpers = measure.subagents;
     if (helpers.length) measured.subagents = { count: helpers.length, agentMs: helpers.reduce((total, agent) => total + agent.agentMs, 0), tokens: helpers.reduce((total, agent) => total + agent.tokens, 0), agents: helpers };
     measured.intervals = measure.intervals;
+    if (measure.efforts.length) measured.efforts = measure.efforts;
   }
   let report: StatisticsReport;
   try { report = createReport({ ...input, model, session, step, stage, at, measured }, Number.POSITIVE_INFINITY); }
@@ -179,6 +180,7 @@ export async function remeasureReports(database: HomeDatabase, options: LogOptio
         result.left--;
         if (!kept) { result.missing++; return; }
         insertIntervals(database, Number(report.id), measure.intervals);
+        insertEfforts(database, Number(report.id), measure.efforts);
         for (const item of measure.models) model.run(item.agentMs, Number(report.id), item.model);
         result.measured++;
       });

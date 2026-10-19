@@ -2,7 +2,7 @@
 // harness, which names its session in the environment and keeps a log of it on this computer:
 // - Claude Code: <config>/projects/<project>/<session>.jsonl, its subagents' logs in
 //   <project>/<session>/subagents/agent-<id>.jsonl (<config> is CLAUDE_CONFIG_DIR, else ~/.claude);
-// - Codex: <home>/sessions/YYYY/MM/DD/rollout-<local time>-<thread>[_<part>].jsonl, or
+// - Codex: <home>/sessions/YYYY/MM/DD/rollout-<local time>-<thread>[_<part>].jsonl[.zst] (compressed), or
 //   <home>/archived_sessions/ (<home> is CODEX_HOME, else ~/.codex); its subagents are threads of
 //   their own whose first line names it.
 // A hook names the log itself (its transcript path), which is read with the logs beside it.
@@ -13,10 +13,11 @@
 // line; nothing but numbers, times and model and agent identifiers leaves them, and a line that is
 // not understood is skipped, never fatal.
 import { createReadStream, type Dirent } from 'node:fs';
+import { createZstdDecompress } from 'node:zlib';
 import { open, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { mergeSpans, modelPattern, type MeasuredInterval, type MeasuredSubagent } from './statistics.ts';
+import { mergeSpans, modelPattern, type MeasuredEffort, type MeasuredInterval, type MeasuredSubagent } from './statistics.ts';
 import type { TokenKinds } from '../types.ts';
 
 export type Harness = 'claude-code' | 'codex';
@@ -34,6 +35,8 @@ export interface SessionMeasure {
   subagents: MeasuredSubagent[];
   /** When each agent worked in the interval (the main agent's are `agent` null), its stretches merged, in time order. */
   intervals: MeasuredInterval[];
+  /** Each agent's time and tokens by model and reasoning effort, where its log names the effort. */
+  efforts: MeasuredEffort[];
 }
 /** A session to measure; without a harness, both harnesses' logs are searched. */
 export interface SessionCandidate { harness: Harness | null; session: string }
@@ -108,7 +111,7 @@ async function claudeLogs(session: string, config: string): Promise<SessionLogs 
 }
 
 /** rollout-<local time>-<thread>[_<part>].jsonl; a thread's later parts continue it. */
-const rolloutName = /^rollout-((\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2})-([A-Za-z0-9-]+?)(?:_[A-Za-z0-9-]+)?\.jsonl$/;
+const rolloutName = /^rollout-((\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2})-([A-Za-z0-9-]+?)(?:_[A-Za-z0-9-]+)?\.jsonl(?:\.zst)?$/;
 
 /**
  * Codex: every rollout of the thread, in the dated folders and the archive. A subagent's thread
@@ -188,6 +191,10 @@ export async function transcriptLogs(transcript: string): Promise<SessionLogs | 
 
 /** The start of a file: its first line, up to a limit (a Codex rollout's first line is ~25 KB). */
 async function firstLine(file: string, limit = 1 << 20): Promise<string | null> {
+  if (compressed(file)) {
+    try { for await (const line of lines(file)) return line.length <= limit ? line : null; } catch { /* Not a stream Atlas can read. */ }
+    return null;
+  }
   const handle = await open(file, 'r').catch(() => null);
   if (!handle) return null;
   try {
@@ -229,31 +236,48 @@ async function codexHelpers(logs: SessionLogs, since: number): Promise<LogFile[]
   return helpers;
 }
 
-/** A file's lines, split at line feeds only: JSON text may hold U+2028, where line readers also split. */
+/** Codex keeps its rollouts compressed with Zstandard (`.jsonl.zst`). */
+const compressed = (file: string) => file.endsWith('.zst');
+
+/**
+ * A file's lines, split at line feeds only: JSON text may hold U+2028, where line readers also split.
+ * A compressed rollout is read through its decompression; one still being written ends where its
+ * complete data does.
+ */
 async function* lines(file: string): AsyncGenerator<string> {
   let pending: Buffer[] = [];
-  for await (const chunk of createReadStream(file, { highWaterMark: 1 << 20 }) as AsyncIterable<Buffer>) {
-    let start = 0;
-    for (let end = chunk.indexOf(10); end !== -1; end = chunk.indexOf(10, start)) {
-      pending.push(chunk.subarray(start, end));
-      yield (pending.length === 1 ? pending[0] : Buffer.concat(pending)).toString('utf8');
-      pending = [];
-      start = end + 1;
+  const read = createReadStream(file, { highWaterMark: 1 << 20 });
+  const source = compressed(file) ? read.pipe(createZstdDecompress()) : read;
+  try {
+    for await (const chunk of source as AsyncIterable<Buffer>) {
+      let start = 0;
+      for (let end = chunk.indexOf(10); end !== -1; end = chunk.indexOf(10, start)) {
+        pending.push(chunk.subarray(start, end));
+        yield (pending.length === 1 ? pending[0] : Buffer.concat(pending)).toString('utf8');
+        pending = [];
+        start = end + 1;
+      }
+      if (start < chunk.length) pending.push(chunk.subarray(start));
     }
-    if (start < chunk.length) pending.push(chunk.subarray(start));
-  }
+  } catch (error) {
+    // The end of a compressed stream still being written is not complete yet.
+    if (!compressed(file)) throw error;
+    pending = [];
+  } finally { read.destroy(); }
   if (pending.length) yield Buffer.concat(pending).toString('utf8');
 }
 
 /** A busy stretch, credited to the model at work (null when unknown) and its agent (null for the session's own). */
-interface Segment { start: number; end: number; model: string | null; agent: string | null }
+interface Segment { start: number; end: number; model: string | null; effort: string | null; agent: string | null }
 /** Tokens spent at a moment: one response (Claude Code) or one increase of the running count (Codex). */
-interface Spend { at: number; model: string | null; agent: string | null; tokens: TokenKinds }
+interface Spend { at: number; model: string | null; effort: string | null; agent: string | null; tokens: TokenKinds }
 interface Timeline { segments: Segment[]; spends: Spend[]; latest: { at: number; model: string } | null; events: number }
 
 const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
 /** A model identifier as reports accept it; anything else counts without a model. */
 const modelOf = (value: unknown) => typeof value === 'string' && value !== '<synthetic>' && modelPattern.test(value) ? value : null;
+/** A reasoning effort as harnesses log it (`high`, `medium`, `xhigh`…); anything else is none. */
+const effortOf = (value: unknown) => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,31}$/i.test(value) ? value.toLowerCase() : null;
 const timeOf = (value: unknown) => typeof value === 'string' ? Date.parse(value) : Number.NaN;
 const objectOf = (text: string): Record<string, unknown> | null => {
   try { const value: unknown = JSON.parse(text); return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null; } catch { return null; }
@@ -261,7 +285,7 @@ const objectOf = (text: string): Record<string, unknown> | null => {
 
 /** The parts of a Claude Code line that timing reads; anything may be missing or of another type. */
 interface ClaudeLine {
-  type?: unknown; timestamp?: unknown; isMeta?: unknown; isCompactSummary?: unknown; subtype?: unknown;
+  type?: unknown; timestamp?: unknown; isMeta?: unknown; isCompactSummary?: unknown; subtype?: unknown; effort?: unknown; perTurnEffort?: unknown;
   compactMetadata?: { durationMs?: unknown } | null;
   permissionDecision?: { source?: unknown } | null; origin?: { kind?: unknown } | null;
   message?: { id?: unknown; model?: unknown; content?: unknown; stop_reason?: unknown; usage?: Record<string, unknown> | null } | null;
@@ -270,7 +294,7 @@ interface ClaudeLine {
  * A tool result after the person's answer or decision closes a stretch that was theirs, not the
  * agent's. A response that ends its turn closes it; one that asks the person leaves it waiting.
  */
-type ClaudeEvent = { at: number } & ({ kind: 'prompt' } | { kind: 'activity'; model: string | null; person?: boolean; closes?: boolean; asks?: boolean } | { kind: 'compaction'; durationMs: number });
+type ClaudeEvent = { at: number } & ({ kind: 'prompt' } | { kind: 'activity'; model: string | null; effort?: string | null; person?: boolean; closes?: boolean; asks?: boolean } | { kind: 'compaction'; durationMs: number });
 /** Tools that wait for the person: a question, and approval of a plan. */
 const personTools = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
@@ -282,7 +306,8 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
     let asks = false;
     if (Array.isArray(content)) for (const part of content) if (part?.type === 'tool_use' && personTools.has(part.name)) { asked.add(part.id); asks = true; }
     const stop = line.message?.stop_reason;
-    return { at, kind: 'activity', model: modelOf(line.message?.model), closes: typeof stop === 'string' && stop !== 'tool_use', asks };
+    // Claude Code logs the turn's reasoning effort on each response.
+    return { at, kind: 'activity', model: modelOf(line.message?.model), effort: effortOf(line.perTurnEffort) ?? effortOf(line.effort), closes: typeof stop === 'string' && stop !== 'tool_use', asks };
   }
   if (line.type === 'system') {
     const durationMs = line.subtype === 'compact_boundary' ? count(line.compactMetadata?.durationMs) : 0;
@@ -328,26 +353,27 @@ async function claudeTimeline(files: LogFile[], at: number, live: boolean): Prom
       const usage = line.message?.usage, model = modelOf(line.message?.model);
       if (line.type !== 'assistant' || !model || !usage || typeof usage !== 'object') continue;
       const id = line.message?.id, key = typeof id === 'string' ? id : log.file + '#' + number;
-      responses.set(key, { at: Math.min(responses.get(key)?.at ?? event.at, event.at), model, agent: log.agent, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
+      responses.set(key, { at: Math.min(responses.get(key)?.at ?? event.at, event.at), model, effort: event.kind === 'activity' ? event.effort ?? null : null, agent: log.agent, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
     }
     timeline.events += events.length;
     events.sort((a, b) => a.at - b.at);
-    let turn: { last: number; model: string | null } | null = null;
-    let current: string | null = null;
+    let turn: { last: number; model: string | null; effort: string | null } | null = null;
+    let current: string | null = null, effort: string | null = null;
     for (const event of events) {
-      if (event.kind === 'prompt') { turn = { last: event.at, model: current }; continue; }
-      if (event.kind === 'compaction') { timeline.segments.push({ start: event.at - event.durationMs, end: event.at, model: turn?.model ?? current, agent: log.agent }); continue; }
-      turn ??= { last: event.at, model: current };
-      if (event.at > turn.last && !event.person) timeline.segments.push({ start: turn.last, end: event.at, model: event.model ?? turn.model, agent: log.agent });
+      if (event.kind === 'prompt') { turn = { last: event.at, model: current, effort }; continue; }
+      if (event.kind === 'compaction') { timeline.segments.push({ start: event.at - event.durationMs, end: event.at, model: turn?.model ?? current, effort: turn?.effort ?? effort, agent: log.agent }); continue; }
+      turn ??= { last: event.at, model: current, effort };
+      if (event.at > turn.last && !event.person) timeline.segments.push({ start: turn.last, end: event.at, model: event.model ?? turn.model, effort: event.model ? event.effort ?? turn.effort : turn.effort, agent: log.agent });
       turn.last = Math.max(turn.last, event.at);
       if (event.model) {
         turn.model = current = event.model;
+        turn.effort = effort = event.effort ?? turn.effort;
         if (log.agent === null && event.at <= at && (!timeline.latest || event.at >= timeline.latest.at)) timeline.latest = { at: event.at, model: event.model };
       }
       if (event.closes) turn = null;
     }
     const end = events.at(-1);
-    if (live && turn && end && at > turn.last && at - turn.last <= runOnLimit && !(end.kind === 'activity' && end.asks)) timeline.segments.push({ start: turn.last, end: at, model: turn.model, agent: log.agent });
+    if (live && turn && end && at > turn.last && at - turn.last <= runOnLimit && !(end.kind === 'activity' && end.asks)) timeline.segments.push({ start: turn.last, end: at, model: turn.model, effort: turn.effort, agent: log.agent });
   }
   timeline.spends = [...responses.values()];
   return timeline;
@@ -356,7 +382,7 @@ async function claudeTimeline(files: LogFile[], at: number, live: boolean): Prom
 /** The parts of a Codex line that timing reads. */
 interface CodexLine {
   type?: unknown; timestamp?: unknown;
-  payload?: { type?: unknown; turn_id?: unknown; model?: unknown; started_at?: unknown; call_id?: unknown; info?: { total_token_usage?: unknown; last_token_usage?: unknown } | null } | null;
+  payload?: { type?: unknown; turn_id?: unknown; model?: unknown; effort?: unknown; collaboration_mode?: { settings?: { reasoning_effort?: unknown } | null } | null; started_at?: unknown; call_id?: unknown; info?: { total_token_usage?: unknown; last_token_usage?: unknown } | null } | null;
 }
 /** Codex lines name their type first; only turns, their models, token counts and questions to the person are read. */
 const codexWanted = /"type":"(?:turn_context"|event_msg","payload":\{"type":"(?:task_started|task_complete|turn_aborted|token_count)"|response_item","payload":\{"type":"function_call",(?:"id":"[^"]*",)?"name":"request_user_input")/;
@@ -383,13 +409,13 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
   const newest = files.filter(file => file.agent === null).sort((a, b) => b.modified - a.modified)[0];
   for (const log of files) {
-    const models = new Map<string, string>();
+    const models = new Map<string, string>(), efforts = new Map<string, string>();
     const asked = new Map<string, number>();
     let open: { turn: string; start: number } | null = null;
-    let current: string | null = null, last = Number.NaN, total: CodexCount | null = null, start = Number.NaN;
+    let current: string | null = null, effort: string | null = null, last = Number.NaN, total: CodexCount | null = null, start = Number.NaN;
     let own = true;
     const finish = (turn: { turn: string; start: number }, end: number) => {
-      if (end > turn.start) timeline.segments.push({ start: turn.start, end, model: models.get(turn.turn) ?? current, agent: log.agent });
+      if (end > turn.start) timeline.segments.push({ start: turn.start, end, model: models.get(turn.turn) ?? current, effort: efforts.get(turn.turn) ?? effort, agent: log.agent });
       return null;
     };
     for await (const text of lines(log.file)) {
@@ -417,8 +443,11 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
       else if (line.type === 'turn_context') {
         const model = modelOf(payload.model);
         if (!model) continue;
-        if (typeof payload.turn_id === 'string') models.set(payload.turn_id, model);
+        // The turn's reasoning effort, where the turn context names it.
+        const level = effortOf(payload.effort) ?? effortOf(payload.collaboration_mode?.settings?.reasoning_effort);
+        if (typeof payload.turn_id === 'string') { models.set(payload.turn_id, model); if (level) efforts.set(payload.turn_id, level); }
         current = model;
+        effort = level ?? effort;
         if (log.agent === null && moment <= at && (!timeline.latest || moment >= timeline.latest.at)) timeline.latest = { at: moment, model };
       } else if (payload.type === 'task_started' && typeof payload.turn_id === 'string') {
         if (typeof payload.started_at === 'number' && payload.started_at * 1000 < moment - replayed) continue;
@@ -438,7 +467,7 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
         const step = total === null || running.input < total.input || running.output < total.output ? codexCount(payload.info?.last_token_usage)
           : { input: running.input - total.input, cached: Math.max(0, running.cached - total.cached), written: Math.max(0, running.written - total.written), output: running.output - total.output };
         total = running;
-        if (step && step.input + step.output > 0) timeline.spends.push({ at: moment, model: (open && models.get(open.turn)) ?? current, agent: log.agent, tokens: codexKinds(step) });
+        if (step && step.input + step.output > 0) timeline.spends.push({ at: moment, model: (open && models.get(open.turn)) ?? current, effort: (open && efforts.get(open.turn)) ?? effort, agent: log.agent, tokens: codexKinds(step) });
       }
       last = moment;
     }
@@ -499,7 +528,20 @@ function measureTimeline(logs: SessionLogs, timeline: Timeline, from: number, at
   }).filter(agent => agent.agentMs > 0 || agent.tokens > 0).sort((a, b) => b.agentMs - a.agentMs || b.tokens - a.tokens || a.id.localeCompare(b.id));
   const intervals = working.flatMap(agent => stretches(own.get(agent)!, from, at).map(([start, end]): MeasuredInterval => ({ agent, start: new Date(start).toISOString(), end: new Date(end).toISOString() })))
     .sort((a, b) => a.start.localeCompare(b.start) || (a.agent ?? '').localeCompare(b.agent ?? ''));
-  return { harness: logs.harness, session: logs.session, agentMs: working.reduce((total, agent) => total + time(agent), 0), models, mainModel: busiest(null) ?? timeline.latest?.model ?? null, subagents, intervals };
+  const efforts = new Map<string, MeasuredEffort>();
+  const level = (agent: string | null, model: string, effort: string) => {
+    const key = (agent ?? '') + '\0' + model + '\0' + effort;
+    let found = efforts.get(key);
+    if (!found) efforts.set(key, found = { agent, model, effort, agentMs: 0, tokens: 0 });
+    return found;
+  };
+  for (const agent of working) {
+    for (const segment of own.get(agent)!) if (segment.model && segment.effort) level(agent, segment.model, segment.effort);
+  }
+  for (const entry of efforts.values()) entry.agentMs = covered(own.get(entry.agent)!.filter(segment => segment.model === entry.model && segment.effort === entry.effort), from, at);
+  for (const spend of spent) if (spend.model && spend.effort) level(spend.agent, spend.model, spend.effort).tokens += tokens(spend.tokens);
+  return { harness: logs.harness, session: logs.session, agentMs: working.reduce((total, agent) => total + time(agent), 0), models, mainModel: busiest(null) ?? timeline.latest?.model ?? null, subagents, intervals,
+    efforts: [...efforts.values()].filter(entry => entry.agentMs > 0 || entry.tokens > 0).sort((a, b) => b.agentMs - a.agentMs || b.tokens - a.tokens) };
 }
 
 /**
