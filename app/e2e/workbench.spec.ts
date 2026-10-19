@@ -281,7 +281,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await openProjects(window);
   await expectProjects(window, ['Northwind']);
   await expect(projectRow(window)).toContainText(home.folder);
-  await expect(projectRow(window).locator('.project-meta')).toContainText('shop');
+  await expect(projectRow(window).locator('.project-chips')).toContainText('shop');
   // Workspace folders, added and removed on the project's row: each change goes into its planning.json.
   const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).workspaces ?? [];
   const [first, second] = [temporaryDirectory('atlas-e2e-workspace-'), temporaryDirectory('atlas-e2e-workspace-')];
@@ -297,14 +297,14 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await expect(projectRow(window)).toContainText('No workspace folders: agents find the project by its repositories');
   await add(first);
   await add(second);
-  await expect(projectRow(window).locator('.project-folders li')).toHaveText([first, second]);
+  await expect(projectRow(window).locator('.project-folder')).toHaveText([first, second]);
   expect(workspaces()).toEqual([first, second]);
   // Removing one waits for the change before the next.
   await projectRow(window).getByRole('button', { name: 'Remove ' + first }).click();
-  await expect(projectRow(window).locator('.project-folders li')).toHaveText([second]);
+  await expect(projectRow(window).locator('.project-folder')).toHaveText([second]);
   expect(workspaces()).toEqual([second]);
   await projectRow(window).getByRole('button', { name: 'Remove ' + second }).click();
-  await expect(projectRow(window).locator('.project-folders')).toHaveCount(0);
+  await expect(projectRow(window).locator('.project-folder')).toHaveCount(0);
   expect(workspaces()).toEqual([]);
   // A folder by a relative path is refused.
   await projectAction(window, 'Northwind', 'Add Workspace Folder…');
@@ -333,7 +333,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   const folder = path.join(home.dataDirectory, 'planning', 'coord');
   const registry = JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8'));
   expect([registry.name, registry.workspaces, registry.repositories.map((item: { remote: string }) => item.remote)]).toEqual(['Coord', [workspace], ['git@github.com:example/coord-shop.git']]);
-  await expect(projectRow(window, 'Coord').locator('.project-folders')).toContainText(workspace);
+  await expect(projectRow(window, 'Coord').locator('.project-chips')).toContainText(workspace);
   expect(existsSync(path.join(folder, '.git')) && existsSync(path.join(folder, 'AGENTS.md'))).toBe(true);
   await expectProjects(window, ['Northwind', 'Coord']);
   // Rename: the name goes into its planning.json.

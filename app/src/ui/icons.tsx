@@ -4,6 +4,7 @@ export { Add as AddIcon } from '@envsemble/envui/icons/Add';
 export { ArrowUpward as ArrowUpIcon } from '@envsemble/envui/icons/ArrowUpward';
 export { BarChart as StatisticsIcon } from '@envsemble/envui/icons/BarChart';
 export { Block as BlockedIcon } from '@envsemble/envui/icons/Block';
+export { Book as RepositoryIcon } from '@envsemble/envui/icons/Book';
 export { Check as CheckIcon } from '@envsemble/envui/icons/Check';
 export { CheckCircle as CompleteIcon } from '@envsemble/envui/icons/CheckCircle';
 export { Checklist as PlanIcon } from '@envsemble/envui/icons/Checklist';

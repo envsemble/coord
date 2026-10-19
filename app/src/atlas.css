@@ -104,19 +104,25 @@ body { margin: 0; }
 .projects-intro { margin: 0; max-inline-size: 48rem; }
 .projects-aside { display: grid; gap: var(--space-3); margin-block-start: var(--space-4); }
 .projects-aside .project-row { opacity: 0.8; }
-/* A project, one compact row: its name, its planning folder and repositories in one muted line, its
-   workspace folders as small quiet chips, removed with a button that shows when the row is pointed at
-   or focused, and its statistics and menu at the end. */
-.project-meta { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
-.project-path { overflow-wrap: anywhere; }
-.project-repositories::before { content: '·'; margin-inline-end: var(--space-3); }
+/* A project's row: its avatar (its initials on a tint of its colour) at the left, its name and facts,
+   its repositories and workspace folders as chips, its planning folder quietly, and its statistics
+   and menu at the end, centred on the row. A folder's remove button shows when the row is pointed
+   at or focused. */
+.env-grouped-rows > .project-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-4); }
+.project-row::before { content: attr(data-initials); display: grid; place-content: center; inline-size: 2.5rem; block-size: 2.5rem; border-radius: var(--radius-standard); background: color-mix(in srgb, var(--project-tone) 16%, var(--color-canvas)); color: color-mix(in srgb, var(--project-tone) 70%, var(--color-text-primary)); font-weight: 600; letter-spacing: 0.02em; }
+.project-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.project-fact { display: inline-flex; align-items: center; gap: 0.25rem; }
+.project-fact .status-icon { inline-size: 1rem; block-size: 1rem; }
 .project-actions { display: inline-flex; align-items: center; gap: var(--space-1); }
-.project-folders { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
-.project-folders li { display: inline-flex; align-items: center; gap: var(--space-1); min-block-size: 1.75rem; padding-inline: var(--space-2) var(--space-1); border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-muted); }
-.project-folders li > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-chips { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
+.project-chips:empty { display: none; }
+.project-chip { display: inline-flex; align-items: center; gap: var(--space-1); min-block-size: 1.75rem; padding-inline: var(--space-2); border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-secondary, var(--color-text-muted)); overflow-wrap: anywhere; }
+.project-chip > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-folder { padding-inline-end: var(--space-1); }
 .project-folder-remove { opacity: 0; transition: opacity var(--motion-duration-fast) var(--motion-ease); }
 .project-row:is(:hover, :focus-within) .project-folder-remove { opacity: 1; }
-.project-folders-none { margin: var(--space-2) 0 0; font-size: var(--font-size-body-small); }
+.project-note { margin: var(--space-2) 0 0; font-size: var(--font-size-body-small); }
+.project-path { margin: var(--space-1) 0 0; color: var(--color-text-quiet, var(--color-text-muted)); font-size: var(--font-size-caption, var(--font-size-body-small)); overflow-wrap: anywhere; }
 .page-heading-stack { display: grid; gap: var(--space-2); }
 /* A folder's path, typed or chosen, with Browse… beside it; then what the folder holds. */
 .folder-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }

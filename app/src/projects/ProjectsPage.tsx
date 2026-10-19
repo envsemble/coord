@@ -1,13 +1,19 @@
-// The Projects page: every project of the window's computer, active, then archived more quietly, one compact row each: its name (leading to its plans), its planning folder and
-// repositories in one muted line, the workspace folders it covers (an agent working in one of them,
-// or inside one, belongs to the project), its statistics, and in its menu what can be done with it:
-// add a workspace folder, rename, archive, restore, move into the Atlas home. A folder is
-// removed from its row, quietly until the row is pointed at. Projects are made here too: a name and a
+// The Projects page: every project of the window's computer, active, then archived more quietly,
+// one row each: its avatar (its initials in a colour of its own), its name (leading to its plans),
+// its open plans with what agents do on them and when it changed, its repositories and the workspace
+// folders it covers as chips (an agent working in one of them, or inside one, belongs to the
+// project), its planning folder quietly, its statistics, and in its menu what can be done with it:
+// add a workspace folder, rename, archive, restore, move into the Atlas home. A folder is removed
+// from its row, quietly until the row is pointed at. Projects are made here too: a name and a
 // folder. Workspace folders are paths on the project's own computer, so they are only chosen in Atlas
 // there.
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Badge, Button, Dialog, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Text, Tooltip } from '@envsemble/envui';
-import { CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, StatisticsIcon } from '../ui/icons';
+import { CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, RepositoryIcon, StatisticsIcon } from '../ui/icons';
+import { StatusIcon } from '../ui/ui';
+import { statuses } from '../ui/status';
+import { absoluteDate, plural, relativeDate } from '../ui/format';
+import { avatarTone, initials, projectFacts } from './projectLook';
 import type { Project, ProjectChangeRequest, WorkspaceScan } from '../types';
 import { fullPath } from '../../shared/contract';
 import { api, AtlasError } from '../api';
@@ -170,24 +176,34 @@ function ProjectRow({ project, computer, local, actions, rename, addFolder }: { 
   const [busy, setBusy] = useState(false);
   const change = (request: ProjectChangeRequest) => { setBusy(true); void actions.change(project, request).finally(() => setBusy(false)); };
   const repositories = project.summary?.repositories ?? null;
+  const facts = projectFacts(project);
   return <Row className="project-row" data-project={project.folderId} data-state={project.state} aria-busy={busy || undefined}
+    data-initials={initials(project.name)} style={{ '--project-tone': avatarTone(project) } as CSSProperties}
     title={<span className="row-title">
       <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
       {project.state !== 'active' && <Badge tone="warning">Archived</Badge>}
       {project.outsideHome && <Badge title="Agents do not find it until it is moved into the Atlas home">Outside the Atlas home</Badge>}
     </span>}
-    detail={<span className="project-meta"><bdi className="project-path">{project.path}</bdi>
-      <span className="project-repositories">{repositories === null ? 'Its planning folder could not be read' : repositories.length ? repositories.join(', ') : 'No repositories'}</span></span>}
+    detail={facts ? <span className="project-facts">
+      <span>{plural(facts.open, 'open plan')}</span>
+      {facts.working > 0 && <span className="project-fact" data-tone="working"><StatusIcon status={statuses.working} decorative />{facts.working} working</span>}
+      {facts.waiting > 0 && <span className="project-fact" data-tone="waiting"><StatusIcon status={statuses.waiting} decorative />{facts.waiting} {facts.waiting === 1 ? 'needs' : 'need'} you</span>}
+      {facts.updated && <span title={absoluteDate(facts.updated)}>changed {relativeDate(facts.updated)}</span>}
+    </span> : <span className="project-facts">Its planning folder could not be read</span>}
     action={<span className="project-actions">
       <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => actions.go(statisticsPlace(project.folderId))} aria-label={'Statistics of ' + project.name}>Statistics</Button>
       <ProjectMenu project={project} actions={actions} rename={rename} addFolder={local ? addFolder : null} busy={busy} change={change} />
     </span>}>
-    {project.workspaces.length ? <ul className="project-folders" aria-label={'Workspace folders of ' + project.name}>{project.workspaces.map(folder => <li key={folder}>
-      <FolderIcon /><bdi>{folder}</bdi>
-      {local && <Tooltip content="Remove this folder"><IconButton variant="text" className="project-folder-remove" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy}
-        onClick={() => change({ workspaces: project.workspaces.filter(item => item !== folder) })} /></Tooltip>}
-    </li>)}</ul> : local && <p className="project-folders-none muted">No workspace folders: agents find the project by its repositories’ remotes.</p>}
-    {!local && <p className="project-folders-none muted">Folders are chosen in Atlas on {computer}.</p>}
+    <ul className="project-chips" aria-label={'Repositories and workspace folders of ' + project.name}>
+      {(repositories ?? []).map(repository => <li key={'r:' + repository} className="project-chip" title="Repository"><RepositoryIcon /><span>{repository}</span></li>)}
+      {project.workspaces.map(folder => <li key={'f:' + folder} className="project-chip project-folder" title="Workspace folder"><FolderIcon /><bdi>{folder}</bdi>
+        {local && <Tooltip content="Remove this folder"><IconButton variant="text" className="project-folder-remove" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy}
+          onClick={() => change({ workspaces: project.workspaces.filter(item => item !== folder) })} /></Tooltip>}
+      </li>)}
+    </ul>
+    {!project.workspaces.length && local && <p className="project-note muted">No workspace folders: agents find the project by its repositories’ remotes.</p>}
+    {!local && <p className="project-note muted">Folders are chosen in Atlas on {computer}.</p>}
+    <p className="project-path muted"><bdi>{project.path}</bdi></p>
   </Row>;
 }
 
