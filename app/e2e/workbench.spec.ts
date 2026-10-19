@@ -458,8 +458,9 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await window.keyboard.press('Escape');
   await openPlan(window, 'Saved payment methods');
   await window.keyboard.press('Control+Shift+E');
-  await expect(window.getByRole('region', { name: 'Files' })).toBeVisible();
+  await expect(window.getByRole('dialog', { name: /^Files of / })).toBeVisible();
   await window.keyboard.press('Control+Shift+E');
+  await expect(window.getByRole('dialog', { name: /^Files of / })).toHaveCount(0);
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Edit's keys act on the focused field.

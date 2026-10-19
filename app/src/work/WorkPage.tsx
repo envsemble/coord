@@ -150,8 +150,9 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
 }
 
 /**
- * A file on the page as a plan is: the breadcrumb (its project, its plan's number, its name) with Show
- * in folder quietly on its right, then the file as the reader shows it.
+ * A file on the page as a plan is: the breadcrumb (its project, its plan's number when it is one of a
+ * plan's, its name, with its path on hover) with Show in folder quietly on its right, then the file as
+ * the reader shows it.
  */
 export function FileView({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
   const { project, notify, remote } = useWorkbench();
@@ -160,7 +161,7 @@ export function FileView({ file, snapshot, anchor }: { file: Document; snapshot:
   const reveal = () => { api.reveal(project, file.path).catch(error => notify((error as Error).message, 'warning')); };
   return <div className="page file-page">
     <div className="work-trail">
-      <Trail items={[...(owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []), { label: owner ? file.name : file.path }]} />
+      <Trail items={[...(owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []), { label: <span title={file.path}>{file.name}</span> }]} />
       {!remote && <Button variant="text" className="work-export" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>}
     </div>
     <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} references={references} showWork={!file.workId} />
