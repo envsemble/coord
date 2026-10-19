@@ -68,7 +68,12 @@ export async function workSessions(database: HomeDatabase, projectId: number, wo
   const rows = database.db.prepare(`SELECT session.* FROM session_work JOIN session ON session.id = session_work.session_id
     WHERE session_work.project_id = ? AND session_work.work_id = ? ORDER BY session.updated_at DESC`).all(projectId, workId) as Row[];
   const agents = summarizeReports(storedReports(database, projectId, [workId]).get(workId) ?? []).agents;
-  const states = new Map((database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []).map(entry => [entry.session, entry.state]));
+  // A session works while its main agent or any of its subagents (`<session>/<subagent>`) does.
+  const states = new Map<string, 'working' | 'waiting'>();
+  for (const entry of database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []) {
+    const session = entry.session.split('/')[0];
+    if (states.get(session) !== 'working') states.set(session, entry.state);
+  }
   const sessions = await Promise.all(rows.map(async (row): Promise<SessionEntry> => {
     const id = String(row.id), harness = harnessOf(row.harness), state = states.get(id) ?? 'ended';
     const folder = local ? await startFolder(database, row) : null;
@@ -125,7 +130,9 @@ export function workTimeline(database: HomeDatabase, projectId: number, workId: 
     for (const interval of report.measured?.intervals ?? []) lane(report.session, interval.agent).working.push([Date.parse(interval.start), Date.parse(interval.end)]);
   }
   for (const entry of database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []) {
-    if (entry.state === 'working' && entry.countsFrom) lane(entry.session, null).working.push([Date.parse(entry.countsFrom), now]);
+    // A subagent at work is listed as `<session>/<subagent>`: its own lane.
+    const [session, subagent = null] = entry.session.split('/');
+    if (entry.state === 'working' && entry.countsFrom) lane(session, subagent).working.push([Date.parse(entry.countsFrom), now]);
   }
   // When each session worked on the work item, as its reports and its turn now show: another
   // session's work ends a wait for the person there, as it ends Needs you.
@@ -146,9 +153,15 @@ export function workTimeline(database: HomeDatabase, projectId: number, workId: 
       for (const [from, to] of entry.spans) if (to > start) end = Math.min(end, Math.max(from, start));
       for (const at of entry.reported) if (at > start) end = Math.min(end, at);
     }
-    if (end <= start) continue;
-    waits.push([start, end]);
-    lane(session, null).waiting.push([start, end]);
+    // While the session's own subagents work, it does not wait for the person yet.
+    const helping = mergeSpans([...lanes.values()].filter(item => item.session === session && item.subagent !== null).flatMap(item => item.working));
+    let from = start;
+    for (const [busy, until] of [...helping, [Infinity, Infinity] as [number, number]]) {
+      const to = Math.min(end, busy);
+      if (to > from) { waits.push([from, to]); lane(session, null).waiting.push([from, to]); }
+      from = Math.max(from, until);
+      if (from >= end) break;
+    }
   }
   // Sessions waiting at once wait for one person: their waits count once.
   const waitedMs = mergeSpans(waits).reduce((total, [start, end]) => total + end - start, 0);

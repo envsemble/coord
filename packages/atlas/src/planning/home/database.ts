@@ -101,6 +101,10 @@ const migrations = [
   CREATE INDEX report_effort_report ON report_effort(report_id);`,
   // A session's own title, as its harness names it (Claude Code's latest ai-title, Codex's thread name).
   `ALTER TABLE session ADD COLUMN title TEXT;`,
+  // A session's subagents at work: when each started and was last seen, and when it stopped (null while it works).
+  `CREATE TABLE session_agent (
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE, agent_id TEXT NOT NULL, agent_type TEXT,
+    started_at TEXT NOT NULL, seen_at TEXT NOT NULL, stopped_at TEXT, PRIMARY KEY (session_id, agent_id));`,
 ];
 /** How long a working session counts as live without being seen again: a long tool call can be quiet this long. */
 export const liveWindowMs = 15 * 60_000;
@@ -284,15 +288,23 @@ export class HomeDatabase {
    * wait. A session counts only for the work item it is on (`session.focus`, else the one it touched
    * last). Its time not yet reported counts from the latest of `counts_at` (its turn's start, moved
    * on past its waits and reports), when it came to the work item and its last report there; a
-   * waiting session's stops when it began to wait, and is gone once its report is in.
+   * waiting session's stops when it began to wait, and is gone once its report is in. Each of its
+   * subagents at work (seen within `liveWindowMs`, not stopped) is listed as working too, as
+   * `<session>/<subagent>`, so the work item works while they do, whatever its main agent does.
    */
   workActivity(now = Date.now()): Map<number, WorkActivityRow[]> {
     const rows = this.db.prepare(`SELECT session.id, session.harness, session.working, session.turn_at, session.waiting_at, session.updated_at, session.counts_at, session.focus,
         session_work.id AS link, session_work.project_id, session_work.work_id, ifnull(session_work.focused_at, session_work.linked_at) AS came, ifnull(session_work.touched_at, session_work.linked_at) AS touched,
         (SELECT max(at) FROM work_report WHERE work_report.project_id = session_work.project_id AND work_report.work_id = session_work.work_id AND work_report.session = session.id) AS reported
       FROM session JOIN session_work ON session_work.session_id = session.id
-      WHERE (session.working = 1 AND session.updated_at >= ?) OR (session.working = 0 AND session.waiting_at >= ?)`)
-      .all(new Date(now - liveWindowMs).toISOString(), new Date(now - waitingWindowMs).toISOString()) as Row[];
+      WHERE (session.working = 1 AND session.updated_at >= $live) OR (session.working = 0 AND session.waiting_at >= $day)
+        OR session.id IN (SELECT session_id FROM session_agent WHERE stopped_at IS NULL AND seen_at >= $live)`)
+      .all({ live: new Date(now - liveWindowMs).toISOString(), day: new Date(now - waitingWindowMs).toISOString() }) as Row[];
+    // Subagents at work: started or seen within the live window, and not stopped.
+    const agents = new Map<string, Row[]>();
+    for (const agent of this.db.prepare('SELECT * FROM session_agent WHERE stopped_at IS NULL AND seen_at >= ? ORDER BY started_at').all(new Date(now - liveWindowMs).toISOString()) as Row[]) {
+      agents.set(String(agent.session_id), [...agents.get(String(agent.session_id)) ?? [], agent]);
+    }
     const on = new Map<string, Row>();
     for (const row of rows) {
       const kept = on.get(String(row.id));
@@ -304,19 +316,31 @@ export class HomeDatabase {
       UNION ALL SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND ifnull(session, '') != ? AND at > ? LIMIT 1`);
     const latest = (...values: (string | null)[]) => values.filter((value): value is string => value !== null).sort().at(-1) ?? null;
     const work = new Map<string, { projectId: number; workId: string; sessions: SessionActivityRow[] }>();
+    const liveFrom = new Date(now - liveWindowMs).toISOString(), dayFrom = new Date(now - waitingWindowMs).toISOString();
     for (const row of on.values()) {
-      const working = Number(row.working) === 1;
       const id = String(row.id), waiting = row.waiting_at as string | null;
-      if (!working && ([...on.values()].some(other => other !== row && other.project_id === row.project_id && other.work_id === row.work_id && String(other.turn_at ?? '') > waiting!)
+      const working = Number(row.working) === 1 && String(row.updated_at) >= liveFrom;
+      const harness = row.harness === 'claude-code' || row.harness === 'codex' ? row.harness : 'unknown';
+      const key = row.project_id + '\0' + row.work_id;
+      const sessions = () => {
+        let entry = work.get(key);
+        if (!entry) work.set(key, entry = { projectId: Number(row.project_id), workId: String(row.work_id), sessions: [] });
+        return entry.sessions;
+      };
+      // Each subagent at work counts for the work item its session is on, its time from its start
+      // (or the session's last report there, or when the session came to it).
+      for (const agent of agents.get(id) ?? []) {
+        sessions().push({ session: id + '/' + String(agent.agent_id), harness, state: 'working', since: String(agent.started_at), countsFrom: latest(String(agent.started_at), row.came as string, row.reported as string | null) });
+      }
+      // The main agent: in a turn, or waiting for the person; not when it has done neither lately.
+      const waits = !working && Number(row.working) !== 1 && waiting !== null && waiting >= dayFrom;
+      if (!working && !waits) continue;
+      if (waits && ([...on.values()].some(other => other !== row && other.project_id === row.project_id && other.work_id === row.work_id && String(other.turn_at ?? '') > waiting)
         || later.get(Number(row.project_id), String(row.work_id), id, waiting, Number(row.project_id), String(row.work_id), id, waiting))) continue;
       // A session from before turns were recorded counts from when it was last seen.
       const turn = String(row.turn_at ?? row.updated_at);
       const counted = latest(row.counts_at as string | null ?? (working ? turn : null), row.came as string, row.reported as string | null);
-      const harness = row.harness === 'claude-code' || row.harness === 'codex' ? row.harness : 'unknown';
-      const key = row.project_id + '\0' + row.work_id;
-      let entry = work.get(key);
-      if (!entry) work.set(key, entry = { projectId: Number(row.project_id), workId: String(row.work_id), sessions: [] });
-      entry.sessions.push(working ? { session: id, harness, state: 'working', since: turn, countsFrom: counted }
+      sessions().push(working ? { session: id, harness, state: 'working', since: turn, countsFrom: counted }
         : { session: id, harness, state: 'waiting', since: waiting!, countsFrom: row.counts_at !== null && counted! < waiting! ? counted : null });
     }
     const order = (a: { state: string; since: string }, b: { state: string; since: string }) => Number(b.state === 'working') - Number(a.state === 'working') || b.since.localeCompare(a.since);

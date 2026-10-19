@@ -18,7 +18,7 @@ import path from 'node:path';
 import { checkPaths, findPlanning, HomeDatabase, homePlanningDirectory, insertReport, liveWindowMs, logConsultation, logTail, parseFrontmatter, prepareWorkReport, projectOf, resolvePlanningFolder, type PreparedReport, type Whereabouts } from '../../planning/index.ts';
 import { atlasHome } from '../../planning/home/homePath.ts';
 import type { Output } from '../args.ts';
-import { logFailure, pruneStamps, recordActivity, recordSession, sessionPattern, stateEvents, stateHook, type Activity, type ActivityDetails } from './sessionState.ts';
+import { logFailure, pruneStamps, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
 
 export interface HookInput {
   session_id?: string; transcript_path?: string; cwd?: string; hook_event_name?: string;
@@ -267,6 +267,8 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const input = JSON.parse(text || '{}') as HookInput;
     const session = typeof input.session_id === 'string' && sessionPattern.test(input.session_id) ? input.session_id : null;
     const transcriptPath = typeof input.transcript_path === 'string' ? input.transcript_path : null;
+    // A subagent's hook (Claude Code names the subagent; the session is its main agent's).
+    const agent = typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;
     if (event === 'SessionStart') {
       pruneStamps(home);
       const context = sessionContext(await findPlanning(input.cwd ?? process.cwd(), { home }));
@@ -293,7 +295,9 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
         }
         // Another hook of the session that moved it on meanwhile reported the work item it left.
         if (left && report && focus === links.focus) recordReport(database!, session, left, report, at);
-        recordState(database!, home, links, 'tool', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null });
+        // A subagent's edit says it is at work; the main agent's state stays as it is.
+        if (agent) recordAgent(database!, home, session, agent, typeof input.agent_type === 'string' ? input.agent_type.slice(0, 100) : null, at, liveWindowMs);
+        else recordState(database!, home, links, 'tool', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null });
       });
       return output ? JSON.stringify(output) : '';
     }
@@ -309,7 +313,10 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     database.transaction(() => {
       if (report) recordReport(database!, session, links.on!, report, at);
       // A subagent stopping only says the session is still seen.
-      if (event === 'SubagentStop') recordState(database!, home, links, null, at);
+      if (event === 'SubagentStop') {
+        recordState(database!, home, links, null, at);
+        if (agent) stopAgent(database!, home, session, agent, at);
+      }
     });
     return '';
   } catch (error) {

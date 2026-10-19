@@ -16,8 +16,11 @@ import type { HomeDatabase } from '../../planning/home/database.ts';
  * (null, as a subagent stopping).
  */
 export type Activity = 'prompt' | 'tool' | 'ask' | 'stop' | 'end' | null;
-/** The hooks that only record a session's state: ToolUse after every tool use, successful or not. */
-export const stateEvents = new Set(['UserPromptSubmit', 'ToolUse', 'Notification', 'PermissionRequest', 'SessionEnd']);
+/**
+ * The hooks that only record a session's state: ToolUse after every tool use, successful or not
+ * (its own or a subagent's), and SubagentStart when a subagent begins.
+ */
+export const stateEvents = new Set(['UserPromptSubmit', 'ToolUse', 'Notification', 'PermissionRequest', 'SessionEnd', 'SubagentStart']);
 /** Notifications that wait for the person (Claude Code's); one without a type is taken as one. */
 const asking = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog']);
 export const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -52,6 +55,8 @@ export function logFailure(home: string, event: string, error: unknown) {
 
 type Stamp = 'working' | 'waiting' | 'ended' | 'none';
 const stampFolder = (home: string) => path.join(home, 'session-state');
+/** A subagent's stamp is its session's name with the subagent's after a tilde. */
+const agentStamp = (session: string, agent: string) => session + '~' + agent;
 function readStamp(home: string, session: string): { state: Stamp; at: number } | null {
   try {
     const file = path.join(stampFolder(home), session);
@@ -154,6 +159,36 @@ export function recordActivity(database: HomeDatabase, home: string, session: st
   })()));
 }
 
+/**
+ * Record that a session's subagent is at work at `at` (it started, or used a tool), and its stamp.
+ * A subagent works for its session and the work item it is on, but its tool uses leave the main
+ * agent's state as it is: the session may wait for the person while its subagents work. A tool use
+ * after a permission prompt (which a subagent may have asked) resumes the turn, as the main agent's
+ * would. Nothing is recorded for a session that has linked no work.
+ */
+export function recordAgent(database: HomeDatabase, home: string, session: string, agent: string, type: string | null, at: string, liveWindowMs: number) {
+  database.transaction(() => writeStamp(home, agentStamp(session, agent), (() => {
+    const row = database.db.prepare('SELECT working, turn_at, waiting_at, counts_at, state_at, updated_at FROM session WHERE id = ?').get(session) as SessionRow | undefined;
+    if (!row) return 'none';
+    // A start or a tool use after its stop (a subagent sent on again) starts it again; a hook from
+    // before its stop (run in the background, arriving late) leaves it stopped.
+    database.db.prepare(`INSERT INTO session_agent (session_id, agent_id, agent_type, started_at, seen_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT (session_id, agent_id) DO UPDATE SET agent_type = ifnull(excluded.agent_type, agent_type), seen_at = max(seen_at, excluded.seen_at),
+        started_at = CASE WHEN stopped_at IS NOT NULL AND stopped_at < excluded.seen_at THEN excluded.started_at ELSE started_at END,
+        stopped_at = CASE WHEN stopped_at IS NOT NULL AND stopped_at >= excluded.seen_at THEN stopped_at ELSE NULL END`)
+      .run(session, agent, type, at, at);
+    if (!row.working && row.waiting_at !== null && row.turn_at !== null) recordActivity(database, home, session, null, 'tool', at, liveWindowMs);
+    return 'working';
+  })()));
+}
+/** Record that a session's subagent stopped. */
+export function stopAgent(database: HomeDatabase, home: string, session: string, agent: string, at: string) {
+  database.transaction(() => {
+    database.db.prepare('UPDATE session_agent SET stopped_at = ? WHERE session_id = ? AND agent_id = ? AND seen_at <= ?').run(at, session, agent, at);
+    writeStamp(home, agentStamp(session, agent), 'ended');
+  });
+}
+
 /** Record a session the first time it links work: in a turn from `at`, unless it is recorded already. */
 export function recordSession(database: HomeDatabase, session: string, harness: string, transcriptPath: string | null, at: string, cwd: string | null = null) {
   database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, counts_at, state_at, cwd) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET cwd = ifnull(cwd, excluded.cwd)')
@@ -169,20 +204,27 @@ export async function stateHook(event: string, text: string | null, at: number, 
   const home = atlasHome(undefined, environment);
   try {
     if (text === null) { text = ''; if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk; }
-    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown; message?: unknown; cwd?: unknown };
+    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown; message?: unknown; cwd?: unknown; agent_id?: unknown; agent_type?: unknown };
     const session = typeof input.session_id === 'string' && sessionPattern.test(input.session_id) ? input.session_id : null;
-    const activity = activityOf(event, input);
-    if (!session || !activity) return;
+    // A subagent's tool use (Claude Code names the subagent in its hooks), or its start.
+    const agent = (event === 'ToolUse' || event === 'SubagentStart') && typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;
+    const activity = event === 'SubagentStart' ? null : activityOf(event, input);
+    if (!session || (!activity && !agent)) return;
     // A commit or a PR the tool call made is recorded however recently the session was seen.
-    const made = activity === 'tool' && mayMakeProduct(text);
-    const stamp = readStamp(home, session);
-    if (stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && at - stamp.at < heartbeatMs)) return;
+    const made = event === 'ToolUse' && mayMakeProduct(text);
+    const stamp = readStamp(home, agent ? agentStamp(session, agent) : session);
+    const fresh = stamp !== null && at - stamp.at < heartbeatMs;
+    if (agent ? event === 'ToolUse' && !made && fresh && (stamp.state === 'working' || stamp.state === 'none') : stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && fresh)) return;
     const { HomeDatabase, liveWindowMs } = await import('../../planning/home/database.ts');
     const database = HomeDatabase.open(home);
     try {
-      const details: ActivityDetails = { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: activity === 'ask' && typeof input.message === 'string' ? input.message : null };
-      recordActivity(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, activity, new Date(at).toISOString(), liveWindowMs, details);
-      if (made) await (await import('./products.ts')).recordProducts(database, session, input, new Date(at).toISOString());
+      const when = new Date(at).toISOString();
+      if (agent) recordAgent(database, home, session, agent, typeof input.agent_type === 'string' ? input.agent_type.slice(0, 100) : null, when, liveWindowMs);
+      else {
+        const details: ActivityDetails = { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: activity === 'ask' && typeof input.message === 'string' ? input.message : null };
+        recordActivity(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, activity, when, liveWindowMs, details);
+      }
+      if (made) await (await import('./products.ts')).recordProducts(database, session, input, when);
     } finally { database.close(); }
   } catch (error) { logFailure(home, event, error); }
 }

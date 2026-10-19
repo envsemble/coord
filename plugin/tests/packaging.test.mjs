@@ -43,6 +43,7 @@ const HOOK_EVENTS = {
   Stop: ["Stop"],
   StopFailure: ["StopFailure"],
   Interrupt: ["Interrupt"],
+  SubagentStart: ["SubagentStart"],
   SubagentStop: ["SubagentStop"],
   SessionEnd: ["SessionEnd"],
 };

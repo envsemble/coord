@@ -166,6 +166,14 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual([waiter.state, waiter.title, waiter.message, waiter.folder, waiter.resume], ['waiting', 'Carts that last', '**Needs your decision:** keep the cart for a week?', startedIn(config), 'claude --resume ' + session]);
   const [remote] = (await sessions(false)).sessions;
   assert.deepEqual([remote.message, remote.folder, remote.resume], [waiter.message, null, null]);
+  // A subagent at work while the main agent waits keeps the plan working, with its own time; once it
+  // stops, the plan waits again. Its tool uses leave the main agent waiting.
+  const listed = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().flatMap(item => item.sessions.map(entry => [entry.session, entry.state])));
+  await hook('SubagentStart', { agent_id: 'a9', agent_type: 'general-purpose' });
+  await hook('ToolUse', { agent_id: 'a9', agent_type: 'general-purpose', tool_name: 'Bash', tool_input: { command: 'npm test' } });
+  assert.deepEqual([activity(), listed(), state().working], [[['work-0003', 'working']], [[session + '/a9', 'working'], [session, 'waiting']], 0]);
+  await hook('SubagentStop', { agent_id: 'a9', agent_type: 'general-purpose', agent_transcript_path: transcript });
+  assert.deepEqual(activity(), [['work-0003', 'waiting']]);
   await hook('Notification', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
   assert.deepEqual(state(), { working: 0, turn: null, waiting });
   assert.deepEqual(activity(), [['work-0003', 'waiting']]);
