@@ -139,20 +139,24 @@ body { margin: 0; }
 .plan-files-heading { margin: 0; padding: var(--space-1) var(--space-2) 0; }
 .plan-files-tree { min-block-size: var(--plan-files-row); --env-tree-indent: 0.5rem; max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - 9rem); }
 .plan-files-empty { margin: 0; padding: var(--space-1) var(--space-2) var(--space-2); font-size: var(--font-size-body-small); }
-.plan-frame-files { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); align-self: start; min-inline-size: 0; }
-/* On a plan and its pages (its statistics, a diagram, a file) the card is at the top right, beside the
-   page, which keeps its own layout; on a window too narrow for both it goes below. */
-.plan-frame { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: var(--space-6); align-items: start; }
+.plan-frame-files { min-inline-size: 0; max-inline-size: 24rem; }
+/* On a plan and its pages (its statistics, a diagram, a file) the card floats at the top right, out of
+   the page's flow: the page lays out and centres as if it were not there, and the card keeps its place
+   as the page scrolls. Where the window is too narrow for it beside the centred page (the plan's 84rem
+   and the card's column on each side), it goes below the page instead. Over a diagram it floats
+   under the viewer's toolbar, and gives way to its details. */
+.plan-frame { position: relative; display: grid; gap: var(--space-6); }
 .plan-frame-page { min-inline-size: 0; }
-.plan-frame:has(> .plan-frame-page > .work-page:not(.section-diagrams)) > .plan-frame-files { margin-block-start: var(--space-6); }
-.plan-frame.is-filled { flex: 1; display: flex; align-items: stretch; min-block-size: 0; gap: 0; }
-.plan-frame.is-filled > .plan-frame-files { align-self: flex-start; }
-.plan-frame.is-filled > .plan-frame-page { flex: 1; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
-.plan-frame.is-filled > .plan-frame-files { flex: none; inline-size: 17rem; padding: var(--space-3); }
-@container (max-width: 62rem) {
-  .plan-frame:not(.is-filled) { grid-template-columns: minmax(0, 1fr); }
-  .plan-frame:not(.is-filled) > .plan-frame-files { position: static; }
+@container (min-width: 122rem) {
+  .plan-frame:not(.is-filled) > .plan-frame-files { position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: 17rem; max-inline-size: none; pointer-events: none; }
+  .plan-frame:not(.is-filled) > .plan-frame-files > .plan-files { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); pointer-events: auto; }
+  .plan-frame:has(> .plan-frame-page > .work-page) > .plan-frame-files { padding-block-start: var(--space-6); }
 }
+.plan-frame.is-filled { flex: 1; display: flex; flex-direction: column; min-block-size: 0; gap: 0; }
+.plan-frame.is-filled > .plan-frame-page { flex: 1; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
+.plan-frame.is-filled > .plan-frame-files { position: absolute; inset-block-start: 4.5rem; inset-inline-end: var(--space-3); z-index: 3; inline-size: 17rem; }
+/* The diagram's details take that place when they open. */
+.plan-frame.is-filled:has(.inspector.open) > .plan-frame-files { display: none; }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
 .explorer-diagram { color: var(--color-tone-accent); }
