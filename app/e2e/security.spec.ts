@@ -112,7 +112,7 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       scanWrongType: await bridge.scanFolder(42),
       scanMissing: await bridge.scanFolder(),
       createRelative: await bridge.createProject('Coord', ['relative/folder']),
-      updateRelative: await bridge.updateProject(folderId, { workspaces: ['..\\up'] }),
+      updateRelative: await bridge.updateProject(folderId, { folders: ['..\\up'] }),
       // Quitting and opening windows or the logs ask first.
       quit: await bridge.command('quit'),
       newWindow: await bridge.command('newWindow'),
@@ -131,7 +131,7 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       notShown: await bridge.openShown({ project: folderId, target: { kind: 'file', path: 'README.md' } }, 'README.md'),
       fileTraversal: await bridge.openShown({ project: folderId, target: { kind: 'file', path: '../outside.md' } }, '../outside.md'),
       // Files open only as the host resolves them, and the editor is one of a fixed list.
-      referenceKind: await bridge.openReference(folderId, 'work-0001', { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
+      referenceKind: await bridge.openReference(folderId, { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
       editorCommand: await bridge.setEditor('notepad.exe'),
       ok: await bridge.document(folderId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };

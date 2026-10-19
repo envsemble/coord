@@ -1,7 +1,7 @@
 // `npm run dev:home`: the desktop app in development on a home of its own, beside an installed Atlas.
 // The home is artifacts/dev-home (ignored by Git). The first run seeds it with a demo project, a
-// copy of the end-to-end fixture with its diagrams, adopted into the home as a Git repository so its
-// statistics go into the home database. This checkout's `atlas` command goes first on the PATH, so
+// copy of the end-to-end fixture with its diagrams as a Git repository, and the fixture's agent
+// reports in the home database. This checkout's `atlas` command goes first on the PATH, so
 // the plugin's hooks and MCP server run this version too: `artifacts/dev-bin` holds the shims.
 // Arguments after `--` reach the app.
 import { spawn, execFileSync } from "node:child_process";
@@ -9,12 +9,15 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
-  rmSync,
+  readFileSync,
   writeFileSync,
 } from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import {
+  canonicalProjectFolderSync,
+  HomeDatabase,
+  insertReport,
+} from "../packages/atlas/src/planning/index.ts";
 
 const repository = path.resolve(import.meta.dirname, "..");
 const home = path.join(repository, "artifacts", "dev-home");
@@ -23,9 +26,7 @@ const command = path.join(repository, "packages", "atlas", "bin", "atlas.js");
 
 const demo = path.join(home, "planning", "demo");
 if (!existsSync(demo)) {
-  const scratch = mkdtempSync(path.join(os.tmpdir(), "atlas-dev-home-"));
-  const source = path.join(scratch, "demo");
-  cpSync(path.join(repository, "app", "e2e", "fixtures", "planning"), source, {
+  cpSync(path.join(repository, "app", "e2e", "fixtures", "planning"), demo, {
     recursive: true,
   });
   const git = (folder, ...args) =>
@@ -42,21 +43,28 @@ if (!existsSync(demo)) {
       ],
       { stdio: "ignore", windowsHide: true },
     );
-  git(source, "init", "-q");
-  git(source, "add", "-A");
-  git(source, "commit", "-q", "-m", "Demo planning folder");
-  execFileSync(
-    process.execPath,
-    [command, "home", "adopt", source, "--name", "demo"],
-    {
-      env: { ...process.env, ATLAS_HOME: home },
-      stdio: "ignore",
-      windowsHide: true,
-    },
+  git(demo, "init", "-q");
+  git(demo, "add", "-A");
+  git(demo, "commit", "-q", "-m", "Demo planning folder");
+  // The agents' reports on the demo's work, as the hooks record them.
+  const reports = JSON.parse(
+    readFileSync(
+      path.join(repository, "app", "e2e", "fixtures", "reports.json"),
+      "utf8",
+    ),
   );
-  // Adopting moved the statistics files into the home database; commit their removal.
-  git(demo, "commit", "-q", "-a", "-m", "Statistics moved into the Atlas home");
-  rmSync(scratch, { recursive: true, force: true });
+  const database = HomeDatabase.open(home);
+  try {
+    const project = database.addProject(
+      canonicalProjectFolderSync(demo),
+      "Northwind",
+    );
+    for (const [work, items] of Object.entries(reports))
+      for (const report of items)
+        insertReport(database, project.id, work, report);
+  } finally {
+    database.close();
+  }
   console.log("Seeded the demo project: " + demo);
 }
 

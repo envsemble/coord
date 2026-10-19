@@ -112,7 +112,7 @@ test('the project list has each work item\'s step, completion and statistics fro
   insertReport(host.database, project.id, 'work-0001', createReport({ model: 'claude-sonnet', session: 's2', stage: 'implementation', at: new Date('2026-10-02T10:00:00Z'), measured: { ...measured('2026-10-02T09:30:00.000Z', 1_800_000, 500), models: [{ model: 'claude-sonnet', agentMs: 1_800_000, input: 0, cacheRead: 0, cacheWrite: 0, output: 500 }] } }));
   const summary = (await projectNamed(owner.connection)).summary!;
   const work = (id: string) => [...summary.active, ...summary.closed].find(item => item.id === id)!;
-  assert.deepEqual(work('work-0001').step, { title: 'Add authoriseWithToken to the acquirer gateway, with the challenge_required path (shop#58)', status: 'doing', phase: 'implementation' });
+  assert.deepEqual(work('work-0001').step, { title: 'Add authoriseWithToken to the acquirer gateway, with the challenge_required path (example/shop#58)', status: 'doing', phase: 'implementation' });
   assert.deepEqual(work('work-0001').statistics, {
     agentMs: 5_400_000, activeMs: 5_400_000, unmergedMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', primaryEffort: null, otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
     subagents: 0, lastReport: '2026-10-02T10:00:00.000Z',

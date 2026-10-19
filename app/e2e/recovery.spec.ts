@@ -44,12 +44,12 @@ test('an open plan follows its folder: a ledger change appears without a refresh
   const { window } = launched;
   await openPlan(window, 'Customer order notifications');
   const ledger = path.join(home.folder, 'active/0003-customer-notifications/ledger.md');
-  writeFileSync(ledger, readFileSync(ledger, 'utf8').replace(/^current: .*$/m, 'current: "Waiting for the provider review"'));
+  writeFileSync(ledger, readFileSync(ledger, 'utf8').replace('title: "Bounce and complaint webhook handling"', 'title: "Waiting for the provider review"'));
   await expect(window.locator('.about')).toContainText('Waiting for the provider review');
   // A broken planning.json.
   const registry = path.join(home.folder, 'planning.json');
   const good = readFileSync(registry, 'utf8');
-  writeFileSync(registry, '{ "schema_version": 1, "repositories": [');
+  writeFileSync(registry, '{ "schema_version": 2, "folders": [');
   await expect(window.locator('.folder-error')).toBeVisible();
   await expect(window.locator('.folder-error')).toContainText('planning.json');
   await expect(window.locator('.work-header h1')).toHaveText('Customer order notifications');

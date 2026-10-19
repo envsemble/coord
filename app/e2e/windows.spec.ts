@@ -1,8 +1,7 @@
 import { renameSync } from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { addProject, chooseMenu, close, expectHub, filterHub, goHome, launch, launchProject, openPlan, openProjects, planningFixture, projectAction, projectHome, projectRow, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
+import { addProject, chooseMenu, close, expectHub, filterHub, goHome, launch, launchProject, openPlan, projectHome, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
@@ -86,15 +85,10 @@ async function openShopPlan(window: Page, title: string) {
   await expect(window.locator('.reader .prose')).toContainText('Outcome');
 }
 
-test('a project moved into the home moves along in every window; a refused move or a closed window leaves it open in the others', async () => {
+test('a closed window leaves a project it showed open in the others', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  // A project outside the home: a planning folder elsewhere with a row in the home database.
-  const outside = planningFixture('Shop');
-  homes.push(path.dirname(outside));
-  const database = new DatabaseSync(path.join(home.dataDirectory, 'atlas.db'));
-  database.prepare("INSERT INTO project (connection_id, name, folder, position, state, created_at) VALUES (NULL, 'Shop', ?, 1, 'active', '2026-10-15T00:00:00.000Z')").run(outside);
-  database.close();
+  addProject(home.dataDirectory, 'shop', 'Shop');
   launched = await launchProject(home);
   const { app, window } = launched;
   await openShopPlan(window, 'Saved payment methods');
@@ -102,31 +96,6 @@ test('a project moved into the home moves along in every window; a refused move 
   await openShopPlan(await newWindow(app), 'Customer order notifications');
   await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
   await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(1);
-  await expect(window.locator('.reader .prose')).toContainText('Current checkout');
-  const second = await newWindow(app);
-  await openShopPlan(second, 'Customer order notifications');
-
-  // A move that is refused (the folder is not a Git repository now) leaves it followed where it is.
-  renameSync(path.join(outside, '.git'), path.join(outside, '.git-away'));
-  await openProjects(window);
-  await expect(projectRow(window, 'Shop')).toContainText('Outside the Atlas home');
-  await projectAction(window, 'Shop', 'Move into the Atlas home');
-  await expect(window.locator('.env-toast-message', { hasText: 'is not the top of a Git repository' })).toBeVisible();
-
-  // Moved, what shows of the project and its history follow it in every window: here, and in the other one.
-  renameSync(path.join(outside, '.git-away'), path.join(outside, '.git'));
-  await projectAction(window, 'Shop', 'Move into the Atlas home');
-  await expect(window.locator('.env-toast-message', { hasText: 'Moved Shop into the Atlas home' })).toBeVisible();
-  await expect(projectRow(window, 'Shop')).not.toContainText('Outside the Atlas home');
-  await expect(second.locator('.work-header h1')).toHaveText('Customer order notifications');
-  await expect(second.locator('.reader .prose')).toContainText('Outcome');
-  await second.keyboard.press('Alt+ArrowLeft');
-  await expectHub(second, 'Shop');
-  await second.keyboard.press('Alt+ArrowRight');
-  await expect(second.locator('.work-header h1')).toHaveText('Customer order notifications');
-  await expect(second.locator('.work-main .breadcrumb')).toContainText('Shop');
-  await window.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect(window.locator('.reader .prose')).toContainText('Current checkout');
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
 });

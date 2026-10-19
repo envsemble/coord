@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -14,13 +13,6 @@ test.afterEach(async () => { await close(launched); launched = undefined; for (c
 const row = (id: string) => `[role="treeitem"][data-id="${id}"]`;
 /** The last step of a work item's trail: its number. */
 const trailEnd = (window: Page) => window.locator('.work-main .breadcrumb [aria-current="page"]');
-/** A Git checkout with a remote, as a workspace folder holds them. */
-function checkout(folder: string, remote: string) {
-  mkdirSync(folder, { recursive: true });
-  const git = (...args: string[]) => execFileSync('git', ['-C', folder, ...args], { stdio: 'ignore', windowsHide: true });
-  git('init', '-q', '-b', 'main');
-  git('remote', 'add', 'origin', remote);
-}
 const titles = (launchedApp: Launched) => launchedApp.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()));
 const groupRows = (window: Page, group: string) => window.getByRole('region', { name: group }).locator('.hub-row');
 
@@ -289,26 +281,24 @@ test("the Files card is always beside a plan's pages with the plan's own folder,
   await expect(card).toHaveCount(0);
 });
 
-test('the Projects page makes a project from a name and a folder, gives a project workspace folders and takes them away, and renames, hides, archives and restores projects', async () => {
+test('the Projects page makes a project from a name and a folder, gives a project folders and takes them away, and renames, hides, archives and restores projects', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   const workspace = temporaryDirectory('atlas-e2e-workspace-');
   homes.push(workspace);
-  checkout(path.join(workspace, 'coord-shop'), 'git@github.com:example/coord-shop.git');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await openProjects(window);
   await expectProjects(window, ['Northwind']);
-  // A row: its name, its open plans and when it changed, and its workspace folder (none: a dash).
+  // A row: its name, its open plans and when it changed, and its folder (none: a dash).
   await expect(projectRow(window).locator('.cell-note')).toContainText('open plan');
   await expect(projectRow(window).locator('.project-workspace')).toHaveCount(0);
-  // Its planning folder and repositories are in its menu's folders and repositories.
+  // Its planning folder and folders are in its menu's Folders….
   const details = await projectDetails(window, 'Northwind');
   await expect(details).toContainText(home.folder);
-  await expect(details).toContainText('shop');
-  await expect(details).toContainText('None: agents find the project by its repositories');
-  // Workspace folders, added and removed there: each change goes into its planning.json.
-  const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).workspaces ?? [];
+  await expect(details).toContainText('None: agents find the project only in its planning folder');
+  // Folders, added and removed there: each change goes into its planning.json.
+  const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).folders;
   const [first, second] = [temporaryDirectory('atlas-e2e-workspace-'), temporaryDirectory('atlas-e2e-workspace-')];
   homes.push(first, second);
   const addFolder = window.getByRole('dialog', { name: 'Add a folder to Northwind' });
@@ -355,15 +345,11 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await dialog.getByLabel('Folder').fill(workspace + path.sep);
   await expect(dialog.getByLabel('Name')).toHaveValue('Coord');
   await dialog.getByLabel('Folder').fill(workspace);
-  // The repositories found in the folder, before creating.
-  const found = dialog.locator('.scan-result');
-  await expect(found).toContainText('coord-shop');
-  await expect(found).toContainText('git@github.com:example/coord-shop.git');
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(dialog).toHaveCount(0);
   const folder = path.join(home.dataDirectory, 'planning', 'coord');
   const registry = JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8'));
-  expect([registry.name, registry.workspaces, registry.repositories.map((item: { remote: string }) => item.remote)]).toEqual(['Coord', [workspace], ['git@github.com:example/coord-shop.git']]);
+  expect([registry.schema_version, registry.name, registry.folders, 'repositories' in registry]).toEqual([2, 'Coord', [workspace], false]);
   await expect(projectRow(window, 'Coord').locator('.project-workspace')).toHaveText(path.basename(workspace));
   expect(existsSync(path.join(folder, '.git')) && existsSync(path.join(folder, 'AGENTS.md'))).toBe(true);
   await expectProjects(window, ['Northwind', 'Coord']);

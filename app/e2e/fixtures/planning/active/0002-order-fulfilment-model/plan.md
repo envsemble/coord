@@ -1,9 +1,8 @@
 ---
-schema_version: 1
+schema_version: 2
 kind: plan
 id: work-0002
 title: Order fulfilment model
-repositories: [shop]
 created: "2026-09-07"
 updated: "2026-10-07"
 design_status: draft

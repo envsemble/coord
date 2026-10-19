@@ -144,7 +144,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await create.getByRole('button', { name: 'Create' }).click();
   await expectProjects(viewer, ['Northwind', 'Coord']);
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
-  expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'coord', 'planning.json'), 'utf8')).workspaces ?? []).toEqual([]);
+  expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'coord', 'planning.json'), 'utf8')).folders).toEqual([]);
   const details = await projectDetails(viewer, 'Coord');
   await expect(details.getByRole('button', { name: 'Add folder…' })).toHaveCount(0);
   await expect(details).toContainText(`Folders are chosen in Atlas on ${name}.`);
@@ -193,7 +193,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   const refused = await viewer.evaluate(async () => {
     const bridge = (window as unknown as { atlas: Record<string, (...args: unknown[]) => Promise<{ ok: boolean; value?: { folderId: string }[]; error?: { code: string } }>> }).atlas;
     const folder = (await bridge.projects()).value![0].folderId;
-    return [await bridge.openReference(folder, 'work-0003', { kind: 'path', repository: null, value: 'README.md', line: null }), await bridge.openExternal('t3-thread://thread/abc')].map(result => result.error?.code);
+    return [await bridge.openReference(folder, { kind: 'path', repository: null, value: 'README.md', line: null }), await bridge.openExternal('t3-thread://thread/abc')].map(result => result.error?.code);
   });
   expect(refused).toEqual(['forbidden', 'forbidden']);
 

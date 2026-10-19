@@ -1,5 +1,5 @@
-// Work statistics from agent reports (<work>/.atlas/statistics.jsonl in the fixture, imported into the
-// home's database as the fixture is adopted into it) and Git: the Statistics page, opened from the menu
+// Work statistics from agent reports (fixtures/reports.json, recorded in the home's database as the
+// fixture's project is made) and Git: the Statistics page, opened from the menu
 // for one project at a time, its Work and Models tabs, the sidebar of a work item and its own statistics page. The fixture has an
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.

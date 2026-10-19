@@ -1,9 +1,8 @@
 ---
-schema_version: 1
+schema_version: 2
 kind: plan
 id: work-0004
 title: Inventory reservations at checkout
-repositories: [shop]
 created: "2026-09-09"
 updated: "2026-09-24"
 design_status: accepted
@@ -60,4 +59,4 @@ Deploy migration 002, then the code behind `inventory.reservations`. Turn the fl
 
 - 50 parallel checkouts for 10 units in stock produce exactly 10 orders and 40 insufficient-stock errors.
 - An abandoned reservation is back in available stock within two minutes of expiring.
-- shop#41 and shop#44 merged; flag on for all traffic.
+- example/shop#41 and example/shop#44 merged; flag on for all traffic.

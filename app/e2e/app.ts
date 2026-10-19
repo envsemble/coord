@@ -11,12 +11,13 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { canonicalProjectFolderSync, HomeDatabase, insertReport, type StatisticsReport } from '@envsemble/atlas/planning';
 import type { AtlasBridge } from '../shared/contract.ts';
 
 const appDirectory = path.resolve(import.meta.dirname, '..');
 const fixture = path.join(import.meta.dirname, 'fixtures', 'planning');
-/** This checkout's atlas command, which adopts the fixture into a home as a user would. */
-const command = path.resolve(appDirectory, '..', 'packages', 'atlas', 'bin', 'atlas.js');
+/** The agents' reports on the fixture's work, by work item, as the hooks record them in the home's database. */
+const fixtureReports = path.join(import.meta.dirname, 'fixtures', 'reports.json');
 
 /** The AppImage or Windows installer built by `npm run package`, when present. */
 export function packagedInstaller(): string | null {
@@ -47,9 +48,11 @@ export function temporaryDirectory(prefix: string) {
   return realpathSync.native(mkdtempSync(path.join(tmpdir(), prefix)));
 }
 
-/** A fresh copy of the committed fixture planning folder, as its own Git repository; `name` names its project. */
-export function planningFixture(name?: string): string {
-  const root = path.join(temporaryDirectory('atlas-e2e-'), 'planning');
+/**
+ * A fresh copy of the committed fixture planning folder, as its own Git repository, at `root` (by
+ * default a new temporary folder); `name` names its project.
+ */
+export function planningFixture(name?: string, root = path.join(temporaryDirectory('atlas-e2e-'), 'planning')): string {
   cpSync(fixture, root, { recursive: true });
   if (name) writeFileSync(path.join(root, 'planning.json'), readFileSync(path.join(root, 'planning.json'), 'utf8').replace('"name": "Northwind"', JSON.stringify('name') + ': ' + JSON.stringify(name)));
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { stdio: 'ignore', windowsHide: true });
@@ -62,20 +65,21 @@ export function planningFixture(name?: string): string {
 }
 
 /**
- * An Atlas home with the fixture as a project in its planning folder (`<home>/planning/<slug>`),
- * moved there with `atlas home adopt`, which also imports its work statistics into the home's
- * database. `name` renames the project in its planning.json first. More projects join with
- * addProject. The home is removed with the launched app, or with removeDirectory.
+ * An Atlas home with the fixture as a project in its planning folder (`<home>/planning/<slug>`), with
+ * the agents' reports on its work in the home's database, as the hooks record them. `name` renames
+ * the project in its planning.json. More projects join with addProject. The home is removed with the
+ * launched app, or with removeDirectory.
  */
 export function projectHome(options: { slug?: string; name?: string; dataDirectory?: string } = {}) {
   const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
   const slug = options.slug ?? 'northwind';
-  const source = planningFixture(options.name);
-  execFileSync(process.execPath, [command, 'home', 'adopt', source, '--name', slug], { env: environment(dataDirectory), stdio: 'ignore', windowsHide: true });
-  removeDirectory(path.dirname(source));
-  // Adopting deleted the statistics files it imported; the user commits that.
-  const folder = path.join(dataDirectory, 'planning', slug);
-  try { execFileSync('git', ['-C', folder, '-c', 'user.name=Atlas fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'commit', '-q', '-a', '-m', 'Statistics moved into the Atlas home'], { stdio: 'ignore', windowsHide: true }); } catch { /* Nothing to commit. */ }
+  const folder = planningFixture(options.name, path.join(dataDirectory, 'planning', slug));
+  const reports = JSON.parse(readFileSync(fixtureReports, 'utf8')) as Record<string, StatisticsReport[]>;
+  const database = HomeDatabase.open(dataDirectory);
+  try {
+    const project = database.addProject(canonicalProjectFolderSync(folder), options.name ?? 'Northwind');
+    for (const [work, items] of Object.entries(reports)) for (const report of items) insertReport(database, project.id, work, report);
+  } finally { database.close(); }
   return { dataDirectory, folder };
 }
 export const addProject = (dataDirectory: string, slug: string, name: string) => projectHome({ dataDirectory, slug, name }).folder;
@@ -238,10 +242,10 @@ export async function showArchived(window: Page) {
   if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
 }
-/** A project's folders and repositories, opened from its menu on the Projects page. */
+/** A project's folders, opened from its menu on the Projects page. */
 export async function projectDetails(window: Page, name: string) {
-  await projectAction(window, name, 'Folders and Repositories…');
-  const dialog = window.getByRole('dialog', { name: name + ': folders and repositories' });
+  await projectAction(window, name, 'Folders…');
+  const dialog = window.getByRole('dialog', { name: name + ': folders' });
   await expect(dialog).toBeVisible();
   return dialog;
 }
