@@ -1,10 +1,10 @@
 // A window: envUI's window frame with two rows at the top, the title bar (the logo, back and forward,
-// File, the computer, search, the open plan's files, record health, the theme and the window buttons)
-// and the sections (Plans, Projects, Statistics), above one place at a time: the hub, where it starts
-// and returns when nothing else is open, a plan, a diagram or a file of a project, or the Projects or
-// Statistics page. On a plan and its pages, the Files button opens a card with the plan's own folder.
+// File, the computer, search, record health, the theme and the window buttons) and the sections
+// (Plans, Projects, Statistics), above one place at a time: the hub, where it starts and returns when
+// nothing else is open, a plan, a diagram or a file of a project, or the Projects or Statistics page.
+// A plan and its pages have the plan's own files in a card beside them.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Button, EmptyState, IconButton, Kbd, Notice, Popover, Select, Spinner, Text, TitleBar, Tooltip, useToast, WindowFrame } from '@envsemble/envui';
+import { Button, EmptyState, Kbd, Notice, Popover, Select, Spinner, Text, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
 import { ThemeMenu } from '../menu/ThemeMenu';
 import { ErrorIcon, FolderOpenIcon, SearchIcon, StatisticsIcon, WarningIcon } from '../ui/icons';
 import type { ImportPreview, MenuCommand } from '../../shared/contract';
@@ -14,7 +14,7 @@ import { documentTarget, hubPlace, isPage, placeId, placeProject, projectsPlace,
 import { samePath, siblingProject } from './links';
 import { canGoBack, canGoForward, currentEntry, keyStep, moveProject, record, samePlace, startHistory, step } from '../navigation/history';
 import { workNumber } from '../ui/format';
-import { Explorer, nodeForTarget, placeWork } from './Explorer';
+import { FilesContext, focusPlanFiles, nodeForTarget, placeWork, PlanFiles, type FilesState } from './Explorer';
 import { SearchPopup } from '../navigation/SearchPopup';
 import type { SearchDestination } from '../navigation/search';
 import { ImportDialog } from './ImportDialog';
@@ -193,11 +193,11 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   }, [missing]);
 
   // ---- The open plan's files ----------------------------------------------------------------------
-  const [filesOpen, setFilesOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, string[]>>({});
   const readSnapshot = readFolder?.snapshot ?? null;
   const node = projectPlace && readSnapshot ? nodeForTarget(projectPlace.target, readSnapshot) : null;
-  // The plan whose files the Files card lists: the one shown, or the one whose file or diagram is.
+  // The plan whose files the Files card lists: the one shown, or the one whose file or diagram is,
+  // with its folders open as they were left, by project.
   const filesWork = projectPlace && readSnapshot ? placeWork(projectPlace.target, readSnapshot) : null;
   // Reveal the shown item among the plan's files.
   useEffect(() => {
@@ -272,13 +272,15 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   useEffect(() => {
     if (waitingStatistics && projects?.length) replace(statisticsPlace(statisticsProject()));
   }, [waitingStatistics, projects, statisticsProject, replace]);
-  const filesOffered = Boolean(filesWork);
-  // The card closes when the window shows something else.
-  useEffect(() => { setFilesOpen(false); }, [placeId(place)]);
+  const filesState = useMemo<FilesState>(() => ({
+    expanded: projectPlace ? expanded[projectPlace.project] ?? [] : [], selected: node?.id ?? null,
+    setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.project]: next })); },
+  }), [expanded, projectPlace?.project, node?.id]);
 
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
-      case 'toggleFiles': if (filesOffered) setFilesOpen(open => !open); break;
+      // The plan's Files card takes the keyboard.
+      case 'toggleFiles': focusPlanFiles(); break;
       case 'quickOpen': openSearch(); break;
       case 'newProject': setCreatingProject(true); break;
       case 'projects': go(projectsPlace()); break;
@@ -287,7 +289,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       case 'goBack': navigate(-1); break;
       case 'goForward': navigate(1); break;
     }
-  }, [filesOffered, go, showStatistics, startImport, navigate, openSearch]);
+  }, [go, showStatistics, startImport, navigate, openSearch]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
@@ -465,7 +467,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   else if (isPage(placed) && !placed.project) content = !projects ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the projects" /></div> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
-  else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope}
+  else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
     statisticsControls={<Select className="statistics-project" density="compact" aria-label="Project" value={reading} onValueChange={value => { if (value) go(statisticsPlace(value)); }}
       options={(projects ?? []).filter(project => project.state === 'active' || project.folderId === reading).map(project => ({ value: project.folderId, label: project.name }))} />} />;
 
@@ -474,15 +476,6 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     end={<>
       {/* On the hub, its own search field is the search. */}
       {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
-      {/* The open plan's own folder, in a card under the button; only on a plan and its pages. */}
-      {filesWork && scope && <Popover className="files-popover" side="bottom" align="end" width="wide" aria-label={'Files of ' + workNumber(filesWork.id)} open={filesOpen} onOpenChange={setFilesOpen}
-        trigger={<IconButton variant="text" className="files-button" icon={<FolderOpenIcon />} aria-label="Files" title={'Files of this plan (' + modifierKey(info.platform) + '+Shift+E)'}
-          aria-keyshortcuts={(info.platform === 'darwin' ? 'Meta' : 'Control') + '+Shift+E'} />}>
-        <WorkbenchContext.Provider value={scope}>
-          <Explorer snapshot={scope.snapshot} work={filesWork} expanded={expanded[scope.project] ?? []} setExpanded={next => setExpanded(current => ({ ...current, [scope.project]: next }))}
-            selected={node?.id ?? null} onChosen={() => setFilesOpen(false)} />
-        </WorkbenchContext.Provider>
-      </Popover>}
       {scope && <Health issues={scope.snapshot.issues} open={work => go({ project: scope.project, target: workTarget(work) })} />}
       <ThemeMenu />
     </>} />
@@ -562,7 +555,8 @@ function ScrollMemory({ scroller: element, shown, scrollKey: key, anchored, entr
 }
 
 /** What the window shows of a project, in its scope: a plan, a diagram, a file or its statistics; or why it cannot. */
-function ProjectContent({ place, folder, project, scope, statisticsControls }: { place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; statisticsControls: ReactNode }) {
+/** `files`: the open plan's Files card, for a plan and its pages; beside the plan's side column on its own page, beside the page on the others. */
+function ProjectContent({ place, folder, project, scope, statisticsControls, files }: { place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; statisticsControls: ReactNode; files: ReactNode }) {
   const change = folder?.change;
   // The Statistics page keeps its heading and project picker above why it shows nothing yet.
   const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" heading={<div className="page-heading-row"><Text as="h1" variant="page-heading">Statistics</Text><span className="spacer" />{statisticsControls}</div>}>{state}</Page> : state;
@@ -579,11 +573,12 @@ function ProjectContent({ place, folder, project, scope, statisticsControls }: {
     if (target.kind === 'work' || target.kind === 'diagram') {
       const item = snapshot.work.find(entry => entry.id === target.work);
       content = !item ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the plan" /></div>
-        : target.kind === 'work' ? (target.view === 'statistics' ? <WorkStatisticsPage work={item} /> : <WorkPage work={item} snapshot={snapshot} target={target} />)
-        : <div className="work-page section-diagrams"><AtlasWorkPanel key={item.id} work={item} target={target} /></div>;
+        : target.kind === 'work' && target.view !== 'statistics' ? <WorkPage work={item} snapshot={snapshot} target={target} files={files} />
+        : <PlanFrame files={files} filled={target.kind === 'diagram'}>{target.kind === 'work' ? <WorkStatisticsPage work={item} /> : <div className="work-page section-diagrams"><AtlasWorkPanel key={item.id} work={item} target={target} /></div>}</PlanFrame>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
-      content = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FileView file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
+      const page = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FileView file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
+      content = files ? <PlanFrame files={files}>{page}</PlanFrame> : page;
     }
   }
   return <WorkbenchContext.Provider value={scope}>
@@ -593,6 +588,12 @@ function ProjectContent({ place, folder, project, scope, statisticsControls }: {
     {change?.notice && <Notice className="folder-error" tone="info">{change.notice}</Notice>}
     {content}
   </WorkbenchContext.Provider>;
+}
+
+/** A page of a plan other than its own (its statistics, a diagram, a file) with the plan's Files card beside it. */
+function PlanFrame({ files, filled = false, children }: { files: ReactNode; filled?: boolean; children: ReactNode }) {
+  if (!files) return children;
+  return <div className={'plan-frame' + (filled ? ' is-filled' : '')}><div className="plan-frame-page">{children}</div><div className="plan-frame-files">{files}</div></div>;
 }
 
 /** The title bar's search: plans, documents, diagrams and projects (away from the hub, whose search field opens the same). */

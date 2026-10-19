@@ -151,12 +151,12 @@ test('a long plan scrolls below the title bar, going back finds it where it was 
   await expect(search).toBeFocused();
   await window.keyboard.press('Escape');
 
-  // A file chosen in the Files card opens on the page and closes the card; Alt+← goes back to the plan.
+  // A file chosen in the Files card opens on the page, the card staying beside it; Alt+← goes back to the plan.
   await openPlan(window, 'Customer order notifications');
   const files = await showFiles(window);
   await files.locator('[role="treeitem"][data-id="f:active/0003-customer-notifications/ledger.md"]').click();
   await expect(shownFile(window)).toHaveText('ledger.md');
-  await expect(files).toHaveCount(0);
+  await expect(files.locator('[role="treeitem"][data-id="f:active/0003-customer-notifications/ledger.md"]')).toHaveAttribute('aria-selected', 'true');
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-header h1')).toHaveText('Customer order notifications');
 });

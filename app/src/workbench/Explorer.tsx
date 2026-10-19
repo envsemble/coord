@@ -1,9 +1,9 @@
-// The open plan's files, for the Files card under the title bar's button: its work folder (plan,
-// ledger, context, diagrams, evidence and the rest) as a tree of real folder and file names; a work
-// item's diagram files open as its diagrams. A click, or Enter, opens a file in the window and closes
-// the card; folders open and close in place.
-import { useMemo } from 'react';
-import { MenuItem, MenuSeparator, Tree, type TreeItem } from '@envsemble/envui';
+// The open plan's files, in a card always beside its pages: its work folder (plan, ledger, context,
+// diagrams, evidence and the rest) as a tree of real folder and file names; a work item's diagram
+// files open as its diagrams. A click, or Enter, opens a file in the window; folders open and close in
+// place.
+import { createContext, useContext, useMemo } from 'react';
+import { MenuItem, MenuSeparator, Surface, Text, Tree, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from '../ui/icons';
 import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
@@ -35,15 +35,17 @@ export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): {
 
 type Row = TreeItem & { row: ExplorerRow };
 
-/** How many rows the card shows before it scrolls. */
-const shownRows = 14;
+/** Which of a project's folders are open in the Files card, and the row of what the window shows. */
+export interface FilesState { expanded: string[]; setExpanded(next: string[]): void; selected: string | null }
+export const FilesContext = createContext<FilesState>({ expanded: [], setExpanded: () => undefined, selected: null });
 
-export function Explorer({ snapshot, work, expanded, setExpanded, selected, onChosen }: {
-  snapshot: Snapshot; work: Work; expanded: string[]; setExpanded(next: string[]): void; selected: string | null;
-  /** A file was opened: the card closes. */
-  onChosen(): void;
-}) {
-  const { project, open, notify, remote } = useWorkbench();
+/**
+ * The open plan's files, always on its pages: a card with the plan's work folder as a tree, the file
+ * shown marked. It keeps beside the page as it scrolls, and scrolls on its own when it is long.
+ */
+export function PlanFiles({ work }: { work: Work }) {
+  const { project, open, notify, remote, snapshot } = useWorkbench();
+  const { expanded, setExpanded, selected } = useContext(FilesContext);
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
   const rows = useMemo(() => visibleRows(index, expandedSet, work.path).map(treeItem), [index, expandedSet, work.path]);
@@ -54,8 +56,8 @@ export function Explorer({ snapshot, work, expanded, setExpanded, selected, onCh
     setExpanded(value ? [...expanded, id] : expanded.filter(item => item !== id));
   };
   const activate = ({ row }: Row) => {
-    if (row.kind === 'file') { open(fileOpens(row.file!)); onChosen(); return; }
-    setOpen(row.id, !row.expanded);
+    if (row.kind === 'file') open(fileOpens(row.file!));
+    else setOpen(row.id, !row.expanded);
   };
   const reveal = (path: string) => { api.reveal(project, path).catch(error => notify((error as Error).message, 'warning')); };
   // A folder on another computer has no files here to reveal.
@@ -64,20 +66,28 @@ export function Explorer({ snapshot, work, expanded, setExpanded, selected, onCh
     const row = item?.row;
     const entries = !row ? null
       : row.kind === 'file' ? <>
-        <MenuItem onClick={() => { open(fileOpens(row.file!)); onChosen(); }}>{isDiagramFile(row.path!) ? 'Open Diagram' : 'Open'}</MenuItem>
-        {isDiagramFile(row.path!) && <MenuItem onClick={() => { open(fileTarget(row.path!)); onChosen(); }}>Open as Text</MenuItem>}
+        <MenuItem onClick={() => open(fileOpens(row.file!))}>{isDiagramFile(row.path!) ? 'Open Diagram' : 'Open'}</MenuItem>
+        {isDiagramFile(row.path!) && <MenuItem onClick={() => open(fileTarget(row.path!))}>Open as Text</MenuItem>}
         {revealItem(row.path!)}
       </>
       : revealItem(row.path!);
     return <>{entries}{entries && <MenuSeparator />}<MenuItem disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</MenuItem></>;
   };
-  if (!rows.length) return <p className="explorer-empty muted">This work folder has no files.</p>;
-  return <div className="explorer" style={{ blockSize: 'calc(' + Math.min(rows.length, shownRows) + ' * var(--explorer-row))' }}>
-    <Tree<Row> className="explorer-tree" items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} selectedId={selected} density="compact"
-      onOpen={item => activate(item)}
-      onExpandedChange={(item, value) => setOpen(item.id, value)}
-      contextMenu={menu} />
-  </div>;
+  return <Surface as="section" className="plan-files" padding={2} aria-label={'Files of ' + workNumber(work.id)}>
+    <Text as="h2" variant="section-heading" className="plan-files-heading">Files</Text>
+    {rows.length ? <div className="plan-files-tree" style={{ blockSize: 'calc(' + rows.length + ' * var(--plan-files-row))' }}>
+      <Tree<Row> items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} selectedId={selected} density="compact"
+        onOpen={item => activate(item)}
+        onExpandedChange={(item, value) => setOpen(item.id, value)}
+        contextMenu={menu} />
+    </div> : <p className="plan-files-empty muted">This work folder has no files.</p>}
+  </Surface>;
+}
+
+/** Bring the keyboard to the Files card's tree, at its row that takes focus. */
+export function focusPlanFiles() {
+  const tree = document.querySelector<HTMLElement>('.plan-files [role="tree"]');
+  (tree?.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]') ?? tree?.querySelector<HTMLElement>('[role="treeitem"]') ?? tree)?.focus();
 }
 
 function treeItem(row: ExplorerRow): Row {

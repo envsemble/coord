@@ -4,7 +4,7 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
   addProject, applicationMenu, chooseMenu, close, expectHub, expectProjects, fileMenu, filterHub, goHome, hubRows, launch, launchProject, openPlan, openProjects, pageScroll,
-  listedProjects, projectAction, projectHome, projectRow, removeDirectory, searchPopup, section, showFiles, temporaryDirectory, type Launched,
+  filesCard, listedProjects, projectAction, projectHome, projectRow, removeDirectory, searchPopup, section, showFiles, temporaryDirectory, type Launched,
 } from './app';
 
 let launched: Launched | undefined;
@@ -233,45 +233,41 @@ test('a window shows one place at a time, and shows it again at the next start',
   await expect(trailEnd(window)).toHaveText('#0001');
 });
 
-test("the Files card lists the open plan's own folder, opens a file on the page, and is not offered off a plan", async () => {
+test("the Files card is always beside a plan's pages with the plan's own folder, and opens a file on the page", async () => {
   launched = await launchProject();
   const { window } = launched;
-  const filesButton = window.getByRole('button', { name: 'Files', exact: true });
-  const card = window.getByRole('dialog', { name: /^Files of / });
-  await expect(filesButton).toHaveCount(0);
-  await window.keyboard.press('Control+Shift+E');
+  const card = filesCard(window);
+  // Not on the hub, and no Files button in the title bar.
   await expect(card).toHaveCount(0);
+  await expect(window.getByRole('button', { name: 'Files', exact: true })).toHaveCount(0);
   await openPlan(window, 'Saved payment methods');
-  let files = await showFiles(window);
-  // Only the plan's folder: its plan, ledger, context, diagrams and evidence, never its .atlas folder or another plan.
-  await expect(files.locator(row('f:active/0001-saved-payment-methods/plan.md'))).toBeVisible();
+  const files = await showFiles(window);
+  await expect(card.getByRole('heading', { name: 'Files' })).toBeVisible();
+  // Only the plan's folder: its plan (marked, it is shown), ledger, context, diagrams and evidence, never its .atlas folder or another plan.
+  await expect(files.locator(row('f:active/0001-saved-payment-methods/plan.md'))).toHaveAttribute('aria-selected', 'true');
   await expect(files.locator('[role="treeitem"]', { hasText: '.atlas' })).toHaveCount(0);
   await expect(files.locator('[role="treeitem"][data-id^="d:active/0002-"]')).toHaveCount(0);
-  // Escape closes it, and focus is back on the button.
-  await window.keyboard.press('Escape');
-  await expect(card).toHaveCount(0);
-  await expect(filesButton).toBeFocused();
-  // A folder opens in place; a diagram file opens as a diagram, any other file on the page, and the card closes.
-  files = await showFiles(window);
+  // Ctrl+Shift+E brings the keyboard to it.
+  await window.keyboard.press('Control+Shift+E');
+  await expect(files.locator('[role="treeitem"]:focus')).toHaveCount(1);
+  // A folder opens in place; a diagram file opens as a diagram, any other file on the page; the card stays.
   await files.locator(row('d:active/0001-saved-payment-methods/diagrams')).click();
   await files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml')).click();
   await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
-  await expect(card).toHaveCount(0);
-  files = await showFiles(window);
+  await expect(card).toBeVisible();
   await files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
-  await expect(card).toHaveCount(0);
-  // The file is on the page as the plan is: the breadcrumb (project, plan, file) with Show in folder beside it, no card.
+  await expect(files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md'))).toHaveAttribute('aria-selected', 'true');
+  // The file is on the page as the plan is: the breadcrumb (project, plan, file) with Show in folder beside it, no file card.
   await expect(window.locator('.file-page .work-trail .breadcrumb')).toHaveText(/Northwind.*#0001.*CONTEXT\.md/);
   await expect(window.locator('.file-page .work-trail').getByRole('button', { name: 'Show in folder' })).toBeVisible();
   await expect(window.locator('.file-page .reader .prose')).toBeVisible();
   await expect(window.locator('.file-surface, .reader-toolbar')).toHaveCount(0);
-  // Ctrl+Shift+E opens and closes the card; the hub has none.
-  await window.keyboard.press('Control+Shift+E');
+  // The plan's statistics page has it too; the hub has none.
+  await window.getByRole('button', { name: '#0001' }).click();
+  await window.locator('.about').getByRole('link', { name: 'All statistics and the timeline' }).click();
   await expect(card).toBeVisible();
-  await window.keyboard.press('Control+Shift+E');
-  await expect(card).toHaveCount(0);
   await goHome(window);
-  await expect(filesButton).toHaveCount(0);
+  await expect(card).toHaveCount(0);
 });
 
 test('the Projects page makes a project from a name and a folder, gives a project workspace folders and takes them away, and renames, hides, archives and restores projects', async () => {
@@ -458,9 +454,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await window.keyboard.press('Escape');
   await openPlan(window, 'Saved payment methods');
   await window.keyboard.press('Control+Shift+E');
-  await expect(window.getByRole('dialog', { name: /^Files of / })).toBeVisible();
-  await window.keyboard.press('Control+Shift+E');
-  await expect(window.getByRole('dialog', { name: /^Files of / })).toHaveCount(0);
+  await expect(filesCard(window).locator('[role="treeitem"]:focus')).toHaveCount(1);
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Edit's keys act on the focused field.

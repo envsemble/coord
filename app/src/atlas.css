@@ -119,13 +119,25 @@ body { margin: 0; }
 .scan-repositories { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
 .scan-repositories li { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
 
-/* The Files card under the title bar's button: the open plan's folder as a tree, as tall as its rows
-   up to a limit, scrolling on its own beyond it. */
-.files-popover { padding: var(--space-2); }
-.explorer { --explorer-row: 1.75rem; display: flex; flex-direction: column; max-block-size: min(26rem, 60vh); min-block-size: var(--explorer-row); }
-.explorer-empty { margin: 0; padding: var(--space-2); font-size: var(--font-size-body-small); }
+/* The plan's Files card, always beside its pages: a rounded surface with a light shadow, its heading,
+   then the plan's folder as a tree, as tall as its rows up to the room the window has, scrolling on
+   its own beyond it. It keeps its place as the page scrolls. */
+.plan-files { --plan-files-row: 1.75rem; display: grid; gap: var(--space-1); box-shadow: 0 0.0625rem 0.1875rem color-mix(in srgb, var(--color-canvas-dark) 10%, transparent), 0 0.5rem 1.5rem -0.75rem color-mix(in srgb, var(--color-canvas-dark) 22%, transparent); }
+.plan-files-heading { margin: 0; padding: var(--space-1) var(--space-2) 0; }
+.plan-files-tree { min-block-size: var(--plan-files-row); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - 9rem); }
+.plan-files-empty { margin: 0; padding: var(--space-1) var(--space-2) var(--space-2); font-size: var(--font-size-body-small); }
+.work-files, .plan-frame-files { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); align-self: start; min-inline-size: 0; }
+/* On a plan's other pages (its statistics, a diagram, a file) the card is to the right of the page. */
+.plan-frame { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: var(--space-6); align-items: start; }
+.plan-frame-page { min-inline-size: 0; }
+.plan-frame.is-filled { flex: 1; display: flex; min-block-size: 0; gap: 0; }
+.plan-frame.is-filled > .plan-frame-page { flex: 1; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
+.plan-frame.is-filled > .plan-frame-files { flex: none; inline-size: 17rem; padding: var(--space-3); }
+@container (max-width: 62rem) {
+  .plan-frame:not(.is-filled) { grid-template-columns: minmax(0, 1fr); }
+  .plan-frame:not(.is-filled) > .plan-frame-files { position: static; }
+}
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
-.explorer-tree { flex: 1; min-block-size: 0; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
 .explorer-diagram { color: var(--color-tone-accent); }
 
@@ -201,6 +213,20 @@ body { margin: 0; }
 .work-number { color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
 .work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
 .work-main { min-inline-size: 0; }
+/* With its Files card, a plan's page has a third column to the right of its side column, and as much
+   room on the left, so the plan and its side column stay centred; where there is no room for it, the
+   card goes below the side column. */
+.work-layout:has(> .work-files) { grid-template-areas: 'main about' 'main files'; grid-template-rows: auto 1fr; }
+.work-layout:has(> .work-files) > .work-main { grid-area: main; }
+.work-layout:has(> .work-files) > .about { grid-area: about; }
+.work-layout:has(> .work-files) > .work-files { grid-area: files; position: static; }
+@container (min-width: 122rem) {
+  .work-layout:has(> .work-files) { grid-template-columns: 17rem minmax(0, 1fr) 20rem 17rem; grid-template-areas: '. main about files'; grid-template-rows: auto; max-inline-size: calc(84rem + 2 * (17rem + var(--space-7))); }
+  .work-layout:has(> .work-files) > .work-files { position: sticky; }
+}
+@container (max-width: 62rem) {
+  .work-layout:has(> .work-files) { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'main' 'about' 'files'; grid-template-rows: auto; }
+}
 /* The side column stays where it starts, below the tabs, whatever the page does: it is held at the
    offset it has at the top of the page, and scrolls on its own when taller than the room below the
    tabs, with its scrollbar shown while the pointer is over it. It keeps its scrolling to itself only

@@ -269,10 +269,10 @@ export async function launchProject(options: { dataDirectory?: string; folder?: 
   return { ...launched, folder: home.folder };
 }
 
-/** Open the Files card, with the files of the open plan's own folder. */
+/** The plan's Files card, always beside its pages, with the files of the plan's own folder. */
+export const filesCard = (window: Page) => window.getByRole('region', { name: /^Files of / });
 export async function showFiles(window: Page) {
-  const card = window.getByRole('dialog', { name: /^Files of / });
-  if (!await card.isVisible()) await window.getByRole('button', { name: 'Files', exact: true }).click();
+  const card = filesCard(window);
   await expect(card.getByRole('tree')).toBeVisible();
   return card;
 }

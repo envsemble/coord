@@ -115,7 +115,8 @@ function StatusLine({ work, status, live }: { work: Work; status: WorkStatus; li
  * when it does, and the plan's summary. Beside it the work's progress, its sessions and statistics.
  * Diagrams open from their cards in the plan.
  */
-export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
+/** `files`: the plan's Files card, to the right of its side column (or below it, where there is no room). */
+export function WorkPage({ work, snapshot, target, files }: { work: Work; snapshot: Snapshot; target: WorkTarget; files?: ReactNode }) {
   const { listed, activity, exportPlan } = useWorkbench();
   const plan = planDocument(work);
   const reading: Document | undefined = defaultDocument(work);
@@ -145,6 +146,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
       <About work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} sessions={sessions?.sessions ?? []} />
+      {files && <div className="work-files">{files}</div>}
     </div>
   </div>;
 }
