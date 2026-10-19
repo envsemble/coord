@@ -5,6 +5,7 @@
 // message with a way to open that session. Read from the host as the plan's activity changes.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@envsemble/envui';
+import { Markdown } from '@envsemble/envui/content';
 import { AltRoute } from '@envsemble/envui/icons/AltRoute';
 import { Terminal } from '@envsemble/envui/icons/Terminal';
 import type { ReferenceInput, ResolvedReference, Work, WorkProduct, WorkSession, WorkTimeline } from '../types';
@@ -138,8 +139,8 @@ export function LinksList({ work, repositories, products, pulls }: { work: Work;
 }
 
 /**
- * Why the plan needs the person: the waiting session's last message, its beginning first, with a way
- * to open that session.
+ * Why the plan needs the person: the waiting session's last message, rendered as the Markdown it is,
+ * its beginning first, with a way to open that session.
  */
 export function NeedsYou({ work, session }: { work: string; session: WorkSession }) {
   const resume = useResume(work)(session);
@@ -147,7 +148,7 @@ export function NeedsYou({ work, session }: { work: string; session: WorkSession
   const message = session.message ?? '';
   const start = excerpt(message);
   return <section className="needs-you" aria-label="Why it needs you">
-    <p className="needs-you-message">{whole ? message.trim() : start.text}</p>
+    <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><Markdown>{whole ? message.trim() : start.text}</Markdown></div>
     <div className="needs-you-actions">
       {start.more && <Button variant="text" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
       <span className="muted">{sessionLabel(session)} · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>

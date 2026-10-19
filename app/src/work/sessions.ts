@@ -51,13 +51,14 @@ export function waitingSession(sessions: WorkSession[]): WorkSession | null {
   return sessions.filter(session => session.state === 'waiting' && session.message?.trim()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))[0] ?? null;
 }
 
-/** The beginning of a message: its first paragraph, cut at a word within `limit` characters; `more` when there is more. */
+/**
+ * The beginning of a message, as Markdown: its first paragraph whole (so its formatting stays intact;
+ * the page clamps a long one to a few lines), and whether there is more to show.
+ */
 export function excerpt(message: string, limit = 280): { text: string; more: boolean } {
   const whole = message.trim();
   const first = whole.split(/\n\s*\n/)[0].trim();
-  if (first.length <= limit) return { text: first, more: first.length < whole.length };
-  const cut = first.slice(0, limit);
-  return { text: cut.slice(0, Math.max(cut.lastIndexOf(' '), limit * 0.6)).trimEnd() + '…', more: true };
+  return { text: first, more: first.length < whole.length || first.length > limit };
 }
 
 /** The span a timeline shows: from its first stretch (or the zoom's start) to now. */

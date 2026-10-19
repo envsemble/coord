@@ -16,7 +16,8 @@ test('a plan\'s sessions: the one waiting with its message, its message\'s begin
   const session = (id: string, state: WorkSession['state'], lastSeen: string, message: string | null): WorkSession => ({ session: id, harness: 'claude-code', model: null, effort: null, state, startedAt: lastSeen, lastSeen, agentMs: 0, folder: null, resume: null, message });
   assert.equal(waitingSession([session('a', 'waiting', '2026-10-19T10:00:00Z', 'Older'), session('b', 'waiting', '2026-10-19T11:00:00Z', '**Needs your decision:** which?'), session('c', 'ended', '2026-10-19T12:00:00Z', 'Done')])!.session, 'b');
   assert.deepEqual(excerpt('First paragraph.\n\nSecond.'), { text: 'First paragraph.', more: true });
-  assert.equal(excerpt('word '.repeat(100), 50).text.length <= 51, true);
+  assert.deepEqual(excerpt('**Needs your decision:** merge it?'), { text: '**Needs your decision:** merge it?', more: false }, 'Markdown stays whole');
+  assert.equal(excerpt('word '.repeat(100), 50).more, true, 'a long first paragraph is clamped on the page');
   const product = (repository: string | null, branch: string | null, at: string): WorkProduct => ({ kind: 'commit', session: 'a', at, repository, id: 'abc1234', title: null, url: null, branch });
   assert.deepEqual(branches([product('atlas', null, '2026-10-19T09:00:00Z'), product('atlas', 'hub2', '2026-10-19T10:00:00Z'), product('envui', 'main', '2026-10-19T08:00:00Z'), product(null, 'x', '2026-10-19T11:00:00Z')]),
     [{ repository: 'atlas', branch: 'hub2' }, { repository: 'envui', branch: 'main' }]);
