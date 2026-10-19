@@ -8,11 +8,11 @@
 // click opens a plan.
 import { useMemo, type MouseEvent } from 'react';
 import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
-import { WorkIcon } from '../ui/icons';
+import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
 import { hubGroups, hubItems, hubRowFacts, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
 import { absoluteDate, relativeDate, workNumber } from '../ui/format';
-import { hubPlace, projectsPlace, workTarget, type Place } from '../navigation/targets';
+import { hubPlace, projectsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
 import { StatusIcon } from '../ui/ui';
 import { StepBar } from '../ui/LedgerProgress';
 import { ProviderMark } from '../ui/AiModel';
@@ -126,6 +126,7 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
     <span className="spacer" />
     <Select className="hub-project" density="compact" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
       options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name }))]} />
+    {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
     <SegmentedControl aria-label="Plan state" size="compact" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
       options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
   </>}>

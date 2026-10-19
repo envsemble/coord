@@ -1,17 +1,18 @@
-// The Projects page, from the menu: every project of the window's computer, active, hidden and
-// archived, with its planning folder, the workspace folders it covers (an agent working in one of
-// them, or inside one, belongs to the project) and its repositories, and what can be done with it:
-// rename, hide, show, archive, restore, move into the Atlas home, and add or remove workspace
-// folders. Projects are made here too: a name and a folder. Projects are for agents; the hub is where
-// their plans are read. Workspace folders are paths on the project's own computer, so they are only
-// chosen in Atlas there.
+// The Projects page: every project of the window's computer, active, then hidden and archived more
+// quietly, one compact row each: its name (leading to its plans), its planning folder and
+// repositories in one muted line, the workspace folders it covers (an agent working in one of them,
+// or inside one, belongs to the project), its statistics, and in its menu what can be done with it:
+// add a workspace folder, rename, hide, show, archive, restore, move into the Atlas home. A folder is
+// removed from its row, quietly until the row is pointed at. Projects are made here too: a name and a
+// folder. Workspace folders are paths on the project's own computer, so they are only chosen in Atlas
+// there.
 import { useEffect, useState } from 'react';
 import { Badge, Button, Dialog, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Text, Tooltip } from '@envsemble/envui';
-import { AddIcon, CloseIcon, FolderIcon, MoreIcon, NewProjectIcon } from '../ui/icons';
+import { CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, StatisticsIcon } from '../ui/icons';
 import type { Project, ProjectChangeRequest, WorkspaceScan } from '../types';
 import { fullPath } from '../../shared/contract';
 import { api, AtlasError } from '../api';
-import { hubPlace, type Place } from '../navigation/targets';
+import { hubPlace, statisticsPlace, type Place } from '../navigation/targets';
 import { Page } from '../ui/Pages';
 
 /** What the Projects page does with a project. */
@@ -149,11 +150,12 @@ function AddFolderDialog({ project, onClose, onAdd }: { project: Project; onClos
   </Dialog>;
 }
 
-/** A project's actions: rename, hide or show, archive or restore, and move it into the home. */
-function ProjectMenu({ project, actions, rename, busy, change }: { project: Project; actions: ProjectActions; rename(): void; busy: boolean; change(change: ProjectChangeRequest): void }) {
+/** A project's actions: add a workspace folder, rename, hide or show, archive or restore, and move it into the home. */
+function ProjectMenu({ project, actions, rename, addFolder, busy, change }: { project: Project; actions: ProjectActions; rename(): void; addFolder: (() => void) | null; busy: boolean; change(change: ProjectChangeRequest): void }) {
   const state = (next: Project['state']) => change({ state: next });
   return <Menu aria-label={'Actions for ' + project.name} align="end" density="compact"
     trigger={<IconButton variant="text" icon={<MoreIcon />} aria-label={'Actions for ' + project.name} disabled={busy} />}>
+    {addFolder && <><MenuItem onClick={addFolder}>Add Workspace Folder…</MenuItem><MenuSeparator /></>}
     <MenuItem onClick={rename}>Rename…</MenuItem>
     {project.outsideHome && <MenuItem onClick={() => actions.adopt(project)}>Move into the Atlas home</MenuItem>}
     <MenuSeparator />
@@ -165,9 +167,9 @@ function ProjectMenu({ project, actions, rename, busy, change }: { project: Proj
 }
 
 /**
- * One project: its name (leading to its plans), where it stands, its folders and repositories, and
- * its actions, which wait while a change of it is on its way. On another computer its folders are
- * shown, not changed.
+ * One project: its name (leading to its plans) and where it stands, its planning folder and
+ * repositories in a muted line, its workspace folders, its statistics and its menu, which wait while
+ * a change of it is on its way. On another computer its folders are shown, not changed.
  */
 function ProjectRow({ project, computer, local, actions, rename, addFolder }: { project: Project; computer: string; local: boolean; actions: ProjectActions; rename(): void; addFolder(): void }) {
   const [busy, setBusy] = useState(false);
@@ -179,26 +181,18 @@ function ProjectRow({ project, computer, local, actions, rename, addFolder }: { 
       {project.state !== 'active' && <Badge tone="warning">{stateLabels[project.state]}</Badge>}
       {project.outsideHome && <Badge title="Agents do not find it until it is moved into the Atlas home">Outside the Atlas home</Badge>}
     </span>}
-    detail={<bdi className="project-path">{project.path}</bdi>}
-    action={<ProjectMenu project={project} actions={actions} rename={rename} busy={busy} change={change} />}>
-    <dl className="project-facts">
-      <div>
-        <dt>Workspace folders</dt>
-        <dd>
-          {project.workspaces.length ? <ul className="project-folders">{project.workspaces.map(folder => <li key={folder}>
-            <FolderIcon /><bdi>{folder}</bdi>
-            {local && <Tooltip content="Remove this folder"><IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy}
-              onClick={() => change({ workspaces: project.workspaces.filter(item => item !== folder) })} /></Tooltip>}
-          </li>)}</ul> : <span className="muted">None: agents find the project by its repositories' remotes.</span>}
-          {local ? <Button variant="text" startIcon={<AddIcon />} className="project-add-folder" disabled={busy} onClick={addFolder}>Add folder…</Button>
-            : <span className="muted">Folders are chosen in Atlas on {computer}.</span>}
-        </dd>
-      </div>
-      <div>
-        <dt>Repositories</dt>
-        <dd>{repositories === null ? <span className="muted">Its planning folder could not be read.</span> : repositories.length ? repositories.join(' · ') : <span className="muted">None</span>}</dd>
-      </div>
-    </dl>
+    detail={<span className="project-meta"><bdi className="project-path">{project.path}</bdi>
+      <span className="project-repositories">{repositories === null ? 'Its planning folder could not be read' : repositories.length ? repositories.join(', ') : 'No repositories'}</span></span>}
+    action={<span className="project-actions">
+      <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => actions.go(statisticsPlace(project.folderId))} aria-label={'Statistics of ' + project.name}>Statistics</Button>
+      <ProjectMenu project={project} actions={actions} rename={rename} addFolder={local ? addFolder : null} busy={busy} change={change} />
+    </span>}>
+    {project.workspaces.length ? <ul className="project-folders" aria-label={'Workspace folders of ' + project.name}>{project.workspaces.map(folder => <li key={folder}>
+      <FolderIcon /><bdi>{folder}</bdi>
+      {local && <Tooltip content="Remove this folder"><IconButton variant="text" className="project-folder-remove" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy}
+        onClick={() => change({ workspaces: project.workspaces.filter(item => item !== folder) })} /></Tooltip>}
+    </li>)}</ul> : local && <p className="project-folders-none muted">No workspace folders: agents find the project by its repositories’ remotes.</p>}
+    {!local && <p className="project-folders-none muted">Folders are chosen in Atlas on {computer}.</p>}
   </Row>;
 }
 

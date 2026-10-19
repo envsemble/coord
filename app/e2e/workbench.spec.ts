@@ -281,20 +281,20 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await openProjects(window);
   await expectProjects(window, ['Northwind']);
   await expect(projectRow(window)).toContainText(home.folder);
-  await expect(projectRow(window).locator('.project-facts')).toContainText('shop');
+  await expect(projectRow(window).locator('.project-meta')).toContainText('shop');
   // Workspace folders, added and removed on the project's row: each change goes into its planning.json.
   const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).workspaces ?? [];
   const [first, second] = [temporaryDirectory('atlas-e2e-workspace-'), temporaryDirectory('atlas-e2e-workspace-')];
   homes.push(first, second);
   const addFolder = window.getByRole('dialog', { name: 'Add a folder to Northwind' });
   const add = async (added: string) => {
-    await projectRow(window).getByRole('button', { name: 'Add folder…' }).click();
+    await projectAction(window, 'Northwind', 'Add Workspace Folder…');
     await expect(addFolder.getByRole('button', { name: 'Browse…' })).toBeVisible();
     await addFolder.getByLabel('Folder').fill(added);
     await addFolder.getByRole('button', { name: 'Add' }).click();
     await expect(addFolder).toHaveCount(0);
   };
-  await expect(projectRow(window)).toContainText('None: agents find the project by its repositories');
+  await expect(projectRow(window)).toContainText('No workspace folders: agents find the project by its repositories');
   await add(first);
   await add(second);
   await expect(projectRow(window).locator('.project-folders li')).toHaveText([first, second]);
@@ -307,7 +307,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await expect(projectRow(window).locator('.project-folders')).toHaveCount(0);
   expect(workspaces()).toEqual([]);
   // A folder by a relative path is refused.
-  await projectRow(window).getByRole('button', { name: 'Add folder…' }).click();
+  await projectAction(window, 'Northwind', 'Add Workspace Folder…');
   await addFolder.getByLabel('Folder').fill('relative/folder');
   await expect(addFolder).toContainText('Type the folder’s full path.');
   await expect(addFolder.getByRole('button', { name: 'Add' })).toBeDisabled();
@@ -409,10 +409,10 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await section(window, 'Projects').click();
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
   await expect(current).toHaveAttribute('data-section', 'projects');
-  await section(window, 'Statistics').click();
+  // A project's statistics belong to Projects.
+  await projectRow(window).getByRole('button', { name: 'Statistics of Northwind', exact: true }).click();
   await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
-  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(/Northwind/);
-  await expect(current).toHaveAttribute('data-section', 'statistics');
+  await expect(current).toHaveAttribute('data-section', 'projects');
   await section(window, 'Plans').click();
   await expectHub(window);
   await expect(current).toHaveAttribute('data-section', 'plans');

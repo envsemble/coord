@@ -4,7 +4,7 @@
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, close, filterHub, goHome, launch, launchProject, openPlan, pageScroll, projectHome, removeDirectory, section, settledScroll, type Launched } from './app';
+import { addProject, close, filterHub, goHome, launch, launchProject, openPlan, openProjectStatistics, pageScroll, projectHome, removeDirectory, settledScroll, type Launched } from './app';
 
 let launched: Launched | undefined;
 /** Numbers as the window formats them, whatever the system locale. */
@@ -12,30 +12,30 @@ const compact = (window: import('@playwright/test').Page, value: number) => wind
 const whole = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => number.toLocaleString(), value);
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
-/** The Statistics section, of the project given or the one it chooses. */
-async function openStatistics(window: Page, project = 'Northwind') {
-  await section(window, 'Statistics').click();
-  await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
-  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(new RegExp(project));
-}
+/** A project's statistics, from its row on the Projects page. */
+const openStatistics = (window: Page, project = 'Northwind') => openProjectStatistics(window, project);
 
-test('Statistics, a section of its own, shows one project at a time: the project of the plan last open, else the first; a wheel over its table scrolls the page', async () => {
+test('each project has its statistics, from its row on the Projects page or the hub filtered to it, under a breadcrumb back to them; a wheel over its table scrolls the page', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window, app } = launched;
+  // No Statistics section: Plans and Projects.
+  await expect(window.getByRole('navigation', { name: 'Sections' }).locator('[data-section]')).toHaveCount(2);
   await openStatistics(window, 'Northwind');
   await expect(window.locator('.work-statistics-table')).toBeVisible();
-  // The picker shows another project's.
-  await window.getByRole('combobox', { name: 'Project' }).click();
-  await window.getByRole('option', { name: 'Coord' }).click();
-  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(/Coord/);
+  // Another project's, from its row; Back returns to Northwind's.
+  await openStatistics(window, 'Coord');
   await expect(window.locator('.work-statistics-table')).toBeVisible();
-  // Back returns to Northwind's.
   await window.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(window.getByRole('combobox', { name: 'Project' })).toHaveText(/Northwind/);
-  // After a plan of Coord, Statistics shows Coord's.
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Northwind');
+  // The hub filtered to Coord leads to Coord's.
+  await goHome(window);
+  await filterHub(window, 'Coord');
+  await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
+  await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Coord');
   await goHome(window);
   await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');

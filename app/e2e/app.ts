@@ -205,7 +205,7 @@ export const listedProjects = (window: Page) => window.evaluate(async () => {
   return result.ok ? result.value : [];
 });
 /** The second row's sections, by name: Plans, Projects or Statistics. */
-export const section = (window: Page, name: 'Plans' | 'Projects' | 'Statistics') => window.getByRole('navigation', { name: 'Sections' }).locator(`[data-section="${name.toLowerCase()}"]`);
+export const section = (window: Page, name: 'Plans' | 'Projects') => window.getByRole('navigation', { name: 'Sections' }).locator(`[data-section="${name.toLowerCase()}"]`);
 /** The search popup: the hub's search field, the title bar's search and Ctrl+P open it. */
 export const searchPopup = (window: Page) => window.getByRole('dialog', { name: 'Search' });
 /** Show one project's plans in the hub, by its project filter. */
@@ -237,6 +237,13 @@ export const projectRow = (window: Page, name = 'Northwind', group?: 'Projects' 
 /** The Projects page lists these projects, in this order. */
 export async function expectProjects(window: Page, names: string[], group?: 'Projects' | 'Hidden and archived projects') {
   await expect(projectRows(window, group).locator('.row-link-title')).toHaveText(names);
+}
+/** A project's statistics, from its row on the Projects page. */
+export async function openProjectStatistics(window: Page, name = 'Northwind') {
+  await openProjects(window);
+  await projectRow(window, name).getByRole('button', { name: 'Statistics of ' + name, exact: true }).click();
+  await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
+  await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(new RegExp('Projects.*' + name + '.*Statistics'));
 }
 /** Run one of a project's actions on the Projects page. */
 export async function projectAction(window: Page, name: string, action: string) {

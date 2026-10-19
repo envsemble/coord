@@ -100,17 +100,23 @@ body { margin: 0; }
 .search-snippet { font-style: italic; }
 
 /* The Projects page: each project with its folders and repositories, the hidden and archived after. */
-.projects-intro { margin: 0; }
-.projects-aside { display: grid; gap: var(--space-3); }
+.projects-intro { margin: 0; max-inline-size: 48rem; }
+.projects-aside { display: grid; gap: var(--space-3); margin-block-start: var(--space-4); }
+.projects-aside .project-row { opacity: 0.8; }
+/* A project, one compact row: its name, its planning folder and repositories in one muted line, its
+   workspace folders as small quiet chips, removed with a button that shows when the row is pointed at
+   or focused, and its statistics and menu at the end. */
+.project-meta { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
 .project-path { overflow-wrap: anywhere; }
-.project-row[data-state='archived'], .project-row[data-state='hidden'] { opacity: 0.85; }
-.project-facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-5); margin: var(--space-3) 0 0; font-size: var(--font-size-body-small); }
-.project-facts > div { display: contents; }
-.project-facts dt { color: var(--color-text-muted); }
-.project-facts dd { display: grid; justify-items: start; gap: var(--space-1); margin: 0; min-inline-size: 0; overflow-wrap: anywhere; }
-.project-folders { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
-.project-folders li { display: flex; align-items: center; gap: var(--space-2); }
-.project-folders li > svg { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
+.project-repositories::before { content: '·'; margin-inline-end: var(--space-3); }
+.project-actions { display: inline-flex; align-items: center; gap: var(--space-1); }
+.project-folders { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
+.project-folders li { display: inline-flex; align-items: center; gap: var(--space-1); min-block-size: 1.75rem; padding-inline: var(--space-2) var(--space-1); border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-muted); }
+.project-folders li > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-folder-remove { opacity: 0; transition: opacity var(--motion-duration-fast) var(--motion-ease); }
+.project-row:is(:hover, :focus-within) .project-folder-remove { opacity: 1; }
+.project-folders-none { margin: var(--space-2) 0 0; font-size: var(--font-size-body-small); }
+.page-heading-stack { display: grid; gap: var(--space-2); }
 /* A folder's path, typed or chosen, with Browse… beside it; then what the folder holds. */
 .folder-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
 .scan-state { display: flex; align-items: center; gap: var(--space-2); }

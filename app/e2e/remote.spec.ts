@@ -146,7 +146,9 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expectProjects(viewer, ['Northwind', 'Coord']);
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
   expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'coord', 'planning.json'), 'utf8')).workspaces ?? []).toEqual([]);
-  await expect(projectRow(viewer, 'Coord').getByRole('button', { name: 'Add folder…' })).toHaveCount(0);
+  await viewer.getByRole('button', { name: 'Actions for Coord', exact: true }).click();
+  await expect(viewer.getByRole('menuitem', { name: 'Add Workspace Folder…' })).toHaveCount(0);
+  await viewer.keyboard.press('Escape');
   await expect(projectRow(viewer, 'Coord')).toContainText(`Folders are chosen in Atlas on ${name}.`);
   // (The owner's Remote Access dialog stays open, so its projects are read through its bridge.)
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord']);

@@ -29,10 +29,10 @@ const formatMetric = (metric: TrendMetric, value: number | null) => value === nu
   : metric === 'tokens' ? compactNumber(value) : metric === 'agentMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
 
 /**
- * The Statistics page, opened from the menu: one project's statistics, chosen with the project
- * picker (`controls`, beside the heading), under one repository filter.
+ * A project's statistics, a page of their own from its row on the Projects page (or the hub filtered
+ * to it): under its breadcrumb (`trail`: Projects, the project), with one repository filter.
  */
-export function Statistics({ snapshot, controls }: { snapshot: Snapshot; controls: ReactNode }) {
+export function Statistics({ snapshot, trail }: { snapshot: Snapshot; trail: ReactNode }) {
   const [tab, setTab] = useState<StatisticsTab>('work');
   const [repository, setRepository] = useState('all');
   // Another project's repositories are not this one's.
@@ -40,7 +40,7 @@ export function Statistics({ snapshot, controls }: { snapshot: Snapshot; control
   const rows = useMemo(() => workRows(snapshot, repository), [snapshot, repository]);
   const usage = repository === 'all' ? snapshot.usage : snapshot.usageByRepository[repository];
   const body = tab === 'work' ? <WorkStatisticsTab rows={rows} /> : tab === 'models' ? <ModelsTab rows={rows} /> : <DocumentUse snapshot={snapshot} repository={repository} />;
-  return <Page title="Statistics" className="statistics-page" heading={<div className="page-heading-row">
+  return <Page title="Statistics" className="statistics-page" heading={<div className="page-heading-stack">{trail}<div className="page-heading-row">
     <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
@@ -54,9 +54,8 @@ export function Statistics({ snapshot, controls }: { snapshot: Snapshot; control
       </div>
     </Popover>
     <span className="spacer" />
-    {controls}
     <RepositorySelect snapshot={snapshot} repository={repository} setRepository={setRepository} />
-  </div>}>
+  </div></div>}>
     <SegmentedControl className="statistics-nav" aria-label="Statistics sections" value={tab} onValueChange={value => setTab(value as StatisticsTab)}
       options={tabs.map(item => ({ value: item.id, label: item.label }))} />
     <div className="statistics-body">{body}</div>

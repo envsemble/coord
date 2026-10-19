@@ -1,7 +1,7 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { close, expectHub, launch, launchProject, openDocument, openPlan, projectHome, removeDirectory, section, type Launched } from './app';
+import { close, expectHub, launch, launchProject, openDocument, openPlan, openProjects, projectHome, removeDirectory, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 let home: { dataDirectory: string; folder: string };
@@ -73,7 +73,8 @@ test('a project that cannot be read at all explains why', async () => {
   const { window } = launched;
   // Its name is the folder's while its planning.json cannot be read; its statistics say why.
   await expectHub(window);
-  await section(window, 'Statistics').click();
+  await openProjects(window);
+  await window.getByRole('button', { name: /^Statistics of / }).first().click();
   await expect(window.getByRole('heading', { name: 'This project can’t be read' })).toBeVisible();
   await expect(window.locator('.page-empty')).toContainText('planning.json');
 });

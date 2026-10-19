@@ -1,7 +1,7 @@
 // The window's two rows at the top, GitHub style. The title bar: the logo (which leads to the hub),
 // back and forward, the File menu and the computer the window works on at its start. Below it, the
-// sections: Plans (the hub, and every plan, ledger and diagram opened from it), Projects and
-// Statistics, with their counts. The shortcuts shown in File are taken by the window and main's
+// sections: Plans (the hub, and every plan, ledger and diagram opened from it) and Projects (with
+// each project's statistics), with their counts. The shortcuts shown in File are taken by the window and main's
 // application menu (on macOS, the system's menu bar).
 import { useState, type ReactNode } from 'react';
 import { Counter, IconButton, Menubar, MenubarMenu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSubmenu, NavigationItem, Tooltip } from '@envsemble/envui';
@@ -12,7 +12,7 @@ import { editorNames, editors, type AppCommand, type Editor } from '../../shared
 import type { WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
 import { ComputerMenu, useAppActions } from '../remote/Computers';
-import { FolderIcon, StatisticsIcon, WorkIcon } from '../ui/icons';
+import { FolderIcon, WorkIcon } from '../ui/icons';
 
 /** What the window adds to the title bar: the hub, back and forward, a new project, importing a plan and exporting the one open. */
 export interface WorkbenchMenus {
@@ -109,7 +109,7 @@ function HistoryButtons({ platform, workbench }: { platform: string; workbench: 
   </div>;
 }
 
-export type Section = 'plans' | 'projects' | 'statistics';
+export type Section = 'plans' | 'projects';
 
 /**
  * The second row: the window's sections, the one shown underlined as on GitHub, with the open plans
@@ -122,6 +122,5 @@ export function SectionBar({ section, counts, go }: { section: Section; counts: 
   return <nav className="section-bar" aria-label="Sections">
     {item('plans', 'Plans', <WorkIcon />, counts?.plans, counts ? counts.plans + ' open' : undefined)}
     {item('projects', 'Projects', <FolderIcon />, counts?.projects, counts ? counts.projects + ' active' : undefined)}
-    {item('statistics', 'Statistics', <StatisticsIcon />)}
   </nav>;
 }

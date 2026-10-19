@@ -1,10 +1,10 @@
 // A window: envUI's window frame with two rows at the top, the title bar (the logo, back and forward,
 // File, the computer, search, record health, the theme and the window buttons) and the sections
-// (Plans, Projects, Statistics), above one place at a time: the hub, where it starts and returns when
-// nothing else is open, a plan, a diagram or a file of a project, or the Projects or Statistics page.
+// (Plans, Projects), above one place at a time: the hub, where it starts and returns when nothing else
+// is open, a plan, a diagram or a file of a project, the Projects page or a project's statistics.
 // A plan and its pages have the plan's own files in a card beside them.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Button, EmptyState, Kbd, Notice, Popover, Select, Spinner, Text, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
+import { Breadcrumbs, Button, EmptyState, Kbd, Notice, Popover, Spinner, Text, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
 import { ThemeMenu } from '../menu/ThemeMenu';
 import { ErrorIcon, FolderOpenIcon, SearchIcon, StatisticsIcon, WarningIcon } from '../ui/icons';
 import type { ImportPreview, MenuCommand } from '../../shared/contract';
@@ -261,7 +261,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger');
     }
   }, [projects, place, notify]);
-  /** The Statistics page: of the project of the plan last open, else the first project. */
+  /** A project's statistics, from the menu: of the project of the plan last open, else the first project. */
   const statisticsProject = useCallback(() => {
     const all = projects ?? [];
     return (projectOf(lastProject.current) ?? all.find(item => item.state === 'active') ?? all[0])?.folderId ?? null;
@@ -453,7 +453,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     exportPlan: planOpen && (() => { void exportWork(planOpen.project, planOpen.work); }),
   };
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
-  const section: Section = isPage(place) && place.page !== 'hub' ? place.page : 'plans';
+  // A project's statistics belong to Projects.
+  const section: Section = isPage(place) && place.page !== 'hub' ? 'projects' : 'plans';
   const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
   const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.filter(project => project.state === 'active').length }, [projects]);
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
@@ -468,8 +469,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   else if (isPage(placed) && !placed.project) content = !projects ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the projects" /></div> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
   else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
-    statisticsControls={<Select className="statistics-project" density="compact" aria-label="Project" value={reading} onValueChange={value => { if (value) go(statisticsPlace(value)); }}
-      options={(projects ?? []).filter(project => project.state === 'active' || project.folderId === reading).map(project => ({ value: project.folderId, label: project.name }))} />} />;
+    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Projects', onClick: () => go(projectsPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   return <WindowFrame className="workbench" scrollRef={setScroller} titleBar={<div className="workbench-top"><TitleBar className="workbench-title-bar"
     start={<TitleBarStart info={info} workbench={menus} onError={warn} />}
@@ -556,10 +556,10 @@ function ScrollMemory({ scroller: element, shown, scrollKey: key, anchored, entr
 
 /** What the window shows of a project, in its scope: a plan, a diagram, a file or its statistics; or why it cannot. */
 /** `files`: the open plan's Files card, for a plan and its pages, at the top right beside each of them. */
-function ProjectContent({ place, folder, project, scope, statisticsControls, files }: { place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; statisticsControls: ReactNode; files: ReactNode }) {
+function ProjectContent({ place, folder, project, scope, statisticsTrail, files }: { place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; statisticsTrail: ReactNode; files: ReactNode }) {
   const change = folder?.change;
-  // The Statistics page keeps its heading and project picker above why it shows nothing yet.
-  const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" heading={<div className="page-heading-row"><Text as="h1" variant="page-heading">Statistics</Text><span className="spacer" />{statisticsControls}</div>}>{state}</Page> : state;
+  // A project's statistics keep their breadcrumb and heading above why they show nothing yet.
+  const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" heading={<div className="page-heading-stack">{statisticsTrail}<Text as="h1" variant="page-heading">Statistics</Text></div>}>{state}</Page> : state;
   if (change?.status === 'missing' || (!folder?.snapshot && (change?.status === 'invalid' || folder?.failure))) {
     return frame(<EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
       description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />);
@@ -567,7 +567,7 @@ function ProjectContent({ place, folder, project, scope, statisticsControls, fil
   if (!scope || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
   const snapshot = folder.snapshot;
   let content;
-  if (isPage(place)) content = <Statistics snapshot={snapshot} controls={statisticsControls} />;
+  if (isPage(place)) content = <Statistics snapshot={snapshot} trail={statisticsTrail} />;
   else {
     const { target } = place as ProjectPlace;
     if (target.kind === 'work' || target.kind === 'diagram') {
