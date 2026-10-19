@@ -23,7 +23,7 @@ export const invokeChannels = [
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'project:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
-  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
+  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openFile', 'shell:copy',
   'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch',
@@ -46,7 +46,7 @@ export type ThemePreference = typeof themePreferences[number];
  */
 export const editors = ['vscode', 'vscode-insiders', 'cursor', 'windsurf', 'zed', 'system'] as const;
 export type Editor = typeof editors[number];
-export const editorNames: Record<Editor, string> = { vscode: 'Visual Studio Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf', zed: 'Zed', system: 'The system’s application' };
+export const editorNames: Record<Editor, string> = { vscode: 'VS Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf', zed: 'Zed', system: 'The system’s application' };
 
 /**
  * Commands the renderer may ask main to run, from the title bar's menu among others; each one acts
@@ -60,7 +60,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'newProject', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
+  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -224,6 +224,8 @@ export interface AtlasBridge {
   openExternal(url: string): Promise<Result<void>>;
   /** Open the file a path reference names in the editor, at its line; only for a project on this computer. */
   openReference(project: string, work: string | null, reference: ReferenceInput): Promise<Result<void>>;
+  /** Open a file of a project's planning folder in the editor (with the system's choice, show it in its folder); only for a project on this computer. */
+  openFile(project: string, path: string): Promise<Result<void>>;
   /** The editor files open in, and choosing another. */
   editor(): Promise<Result<Editor>>;
   setEditor(editor: Editor): Promise<Result<void>>;

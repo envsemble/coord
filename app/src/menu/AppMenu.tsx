@@ -3,12 +3,12 @@
 // sections: Plans (the hub, and every plan, ledger and diagram opened from it) and Projects (with
 // each project's statistics), with their counts. The shortcuts shown in File are taken by the window and main's
 // application menu (on macOS, the system's menu bar).
-import { useState, type ReactNode } from 'react';
-import { Counter, IconButton, Menubar, MenubarMenu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSubmenu, NavigationItem, Tooltip } from '@envsemble/envui';
+import type { ReactNode } from 'react';
+import { Counter, IconButton, Menubar, MenubarMenu, MenuItem, MenuSeparator, NavigationItem, Tooltip } from '@envsemble/envui';
 import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import { AtlasMark } from '@envsemble/atlas-diagrams/react';
-import { editorNames, editors, type AppCommand, type Editor } from '../../shared/contract';
+import type { AppCommand } from '../../shared/contract';
 import type { WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
 import { ComputerMenu, useAppActions } from '../remote/Computers';
@@ -25,6 +25,8 @@ export interface WorkbenchMenus {
   importPlan(): void;
   /** Export the plan open; null when none is. */
   exportPlan: (() => void) | null;
+  /** Open the shown file in the chosen editor, as the title bar's Open in does; null when the window shows none. */
+  openInEditor: (() => void) | null;
 }
 
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
@@ -33,21 +35,6 @@ export const modifierKey = (platform: string) => platform === 'darwin' ? '⌘' :
 const historyKeys = (platform: string) => platform === 'darwin'
   ? { back: '⌘[', forward: '⌘]', backKeys: 'Meta+[ BrowserBack', forwardKeys: 'Meta+] BrowserForward' }
   : { back: 'Alt+←', forward: 'Alt+→', backKeys: 'Alt+ArrowLeft BrowserBack', forwardKeys: 'Alt+ArrowRight BrowserForward' };
-
-/** The editor files and work folders open in, read again each time its menu opens (another window may have changed it). */
-function EditorMenu() {
-  const [choice, setChoice] = useState<Editor | null>(null);
-  const choose = (value: string) => {
-    const next = value as Editor;
-    setChoice(next);
-    api.setEditor(next).catch(() => setChoice(null));
-  };
-  return <MenuSubmenu label="Open Files In" onOpenChange={open => { if (open) api.editor().then(setChoice, () => setChoice('vscode')); }}>
-    <MenuRadioGroup value={choice ?? ''} onValueChange={choose}>
-      {editors.map(value => <MenuRadioItem key={value} value={value}>{editorNames[value]}</MenuRadioItem>)}
-    </MenuRadioGroup>
-  </MenuSubmenu>;
-}
 
 /** File: windows and projects, plans, other computers, the view, and the app. Alt+F opens it, except on macOS. */
 export function FileMenu({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
@@ -61,7 +48,7 @@ export function FileMenu({ info, workbench, onError }: { info: WindowInfo; workb
       <MenuSeparator />
       <MenuItem onClick={workbench.importPlan}>Import Plan…</MenuItem>
       {workbench.exportPlan && <MenuItem onClick={workbench.exportPlan}>Export Plan…</MenuItem>}
-      <EditorMenu />
+      {workbench.openInEditor && <MenuItem shortcut={mod + '+O'} onClick={workbench.openInEditor}>Open in Editor</MenuItem>}
       <MenuSeparator />
       <MenuItem onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
       <MenuItem onClick={actions.remoteAccess}>Remote Access…</MenuItem>

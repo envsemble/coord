@@ -16,6 +16,8 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
         { type: 'separator' },
         { label: '&Import Plan…', click: () => manager.sendMenu('importPlan') },
+        // The shown file in the chosen editor, as the title bar's Open in button does; the window takes the key itself.
+        { label: 'Open in &Editor', accelerator: 'CmdOrCtrl+O', click: () => manager.sendMenu('openInEditor') },
         { type: 'separator' },
         { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },
         { label: 'Re&mote Access…', click: () => manager.sendMenu('remoteAccess') },

@@ -30,11 +30,13 @@ import { modifierKey, SectionBar, TitleBarStart, type Section, type WorkbenchMen
 import { revealIds } from './explorerModel';
 import { WorkbenchContext, type Notify, type WorkbenchApi } from './workbenchContext';
 import { arrived, liveActivity } from '../work/agentTime';
+import { EditorButton, useEditor } from '../menu/EditorButton';
+import { shownFile } from './shownFile';
 
 const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'toggleFiles' };
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+o': 'openInEditor', 'ctrl+shift+e': 'toggleFiles' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
@@ -278,8 +280,18 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.project]: next })); },
   }), [expanded, projectPlace?.project, node?.id]);
 
+  // The file the window shows, which Open in opens in the editor: a plan's document, a diagram's source, a file; this computer's only.
+  const [editor, chooseEditor, readEditor] = useEditor();
+  const editorFile = projectPlace && readSnapshot && info.computer.hostId === null ? shownFile(projectPlace.target, readSnapshot) : null;
+  const editorProject = projectPlace?.project ?? null;
+  const openInEditor = useCallback(() => {
+    if (!editorFile || !editorProject) return;
+    api.openFile(editorProject, editorFile).catch(error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'warning'); });
+  }, [editorFile, editorProject, notify]);
+
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
+      case 'openInEditor': openInEditor(); break;
       // The plan's Files card takes the keyboard.
       case 'toggleFiles': focusPlanFiles(); break;
       case 'quickOpen': openSearch(); break;
@@ -290,7 +302,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       case 'goBack': navigate(-1); break;
       case 'goForward': navigate(1); break;
     }
-  }, [go, showStatistics, startImport, navigate, openSearch]);
+  }, [go, showStatistics, startImport, navigate, openSearch, openInEditor]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
@@ -453,6 +465,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     newProject: () => runCommand('newProject'),
     importPlan: () => runCommand('importPlan'),
     exportPlan: planOpen && (() => { void exportWork(planOpen.project, planOpen.work); }),
+    openInEditor: editorFile ? openInEditor : null,
   };
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
   // A project's statistics belong to Projects.
@@ -476,6 +489,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   return <WindowFrame className="workbench" scrollRef={setScroller} titleBar={<div className="workbench-top"><TitleBar className="workbench-title-bar"
     start={<TitleBarStart info={info} workbench={menus} onError={warn} />}
     end={<>
+      {editorFile && <EditorButton platform={info.platform} editor={editor} choose={chooseEditor} read={readEditor} open={openInEditor} />}
       {/* On the hub, its own search field is the search. */}
       {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
       {scope && <Health issues={scope.snapshot.issues} open={work => go({ project: scope.project, target: workTarget(work) })} />}

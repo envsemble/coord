@@ -131,7 +131,15 @@ test("the hub's search field opens the search with what is typed and never filte
   await state.getByRole('radio', { name: /^All/ }).click();
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
   // The state filter stays while the window shows something else.
+  // Open in shows only where the window shows a file.
+  const openIn = window.locator('.env-title-bar .editor-button');
+  await expect(openIn).toHaveCount(0);
   await openPlan(window, 'Saved payment methods');
+  // On a plan it opens its document in the chosen editor, VS Code until another is chosen; its arrow lists the editors.
+  await expect(openIn.getByRole('button', { name: 'Open in VS Code', exact: true })).toBeVisible();
+  await openIn.getByRole('button', { name: 'Choose the editor' }).click();
+  await expect(window.getByRole('menu', { name: 'Open in' }).getByRole('menuitem')).toHaveText([/^VS Code/, 'VS Code Insiders', 'Cursor', 'Windsurf', 'Zed', /^(File Explorer|Finder|Files)$/]);
+  await window.keyboard.press('Escape');
   // On a plan, the title bar's search finds the documents of its project too.
   await window.locator('.env-title-bar').getByRole('button', { name: 'Search', exact: true }).click();
   await input.fill('payments-cons');
@@ -450,7 +458,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await fileMenu(window).click();
   const menu = window.getByRole('menu', { name: 'File' });
   await expect(menu.getByRole('menuitem')).toHaveText([
-    /^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Open Files In', 'Connect to Another Atlas…', 'Remote Access…',
+    /^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Connect to Another Atlas…', 'Remote Access…',
     /^Zoom In/, /^Zoom Out/, /^Actual Size/, /^Full Screen\s*F11$/, 'Open Logs', 'About Atlas', 'Exit',
   ]);
   await window.keyboard.press('Escape');
@@ -469,7 +477,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with the sections in View.
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   expect(items).toEqual([
-    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Co&nnect to Another Atlas…', 'Re&mote Access…', 'Close Win&dow CmdOrCtrl+Shift+W', 'E&xit']],
+    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', 'Co&nnect to Another Atlas…', 'Re&mote Access…', 'Close Win&dow CmdOrCtrl+Shift+W', 'E&xit']],
     ['&Edit', ['Undo CommandOrControl+Z', 'Redo Control+Y', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Projects', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11']],
     ['&Help', ['Open &Logs', '&About Atlas']],

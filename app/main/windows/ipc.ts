@@ -115,6 +115,16 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   await openInEditor(manager, window, 'this file', real, file.line);
 }
 
+/** Open a file of a project's planning folder in the editor: the file itself, inside the folder (never a link out of it, never a hidden part). */
+async function openPlanningFile(manager: WindowManager, window: AtlasWindow, project: string, relative: string) {
+  thisComputer(window, 'Files');
+  await window.readable(project);
+  const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
+  if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
+  const real = await resolveDocument(root, relative).catch(() => { throw new AtlasError('forbidden', 'Only files inside the project\'s folder open in the editor.'); });
+  await openInEditor(manager, window, 'this file', real, null);
+}
+
 /** Send a plan export on this computer to another computer's host, for its preview there. */
 async function sendImport(folder: FolderView, file: string) {
   const size = (await stat(file)).size;
@@ -256,6 +266,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'shell:openReference': { args: [folderId, nullable(workId), referenceInput], handle: (window, project: string, work: string | null, reference: ReferenceInput) => openReference(manager, window, project, work, reference) },
+    'shell:openFile': { args: [folderId, relativePath], handle: (window, project: string, file: string) => openPlanningFile(manager, window, project, file) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.

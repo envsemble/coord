@@ -49,6 +49,7 @@ export const api: Unwrapped = {
   reveal: (project, path) => unwrap(bridge().reveal(project, path)),
   openExternal: url => unwrap(bridge().openExternal(url)),
   openReference: (project, work, reference) => unwrap(bridge().openReference(project, work, reference)),
+  openFile: (project, path) => unwrap(bridge().openFile(project, path)),
   editor: () => unwrap(bridge().editor()),
   setEditor: editor => unwrap(bridge().setEditor(editor)),
   copy: text => unwrap(bridge().copy(text)),

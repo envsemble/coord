@@ -53,11 +53,19 @@ body { margin: 0; }
 .workbench-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
 .workbench-body.is-filled .workbench-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
 .search-button { min-inline-size: 13rem; justify-content: flex-start; }
+/* Open in: a split button of the row's height before the search, never part of the drag area. */
+.editor-button { flex: none; -webkit-app-region: no-drag; app-region: no-drag; }
+.editor-button-more { inline-size: var(--control-height-compact, 2rem); }
+.editor-mark { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-text-primary); }
+.editor-mark[data-editor='vscode'] { color: light-dark(#0065a9, #3c9fe8); }
+.editor-mark[data-editor='vscode-insiders'] { color: light-dark(#13856f, #24bfa5); }
+.editor-mark[data-editor='system'] { color: var(--color-icon); }
+.editor-current { inline-size: 1rem; block-size: 1rem; color: var(--color-text-muted); }
 .search-button-label { flex: 1; text-align: start; }
 /* Narrow windows keep the title bar on one line: the search button drops its keys, then its label. */
 @media (max-width: 72rem) {
   .search-button { min-inline-size: 0; }
-  .search-button-keys { display: none; }
+  .search-button-keys, .editor-button-label { display: none; }
 }
 @media (max-width: 60rem) {
   .search-button-label { display: none; }
