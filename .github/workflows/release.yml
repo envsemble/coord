@@ -1,0 +1,154 @@
+name: Release
+# Pushing a version tag (v0.7.2) on a commit of main makes the GitHub Release: the release ZIP and
+# the AppImage from the Linux runner (CI_LINUX_RUNNER), the Windows installer, tested by installing
+# it, from the Windows runner (CI_WINDOWS_RUNNER). The files go straight into a draft release, which
+# is published only when both builds pass. A failed or cancelled run leaves the unpublished draft:
+# re-running its failed jobs fills it, and the next run for the tag replaces it.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  # Creates, fills and publishes the release.
+  contents: write
+  # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
+  packages: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  TAG: ${{ github.ref_name }}
+jobs:
+  draft:
+    name: Draft the release
+    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Only a commit of main itself (not one merged into it), tagged with the version in
+      # package.json, with a section in CHANGELOG.md, which becomes the release notes.
+      - name: Check the tag
+        run: |
+          # grep -c reads all of rev-list's output, so it cannot end the pipeline early.
+          git rev-list --first-parent origin/main | grep -cx "$GITHUB_SHA" > /dev/null ||
+            { echo "::error::$TAG is not a commit of main."; exit 1; }
+          version=$(sed -n 's/^  "version": "\(.*\)",\{0,1\}$/\1/p' package.json | head -n 1)
+          [ "$TAG" = "v$version" ] ||
+            { echo "::error::$TAG does not match the version in package.json ($version)."; exit 1; }
+          awk -v heading="## $version" '$0 == heading || index($0, heading " ") == 1 { keep = 1; next } /^## / { keep = 0 } keep' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md" ||
+            { echo "::error::CHANGELOG.md has no section for $version."; exit 1; }
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A draft left by an earlier run for this tag is replaced; a published release is not.
+          if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            [ "$draft" = true ] || { echo "::error::$TAG is already released."; exit 1; }
+            gh release delete "$TAG" --yes
+          fi
+          gh release create "$TAG" --draft --verify-tag --title "Atlas $TAG" --notes-file "$RUNNER_TEMP/notes.md"
+  linux:
+    name: Release ZIP and AppImage
+    needs: draft
+    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run check:release
+      - run: npm run release:assemble -- artifacts/release
+      - run: npm run package --workspace @envsemble/atlas-app
+      # --clobber, so re-running the job replaces what an earlier attempt added.
+      - name: Add them to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only the latest run for the tag, and only into a draft: an older run must not
+          # replace the files of a newer or published release.
+          [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA" ] ||
+            { echo "::error::$TAG has moved since this run started; use the latest run for it."; exit 1; }
+          [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ] ||
+            { echo "::error::$TAG is already released."; exit 1; }
+          gh release upload "$TAG" artifacts/release/*.zip app/release/*.AppImage --clobber
+  windows:
+    name: Windows installer
+    needs: draft
+    runs-on: ${{ vars.CI_WINDOWS_RUNNER }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@envsemble"
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The unsigned NSIS installer, in app/release.
+      - run: npm run package --workspace @envsemble/atlas-app
+      # Installs Atlas for the runner's user, starts it and uninstalls it.
+      - name: Test the installer
+        env:
+          ATLAS_E2E_INSTALLER: "1"
+        run: npm run test:e2e --workspace @envsemble/atlas-app -- --grep=Windows.installer
+      - name: Add it to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only the latest run for the tag, and only into a draft: an older run must not
+          # replace the files of a newer or published release.
+          [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA" ] ||
+            { echo "::error::$TAG has moved since this run started; use the latest run for it."; exit 1; }
+          [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ] ||
+            { echo "::error::$TAG is already released."; exit 1; }
+          gh release upload "$TAG" app/release/Atlas-Setup-*.exe --clobber
+      # Only a failure keeps anything: its report, for the organization's artifact retention. A
+      # refused upload never fails the job.
+      - uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        continue-on-error: true
+        with:
+          name: installer-failure-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            app/playwright-report/
+            app/test-results/
+          if-no-files-found: ignore
+  publish:
+    name: Publish the release
+    # Only after both builds pass; otherwise the draft stays unpublished.
+    needs: [linux, windows]
+    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    timeout-minutes: 5
+    steps:
+      - name: Publish the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Only the latest run for the tag, and only into a draft: an older run must not
+          # replace the files of a newer or published release.
+          [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA" ] ||
+            { echo "::error::$TAG has moved since this run started; use the latest run for it."; exit 1; }
+          [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ] ||
+            { echo "::error::$TAG is already released."; exit 1; }
+          gh release edit "$TAG" --draft=false --latest

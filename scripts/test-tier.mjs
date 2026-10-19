@@ -37,13 +37,19 @@ const files = folders.flatMap((folder) =>
     .map((name) => path.join(folder, name)),
 );
 if (!files.length) process.exit(0);
+// A test that hangs fails after two minutes. In CI, open handles cannot keep the run alive after
+// it either; force-exiting is left out elsewhere, as it can crash Node on Windows while a socket closes.
+const timeouts = [
+  "--test-timeout=120000",
+  ...(process.env.CI ? ["--test-force-exit"] : []),
+];
 // tsx is a script from node_modules/.bin, which the shell finds (a .cmd shim on Windows).
 const shell = runner !== process.execPath;
 const quote = (value) =>
   shell && /[\s"]/.test(value) ? JSON.stringify(value) : value;
 const result = spawnSync(
   quote(runner),
-  [...imports, "--test", ...files].map(quote),
+  [...imports, "--test", ...timeouts, ...files].map(quote),
   { stdio: "inherit", shell },
 );
 if (result.error) throw result.error;

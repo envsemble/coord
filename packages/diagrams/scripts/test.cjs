@@ -13,8 +13,15 @@ const files = fs
   )
   .sort()
   .map((file) => path.join(directory, file));
-const result = spawnSync(process.execPath, ["--test", ...args, ...files], {
-  stdio: "inherit",
-});
+// As in scripts/test-tier.mjs: a hanging test fails after two minutes, and only CI force-exits.
+const timeouts = [
+  "--test-timeout=120000",
+  ...(process.env.CI ? ["--test-force-exit"] : []),
+];
+const result = spawnSync(
+  process.execPath,
+  ["--test", ...timeouts, ...args, ...files],
+  { stdio: "inherit" },
+);
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

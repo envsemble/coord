@@ -38,7 +38,7 @@ Use **Node 24**, npm and Git. Installing from a clone needs a GitHub token for E
    `atlas setup` creates the Atlas home (`~/.atlas`), lets Claude Code and Codex sessions edit planning files in it from any checkout, and installs the Atlas plugin into each of them. Start a new agent session afterwards. If you copied earlier Atlas skills (`atlas-*`) into `~/.claude/skills` or `~/.codex/skills`, remove them: the plugin replaces them. The [command reference](docs/command.md) covers every command and the home.
 
 2. **Create a project.** A project is a planning folder in the home that covers workspace folders: an agent session in one of them works in that project and its plans. Create one in the app on the **Projects** page (in the menu) with a name and a folder, ask your agent (the `project_create` tool), or run `atlas project create --name <name> --workspace <folder>`. Atlas registers the Git checkouts it finds in the folder; their remotes find the project from checkouts outside it. `atlas home adopt <folder>` moves a planning folder you already have into the home.
-3. **Install the app** from its installer (Windows) or AppImage (Linux), built by CI or by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from the clone with `npm run dev`.
+3. **Install the app** from its installer (Windows) or AppImage (Linux), attached to each GitHub Release or built by `npm run package`; the [app guide](app/README.md#install) explains both, and what to do when Linux has no [sandbox support](app/README.md#linux-sandbox). Or run it from the clone with `npm run dev`.
 4. **Open Atlas.** It opens on the hub: every plan of every project, blocked and in progress first, then drafts, each with its project, a one-line summary, its progress and a live dot while an agent works on it. Filter by project or search, and open a plan in one click; back and forward return to where you were. Atlas follows changes as the agent writes them.
 
 Plans, diagrams and statistics stay on your computer unless you turn on remote access. No model service or API key is needed.
@@ -92,7 +92,7 @@ A diagram is a `.puml` file in a work item, in Atlas's subset of PlantUML: a cla
 
 ## Develop
 
-[Contributing](CONTRIBUTING.md) covers the layout of this repository, the development servers and the checks CI runs. CI runs them on Linux and Windows, including the packaged app's end-to-end tests, and builds versioned [release ZIPs](docs/releases.md). No release is published or deployed.
+[Contributing](CONTRIBUTING.md) covers the layout of this repository, the development servers and the checks CI runs. CI runs them on Linux for pull requests into `dev` and `main`, adds the packaged app's end-to-end tests for pull requests into `main`, and checks the versioned [release ZIP](docs/releases.md). A version tag on `main` makes a GitHub Release with the ZIP, the AppImage and the Windows installer; nothing is deployed.
 
 [Changelog](CHANGELOG.md) · [Release instructions](docs/releases.md) · [Repository history maps](docs/history/README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
