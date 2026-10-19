@@ -6,13 +6,15 @@
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, SearchKind, SearchResult, SessionActivity, Snapshot, ViewEventInput, WorkActivity, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot, ViewEventInput,
+  WorkActivity, WorkProduct, WorkSession, WorkspaceScan, WorkTimeline,
 } from '@envsemble/atlas/host/contract';
 import type { DocumentContent } from '@envsemble/atlas/planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, SearchKind, SearchResult, SessionActivity, Snapshot, ViewEventInput, WorkActivity, WorkspaceScan,
+  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot, ViewEventInput,
+  WorkActivity, WorkProduct, WorkSession, WorkspaceScan, WorkTimeline,
 };
 
 export const invokeChannels = [
@@ -20,7 +22,9 @@ export const invokeChannels = [
   'projects:list', 'projects:create', 'search:query', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
-  'shell:reveal', 'shell:openExternal', 'shell:copy', 'app:command', 'app:theme', 'app:setTheme', 'app:about',
+  'references:resolve', 'work:sessions', 'work:timeline',
+  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openWorkFolder', 'shell:resumeSession', 'shell:copy',
+  'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch',
   'remote:pair', 'remote:forget',
@@ -34,6 +38,15 @@ export type EventChannel = typeof eventChannels[number];
 /** Light, dark, or the operating system's choice: kept by main for every window and applied as Electron's native theme. */
 export const themePreferences = ['system', 'light', 'dark'] as const;
 export type ThemePreference = typeof themePreferences[number];
+
+/**
+ * The editor files open in: VS Code (the default) and editors like it, each through its own link
+ * (`vscode://file/…:line`), or the system's application for the file (`system`, without its line).
+ * A fixed choice, so a page can never make Atlas run a command of its own.
+ */
+export const editors = ['vscode', 'vscode-insiders', 'cursor', 'windsurf', 'zed', 'system'] as const;
+export type Editor = typeof editors[number];
+export const editorNames: Record<Editor, string> = { vscode: 'Visual Studio Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf', zed: 'Zed', system: 'The system’s application' };
 
 /**
  * Commands the renderer may ask main to run, from the title bar's menu among others; each one acts
@@ -101,11 +114,12 @@ export interface PairingLinkView extends PairingLink { qrSvg: string | null }
 
 /**
  * What a window shows of a project: a work item's plan, with a
- * ledger step the search found pointed out in its progress (`step`, by its title), one of its diagrams (by its path in the work folder, null for its first; `element` names an element of
+ * ledger step the search found pointed out in its progress (`step`, by its title), or its statistics
+ * (`view`), one of its diagrams (by its path in the work folder, null for its first; `element` names an element of
  * it), or a file.
  */
 export type Target =
-  | { kind: 'work'; work: string; anchor?: string | null; step?: string | null }
+  | { kind: 'work'; work: string; anchor?: string | null; step?: string | null; view?: 'statistics' | null }
   | { kind: 'diagram'; work: string; path: string | null; element?: string | null }
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its folder ID): a plan, a diagram or a file. */
@@ -198,8 +212,24 @@ export interface AtlasBridge {
   recordView(project: string, event: ViewEventInput): Promise<Result<void>>;
   loadUi(): Promise<Result<UiState>>;
   saveUi(state: UiState): Promise<Result<void>>;
+  /** Resolve what a planning file references: PRs, commits, files in the project's repositories (each in order; null leads nowhere). */
+  resolveReferences(project: string, work: string | null, items: ReferenceInput[]): Promise<Result<(ResolvedReference | null)[]>>;
+  /** A work item's sessions and the commits and PRs they made. */
+  workSessions(project: string, work: string): Promise<Result<{ sessions: WorkSession[]; products: WorkProduct[] }>>;
+  /** A work item's time and its sessions' working and waiting stretches. */
+  workTimeline(project: string, work: string): Promise<Result<WorkTimeline>>;
   reveal(project: string, path: string): Promise<Result<void>>;
+  /** Open a web address in the browser, or an application's link (`t3-thread://`…) in its application, this computer's only. */
   openExternal(url: string): Promise<Result<void>>;
+  /** Open the file a path reference names in the editor, at its line; only for a project on this computer. */
+  openReference(project: string, work: string | null, reference: ReferenceInput): Promise<Result<void>>;
+  /** Open a work item's folder in the editor; only for a project on this computer. */
+  openWorkFolder(project: string, work: string): Promise<Result<void>>;
+  /** Resume a session of a work item in a terminal, in its folder; only for a project on this computer. */
+  resumeSession(project: string, work: string, session: string): Promise<Result<void>>;
+  /** The editor files open in, and choosing another. */
+  editor(): Promise<Result<Editor>>;
+  setEditor(editor: Editor): Promise<Result<void>>;
   copy(text: string): Promise<Result<void>>;
   command(command: AppCommand): Promise<Result<void>>;
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */

@@ -1,8 +1,8 @@
 // Validators for the messages the window sends to the main process. The generic validators and the
 // planning shapes are the host's (packages/atlas/src/host/validate.ts); this module adds what only the
 // desktop window sends. Unknown object keys are dropped.
-import { appCommands, fullPath, limits, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type Target, type UiState } from './contract.ts';
-import { diagramPath, folderId, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
+import { appCommands, editors, fullPath, limits, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type ReferenceInput, type Target, type UiState } from './contract.ts';
+import { array, diagramPath, folderId, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
   ValidationError, argumentsOf, array, boolean, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
@@ -11,6 +11,12 @@ export {
 
 export const command = oneOf(appCommands);
 export const themePreference = oneOf(themePreferences);
+export const editor = oneOf(editors);
+/** What a planning file references, as the host resolves it (within the host's own limits). */
+export const referenceInput: Validator<ReferenceInput> = object<ReferenceInput>({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) });
+export const referenceInputs = array(referenceInput, 500);
+/** An agent session's identifier, as its harness names it. */
+export const sessionId = string({ min: 1, max: 128, pattern: /^[A-Za-z0-9][A-Za-z0-9._-]*$/ });
 export const url = string({ min: 1, max: 4096 });
 /** A folder of the window's computer by its full path. */
 export const folderPath = string({ min: 1, max: limits.path, pattern: fullPath });
@@ -18,7 +24,7 @@ export const folderPath = string({ min: 1, max: limits.path, pattern: fullPath }
 const anchor = optional(nullable(string({ max: 512 })));
 export const target: Validator<Target> = (value, at = 'target') => {
   const kind = object({ kind: oneOf(['work', 'diagram', 'file'] as const) })(value, at).kind;
-  if (kind === 'work') return object<Extract<Target, { kind: 'work' }>>({ kind: oneOf(['work'] as const), work: workId, anchor, step: anchor })(value, at);
+  if (kind === 'work') return object<Extract<Target, { kind: 'work' }>>({ kind: oneOf(['work'] as const), work: workId, anchor, step: anchor, view: optional(nullable(oneOf(['statistics'] as const))) })(value, at);
   if (kind === 'diagram') return object<Extract<Target, { kind: 'diagram' }>>({ kind: oneOf(['diagram'] as const), work: workId, path: nullable(diagramPath), element: anchor })(value, at);
   return object<Extract<Target, { kind: 'file' }>>({ kind: oneOf(['file'] as const), path: relativePath, anchor })(value, at);
 };

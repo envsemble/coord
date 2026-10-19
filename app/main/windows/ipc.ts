@@ -2,8 +2,10 @@
 // calls with the wrong number or shape of arguments, from a subframe, or from a page that is not
 // the Atlas renderer are rejected. Results and errors cross back as structured values. Requests
 // about a project go to the host of the window's computer, this one or a paired one.
-import { createReadStream } from 'node:fs';
-import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { accessSync, constants, createReadStream, lstatSync } from 'node:fs';
+import { chmod, lstat, mkdtemp, realpath, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
@@ -11,13 +13,14 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { defaultUiState, invokeChannels, limits, type AboutInfo, type AccessSettings, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectChangeRequest, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../../shared/validate.ts';
+import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, referenceInput, referenceInputs, relativePath, sessionId, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { FolderView } from '../host/folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../state.ts';
 import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
+import { appLink, editorLink, resumeWords, terminalFor } from './launch.ts';
 
 type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
 interface Channel { args: Validator<unknown>[]; handle: Handler }
@@ -56,6 +59,85 @@ async function revealInside(window: AtlasWindow, project: string, relative: stri
     throw new AtlasError('forbidden', 'Only files and folders inside the project\'s folder can be shown.');
   }
   shell.showItemInFolder(candidate);
+}
+
+/** What only this computer's projects allow: their files and sessions are on this computer. */
+function thisComputer(window: AtlasWindow, what: string) {
+  if (window.computer !== null) throw new AtlasError('forbidden', what + ' of a project on another computer cannot be opened here.');
+}
+
+/** Open a file or folder on this computer in the chosen editor, at its line. */
+async function openInEditor(manager: WindowManager, file: string, line: number | null) {
+  const choice: Editor = manager.context.state.editor;
+  const link = editorLink(choice, file, line);
+  if (link) { await shell.openExternal(link); return; }
+  const failure = await shell.openPath(file);
+  if (failure) throw new AtlasError('unavailable', failure);
+}
+
+/** Open the file a path reference names, as the host resolves it in the project's checkouts: never a path the page names itself. */
+async function openReference(manager: WindowManager, window: AtlasWindow, project: string, work: string | null, reference: ReferenceInput) {
+  thisComputer(window, 'Files');
+  if (reference.kind !== 'path') throw new AtlasError('invalid-argument', 'Only a file reference opens in the editor.');
+  const view = await window.readable(project);
+  const [resolved] = await view.request('references.resolve', { folderId: project, work, items: [reference] });
+  const file = resolved?.file;
+  if (!file || !fullPath.test(file.path) || !(await stat(file.path).catch(() => null))?.isFile()) throw new AtlasError('not-found', 'This file is not in the project\'s checkouts on this computer.');
+  await confirmed(window, 'Open this file in your editor?', 'Open', file.path + (file.line ? ':' + file.line : ''));
+  await openInEditor(manager, file.path, file.line);
+}
+
+/** Open a work item's folder, inside its project's folder, in the editor. */
+async function openWorkFolder(manager: WindowManager, window: AtlasWindow, project: string, work: string) {
+  thisComputer(window, 'Folders');
+  const view = await window.readable(project);
+  const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
+  const entry = (await view.request('folder.snapshot', { folderId: project })).work.find(item => item.id === work);
+  if (!root || !entry) throw new AtlasError('not-found', 'This work item is not in the project on this computer.');
+  const base = await realpath(root);
+  const folder = await realpath(path.resolve(base, entry.path)).catch(() => null);
+  const inside = folder ? path.relative(base, folder) : '..';
+  if (!folder || inside.startsWith('..') || path.isAbsolute(inside) || !(await lstat(folder)).isDirectory()) throw new AtlasError('forbidden', 'Only a work folder inside the project\'s folder opens.');
+  await confirmed(window, 'Open this work folder in your editor?', 'Open', folder);
+  await openInEditor(manager, folder, null);
+}
+
+/** Whether a program is installed: a full path that exists (Windows), else a name on the PATH. */
+function installed(program: string) {
+  if (path.isAbsolute(program)) { try { lstatSync(program); return true; } catch { return false; } }
+  return (process.env.PATH ?? '').split(path.delimiter).filter(Boolean).some(folder => { try { accessSync(path.join(folder, program), constants.X_OK); return true; } catch { return false; } });
+}
+
+/**
+ * Resume a session of a work item in a new terminal, in its folder: the session and its command as
+ * the host lists them (never as the page names them), the command only in its harness's own form.
+ */
+async function resumeSession(manager: WindowManager, window: AtlasWindow, project: string, work: string, id: string) {
+  thisComputer(window, 'Sessions');
+  const view = await window.readable(project);
+  const session = (await view.request('work.sessions', { folderId: project, work })).sessions.find(item => item.session === id);
+  if (!session) throw new AtlasError('not-found', 'This session is not one of the work item\'s.');
+  const words = session.resume ? resumeWords(session.resume) : null;
+  const folder = session.folder;
+  if (!words || !folder) throw new AtlasError('unavailable', 'Atlas does not know how to resume this session.');
+  if (!fullPath.test(folder) || !(await stat(folder).catch(() => null))?.isDirectory()) throw new AtlasError('not-found', 'The session\'s folder is no longer on this computer: ' + folder);
+  const windowsTerminal = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe') : null;
+  const launch = terminalFor(process.platform, folder, words, installed, windowsTerminal);
+  if (!launch) throw new AtlasError('unavailable', 'No terminal was found to resume the session in. Run ' + session.resume + ' in ' + folder + '.');
+  await confirmed(window, 'Resume this session in a terminal?', 'Resume', words.join(' ') + '\nin ' + folder);
+  const args = [...launch.args];
+  if (launch.script) {
+    const script = path.join(await mkdtemp(path.join(tmpdir(), 'atlas-')), launch.script.name);
+    await writeFile(script, launch.script.content, { mode: 0o700 });
+    await chmod(script, 0o700);
+    args.push(script);
+  }
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(launch.file, args, { cwd: folder, detached: true, stdio: 'ignore', windowsHide: false });
+    child.once('error', error => reject(new AtlasError('unavailable', 'The terminal could not be started: ' + error.message)));
+    child.once('spawn', () => { child.unref(); resolve(); });
+  });
+  manager.context.log.info('Session resumed', { work, harness: session.harness });
 }
 
 /** Send a plan export on this computer to another computer's host, for its preview there. */
@@ -176,6 +258,10 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'planning:diagram': { args: [folderId, workId, diagramPath], handle: async (window, project: string, work: string, file: string) => (await window.readable(project)).request('folder.diagram', { folderId: project, work, path: file }) },
     'planning:references': { args: [folderId, nullable(workId), relativePath], handle: async (window, project: string, work: string | null, file: string) => (await window.readable(project)).request('folder.references', { folderId: project, work, path: file }) },
     'planning:diagramIndex': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.diagramIndex', { folderId: project }) },
+    // What a planning file references, a work item's sessions and its time, from the project's computer.
+    'references:resolve': { args: [folderId, nullable(workId), referenceInputs], handle: async (window, project: string, work: string | null, items: ReferenceInput[]) => remoteErrors((await window.readable(project)).request('references.resolve', { folderId: project, work, items }, { timeout: 30000 })) },
+    'work:sessions': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.sessions', { folderId: project, work })) },
+    'work:timeline': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.timeline', { folderId: project, work })) },
     // Views count in the document use of the computer the project is on.
     'usage:view': { args: [folderId, viewEvent], handle: async (window, project: string, event) => { await (await window.readable(project)).request('folder.recordView', { folderId: project, event }); } },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
@@ -185,15 +271,24 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [url],
       handle: async (window, value: string) => {
         const external = externalUrl(value);
-        if (!external) throw new AtlasError('forbidden', 'Only web and mail links open outside Atlas.');
-        await confirmed(window, 'Open this address in your browser?', 'Open', external);
-        await shell.openExternal(external);
+        // An application's link opens an application of this computer: only with a scheme on the allowlist, only for this computer's projects.
+        const application = external ? null : appLink(value);
+        if (!external && !application) throw new AtlasError('forbidden', 'Only web and mail links, and links of applications Atlas knows, open outside Atlas.');
+        if (application) thisComputer(window, 'Links of applications');
+        await confirmed(window, application ? 'Open this link in its application?' : 'Open this address in your browser?', 'Open', external ?? application!);
+        await shell.openExternal(external ?? application!);
       },
     },
+    'shell:openReference': { args: [folderId, nullable(workId), referenceInput], handle: (window, project: string, work: string | null, reference: ReferenceInput) => openReference(manager, window, project, work, reference) },
+    'shell:openWorkFolder': { args: [folderId, workId], handle: (window, project: string, work: string) => openWorkFolder(manager, window, project, work) },
+    'shell:resumeSession': { args: [folderId, workId, sessionId], handle: (window, project: string, work: string, id: string) => resumeSession(manager, window, project, work, id) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
+    // The editor is one of a fixed list (each opened through its own link), so choosing one runs nothing.
+    'app:editor': { args: [], handle: () => manager.context.state.editor },
+    'app:setEditor': { args: [editor], handle: (_window, choice: Editor) => { manager.context.state.setEditor(choice); } },
     // About Atlas, which the window shows: versions and the data folder, nothing a page could misuse.
     'app:about': { args: [], handle: () => actions.about() },
     'app:command': {

@@ -186,6 +186,13 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: /127\.0\.0\.1/ }).click();
   // What it showed of that computer comes back with it.
   await expect(viewer.locator('.work-header h1')).toHaveText('Customer order notifications');
+  // Its files, sessions and applications' links do not open here: their paths and commands are that computer's.
+  const refused = await viewer.evaluate(async () => {
+    const bridge = (window as unknown as { atlas: Record<string, (...args: unknown[]) => Promise<{ ok: boolean; value?: { folderId: string }[]; error?: { code: string } }>> }).atlas;
+    const folder = (await bridge.projects()).value![0].folderId;
+    return [await bridge.openWorkFolder(folder, 'work-0003'), await bridge.resumeSession(folder, 'work-0003', 'abc'), await bridge.openExternal('t3-thread://thread/abc')].map(result => result.error?.code);
+  });
+  expect(refused).toEqual(['forbidden', 'forbidden', 'forbidden']);
 
   // Next launch, this Atlas shows that computer again with its saved credential, place and hidden project.
   await viewer.waitForTimeout(600);
