@@ -36,8 +36,8 @@ test('a work item is created under the next unused number, registered, and valid
   // Each reference is written as it resolves, once: bare in its own project, whatever spelling named it.
   const continuing = await createWork(root, { title: 'Next', repositories: ['shop'], summary: 'The next phase.', continues: ['work-0004', path.basename(root).toUpperCase() + ':work-0004'] }, today);
   assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0004"]\n'));
-  // A block list is replaced whole.
-  write(path.join(root, continuing.plan), read(root, continuing.plan).replace('continues: ["work-0004"]', 'continues:\n  - work-0004\n  - work-0002'));
+  // A block list is replaced whole, across its comments and blank lines.
+  write(path.join(root, continuing.plan), read(root, continuing.plan).replace('continues: ["work-0004"]', 'continues:\n  # moved here\n  - work-0004\n\n  - work-0002'));
   assert.deepEqual((await setContinues(root, continuing.workId, ['work-0005'], today)).continues, ['work-0005']);
   assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0005"]\n---'));
   for (const continues of [['work-9999'], ['nope'], [continuing.workId]]) await assert.rejects(setContinues(root, continuing.workId, continues, today), WorkError);

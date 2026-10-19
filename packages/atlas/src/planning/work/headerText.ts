@@ -35,8 +35,8 @@ export function setFields(text: string, fields: Record<string, string | number |
   let block = found.block;
   for (const [field, value] of Object.entries(fields)) {
     const line = field + ': ' + yamlValue(field, value);
-    // The field's line, and when it has no value of its own (`field:` or a comment) the block list's `- ` entries after it.
-    const pattern = new RegExp(`^${field}:(?:[ \\t]*(?:#[^\\r\\n]*)?(?:\\r?\\n[ \\t]*-(?:[ \\t][^\\r\\n]*)?)+|(?:[ \\t][^\\r\\n]*)?)$`, 'm');
+    // The field's line, and when it has no value of its own (`field:` or a comment) the block list after it, across indented comments and blank lines, to its last `- ` entry.
+    const pattern = new RegExp(`^${field}:(?:[ \\t]*(?:#[^\\r\\n]*)?(?:(?:\\r?\\n[ \\t]*(?:#[^\\r\\n]*)?)*\\r?\\n[ \\t]*-(?:[ \\t][^\\r\\n]*)?)+|(?:[ \\t][^\\r\\n]*)?)$`, 'm');
     block = pattern.test(block) ? block.replace(pattern, () => line) : block + found.eol + line;
   }
   return text.slice(0, found.start) + block + text.slice(found.end);

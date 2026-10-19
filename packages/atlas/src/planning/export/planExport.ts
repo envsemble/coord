@@ -600,9 +600,9 @@ function clearCrossWorkReferences(text: string): { text: string; supersedes: str
   if (!supersedes.length && supersededBy === null && !continues.length) return { text, supersedes, supersededBy, continues };
   const found = header(text)!;
   let block = found.block;
-  if (supersedes.length) block = block.replace(/^supersedes:[^\r\n]*(?:\r?\n[ \t]*-[ \t][^\r\n]*)*/m, 'supersedes: []');
+  if (supersedes.length) block = block.replace(/^supersedes:[^\r\n]*(?:(?:\r?\n[ \t]*(?:#[^\r\n]*)?)*\r?\n[ \t]*-[ \t][^\r\n]*)*/m, 'supersedes: []');
   if (supersededBy !== null) block = block.replace(/^superseded_by:[^\r\n]*/m, 'superseded_by: null');
-  if (continues.length) block = block.replace(/^continues:[^\r\n]*(?:\r?\n[ \t]*-[ \t][^\r\n]*)*/m, 'continues: []');
+  if (continues.length) block = block.replace(/^continues:[^\r\n]*(?:(?:\r?\n[ \t]*(?:#[^\r\n]*)?)*\r?\n[ \t]*-[ \t][^\r\n]*)*/m, 'continues: []');
   const result = text.slice(0, found.start) + block + text.slice(found.end);
   // Accept the edit only when exactly those fields changed.
   let after;
