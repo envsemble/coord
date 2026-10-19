@@ -64,7 +64,6 @@ function About({ work, snapshot, found, live, listed, sessions }: {
 }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
-  const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
   const statistics = work.statistics;
   const reported = Boolean(statistics && (statistics.reports > 0 || unreported(live)));
   const column = useScrollsMark<HTMLElement>();
@@ -77,15 +76,11 @@ function About({ work, snapshot, found, live, listed, sessions }: {
   const handoffList = (before || after) && <ol className="ledger-steps ledger-handoffs">{before}{after}</ol>;
   return <aside ref={column} className="about" aria-label="About this work">
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
-    {hasStatus && progress && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
+    {progress && <AboutSection title="Progress" note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
-      {progress.steps ? <LedgerSteps steps={progress.steps} found={found} live={live?.state} before={before} after={after} /> : <>
-        {handoffList}
-        {progress.current && <p className="about-current">{progress.current}</p>}
-        {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
-      </>}
+      <LedgerSteps steps={progress.steps} found={found} live={live?.state} before={before} after={after} />
     </AboutSection>}
-    {!hasStatus && handoffList && <AboutSection title="Handoffs">{handoffList}</AboutSection>}
+    {!progress && handoffList && <AboutSection title="Handoffs">{handoffList}</AboutSection>}
     {sessions.length > 0 && <AboutSection title="Sessions"><SessionsList sessions={sessions} /></AboutSection>}
     {(reported || sessions.length > 0) && <AboutSection title="Statistics" note={statistics?.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
       {statistics && reported && <WorkStatisticsSummary statistics={statistics} activity={live} totals={listed?.statistics} />}

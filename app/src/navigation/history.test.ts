@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, samePlace, startHistory, step, type History } from './history.ts';
-import { diagramTarget, fileTarget, hubPlace, projectsPlace, statisticsPlace, stepTarget, workTarget, type Place, type ProjectPlace } from './targets.ts';
+import { diagramTarget, fileTarget, hubPlace, projectsPlace, statisticsPlace, stepTarget, workTarget, type ProjectPlace } from './targets.ts';
 import type { Target } from '../types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);

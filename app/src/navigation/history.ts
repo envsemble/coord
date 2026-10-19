@@ -3,7 +3,7 @@
 // item's plan at its heading, a diagram at its element, or a file at its heading. The history lives
 // in memory while the window is open.
 import { isPage, placeProject, type Place } from './targets';
-import type { Target, UiState } from '../types';
+import type { Target } from '../types';
 
 /** The entries, which is current, and an id for each (so each can keep where it was left). */
 export interface History { entries: Place[]; ids: number[]; index: number; next: number }

@@ -288,8 +288,6 @@ body { margin: 0; }
 .about-section { display: grid; gap: var(--space-2); }
 .about-heading { display: block; }
 .about-note { color: var(--color-text-muted); font-weight: 400; }
-.about-current { margin: 0; }
-.about-next { margin: 0; padding-inline-start: var(--space-5); }
 .about-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
 /* A plan's sessions, each by its title, then its harness, model and effort, state, when and agent time. */
 .about-sessions { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
