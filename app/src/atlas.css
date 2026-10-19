@@ -70,8 +70,10 @@ body { margin: 0; }
 
 /* The hub: the plans in their groups, one full-width row each; work under way (agents on it, blocked or
    paused) in larger rows. The title link covers the row; its other details stay above it. */
-/* The hub's toolbar: the search from the content's left edge, the filters at its right edge. */
-.hub-search { flex: 0 1 28rem; min-inline-size: min(16rem, 100%); }
+/* The hub's heading with its filters at the right, as tall as each other; the search centred under them. */
+.hub-heading { flex-wrap: wrap; row-gap: var(--space-2); --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); }
+.hub-search-bar { display: flex; justify-content: center; padding-block: var(--space-2) var(--space-3); }
+.hub-search { inline-size: min(40rem, 100%); }
 .hub-note { margin: 0; }
 .hub-group { display: grid; gap: var(--space-2); }
 .hub-group-heading { margin: 0; }
