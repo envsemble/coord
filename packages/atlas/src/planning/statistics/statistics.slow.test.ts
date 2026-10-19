@@ -12,12 +12,12 @@ import { planRevisions } from './statistics.ts';
 function git(root: string, date: string, ...args: string[]) {
   execFileSync('git', ['-C', root, '-c', 'user.name=Atlas test', '-c', 'user.email=test@example.test', '-c', 'commit.gpgsign=false', ...args], { stdio: 'ignore', windowsHide: true, env: { ...process.env, GIT_AUTHOR_DATE: date + 'T12:00:00Z', GIT_COMMITTER_DATE: date + 'T12:00:00Z' } });
 }
-const planText = (id: string, body: string, completed: string | null = null) => ['---', 'schema_version: 1', 'kind: plan', 'id: ' + id, 'title: "Example"', 'repositories: [example]', 'created: "2026-10-01"', 'updated: "2026-10-05"', 'design_status: accepted', 'implementation_status: ' + (completed ? 'complete' : 'in_progress'), 'accepted_at: "2026-10-01"', 'completed_at: ' + (completed ? '"' + completed + '"' : 'null'), 'supersedes: []', 'superseded_by: null', '---', '', '# Example', '', body, ''].join('\n');
+const planText = (id: string, body: string, completed: string | null = null) => ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, 'title: "Example"', 'created: "2026-10-01"', 'updated: "2026-10-05"', 'design_status: accepted', 'implementation_status: ' + (completed ? 'complete' : 'in_progress'), 'accepted_at: "2026-10-01"', 'completed_at: ' + (completed ? '"' + completed + '"' : 'null'), 'supersedes: []', 'superseded_by: null', '---', '', '# Example', '', body, ''].join('\n');
 
 function repository(t: TestContext) {
   const root = mkdtempSync(path.join(tmpdir(), 'atlas-statistics-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const register = (folder: string) => writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: folder, repositories: ['example'], current_plan: folder + '/plan.md' }] }, null, 2) + '\n');
+  const register = (folder: string) => writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Example', folders: [], work_items: [{ id: 'work-0001', path: folder, current_plan: folder + '/plan.md' }] }, null, 2) + '\n');
   return { root, register };
 }
 

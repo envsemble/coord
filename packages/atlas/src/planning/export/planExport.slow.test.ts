@@ -12,15 +12,16 @@ function temporary(t: TestContext) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   return directory;
 }
-/** A planning folder with two work items of notes: work-0001 active, work-0002 archived. */
+/** A planning folder with two work items: work-0001 active, work-0002 archived. */
 function planningFolder(root: string) {
-  for (const folder of ['active/0001-checkout', 'archive/0002-legacy']) {
+  for (const [id, folder, design] of [['work-0001', 'active/0001-checkout', 'draft'], ['work-0002', 'archive/0002-legacy', 'abandoned']]) {
     mkdirSync(path.join(root, folder), { recursive: true });
     writeFileSync(path.join(root, folder, 'README.md'), '# Notes\n');
+    writeFileSync(path.join(root, folder, 'plan.md'), ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, 'title: "Notes"', 'summary: "Notes."', 'created: null', 'updated: null', 'design_status: ' + design, 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Notes', ''].join('\n'));
   }
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'shop', name: 'Shop' }], work_items: [
-    { id: 'work-0001', path: 'active/0001-checkout', repositories: ['shop'], current_plan: null },
-    { id: 'work-0002', path: 'archive/0002-legacy', repositories: [], current_plan: null },
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [
+    { id: 'work-0001', path: 'active/0001-checkout', current_plan: 'active/0001-checkout/plan.md' },
+    { id: 'work-0002', path: 'archive/0002-legacy', current_plan: 'archive/0002-legacy/plan.md' },
   ] }, null, 2) + '\n');
 }
 function snapshot(root: string, relative = ''): Map<string, string> {

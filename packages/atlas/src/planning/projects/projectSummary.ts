@@ -1,6 +1,5 @@
-// What the app's project list says about a project, read from its planning folder: the repositories
-// it plans for, its work (each item's title, summary, steps and the step being worked on, last change
-// and where it stands: active work blocked, being implemented, a draft plan or otherwise, and closed
+// What the app's project list says about a project, read from its planning folder: its work (each
+// item's title, summary, steps and the step being worked on, last change and where it stands: active work blocked, being implemented, a draft plan or otherwise, and closed
 // work with how and when it ended), what agents spent on each item, and when the folder last changed.
 // It reads the registry and the headers of plans and ledgers only, the project's reports in the home
 // database at once, and asks Git for the last commit. A registry that cannot be read is an error,
@@ -57,8 +56,6 @@ export interface ProjectWorkStatistics {
   subagents: number; lastReport: string | null;
 }
 export interface ProjectSummary {
-  /** The IDs of the repositories it plans for, without the planning folder's own entry. */
-  repositories: string[];
   /** Its registered work in `active/`, in the registry's order. */
   active: ProjectWork[];
   /** Its registered work in `archive/`, the latest changed first. */
@@ -129,10 +126,8 @@ async function workOf(root: string, entry: { id: string; path: string; title?: u
  */
 export async function projectSummary(root: string, options: { database?: HomeDatabase; projectId?: number; reports?: Map<string, StatisticsReport[]> } = {}): Promise<ProjectSummary> {
   const source = await readFile(path.join(root, 'planning.json'), 'utf8');
-  const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { repositories?: unknown; work_items?: unknown } | null;
+  const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { work_items?: unknown } | null;
   if (!registry || typeof registry !== 'object' || Array.isArray(registry)) throw new Error('planning.json is not an object.');
-  const repositories = (Array.isArray(registry.repositories) ? registry.repositories : [])
-    .filter(entry => typeof entry?.id === 'string' && entry.path !== '.').map(entry => entry.id as string);
   const entries = (Array.isArray(registry.work_items) ? registry.work_items : []).filter(entry => typeof entry?.id === 'string' && typeof entry.path === 'string');
   // Every work item's reports in one query.
   let reports = options.reports ?? new Map<string, StatisticsReport[]>();
@@ -145,5 +140,5 @@ export async function projectSummary(root: string, options: { database?: HomeDat
   const number = (id: string) => Number(/[0-9]+$/.exec(id)?.[0] ?? 0);
   closed.sort((a, b) => (b.updated ?? '').localeCompare(a.updated ?? '') || number(b.id) - number(a.id));
   const updated = await runProgram('git', ['-C', root, 'log', '-1', '--format=%cI'], { timeout: 10_000 }).then(({ stdout }) => stdout.trim() || null, () => null);
-  return { repositories, active, closed, updated };
+  return { active, closed, updated };
 }

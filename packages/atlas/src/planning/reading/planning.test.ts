@@ -9,32 +9,33 @@ import { loadPlanning, readDocument, resolveDocument } from './planning.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../system/filesystem.ts';
 import { header, readerFixture as fixture, relativeDocumentPath } from '../testing/testing.ts';
 
-test('root ledger reports current and agreed next work; defaults follow implementation while historical status stays unknown', async () => {
+/** A registry of these work items. */
+const registry = (items: object[]) => JSON.stringify({ schema_version: 2, name: 'Example', folders: [], work_items: items });
+
+test('the work folder\'s ledger reports its status; a nested one is not the main record, and an invalid one leaves it unknown', async () => {
   const setup = await fixture();
   try {
     const folder = 'active/0001-example';
     await mkdir(path.join(setup.root, folder, 'supporting'), { recursive: true });
-    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: folder, repositories: ['example'], current_plan: folder + '/plan.md' }] }));
+    await writeFile(path.join(setup.root, 'planning.json'), registry([{ id: 'work-0001', path: folder, current_plan: folder + '/plan.md' }]));
     await writeFile(path.join(setup.root, folder, 'supporting/ledger.md'), '# Historical phase evidence');
     const ledgerFile = path.join(setup.root, folder, 'ledger.md');
-    const metadata = { schema_version: 1, kind: 'ledger', work_id: 'work-0001', updated: '2026-10-07', current: 'Verifying tenant boundaries', next: ['Review and hand off'], blocked: null };
+    const metadata = { schema_version: 2, kind: 'ledger', work_id: 'work-0001', updated: '2026-10-07', blocked: null, steps: [] };
     const source = (values: object) => '---\n' + Object.entries(values).map(([key, value]) => key + ': ' + JSON.stringify(value)).join('\n') + '\n---\n\n# Original ledger\nEvidence stays readable.';
     await writeFile(ledgerFile, source(metadata));
-    for (const implementation of ['not_started', 'complete']) {
-      await writeFile(path.join(setup.root, folder, 'plan.md'), header('work-0001', 'accepted', implementation));
-      const work = (await loadPlanning(setup.root)).work[0];
-      assert.equal(relativeDocumentPath(work.documents.find(file => file.name === 'ledger.md' && file.path.includes('/supporting/'))!), 'supporting/ledger.md');
-      assert.equal(work.ledger, folder + '/ledger.md');
-      assert.deepEqual(work.progress, { version: 1, current: metadata.current, next: metadata.next, blocked: null, updated: metadata.updated, steps: null });
+    await writeFile(path.join(setup.root, folder, 'plan.md'), header('work-0001', 'accepted', 'not_started'));
+    const work = (await loadPlanning(setup.root)).work[0];
+    assert.equal(relativeDocumentPath(work.documents.find(file => file.name === 'ledger.md' && file.path.includes('/supporting/'))!), 'supporting/ledger.md');
+    assert.equal(work.ledger, folder + '/ledger.md');
+    assert.deepEqual(work.progress, { version: 2, current: null, next: [], blocked: null, updated: metadata.updated, steps: [] });
+    // An invalid header (ledger.test.ts has the rules), or none, leaves the progress unknown and the ledger readable.
+    for (const text of [source({ ...metadata, work_id: 'work-9999' }), '# Historical ledger\nAn old in-progress statement.']) {
+      await writeFile(ledgerFile, text);
+      const invalid = await loadPlanning(setup.root);
+      assert.equal(invalid.work[0].progress, null);
+      assert.ok(invalid.issues.some(issue => /Ledger status|status header/.test(issue.message)));
     }
-    // An invalid header (ledger.test.ts has the rules) leaves the progress unknown and the ledger readable.
-    await writeFile(ledgerFile, source({ ...metadata, work_id: 'work-9999' }));
-    const invalid = await loadPlanning(setup.root);
-    assert.equal(invalid.work[0].progress, null);
-    assert.ok(invalid.issues.some(issue => issue.message.includes('Ledger status')));
-    assert.ok((await readDocument(setup.root, folder + '/ledger.md')).body.includes('Evidence stays readable.'));
-    await writeFile(ledgerFile, '# Historical ledger\nAn old in-progress statement.');
-    assert.equal((await loadPlanning(setup.root)).work[0].progress, null);
+    assert.ok((await readDocument(setup.root, folder + '/ledger.md')).body.includes('An old in-progress statement.'));
     await rename(ledgerFile, path.join(setup.root, folder, 'supporting/older-ledger.md'));
     const withoutMain = (await loadPlanning(setup.root)).work[0];
     assert.equal(withoutMain.ledger, null, 'a nested historical ledger must not become the main record');
@@ -46,7 +47,7 @@ test('a version-2 ledger lists the agreed steps, so progress and the work left a
   try {
     const folder = 'active/0001-example';
     await mkdir(path.join(setup.root, folder), { recursive: true });
-    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: folder, repositories: ['example'], current_plan: folder + '/plan.md' }] }));
+    await writeFile(path.join(setup.root, 'planning.json'), registry([{ id: 'work-0001', path: folder, current_plan: folder + '/plan.md' }]));
     await writeFile(path.join(setup.root, folder, 'plan.md'), header('work-0001', 'accepted', 'in_progress'));
     const ledgerFile = path.join(setup.root, folder, 'ledger.md');
     const ledger = (steps: string) => ['---', 'schema_version: 2', 'kind: ledger', 'work_id: work-0001', 'updated: "2026-10-11"', 'blocked: null', 'steps:', steps, '---', '', '# Original ledger', 'Evidence stays readable.'].filter(line => line !== '').join('\n');
@@ -86,7 +87,8 @@ test('POSIX backslashes retain original filenames instead of indexing another pa
   try {
     const location = 'active/0001-example';
     await mkdir(path.join(setup.root, location, 'foo'), { recursive: true });
-    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [{ id: 'work-0001', path: location, repositories: [], current_plan: null }] }));
+    await writeFile(path.join(setup.root, 'planning.json'), registry([{ id: 'work-0001', path: location, current_plan: location + '/plan.md' }]));
+    await writeFile(path.join(setup.root, location, 'plan.md'), header('work-0001', 'draft', 'not_started'));
     const originals = new Map([
       [location + '/foo\\bar.md', '# Literal backslash\n'],
       [location + '/foo/bar.md', '# Nested path\n'],
@@ -103,7 +105,7 @@ test('POSIX backslashes retain original filenames instead of indexing another pa
     }
   } finally { await setup.cleanup(); }
 });
-test('null pointers never select a file by name, and archive is not implementation completion', async () => {
+test('a null pointer selects no file by name and is an error, and archive is not implementation completion', async () => {
   const setup = await fixture();
   try {
     await mkdir(path.join(setup.root, 'active/0001-retained'), { recursive: true });
@@ -113,13 +115,14 @@ test('null pointers never select a file by name, and archive is not implementati
     await writeFile(path.join(setup.root, 'active/0001-retained/newest-plan.md'), original);
     await writeFile(path.join(setup.root, 'archive/0002-abandoned/plan.md'), header('work-0002', 'abandoned', 'partial'));
     await writeFile(path.join(setup.root, 'active/0003-awaiting-delivery/plan.md'), header('work-0003', 'accepted', 'complete', '2026-10-06'));
-    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [
-      { id: 'work-0001', path: 'active/0001-retained', repositories: ['example'], current_plan: null },
-      { id: 'work-0002', path: 'archive/0002-abandoned', repositories: ['example'], current_plan: 'archive/0002-abandoned/plan.md' },
-      { id: 'work-0003', path: 'active/0003-awaiting-delivery', repositories: ['example'], current_plan: 'active/0003-awaiting-delivery/plan.md' },
-    ] }));
+    await writeFile(path.join(setup.root, 'planning.json'), registry([
+      { id: 'work-0001', path: 'active/0001-retained', current_plan: null },
+      { id: 'work-0002', path: 'archive/0002-abandoned', current_plan: 'archive/0002-abandoned/plan.md' },
+      { id: 'work-0003', path: 'active/0003-awaiting-delivery', current_plan: 'active/0003-awaiting-delivery/plan.md' },
+    ]));
     const result = await loadPlanning(setup.root);
     assert.equal(result.work[0].currentPlan, null);
+    assert.ok(result.issues.some(issue => issue.level === 'error' && issue.workId === 'work-0001' && issue.message.includes('plan.md')));
     assert.equal(result.work[0].implementation, 'unknown');
     assert.equal(result.work[0].created, null);
     assert.equal(result.work[1].location, 'archived');
@@ -128,20 +131,6 @@ test('null pointers never select a file by name, and archive is not implementati
     assert.equal(result.work[2].location, 'active');
     assert.equal(result.work[2].implementation, 'complete');
     assert.equal(await readFile(path.join(setup.root, 'active/0001-retained/newest-plan.md'), 'utf8'), original);
-  } finally { await setup.cleanup(); }
-});
-test('selected legacy single files remain readable without invented metadata', async () => {
-  const setup = await fixture();
-  try {
-    await writeFile(path.join(setup.root, 'historical.md'), '# Historical proposal\n\nOriginal text.\n');
-    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [{ id: 'work-0001', path: 'historical.md', repositories: [], current_plan: 'historical.md' }] }));
-    const result = await loadPlanning(setup.root);
-    assert.equal(result.work[0].title, 'Historical proposal');
-    assert.equal(result.work[0].implementation, 'unknown');
-    assert.equal(result.work[0].documents.length, 1);
-    assert.equal(result.work[0].documents[0].key, 'work-0001:historical.md');
-    assert.ok(result.issues.some(issue => issue.level === 'warning'));
-    assert.equal((await readDocument(setup.root, 'historical.md')).body, '# Historical proposal\n\nOriginal text.\n');
   } finally { await setup.cleanup(); }
 });
 test('document reads reject traversal, hidden Git data, and links outside the root', async () => {
@@ -173,16 +162,16 @@ test('distinct Unicode hardlink names do not establish normalization aliases', a
   } finally { await setup.cleanup(); }
 });
 
-test('Windows BOM registries load and invalid repository records fail before reaching the UI', async () => {
+test('Windows BOM registries load, and registries of another schema fail before reaching the UI', async () => {
   const setup = await fixture();
   try {
     await mkdir(path.join(setup.root, 'knowledge/example'), { recursive: true });
-    await writeFile(path.join(setup.root, 'knowledge/example/lesson.md'), '# Scoped lesson');
-    await writeFile(path.join(setup.root, 'planning.json'), '\uFEFF' + JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [] }));
-    assert.deepEqual((await loadPlanning(setup.root)).documents.find(file => file.category === 'knowledge')?.repositories, ['example']);
-    for (const repositories of [[null], [{ id: '__proto__', name: 'Invalid' }], [{ id: 'same', name: 'A' }, { id: 'same', name: 'B' }]]) {
-      await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories, work_items: [] }));
-      await assert.rejects(loadPlanning(setup.root), /registered repository/);
+    await writeFile(path.join(setup.root, 'knowledge/example/lesson.md'), '# A lesson');
+    await writeFile(path.join(setup.root, 'planning.json'), '\uFEFF' + registry([]));
+    assert.equal((await loadPlanning(setup.root)).documents.find(file => file.path === 'knowledge/example/lesson.md')?.category, 'knowledge');
+    for (const old of [{ schema_version: 1, folders: [], work_items: [] }, { schema_version: 2, work_items: [] }]) {
+      await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(old));
+      await assert.rejects(loadPlanning(setup.root), /schema version 2/);
     }
   } finally { await setup.cleanup(); }
 });
@@ -192,7 +181,7 @@ test('invalid non-null dates and chronology produce health errors while unknown 
     await mkdir(path.join(setup.root, 'active/0001-example'), { recursive: true });
     const filename = path.join(setup.root, 'active/0001-example/plan.md');
     const original = header('work-0001', 'accepted', 'complete');
-    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: 'active/0001-example', repositories: ['example'], current_plan: 'active/0001-example/plan.md' }] }));
+    await writeFile(path.join(setup.root, 'planning.json'), registry([{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }]));
     await writeFile(filename, original);
     assert.equal((await loadPlanning(setup.root)).issues.filter(issue => issue.level === 'error').length, 0);
     await writeFile(filename, original.replace('accepted_at: null', 'accepted_at: yesterday'));
@@ -236,8 +225,8 @@ test('registry paths retain safe POSIX aliases while rejecting parent segments a
     const filename = path.join(setup.root, 'active/0002-real/plan.md');
     const original = header('work-0002', 'accepted', 'not_started');
     await writeFile(filename, original);
-    const item = { id: 'work-0002', path: 'active/0002-real', repositories: ['example'], current_plan: 'active/0002-real/plan.md' };
-    const writeRegistry = (items: typeof item[]) => writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: items }));
+    const item = { id: 'work-0002', path: 'active/0002-real', current_plan: 'active/0002-real/plan.md' };
+    const writeRegistry = (items: typeof item[]) => writeFile(path.join(setup.root, 'planning.json'), registry(items));
     const locations = ['active/0001-old/../0002-real', 'active\\0002-real', '/active/0002-real', 'C:/active/0002-real', './C:active/0002-real', './C:/active/0002-real'];
     for (const location of locations) {
       await writeRegistry([{ ...item, path: location }]);
@@ -278,12 +267,15 @@ test('normalized plan health reports missing or contradictory metadata while kee
   const setup = await fixture();
   try {
     await mkdir(path.join(setup.root, 'active/0001-example'), { recursive: true });
-    await writeFile(path.join(setup.root, 'retained.md'), '# Other retained work');
+    await mkdir(path.join(setup.root, 'active/0002-other'), { recursive: true });
+    await writeFile(path.join(setup.root, 'active/0002-other/plan.md'), header('work-0002', 'draft', 'not_started'));
     const filename = path.join(setup.root, 'active/0001-example/plan.md');
     const original = header('work-0001', 'accepted', 'not_started');
-    await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: 'active/0001-example', repositories: ['example'], current_plan: 'active/0001-example/plan.md' }, { id: 'work-0002', path: 'retained.md', repositories: [], current_plan: null }] }));
+    await writeFile(path.join(setup.root, 'planning.json'), registry([{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }, { id: 'work-0002', path: 'active/0002-other', current_plan: 'active/0002-other/plan.md' }]));
     const scenarios = [
       [original.replace('title: Example work', 'title: 123'), 'title'],
+      [original.replace('schema_version: 2', 'schema_version: 1'), 'schema version 2'],
+      [original.replace(/^---\n[^]*?\n---\n/, ''), 'no metadata header'],
       [original.replace('supersedes: []\n', ''), 'Missing plan metadata'],
       [original.replace('supersedes: []', 'supersedes: [work-0001]'), 'Supersedes'],
       [original.replace('supersedes: []', 'supersedes: [work-0002, work-0002]'), 'Supersedes'],

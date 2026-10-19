@@ -1,11 +1,10 @@
 // Planning-folder records shared by the reader, the command and the app.
-export interface Repository { id: string; name: string; path?: string; remote?: string }
 export interface Document {
   path: string; name: string; title: string; size: number; modified: string;
-  key: string; workId: string | null; repositories: string[]; category: string; format: string;
+  key: string; workId: string | null; category: string; format: string;
 }
 export interface Work {
-  id: string; path: string; repositories: string[]; currentPlan: string | null;
+  id: string; path: string; currentPlan: string | null;
   title: string; location: string; design: string; implementation: string;
   created: string | null; updated: string | null; accepted: string | null;
   completed: string | null; durationDays: number | null; documents: Document[];
@@ -115,26 +114,26 @@ export type LedgerStepStatus = 'todo' | 'doing' | 'done';
  * the work's creation; a step without it is an implementation step.
  */
 export interface LedgerStep { title: string; status: LedgerStepStatus; phase?: 'planning' }
-/** The ledger status header. Version 2 lists the agreed steps; version 1 (legacy) has only current and next. */
+/** The ledger status header (schema version 2): the agreed steps, `blocked` and the date it changed. */
 export interface WorkProgress {
-  version: 1 | 2;
-  /** Version 2: the steps being worked on, joined; version 1: the reported current focus. */
+  version: 2;
+  /** The steps being worked on, joined. */
   current: string | null;
-  /** Version 2: the steps still to do; version 1: the reported next steps. */
+  /** The steps still to do. */
   next: string[];
   blocked: string | null; updated: string | null;
-  /** Version 2 only, in the ledger's order; null for a version-1 header. */
-  steps: LedgerStep[] | null;
+  /** In the ledger's order. */
+  steps: LedgerStep[];
 }
 export interface StepCounts { total: number; done: number; doing: number; todo: number; remaining: number }
-export interface HistoryEntry { id: string; date: string; title: string; files: string[]; workIds: string[]; repositories: string[] }
+export interface HistoryEntry { id: string; date: string; title: string; files: string[]; workIds: string[] }
 export interface Issue { level: 'warning' | 'error'; message: string; workId?: string }
 /** What the reader returns for one planning folder. */
 export interface PlanningIndex {
   root: string;
   /** The project's name: the registry's `name`, else the folder's own name. */
   name: string;
-  loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; repositories: Repository[]; work: Work[];
+  loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; work: Work[];
   documents: Document[]; history: HistoryEntry[]; issues: Issue[]; gitAvailable: boolean;
 }
 export interface DocumentContent {

@@ -25,7 +25,7 @@ export async function readerFixture() {
   } };
 }
 export function header(id: string, design: string, implementation: string, completed: string | null = null) {
-  return ['---', 'schema_version: 1', 'kind: plan', 'id: ' + id, 'title: Example work', 'repositories: [example]', 'created: null', 'updated: "2026-10-06"', 'design_status: ' + design, 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: ' + (completed ? '"' + completed + '"' : 'null'), 'supersedes: []', 'superseded_by: null', '---', '# Original plan', '', 'Preserve this body.', ''].join('\n');
+  return ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, 'title: Example work', 'created: null', 'updated: "2026-10-06"', 'design_status: ' + design, 'implementation_status: ' + implementation, 'accepted_at: null', 'completed_at: ' + (completed ? '"' + completed + '"' : 'null'), 'supersedes: []', 'superseded_by: null', '---', '# Original plan', '', 'Preserve this body.', ''].join('\n');
 }
 export const relativeDocumentPath = (file: Document) => file.workId ? file.key.slice(file.workId.length + 1) : file.path;
 
@@ -43,12 +43,12 @@ export function temporary(t: TestContext) {
 export function write(file: string, text: string) { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, text); }
 export const read = (root: string, relative: string) => readFileSync(path.join(root, relative), 'utf8');
 export function plan(id: string, fields: Record<string, string> = {}) {
-  const values: Record<string, string> = { title: '"Existing work"', repositories: '[shop]', created: '"2026-10-01"', updated: '"2026-10-02"', design_status: 'draft', implementation_status: 'not_started', accepted_at: 'null', completed_at: 'null', ...fields };
-  return ['---', 'schema_version: 1', 'kind: plan', 'id: ' + id, ...Object.entries(values).map(([key, value]) => key + ': ' + value), 'supersedes: []', 'superseded_by: null', '---', '', '# Existing work', '', 'See [the other work](../0002-other/plan.md) and [the glossary](../../knowledge/glossary.md).', ''].join('\n');
+  const values: Record<string, string> = { title: '"Existing work"', created: '"2026-10-01"', updated: '"2026-10-02"', design_status: 'draft', implementation_status: 'not_started', accepted_at: 'null', completed_at: 'null', ...fields };
+  return ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, ...Object.entries(values).map(([key, value]) => key + ': ' + value), 'supersedes: []', 'superseded_by: null', '---', '', '# Existing work', '', 'See [the other work](../0002-other/plan.md) and [the glossary](../../knowledge/glossary.md).', ''].join('\n');
 }
-const registry = (directory: string) => JSON.stringify({ schema_version: 1, repositories: [{ id: 'planning', name: 'Planning', path: '.' }, { id: 'shop', name: 'Shop', path: '../shop', remote: 'git@github.com:Example/Shop.git' }, { id: 'tools', name: 'Tools', path: path.join(directory, 'tools') }], work_items: [
-  { id: 'work-0001', path: 'active/0001-existing', repositories: ['shop'], current_plan: 'active/0001-existing/plan.md' },
-  { id: 'work-0002', path: 'active/0002-other', repositories: ['tools'], current_plan: 'active/0002-other/plan.md' },
+const registry = (directory: string) => JSON.stringify({ schema_version: 2, name: 'Planning', folders: [path.join(directory, 'shop')], work_items: [
+  { id: 'work-0001', path: 'active/0001-existing', current_plan: 'active/0001-existing/plan.md' },
+  { id: 'work-0002', path: 'active/0002-other', current_plan: 'active/0002-other/plan.md' },
 ] }, null, 2) + '\n';
 // The planning folder and its first commit are made once; each test works on a copy.
 let template: string | undefined;
@@ -60,7 +60,7 @@ export function planningFolder(directory: string, name = 'planning') {
     template = path.join(shared, 'planning');
     write(path.join(template, 'planning.json'), registry(shared));
     write(path.join(template, 'active/0001-existing/plan.md'), plan('work-0001'));
-    write(path.join(template, 'active/0002-other/plan.md'), plan('work-0002', { repositories: '[tools]' }).replace('[the other work](../0002-other/plan.md)', '[the first](../0001-existing/plan.md#why)'));
+    write(path.join(template, 'active/0002-other/plan.md'), plan('work-0002').replace('[the other work](../0002-other/plan.md)', '[the first](../0001-existing/plan.md#why)'));
     write(path.join(template, 'active/0003-unregistered/notes.md'), '# Notes\n');
     write(path.join(template, 'knowledge/glossary.md'), '# Glossary\n');
     write(path.join(template, 'README.md'), '# Planning\n\n- [Existing](active/0001-existing/plan.md)\n- [Ledger][ledger]\n\n[ledger]: <active/0001-existing/ledger.md>\n\n```\n[not a link](active/0001-existing/plan.md)\n```\n');
@@ -70,7 +70,7 @@ export function planningFolder(directory: string, name = 'planning') {
   }
   const root = path.join(directory, name);
   cpSync(template, root, { recursive: true });
-  // The tools' path hint is absolute: the copy's names the folder it is in.
+  // The project's folder is absolute: the copy's is in the folder it is in.
   writeFileSync(path.join(root, 'planning.json'), registry(directory));
   return root;
 }

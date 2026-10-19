@@ -12,8 +12,8 @@ function planningFolder(directory: string) {
   const root = path.join(directory, 'planning');
   const work = path.join(root, 'active/0001-example');
   mkdirSync(work, { recursive: true });
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'example', name: 'Example' }], work_items: [{ id: 'work-0001', path: 'active/0001-example', repositories: ['example'], current_plan: 'active/0001-example/plan.md' }] }));
-  writeFileSync(path.join(work, 'plan.md'), ['---', 'schema_version: 1', 'kind: plan', 'id: work-0001', 'title: Example work', 'repositories: [example]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Example work', ''].join('\n'));
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'planning', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }] }));
+  writeFileSync(path.join(work, 'plan.md'), ['---', 'schema_version: 2', 'kind: plan', 'id: work-0001', 'title: Example work', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Example work', ''].join('\n'));
   writeFileSync(path.join(root, 'README.md'), '# Planning\n');
   return root;
 }
@@ -119,7 +119,7 @@ test('atlas plan export and import share a work item with a preview, --dry-run a
   const source = planningFolder(directory);
   const target = path.join(directory, 'target');
   mkdirSync(path.join(target, 'active'), { recursive: true });
-  writeFileSync(path.join(target, 'planning.json'), '{\n  "schema_version": 1,\n  "repositories": [{ "id": "example", "name": "Example" }],\n  "work_items": []\n}\n');
+  writeFileSync(path.join(target, 'planning.json'), '{\n  "schema_version": 2,\n  "name": "Target",\n  "folders": [],\n  "work_items": []\n}\n');
   const shared = path.join(directory, 'shared');
   mkdirSync(shared);
 

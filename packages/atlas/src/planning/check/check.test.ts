@@ -13,7 +13,7 @@ import { ledgerStatus } from '../work/ledger.ts';
 
 const valid = { errors: [], warnings: [] };
 type Header = Record<string, unknown>;
-type Registry = { schema_version: number; repositories: Record<string, unknown>[]; work_items: Record<string, unknown>[] };
+type Registry = Record<string, unknown> & { work_items: Record<string, unknown>[] };
 
 function fixture(t: TestContext) {
   const root = mkdtempSync(path.join(tmpdir(), 'planning-check-'));
@@ -26,14 +26,13 @@ function fixture(t: TestContext) {
     root, work, plan,
     body: '# Useful plan\n\nPreserve this rationale and [evidence](evidence.txt).\n',
     header: {
-      schema_version: 1, kind: 'plan', id: 'work-0001', title: 'An example: preserves commas, quotes and detail', summary: 'An example plan. It validates.',
-      repositories: ['example-app'], created: null, updated: '2026-10-06', design_status: 'accepted', implementation_status: 'unknown',
+      schema_version: 2, kind: 'plan', id: 'work-0001', title: 'An example: preserves commas, quotes and detail', summary: 'An example plan. It validates.',
+      created: null, updated: '2026-10-06', design_status: 'accepted', implementation_status: 'unknown',
       accepted_at: null, completed_at: null, supersedes: [], superseded_by: null,
     } as Header,
     registry: {
-      schema_version: 1,
-      repositories: [{ id: 'example-app', name: 'Example app', path: '../app' }],
-      work_items: [{ id: 'work-0001', path: 'active/0001-example', repositories: ['example-app'], current_plan: 'active/0001-example/plan.md' }],
+      schema_version: 2, name: 'Example', folders: [path.join(root, 'app')],
+      work_items: [{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }],
     } as Registry,
     write() {
       writeFileSync(plan, '---\n' + Object.entries(state.header).map(([key, value]) => key + ': ' + JSON.stringify(value)).join('\n') + '\n---\n\n' + state.body);
@@ -67,12 +66,12 @@ test('normalized fixture validates and stays read-only', t => {
   assert.deepEqual(manifest(setup.root), before);
 });
 
-test('ledger status validation keeps history read-only', t => {
+test('ledger status validation keeps history read-only, and a ledger without a version 2 header is refused', t => {
   const setup = fixture(t);
   const ledger = path.join(setup.work, 'ledger.md');
   writeFileSync(ledger, '# Old ledger\nOld current work.');
-  assert.deepEqual(setup.validate(), valid);
-  const metadata: Header = { schema_version: 1, kind: 'ledger', work_id: 'work-0001', updated: '2026-10-07', current: null, next: ['Verify boundaries'], blocked: 'Awaiting a required decision' };
+  assert.ok(setup.validate().errors.some(error => error.includes('ledger.md: the ledger has no status header')));
+  const metadata: Header = { schema_version: 2, kind: 'ledger', work_id: 'work-0001', updated: '2026-10-07', blocked: 'Awaiting a required decision', steps: [] };
   const write = (values: Header) => {
     writeFileSync(ledger, '---\n' + Object.entries(values).map(([key, value]) => key + ': ' + JSON.stringify(value)).join('\n') + '\n---\n\n# Original ledger\nEvidence retained.');
     return readFileSync(ledger);
@@ -81,7 +80,8 @@ test('ledger status validation keeps history read-only', t => {
   assert.deepEqual(setup.validate(), valid);
   assert.deepEqual(readFileSync(ledger), original);
   const { blocked: _blocked, ...withoutBlocked } = metadata;
-  for (const invalid of [{ ...metadata, work_id: 'work-9999' }, { ...metadata, next: 'Guess work' }, { ...metadata, current: '' }, { ...metadata, updated: '2026-02-30' }, withoutBlocked]) {
+  const version1: Header = { schema_version: 1, kind: 'ledger', work_id: 'work-0001', updated: '2026-10-07', current: null, next: ['Verify boundaries'], blocked: null };
+  for (const invalid of [{ ...metadata, work_id: 'work-9999' }, { ...metadata, updated: '2026-02-30' }, withoutBlocked, version1]) {
     const before = write(invalid);
     assert.ok(setup.validate().errors.some(error => error.includes('ledger.md')), JSON.stringify(invalid));
     assert.deepEqual(readFileSync(ledger), before);
@@ -157,45 +157,38 @@ test('every ledger header the checker accepts reads the same through the YAML re
   assert.deepEqual(parseFrontmatter(['---', 'steps: [a, b]', '---', ''].join('\n'))!.steps, ['a', 'b']);
 });
 
-test('legacy location with a null pointer is a valid contract state', t => {
+test('only the current formats are read: the registry, work items and plan headers of schema version 2', t => {
   const setup = fixture(t);
-  const legacy = path.join(setup.root, 'legacy/old-notes');
-  mkdirSync(legacy, { recursive: true });
-  writeFileSync(path.join(legacy, 'notes.md'), 'Original unclassified record');
-  setup.registry.work_items.push({ id: 'work-0002', path: 'legacy/old-notes', repositories: [], current_plan: null });
-  setup.write();
-  const { errors, warnings } = setup.validate();
-  assert.deepEqual(errors, []);
-  assert.ok(warnings.some(item => item.includes('scope is unknown')));
-  assert.ok(warnings.some(item => item.includes('unidentified')));
+  const original = clone(setup.registry), header = clone(setup.header);
+  const errorsWith = (change: () => void) => {
+    setup.registry = clone(original); setup.header = clone(header);
+    change();
+    setup.write();
+    return setup.validate().errors;
+  };
+  assert.deepEqual(errorsWith(() => { setup.registry.schema_version = 1; }), ['registry schema_version must be integer 2']);
+  for (const field of ['repositories', 'workspaces']) {
+    assert.ok(errorsWith(() => { setup.registry[field] = []; }).some(error => error.includes(field + ' is not part of the registry')), field);
+  }
+  assert.ok(errorsWith(() => { delete setup.registry.folders; }).includes('folders must be an array of absolute folder paths'));
+  assert.ok(errorsWith(() => { delete setup.registry.name; }).some(error => error.startsWith('name must be')));
+  assert.ok(errorsWith(() => { setup.registry.work_items[0].repositories = ['example-app']; }).some(error => error.includes('repositories is not part of a work item')));
+  assert.ok(errorsWith(() => { setup.header.schema_version = 1; }).some(error => error.includes('schema_version must be integer 2')));
+  assert.ok(errorsWith(() => { setup.header.repositories = ['example-app']; }).some(error => error.includes('repositories is not part of a plan header')));
+  // The main plan is the work folder's plan.md, with a header.
+  assert.ok(errorsWith(() => { setup.registry.work_items[0].current_plan = null; }).length);
+  writeFileSync(path.join(setup.work, 'other.md'), 'Another plan');
+  assert.ok(errorsWith(() => { setup.registry.work_items[0].current_plan = 'active/0001-example/other.md'; }).some(error => error.includes("must be the work folder's plan.md")));
+  setup.registry = clone(original); setup.header = clone(header); setup.write();
+  writeFileSync(setup.plan, '# A plan without a header\n');
+  assert.ok(setup.validate().errors.some(error => error.includes('the plan has no metadata header')));
 });
 
-test('a single plan without frontmatter is reported, not validated', t => {
+test('duplicate work IDs are errors', t => {
   const setup = fixture(t);
-  writeFileSync(path.join(setup.root, 'old-plan.md'), '# Original legacy plan\nDo useful work.\n');
-  setup.registry.work_items.push({ id: 'work-0002', path: 'old-plan.md', repositories: ['example-app'], current_plan: 'old-plan.md' });
-  setup.write();
-  const { errors, warnings } = setup.validate();
-  assert.deepEqual(errors, []);
-  assert.ok(warnings.some(item => item.includes('no frontmatter')));
-});
-
-test('duplicate repository and work IDs are errors', t => {
-  const setup = fixture(t);
-  setup.registry.repositories.push(clone(setup.registry.repositories[0]));
   setup.registry.work_items.push(clone(setup.registry.work_items[0]));
   setup.write();
-  const { errors } = setup.validate();
-  assert.ok(errors.some(item => item.includes('duplicate repository id')));
-  assert.ok(errors.some(item => item.includes('duplicate work id')));
-});
-
-test('plan and registry repository scopes must agree', t => {
-  const setup = fixture(t);
-  setup.registry.repositories.push({ id: 'another-app', name: 'Another' });
-  setup.header.repositories = ['another-app'];
-  setup.write();
-  assert.ok(setup.validate().errors.some(item => item.includes('scope disagrees')));
+  assert.ok(setup.validate().errors.some(item => item.includes('duplicate work id')));
 });
 
 test('pointers and paths stay contained', t => {
@@ -231,15 +224,6 @@ test('work locations and selected plans reject dashboard-hidden components', t =
   }
 });
 
-test('a pointer outside its own work item is an error', t => {
-  const setup = fixture(t);
-  mkdirSync(path.join(setup.root, 'archive'));
-  writeFileSync(path.join(setup.root, 'archive/other.md'), 'Legacy plan');
-  setup.registry.work_items[0].current_plan = 'archive/other.md';
-  setup.write();
-  assert.ok(setup.validate().errors.some(item => item.includes('outside its work item')));
-});
-
 test('dates and completion are not optimistic', t => {
   const setup = fixture(t);
   setup.header.created = '2026-02-30';
@@ -250,14 +234,11 @@ test('dates and completion are not optimistic', t => {
   assert.ok(errors.some(item => item.includes('requires complete')));
 });
 
-test('explicit IDs and unknown scopes are validated', t => {
+test('explicit IDs are validated', t => {
   const setup = fixture(t);
   setup.header.id = 'work-0099';
-  setup.header.repositories = ['unregistered'];
   setup.write();
-  const { errors } = setup.validate();
-  assert.ok(errors.some(item => item.includes('id disagrees')));
-  assert.ok(errors.some(item => item.includes('unknown repository')));
+  assert.ok(setup.validate().errors.some(item => item.includes('id disagrees')));
 });
 
 test('continues lists work items: malformed or itself is an error, unknown work and loops are warnings', t => {
@@ -271,7 +252,7 @@ test('continues lists work items: malformed or itself is an error, unknown work 
   const next = path.join(setup.root, 'active/0002-next');
   mkdirSync(next, { recursive: true });
   writeFileSync(path.join(next, 'plan.md'), ['---', 'id: work-0002', 'continues: [work-0001]', '---', ''].join('\n'));
-  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', repositories: ['example-app'], current_plan: 'active/0002-next/plan.md' });
+  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', current_plan: 'active/0002-next/plan.md' });
   setup.header.continues = ['work-0002', 'no-such-project:work-0001'];
   setup.write();
   const { warnings } = setup.validate();
@@ -297,12 +278,12 @@ test('lifecycle chronology matches the dashboard and preserves unknown dates', t
 });
 
 test('metadata supports plain dates, block lists and comments', () => {
-  const parsed = parseFrontmatter("---\nschema_version: 1\ntitle: 'A title, with ''quotes''' # note\nupdated: 2026-10-06\nrepositories:\n  - example-app\nsupersedes: [] # none\n---\nFlexible body")!;
+  const parsed = parseFrontmatter("---\nschema_version: 2\ntitle: 'A title, with ''quotes''' # note\nupdated: 2026-10-06\ncontinues:\n  - work-0002\nsupersedes: [] # none\n---\nFlexible body")!;
   assert.equal(parsed.title, "A title, with 'quotes'");
   assert.equal(parsed.updated, '2026-10-06');
-  assert.deepEqual(parsed.repositories, ['example-app']);
+  assert.deepEqual(parsed.continues, ['work-0002']);
   assert.deepEqual(parsed.supersedes, []);
-  assert.equal(parsed.schema_version, 1);
+  assert.equal(parsed.schema_version, 2);
 });
 
 test('duplicate metadata is not silently replaced', () => {
@@ -311,17 +292,17 @@ test('duplicate metadata is not silently replaced', () => {
 
 test('supported flow lists ignore comment brackets and a trailing comma', t => {
   const setup = fixture(t);
-  const original = setup.planText();
-  for (const value of ['[example-app] # compare [legacy]', '[example-app,]', "['example-app', ] # [legacy]"]) {
-    writeFileSync(setup.plan, original.replace('repositories: ["example-app"]', 'repositories: ' + value));
-    assert.deepEqual(setup.validate(), valid, value);
+  writeFileSync(setup.plan, setup.planText().replace('supersedes: []', 'supersedes: [] # compare [older]'));
+  assert.deepEqual(setup.validate(), valid);
+  for (const value of ['[work-0002] # compare [older]', '[work-0002,]', "['work-0002', ] # [older]"]) {
+    assert.deepEqual(parseFrontmatter('---\nsupersedes: ' + value + '\n---\n')!.supersedes, ['work-0002'], value);
   }
 });
 
 test('flow lists keep quoted brackets and require an uncommented closing bracket', () => {
-  const parsed = parseFrontmatter('---\nrepositories: ["literal]bracket", \'other]value\',] # [comment]\n---\n')!;
-  assert.deepEqual(parsed.repositories, ['literal]bracket', 'other]value']);
-  assert.throws(() => parseFrontmatter('---\nrepositories: [example-app # comment ]\n---\n'), /closing delimiter/);
+  const parsed = parseFrontmatter('---\nsupersedes: ["literal]bracket", \'other]value\',] # [comment]\n---\n')!;
+  assert.deepEqual(parsed.supersedes, ['literal]bracket', 'other]value']);
+  assert.throws(() => parseFrontmatter('---\nsupersedes: [work-0002 # comment ]\n---\n'), /closing delimiter/);
 });
 
 test('invalid plain title mapping delimiters are rejected', t => {
@@ -391,18 +372,10 @@ test('ordinary plain titles are not mistaken for implicit types', t => {
   }
 });
 
-test('implicit typing applies to flow and block string lists', t => {
-  const setup = fixture(t);
-  setup.registry.repositories = [{ id: 'yes', name: 'Yes repository' }];
-  setup.registry.work_items[0].repositories = ['yes'];
-  setup.header.repositories = ['yes'];
-  setup.write();
-  const original = setup.planText();
+test('implicit typing applies to flow and block string lists', () => {
   for (const [raw, quoted] of [['[yes]', "['yes']"], ['\n  - yes', "\n  - 'yes'"]]) {
-    writeFileSync(setup.plan, original.replace('repositories: ["yes"]', 'repositories: ' + raw));
-    assert.ok(setup.validate().errors.length, raw);
-    writeFileSync(setup.plan, original.replace('repositories: ["yes"]', 'repositories: ' + quoted));
-    assert.deepEqual(setup.validate(), valid, quoted);
+    assert.deepEqual(parseFrontmatter('---\ncontinues: ' + raw + '\n---\n')!.continues, [true], raw);
+    assert.deepEqual(parseFrontmatter('---\ncontinues: ' + quoted + '\n---\n')!.continues, ['yes'], quoted);
   }
 });
 
@@ -410,7 +383,7 @@ test('null-like trailing flow content is not a comment', t => {
   const setup = fixture(t);
   const original = setup.planText();
   for (const value of ['null', 'Null', '~']) {
-    writeFileSync(setup.plan, original.replace('repositories: ["example-app"]', 'repositories: ["example-app"] ' + value));
+    writeFileSync(setup.plan, original.replace('supersedes: []', 'supersedes: [] ' + value));
     assert.ok(setup.validate().errors.some(item => item.includes('unexpected content after flow list')), value);
   }
 });

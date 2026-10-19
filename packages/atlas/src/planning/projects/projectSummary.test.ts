@@ -27,8 +27,7 @@ const item = (folder: string, plan = folder + '/plan.md') => ({ id: 'work-' + fo
  */
 function planningFolder(root: string) {
   write(path.join(root, 'planning.json'), '\ufeff' + JSON.stringify({
-    schema_version: 1, name: 'Shop',
-    repositories: [{ id: 'shop', path: '../shop' }, { id: 'planning', path: '.' }, { id: 'web' }],
+    schema_version: 2, name: 'Shop', folders: [],
     work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('active/0004'), item('active/0005'), item('active/0006', '../outside/plan.md'), item('archive/0007'), item('active/0008'), item('active/0009'), item('archive/0010'), item('archive/0011')],
   }));
   write(path.join(root, 'active/0001/plan.md'), plan('in_progress', 'title: Saved cards\nsummary: "Cards saved at checkout. Half done."\nupdated: "2026-10-03"\n'));
@@ -50,7 +49,7 @@ function planningFolder(root: string) {
   write(path.join(root, 'archive/0007/ledger.md'), ledger('Blocked long ago'));
 }
 
-test('a project\'s summary lists its active work with where each item stands, and its repositories', async t => {
+test('a project\'s summary lists its active work with where each item stands', async t => {
   const root = path.join(temporary(t), 'shop');
   planningFolder(root);
   const none = { summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] };
@@ -59,7 +58,6 @@ test('a project\'s summary lists its active work with where each item stands, an
   const unstepped = { steps: { done: 0, total: 0, planning: { done: 0, total: 0 } } };
   const other = (id: string, title = id.slice(-4), more = {}) => ({ id, title, state: 'other', blocked: null, ...none, ...more });
   assert.deepEqual(await projectSummary(root), {
-    repositories: ['shop', 'web'],
     active: [
       { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null, step: { title: 'Show', status: 'doing', phase: 'implementation' }, completed: null, statistics: null, continues: [], continuedIn: [] },
       { id: 'work-0002', title: '0002', state: 'blocked', blocked: 'Waiting for the acquirer', ...none, ...unstepped },
@@ -90,18 +88,18 @@ test('a project\'s last change is its planning folder\'s last commit', async t =
 test('a folder without a readable registry has no summary, and odd entries in one count as nothing', async t => {
   const root = temporary(t);
   await assert.rejects(projectSummary(path.join(root, 'missing')));
-  write(path.join(root, 'broken', 'planning.json'), '{ "repositories": ');
+  write(path.join(root, 'broken', 'planning.json'), '{ "work_items": ');
   await assert.rejects(projectSummary(path.join(root, 'broken')));
   write(path.join(root, 'list', 'planning.json'), '[]');
   await assert.rejects(projectSummary(path.join(root, 'list')), /not an object/);
-  write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ repositories: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001' }, { id: 'work-0001', path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
-  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] }], closed: [], updated: null });
+  write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ folders: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001' }, { id: 'work-0001', path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
+  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] }], closed: [], updated: null });
 });
 
 test('each work item has the step being worked on or next, and what agents spent on it, from all the project\'s reports at once', async t => {
   const home = temporary(t);
   const root = path.join(home, 'planning', 'shop');
-  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Shop', repositories: [], work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('archive/0004')] }));
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('archive/0004')] }));
   write(path.join(root, 'active/0001/plan.md'), plan('in_progress', 'title: Saved cards\n'));
   write(path.join(root, 'active/0001/ledger.md'), ledger(null, 'steps:\n  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Store"\n    status: todo\n  - title: "Show"\n    status: doing\n'));
   write(path.join(root, 'active/0002/plan.md'), plan('not_started', 'title: Gift cards\ndesign_status: draft\n'));
@@ -207,7 +205,7 @@ test('a plan waits for the person once while its sessions wait at once, and no l
 test('a project\'s statistics put time on the days it was worked, by model and effort, with the plans completed', async t => {
   const directory = temporary(t);
   const root = path.join(directory, 'shop');
-  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [item('archive/0001'), item('active/0002')] }));
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [item('archive/0001'), item('active/0002')] }));
   write(path.join(root, 'archive/0001/plan.md'), plan('complete', 'title: Saved cards\ndesign_status: accepted\ncreated: "2026-10-11"\naccepted_at: "2026-10-12"\ncompleted_at: "2026-10-14"\n'));
   write(path.join(root, 'active/0002/plan.md'), plan('not_started', 'title: Gift cards\n'));
   const database = HomeDatabase.open(path.join(directory, 'home'));
@@ -230,7 +228,7 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     assert.deepEqual(statistics.models, [{ model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }]);
     // All plans: another project's work-0001 is its own plan, and the figures add up.
     const appRoot = path.join(directory, 'app');
-    write(path.join(appRoot, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [item('active/0001')] }));
+    write(path.join(appRoot, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'App', folders: [], work_items: [item('active/0001')] }));
     write(path.join(appRoot, 'active/0001/plan.md'), plan('in_progress', 'title: Checkout app\n'));
     const app = database.addProject(appRoot, 'App');
     insertReport(database, app.id, 'work-0001', createReport({ model: 'claude-opus', session: 's2', at: local(13, 12), measured: {

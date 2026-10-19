@@ -36,7 +36,7 @@ function files(root: string, relative = ''): string[] {
 function snapshot(root: string) {
   return new Map(files(root).map(name => [name, readFileSync(path.join(root, name))]));
 }
-const plan = (id: string, title: string, extra = '') => ['---', 'schema_version: 1', 'kind: plan', `id: ${id}`, `title: "${title}"`, `summary: "What ${title} is for."`, 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', `# ${title}`, '', extra].join('\n');
+const plan = (id: string, title: string, extra = '') => ['---', 'schema_version: 2', 'kind: plan', `id: ${id}`, `title: "${title}"`, `summary: "What ${title} is for."`, 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', `# ${title}`, '', extra].join('\n');
 const ORDERS = '@startuml\ntitle Orders\nclass Order {\n  id : integer\n}\nclass OrderLine\nOrder "1" *-- "0..*" OrderLine : lines\n@enduml\n';
 /** A database capture of the orders table, as Atlas writes one. */
 function captured() {
@@ -52,18 +52,19 @@ function fixture(root: string) {
   mkdirSync(path.join(work, 'evidence'), { recursive: true });
   mkdirSync(path.join(work, 'docs/adr'), { recursive: true });
   mkdirSync(path.join(root, 'archive/0002-legacy'), { recursive: true });
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'shop', name: 'Shop', path: '../shop' }, { id: 'planning', name: 'Planning', path: '.' }], work_items: [
-    { id: 'work-0001', path: 'active/0001-checkout', repositories: ['shop'], current_plan: 'active/0001-checkout/plan.md' },
-    { id: 'work-0002', path: 'archive/0002-legacy', repositories: [], current_plan: null },
-  ] }, null, 2).replace(/\[\n\s+"shop"\n\s+\]/g, '["shop"]').replace(/\[\]/g, '[]') + '\n');
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Planning', folders: [], work_items: [
+    { id: 'work-0001', path: 'active/0001-checkout', current_plan: 'active/0001-checkout/plan.md' },
+    { id: 'work-0002', path: 'archive/0002-legacy', current_plan: 'archive/0002-legacy/plan.md' },
+  ] }, null, 2) + '\n');
   writeFileSync(path.join(work, 'plan.md'), BOM + plan('work-0001', 'Checkout', '## Data model\n\nSee the [glossary](CONTEXT.md#orders), the [orders](diagrams/orders.puml#Order) and ![photo](evidence/photo.png).\n'));
-  writeFileSync(path.join(work, 'ledger.md'), BOM + '---\r\nschema_version: 1\r\nkind: ledger\r\nwork_id: "work-0001"\r\nupdated: "2026-10-02"\r\ncurrent: "Building it"\r\nnext: []\r\nblocked: null\r\n---\r\n\r\n# Ledger\r\n');
+  writeFileSync(path.join(work, 'ledger.md'), BOM + '---\r\nschema_version: 2\r\nkind: ledger\r\nwork_id: "work-0001"\r\nupdated: "2026-10-02"\r\nblocked: null\r\nsteps:\r\n  - title: "Building it"\r\n    status: doing\r\n---\r\n\r\n# Ledger\r\n');
   writeFileSync(path.join(work, 'CONTEXT.md'), '# Glossary\n\n## Orders\n\n**Order**: what a customer buys. [Lines](diagrams/orders.puml#OrderLine)\n');
   writeFileSync(path.join(work, 'docs/adr/0001-orders.md'), '# Keep orders\n');
   writeFileSync(path.join(work, 'evidence/photo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0xff, 0xfe]));
   writeFileSync(path.join(work, 'evidence/bytes.bin'), Buffer.from(Array.from({ length: 512 }, (_, index) => index % 256)));
   writeFileSync(path.join(work, 'evidence/notes.txt'), 'line one\r\nline two\r\n\u00e9\u4e2d\r\n');
   writeFileSync(path.join(root, 'archive/0002-legacy/README.md'), '# Legacy notes\n');
+  writeFileSync(path.join(root, 'archive/0002-legacy/plan.md'), plan('work-0002', 'Legacy').replace('design_status: accepted', 'design_status: abandoned'));
   // Transient Atlas output is not part of the plan.
   mkdirSync(path.join(work, '.atlas/results'), { recursive: true });
   writeFileSync(path.join(work, '.atlas/results/x.json'), '{}');
@@ -96,12 +97,12 @@ function payloadOf(html: string) {
 function assertRoundTrip(sourceWork: string, targetWork: string, from: string, to: string, currentPlan: string | null) {
   const source = snapshot(sourceWork), target = snapshot(targetWork);
   for (const [name, bytes] of source) {
-    if (/^\.atlas\/(?:results|prepared|exports)\//.test(name) || name === '.atlas/statistics.jsonl') continue;
+    if (/^\.atlas\/(?:results|prepared|exports)\//.test(name)) continue;
     assert.ok(target.has(name), `${name} was imported`);
     const imported = target.get(name)!;
     if (name === currentPlan || name === 'ledger.md') {
       const field = name === 'ledger.md' ? 'work_id' : 'id';
-      assert.equal(parseFrontmatter(imported.toString('utf8'))?.[field], to, `${name} ${field} is rewritten`);
+      assert.equal(parseFrontmatter(imported.toString('utf8'), { entryLists: name === 'ledger.md' ? ['steps'] : [] })?.[field], to, `${name} ${field} is rewritten`);
       assert.equal(imported.toString('utf8').replace(to, from), bytes.toString('utf8'), `${name} differs only in its identity`);
     } else assert.deepEqual(imported, bytes, `${name} is byte-for-byte identical`);
   }
@@ -117,7 +118,6 @@ test('exports the whole work folder and imports it losslessly as new work', asyn
   assert.equal(exported.bytes, Buffer.byteLength(exported.html));
   assert.equal((await exportPlan(source, 'archive/0002-legacy/', { now })).html, legacy.html, 'exports are deterministic, by ID or folder');
   assert.equal(exported.manifest.source.location, 'active');
-  assert.deepEqual(exported.manifest.source.repositories, [{ id: 'shop', name: 'Shop' }]);
   assert.ok(!exported.manifest.files.some(file => file.path.startsWith('.atlas/results')));
   assert.equal(exported.manifest.exportedAt, now.toISOString());
 
@@ -140,8 +140,8 @@ test('exports the whole work folder and imports it losslessly as new work', asyn
   let prefix = 0; while (registry[prefix] === after[prefix]) prefix++;
   let suffix = 0; while (suffix < registry.length - prefix && registry.at(-1 - suffix) === after.at(-1 - suffix)) suffix++;
   assert.equal(prefix + suffix, registry.length, 'the registry change is a pure insertion');
-  assert.match(after.slice(prefix, after.length - suffix), /^,\n {4}\{\n {6}"id": "work-0003",\n {6}"path": "active\/0003-checkout",\n {6}"repositories": \["shop"\],\n {6}"current_plan": "active\/0003-checkout\/plan.md"\n {4}\}$/);
-  assert.deepEqual(validatePlanning(target), { errors: [], warnings: ['work_items[1]: legacy repository scope is unknown', 'work_items[1]: main plan is unidentified'] });
+  assert.match(after.slice(prefix, after.length - suffix), /^,\n {4}\{\n {6}"id": "work-0003",\n {6}"path": "active\/0003-checkout",\n {6}"current_plan": "active\/0003-checkout\/plan.md"\n {4}\}$/);
+  assert.deepEqual(validatePlanning(target), { errors: [], warnings: [] });
 
   const provenance = JSON.parse(readFileSync(path.join(target, 'active/0003-checkout/evidence/import-provenance.json'), 'utf8'));
   assert.deepEqual(provenance.source, { planningFolder: 'source', workId: 'work-0001', title: 'Checkout', location: 'active', path: 'active/0001-checkout' });
@@ -166,11 +166,9 @@ test('keeps the archive location, takes the next free number and imports twice a
   cpSync(source, target, { recursive: true });
   mkdirSync(path.join(target, 'archive/0003-unregistered'), { recursive: true });
   mkdirSync(path.join(target, 'active/2026-10-roadmap'), { recursive: true });
-  assert.equal(legacy.manifest.source.currentPlan, null);
   assert.equal(legacy.manifest.source.location, 'archive');
   const first = await importPlan(target, legacy.html);
   assert.deepEqual([first.workId, first.path], ['work-0004', 'archive/0004-legacy']);
-  assert.ok(first.notes.some(note => /no registered main plan/.test(note)));
   const second = await importPlan(target, legacy.html);
   assert.deepEqual([second.workId, second.path], ['work-0005', 'archive/0005-legacy']);
   assert.deepEqual(readFileSync(path.join(target, 'archive/0005-legacy/README.md')), readFileSync(path.join(source, 'archive/0002-legacy/README.md')));
@@ -198,18 +196,17 @@ test('a draft imported without a ledger gets one with the planning steps, as new
   assert.deepEqual(validatePlanning(target).errors, []);
 });
 
-test('registers repositories the target does not know, in the registry\'s own style', async t => {
+test('registers the work in the registry\'s own style', async t => {
   const { checkout } = await shared();
   const target = temporary(t);
-  const crlf = '{\r\n\t"schema_version": 1,\r\n\t"repositories": [\r\n\t\t{ "id": "other", "name": "Other" }\r\n\t],\r\n\t"work_items": []\r\n}\r\n';
+  const crlf = '{\r\n\t"schema_version": 2,\r\n\t"name": "Other",\r\n\t"folders": [],\r\n\t"work_items": []\r\n}\r\n';
   writeFileSync(path.join(target, 'planning.json'), crlf);
   const result = await importPlan(target, checkout.html);
   assert.equal(result.workId, 'work-0001');
   const after = readFileSync(path.join(target, 'planning.json'), 'utf8');
-  assert.ok(after.includes('\t\t{ "id": "other", "name": "Other" },\r\n\t\t{ "id": "shop", "name": "Shop" }\r\n\t],'));
+  assert.ok(after.includes('\t"work_items": [\r\n\t\t{\r\n\t\t\t"id": "work-0001",'), after);
   assert.ok(!/[^\r]\n/.test(after), 'line endings are kept');
   assert.deepEqual(validatePlanning(target).errors, []);
-  assert.ok(result.notes.some(note => /repository shop/.test(note)));
 });
 
 const rejectedAs = (code: PlanExportErrorCode, message?: RegExp) => (error: unknown) => error instanceof PlanExportError && error.code === code && (!message || message.test(error.message));
@@ -245,10 +242,9 @@ test('rejects tampered, unsafe, duplicated and unknown exports before writing an
   rejected(variant(copy => { const twin = structuredClone(plan(copy)); twin.path = 'Docs/adr/other.md'; copy.files.push(twin); }), 'DUPLICATE', /merge/);
   rejected(variant(copy => { const a = structuredClone(plan(copy)), b = structuredClone(plan(copy)); a.path = 'evidence/caf' + String.fromCharCode(0xe9) + '/a.md'; b.path = 'evidence/cafe' + String.fromCharCode(0x301) + '/b.md'; copy.files.push(a, b); }), 'DUPLICATE');
   rejected(variant(copy => { copy.source.title = 'Harmless' + ESC + ']52;c;ZWNobw==' + String.fromCharCode(7); }), 'FORMAT', /control characters/);
-  rejected(variant(copy => { copy.source.repositories[0].name = 'Shop' + String.fromCharCode(0x85); }), 'FORMAT', /control characters/);
   rejected(variant(copy => { copy.source.currentPlan = 'diagrams/orders.puml'; }), 'FORMAT', /Markdown/);
   rejected(variant(copy => { plan(copy).size = 400 * 1024 * 1024; }), 'LIMIT');
-  rejected(variant(copy => { copy.version = 2; }), 'VERSION');
+  rejected(variant(copy => { copy.version = 1; }), 'VERSION');
   rejected(variant(copy => { copy.format = 'atlas/other'; }), 'FORMAT');
   rejected(variant(copy => { copy.source.currentPlan = 'missing.md'; }), 'FORMAT');
   rejected(variant(copy => { copy.source.path = '../outside'; }), 'PATH');
@@ -337,7 +333,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   rmSync(path.join(source, 'active/0001-checkout/diagrams'), { recursive: true });
   mkdirSync(path.join(source, 'active/0003-successor'), { recursive: true });
   const registry = JSON.parse(readFileSync(path.join(source, 'planning.json'), 'utf8'));
-  registry.work_items.push({ id: 'work-0003', path: 'active/0003-successor', repositories: ['shop'], current_plan: 'active/0003-successor/plan.md' });
+  registry.work_items.push({ id: 'work-0003', path: 'active/0003-successor', current_plan: 'active/0003-successor/plan.md' });
   writeFileSync(path.join(source, 'planning.json'), JSON.stringify(registry, null, 2));
   const successor = plan('work-0003', 'Successor').replace('supersedes: []', 'supersedes:\n  - work-0001\n  - work-0002');
   writeFileSync(path.join(source, 'active/0003-successor/plan.md'), successor);
@@ -357,9 +353,9 @@ test('clears references to other work so the target stays valid, and rolls back 
   assert.deepEqual(validatePlanning(target).errors, []);
   // The viewer shows the handoffs as they stood at export time: the work it continues, the work continuing it.
   const viewOf = (html: string) => JSON.parse(/<script id="atlas-plan-view" type="application\/json">(.*?)<\/script>/s.exec(html)![1]).work;
-  const handoff = { folderId: null, project: 'source', projectName: 'source', state: null, outcome: null };
-  assert.deepEqual(viewOf((await exportPlan(source, 'work-0001', { now })).html).continues, [{ ...handoff, workId: 'work-0002', title: null }]);
-  assert.deepEqual(viewOf((await exportPlan(source, 'work-0002', { now })).html).continuedIn, [{ ...handoff, workId: 'work-0001', title: 'Checkout' }]);
+  const handoff = { folderId: null, project: 'source', projectName: 'Planning', state: null };
+  assert.deepEqual(viewOf((await exportPlan(source, 'work-0001', { now })).html).continues, [{ ...handoff, workId: 'work-0002', title: 'Legacy', outcome: 'abandoned' }]);
+  assert.deepEqual(viewOf((await exportPlan(source, 'work-0002', { now })).html).continuedIn, [{ ...handoff, workId: 'work-0001', title: 'Checkout', outcome: null }]);
 
   // A plan whose metadata names another work ID would leave the target invalid: nothing stays.
   writeFileSync(path.join(source, 'active/0001-checkout/plan.md'), plan('work-0099', 'Checkout'));
@@ -369,12 +365,10 @@ test('clears references to other work so the target stays valid, and rolls back 
   assert.deepEqual(snapshot(target), before, 'the import was rolled back');
 });
 
-test('reuses a validated preview, cleans up after interrupted imports and reports repository differences', async t => {
+test('reuses a validated preview, and cleans up after interrupted imports', async t => {
   const { checkout } = await shared();
   const target = temporary(t);
   fixture(target);
-  const registry = readFileSync(path.join(target, 'planning.json'), 'utf8').replace('"name": "Shop"', '"name": "Our shop"');
-  writeFileSync(path.join(target, 'planning.json'), registry);
   const old = path.join(target, 'active/.atlas-import-0b4e8f1a-2c3d-4e5f-8a9b-0c1d2e3f4a5b'), fresh = path.join(target, 'active/.atlas-import-1b4e8f1a-2c3d-4e5f-8a9b-0c1d2e3f4a5b');
   const unrelated = path.join(target, 'active/.atlas-import-notes');
   mkdirSync(old); mkdirSync(fresh); mkdirSync(unrelated);
@@ -386,7 +380,6 @@ test('reuses a validated preview, cleans up after interrupted imports and report
   assert.equal(result.workId, 'work-0003');
   assert.ok(!existsSync(old) && existsSync(fresh) && existsSync(unrelated), 'only stale temporary folders an import names are removed');
   assert.ok(result.notes.some(note => /Removed 1 temporary folder/.test(note)));
-  assert.ok(result.notes.some(note => /repository shop is already registered here, named “Our shop” here and “Shop” in the export/.test(note)), result.notes.join('\n'));
   await assert.rejects(importPlan(target, { ...preview }), (error: unknown) => error instanceof PlanExportError && error.code === 'FORMAT');
 });
 
@@ -407,7 +400,7 @@ test('rolls back every step of a failed import, and says what is left when it ca
   const target = temporary(t);
   mkdirSync(path.join(target, 'active'), { recursive: true });
   // A registry with a byte order mark and CRLF line endings, and no archive/ folder yet.
-  const registry = BOM + '{\r\n  "schema_version": 1,\r\n  "repositories": [{ "id": "shop", "name": "Shop" }],\r\n  "work_items": []\r\n}\r\n';
+  const registry = BOM + '{\r\n  "schema_version": 2,\r\n  "name": "Target",\r\n  "folders": [],\r\n  "work_items": []\r\n}\r\n';
   writeFileSync(path.join(target, 'planning.json'), registry);
   const before = snapshot(target);
   t.after(() => { delete planExportTesting.afterRegister; delete planExportTesting.removeFolder; });

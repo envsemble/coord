@@ -60,15 +60,18 @@ export function git(cwd: string, ...args: string[]) {
 }
 export function write(file: string, text: string) { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, text); }
 
-export const planText = (id: string, title: string, design = 'draft', implementation = 'not_started') => ['---', 'schema_version: 1', 'kind: plan', 'id: ' + id, 'title: ' + JSON.stringify(title), 'repositories: [shop]', 'created: "2026-10-01"', 'updated: "2026-10-02"',
+export const planText = (id: string, title: string, design = 'draft', implementation = 'not_started') => ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, 'title: ' + JSON.stringify(title), 'created: "2026-10-01"', 'updated: "2026-10-02"',
   'design_status: ' + design, 'implementation_status: ' + implementation, 'accepted_at: ' + (design === 'accepted' ? '"2026-10-02"' : 'null'), 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# ' + title, ''].join('\n');
+
+/** The registry of homeWithPlanning's planning folder, covering these folders. */
+const registryText = (folders: string[]) => JSON.stringify({ schema_version: 2, name: 'shop-planning', folders, work_items: [{ id: 'work-0001', path: 'active/0001-cart', current_plan: 'active/0001-cart/plan.md' }] }, null, 2) + '\n';
 
 /** The folders homeWithPlanning copies, made with Git once per process. */
 const template = path.join(isolated, 'template');
 let templateMade = false;
 function makeTemplate() {
   const root = path.join(template, 'home', 'planning', 'shop-planning');
-  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [{ id: 'shop', name: 'Shop', remote: 'git@github.com:example/shop.git' }], work_items: [{ id: 'work-0001', path: 'active/0001-cart', repositories: ['shop'], current_plan: 'active/0001-cart/plan.md' }] }, null, 2) + '\n');
+  write(path.join(root, 'planning.json'), registryText([]));
   write(path.join(root, 'active/0001-cart/plan.md'), planText('work-0001', 'Cart'));
   write(path.join(root, 'README.md'), '# Planning\n\n- [Cart](active/0001-cart/plan.md)\n');
   git(root, 'init', '-q');
@@ -82,15 +85,17 @@ function makeTemplate() {
 }
 
 /**
- * An Atlas home with one planning folder (a Git repository) that registers the repository `shop`
- * by its remote, with work-0001 (a draft), and a checkout of `shop` with that remote.
+ * An Atlas home with one planning folder (a Git repository) whose project covers the checkout
+ * `shop` (a Git checkout with a GitHub remote), with work-0001 (a draft). The folder it covers is
+ * written after the copy, so the registry differs from its commit there.
  */
 export function homeWithPlanning(t: TestContext) {
   const directory = temporary(t);
   if (!templateMade) makeTemplate();
   cpSync(template, directory, { recursive: true });
-  const home = path.join(directory, 'home');
-  return { directory, home, root: path.join(home, 'planning', 'shop-planning'), checkout: path.join(directory, 'shop'), env: { ...environment, ATLAS_HOME: home } };
+  const home = path.join(directory, 'home'), root = path.join(home, 'planning', 'shop-planning'), checkout = path.join(directory, 'shop');
+  writeFileSync(path.join(root, 'planning.json'), registryText([checkout]));
+  return { directory, home, root, checkout, env: { ...environment, ATLAS_HOME: home } };
 }
 
 /** A work item's reports in a home's database (the test environment's home unless given). */

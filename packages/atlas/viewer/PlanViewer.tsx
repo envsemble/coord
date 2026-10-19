@@ -149,14 +149,11 @@ function About({ data }: { data: PlanData }) {
   const after = handoffs ? <HandoffEntries items={work.continuedIn} kind="continuedIn" own={own} /> : null;
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
   return <aside className="about" aria-label="About this work">
-    {progress && (progress.steps || progress.current || progress.next.length > 0 || progress.blocked) && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && absoluteDate(progress.updated)}>
+    {progress && <AboutSection title="Progress" note={progress.updated && absoluteDate(progress.updated)}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
-      {progress.steps ? <LedgerSteps steps={progress.steps} before={before} after={after} /> : <>
-        {progress.current && <p className="about-current">{progress.current}</p>}
-        {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
-      </>}
+      <LedgerSteps steps={progress.steps} before={before} after={after} />
     </AboutSection>}
-    {handoffs && !progress?.steps && <AboutSection title="Handoffs"><ol className="ledger-steps ledger-handoffs">{before}{after}</ol></AboutSection>}
+    {handoffs && !progress && <AboutSection title="Handoffs"><ol className="ledger-steps ledger-handoffs">{before}{after}</ol></AboutSection>}
     <AboutSection title="About">
       {dates.length > 0 && <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{absoluteDate(value)}</dd></div>)}</dl>}
       <p className="about-path" title={work.path}><bdi>{data.payload.source.planningFolder}/{work.path}</bdi></p>
@@ -318,7 +315,6 @@ export function PlanViewer({ data }: { data: PlanData }) {
             <span className="work-number">{workNumber(view.work.id)}</span>
             <StatusBadge status={workStatus(view.work)} />
             {view.work.location === 'archive' && <Badge tone="warning">Archived</Badge>}
-            {view.work.repositories.map(repository => <Badge key={repository.id} variant="outline" title={repository.name}>{repository.id}</Badge>)}
           </div>
         </header>
         {tab === 'files' ? <div className="files-tab">

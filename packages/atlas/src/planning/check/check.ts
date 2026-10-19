@@ -1,4 +1,5 @@
-// Read-only validation for planning registry v1, plan metadata and ledger status headers.
+// Read-only validation of the planning registry, plan headers and ledger status headers, all
+// schema version 2; anything else is refused.
 //
 // Accepts the contract's plain/quoted scalars and flow/block lists, plus the ledger's block list
 // of flat step mappings; this is deliberately not a general YAML parser or migration tool. Quote string values that resemble implicit
@@ -10,8 +11,10 @@ import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
 import { HandoffGraph, handoffsOf, handoffText } from '../work/handoffs.ts';
 
-const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
-const repositoryIdentity = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
+/** The registry's fields, and a work item's. */
+const registryFields = ['schema_version', 'name', 'folders', 'work_items'];
+const workFields = ['id', 'path', 'current_plan'];
 const workIdentity = /^work-[0-9]{4,}$/;
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);
 const implementationStates = new Set(['unknown', 'not_started', 'in_progress', 'partial', 'complete']);
@@ -30,7 +33,7 @@ export type Metadata = Record<string, MetadataValue>;
 /** In a ledger header, `steps` holds a block list of flat mappings. */
 const ledgerEntryLists = ['steps'];
 /** Fields that may start a block list of scalars on the following lines. */
-const scalarListFields = new Set(['repositories', 'supersedes', 'continues']);
+const scalarListFields = new Set(['supersedes', 'continues']);
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
@@ -263,10 +266,6 @@ function readText(filename: string, keepByteOrderMark = false) {
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(readFileSync(filename));
   return keepByteOrderMark ? text : text.replace(/^\uFEFF/, '');
 }
-function sameSet(first: Set<string>, second: Set<string>) {
-  return first.size === second.size && [...first].every(item => second.has(item));
-}
-
 /** Return errors and warnings without modifying any repository file. */
 export function validatePlanning(inputRoot: string): { errors: string[]; warnings: string[] } {
   const root = resolveLenient(inputRoot);
@@ -277,27 +276,18 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   try { registry = JSON.parse(readText(path.join(root, 'planning.json'))); }
   catch (error) { return { errors: ['planning.json: ' + (error as Error).message], warnings }; }
   if (!isObject(registry)) return { errors: ['planning.json must be an object'], warnings };
-  if (!isInteger(registry.schema_version) || registry.schema_version !== 1) errors.push('registry schema_version must be integer 1');
-  for (const field of ['repositories', 'work_items']) if (!Array.isArray(registry[field])) errors.push(field + ' must be an array');
-  // The project's name, which the app shows; the folder's own name without it.
-  if (Object.hasOwn(registry, 'name') && (typeof registry.name !== 'string' || !registry.name.trim() || registry.name.length > 100)) errors.push('name must be a nonempty string of at most 100 characters when supplied');
-  // The workspace folders the project covers on this computer: a session in one belongs to it.
-  if (Object.hasOwn(registry, 'workspaces') && (!Array.isArray(registry.workspaces) || registry.workspaces.some(item => typeof item !== 'string' || !item.trim() || !(path.win32.isAbsolute(item) || path.posix.isAbsolute(item))))) errors.push('workspaces must be an array of absolute folder paths when supplied');
+  if (registry.schema_version !== 2) errors.push('registry schema_version must be integer 2');
+  for (const field of ['repositories', 'workspaces']) if (Object.hasOwn(registry, field)) errors.push(`planning.json: ${field} is not part of the registry; a project is its planning folder and its folders`);
+  const unknown = Object.keys(registry).filter(field => !registryFields.includes(field) && field !== 'repositories' && field !== 'workspaces');
+  if (unknown.length) errors.push('planning.json has unknown fields: ' + unknown.join(', '));
+  // The project's name, which the app shows.
+  if (typeof registry.name !== 'string' || !registry.name.trim() || registry.name.length > 100) errors.push('name must be a nonempty string of at most 100 characters');
+  // The folders the project covers on this computer: a session in one belongs to it.
+  if (!Array.isArray(registry.folders) || registry.folders.some(item => typeof item !== 'string' || !item.trim() || !(path.win32.isAbsolute(item) || path.posix.isAbsolute(item)))) errors.push('folders must be an array of absolute folder paths');
+  if (!Array.isArray(registry.work_items)) errors.push('work_items must be an array');
   if (errors.length) return { errors, warnings };
-  const repositories = registry.repositories as unknown[], workItems = registry.work_items as unknown[];
+  const workItems = registry.work_items as unknown[];
 
-  const repositoryIds = new Set<string>();
-  function scope(value: unknown, label: string) {
-    if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
-      errors.push(label + ' must be an array of repository IDs');
-      return new Set<string>();
-    }
-    const unique = new Set(value as string[]);
-    if (unique.size !== value.length) errors.push(label + ' contains duplicate repository IDs');
-    const unknown = [...unique].filter(id => !repositoryIds.has(id)).sort();
-    if (unknown.length) errors.push(label + ' contains unknown repository IDs: ' + unknown.join(', '));
-    return unique;
-  }
   function contained(value: unknown, label: string) {
     if (typeof value !== 'string' || !value || value.includes('\\')) {
       errors.push(label + ' must be a nonempty POSIX relative path');
@@ -325,22 +315,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     return target;
   }
 
-  repositories.forEach((entry, index) => {
-    const label = `repositories[${index}]`;
-    if (!isObject(entry)) { errors.push(label + ' must be an object'); return; }
-    const id = entry.id;
-    if (typeof id !== 'string' || !repositoryIdentity.test(id)) errors.push(label + ' has invalid id');
-    else if (repositoryIds.has(id)) errors.push('duplicate repository id: ' + id);
-    else repositoryIds.add(id);
-    if (typeof entry.name !== 'string' || !entry.name.trim()) errors.push(label + ' needs a nonempty name');
-    for (const field of ['path', 'remote']) {
-      const value = entry[field];
-      if (Object.hasOwn(entry, field) && (typeof value !== 'string' || !value.trim())) errors.push(label + '.' + field + ' must be a nonempty string when supplied');
-    }
-  });
-
   const workIds = new Set<string>(), locations = new Set<string>();
-  const plans: { pointer: string; metadata: Metadata; workId: unknown; workScope: Set<string>; location: unknown }[] = [];
+  const plans: { pointer: string; metadata: Metadata; workId: unknown; location: unknown }[] = [];
   /** Per work ID, the ledger's open items: steps not done, and blocked. */
   const openItems = new Map<string, number>();
   workItems.forEach((entry, index) => {
@@ -353,32 +329,29 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     const location = contained(entry.path, label + '.path');
     if (location !== null && locations.has(pathKey(location))) errors.push(label + ' duplicates a retained location');
     if (location !== null) locations.add(pathKey(location));
-    const workScope = scope(entry.repositories, label + '.repositories');
-    if (!workScope.size) warnings.push(label + ': legacy repository scope is unknown');
-    if (!Object.hasOwn(entry, 'current_plan')) { errors.push(label + ' needs an explicit current_plan or null'); return; }
+    if (Object.hasOwn(entry, 'repositories')) errors.push(label + ': repositories is not part of a work item');
+    const extra = Object.keys(entry).filter(field => !workFields.includes(field) && field !== 'repositories');
+    if (extra.length) errors.push(label + ' has unknown fields: ' + extra.join(', '));
+    if (!Object.hasOwn(entry, 'current_plan')) { errors.push(label + ' needs current_plan'); return; }
     const pointer = entry.current_plan;
-    if (pointer === null) { warnings.push(label + ': main plan is unidentified'); return; }
     const planPath = contained(pointer, label + '.current_plan');
     if (planPath === null) return;
-    if (location !== null && !(pathKey(planPath) === pathKey(location) || (isDirectory(location) && within(location, planPath)))) {
-      errors.push(label + '.current_plan is outside its work item');
-    }
+    // The main plan is the work folder's plan.md.
+    if (location !== null && pathKey(planPath) !== pathKey(path.join(location, 'plan.md'))) { errors.push(label + ".current_plan must be the work folder's plan.md"); return; }
     if (!isFile(planPath)) { errors.push(label + '.current_plan must identify a file'); return; }
-    if (location !== null && isDirectory(location) && pathKey(planPath) !== pathKey(path.join(location, 'plan.md'))) {
-      warnings.push(String(pointer) + ': retained legacy main plan name; normalize to root plan.md during organization');
-    }
     let metadata: Metadata | null;
     try { metadata = parseFrontmatter(readText(planPath, true)); }
     catch (error) { errors.push(String(pointer) + ': ' + (error as Error).message); return; }
-    if (metadata === null) { warnings.push(String(pointer) + ': legacy plan has no frontmatter; metadata not validated'); return; }
-    plans.push({ pointer: String(pointer), metadata, workId, workScope, location: entry.path });
+    if (metadata === null) { errors.push(String(pointer) + ': the plan has no metadata header'); return; }
+    plans.push({ pointer: String(pointer), metadata, workId, location: entry.path });
   });
 
-  for (const { pointer, metadata, workId, workScope, location } of plans) {
+  for (const { pointer, metadata, workId, location } of plans) {
     const prefix = pointer + ': ';
     const missing = planFields.filter(field => !Object.hasOwn(metadata, field)).sort();
     if (missing.length) errors.push(prefix + 'missing fields: ' + missing.join(', '));
-    if (!isInteger(metadata.schema_version) || metadata.schema_version !== 1) errors.push(prefix + 'schema_version must be integer 1');
+    if (!isInteger(metadata.schema_version) || metadata.schema_version !== 2) errors.push(prefix + 'schema_version must be integer 2');
+    if (Object.hasOwn(metadata, 'repositories')) errors.push(prefix + 'repositories is not part of a plan header');
     if (metadata.kind !== 'plan') errors.push(prefix + 'kind must be plan');
     if (metadata.id !== workId) errors.push(prefix + 'id disagrees with registry');
     if (typeof metadata.title !== 'string' || !metadata.title.trim()) errors.push(prefix + 'title must be a nonempty string');
@@ -387,7 +360,6 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     else if (typeof location === 'string' && location.startsWith('active/') && !(typeof metadata.summary === 'string' && metadata.summary.trim())) {
       warnings.push(prefix + 'no summary: add one to the header, two or three plain sentences on what the work is, why, and where it stands');
     }
-    if (!sameSet(scope(metadata.repositories, prefix + 'repositories'), workScope)) errors.push(prefix + 'repository scope disagrees with registry');
     for (const [field, allowed] of [['design_status', designStates], ['implementation_status', implementationStates]] as const) {
       const value = metadata[field];
       if (typeof value !== 'string' || !allowed.has(value)) errors.push(prefix + 'invalid ' + field);
@@ -432,7 +404,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (contained(path.relative(root, ledger).split(path.sep).join('/'), 'ledger') === null) continue;
     try {
       const metadata = parseFrontmatter(readText(ledger, true), { entryLists: ledgerEntryLists });
-      if (metadata === null) continue; // Retained historical prose does not establish current activity.
+      if (metadata === null) throw new FrontmatterError('the ledger has no status header');
       const updated = metadata.updated;
       const invalidDate = typeof updated === 'string' && isoDate.test(updated) ? calendarError(updated) : null;
       if (invalidDate) throw new FrontmatterError(invalidDate);

@@ -26,7 +26,7 @@ export interface WorkStatus {
   /** The plan's `summary` header: a few plain sentences on what the work is, why, and where it stands. */
   summary: string | null;
   location: 'active' | 'archive' | 'other';
-  plan: string; repositories: string[];
+  plan: string;
   designStatus: string | null; implementationStatus: string | null;
   created: string | null; updated: string | null; acceptedAt: string | null; completedAt: string | null;
   /** The ledger's path, or null before implementation starts. */
@@ -94,7 +94,7 @@ async function renameWithRetry(from: string, to: string) {
 const exists = (target: string) => stat(target).then(() => true, () => false);
 const file = (root: string, relative: string) => path.join(root, ...relative.split('/'));
 
-interface Entry { id: string; path: string; repositories: string[]; current_plan: string | null }
+interface Entry { id: string; path: string; current_plan: string | null }
 interface Loaded {
   root: string; registryText: string; entry: Entry; plan: string;
   planText: string; planMetadata: Metadata;
@@ -108,21 +108,21 @@ async function registryOf(root: string) {
   let text: string;
   try { text = await readFile(path.join(root, 'planning.json'), 'utf8'); }
   catch { throw new WorkError('The planning folder has no readable planning.json: ' + root); }
-  let registry: { repositories?: unknown; work_items?: unknown };
+  let registry: { schema_version?: unknown; work_items?: unknown };
   try { registry = JSON.parse(text.startsWith(BOM) ? text.slice(1) : text); } catch (error) { throw new WorkError('planning.json is not valid JSON: ' + (error as Error).message); }
-  if (!Array.isArray(registry?.repositories) || !Array.isArray(registry?.work_items)) throw new WorkError('planning.json needs repositories and work_items lists.');
-  return { text, repositories: registry.repositories as { id?: unknown }[], workItems: registry.work_items as Partial<Entry>[] };
+  if (registry?.schema_version !== 2) throw new WorkError('planning.json is not schema version 2; atlas check says what to change.');
+  if (!Array.isArray(registry.work_items)) throw new WorkError('planning.json needs a work_items list.');
+  return { text, workItems: registry.work_items as Partial<Entry>[] };
 }
 
 function ledgerOf(text: string, workId: string) {
   let metadata: Metadata | null;
   try { metadata = parseFrontmatter(text, { entryLists: ['steps'] }); }
   catch (error) { throw new WorkError('The ledger header cannot be read: ' + (error as Error).message); }
-  if (!metadata) throw new WorkError('The ledger has no status header; add one (PLANS.md, "Ledger status version 2") first.');
+  if (!metadata) throw new WorkError('The ledger has no status header; add one (PLANS.md, "Ledger status") first.');
   let status;
   try { status = ledgerStatus(metadata, workId); } catch (error) { throw new WorkError('The ledger header is invalid: ' + (error as Error).message); }
-  if (status.version !== 2) throw new WorkError('The ledger uses status version 1; rewrite its header as version 2 (PLANS.md) first.');
-  return { steps: status.steps!, blocked: status.blocked };
+  return { steps: status.steps, blocked: status.blocked };
 }
 
 async function load(input: string, workId: string): Promise<Loaded> {
@@ -132,10 +132,9 @@ async function load(input: string, workId: string): Promise<Loaded> {
   const entry = registry.workItems.find(item => item?.id === workId);
   if (!entry) throw new WorkError(`${workId} is not registered in ${root}.`);
   if (typeof entry.path !== 'string' || !entry.path || entry.path.includes('\\') || entry.path.split('/').includes('..')) throw new WorkError(`${workId} has an invalid path in planning.json.`);
-  if (typeof entry.current_plan !== 'string') throw new WorkError(`${workId} has no main plan (current_plan is null).`);
-  const plan = entry.current_plan, folder = entry.path.replace(/\/+$/, '');
-  // The plan is written: it must be in the work folder, as `atlas check` requires.
-  if (plan.includes('\\') || plan.split('/').includes('..') || (plan !== folder && !plan.startsWith(folder + '/'))) throw new WorkError(`${workId}'s current_plan ${plan} is outside its work folder ${folder}; fix planning.json first.`);
+  const folder = entry.path.replace(/\/+$/, ''), plan = folder + '/plan.md';
+  // The plan is written: it is the work folder's plan.md, as `atlas check` requires.
+  if (entry.current_plan !== plan) throw new WorkError(`${workId}'s current_plan must be ${plan}; fix planning.json first.`);
   let planText: string;
   try { planText = await readFile(file(root, plan), 'utf8'); } catch { throw new WorkError(`The plan ${plan} cannot be read.`); }
   let planMetadata: Metadata | null;
@@ -145,7 +144,7 @@ async function load(input: string, workId: string): Promise<Loaded> {
   const ledgerText = await readFile(file(root, entry.path + '/ledger.md'), 'utf8').catch(() => null);
   const ledger = ledgerText === null ? null : ledgerOf(ledgerText, workId);
   return {
-    root, registryText: registry.text, entry: { id: workId, path: entry.path.replace(/\/+$/, ''), repositories: Array.isArray(entry.repositories) ? entry.repositories as string[] : [], current_plan: plan },
+    root, registryText: registry.text, entry: { id: workId, path: folder, current_plan: plan },
     plan, planText, planMetadata, ledgerText, ledgerSteps: ledger?.steps ?? null, blocked: ledger?.blocked ?? null,
   };
 }
@@ -164,7 +163,7 @@ async function describe(loaded: Loaded): Promise<WorkStatus> {
   const statistics = (await workStatistics(loaded.root, [{ id: entry.id, path: entry.path, currentPlan: loaded.plan, completed: text(plan.completed_at) }]).catch(() => ({})) as Record<string, { reports: number; agentMs: number; tokens: number | null; primaryModel: string | null }>)[entry.id];
   return {
     planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, path: entry.path, location: locationOf(entry.path),
-    plan: loaded.plan, repositories: entry.repositories,
+    plan: loaded.plan,
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),
     created: text(plan.created), updated: text(plan.updated), acceptedAt: text(plan.accepted_at), completedAt: text(plan.completed_at),
     ledger: loaded.ledgerText === null ? null : entry.path + '/ledger.md',
@@ -259,17 +258,12 @@ const implementing = (loaded: Loaded) => loaded.planMetadata.implementation_stat
  * work, `active/NNNN-slug/plan.md` with a draft plan header (with its summary, when given), its
  * ledger with the planning steps, and its planning.json entry.
  */
-export async function createWork(input: string, request: { title: string; repositories: string[]; slug?: string | null; summary?: string | null; continues?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult> {
+export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
   const title = oneLine(request.title, 'The title');
   const summary = request.summary == null || String(request.summary).trim() === '' ? null : oneLine(request.summary, 'The summary', summaryLimit);
   const root = await planningRoot(input);
   const registry = await registryOf(root);
-  const known = new Set(registry.repositories.map(item => item?.id).filter((id): id is string => typeof id === 'string'));
-  if (!Array.isArray(request.repositories) || !request.repositories.length) throw new WorkError('Name the repositories the work applies to; registered ones are: ' + [...known].join(', ') + '.');
-  const repositories = [...new Set(request.repositories)];
-  const unknown = repositories.filter(id => !known.has(id));
-  if (unknown.length) throw new WorkError('Not registered in planning.json: ' + unknown.join(', ') + '. Registered repositories: ' + [...known].join(', ') + '.');
   const continues = request.continues?.length ? checkedHandoffs(root, request.continues, null) : [];
   const slug = request.slug ? request.slug : slugOf(title);
   if (!slugPattern.test(slug) || slug.length > 80) throw new WorkError('The slug must be lowercase letters and digits joined by hyphens.');
@@ -278,9 +272,9 @@ export async function createWork(input: string, request: { title: string; reposi
   const workId = 'work-' + number, location = `active/${number}-${slug}`, plan = location + '/plan.md';
   if (await exists(file(root, location))) throw new WorkError(location + ' already exists.');
   let registryText: string;
-  try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, repositories, current_plan: plan }]); }
+  try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, current_plan: plan }]); }
   catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
-  const planText = ['---', 'schema_version: 1', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [], 'repositories: ' + JSON.stringify(repositories).replaceAll('","', '", "'),
+  const planText = ['---', 'schema_version: 2', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [],
     `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], '---', '', '# ' + title, ''].join('\n');
   await mkdir(file(root, location), { recursive: true });
   try {
@@ -372,15 +366,6 @@ function find(steps: LedgerStep[], title: unknown) {
 export async function addSteps(root: string, workId: string, titles: string[], options: OperationOptions = {}) {
   const added = stepTitles(titles);
   if (!added.length) throw new WorkError('Give at least one step to add.');
-  // Work still being planned without a ledger (created before ledgers began with planning steps)
-  // gets one, with these as its planning steps.
-  const unledgered = await load(root, workId);
-  if (unledgered.ledgerText === null && !implementing(unledgered) && locationOf(unledgered.entry.path) === 'active') {
-    const today = dateOf(options);
-    const ledger = await writeLedger(unledgered, planningLedger(workId, today, added.map(step => ({ title: step, status: 'todo' }))));
-    const plan = await writePlan(unledgered, {}, today);
-    return result(unledgered.root, workId, [ledger, plan]);
-  }
   return changeLedger(root, workId, options, (steps, loaded) => {
     const taken = added.filter(title => steps.some(step => step.title === title));
     if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '.');

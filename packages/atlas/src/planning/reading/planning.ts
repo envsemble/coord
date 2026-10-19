@@ -7,7 +7,7 @@ import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../system/
 import { ledgerStatus } from '../work/ledger.ts';
 import { workStatistics } from '../statistics/statistics.ts';
 import { planningName, type HomeDatabase } from '../home/database.ts';
-import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Repository, Work } from '../types.ts';
+import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Work } from '../types.ts';
 import { runProgram as execute } from '../system/run.ts';
 
 const textExtensions = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.puml', '.mmd', '.mermaid', '.dot', '.html', '.css', '.js', '.ts', '.tsx', '.py', '.ps1', '.sh', '.sql', '.log']);
@@ -15,10 +15,9 @@ const excludedDirectories = new Set(['node_modules', '__pycache__', 'dist', 'bui
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);
 const implementationStates = new Set(['unknown', 'not_started', 'in_progress', 'partial', 'complete']);
 const workIdentity = /^work-[0-9]{4,}$/;
-const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
+const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const readableLimit = 4 * 1024 * 1024;
-type HistoricalWork = Pick<Work, 'id' | 'path' | 'repositories' | 'currentPlan'>;
-type HistoricalRegistry = { work: HistoricalWork[]; repositories: string[] };
+type HistoricalWork = Pick<Work, 'id' | 'path' | 'currentPlan'>;
 const historyCache = new Map<string, { head: string; entries: HistoryEntry[]; unattributedFiles: Map<string, string[]> }>();
 
 export class PlanningError extends Error {
@@ -44,10 +43,6 @@ export function normalizedLocation(value: unknown): string {
 function pathIdentity(relative: string, caseSensitive: boolean, normalizesUnicode: boolean) {
   const spelling = normalizesUnicode ? relative.normalize('NFC') : relative;
   return caseSensitive ? spelling : spelling.toLowerCase();
-}
-function knowledgeScope(relative: string, repositories: string[], caseSensitive: boolean, normalizesUnicode: boolean) {
-  const identity = pathIdentity(relative, caseSensitive, normalizesUnicode);
-  return identity.startsWith('knowledge/') ? [...new Set(repositories)].filter(id => pathIdentity(id, caseSensitive, normalizesUnicode) === identity.split('/')[1]) : [];
 }
 function documentOwner<T extends HistoricalWork>(work: T[], relative: string, caseSensitive: boolean, normalizesUnicode: boolean): T | undefined {
   const locationIdentity = (value: string) => pathIdentity(value, caseSensitive, normalizesUnicode);
@@ -124,7 +119,7 @@ async function files(root: string, directory = root): Promise<string[]> {
   }
   return result;
 }
-export async function gitHistory(root: string, currentWork: HistoricalWork[] = [], sensitivity?: boolean, normalization?: boolean, currentRepositories: string[] = []): Promise<{ history: HistoryEntry[]; available: boolean }> {
+export async function gitHistory(root: string, currentWork: HistoricalWork[] = [], sensitivity?: boolean, normalization?: boolean): Promise<{ history: HistoryEntry[]; available: boolean }> {
   try {
     const caseSensitive = sensitivity ?? await filesystemCaseSensitive(root);
     const normalizesUnicode = normalization ?? await filesystemNormalizesUnicode(root, await files(root));
@@ -142,44 +137,41 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
       const entries: HistoryEntry[] = stdout.split('\x1e').slice(1).map(record => {
         const [id, date, title, parents] = record.trim().split('\0');
         firstParents.set(id, parents?.split(' ')[0] || undefined);
-        return { id, date, title, files: [], workIds: [], repositories: [] };
+        return { id, date, title, files: [], workIds: [] };
       });
-      async function registrationsAt(commit: string): Promise<HistoricalRegistry> {
-        const empty: HistoricalRegistry = { work: [], repositories: [] };
+      /** The work a commit's registry registers; none for a registry that is not schema version 2. */
+      async function registrationsAt(commit: string): Promise<HistoricalWork[]> {
         try {
           const { stdout: source } = await execute('git', ['-C', root, 'show', commit + ':planning.json'], { maxBuffer: 1024 * 1024 });
           const registry = JSON.parse(source.replace(/^\uFEFF/, ''));
-          if (registry?.schema_version !== 1) return empty;
-          empty.repositories = Array.isArray(registry.repositories) ? registry.repositories.flatMap((item: { id?: unknown } | null) => item && typeof item.id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.id) ? [item.id] : []) : [];
-          if (!Array.isArray(registry.work_items)) return empty;
+          if (registry?.schema_version !== 2 || !Array.isArray(registry.work_items)) return [];
           const locations = new Set<string>();
           const identities = new Set<string>();
           const selectedPlans = new Set<string>();
           const registrations: HistoricalWork[] = [];
           for (const item of registry.work_items) {
-            if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || !Array.isArray(item.repositories) || !item.repositories.every((id: unknown) => typeof id === 'string')) return empty;
+            if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id)) return [];
             const location = normalizedLocation(item.path);
-            if (locations.has(locationIdentity(location))) return empty;
+            if (locations.has(locationIdentity(location))) return [];
             const currentPlan = item.current_plan == null ? null : normalizedLocation(item.current_plan);
-            if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) return empty;
+            if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) return [];
             if (currentPlan) selectedPlans.add(locationIdentity(currentPlan));
             locations.add(locationIdentity(location)); identities.add(item.id);
-            registrations.push({ id: item.id, path: location, repositories: item.repositories, currentPlan });
+            registrations.push({ id: item.id, path: location, currentPlan });
           }
-          return { work: registrations, repositories: empty.repositories };
-        } catch { return empty; /* Older unregistered or invalid history has no established work identity. */ }
+          return registrations;
+        } catch { return []; /* Unregistered or invalid history has no established work identity. */ }
       }
       // Read change direction explicitly; rename detection must not alter historical ownership.
       for (let offset = 0; offset < entries.length; offset += 4) {
         await Promise.all(entries.slice(offset, offset + 4).map(async entry => {
           const parent = firstParents.get(entry.id);
           const [current, previous, changes] = await Promise.all([
-            registrationsAt(entry.id), parent ? registrationsAt(parent) : Promise.resolve({ work: [], repositories: [] } as HistoricalRegistry),
+            registrationsAt(entry.id), parent ? registrationsAt(parent) : Promise.resolve([] as HistoricalWork[]),
             execute('git', ['-C', root, 'diff-tree', '-r', '--no-commit-id', '--name-status', '--no-renames', '-z', ...(parent ? [parent, entry.id] : ['--root', entry.id])], { maxBuffer: 1024 * 1024 }),
           ]);
           const parts = changes.stdout.split('\0');
           const matches: HistoricalWork[] = [];
-          const scopedRepositories: string[] = [];
           const unowned: string[] = [];
           for (let index = 0; index + 1 < parts.length; index += 2) {
             const status = parts[index]; const file = parts[index + 1];
@@ -187,18 +179,13 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
             const snapshots = status === 'D' ? [previous] : status === 'A' ? [current] : [previous, current];
             let attributed = false;
             for (const snapshot of snapshots) {
-              const owner = documentOwner(snapshot.work, file, caseSensitive, normalizesUnicode);
+              const owner = documentOwner(snapshot, file, caseSensitive, normalizesUnicode);
               if (owner) { matches.push(owner); attributed = true; }
-              else {
-                const scope = knowledgeScope(file, snapshot.repositories, caseSensitive, normalizesUnicode);
-                if (scope.length) { scopedRepositories.push(...scope); attributed = true; }
-              }
             }
             if (!attributed) unowned.push(file);
           }
           unattributedFiles.set(entry.id, unowned);
           entry.workIds = [...new Set(matches.map(item => item.id))];
-          entry.repositories = [...new Set([...matches.flatMap(item => item.repositories), ...scopedRepositories])];
         }));
       }
       retained = { head, entries, unattributedFiles };
@@ -208,8 +195,7 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
       // A newly adopted, uncommitted registration can identify previously unregistered records.
       const unowned = retained.unattributedFiles.get(entry.id) ?? [];
       const matches = unowned.map(file => documentOwner(currentWork, file, caseSensitive, normalizesUnicode)).filter((item): item is HistoricalWork => Boolean(item));
-      const scopes = unowned.filter(file => !documentOwner(currentWork, file, caseSensitive, normalizesUnicode)).flatMap(file => knowledgeScope(file, currentRepositories, caseSensitive, normalizesUnicode));
-      return { ...entry, workIds: [...new Set([...entry.workIds, ...matches.map(item => item.id)])], repositories: [...new Set([...entry.repositories, ...matches.flatMap(item => item.repositories), ...scopes])] };
+      return { ...entry, workIds: [...new Set([...entry.workIds, ...matches.map(item => item.id)])] };
     }) };
   } catch { return { history: [], available: false }; }
 }
@@ -217,24 +203,17 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
 export async function loadPlanning(inputRoot: string, options: { home?: string; database?: HomeDatabase | null } = {}): Promise<PlanningIndex> {
   let root: string;
   try { root = await realpath(inputRoot); } catch { throw new PlanningError('The planning folder does not exist. Check --planning-dir.'); }
-  let registry: { schema_version: number; repositories: Repository[]; work_items: { id: string; path: string; repositories: string[]; current_plan: string | null }[] };
+  let registry: { schema_version: number; folders: string[]; work_items: { id: string; path: string; current_plan: string | null }[] };
   try { registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, '')); }
   catch { throw new PlanningError('The planning folder needs a readable planning.json registry.'); }
-  if (!registry || registry.schema_version !== 1 || !Array.isArray(registry.repositories) || !Array.isArray(registry.work_items)) {
-    throw new PlanningError('The planning registry must use schema version 1 with repositories and work_items.');
+  if (!registry || registry.schema_version !== 2 || !Array.isArray(registry.folders) || !Array.isArray(registry.work_items)) {
+    throw new PlanningError('The planning registry must use schema version 2 with folders and work_items.');
   }
   const caseSensitivePaths = await filesystemCaseSensitive(root);
   const retainedFiles = await files(root);
   const registeredPaths = registry.work_items.flatMap(item => [item?.path, item?.current_plan].filter((value): value is string => typeof value === 'string').map(normalizedLocation));
   const normalizationInsensitivePaths = await filesystemNormalizesUnicode(root, [...retainedFiles, ...registeredPaths]);
   const locationIdentity = (value: string) => pathIdentity(value, caseSensitivePaths, normalizationInsensitivePaths);
-  const repositoryIds = new Set<string>();
-  for (const repository of registry.repositories) {
-    if (!repository || typeof repository.id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(repository.id) || repositoryIds.has(repository.id) || typeof repository.name !== 'string' || !repository.name.trim()) {
-      throw new PlanningError('A registered repository has an invalid or duplicate identity or name.');
-    }
-    repositoryIds.add(repository.id);
-  }
   const issues: Issue[] = [];
   const work: Work[] = [];
   const identities = new Set<string>();
@@ -242,8 +221,8 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
   const locations = new Set<string>();
   const selectedPlans = new Set<string>();
   for (const item of registry.work_items) {
-    if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || typeof item.path !== 'string' || !Array.isArray(item.repositories) || new Set(item.repositories).size !== item.repositories.length || !item.repositories.every(id => typeof id === 'string' && repositoryIds.has(id))) {
-      throw new PlanningError('A work item has an invalid or duplicate identity, location, or repository scope.');
+    if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || typeof item.path !== 'string') {
+      throw new PlanningError('A work item has an invalid or duplicate identity or location.');
     }
     const relative = normalizedLocation(item.path);
     const currentPlan = item.current_plan === null ? null : normalizedLocation(item.current_plan);
@@ -258,31 +237,23 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     try { if (!within(root, await realpath(folder))) throw new Error('Outside folder'); }
     catch { issues.push({ level: 'error', workId: item.id, message: 'The work folder is missing or outside the planning repository.' }); }
     const entry: Work = {
-      id: item.id, path: relative, repositories: item.repositories, currentPlan,
+      id: item.id, path: relative, currentPlan,
       title: path.basename(relative).replace(/^\d+-/, '').replaceAll('-', ' '),
       location: location.startsWith('active/') ? 'active' : location.startsWith('archive/') ? 'archived' : 'retained',
       design: 'unknown', implementation: 'unknown', created: null, updated: null, accepted: null,
       completed: null, durationDays: null, documents: [],
     };
-    if (currentPlan === null) {
-      issues.push({ level: 'warning', workId: item.id, message: 'No main plan is selected; retained documents are available.' });
-    } else if (locationIdentity(currentPlan) !== location && !locationIdentity(currentPlan).startsWith(location + '/')) {
-      issues.push({ level: 'error', workId: item.id, message: 'The selected plan does not belong to this work item.' });
+    if (currentPlan === null || locationIdentity(currentPlan) !== locationIdentity(relative + '/plan.md')) {
+      issues.push({ level: 'error', workId: item.id, message: "The work item's main plan must be plan.md in its folder." });
     } else {
       try {
         const content = await readDocument(root, currentPlan);
         const metadata = content.metadata;
-        if (!metadata) {
-          entry.title = content.title;
-          issues.push({ level: 'warning', workId: item.id, message: 'This retained plan has no lifecycle metadata; its original contents remain available.' });
-          work.push(entry);
-          continue;
-        }
-        if (metadata.kind !== 'plan' || metadata.schema_version !== 1 || metadata.id !== item.id) throw new PlanningError('The selected document does not have matching plan metadata.');
+        if (!metadata) throw new PlanningError('The plan has no metadata header.');
+        if (metadata.kind !== 'plan' || metadata.schema_version !== 2 || metadata.id !== item.id) throw new PlanningError('The selected document does not have matching plan metadata (schema version 2).');
         const missing = planFields.filter(field => !Object.hasOwn(metadata, field));
         if (missing.length) issues.push({ level: 'error', workId: item.id, message: 'Missing plan metadata: ' + missing.join(', ') + '.' });
         if (typeof metadata.title !== 'string' || !metadata.title.trim()) issues.push({ level: 'error', workId: item.id, message: 'The plan title must be a nonempty string.' });
-        if (!Array.isArray(metadata.repositories) || new Set(metadata.repositories).size !== metadata.repositories.length || JSON.stringify([...metadata.repositories].sort()) !== JSON.stringify([...item.repositories].sort())) issues.push({ level: 'error', workId: item.id, message: 'Plan and registry repository scopes differ.' });
         if (!Array.isArray(metadata.supersedes) || metadata.supersedes.some(id => typeof id !== 'string' || !registeredIds.has(id) || id === item.id) || new Set(metadata.supersedes).size !== metadata.supersedes.length) issues.push({ level: 'error', workId: item.id, message: 'Supersedes must list unique other registered work IDs.' });
         if (metadata.superseded_by !== null && (typeof metadata.superseded_by !== 'string' || !registeredIds.has(metadata.superseded_by) || metadata.superseded_by === item.id)) issues.push({ level: 'error', workId: item.id, message: 'Superseded by must identify another registered work item or null.' });
         entry.title = content.title;
@@ -315,7 +286,6 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     const information = await stat(filename);
     const owner = documentOwner(work, relative, caseSensitivePaths, normalizationInsensitivePaths);
     const identity = locationIdentity(relative);
-    const scope = knowledgeScope(relative, [...repositoryIds], caseSensitivePaths, normalizationInsensitivePaths);
     let title = path.basename(filename);
     if (format(filename) === 'markdown' && information.size <= readableLimit) {
       try { title = (await readDocument(root, relative)).title; } catch { /* A malformed supporting file remains downloadable. */ }
@@ -323,7 +293,7 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     const document: Document = {
       path: relative, name: path.basename(filename), title, size: information.size, modified: information.mtime.toISOString(),
       key: owner ? owner.id + ':' + (locationIdentity(relative) === locationIdentity(owner.path) ? path.basename(relative) : relative.split('/').slice(owner.path.split('/').length).join('/')) : 'root:' + relative,
-      workId: owner?.id ?? null, repositories: owner?.repositories ?? (scope.length === 1 ? scope : []), category: owner?.currentPlan && locationIdentity(owner.currentPlan) === identity ? 'plan' : category(relative), format: format(filename),
+      workId: owner?.id ?? null, category: owner?.currentPlan && locationIdentity(owner.currentPlan) === identity ? 'plan' : category(relative), format: format(filename),
     };
     documents.push(document);
     owner?.documents.push(document);
@@ -339,17 +309,16 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     if (ledger) {
       try {
         const { metadata } = await readDocument(root, ledger.path);
-        if (metadata) {
-          try { item.progress = ledgerStatus(metadata, item.id); }
-          catch (error) { throw new PlanningError('Ledger status metadata is invalid; current and upcoming work remain unknown. ' + (error as Error).message); }
-        }
+        if (!metadata) throw new PlanningError('The ledger has no status header; current and upcoming work remain unknown.');
+        try { item.progress = ledgerStatus(metadata, item.id); }
+        catch (error) { throw new PlanningError('Ledger status metadata is invalid; current and upcoming work remain unknown. ' + (error as Error).message); }
       } catch (error) { issues.push({ level: 'warning', workId: item.id, message: error instanceof Error ? error.message : 'Ledger status could not be read.' }); }
     }
     item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
   }
-  const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths, [...repositoryIds]);
+  const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths);
   const statistics = await workStatistics(root, work, options);
   for (const item of work) item.statistics = statistics[item.id];
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
-  return { root, name: await planningName(root), loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, repositories: registry.repositories, work, documents, issues, history: history.history, gitAvailable: history.available };
+  return { root, name: await planningName(root), loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

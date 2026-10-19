@@ -23,7 +23,7 @@ import { packageJson, planViewerFile } from '../../packageFiles.ts';
 const { version: atlasVersion } = JSON.parse(readFileSync(packageJson, 'utf8')) as { version: string };
 
 export const planExportFormat = 'atlas/plan-export';
-export const planExportVersion = 1;
+export const planExportVersion = 2;
 /** Exports above this size are written with a warning. */
 export const planExportWarningBytes = 50 * 1024 * 1024;
 /**
@@ -48,7 +48,6 @@ const BOM = String.fromCharCode(0xfeff);
 const leftoverPrefix = '.atlas-import-';
 const leftoverName = /^\.atlas-import-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
-export interface PlanExportRepository { id: string; name: string; remote?: string }
 export interface PlanExportSource {
   /** Name of the planning folder the work was exported from. */
   planningFolder: string;
@@ -59,8 +58,6 @@ export interface PlanExportSource {
   path: string;
   /** The registered main plan, a Markdown file relative to the work folder, or null. */
   currentPlan: string | null;
-  /** The work's repository scope, with the names registered at export time. */
-  repositories: PlanExportRepository[];
 }
 export interface PlanExportFile { path: string; size: number; sha256: string }
 export interface PlanExportManifest {
@@ -97,7 +94,7 @@ export type PlanExportErrorCode =
   | 'FORMAT' // not a plan export, malformed payload or manifest
   | 'VERSION' // a plan export of an unknown version
   | 'PATH' // an unsafe or non-portable file path
-  | 'DUPLICATE' // the same path or repository more than once
+  | 'DUPLICATE' // the same path more than once
   | 'INTEGRITY' // a size or SHA-256 mismatch
   | 'LIMIT' // larger than a plan export can be
   | 'SOURCE' // the folder to export from is not a readable planning folder
@@ -237,15 +234,6 @@ function validatePayload(payload: unknown): Decoded {
   const title = textField(source, 'title', 'title');
   const planningFolder = textField(source, 'planningFolder', 'planning folder');
   if (source.currentPlan !== null && typeof source.currentPlan !== 'string') throw new PlanExportError('FORMAT', "The plan export's main plan must be a path or null.");
-  if (!Array.isArray(source.repositories)) throw new PlanExportError('FORMAT', "The plan export's repositories must be a list.");
-  const repositories: PlanExportRepository[] = source.repositories.map(item => {
-    if (!isObject(item)) throw new PlanExportError('FORMAT', 'A repository in the plan export is not an object.');
-    const id = textField(item, 'id', 'repository ID');
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new PlanExportError('FORMAT', `The repository ID ${JSON.stringify(id)} is invalid.`);
-    const remote = textField(item, 'remote', 'repository remote', true);
-    return { id, name: textField(item, 'name', 'repository name'), ...(remote === undefined ? {} : { remote }) };
-  });
-  if (new Set(repositories.map(item => item.id)).size !== repositories.length) throw new PlanExportError('DUPLICATE', 'The plan export lists a repository twice.');
   if (!Array.isArray(payload.files)) throw new PlanExportError('FORMAT', 'The plan export has no file list.');
 
   // Check every entry's shape and the declared total before decoding anything.
@@ -296,7 +284,7 @@ function validatePayload(payload: unknown): Decoded {
 
   const manifest: PlanExportManifest = {
     format: planExportFormat, version: planExportVersion, atlasVersion: version, exportedAt,
-    source: { planningFolder, workId, title, location: source.location, path: sourcePath, currentPlan, repositories },
+    source: { planningFolder, workId, title, location: source.location, path: sourcePath, currentPlan },
     files,
   };
   const diagrams: PlanExportDiagram[] = describeFiles(files.filter(file => isDiagramFile(file.path)).map(file => ({ path: file.path, text: contents.get(file.path)!.toString('utf8') })))
@@ -337,13 +325,12 @@ interface ViewDiagram {
 }
 /** Derived viewer data. Import ignores it; the files in the payload are authoritative. */
 interface PlanView {
-  work: Pick<Work, 'id' | 'title' | 'path' | 'design' | 'implementation' | 'created' | 'updated' | 'accepted' | 'completed' | 'progress'> & { location: string; repositories: PlanExportRepository[]; continues: HandoffLink[]; continuedIn: HandoffLink[] };
+  work: Pick<Work, 'id' | 'title' | 'path' | 'design' | 'implementation' | 'created' | 'updated' | 'accepted' | 'completed' | 'progress'> & { location: string; continues: HandoffLink[]; continuedIn: HandoffLink[] };
   plan: string | null; ledger: string | null; documents: ViewDocument[]; diagrams: ViewDiagram[];
 }
 
-// Left out of exports: generated working files, and the agent-reported statistics, which describe
-// how this planning folder's agents worked rather than the plan itself.
-const transient = /^\.atlas\/(?:results|prepared|exports)(?:\/|$)|^\.atlas\/.*\.(?:lock|tmp)$|^\.atlas\/statistics\.jsonl$/;
+// Left out of exports: generated working files.
+const transient = /^\.atlas\/(?:results|prepared|exports)(?:\/|$)|^\.atlas\/.*\.(?:lock|tmp)$/;
 async function workFiles(folder: string, warnings: string[]) {
   const result: { name: string; size: number }[] = [];
   async function walk(directory: string, relative: string) {
@@ -458,13 +445,9 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
   if (!item.path.startsWith('archive/') && !item.path.startsWith('active/')) warnings.push(`${item.path} is neither active nor archived work; an import places it under active/.`);
   const currentPlan = item.currentPlan && item.currentPlan.startsWith(item.path + '/') ? item.currentPlan.slice(item.path.length + 1) : null;
   if (currentPlan && !names.includes(currentPlan)) throw new PlanExportError('WORK', `The main plan ${item.currentPlan} could not be exported.`);
-  const repositories = item.repositories.map(id => {
-    const registered = index.repositories.find(repository => repository.id === id) as (PlanExportRepository & Record<string, unknown>) | undefined;
-    return { id, name: registered?.name ?? id, ...(typeof registered?.remote === 'string' ? { remote: registered.remote } : {}) };
-  });
   const manifest: PlanExportManifest = {
     format: planExportFormat, version: planExportVersion, atlasVersion, exportedAt: (options.now ?? new Date()).toISOString(),
-    source: { planningFolder: path.basename(index.root), workId: item.id, title: item.title, location, path: item.path, currentPlan, repositories },
+    source: { planningFolder: path.basename(index.root), workId: item.id, title: item.title, location, path: item.path, currentPlan },
     files: files.map(({ path: name, size, sha256 }) => ({ path: name, size, sha256 })),
   };
   // Refuse what every import would refuse, rather than writing an unimportable file.
@@ -474,7 +457,7 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
     throw error;
   }
   const view: PlanView = {
-    work: { id: item.id, title: item.title, path: item.path, design: item.design, implementation: item.implementation, created: item.created, updated: item.updated, accepted: item.accepted, completed: item.completed, progress: item.progress ?? null, location, repositories, ...handoffLinksAt(index.root, item.id) },
+    work: { id: item.id, title: item.title, path: item.path, design: item.design, implementation: item.implementation, created: item.created, updated: item.updated, accepted: item.accepted, completed: item.completed, progress: item.progress ?? null, location, ...handoffLinksAt(index.root, item.id) },
     plan: currentPlan,
     ledger: item.ledger ? workRelative(item.ledger, item.path) : null,
     documents: item.documents.map(document => ({ path: workRelative(document.path, item.path), title: document.title, category: document.category, format: document.format })).filter(document => names.includes(document.path)),
@@ -500,7 +483,7 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
 // ---------------------------------------------------------------------------
 // Importing
 
-interface Registry { repositories: Record<string, unknown>[]; work_items: Record<string, unknown>[] }
+interface Registry { work_items: Record<string, unknown>[] }
 interface TargetState { root: string; registryText: string; registry: Registry; errors: string[] }
 
 async function planningRoot(input: string) {
@@ -690,18 +673,9 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
   const target = nextTarget(state, source);
 
   // Prepare the registry text first, so a registry Atlas cannot extend is refused before anything is written.
-  const registered = new Map(state.registry.repositories.map(item => [item.id, item]));
-  const addedRepositories = source.repositories.filter(item => !registered.has(item.id));
-  for (const item of source.repositories) {
-    const existing = registered.get(item.id);
-    if (!existing) continue;
-    const differences = [existing.name !== item.name && `named “${String(existing.name)}” here and “${item.name}” in the export`, item.remote !== undefined && existing.remote !== item.remote && `with remote ${existing.remote === undefined ? 'unset' : String(existing.remote)} here and ${item.remote} in the export`].filter(Boolean);
-    if (differences.length) notes.push(`The repository ${item.id} is already registered here, ${differences.join(' and ')}; the work uses the registered entry.`);
-  }
   let registryText: string;
   try {
-    registryText = appendRegistryEntries(state.registryText, 'repositories', addedRepositories.map(item => ({ ...item })));
-    registryText = appendRegistryEntries(registryText, 'work_items', [{ id: target.workId, path: target.path, repositories: source.repositories.map(item => item.id), current_plan: source.currentPlan === null ? null : target.path + '/' + source.currentPlan }]);
+    registryText = appendRegistryEntries(state.registryText, 'work_items', [{ id: target.workId, path: target.path, current_plan: source.currentPlan === null ? null : target.path + '/' + source.currentPlan }]);
   } catch (error) {
     if (error instanceof RegistryFormatError) throw new PlanExportError('TARGET', error.message);
     throw error;
@@ -755,7 +729,6 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
       source: { planningFolder: source.planningFolder, workId: source.workId, title: source.title, location: source.location, path: source.path },
       export: { exportedAt: manifest.exportedAt, atlasVersion: manifest.atlasVersion, importedWith: atlasVersion },
       identityRewrites: rewrites,
-      addedRepositories,
     };
     const provenanceFile = path.join(temporary, ...provenanceName.split('/'));
     await mkdir(path.dirname(provenanceFile), { recursive: true });
@@ -782,7 +755,6 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
       ...rewrites.map(item => ['supersedes', 'superseded_by', 'continues'].includes(item.field)
         ? `Cleared ${item.field} in ${item.file} (was ${describe(item.from)}): it named work in ${source.planningFolder}.`
         : `Rewrote ${item.field} in ${item.file} from ${describe(item.from)} to ${describe(item.to)}.`),
-      ...addedRepositories.map(item => `Registered the repository ${item.id} (${item.name}${item.remote ? ', remote ' + item.remote : ''}) in planning.json.`),
       `Registered ${target.workId} in planning.json and recorded the origin in ${provenanceName}.`,
     );
     notes.push('Add the work item to the planning README index yourself or ask an agent; the import does not edit it.', 'Nothing was committed.');

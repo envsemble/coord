@@ -5,7 +5,7 @@ import type { HandoffLink, WorkProgress } from '../src/planning/types.ts';
 export interface ExportFile { path: string; size: number; sha256: string; data: string }
 export interface ExportPayload {
   format: string; version: number; atlasVersion: string; exportedAt: string;
-  source: { planningFolder: string; workId: string; title: string; location: 'active' | 'archive'; path: string; currentPlan: string | null; repositories: { id: string; name: string }[] };
+  source: { planningFolder: string; workId: string; title: string; location: 'active' | 'archive'; path: string; currentPlan: string | null };
   files: ExportFile[];
 }
 export interface ViewDocument { path: string; title: string; category: string; format: string }
@@ -20,9 +20,9 @@ export interface PlanView {
   work: {
     id: string; title: string; path: string; design: string; implementation: string; location: string;
     created: string | null; updated: string | null; accepted: string | null; completed: string | null;
-    progress: WorkProgress | null; repositories: { id: string; name: string }[];
-    /** The work it continues and the work continuing it, as they stood at export time; absent in older exports. */
-    continues?: HandoffLink[]; continuedIn?: HandoffLink[];
+    progress: WorkProgress | null;
+    /** The work it continues and the work continuing it, as they stood at export time. */
+    continues: HandoffLink[]; continuedIn: HandoffLink[];
   };
   plan: string | null; ledger: string | null; documents: ViewDocument[]; diagrams: ViewDiagram[];
 }
@@ -35,7 +35,7 @@ function json<T>(id: string): T {
 }
 export function readData(): PlanData {
   const payload = json<ExportPayload>('atlas-plan-export');
-  if (payload.format !== 'atlas/plan-export' || payload.version !== 1) throw new Error('This file uses a plan export format this viewer does not read.');
+  if (payload.format !== 'atlas/plan-export' || payload.version !== 2) throw new Error('This file uses a plan export format this viewer does not read.');
   const view = json<PlanView>('atlas-plan-view');
   return { payload, view, files: new Map(payload.files.map(file => [file.path, file])) };
 }

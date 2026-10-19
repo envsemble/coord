@@ -15,7 +15,7 @@ function write(file: string, text: string) { mkdirSync(path.dirname(file), { rec
 /** A planning folder with a plan in progress (its ledger, glossary, decision and diagram) and a closed one, knowledge, and files the search leaves out. */
 function planningFolder(root: string) {
   write(path.join(root, 'planning.json'), JSON.stringify({
-    schema_version: 1, name: 'Shop', repositories: [],
+    schema_version: 2, name: 'Shop', folders: [],
     work_items: [{ id: 'work-0012', path: 'active/0012-saved-cards', current_plan: 'active/0012-saved-cards/plan.md' }, { id: 'work-0007', path: 'archive/0007-coupons', current_plan: 'archive/0007-coupons/plan.md' }],
   }));
   write(path.join(root, 'active/0012-saved-cards/plan.md'), '---\nkind: plan\ntitle: Saved cards\nsummary: "Customers reuse a card at the café checkout."\n---\n\n# Saved cards\n\n## Outcome\n\nReturning customers pay with a **stored** token.\n\n## Outcome\n\nAgain, with `code`.\n');
@@ -180,7 +180,7 @@ test('indexing takes time linear in a file\'s size and gives the thread back bet
 
 test('across kinds, exact and prefix titles rank together: a plan before headings named exactly so', async t => {
   const root = temporary(t);
-  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, name: 'Shop', repositories: [], work_items: [{ id: 'work-0003', path: 'active/0003-design', current_plan: 'active/0003-design/plan.md' }] }));
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [{ id: 'work-0003', path: 'active/0003-design', current_plan: 'active/0003-design/plan.md' }] }));
   write(path.join(root, 'active/0003-design/plan.md'), '---\nkind: plan\ntitle: Design system tokens\n---\n\n# Design system tokens\n');
   for (let index = 0; index < 60; index++) write(path.join(root, `knowledge/note-${index}.md`), `# Note ${index}\n\n## Design\n\nText.\n`);
   write(path.join(root, 'knowledge/build/built.md'), '# Built notes\n');
