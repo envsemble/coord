@@ -38,7 +38,7 @@ atlas check [<path>...]
 atlas home [list]
 atlas home adopt <folder> [--name <name>]
 atlas mcp
-atlas hook <SessionStart|UserPromptSubmit|PostToolUse|ToolUse|Notification|PermissionRequest|Stop|SubagentStop|SessionEnd>
+atlas hook <SessionStart|UserPromptSubmit|PostToolUse|ToolUse|Notification|PermissionRequest|Stop|StopFailure|Interrupt|SubagentStop|SessionEnd>
 atlas setup [--dry-run]
 atlas planning check <planning-root>
 atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
