@@ -155,3 +155,19 @@ export function modelSummaries(rows: WorkRow[]): ModelSummary[] {
     return { model, completed: group.length, tokens: values(group, 'tokens'), agentMs: values(group, 'agentMs'), planRevisions: values(group, 'planRevisions'), steps: values(group, 'steps'), first: dates[0] ?? null, last: dates.at(-1) ?? null };
   }).sort((a, b) => (b.last ?? '').localeCompare(a.last ?? '') || (a.model === null ? 1 : b.model === null ? -1 : a.model.localeCompare(b.model)));
 }
+
+/** A model's time and tokens at one reasoning effort; `effort` null for what no log recorded an effort for. */
+export interface EffortRow { model: string; effort: string | null; agentMs: number; tokens: number | null }
+/**
+ * Time and tokens by model and reasoning effort: each effort a model's logs recorded, then the rest
+ * of its time and tokens without one, so a model's rows add up to its totals.
+ */
+export function effortRows(models: ModelUsage[]): EffortRow[] {
+  return models.flatMap(model => {
+    const efforts = model.efforts.map(effort => ({ model: model.model, effort: effort.effort, agentMs: effort.agentMs, tokens: effort.tokens }));
+    const agentMs = Math.max(0, model.agentMs - efforts.reduce((sum, row) => sum + row.agentMs, 0));
+    const tokens = model.tokens === null ? null : Math.max(0, model.tokens - efforts.reduce((sum, row) => sum + (row.tokens ?? 0), 0));
+    const rest = !efforts.length || agentMs > 0 || (tokens ?? 0) > 0 ? [{ model: model.model, effort: null, agentMs, tokens }] : [];
+    return [...efforts, ...rest];
+  });
+}

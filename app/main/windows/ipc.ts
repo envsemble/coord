@@ -66,14 +66,29 @@ function thisComputer(window: AtlasWindow, what: string) {
   if (window.computer !== null) throw new AtlasError('forbidden', what + ' of a project on another computer cannot be opened here.');
 }
 
-/** Open a file or folder on this computer in the chosen editor, at its line. */
-async function openInEditor(manager: WindowManager, file: string, line: number | null) {
+/**
+ * Open a file or folder on this computer in the chosen editor, at its line, after asking (`what`:
+ * "this file"). With the system's application chosen it is only shown in its folder: opening it
+ * would run a script or a program a plan names.
+ */
+async function openInEditor(manager: WindowManager, window: AtlasWindow, what: string, file: string, line: number | null) {
   const choice: Editor = manager.context.state.editor;
   const link = editorLink(choice, file, line);
-  if (link) { await shell.openExternal(link); return; }
-  const failure = await shell.openPath(file);
-  if (failure) throw new AtlasError('unavailable', failure);
+  const detail = file + (line ? ':' + line : '');
+  if (!link) {
+    await confirmed(window, 'Show ' + what + ' in its folder?', 'Show', detail);
+    shell.showItemInFolder(file);
+    return;
+  }
+  await confirmed(window, 'Open ' + what + ' in your editor?', 'Open', detail);
+  await shell.openExternal(link);
 }
+
+/** Whether a path is a folder or inside it (both real paths). */
+const within = (folder: string, candidate: string) => {
+  const inside = path.relative(folder, candidate);
+  return !inside.startsWith('..') && !path.isAbsolute(inside);
+};
 
 /** Open the file a path reference names, as the host resolves it in the project's checkouts: never a path the page names itself. */
 async function openReference(manager: WindowManager, window: AtlasWindow, project: string, work: string | null, reference: ReferenceInput) {
@@ -82,9 +97,14 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   const view = await window.readable(project);
   const [resolved] = await view.request('references.resolve', { folderId: project, work, items: [reference] });
   const file = resolved?.file;
-  if (!file || !fullPath.test(file.path) || !(await stat(file.path).catch(() => null))?.isFile()) throw new AtlasError('not-found', 'This file is not in the project\'s checkouts on this computer.');
-  await confirmed(window, 'Open this file in your editor?', 'Open', file.path + (file.line ? ':' + file.line : ''));
-  await openInEditor(manager, file.path, file.line);
+  const missing = () => new AtlasError('not-found', 'This file is not in the project\'s checkouts on this computer.');
+  if (!file || !fullPath.test(file.path)) throw missing();
+  // The file itself, not a link a checkout commits to somewhere else: inside one of the project's workspace folders, where its checkouts are.
+  const real = await realpath(file.path).catch(() => null);
+  const workspaces = (await window.projects()).find(entry => entry.folderId === project)?.workspaces ?? [];
+  const folders = (await Promise.all(workspaces.map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
+  if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
+  await openInEditor(manager, window, 'this file', real, file.line);
 }
 
 /** Open a work item's folder, inside its project's folder, in the editor. */
@@ -96,10 +116,8 @@ async function openWorkFolder(manager: WindowManager, window: AtlasWindow, proje
   if (!root || !entry) throw new AtlasError('not-found', 'This work item is not in the project on this computer.');
   const base = await realpath(root);
   const folder = await realpath(path.resolve(base, entry.path)).catch(() => null);
-  const inside = folder ? path.relative(base, folder) : '..';
-  if (!folder || inside.startsWith('..') || path.isAbsolute(inside) || !(await lstat(folder)).isDirectory()) throw new AtlasError('forbidden', 'Only a work folder inside the project\'s folder opens.');
-  await confirmed(window, 'Open this work folder in your editor?', 'Open', folder);
-  await openInEditor(manager, folder, null);
+  if (!folder || !within(base, folder) || !(await lstat(folder)).isDirectory()) throw new AtlasError('forbidden', 'Only a work folder inside the project\'s folder opens.');
+  await openInEditor(manager, window, 'this work folder', folder, null);
 }
 
 /** Whether a program is installed: a full path that exists (Windows), else a name on the PATH. */

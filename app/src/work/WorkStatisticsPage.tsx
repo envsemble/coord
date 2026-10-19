@@ -19,7 +19,7 @@ import { activityKey, sessionLabel, useWorkSessions, useWorkTimeline } from './W
 import { AgentTime, measuredSection, shortId, useHostNow } from './LiveAgentTime';
 import { liveActiveMs, liveAgentMs, type LiveActivity } from './agentTime';
 import { harnessNames, roughDuration, timelineLine, timelineSpan, timelineTicks } from './sessions';
-import { agentTimeNote, stageLabels, stageUsage, tokenRows, type StageKey } from './workStatistics';
+import { agentTimeNote, effortRows, stageLabels, stageUsage, tokenRows, type StageKey } from './workStatistics';
 
 /** The subagent that stands for those older reports counted without naming them. */
 const unlisted = 'unlisted';
@@ -62,11 +62,12 @@ function ByAgent({ agents, sessions, total }: { agents: AgentUsage[]; sessions: 
 function ByModel({ work }: { work: Work }) {
   const models = work.statistics?.models.filter(model => model.agentMs > 0 || (model.tokens ?? 0) > 0) ?? [];
   if (!models.length) return <p className="muted">No model was reported for this plan yet.</p>;
-  const rows = models.flatMap((model): { model: string; effort: string | null; agentMs: number; tokens: number | null }[] => model.efforts.length ? model.efforts.map(effort => ({ model: model.model, effort: effort.effort, agentMs: effort.agentMs, tokens: effort.tokens })) : [{ model: model.model, effort: null, agentMs: model.agentMs, tokens: model.tokens }]);
+  const rows = effortRows(models);
+  const recorded = new Set(rows.filter(row => row.effort).map(row => row.model));
   return <Table className="plan-statistics-table" aria-label="Agent time and tokens by model and effort">
     <TableHead><TableRow><TableHeaderCell>Model and effort</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
     <TableBody>{rows.map(row => <TableRow key={row.model + ':' + row.effort}>
-      <TableCell><ModelName model={row.model} effort={row.effort} /></TableCell>
+      <TableCell><ModelName model={row.model} effort={row.effort ?? (recorded.has(row.model) ? 'effort not recorded' : null)} /></TableCell>
       <TableCell numeric>{duration(row.agentMs)}</TableCell>
       <TableCell numeric>{row.tokens !== null ? compactNumber(row.tokens) : '—'}</TableCell>
     </TableRow>)}</TableBody>

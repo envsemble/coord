@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agentTimeNote, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, shownStages, stageShare, stageUsage, subagentShare, timeSource, tokenRows, tokenText, workRows } from './workStatistics.ts';
+import { agentTimeNote, effortRows, colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, shownStages, stageShare, stageUsage, subagentShare, timeSource, tokenRows, tokenText, workRows } from './workStatistics.ts';
 import { absoluteDate, compactNumber, duration, median } from '../ui/format.ts';
 import { timeTicks, valueTicks } from '../statistics/ScatterChart.tsx';
 import type { Snapshot, Work, WorkStatistics } from '../types.ts';
@@ -121,4 +121,14 @@ test('formats and chart ticks', () => {
   assert.ok(timeTicks(start, start + 10 * day, 6).every(tick => new Date(tick).getHours() === 0));
   assert.ok(timeTicks(start, start + 100 * day, 6).length <= 6, 'a narrow chart gets fewer labels');
   assert.ok(timeTicks(start, start + 400 * day, 8).every(tick => new Date(tick).getDate() === 1), 'long spans tick at month starts');
+});
+
+test('time and tokens by model and effort add up to each model’s totals, the rest without an effort', () => {
+  const opus = { model: 'claude-opus-5-5', reports: 3, sessions: 1, agentMs: 10 * 3600000, tokens: 1000, tokenKinds: null, efforts: [{ effort: 'high', agentMs: 2 * 3600000, tokens: 300 }] };
+  const sonnet = { model: 'claude-sonnet-4-5', reports: 1, sessions: 1, agentMs: 600000, tokens: null, tokenKinds: null, efforts: [] };
+  assert.deepEqual(effortRows([opus, sonnet]), [
+    { model: 'claude-opus-5-5', effort: 'high', agentMs: 2 * 3600000, tokens: 300 },
+    { model: 'claude-opus-5-5', effort: null, agentMs: 8 * 3600000, tokens: 700 },
+    { model: 'claude-sonnet-4-5', effort: null, agentMs: 600000, tokens: null },
+  ]);
 });
