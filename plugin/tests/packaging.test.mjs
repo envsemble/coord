@@ -82,7 +82,7 @@ const USAGE = [
   read(path.join(CLI, "..", "main.ts")),
   read(path.join(CLI, "planning.ts")),
 ]
-  .flatMap((text) => [...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)$/gm)])
+  .flatMap((text) => [...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)(?:`;)?$/gm)])
   .map((match) =>
     match[1]
       .split(" ")
