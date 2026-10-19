@@ -7,7 +7,7 @@ import type { Snapshot, Work, WorkStatistics } from '../types.ts';
 
 const statistics = (model: string | null, tokens: number | null, agentMs: number, planRevisions: number | null, lastReport: string | null = null): WorkStatistics => ({
   reports: model ? 2 : 0, invalid: 0, models: model ? [{ model, reports: 2, sessions: 1, agentMs, tokens, tokenKinds: null }] : [], primaryModel: model, tokens, tokenKinds: null,
-  agentMs, measuredMs: 0, estimatedMs: agentMs, measuredReports: 0, firstReport: lastReport, lastReport, planRevisions,
+  agentMs, activeMs: agentMs, unmergedMs: agentMs, agents: [], measuredMs: 0, estimatedMs: agentMs, measuredReports: 0, firstReport: lastReport, lastReport, planRevisions,
   stages: { planning: none, implementation: none, unknown: { reports: model ? 2 : 0, agentMs, tokens, tokenKinds: null } }, subagents: { count: 0, agentMs: 0 },
 });
 const none = { reports: 0, agentMs: 0, tokens: null, tokenKinds: null };

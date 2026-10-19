@@ -7,7 +7,7 @@ const folder = 'f-' + '1'.repeat(32);
 const result = (change: Partial<SearchResult>): SearchResult => ({ kind: 'plan', title: 'Plans hub', snippet: null, folderId: folder, project: 'Atlas', work: null, path: null, anchor: null, element: null, ...change });
 const atlas: Project = {
   folderId: folder, name: 'Atlas', path: '/home/me/.atlas/planning/atlas', position: 1, state: 'active', outsideHome: false, workspaces: [],
-  summary: { repositories: [], active: [{ id: 'work-0023', title: 'Plans hub', state: 'implementing', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null }], closed: [], updated: null, live: [] },
+  summary: { repositories: [], active: [{ id: 'work-0023', title: 'Plans hub', state: 'implementing', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null }], closed: [], updated: null, activity: [], now: '2026-10-15T10:00:00Z' },
 };
 
 test('each kind of result opens where it is: a plan, a plan at a step, a document at its heading, a diagram at its element, a project in the hub', () => {

@@ -662,12 +662,16 @@ export class Host {
     return Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
   }
   /** What the hub shows of a project's plans: from its planning folder and its reports, with the work agents are working on now. */
-  private async summaryOf(row: ProjectRow, live: ProjectSummary['live']): Promise<ProjectSummary | null> {
-    try { return { ...await projectSummary(row.folder, { database: this.database, projectId: row.id }), live }; } catch { return null; }
+  private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity']): Promise<ProjectSummary | null> {
+    try { return { ...await projectSummary(row.folder, { database: this.database, projectId: row.id }), activity, now: new Date().toISOString() }; } catch { return null; }
   }
   /** The work agents are working on now, by project row, as the hooks record it; none when it cannot be read. */
   private readLiveWork() {
-    try { return this.database.liveWork(); } catch { return new Map<number, ProjectSummary['live']>(); }
+    // Contract stub: working sessions only, until the hooks record turns and waiting.
+    try {
+      return new Map([...this.database.liveWork()].map(([project, work]) => [project, work.map(({ workId, since }): ProjectSummary['activity'][number] =>
+        ({ workId, state: 'working', since, sessions: [{ session: 'unknown', harness: 'unknown', state: 'working', since, countsFrom: since }] }))]));
+    } catch { return new Map<number, ProjectSummary['activity']>(); }
   }
   /**
    * The work agents are working on and the reports recorded, as last told to clients: when either
@@ -677,7 +681,7 @@ export class Host {
   private checkLiveWork() {
     let reports = '';
     try { reports = this.database.reportsMark(); } catch { /* Unreadable for now: as before. */ }
-    const key = reports + JSON.stringify([...this.readLiveWork()].map(([project, work]) => [project, work.map(item => item.workId)]));
+    const key = reports + JSON.stringify([...this.readLiveWork()].map(([project, work]) => [project, work.map(item => [item.workId, item.state])]));
     if (key === this.liveKey) return;
     this.liveKey = key;
     this.projectsChanged();

@@ -8,7 +8,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../plann
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 7;
+export const protocolVersion = 8;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -78,7 +78,13 @@ export interface ProjectWork {
  * subagents, and the last report. Plan revisions are left to the Statistics page (they need Git).
  */
 export interface ProjectWorkStatistics {
-  agentMs: number; tokens: number | null; primaryModel: string | null; otherModels: number;
+  /** Every agent's working time added up: each session and each subagent in full, also while they work at once. */
+  agentMs: number;
+  /** The time at least one agent was working: the union of the reports' working intervals (`WorkStatistics.activeMs`). */
+  activeMs: number;
+  /** Of `activeMs`, the time of reports without intervals, added up rather than merged. */
+  unmergedMs: number;
+  tokens: number | null; primaryModel: string | null; otherModels: number;
   planning: { agentMs: number; tokens: number | null }; implementation: { agentMs: number; tokens: number | null };
   subagents: number; lastReport: string | null;
 }
@@ -94,11 +100,39 @@ export interface SearchResult {
   folderId: string; project: string; work: string | null; path: string | null; anchor: string | null; element: string | null;
 }
 /**
- * A project's repositories, its work (`active/`, in the registry's order, and `closed`: `archive/`,
- * newest first), its last change, and the work agents are working on now (`since`: when the session
- * was last seen).
+ * An agent session linked to a work item, as the hooks record it. `working`: in a turn (seen within
+ * the live window). `waiting`: its turn ended, or it asks for permission, and the person has not
+ * answered yet; a session that ended, or has waited for a day, is not listed.
  */
-export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; closed: ProjectWork[]; updated: string | null; live: { workId: string; since: string }[] }
+export interface SessionActivity {
+  session: string; harness: 'claude-code' | 'codex' | 'unknown';
+  state: 'working' | 'waiting';
+  /** working: when its turn started; waiting: when it began to wait. */
+  since: string;
+  /**
+   * working: where its agent time not yet reported begins (the later of its turn's start and its last
+   * report on this work item), so a client counts `now - countsFrom` on top of the reported time.
+   * waiting: null.
+   */
+  countsFrom: string | null;
+}
+/**
+ * What agents are doing on a work item now: `working` while any linked session works, else `waiting`
+ * while one waits for the person (Needs you). Work nobody is on has no entry.
+ */
+export interface WorkActivity {
+  workId: string; state: 'working' | 'waiting';
+  /** working: the earliest working session's turn start; waiting: when the latest session began to wait. */
+  since: string;
+  /** Working sessions first, then waiting ones; latest first within each. */
+  sessions: SessionActivity[];
+}
+/**
+ * A project's repositories, its work (`active/`, in the registry's order, and `closed`: `archive/`,
+ * newest first), its last change, what agents are doing on its work now, and the host's clock when
+ * it was listed (`now`), against which clients count live agent time.
+ */
+export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; closed: ProjectWork[]; updated: string | null; activity: WorkActivity[]; now: string }
 /** A repository a project covers: its ID in planning.json, its name and its Git remote. */
 export interface ProjectRepository { id: string; name: string; remote: string | null }
 /** The Git checkouts found in a workspace folder (the folder itself and the folders directly inside it), as a new project would register them. */

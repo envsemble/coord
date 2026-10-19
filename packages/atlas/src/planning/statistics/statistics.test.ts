@@ -67,7 +67,7 @@ test('a lower token count starts the session again, and out-of-order lines are s
   assert.equal(summary.tokens, 1000 + 500);
   assert.equal(summarizeReports([report(0, 'model-a', 7000, 's1')]).tokens, null, 'one report is a starting point only: its cost is unknown, not zero');
   const none = { reports: 0, agentMs: 0, tokens: null, tokenKinds: null };
-  assert.deepEqual(summarizeReports([]), { reports: 0, invalid: 0, models: [], primaryModel: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, stages: { planning: none, implementation: none, unknown: none }, subagents: { count: 0, agentMs: 0 }, firstReport: null, lastReport: null });
+  assert.deepEqual(summarizeReports([]), { reports: 0, invalid: 0, models: [], primaryModel: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, activeMs: 0, unmergedMs: 0, agents: [], stages: { planning: none, implementation: none, unknown: none }, subagents: { count: 0, agentMs: 0 }, firstReport: null, lastReport: null });
 });
 
 test('a measured report replaces the estimate for its interval, long gaps included; older reports keep the estimate', () => {

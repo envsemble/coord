@@ -133,7 +133,7 @@ async function reported(database: HomeDatabase, home: string, root: string) {
   assert.equal(brief('work-0003').step, null, 'a step without a title is none');
   assert.deepEqual([brief('work-0004').step, brief('work-0004').completed], [null, '2026-09-20']);
   assert.deepEqual(brief('work-0001').statistics, {
-    agentMs: 600_000 + 1_200_000 + 3_600_000, tokens: 150 + 300 + 50, primaryModel: opus, otherModels: 1,
+    agentMs: 600_000 + 1_200_000 + 3_600_000, activeMs: 5_400_000, unmergedMs: 5_400_000, tokens: 150 + 300 + 50, primaryModel: opus, otherModels: 1,
     planning: { agentMs: 600_000, tokens: 150 }, implementation: { agentMs: 1_200_000, tokens: 350 },
     subagents: 2, lastReport: '2026-10-01T12:00:00.000Z',
   }, 'counted as the plan page counts them; the hour without a stage is in the totals only');

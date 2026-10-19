@@ -36,7 +36,7 @@ export function hubItems(projects: Project[], filter: string | null): HubItem[] 
   return projects.filter(project => filter === null ? project.state === 'active' : project.folderId === filter).flatMap(project => {
     const summary = project.summary;
     if (!summary) return [];
-    const live = new Set(summary.live.map(item => item.workId));
+    const live = new Set(summary.activity.filter(item => item.state === 'working').map(item => item.workId));
     return [...summary.active, ...summary.closed].map(work => ({ project, work, live: live.has(work.id) }));
   });
 }

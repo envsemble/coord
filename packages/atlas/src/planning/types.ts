@@ -15,6 +15,8 @@ export interface Work {
   /** Agent reports and plan revisions; absent where they were not read. */
   statistics?: WorkStatistics;
 }
+/** One agent's working time on a work item: a session's own (subagent null) or one of its subagents'. */
+export interface AgentUsage { session: string | null; subagent: string | null; model: string | null; agentMs: number }
 /** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
 export interface TokenKinds { input: number; cacheRead: number; cacheWrite: number; output: number }
 /** One model's share of a work item: the reports naming it and the agent time and tokens it spent. */
@@ -54,8 +56,21 @@ export interface WorkStatistics {
   tokens: number | null;
   /** The measured tokens by kind; null when no report was measured. Self-reported tokens have no kinds. */
   tokenKinds: TokenKinds | null;
-  /** Agent time: measured plus estimated. */
+  /**
+   * Agent time: measured plus estimated, every agent added up: each session's own working time and
+   * each subagent's in full, also while they work at once.
+   */
   agentMs: number;
+  /**
+   * The time at least one agent was working: the union of every report's working intervals across
+   * sessions and subagents; reports without intervals (estimated, or older ones whose logs are gone)
+   * add their time as is.
+   */
+  activeMs: number;
+  /** Of `activeMs`, the time of reports without intervals, added up rather than merged. */
+  unmergedMs: number;
+  /** Each agent's working time: sessions (`subagent` null) and their subagents, most time first. */
+  agents: AgentUsage[];
   /** Agent time measured from session logs. */
   measuredMs: number;
   /** Agent time estimated from the time between reports, for intervals no session log measured. */

@@ -45,7 +45,7 @@ export interface ProjectWork {
  * subagents and the last report. Plan revisions need Git, so they are left out.
  */
 export interface ProjectWorkStatistics {
-  agentMs: number; tokens: number | null; primaryModel: string | null; otherModels: number;
+  agentMs: number; activeMs: number; unmergedMs: number; tokens: number | null; primaryModel: string | null; otherModels: number;
   planning: { agentMs: number; tokens: number | null }; implementation: { agentMs: number; tokens: number | null };
   subagents: number; lastReport: string | null;
 }
@@ -79,7 +79,7 @@ export function workStatisticsBrief(reports: StatisticsReport[]): ProjectWorkSta
   // Other models as the plan page lists them: those that did anything at all.
   const others = summary.models.filter(model => model.model !== summary.primaryModel && (model.agentMs > 0 || (model.tokens ?? 0) > 0 || model.reports > 0));
   return {
-    agentMs: summary.agentMs, tokens: summary.tokens, primaryModel: summary.primaryModel, otherModels: others.length,
+    agentMs: summary.agentMs, activeMs: summary.activeMs, unmergedMs: summary.unmergedMs, tokens: summary.tokens, primaryModel: summary.primaryModel, otherModels: others.length,
     planning: stage(summary.stages.planning), implementation: stage(summary.stages.implementation),
     subagents: summary.subagents.count, lastReport: summary.lastReport,
   };

@@ -8,7 +8,7 @@ const work = (id: string, state: ProjectWork['state'], change: Partial<ProjectWo
   ({ id, title: 'Work ' + id, state, blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, ...change });
 const project = (name: string, position: number, summary: Partial<ProjectSummary> | null, state: Project['state'] = 'active'): Project => ({
   folderId: 'f-' + String(position).repeat(32), name, path: '/home/me/.atlas/planning/' + name.toLowerCase(), position, state, outsideHome: false, workspaces: [],
-  summary: summary && { repositories: [], active: [], closed: [], updated: null, live: [], ...summary },
+  summary: summary && { repositories: [], active: [], closed: [], updated: null, activity: [], now: '2026-10-15T10:05:00Z', ...summary },
 });
 
 const atlas = project('Atlas', 1, {
@@ -20,7 +20,7 @@ const atlas = project('Atlas', 1, {
     work('work-0025', 'other'),
   ],
   closed: [work('work-0019', 'closed', { outcome: 'complete', updated: '2026-09-30' }), work('work-0018', 'closed', { outcome: 'superseded' })],
-  live: [{ workId: 'work-0024', since: '2026-10-15T10:00:00Z' }],
+  activity: [{ workId: 'work-0024', state: 'working', since: '2026-10-15T10:00:00Z', sessions: [{ session: 'session-1', harness: 'claude-code', state: 'working', since: '2026-10-15T10:00:00Z', countsFrom: '2026-10-15T10:00:00Z' }] }],
 });
 const coord = project('Coord', 2, { active: [work('work-0001', 'implementing', { updated: '2026-10-15' })] });
 const hidden = project('envUI', 3, { active: [work('work-0007', 'draft')] }, 'hidden');
@@ -62,7 +62,7 @@ test('each plan shows its state, and closed work how it ended', () => {
 });
 
 const statistics = (change: Partial<NonNullable<ProjectWork['statistics']>> = {}): NonNullable<ProjectWork['statistics']> => ({
-  agentMs: 12_000_000, tokens: 1_234_567, primaryModel: 'claude-opus-5-5', otherModels: 2,
+  agentMs: 12_000_000, activeMs: 9_000_000, unmergedMs: 0, tokens: 1_234_567, primaryModel: 'claude-opus-5-5', otherModels: 2,
   planning: { agentMs: 3_600_000, tokens: 200_000 }, implementation: { agentMs: 8_400_000, tokens: 1_034_567 },
   subagents: 4, lastReport: '2026-10-15T09:30:00Z', ...change,
 });

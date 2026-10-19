@@ -285,6 +285,8 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
   return {
     reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, tokens, tokenKinds: kinds,
     agentMs: measuredMs + estimatedMs, measuredMs, estimatedMs, measuredReports,
+    // Contract stub: the intervals and each agent's share come with the statistics step.
+    activeMs: measuredMs + estimatedMs, unmergedMs: measuredMs + estimatedMs, agents: [],
     stages, subagents: { count: subagents.size + unlisted, agentMs: subagentMs },
     firstReport: sorted[0]?.at ?? null, lastReport: sorted.at(-1)?.at ?? null,
   };

@@ -15,7 +15,7 @@ test('projects are the home\'s planning folders: created from the templates, ren
   assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Northwind']);
   // The list has what each project's card says: its repositories, its active work and where each item stands, its last change, and the work agents are on now.
   const summary = (await projectNamed(device.connection)).summary!;
-  assert.deepEqual([summary.repositories, summary.active.length, summary.active.filter(item => item.state === 'blocked').length, summary.active.filter(item => item.state === 'implementing').length, summary.updated, summary.live],
+  assert.deepEqual([summary.repositories, summary.active.length, summary.active.filter(item => item.state === 'blocked').length, summary.active.filter(item => item.state === 'implementing').length, summary.updated, summary.activity],
     [['shop'], 3, 1, 1, null, []]);
   assert.ok(summary.active.every(item => item.title), 'each item has its title');
   // Each item's steps (none without a ledger that lists them) and last change, and the closed work with how it ended.
@@ -30,7 +30,7 @@ test('projects are the home\'s planning folders: created from the templates, ren
     database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working) VALUES (?, ?, NULL, ?, ?, 1)').run('session-1', 'claude-code', now, now);
     database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at) VALUES (?, ?, ?, ?)').run('session-1', project.id, 'work-0001', now);
   } finally { database.close(); }
-  assert.deepEqual((await projectNamed(owner.connection)).summary?.live.map(item => item.workId), ['work-0001']);
+  assert.deepEqual((await projectNamed(owner.connection)).summary?.activity.map(item => [item.workId, item.state]), [['work-0001', 'working']]);
   // A device creates one: a Git repository in the home with the templates, its name and its repositories.
   const coord = await device.connection.request('projects.create', { name: 'Coord', workspaces: [], repositories: [{ id: 'coord-web', name: 'Coord web', remote: 'git@github.com:example/coord-web.git' }, { id: 'platform', name: 'Platform', remote: null }] });
   assert.deepEqual([coord.name, coord.path, coord.position, coord.state], ['Coord', path.join(data, 'planning', 'coord'), 1, 'active']);
@@ -44,7 +44,7 @@ test('projects are the home\'s planning folders: created from the templates, ren
   await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
   // The lists clients are sent have the summaries too (a new project's folder has its first commit); a single project answered has none.
   const sent = owner.lists.find(list => list.length === 3)!.find(project => project.folderId === coord.folderId)!;
-  assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated }, { repositories: ['coord-web', 'platform'], active: [], closed: [], updated: 'string', live: [] });
+  assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated, now: typeof sent.summary?.now }, { repositories: ['coord-web', 'platform'], active: [], closed: [], updated: 'string', activity: [], now: 'string' });
   assert.equal('summary' in coord, false);
   // Renaming writes the name into its planning.json; hiding, archiving and moving change only the order and state.
   const renamed = await owner.connection.request('projects.update', { folderId: coord.folderId, name: 'Coord platform' });
@@ -132,7 +132,7 @@ test('the project list has each work item\'s step, completion and statistics fro
   const work = (id: string) => [...summary.active, ...summary.closed].find(item => item.id === id)!;
   assert.deepEqual(work('work-0001').step, { title: 'Add authoriseWithToken to the acquirer gateway, with the challenge_required path (shop#58)', status: 'doing', phase: 'implementation' });
   assert.deepEqual(work('work-0001').statistics, {
-    agentMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
+    agentMs: 5_400_000, activeMs: 5_400_000, unmergedMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
     subagents: 0, lastReport: '2026-10-02T10:00:00.000Z',
   });
   assert.deepEqual([work('work-0002').statistics, work('work-0003').step, work('work-0001').completed], [null, null, null], 'no reports, no steps (a ledger from before steps), open');
