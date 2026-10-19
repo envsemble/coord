@@ -105,6 +105,8 @@ const migrations = [
   `CREATE TABLE session_agent (
     session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE, agent_id TEXT NOT NULL, agent_type TEXT,
     started_at TEXT NOT NULL, seen_at TEXT NOT NULL, stopped_at TEXT, PRIMARY KEY (session_id, agent_id));`,
+  // No hidden projects: archived is enough. (The table still allows 'hidden', which this Atlas reads as archived.)
+  `UPDATE project SET state = 'archived' WHERE state = 'hidden';`,
 ];
 /** How long a working session counts as live without being seen again: a long tool call can be quiet this long. */
 export const liveWindowMs = 15 * 60_000;
@@ -145,7 +147,7 @@ export class DatabaseVersionError extends Error {
   }
 }
 
-export type ProjectState = 'active' | 'hidden' | 'archived';
+export type ProjectState = 'active' | 'archived';
 export interface ProjectRow { id: number; connectionId: string | null; name: string; folder: string; position: number; state: ProjectState; createdAt: string }
 
 /** Compare folders as the platform does: case-insensitively on Windows and macOS. */
@@ -173,7 +175,7 @@ function ownerOnly(home: string, file: string) {
 }
 const projectRow = (row: Row): ProjectRow => ({
   id: Number(row.id), connectionId: (row.connection_id as string | null) ?? null, name: String(row.name), folder: String(row.folder),
-  position: Number(row.position), state: row.state as ProjectState, createdAt: String(row.created_at),
+  position: Number(row.position), state: row.state === 'active' ? 'active' : 'archived', createdAt: String(row.created_at),
 });
 
 /** A planning folder's display name: its registry's `name`, else the folder's own name. */
@@ -408,10 +410,10 @@ export function canonicalProjectFolderSync(folder: string) {
 }
 
 /**
- * The folders (as folderKey) of this computer's projects that are hidden or archived, read from the
+ * The folders (as folderKey) of this computer's projects that are archived, read from the
  * home's database when it has one: they do not match checkouts. A folder without a row is active.
  * A database still busy after its timeout is tried once more; it, or one that cannot be read (such
- * as one from a newer Atlas), is an error, as hidden and archived projects would otherwise match.
+ * as one from a newer Atlas), is an error, as archived projects would otherwise match.
  */
 export async function inactiveProjectFolders(home: string): Promise<Set<string>> {
   if (!existsSync(path.join(home, databaseName))) return new Set();

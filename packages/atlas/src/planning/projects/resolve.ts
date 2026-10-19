@@ -4,7 +4,7 @@
 // folders whose registry names one of its Git remotes, to the planning folder it is inside, and, for
 // a repository without a remote, to the one whose absolute `path` hint is the checkout. Worktrees
 // share their repository's remotes, so they resolve the same way.
-// Only active projects match: hidden and archived ones (such as a folder split into others) do not.
+// Only active projects match: archived ones (such as a folder split into others) do not.
 // `where` also lists every active project of the home in brief, so an agent outside them can ask.
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
@@ -61,7 +61,7 @@ export interface Whereabouts {
   cwd: string; checkout: string | null; remotes: string[]; home: string;
   /** The projects the checkout belongs to, with their active work for its repositories in full. */
   matches: PlanningMatch[];
-  /** Every active project in the home (hidden and archived ones never), matching or not. */
+  /** Every active project in the home (archived ones never), matching or not. */
   projects: ProjectBrief[];
 }
 

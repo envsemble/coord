@@ -133,7 +133,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'work.timeline': object({ folderId, work: workId }),
   'projects.scan': object({ folder: absolutePath }),
   'projects.adopt': object({ folderId }),
-  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(array(absolutePath, 20)) }),
+  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(array(absolutePath, 20)) }),
   'folders.subscribe': object({ folderId }),
   'folders.unsubscribe': object({ folderId }),
   'folder.snapshot': object({ folderId }),

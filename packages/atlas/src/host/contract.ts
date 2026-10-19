@@ -8,7 +8,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../plann
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 9;
+export const protocolVersion = 10;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -30,7 +30,7 @@ export interface HostDescriptor { protocol: number; hostId: string; name: string
 
 export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
 export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number }
-export type ProjectState = 'active' | 'hidden' | 'archived';
+export type ProjectState = 'active' | 'archived';
 /**
  * A project of this computer: a planning folder in its Atlas home, with its name (from its
  * planning.json, else the folder's), its place in the computer's order and its state. `folderId`
@@ -257,7 +257,7 @@ export interface Methods {
   /** The Git checkouts in a folder on this computer, for a new project's preview. */
   'projects.scan': { params: { folder: string }; result: WorkspaceScan };
   /**
-   * Rename a project (its planning.json's name), hide, archive or show it, move it in the order, or set
+   * Rename a project (its planning.json's name), archive it or bring it back, move it in the order, or set
    * its workspace folders (registering the repositories found in folders it did not cover before).
    */
   'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number; workspaces?: string[] }; result: Project };
@@ -328,7 +328,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
 /** Events the host pushes to a connection. */
 export interface Events {
   'folder.changed': FolderState;
-  /** The computer's projects changed (one was added, renamed, hidden, archived or moved). */
+  /** The computer's projects changed (one was added, renamed, archived or moved). */
   'projects.changed': { projects: Project[] };
   /** Remote access changed: sent to connections that may manage access. */
   'access.changed': AccessState;

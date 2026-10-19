@@ -8,7 +8,7 @@ import { createReport, HomeDatabase, insertReport } from '../../planning/index.t
 import type { HostRequestError } from '../client.ts';
 import { client, fixture, pairDevice, projectNamed, start, temporary, until } from '../testing.ts';
 
-test('projects are the home\'s planning folders: created from the templates, renamed, hidden, archived and ordered', async t => {
+test('projects are the home\'s planning folders: created from the templates, renamed, archived and ordered', async t => {
   const { host, origin, data } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
   const device = await pairDevice(t, host, owner.connection);
@@ -55,8 +55,9 @@ test('projects are the home\'s planning folders: created from the templates, ren
   const second = (await owner.connection.request('projects.list', {}))[2];
   await owner.connection.request('projects.update', { folderId: second.folderId, state: 'archived' });
   const planningProject = await projectNamed(owner.connection);
-  await owner.connection.request('projects.update', { folderId: planningProject.folderId, state: 'hidden' });
-  assert.deepEqual((await device.connection.request('projects.list', {})).map(project => [project.name, project.position, project.state]), [['Coord platform', 0, 'active'], ['Northwind', 1, 'hidden'], ['Coord', 2, 'archived']]);
+  // Projects are active or archived: there is no hiding them any more.
+  await assert.rejects(owner.connection.request('projects.update', { folderId: planningProject.folderId, state: 'hidden' as never }), (error: HostRequestError) => error.code === 'invalid-argument');
+  assert.deepEqual((await device.connection.request('projects.list', {})).map(project => [project.name, project.position, project.state]), [['Coord platform', 0, 'active'], ['Northwind', 1, 'active'], ['Coord', 2, 'archived']]);
   // A planning folder that appears in the home becomes the last project; one that leaves it is no longer listed.
   cpSync(fixture, path.join(data, 'planning', 'later'), { recursive: true });
   await until(() => owner.lists.some(list => list.some(project => project.path === path.join(data, 'planning', 'later'))), 5000, () => owner.lists);
@@ -157,10 +158,10 @@ test('the search covers every active project, in the home or outside it, best fi
   const { host, origin, data, planning } = await start(t);
   const owner = client(t, origin, host.ownerToken, host.descriptor.hostId);
   const device = await pairDevice(t, host, owner.connection);
-  // Another project in the home, hidden; one outside it, active.
-  const hidden = path.join(data, 'planning', 'hidden');
-  cpSync(fixture, hidden, { recursive: true });
-  writeFileSync(path.join(hidden, 'knowledge', 'secret.md'), '# Hidden walrus\n');
+  // Another project in the home, archived; one outside it, active.
+  const archived = path.join(data, 'planning', 'archived');
+  cpSync(fixture, archived, { recursive: true });
+  writeFileSync(path.join(archived, 'knowledge', 'secret.md'), '# Archived walrus\n');
   const outside = path.join(temporary(t, 'atlas-outside-'), 'Coord planning');
   cpSync(fixture, outside, { recursive: true });
   writeFileSync(path.join(outside, 'planning.json'), readFileSync(path.join(outside, 'planning.json'), 'utf8').replace('"Northwind"', '"Coord"'));
@@ -169,7 +170,7 @@ test('the search covers every active project, in the home or outside it, best fi
   try { database.addProject(realpathSync.native(outside), 'Coord', null, 'active'); } finally { database.close(); }
   const listed = await owner.connection.request('projects.list', {});
   const northwind = listed.find(project => project.path === planning)!, coord = listed.find(project => project.name === 'Coord')!;
-  await owner.connection.request('projects.update', { folderId: listed.find(project => project.path === hidden)!.folderId, state: 'hidden' });
+  await owner.connection.request('projects.update', { folderId: listed.find(project => project.path === archived)!.folderId, state: 'archived' });
   const search = (query: string, limit?: number) => device.connection.request('search.query', limit === undefined ? { query } : { query, limit });
   // Each kind, where it opens (the two projects have the same plans: Northwind's best).
   const first = async (query: string, project = 'Northwind') => (await search(query)).find(hit => hit.project === project)!;
@@ -184,9 +185,9 @@ test('the search covers every active project, in the home or outside it, best fi
   assert.deepEqual(await first('Coord', 'Coord').then(hit => [hit.kind, hit.folderId, hit.path]), ['project', coord.folderId, null]);
   const text = await first('lives outside', 'Coord');
   assert.deepEqual([text.kind, text.project, text.snippet], ['document', 'Coord', 'A walrus lives outside the home.'], 'text, with its snippet');
-  // Every active project, never a hidden one; best first, at most the limit.
+  // Every active project, never an archived one; best first, at most the limit.
   const walrus = await search('walrus');
-  assert.deepEqual(walrus.map(hit => [hit.project, hit.title]), [['Coord', 'Outside walrus']], 'a hidden project is not searched');
+  assert.deepEqual(walrus.map(hit => [hit.project, hit.title]), [['Coord', 'Outside walrus']], 'an archived project is not searched');
   const both = await search('saved payment methods');
   assert.deepEqual([...new Set(both.slice(0, 2).map(hit => hit.kind + ':' + hit.project))].sort(), ['plan:Coord', 'plan:Northwind'], 'both active projects\' plans first');
   assert.equal((await search('e')).length, 50, 'at most 50 by default');
@@ -208,7 +209,7 @@ test('a project outside the home is listed, marked, until it moves into the home
   // Read and written beside the host's own connection, and closed before its home is removed.
   const database = HomeDatabase.open(data);
   try {
-    const row = database.addProject(realpathSync.native(outside), 'Northwind', null, 'hidden');
+    const row = database.addProject(realpathSync.native(outside), 'Northwind', null, 'archived');
     // Another project, whose folder is gone, was last where the folder would go: that name stays its own.
     database.addProject(path.join(data, 'planning', 'Shop-planning'), 'Gone', null, 'archived');
     const projects = (await owner.connection.request('projects.list', {})).filter(project => project.name !== 'Gone');
@@ -221,7 +222,7 @@ test('a project outside the home is listed, marked, until it moves into the home
     const { execFileSync } = await import('node:child_process');
     execFileSync('git', ['-C', outside, 'init', '-q']);
     const moved = await owner.connection.request('projects.adopt', { folderId: listed.folderId });
-    assert.deepEqual([moved.path, moved.outsideHome, moved.state], [path.join(data, 'planning', 'Shop-planning-2'), false, 'hidden']);
+    assert.deepEqual([moved.path, moved.outsideHome, moved.state], [path.join(data, 'planning', 'Shop-planning-2'), false, 'archived']);
     assert.ok(!existsSync(outside) && !existsSync(path.join(moved.path, 'active/0001-saved-payment-methods/.atlas')));
     assert.equal(database.projectByFolder(moved.path)?.id, row.id, 'the project keeps its row, and with it its tabs');
     assert.equal((database.db.prepare("SELECT count(*) AS n FROM work_report WHERE project_id = ? AND at = '2026-10-01T10:00:00.000Z'").get(row.id) as { n: number }).n, 1);

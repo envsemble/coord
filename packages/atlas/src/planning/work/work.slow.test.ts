@@ -64,15 +64,15 @@ test('a checkout finds its planning folders in the home by remote, by path hint,
   assert.deepEqual(several.matches.map(match => match.project), ['main', 'Coord']);
   await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects register this checkout's repository: main \(.*\), Coord \(.*\)\. Ask the user which project to plan in/);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home, work: 'work-0001' }), root, 'a work item only one of them registers names its project');
-  // Hidden and archived projects do not match; a folder without a project row is active.
+  // Archived projects (and those an older Atlas hid) do not match; a folder without a project row is active.
   const coord = realpathSync(path.join(home, 'planning', 'unrelated'));
   withDatabase(home, database => database.addProject(coord, 'Coord', null, 'archived'));
   assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['main']);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
-  withDatabase(home, database => database.updateProject(database.projectByFolder(coord)!.id, { state: 'hidden' }));
+  withDatabase(home, database => database.db.prepare("UPDATE project SET state = 'hidden' WHERE id = ?").run(database.projectByFolder(coord)!.id));
   assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['main']);
-  assert.deepEqual((await findPlanning(directory, { home })).projects.map(project => project.project), ['main'], 'hidden and archived projects are not listed');
-  withDatabase(home, database => database.addProject(root, 'main', null, 'hidden'));
+  assert.deepEqual((await findPlanning(directory, { home })).projects.map(project => project.project), ['main'], 'archived projects are not listed');
+  withDatabase(home, database => database.addProject(root, 'main', null, 'archived'));
   assert.deepEqual((await findPlanning(shop, { home })).matches, []);
   assert.deepEqual((await findPlanning(directory, { home })).projects, []);
   // A database this Atlas cannot read is an error, not a home where every project matches.

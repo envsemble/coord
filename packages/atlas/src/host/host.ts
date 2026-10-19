@@ -626,7 +626,7 @@ export class Host {
   private watchOutsideProjects(rows: ProjectRow[]) {
     if (this.stopped) return;
     // Only active ones: on Windows a watched folder, and the folders above it, cannot be renamed while
-    // it is watched, so a hidden or archived project's folder is left free.
+    // it is watched, so an archived project's folder is left free.
     const wanted = new Map(rows.filter(row => row.state === 'active' && !this.inHome(row.folder)).map(row => [folderKey(row.folder), row.folder]));
     for (const [key, watcher] of this.outsideWatches) if (!wanted.has(key)) { watcher.close(); this.outsideWatches.delete(key); }
     for (const [key, folder] of wanted) if (!this.outsideWatches.has(key)) this.outsideWatches.set(key, new ProjectListWatch(folder, false, { log: this.options.log, changed: () => this.projectsChanged(), touched: changed => this.searchTouched(changed) }));

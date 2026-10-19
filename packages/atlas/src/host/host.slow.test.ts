@@ -128,10 +128,10 @@ test('a project outside the home is watched for its plans and ledgers, and again
   await watching(before);
   say('Watched again.');
   await until(() => summary() === 'Watched again.', 10000, () => owner.lists.length);
-  // Hidden, it is no longer watched (on Windows, a watch keeps the folders above it from being renamed).
+  // Archived, it is no longer watched (on Windows, a watch keeps the folders above it from being renamed).
   assert.equal(watches().size, 1);
   const shop = (await owner.connection.request('projects.list', {})).find(project => project.path === realpathSync.native(outside))!;
-  await owner.connection.request('projects.update', { folderId: shop.folderId, state: 'hidden' });
+  await owner.connection.request('projects.update', { folderId: shop.folderId, state: 'archived' });
   await owner.connection.request('projects.list', {});
   assert.equal(watches().size, 0);
 });

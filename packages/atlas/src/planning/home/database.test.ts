@@ -76,10 +76,12 @@ test('projects keep their order and state, and a paired computer\'s rows are kep
     const third = database.addProject(path.join(home, 'planning', 'three'), 'Three');
     assert.deepEqual(database.projects().map(project => [project.name, project.position, project.state]), [['Coord', 0, 'active'], ['two', 1, 'active'], ['Three', 2, 'active']]);
     database.updateProject(third.id, { position: 0 });
-    database.updateProject(second.id, { state: 'hidden', name: 'Two' });
+    database.updateProject(second.id, { name: 'Two' });
     database.updateProject(first.id, { state: 'archived' });
-    assert.deepEqual(database.projects().map(project => [project.name, project.state]), [['Three', 'active'], ['Coord', 'archived'], ['Two', 'hidden']]);
-    // A paired computer's projects: rows of this app, ordered and hidden here.
+    // A project an older Atlas hid reads as archived.
+    database.db.prepare("UPDATE project SET state = 'hidden' WHERE id = ?").run(second.id);
+    assert.deepEqual(database.projects().map(project => [project.name, project.state]), [['Three', 'active'], ['Coord', 'archived'], ['Two', 'archived']]);
+    // A paired computer's projects: rows of this app, ordered and archived here.
     database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
     const remote = database.addProject('/home/me/.atlas/planning/one', 'One', 'c1');
     assert.notEqual(remote.id, first.id);

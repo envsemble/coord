@@ -107,7 +107,7 @@ A harness that is neither on the PATH nor configured is skipped. `HOME` (`USERPR
 The **Atlas home** is `~/.atlas`, or `ATLAS_HOME` when set (`--home` for `usage log` and `serve`). It holds:
 
 - `planning/<name>/`: the planning folders, each its own Git repository and each a project;
-- `atlas.db`: the home database (SQLite), with everything else Atlas keeps: the projects (their names, order and whether they are hidden or archived, and the projects of paired computers), the host's identity and paired devices, the app's connections, windows and tabs, which work items each agent session has touched and when it last did, whether its agent is in a turn or waits for you (the work's Working and Needs you), work statistics reports and document-use statistics;
+- `atlas.db`: the home database (SQLite), with everything else Atlas keeps: the projects (their names, order and whether they are archived, and the projects of paired computers), the host's identity and paired devices, the app's connections, windows and tabs, which work items each agent session has touched and when it last did, whether its agent is in a turn or waits for you (the work's Working and Needs you), work statistics reports and document-use statistics;
 - `logs/`: the app's, the host's and the hooks' logs;
 - `legacy/`: files from the old data folder that the home already had its own of, and the home's files from before its database.
 
