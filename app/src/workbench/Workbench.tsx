@@ -283,11 +283,12 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // The file the window shows, which Open in opens in the editor: a plan's document, a diagram's source, a file; this computer's only.
   const [editor, chooseEditor, readEditor] = useEditor();
   const editorFile = projectPlace && readSnapshot && info.computer.hostId === null ? shownFile(projectPlace.target, readSnapshot) : null;
-  const editorProject = projectPlace?.project ?? null;
+  // Main opens only the file of the place the window last saved as shown, so the place is saved first.
   const openInEditor = useCallback(() => {
-    if (!editorFile || !editorProject) return;
-    api.openFile(editorProject, editorFile).catch(error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'warning'); });
-  }, [editorFile, editorProject, notify]);
+    if (!editorFile || !projectPlace) return;
+    api.saveUi({ ...ui, place: projectPlace }).then(() => api.openShown(projectPlace, editorFile))
+      .catch(error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'warning'); });
+  }, [editorFile, projectPlace, ui, notify]);
 
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {

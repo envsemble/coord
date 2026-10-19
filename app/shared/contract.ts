@@ -23,7 +23,7 @@ export const invokeChannels = [
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'project:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
-  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openFile', 'shell:copy',
+  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openShown', 'shell:copy',
   'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch',
@@ -224,8 +224,11 @@ export interface AtlasBridge {
   openExternal(url: string): Promise<Result<void>>;
   /** Open the file a path reference names in the editor, at its line; only for a project on this computer. */
   openReference(project: string, work: string | null, reference: ReferenceInput): Promise<Result<void>>;
-  /** Open a file of a project's planning folder in the editor (with the system's choice, show it in its folder); only for a project on this computer. */
-  openFile(project: string, path: string): Promise<Result<void>>;
+  /**
+   * Open in: open the file the window shows (`place`, as last saved with saveUi) in the editor without
+   * asking (with the system's choice, show it in its folder); only for a project on this computer.
+   */
+  openShown(place: Place, path: string): Promise<Result<void>>;
   /** The editor files open in, and choosing another. */
   editor(): Promise<Result<Editor>>;
   setEditor(editor: Editor): Promise<Result<void>>;

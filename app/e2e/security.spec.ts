@@ -127,10 +127,9 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       application: await bridge.openExternal('t3-thread://thread/abc'),
       script: await bridge.openExternal('javascript:alert(1)'),
       unknownScheme: await bridge.openExternal('ms-settings:'),
-      // A planning file opens in the editor only from inside the project's folder, and asks first.
-      planFile: await bridge.openFile(folderId, 'README.md'),
-      fileTraversal: await bridge.openFile(folderId, '../outside.md'),
-      fileHidden: await bridge.openFile(folderId, 'active/0001-saved-payment-methods/.atlas/plan.md'),
+      // Open in opens, without asking, only the file of the place the window shows, inside the project's folder.
+      notShown: await bridge.openShown({ project: folderId, target: { kind: 'file', path: 'README.md' } }, 'README.md'),
+      fileTraversal: await bridge.openShown({ project: folderId, target: { kind: 'file', path: '../outside.md' } }, '../outside.md'),
       // Files open only as the host resolves them, and the editor is one of a fixed list.
       referenceKind: await bridge.openReference(folderId, 'work-0001', { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
       editorCommand: await bridge.setEditor('notepad.exe'),
@@ -139,13 +138,13 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
   }, project);
   for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'scanRelative', 'scanWrongType', 'scanMissing', 'createRelative', 'updateRelative', 'referenceKind', 'editorCommand', 'fileTraversal'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
-  expect(results.fileHidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
+  expect(results.notShown).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.otherProject).toMatchObject({ ok: false });
-  for (const key of ['quit', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web', 'application', 'planFile'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
+  for (const key of ['quit', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web', 'application'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([
     'Exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?',
     'Let paired devices reach this computer at 127.0.0.1?', 'Create a pairing link for this computer?', 'Pair with the Atlas at 127.0.0.1:9?', 'Open this address in your browser?',
-    'Open this link in its application?', 'Open this file in your editor?',
+    'Open this link in its application?',
   ]);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   for (const key of ['external', 'script', 'unknownScheme'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'forbidden' } });

@@ -6,7 +6,7 @@
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import type { HomeDatabase } from '@envsemble/atlas/planning';
 import type { AccessState, ClientStatus, FolderState, HostClient, Project } from '@envsemble/atlas/host';
-import type { EventChannel, MenuCommand, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
+import type { EventChannel, MenuCommand, Place, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
 import { AtlasError } from '../errors.ts';
 import type { Connections } from '../host/connections.ts';
 import { FolderView } from '../host/folderView.ts';
@@ -79,6 +79,8 @@ export class AtlasWindow {
   computer: string | null;
   /** The projects' folders the window follows, by folder ID. */
   readonly views = new Map<string, FolderView>();
+  /** The place the page last said it shows (ui:save); Open in opens only a file of it. */
+  shown: Place | null = null;
   /** Projects whose folder is still being followed: a request for one waits for it. */
   private readonly opening = new Map<string, Promise<void>>();
   /** The projects of the window's computer as last listed, with their rows in the home database. */

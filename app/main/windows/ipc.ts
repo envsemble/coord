@@ -12,8 +12,8 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { FolderView } from '../host/folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
@@ -67,19 +67,20 @@ function thisComputer(window: AtlasWindow, what: string) {
 
 /**
  * Open a file or folder on this computer in the chosen editor, at its line, after asking (`what`:
- * "this file"). With the system's application chosen it is only shown in its folder: opening it
- * would run a script or a program a plan names.
+ * "this file") unless the person opens what the window shows themselves (`ask` false). With the
+ * system's application chosen it is only shown in its folder: opening it would run a script or a
+ * program a plan names.
  */
-async function openInEditor(manager: WindowManager, window: AtlasWindow, what: string, file: string, line: number | null) {
+async function openInEditor(manager: WindowManager, window: AtlasWindow, what: string, file: string, line: number | null, ask = true) {
   const choice: Editor = manager.context.state.editor;
   const link = editorLink(choice, file, line);
   const detail = file + (line ? ':' + line : '');
   if (!link) {
-    await confirmed(window, 'Show ' + what + ' in its folder?', 'Show', detail);
+    if (ask) await confirmed(window, 'Show ' + what + ' in its folder?', 'Show', detail);
     shell.showItemInFolder(file);
     return;
   }
-  await confirmed(window, 'Open ' + what + ' in your editor?', 'Open', detail);
+  if (ask) await confirmed(window, 'Open ' + what + ' in your editor?', 'Open', detail);
   await shell.openExternal(link);
 }
 
@@ -115,14 +116,29 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   await openInEditor(manager, window, 'this file', real, file.line);
 }
 
-/** Open a file of a project's planning folder in the editor: the file itself, inside the folder (never a link out of it, never a hidden part). */
-async function openPlanningFile(manager: WindowManager, window: AtlasWindow, project: string, relative: string) {
+/**
+ * Open in: the file the window shows (`place`, which must be the place the page last saved as the
+ * one it shows) in the editor, without asking, as the person opens it themselves. The file must be of
+ * that place (the file itself, or a file of the plan shown) and is resolved inside the project's
+ * folder (never a link out of it, never a hidden part). A file a page's content names opens through
+ * openReference, which asks.
+ */
+async function openShown(manager: WindowManager, window: AtlasWindow, shown: Place, relative: string) {
   thisComputer(window, 'Files');
-  await window.readable(project);
+  const refused = () => new AtlasError('forbidden', 'Only the file the window shows opens this way.');
+  if ('page' in shown || !window.shown || 'page' in window.shown || !sameShown(shown, window.shown)) throw refused();
+  const { project, target } = shown;
+  const view = await window.readable(project);
+  if (target.kind === 'file' ? target.path !== relative : !(await view.request('folder.snapshot', { folderId: project })).work.some(work => work.id === target.work && relative.startsWith(work.path + '/'))) throw refused();
   const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
   if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
   const real = await resolveDocument(root, relative).catch(() => { throw new AtlasError('forbidden', 'Only files inside the project\'s folder open in the editor.'); });
-  await openInEditor(manager, window, 'this file', real, null);
+  await openInEditor(manager, window, 'this file', real, null, false);
+}
+/** Whether two places of a project show the same thing (where in it aside). */
+function sameShown(a: ProjectPlace, b: ProjectPlace) {
+  const key = ({ project, target }: ProjectPlace) => JSON.stringify([project, target.kind, 'work' in target ? target.work : null, 'path' in target ? target.path : null]);
+  return key(a) === key(b);
 }
 
 /** Send a plan export on this computer to another computer's host, for its preview there. */
@@ -251,7 +267,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     // A project's statistics for a period, from the project's computer.
     'project:statistics': { args: [folderId, nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, project: string, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors((await window.readable(project)).request('project.statistics', { folderId: project, from, to, unit }, { timeout: 30000 })) },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
-    'ui:save': { args: [uiState], handle: (window, state: UiState) => queueSave(manager, window, state) },
+    'ui:save': { args: [uiState], handle: (window, state: UiState) => { window.shown = state.place; return queueSave(manager, window, state); } },
     'shell:reveal': { args: [folderId, relativePath], handle: (window, project: string, file: string) => revealInside(window, project, file) },
     'shell:openExternal': {
       args: [url],
@@ -266,7 +282,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'shell:openReference': { args: [folderId, nullable(workId), referenceInput], handle: (window, project: string, work: string | null, reference: ReferenceInput) => openReference(manager, window, project, work, reference) },
-    'shell:openFile': { args: [folderId, relativePath], handle: (window, project: string, file: string) => openPlanningFile(manager, window, project, file) },
+    'shell:openShown': { args: [place, relativePath], handle: (window, shown: Place, file: string) => openShown(manager, window, shown, file) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
