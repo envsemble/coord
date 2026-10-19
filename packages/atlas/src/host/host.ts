@@ -197,6 +197,7 @@ export class Host {
       return this.listen('127.0.0.1', 0, true);
     });
     await this.applyNetwork();
+    this.checkActivity(false);
     this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000),
       setInterval(() => this.checkActivity(), this.options.liveCheck ?? 3000),
       setTimeout(() => this.remeasure(), 5000), setInterval(() => this.remeasure(), 60_000));
@@ -675,19 +676,20 @@ export class Host {
   /**
    * What agents do and the reports recorded, as last told to clients: when either changes, the
    * projects are told again (with their statistics), and the open planning folders' statistics are
-   * read again when the reports changed.
+   * read again when the reports changed. The host starts by noting them without telling anyone
+   * (`tell` false): clients list the projects as they connect.
    */
   private liveKey = '';
-  private reportsKey: string | null = null;
-  private checkActivity() {
+  private reportsKey = '';
+  private checkActivity(tell = true) {
     let reports = '';
     try { reports = this.database.reportsMark(); } catch { /* Unreadable for now: as before. */ }
-    if (this.reportsKey !== null && reports !== this.reportsKey) this.folders.refreshStatistics();
+    if (tell && reports !== this.reportsKey) this.folders.refreshStatistics();
     this.reportsKey = reports;
     const key = reports + JSON.stringify([...this.readActivity()]);
     if (key === this.liveKey) return;
     this.liveKey = key;
-    this.projectsChanged();
+    if (tell) this.projectsChanged();
   }
   /**
    * Measure reports from before working intervals again from their logs, a session at a time and
