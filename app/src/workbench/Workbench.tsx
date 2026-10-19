@@ -555,7 +555,7 @@ function ScrollMemory({ scroller: element, shown, scrollKey: key, anchored, entr
 }
 
 /** What the window shows of a project, in its scope: a plan, a diagram, a file or its statistics; or why it cannot. */
-/** `files`: the open plan's Files card, for a plan and its pages; beside the plan's side column on its own page, beside the page on the others. */
+/** `files`: the open plan's Files card, for a plan and its pages, at the top right beside each of them. */
 function ProjectContent({ place, folder, project, scope, statisticsControls, files }: { place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; statisticsControls: ReactNode; files: ReactNode }) {
   const change = folder?.change;
   // The Statistics page keeps its heading and project picker above why it shows nothing yet.
@@ -573,8 +573,8 @@ function ProjectContent({ place, folder, project, scope, statisticsControls, fil
     if (target.kind === 'work' || target.kind === 'diagram') {
       const item = snapshot.work.find(entry => entry.id === target.work);
       content = !item ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the plan" /></div>
-        : target.kind === 'work' && target.view !== 'statistics' ? <WorkPage work={item} snapshot={snapshot} target={target} files={files} />
-        : <PlanFrame files={files} filled={target.kind === 'diagram'}>{target.kind === 'work' ? <WorkStatisticsPage work={item} /> : <div className="work-page section-diagrams"><AtlasWorkPanel key={item.id} work={item} target={target} /></div>}</PlanFrame>;
+        : <PlanFrame files={files} filled={target.kind === 'diagram'}>{target.kind === 'diagram' ? <div className="work-page section-diagrams"><AtlasWorkPanel key={item.id} work={item} target={target} /></div>
+          : target.view === 'statistics' ? <WorkStatisticsPage work={item} /> : <WorkPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
       const page = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FileView file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
@@ -590,7 +590,7 @@ function ProjectContent({ place, folder, project, scope, statisticsControls, fil
   </WorkbenchContext.Provider>;
 }
 
-/** A page of a plan other than its own (its statistics, a diagram, a file) with the plan's Files card beside it. */
+/** A page of a plan (the plan, its statistics, a diagram, a file) with the plan's Files card at its top right. */
 function PlanFrame({ files, filled = false, children }: { files: ReactNode; filled?: boolean; children: ReactNode }) {
   if (!files) return children;
   return <div className={'plan-frame' + (filled ? ' is-filled' : '')}><div className="plan-frame-page">{children}</div><div className="plan-frame-files">{files}</div></div>;

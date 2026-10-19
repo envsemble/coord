@@ -156,7 +156,7 @@ test("the Work tab lists each work item with its model, planning and implementat
   // The plan's statistics page, a place in the history: its headline figures, and time and tokens by model and effort.
   await statistics.getByRole('link', { name: 'All statistics and the timeline' }).click();
   await expect(window.locator('.plan-statistics-page h1')).toHaveText('Statistics');
-  await expect(window.locator('.plan-statistics-page .stat', { hasText: 'Agent time' }).locator('.stat-value')).toHaveText('4 h 8 min');
+  await expect(window.locator('.plan-statistics-page .stat', { hasText: 'Agent time' }).locator('.stat-value .detailed')).toHaveText('4 h 8 min');
   await expect(window.getByRole('table', { name: 'Agent time and tokens by model and effort' })).toContainText('Claude Opus 5.5');
   await expect(window.getByRole('table', { name: 'Agent time and tokens by stage' })).toHaveCount(0);
   await window.getByRole('button', { name: 'Back', exact: true }).click();
