@@ -77,6 +77,10 @@ body { margin: 0; }
 .hub-title { grid-area: title; min-inline-size: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-search { grid-area: search; inline-size: 100%; }
 .hub-filters { grid-area: filters; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: var(--space-2); white-space: nowrap; }
+/* The filters never squeeze their labels onto two lines: the side column grows instead. */
+.hub-filters > *, .hub-filters :is(button, [role='button'], [role='combobox']) { flex-shrink: 0; white-space: nowrap; }
+/* With no plans to list, the state sits in the middle of the page. */
+.hub-empty { min-block-size: 50vh; }
 @media (max-width: 72rem) {
   .hub-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title filters' 'search search'; }
 }

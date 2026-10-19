@@ -147,6 +147,7 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
         <TableBody>{group.items.map(item => <HubRow key={item.project.folderId + ':' + item.work.id} item={item} go={go} />)}</TableBody>
       </Table>
     </section>)}
-    {!groups.length && <EmptyState className="page-empty" icon={<WorkIcon />} title={empty} />}
+    {!groups.length && <EmptyState className="page-empty hub-empty" align="center" icon={<WorkIcon />} title={empty}
+      description={filtered ? (filters.state === 'open' ? 'Every plan of ' + filtered.name + ' is closed.' : 'Nothing here for ' + filtered.name + ' yet.') : undefined} />}
   </Page>;
 }
