@@ -2,10 +2,10 @@
 // folders) and its clients (the desktop app's windows, another computer's Atlas, later a phone).
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
-import type { DocumentContent, PlanImportResult, PlanningIndex } from '../planning/index.ts';
+import type { DocumentContent, HandoffLink, PlanImportResult, PlanningIndex } from '../planning/index.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../planning/reading/diagrams.ts';
 
-export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
+export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
 export const protocolVersion = 11;
@@ -71,6 +71,11 @@ export interface ProjectWork {
   completed: string | null;
   /** What agents spent on it, from the home database's reports; null when none were recorded. */
   statistics: ProjectWorkStatistics | null;
+  /**
+   * The work items this one continues (its plan's `continues`), and those that continue it (their
+   * plans' `continues` naming it, in any project of the home): handoffs, oldest work first.
+   */
+  continues?: HandoffLink[]; continuedIn?: HandoffLink[];
 }
 /**
  * A work item's statistics for the hub: agent time (measured and estimated, as the plan page counts

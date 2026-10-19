@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import type { HomeDatabase } from '../home/database.ts';
+import type { HandoffLink } from '../types.ts';
 import { runProgram } from '../system/run.ts';
 import { storedReports, summarizeReports, type StatisticsReport } from '../statistics/statistics.ts';
 
@@ -37,6 +38,11 @@ export interface ProjectWork {
   completed: string | null;
   /** What agents spent on it, from its reports in the home database; null without reports. */
   statistics: ProjectWorkStatistics | null;
+  /**
+   * The work items this one continues (its plan's `continues`), and those that continue it (their
+   * plans' `continues` naming it, in any project of the home): handoffs, oldest work first.
+   */
+  continues?: HandoffLink[]; continuedIn?: HandoffLink[];
 }
 /**
  * A work item's statistics in brief, counted as the plan page counts them (see summarizeReports):
