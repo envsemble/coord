@@ -228,10 +228,23 @@ export async function openProjects(window: Page) {
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
 }
 /**
- * The Projects page's rows: the active projects', or the archived ones. Found by their
- * markup rather than their role, so they are read past an open dialog too.
+ * The Projects page's rows: the active projects', or the archived ones (shown by `showArchived`).
+ * Found by their markup rather than their role, so they are read past an open dialog too.
  */
-export const projectRows = (window: Page, group: 'Projects' | 'Archived projects' = 'Projects') => window.locator(`.project-list[aria-label="${group}"] > .project-row`);
+export const projectRows = (window: Page, group: 'Projects' | 'Archived projects' = 'Projects') => window.locator(`.project-list[aria-label="${group}"] .project-row`);
+/** Unfold the Projects page's archived projects, folded away until asked for. */
+export async function showArchived(window: Page) {
+  const toggle = window.locator('.projects-aside-toggle');
+  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+/** A project's folders and repositories, opened from its menu on the Projects page. */
+export async function projectDetails(window: Page, name: string) {
+  await projectAction(window, name, 'Folders and Repositories…');
+  const dialog = window.getByRole('dialog', { name: name + ': folders and repositories' });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
 /** The Projects page's row of the project of that name. */
 export const projectRow = (window: Page, name = 'Northwind', group?: 'Projects' | 'Archived projects') => projectRows(window, group).filter({ has: window.locator('.row-link-title').getByText(name, { exact: true }) });
 /** The Projects page lists these projects, in this order. */

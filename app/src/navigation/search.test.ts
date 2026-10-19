@@ -36,6 +36,13 @@ test("the host's results say their project and work item, and the snippet", () =
   assert.equal(new Set([plan.id, heading.id, project.id]).size, 3);
 });
 
+test("an archived project's results are left out", () => {
+  const other = 'f-' + '2'.repeat(32);
+  const shelved: Project = { ...atlas, folderId: other, name: 'Old', state: 'archived' };
+  const listed = hostEntries([result({ work: 'work-0023' }), result({ folderId: other, project: 'Old', work: 'work-0001' })], [atlas, shelved]);
+  assert.deepEqual(listed.map(item => item.detail), ['Atlas · #0023']);
+});
+
 const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', project: null } }, key });
 const local = [entry('plan', 'plan', workKey(folder, 'work-0023')), entry('diagram', 'diagram'), entry('other plan', 'plan', workKey(folder, 'work-0024')), entry('doc', 'document', pathKey(folder, 'a.md'))];
 const host = [entry('heading', 'heading'), entry('plan again', 'plan', workKey(folder, 'work-0023')), entry('doc again', 'document', pathKey(folder, 'a.md')), entry('summary plan', 'plan', workKey(folder, 'work-0025')), entry('heading 2', 'heading')];

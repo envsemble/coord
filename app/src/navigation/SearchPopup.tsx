@@ -27,7 +27,7 @@ const searchDelay = 150;
  * The search (Ctrl+P, the title bar's search, the hub's search field): the host's search of every
  * active project of the window's computer, grouped by kind, and what the window finds itself: every
  * plan of the active projects (from the project list), and the diagrams and documents of the open
- * plan's project (`open`, with its snapshot; diagrams are listed as they arrive). The window keeps
+ * plan's project unless it is archived (`open`, with its snapshot; diagrams are listed as they arrive). The window keeps
  * the query, which the hub's search field types into until the popup takes focus.
  */
 export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose }: {
@@ -58,13 +58,12 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   }, [text]);
 
   const entries = useMemo(() => {
-    // Every plan of the active projects, and of the open one whatever its state, in the hub's order.
-    const listed = [...hubItems(projects, null), ...project && projects.find(item => item.folderId === project)?.state !== 'active' ? hubItems(projects, project) : []];
-    const all: Entry[] = hubGroups(listed, 'all').flatMap(group => group.items).map(({ project: owner, work, status }) => ({
+    // Every plan of the active projects, in the hub's order; an archived project stays out of the way.
+    const all: Entry[] = hubGroups(hubItems(projects, null), 'all').flatMap(group => group.items).map(({ project: owner, work, status }) => ({
       id: owner.folderId + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id), snippet: null,
       destination: { place: { project: owner.folderId, target: workTarget(work.id) } }, key: workKey(owner.folderId, work.id), icon: <StatusIcon status={status} decorative />,
     }));
-    if (open) {
+    if (open && projects.find(item => item.folderId === open.project)?.state !== 'archived') {
       const { snapshot } = open;
       const place = (target: Target): { place: Place } => ({ place: { project: open.project, target } });
       const titles = new Map(snapshot.work.map(work => [work.id, work.title]));

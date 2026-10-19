@@ -4,7 +4,7 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
   addProject, applicationMenu, chooseMenu, close, expectHub, expectProjects, fileMenu, filterHub, goHome, hubRows, launch, launchProject, openPlan, openProjects, pageScroll,
-  filesCard, listedProjects, projectAction, projectHome, projectRow, removeDirectory, searchPopup, section, showFiles, temporaryDirectory, type Launched,
+  filesCard, listedProjects, projectAction, projectDetails, projectHome, projectRow, projectRows, removeDirectory, showArchived, searchPopup, section, showFiles, temporaryDirectory, type Launched,
 } from './app';
 
 let launched: Launched | undefined;
@@ -280,39 +280,51 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   const { window } = launched;
   await openProjects(window);
   await expectProjects(window, ['Northwind']);
-  await expect(projectRow(window)).toContainText(home.folder);
-  await expect(projectRow(window).locator('.project-chips')).toContainText('shop');
-  // Workspace folders, added and removed on the project's row: each change goes into its planning.json.
+  // A row: its name, its open plans and when it changed, and its workspace folder (none: a dash).
+  await expect(projectRow(window).locator('.cell-note')).toContainText('open plan');
+  await expect(projectRow(window).locator('.project-workspace')).toHaveCount(0);
+  // Its planning folder and repositories are in its menu's folders and repositories.
+  const details = await projectDetails(window, 'Northwind');
+  await expect(details).toContainText(home.folder);
+  await expect(details).toContainText('shop');
+  await expect(details).toContainText('None: agents find the project by its repositories');
+  // Workspace folders, added and removed there: each change goes into its planning.json.
   const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).workspaces ?? [];
   const [first, second] = [temporaryDirectory('atlas-e2e-workspace-'), temporaryDirectory('atlas-e2e-workspace-')];
   homes.push(first, second);
   const addFolder = window.getByRole('dialog', { name: 'Add a folder to Northwind' });
   const add = async (added: string) => {
-    await projectAction(window, 'Northwind', 'Add Workspace Folder…');
+    await details.getByRole('button', { name: 'Add folder…' }).click();
     await expect(addFolder.getByRole('button', { name: 'Browse…' })).toBeVisible();
     await addFolder.getByLabel('Folder').fill(added);
     await addFolder.getByRole('button', { name: 'Add' }).click();
     await expect(addFolder).toHaveCount(0);
+    await expect(details).toBeVisible();
   };
-  await expect(projectRow(window)).toContainText('No workspace folders: agents find the project by its repositories');
   await add(first);
   await add(second);
-  await expect(projectRow(window).locator('.project-folder')).toHaveText([first, second]);
+  const folders = details.locator('.project-workspaces > .project-folder');
+  await expect(folders).toHaveText([first, second]);
   expect(workspaces()).toEqual([first, second]);
+  // The row shows the first by its name, the full paths on hover, and how many more.
+  await expect(projectRow(window).locator('.project-workspace')).toHaveText(path.basename(first) + '+1');
+  await expect(projectRow(window).locator('.project-workspace')).toHaveAttribute('title', first + '\n' + second);
   // Removing one waits for the change before the next.
-  await projectRow(window).getByRole('button', { name: 'Remove ' + first }).click();
-  await expect(projectRow(window).locator('.project-folder')).toHaveText([second]);
+  await details.getByRole('button', { name: 'Remove ' + first }).click();
+  await expect(folders).toHaveText([second]);
   expect(workspaces()).toEqual([second]);
-  await projectRow(window).getByRole('button', { name: 'Remove ' + second }).click();
-  await expect(projectRow(window).locator('.project-folder')).toHaveCount(0);
+  await details.getByRole('button', { name: 'Remove ' + second }).click();
+  await expect(folders).toHaveCount(0);
   expect(workspaces()).toEqual([]);
   // A folder by a relative path is refused.
-  await projectAction(window, 'Northwind', 'Add Workspace Folder…');
+  await details.getByRole('button', { name: 'Add folder…' }).click();
   await addFolder.getByLabel('Folder').fill('relative/folder');
   await expect(addFolder).toContainText('Type the folder’s full path.');
   await expect(addFolder.getByRole('button', { name: 'Add' })).toBeDisabled();
   await window.keyboard.press('Escape');
   await expect(addFolder).toHaveCount(0);
+  await window.keyboard.press('Escape');
+  await expect(details).toHaveCount(0);
   await window.getByRole('button', { name: 'New project', exact: true }).click();
   const dialog = window.getByRole('dialog', { name: 'New project' });
   await expect(dialog.getByRole('button', { name: 'Browse…' })).toBeVisible();
@@ -333,7 +345,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   const folder = path.join(home.dataDirectory, 'planning', 'coord');
   const registry = JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8'));
   expect([registry.name, registry.workspaces, registry.repositories.map((item: { remote: string }) => item.remote)]).toEqual(['Coord', [workspace], ['git@github.com:example/coord-shop.git']]);
-  await expect(projectRow(window, 'Coord').locator('.project-chips')).toContainText(workspace);
+  await expect(projectRow(window, 'Coord').locator('.project-workspace')).toHaveText(path.basename(workspace));
   expect(existsSync(path.join(folder, '.git')) && existsSync(path.join(folder, 'AGENTS.md'))).toBe(true);
   await expectProjects(window, ['Northwind', 'Coord']);
   // Rename: the name goes into its planning.json.
@@ -342,7 +354,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await window.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
   await expectProjects(window, ['Northwind', 'Coord platform']);
   expect(JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8')).name).toBe('Coord platform');
-  // Archived projects stay on the page, after the others; there is no delete, and no hiding.
+  // Archived projects stay on the page, after the others, folded away; there is no delete, and no hiding.
   await window.getByRole('button', { name: 'Actions for Coord platform', exact: true }).click();
   await expect(window.getByRole('menuitem', { name: /^(Hide|Show)$/ })).toHaveCount(0);
   await window.keyboard.press('Escape');
@@ -350,13 +362,24 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await expect(window.getByRole('menuitem', { name: /Delete/ })).toHaveCount(0);
   await window.getByRole('menuitem', { name: 'Archive', exact: true }).click();
   await expectProjects(window, ['Coord platform']);
+  await expect(window.locator('.projects-aside-toggle')).toHaveText(/Archived\s*1/);
+  await expect(projectRows(window, 'Archived projects')).toHaveCount(0);
+  await showArchived(window);
   await expectProjects(window, ['Northwind'], 'Archived projects');
-  await expect(projectRow(window, 'Northwind', 'Archived projects')).toContainText('Archived');
   // Its plans leave the hub.
   await goHome(window);
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(0);
+  // The project filter has it under Archived, at the end; filtered to it, the hub says so, with Restore.
+  await window.getByRole('combobox', { name: 'Project' }).click();
+  await expect(window.getByRole('option')).toHaveText(['All projects', 'Coord platform', 'Archived', 'Northwind']);
+  await expect(window.getByRole('option', { name: 'Archived', exact: true })).toBeDisabled();
+  await window.keyboard.press('Escape');
+  await filterHub(window, 'Northwind');
+  await expect(window.locator('.hub-archived')).toContainText('This project is archived');
+  await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
+  await window.locator('.hub-archived').getByRole('button', { name: 'Restore', exact: true }).click();
+  await expect(window.locator('.hub-archived')).toHaveCount(0);
   await openProjects(window);
-  await projectAction(window, 'Northwind', 'Restore');
   await expectProjects(window, ['Northwind', 'Coord platform']);
   // A project's name leads to its plans; the window opens there next time, and on the hub once it
   // has gone back to the hub, a project made since the window opened included.
@@ -419,6 +442,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await openProjects(window);
   await projectAction(window, 'Coord', 'Archive');
   await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*3/, /^Projects\s*1/, /^Statistics$/]);
+  await showArchived(window);
   await projectAction(window, 'Coord', 'Restore');
   await expect(sections.locator('.section-tab').first()).toHaveText(/^Plans\s*6/);
 

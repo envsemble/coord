@@ -55,7 +55,9 @@ export function resultDestination(result: SearchResult): SearchDestination {
 export function hostEntries(results: SearchResult[], projects: Project[]): SearchEntry[] {
   const titles = new Map<string, string>();
   for (const project of projects) for (const work of [...project.summary?.active ?? [], ...project.summary?.closed ?? []]) titles.set(workKey(project.folderId, work.id), work.title);
-  return results.map((result, index) => {
+  // An archived project stays out of the way: its results are left out, should the host send any.
+  const archived = new Set(projects.filter(project => project.state !== 'active').map(project => project.folderId));
+  return results.filter(result => !archived.has(result.folderId)).map((result, index) => {
     const work = result.work && result.kind !== 'plan' ? [workNumber(result.work), titles.get(workKey(result.folderId, result.work))].filter(Boolean).join(' ') : result.work ? workNumber(result.work) : null;
     const key = result.kind === 'plan' && result.work ? workKey(result.folderId, result.work)
       : (result.kind === 'document' || result.kind === 'diagram') && result.path && !result.anchor && !result.element ? pathKey(result.folderId, result.path) : null;

@@ -85,6 +85,7 @@ body { margin: 0; }
   .hub-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title filters' 'search search'; }
 }
 .hub-note { margin: 0; }
+.hub-archived { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .hub-group { display: grid; gap: var(--space-2); }
 .hub-group-heading { margin: 0; }
 /* A table per group with the same columns. Plans under way get a second line with where they stand,
@@ -110,29 +111,38 @@ body { margin: 0; }
 .search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-snippet { font-style: italic; }
 
-/* The Projects page: each project with its folders and repositories, the hidden and archived after. */
-.projects-intro { margin: 0; max-inline-size: 48rem; }
-.projects-aside { display: grid; gap: var(--space-3); margin-block-start: var(--space-4); }
-.projects-aside .project-row { opacity: 0.8; }
-/* A project's row: its avatar (its initials on a tint of its colour) at the left, its name and facts,
-   its repositories and workspace folders as chips, its planning folder quietly, and its statistics
-   and menu at the end, centred on the row. A folder's remove button shows when the row is pointed
-   at or focused. */
-.env-grouped-rows > .project-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-4); }
-.project-row::before { content: attr(data-initials); display: grid; place-content: center; inline-size: 2.5rem; block-size: 2.5rem; border-radius: var(--radius-standard); background: color-mix(in srgb, var(--project-tone) 16%, var(--color-canvas)); color: color-mix(in srgb, var(--project-tone) 70%, var(--color-text-primary)); font-weight: 600; letter-spacing: 0.02em; }
-.project-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
-.project-fact { display: inline-flex; align-items: center; gap: 0.25rem; }
+/* The Projects page: a table of the active projects like the hub's, the archived in their own table
+   below, folded away and dimmed. Every row has the same height: the avatar (its initials on a tint of
+   its colour), its name over one muted line, what agents do, its workspace folder, its actions. */
+.projects-intro { margin: 0; }
+.project-row > td { block-size: 3.75rem; }
+.project-cell { display: flex; align-items: center; gap: var(--space-3); min-inline-size: 0; }
+.project-avatar { flex: none; display: grid; place-content: center; inline-size: 2.25rem; block-size: 2.25rem; border-radius: var(--radius-standard); background: color-mix(in srgb, var(--project-tone) 16%, var(--color-canvas)); color: color-mix(in srgb, var(--project-tone) 70%, var(--color-text-primary)); font-weight: 600; letter-spacing: 0.02em; }
+.project-name { display: grid; min-inline-size: 0; }
+.project-name .row-title { flex-wrap: nowrap; min-inline-size: 0; }
+.project-name .row-link { min-inline-size: 0; }
+.project-name .row-link-title, .project-name .cell-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); color: var(--color-text-muted); }
+.project-fact { display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; }
 .project-fact .status-icon { inline-size: 1rem; block-size: 1rem; }
+.project-workspace { display: inline-flex; align-items: center; gap: var(--space-1); max-inline-size: 100%; color: var(--color-text-muted); }
+.project-workspace > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-workspace > bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-actions { display: inline-flex; align-items: center; gap: var(--space-1); }
-.project-chips { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
-.project-chips:empty { display: none; }
-.project-chip { display: inline-flex; align-items: center; gap: var(--space-1); min-block-size: 1.75rem; padding-inline: var(--space-2); border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-secondary, var(--color-text-muted)); overflow-wrap: anywhere; }
-.project-chip > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
-.project-folder { padding-inline-end: var(--space-1); }
-.project-folder-remove { opacity: 0; transition: opacity var(--motion-duration-fast) var(--motion-ease); }
-.project-row:is(:hover, :focus-within) .project-folder-remove { opacity: 1; }
-.project-note { margin: var(--space-2) 0 0; font-size: var(--font-size-body-small); }
-.project-path { margin: var(--space-1) 0 0; color: var(--color-text-quiet, var(--color-text-muted)); font-size: var(--font-size-caption, var(--font-size-body-small)); overflow-wrap: anywhere; }
+.projects-aside { display: grid; gap: var(--space-2); margin-block-start: var(--space-4); }
+.projects-aside-toggle { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; padding: var(--space-1) 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; cursor: pointer; }
+.projects-aside-toggle:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.projects-aside-icon { inline-size: 1rem; block-size: 1rem; transition: transform var(--motion-duration-fast) var(--motion-ease); }
+.projects-aside-toggle[aria-expanded='true'] .projects-aside-icon { transform: rotate(90deg); }
+.projects-aside .project-list { opacity: 0.7; }
+/* A project's folders and repositories, in its dialog. */
+.project-details section { display: grid; gap: var(--space-1); }
+.project-details-heading { margin: 0; color: var(--color-text-muted); }
+.project-details-path { overflow-wrap: anywhere; }
+.project-folders { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.project-folder { display: flex; align-items: center; gap: var(--space-2); min-block-size: 2rem; overflow-wrap: anywhere; }
+.project-folder > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-folder > bdi, .project-folder > span { flex: 1; min-inline-size: 0; }
 .page-heading-stack { display: grid; gap: var(--space-2); }
 /* A folder's path, typed or chosen, with Browse… beside it; then what the folder holds. */
 .folder-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }

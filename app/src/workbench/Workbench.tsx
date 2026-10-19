@@ -261,10 +261,11 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger');
     }
   }, [projects, place, notify]);
-  /** A project's statistics, from the menu: of the project of the plan last open, else the first project. */
+  /** A project's statistics, from the menu: of the project of the plan last open unless it is archived, else the first active project. */
   const statisticsProject = useCallback(() => {
     const all = projects ?? [];
-    return (projectOf(lastProject.current) ?? all.find(item => item.state === 'active') ?? all[0])?.folderId ?? null;
+    const last = projectOf(lastProject.current);
+    return (last?.state === 'active' ? last : all.find(item => item.state === 'active') ?? all[0])?.folderId ?? null;
   }, [projects, projectOf]);
   const showStatistics = useCallback(() => go(statisticsPlace(statisticsProject())), [statisticsProject, go]);
   // Statistics asked for before the projects were listed show the first once they are.
@@ -385,6 +386,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       notify(`Created ${project.name} in ${project.path}`);
     },
     go,
+    notify: message => notify(message, 'warning'),
   }), [updateProject, notify, go]);
 
   // ---- What shows ---------------------------------------------------------------------------------
@@ -465,7 +467,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const fills = projectPlace?.target.kind === 'diagram' && Boolean(readSnapshot);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} restore={project => projectActions.change(project, { state: 'active' })} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   else if (isPage(placed) && !placed.project) content = !projects ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the projects" /></div> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
   else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import type { AtlasBridge } from '../shared/contract.ts';
-import { close, expectHub, expectProjects, goHome, hubRows, launch, launchProject, openPlan, openProjects, projectAction, projectRow, removeDirectory, temporaryDirectory, windowTitles, type Launched } from './app';
+import { close, expectHub, expectProjects, goHome, hubRows, launch, launchProject, openPlan, openProjects, projectAction, projectDetails, projectRow, removeDirectory, showArchived, temporaryDirectory, windowTitles, type Launched } from './app';
 
 // The dialog's access line: the device list's confirm buttons announce through live regions of their own.
 const accessStatus = (dialog: Locator) => dialog.getByRole('status').and(dialog.locator('.access-status'));
@@ -146,10 +146,11 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expectProjects(viewer, ['Northwind', 'Coord']);
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
   expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'coord', 'planning.json'), 'utf8')).workspaces ?? []).toEqual([]);
-  await viewer.getByRole('button', { name: 'Actions for Coord', exact: true }).click();
-  await expect(viewer.getByRole('menuitem', { name: 'Add Workspace Folder…' })).toHaveCount(0);
+  const details = await projectDetails(viewer, 'Coord');
+  await expect(details.getByRole('button', { name: 'Add folder…' })).toHaveCount(0);
+  await expect(details).toContainText(`Folders are chosen in Atlas on ${name}.`);
   await viewer.keyboard.press('Escape');
-  await expect(projectRow(viewer, 'Coord')).toContainText(`Folders are chosen in Atlas on ${name}.`);
+  await expect(details).toHaveCount(0);
   // (The owner's Remote Access dialog stays open, so its projects are read through its bridge.)
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord']);
   // Renaming goes to that computer (the name is in the project's planning.json)...
@@ -160,6 +161,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   // ...while archiving is this app's own.
   await projectAction(viewer, 'Northwind', 'Archive');
   await expectProjects(viewer, ['Coord platform']);
+  await showArchived(viewer);
   await expectProjects(viewer, ['Northwind'], 'Archived projects');
   await viewer.waitForTimeout(500);
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);

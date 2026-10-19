@@ -7,7 +7,7 @@
 // breadcrumb set it) and a state filter narrow it, on its heading's line with the search field, centred,
 // which opens the search. One
 // click opens a plan.
-import { useMemo, type MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
@@ -59,6 +59,8 @@ const Changed = ({ value }: { value: string | null }) => value ? <span className
 
 /** Plan, project, progress, agents, changed: the same widths in every group, so the columns line up. */
 const columnWidths = [44, 13, 15, 18, 10];
+/** The project filter's heading over the archived projects, which cannot be chosen. */
+const archivedHeading = ':archived';
 
 /**
  * A plan: the whole row opens it. A plan under way says where it stands under its title: why it is
@@ -94,8 +96,10 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   </TableRow>;
 }
 
-export function Hub({ projects, error, filter, filters, setFilters, go, query, search, left, platform }: {
+export function Hub({ projects, error, filter, filters, setFilters, go, restore, query, search, left, platform }: {
   projects: Project[] | null; error: string; filter: string | null; filters: HubFilters; setFilters(filters: HubFilters): void; go(place: Place): void;
+  /** Make an archived project active again. */
+  restore(project: Project): Promise<void>;
   /** The search's query while it is open; the field shows it. */
   query: string;
   /** Open the search with what was typed (none: what it has); `focused`: the field took focus (the window decides whether that opens it). */
@@ -109,8 +113,10 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
   const counts = useMemo(() => ({ open: items.filter(item => inState(item, 'open')).length, closed: items.filter(item => inState(item, 'closed')).length, all: items.length }), [items]);
   const filtered = projects?.find(project => project.folderId === filter);
-  // The projects to filter by: the active ones, and the one filtered to whatever its state.
-  const choices = (projects ?? []).filter(project => project.state === 'active' || project.folderId === filter);
+  // The projects to filter by: the active ones, then the archived under a quiet heading of their own.
+  const choices = (projects ?? []).filter(project => project.state === 'active');
+  const archived = (projects ?? []).filter(project => project.state !== 'active');
+  const [restoring, setRestoring] = useState(false);
   const unread = (projects ?? []).filter(project => (project.state === 'active' || project.folderId === filter) && project.summary === null);
   if (!projects) return <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the plans" /></div>;
   // The computer did not list its projects (another computer that does not answer, say).
@@ -132,13 +138,18 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
       onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
     <div className="hub-filters">
       <Select className="hub-project" density="compact" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
-        options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name }))]} />
+        options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name })),
+          ...archived.length ? [{ value: archivedHeading, label: 'Archived', disabled: true }, ...archived.map(project => ({ value: project.folderId, label: project.name }))] : []]} />
       {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
       <SegmentedControl aria-label="Plan state" size="compact" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
     </div>
   </div>}>
     {error && <Notice tone="warning">{error}</Notice>}
+    {filtered && filtered.state !== 'active' && <div className="hub-archived">
+      <Text variant="caption" tone="muted">This project is archived: its plans are left out of the other lists.</Text>
+      <Button variant="text" pending={restoring} onClick={() => { setRestoring(true); void restore(filtered).finally(() => setRestoring(false)); }}>Restore</Button>
+    </div>}
     {unread.length > 0 && <Text variant="caption" tone="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>
       <Text as="h2" variant="section-heading" className="hub-group-heading">{group.label} <span className="muted">{group.items.length}</span></Text>

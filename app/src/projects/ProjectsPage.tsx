@@ -8,11 +8,11 @@
 // folder. Workspace folders are paths on the project's own computer, so they are only chosen in Atlas
 // there.
 import { useEffect, useState, type CSSProperties } from 'react';
-import { Badge, Button, Dialog, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Text, Tooltip } from '@envsemble/envui';
-import { CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, RepositoryIcon, StatisticsIcon } from '../ui/icons';
+import { Badge, Button, Dialog, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
+import { AddIcon, ChevronRightIcon, CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, RepositoryIcon, StatisticsIcon } from '../ui/icons';
 import { StatusIcon } from '../ui/ui';
 import { statuses } from '../ui/status';
-import { absoluteDate, plural, relativeDate } from '../ui/format';
+import { plural, relativeDate } from '../ui/format';
 import { avatarTone, initials, projectFacts } from './projectLook';
 import type { Project, ProjectChangeRequest, WorkspaceScan } from '../types';
 import { fullPath } from '../../shared/contract';
@@ -30,6 +30,8 @@ export interface ProjectActions {
   adopt(project: Project): void;
   created(project: Project): void;
   go(place: Place): void;
+  /** Tell a failure in the window. */
+  notify(message: string): void;
 }
 
 /** The last part of a folder's path, for a name. */
@@ -154,12 +156,16 @@ function AddFolderDialog({ project, onClose, onAdd }: { project: Project; onClos
   </Dialog>;
 }
 
-/** A project's actions: add a workspace folder, rename, archive or restore, and move it into the home. */
-function ProjectMenu({ project, actions, rename, addFolder, busy, change }: { project: Project; actions: ProjectActions; rename(): void; addFolder: (() => void) | null; busy: boolean; change(change: ProjectChangeRequest): void }) {
+/** A project's actions: its folders and repositories, its planning folder, rename, archive or restore, and move it into the home. */
+function ProjectMenu({ project, actions, local, rename, details, busy, change }: { project: Project; actions: ProjectActions; local: boolean; rename(): void; details(): void; busy: boolean; change(change: ProjectChangeRequest): void }) {
   const state = (next: Project['state']) => change({ state: next });
+  const failed = (error: Error) => actions.notify(error.message);
   return <Menu aria-label={'Actions for ' + project.name} align="end" density="compact"
     trigger={<IconButton variant="text" icon={<MoreIcon />} aria-label={'Actions for ' + project.name} disabled={busy} />}>
-    {addFolder && <><MenuItem onClick={addFolder}>Add Workspace Folder…</MenuItem><MenuSeparator /></>}
+    <MenuItem onClick={details}>Folders and Repositories…</MenuItem>
+    {local && <MenuItem onClick={() => { api.reveal(project.folderId, 'planning.json').catch(failed); }}>Show in Folder</MenuItem>}
+    <MenuItem onClick={() => { api.copy(project.path).catch(failed); }}>Copy Path</MenuItem>
+    <MenuSeparator />
     <MenuItem onClick={rename}>Rename…</MenuItem>
     {project.outsideHome && <MenuItem onClick={() => actions.adopt(project)}>Move into the Atlas home</MenuItem>}
     <MenuSeparator />
@@ -168,74 +174,120 @@ function ProjectMenu({ project, actions, rename, addFolder, busy, change }: { pr
 }
 
 /**
- * One project: its name (leading to its plans) and where it stands, its planning folder and
- * repositories in a muted line, its workspace folders, its statistics and its menu, which wait while
- * a change of it is on its way. On another computer its folders are shown, not changed.
+ * A project's folders and repositories: its planning folder, the workspace folders it covers (an
+ * agent working in one of them, or inside one, belongs to the project), added and removed here on its
+ * own computer, and the repositories it plans for.
  */
-function ProjectRow({ project, computer, local, actions, rename, addFolder }: { project: Project; computer: string; local: boolean; actions: ProjectActions; rename(): void; addFolder(): void }) {
+function FoldersDialog({ project, computer, local, onClose, onAdd, onChange }: { project: Project; computer: string; local: boolean; onClose(): void; onAdd(): void; onChange(workspaces: string[]): Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const remove = async (folder: string) => {
+    setBusy(true); setError('');
+    try { await onChange(project.workspaces.filter(item => item !== folder)); }
+    catch (failure) { setError((failure as Error).message); }
+    finally { setBusy(false); }
+  };
+  const repositories = project.summary?.repositories ?? null;
+  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} size="wide" title={project.name + ': folders and repositories'} closeLabel="Close"
+    actions={local ? <Button variant="secondary" startIcon={<AddIcon />} disabled={busy} onClick={onAdd}>Add folder…</Button> : undefined}>
+    <div className="dialog-form project-details">
+      <section><Text as="h3" variant="caption" className="project-details-heading">Planning folder</Text><bdi className="project-details-path">{project.path}</bdi></section>
+      <section>
+        <Text as="h3" variant="caption" className="project-details-heading">Workspace folders</Text>
+        {project.workspaces.length ? <ul className="project-folders project-workspaces">{project.workspaces.map(folder => <li key={folder} className="project-folder">
+          <FolderIcon /><bdi>{folder}</bdi>
+          {local && <IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy} onClick={() => void remove(folder)} />}
+        </li>)}</ul> : <p className="muted">None: agents find the project by its repositories’ remotes.</p>}
+        {!local && <p className="muted">Folders are chosen in Atlas on {computer}.</p>}
+      </section>
+      <section>
+        <Text as="h3" variant="caption" className="project-details-heading">Repositories</Text>
+        {repositories === null ? <p className="muted">Its planning folder could not be read.</p> : repositories.length ? <ul className="project-folders">{repositories.map(repository => <li key={repository} className="project-folder"><RepositoryIcon /><span>{repository}</span></li>)}</ul> : <p className="muted">None</p>}
+      </section>
+      {error && <Notice tone="error" announce>{error}</Notice>}
+    </div>
+  </Dialog>;
+}
+
+/** A folder's own name, for a column too narrow for its path. */
+const shortFolder = (folder: string) => folderName(folder) || folder;
+
+/**
+ * One project, a row of the table: its avatar and name (leading to its plans) with its open plans and
+ * when it changed, what agents do on it now, its workspace folder, and its statistics and menu, which
+ * wait while a change of it is on its way.
+ */
+function ProjectRow({ project, local, actions, rename, details }: { project: Project; local: boolean; actions: ProjectActions; rename(): void; details(): void }) {
   const [busy, setBusy] = useState(false);
   const change = (request: ProjectChangeRequest) => { setBusy(true); void actions.change(project, request).finally(() => setBusy(false)); };
-  const repositories = project.summary?.repositories ?? null;
   const facts = projectFacts(project);
-  return <Row className="project-row" data-project={project.folderId} data-state={project.state} aria-busy={busy || undefined}
-    data-initials={initials(project.name)} style={{ '--project-tone': avatarTone(project) } as CSSProperties}
-    title={<span className="row-title">
-      <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
-      {project.state !== 'active' && <Badge tone="warning">Archived</Badge>}
-      {project.outsideHome && <Badge title="Agents do not find it until it is moved into the Atlas home">Outside the Atlas home</Badge>}
-    </span>}
-    detail={facts ? <span className="project-facts">
-      <span>{plural(facts.open, 'open plan')}</span>
-      {facts.working > 0 && <span className="project-fact" data-tone="working"><StatusIcon status={statuses.working} decorative />{facts.working} working</span>}
-      {facts.waiting > 0 && <span className="project-fact" data-tone="waiting"><StatusIcon status={statuses.waiting} decorative />{facts.waiting} {facts.waiting === 1 ? 'needs' : 'need'} you</span>}
-      {facts.updated && <span title={absoluteDate(facts.updated)}>changed {relativeDate(facts.updated)}</span>}
-    </span> : <span className="project-facts">Its planning folder could not be read</span>}
-    action={<span className="project-actions">
-      <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => actions.go(statisticsPlace(project.folderId))} aria-label={'Statistics of ' + project.name}>Statistics</Button>
-      <ProjectMenu project={project} actions={actions} rename={rename} addFolder={local ? addFolder : null} busy={busy} change={change} />
-    </span>}>
-    <ul className="project-chips" aria-label={'Repositories and workspace folders of ' + project.name}>
-      {(repositories ?? []).map(repository => <li key={'r:' + repository} className="project-chip" title="Repository"><RepositoryIcon /><span>{repository}</span></li>)}
-      {project.workspaces.map(folder => <li key={'f:' + folder} className="project-chip project-folder" title="Workspace folder"><FolderIcon /><bdi>{folder}</bdi>
-        {local && <Tooltip content="Remove this folder"><IconButton variant="text" className="project-folder-remove" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy}
-          onClick={() => change({ workspaces: project.workspaces.filter(item => item !== folder) })} /></Tooltip>}
-      </li>)}
-    </ul>
-    {!project.workspaces.length && local && <p className="project-note muted">No workspace folders: agents find the project by its repositories’ remotes.</p>}
-    {!local && <p className="project-note muted">Folders are chosen in Atlas on {computer}.</p>}
-    <p className="project-path muted"><bdi>{project.path}</bdi></p>
-  </Row>;
+  const [first, ...more] = project.workspaces;
+  return <TableRow className="project-row" data-project={project.folderId} data-state={project.state} aria-busy={busy || undefined}>
+    <TableCell>
+      <span className="project-cell">
+        <span className="project-avatar" style={{ '--project-tone': avatarTone(project) } as CSSProperties} aria-hidden="true">{initials(project.name)}</span>
+        <span className="project-name">
+          <span className="row-title">
+            <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
+            {project.outsideHome && <Badge title="Agents do not find it until it is moved into the Atlas home">Outside the Atlas home</Badge>}
+          </span>
+          <small className="cell-note">{facts ? [plural(facts.open, 'open plan'), facts.updated && 'changed ' + relativeDate(facts.updated)].filter(Boolean).join(' · ') : 'Its planning folder could not be read'}</small>
+        </span>
+      </span>
+    </TableCell>
+    <TableCell>{facts && project.state === 'active' && (facts.waiting > 0 || facts.working > 0) ? <span className="project-status">
+      {facts.waiting > 0 && <span className="project-fact"><StatusIcon status={statuses.waiting} decorative />{facts.waiting} {facts.waiting === 1 ? 'needs' : 'need'} you</span>}
+      {facts.working > 0 && <span className="project-fact"><StatusIcon status={statuses.working} decorative />{facts.working} working</span>}
+    </span> : null}</TableCell>
+    <TableCell>{first ? <span className="project-workspace" title={project.workspaces.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="muted">+{more.length}</span>}</span> : <span className="muted">—</span>}</TableCell>
+    <TableCell numeric nowrap>
+      <span className="project-actions">
+        <Tooltip content="Statistics"><IconButton variant="text" icon={<StatisticsIcon />} aria-label={'Statistics of ' + project.name} onClick={() => actions.go(statisticsPlace(project.folderId))} /></Tooltip>
+        <ProjectMenu project={project} actions={actions} local={local} rename={rename} details={details} busy={busy} change={change} />
+      </span>
+    </TableCell>
+  </TableRow>;
 }
+
+/** Project, status, workspace folder, actions: the same widths in both tables, so the columns line up. */
+const columnWidths = [46, 22, 22, 10];
 
 export function ProjectsPage({ projects, error, computer, local, actions }: { projects: Project[] | null; error: string; computer: string; local: boolean; actions: ProjectActions }) {
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<Project | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  const [detailed, setDetailed] = useState<string | null>(null);
+  const [archivedShown, setArchivedShown] = useState(false);
   const active = (projects ?? []).filter(project => project.state === 'active');
   const aside = (projects ?? []).filter(project => project.state !== 'active');
-  // The project a folder is added to, as last listed: its folders may have changed meanwhile.
+  // The project a folder is added to, or whose folders show, as last listed: its folders may have changed meanwhile.
   const target = projects?.find(project => project.folderId === adding);
-  const list = (items: Project[], label: string) => <GroupedRows className="project-list" aria-label={label}>
-    {items.map(project => <ProjectRow key={project.folderId} project={project} computer={computer} local={local} actions={actions} rename={() => setRenaming(project)} addFolder={() => setAdding(project.folderId)} />)}
-  </GroupedRows>;
+  const details = projects?.find(project => project.folderId === detailed);
+  const list = (items: Project[], label: string) => <Table className="project-list" aria-label={label} columnWidths={columnWidths}>
+    <TableHead><TableRow><TableHeaderCell>Project</TableHeaderCell><TableHeaderCell>Agents</TableHeaderCell><TableHeaderCell>Workspace folder</TableHeaderCell><TableHeaderCell numeric aria-label="Actions" /></TableRow></TableHead>
+    <TableBody>{items.map(project => <ProjectRow key={project.folderId} project={project} local={local} actions={actions} rename={() => setRenaming(project)} details={() => setDetailed(project.folderId)} />)}</TableBody>
+  </Table>;
   return <Page className="projects-page" heading={<div className="page-heading-row">
     <Text as="h1" variant="page-heading">Projects</Text>
     <span className="spacer" />
     <Button variant="secondary" startIcon={<NewProjectIcon />} onClick={() => setCreating(true)}>New project</Button>
   </div>}>
-    <Text variant="body" tone="muted" className="projects-intro">The planning folders in the Atlas home on {computer}. Each covers workspace folders: agents working in one of them, or in a folder inside it, plan in that project.</Text>
+    <Text variant="caption" tone="muted" className="projects-intro">The planning folders in the Atlas home on {computer}.</Text>
     {error && <Notice tone="warning">{error}</Notice>}
     {projects === null ? <Spinner label="Loading projects" />
       : !projects.length ? <Text variant="body" tone="muted">No projects yet.</Text>
       : <>
         {active.length > 0 && list(active, 'Projects')}
-        {aside.length > 0 && <section className="projects-aside" aria-label="Archived projects">
-          <Text as="h2" variant="section-heading">Archived</Text>
-          {list(aside, 'Archived projects')}
+        {aside.length > 0 && <section className="projects-aside">
+          <button type="button" className="projects-aside-toggle" aria-expanded={archivedShown} onClick={() => setArchivedShown(!archivedShown)}>
+            <ChevronRightIcon className="projects-aside-icon" /><Text as="span" variant="section-heading">Archived</Text> <span className="muted">{aside.length}</span>
+          </button>
+          {archivedShown && list(aside, 'Archived projects')}
         </section>}
       </>}
     {creating && <NewProjectDialog computer={computer} local={local} onClose={() => setCreating(false)} onCreated={actions.created} />}
     {renaming && <RenameProjectDialog project={renaming} onClose={() => setRenaming(null)} onRename={name => actions.update(renaming, { name })} />}
+    {details && !target && <FoldersDialog project={details} computer={computer} local={local} onClose={() => setDetailed(null)} onAdd={() => setAdding(details.folderId)} onChange={workspaces => actions.update(details, { workspaces })} />}
     {target && <AddFolderDialog project={target} onClose={() => setAdding(null)} onAdd={folder => actions.update(target, { workspaces: [...target.workspaces.filter(item => item !== folder), folder] })} />}
   </Page>;
 }
