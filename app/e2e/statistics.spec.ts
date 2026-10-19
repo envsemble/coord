@@ -38,6 +38,11 @@ test('each project has its statistics, from its row on the Projects page or the 
   await filterHub(window, 'Coord');
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
   await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Coord');
+  // The hub of every project leads to all plans', each plan with its project.
+  await goHome(window);
+  await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
+  await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(/Plans.*Statistics/);
+  await expect(window.locator('.time-plan', { hasText: 'Saved payment methods' }).first()).toContainText('Northwind');
   await goHome(window);
   await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');

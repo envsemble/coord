@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Breadcrumbs, Button, EmptyState, Kbd, Notice, Popover, Spinner, Text, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
 import { ThemeMenu } from '../menu/ThemeMenu';
-import { ErrorIcon, FolderOpenIcon, SearchIcon, StatisticsIcon, WarningIcon } from '../ui/icons';
+import { ErrorIcon, FolderOpenIcon, SearchIcon, WarningIcon } from '../ui/icons';
 import type { ImportPreview, MenuCommand } from '../../shared/contract';
 import type { FolderChange, Issue, Project, ProjectChangeRequest, Snapshot, Target, UiState, WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
@@ -24,7 +24,7 @@ import { WorkStatisticsPage } from '../work/WorkStatisticsPage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, ProjectsPage, type ProjectActions } from '../projects/ProjectsPage';
 import { hubItems, inState } from '../hub/hubPlans';
-import { Statistics } from '../statistics/StatisticsPage';
+import { AllStatistics, Statistics } from '../statistics/StatisticsPage';
 import { Gone, Page } from '../ui/Pages';
 import { modifierKey, SectionBar, TitleBarStart, type Section, type WorkbenchMenus } from '../menu/AppMenu';
 import { revealIds } from './explorerModel';
@@ -154,9 +154,6 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const reading = isPage(place) ? (place.page === 'statistics' ? place.project : null) : place.project;
   const projectPlace = isPage(place) ? null : place;
   const readFolder = reading ? folders[reading] : undefined;
-  // The project of the plan last open, for the Statistics page.
-  const lastProject = useRef<string | null>(projectPlace?.project ?? null);
-  if (projectPlace) lastProject.current = projectPlace.project;
   // The hub filtered to a project follows its folder, so its plans' changes reach it. The hub of
   // every project follows none (each folder followed is a session of its own on the host): it lists
   // the projects again each time it shows and as the window comes forward.
@@ -263,18 +260,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger');
     }
   }, [projects, place, notify]);
-  /** A project's statistics, from the menu: of the project of the plan last open unless it is archived, else the first active project. */
-  const statisticsProject = useCallback(() => {
-    const all = projects ?? [];
-    const last = projectOf(lastProject.current);
-    return (last?.state === 'active' ? last : all.find(item => item.state === 'active') ?? all[0])?.folderId ?? null;
-  }, [projects, projectOf]);
-  const showStatistics = useCallback(() => go(statisticsPlace(statisticsProject())), [statisticsProject, go]);
-  // Statistics asked for before the projects were listed show the first once they are.
-  const waitingStatistics = isPage(place) && place.page === 'statistics' && !place.project;
-  useEffect(() => {
-    if (waitingStatistics && projects?.length) replace(statisticsPlace(statisticsProject()));
-  }, [waitingStatistics, projects, statisticsProject, replace]);
+  /** Statistics, from the menu: all plans'. */
+  const showStatistics = useCallback(() => go(statisticsPlace(null)), [go]);
   const filesState = useMemo<FilesState>(() => ({
     expanded: projectPlace ? expanded[projectPlace.project] ?? [] : [], selected: node?.id ?? null,
     setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.project]: next })); },
@@ -483,7 +470,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   let content;
   if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} restore={project => projectActions.change(project, { state: 'active' })} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
-  else if (isPage(placed) && !placed.project) content = !projects ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the projects" /></div> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No projects yet" description="Statistics are kept for each project." />;
+  // All plans' statistics: every active project together.
+  else if (isPage(placed) && !placed.project) content = <AllStatistics revision={projects} go={go} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} />;
   else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
     statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Projects', onClick: () => go(projectsPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
@@ -584,7 +572,7 @@ function ProjectContent({ place, folder, project, scope, statisticsTrail, files 
   if (!scope || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
   const snapshot = folder.snapshot;
   let content;
-  if (isPage(place)) content = <Statistics snapshot={snapshot} trail={statisticsTrail} />;
+  if (isPage(place)) content = <Statistics trail={statisticsTrail} />;
   else {
     const { target } = place as ProjectPlace;
     if (target.kind === 'work' || target.kind === 'diagram') {

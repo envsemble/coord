@@ -128,6 +128,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'work.sessions': object({ folderId, work: workId }),
   'work.timeline': object({ folderId, work: workId }),
   'project.statistics': object({ folderId, from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
+  'projects.statistics': object({ folderIds: array(folderId, 500), from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
   'projects.scan': object({ folder: absolutePath }),
   'projects.adopt': object({ folderId }),
   'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(array(absolutePath, 20)) }),

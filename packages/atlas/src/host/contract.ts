@@ -218,7 +218,7 @@ export interface ProjectStatisticsBucket {
   start: string;
   agents: { model: string | null; effort: string | null; agentMs: number }[];
   activeMs: number;
-  completed: { id: string; title: string }[];
+  completed: { id: string; title: string; folderId: string | null }[];
 }
 /**
  * A plan worked on in the period, most agent time first: what its status comes from (as the hub
@@ -226,7 +226,8 @@ export interface ProjectStatisticsBucket {
  * all, as work.timeline counts them), and how long it waited for the person in the period.
  */
 export interface ProjectStatisticsPlan {
-  id: string; title: string;
+  /** Its project's folder ID and name. */
+  id: string; title: string; folderId: string | null; project: string | null;
   state: ProjectWorkState; outcome: ProjectWork['outcome']; steps: ProjectWork['steps']; completed: string | null;
   agentMs: number; tokens: number | null;
   plannedMs: number | null; implementingMs: number | null; waitedMs: number;
@@ -304,6 +305,8 @@ export interface Methods {
   'work.timeline': { params: { folderId: string; work: string }; result: WorkTimeline };
   /** A project's statistics for a period (ISO times; null: from its first report, or to now), by day or week. */
   'project.statistics': { params: { folderId: string; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
+  /** Several projects' statistics together, as one (all plans: the app's active projects), for a period as project.statistics has it. */
+  'projects.statistics': { params: { folderIds: string[]; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
   /** The Git checkouts in a folder on this computer, for a new project's preview. */
   'projects.scan': { params: { folder: string }; result: WorkspaceScan };
   /**
@@ -348,6 +351,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'work.sessions': 'computer',
   'work.timeline': 'computer',
   'project.statistics': 'computer',
+  'projects.statistics': 'computer',
   // A folder on this computer, by path: the app's own, like plan.importRead.
   'projects.scan': 'owner',
   'projects.update': 'computer',

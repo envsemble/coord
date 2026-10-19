@@ -1,18 +1,20 @@
-// A project's statistics over a period, to look back on the work: agent time and the time at least
+// A project's statistics over a period (or several projects' together, for all plans), to look back on the work: agent time and the time at least
 // one agent worked, by day or week and by model and reasoning effort; the plans completed and how
 // long they took from acceptance; the time work waited for the person; and the plans worked on.
 // Time goes where it was worked, by the reports' working intervals; a report without intervals
 // counts at its report time. Days and weeks begin at midnight in this computer's local time (a week
-// on Monday). One pass over the project's reports, kept until they change.
+// on Monday). One pass over the projects' reports, kept until they change.
 import type { HomeDatabase } from '../home/database.ts';
 import { projectSummary, type ProjectWork } from '../projects/projectSummary.ts';
 import { workDates, workTimeline } from './sessions.ts';
 import { mergeSpans, sessionGap, storedReports, type StatisticsReport } from './statistics.ts';
 
 export interface PeriodFigures { agentMs: number; activeMs: number; plansCompleted: number; medianImplementingMs: number | null; waitedMs: number }
-export interface StatisticsBucket { start: string; agents: { model: string | null; effort: string | null; agentMs: number }[]; activeMs: number; completed: { id: string; title: string }[] }
+/** A project the statistics cover: its row, its planning folder, and its folder's ID and name for clients (null when not given). */
+export interface StatisticsSource { projectId: number; root: string; folderId?: string | null; name?: string | null }
+export interface StatisticsBucket { start: string; agents: { model: string | null; effort: string | null; agentMs: number }[]; activeMs: number; completed: { id: string; title: string; folderId: string | null }[] }
 export interface StatisticsPlan {
-  id: string; title: string; state: ProjectWork['state']; outcome: ProjectWork['outcome']; steps: ProjectWork['steps']; completed: string | null;
+  id: string; title: string; folderId: string | null; project: string | null; state: ProjectWork['state']; outcome: ProjectWork['outcome']; steps: ProjectWork['steps']; completed: string | null;
   agentMs: number; tokens: number | null; plannedMs: number | null; implementingMs: number | null; waitedMs: number;
 }
 export interface ProjectStatisticsEntry {
@@ -102,34 +104,43 @@ const median = (values: number[]) => {
 const cache = new Map<string, Promise<ProjectStatisticsEntry>>();
 
 /**
- * A project's statistics for [from, to) (from null: since its first report or plan; to null: now),
- * by day or week, with the period before it as long; kept until the reports or waits change, or
- * for a minute when the period ends now.
+ * The statistics of a project, or of several together (all plans), for [from, to) (from null: since
+ * the first report or plan; to null: now), by day or week, with the period before it as long; kept
+ * until the reports or waits change, or for a minute when the period ends now.
  */
-export function projectStatistics(database: HomeDatabase, projectId: number, root: string, period: { from: string | null; to: string | null; unit: 'day' | 'week' }, now = Date.now()): Promise<ProjectStatisticsEntry> {
-  const waits = database.db.prepare('SELECT count(*) AS n, ifnull(max(id), 0) AS last, ifnull(max(ended_at), \'\') AS ended FROM session_wait WHERE project_id = ?').get(projectId) as { n: number; last: number; ended: string };
-  const key = [projectId, period.from, period.to ?? Math.floor(now / 60_000), period.unit, database.reportsMark(), waits.n, waits.last, waits.ended].join('|');
+export function projectStatistics(database: HomeDatabase, sources: StatisticsSource[], period: { from: string | null; to: string | null; unit: 'day' | 'week' }, now = Date.now()): Promise<ProjectStatisticsEntry> {
+  const ids = sources.map(source => source.projectId);
+  const waits = database.db.prepare(`SELECT count(*) AS n, ifnull(max(id), 0) AS last, ifnull(max(ended_at), '') AS ended FROM session_wait WHERE project_id IN (${ids.map(() => '?').join(', ') || 'NULL'})`).get(...ids) as { n: number; last: number; ended: string };
+  const key = [ids.join(','), period.from, period.to ?? Math.floor(now / 60_000), period.unit, database.reportsMark(), waits.n, waits.last, waits.ended].join('|');
   const cached = cache.get(key);
   if (cached) return cached;
   if (cache.size >= 20) cache.delete(cache.keys().next().value!);
-  const value = compute(database, projectId, root, period, now);
+  const value = compute(database, sources, period, now);
   cache.set(key, value);
   value.catch(() => cache.delete(key));
   return value;
 }
 
-async function compute(database: HomeDatabase, projectId: number, root: string, period: { from: string | null; to: string | null; unit: 'day' | 'week' }, now: number): Promise<ProjectStatisticsEntry> {
-  const reports = storedReports(database, projectId);
-  const summary = await projectSummary(root, { reports });
-  const work = [...summary.active, ...summary.closed];
+/** A work item of one of the projects, by a key unique among them all. */
+interface Item extends ProjectWork { key: string; source: StatisticsSource }
+
+async function compute(database: HomeDatabase, sources: StatisticsSource[], period: { from: string | null; to: string | null; unit: 'day' | 'week' }, now: number): Promise<ProjectStatisticsEntry> {
+  const reports = new Map<string, StatisticsReport[]>();
+  const work: Item[] = [];
+  for (const source of sources) {
+    const own = storedReports(database, source.projectId);
+    const summary = await projectSummary(source.root, { reports: own });
+    for (const [workId, list] of own) reports.set(source.projectId + '\0' + workId, list);
+    for (const item of [...summary.active, ...summary.closed]) work.push({ ...item, key: source.projectId + '\0' + item.id, source });
+  }
   const { pieces, spends } = piecesOf(reports);
   const to = period.to ? Date.parse(period.to) : now;
   const firstPlan = Math.min(...work.map(item => localDay(item.completed) ?? Infinity));
   const first = Math.min(...pieces.map(piece => piece.start), ...spends.map(spend => spend.at), firstPlan);
   const from = period.from ? Date.parse(period.from) : Number.isFinite(first) ? first : to;
   // Each worked-on plan's timeline: how long it was planned and implemented, and its waits.
-  const dates = new Map(await Promise.all(work.map(async item => [item.id, await workDates(root, item.id)] as const)));
-  const timelines = new Map(work.map(item => [item.id, workTimeline(database, projectId, item.id, dates.get(item.id)!, now, reports.get(item.id) ?? [])]));
+  const dates = new Map(await Promise.all(work.map(async item => [item.key, await workDates(item.source.root, item.id)] as const)));
+  const timelines = new Map(work.map(item => [item.key, workTimeline(database, item.source.projectId, item.id, dates.get(item.key)!, now, reports.get(item.key) ?? [])]));
   const waitSpans = (workId?: string) => mergeSpans([...timelines].filter(([id]) => workId === undefined || id === workId).flatMap(([, timeline]) => timeline.lanes.flatMap(lane => lane.waiting.map(([start, end]): [number, number] => [Date.parse(start), Date.parse(end)]))));
   const clipped = (spans: [number, number][], start: number, end: number) => spans.reduce((total, [a, b]) => total + Math.max(0, Math.min(b, end) - Math.max(a, start)), 0);
   const allWaits = waitSpans();
@@ -142,7 +153,7 @@ async function compute(database: HomeDatabase, projectId: number, root: string, 
       agentMs: Math.round(inside.reduce((total, piece) => total + within(piece, start, end), 0)),
       activeMs: Math.round(union.reduce((total, [a, b]) => total + b - a, 0) + inside.filter(piece => !piece.merge).reduce((total, piece) => total + piece.agentMs, 0)),
       plansCompleted: completed.length,
-      medianImplementingMs: median(completed.flatMap(item => { const accepted = localDay(dates.get(item.id)?.accepted ?? null), done = localDay(item.completed); return accepted !== null && done !== null ? [done - accepted] : []; })),
+      medianImplementingMs: median(completed.flatMap(item => { const accepted = localDay(dates.get(item.key)?.accepted ?? null), done = localDay(item.completed); return accepted !== null && done !== null ? [done - accepted] : []; })),
       waitedMs: clipped(allWaits, start, end),
     };
   };
@@ -164,20 +175,20 @@ async function compute(database: HomeDatabase, projectId: number, root: string, 
       start: new Date(start).toISOString(),
       agents: [...byLevel.values()].map(entry => ({ ...entry, agentMs: Math.round(entry.agentMs) })).filter(entry => entry.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs),
       activeMs: figure.activeMs,
-      completed: completedIn(begin, end).map(item => ({ id: item.id, title: item.title })),
+      completed: completedIn(begin, end).map(item => ({ id: item.id, title: item.title, folderId: item.source.folderId ?? null })),
     });
   }
   // The plans worked on in the period, most agent time first.
   const plans: StatisticsPlan[] = work.map(item => {
-    const agentMs = Math.round(pieces.filter(piece => piece.workId === item.id).reduce((total, piece) => total + within(piece, from, to), 0));
-    const spent = spends.filter(spend => spend.workId === item.id && spend.at >= from && spend.at < to);
-    const timeline = timelines.get(item.id)!;
+    const agentMs = Math.round(pieces.filter(piece => piece.workId === item.key).reduce((total, piece) => total + within(piece, from, to), 0));
+    const spent = spends.filter(spend => spend.workId === item.key && spend.at >= from && spend.at < to);
+    const timeline = timelines.get(item.key)!;
     return {
-      id: item.id, title: item.title, state: item.state, outcome: item.outcome, steps: item.steps, completed: item.completed,
+      id: item.id, title: item.title, folderId: item.source.folderId ?? null, project: item.source.name ?? null, state: item.state, outcome: item.outcome, steps: item.steps, completed: item.completed,
       agentMs, tokens: spent.length ? Math.round(spent.reduce((total, spend) => total + spend.tokens, 0)) : null,
-      plannedMs: timeline.plannedMs, implementingMs: timeline.implementingMs, waitedMs: clipped(waitSpans(item.id), from, to),
+      plannedMs: timeline.plannedMs, implementingMs: timeline.implementingMs, waitedMs: clipped(waitSpans(item.key), from, to),
     };
-  }).filter(item => item.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs || a.id.localeCompare(b.id));
+  }).filter(item => item.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs || (a.project ?? '').localeCompare(b.project ?? '') || a.id.localeCompare(b.id));
   // Agent time and tokens by model and effort in the period.
   const levels = new Map<string, { model: string | null; effort: string | null; agentMs: number; tokens: number | null }>();
   const level = (model: string | null, effort: string | null) => {

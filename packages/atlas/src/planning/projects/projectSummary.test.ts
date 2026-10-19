@@ -220,7 +220,7 @@ test('a project\'s statistics put time on the days it was worked, by model and e
       intervals: [{ agent: null, start: local(13, 22).toISOString(), end: local(14, 2).toISOString() }],
       efforts: [{ agent: null, model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }],
     } }));
-    const statistics = await projectStatistics(database, shop.id, root, { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
+    const statistics = await projectStatistics(database, [{ projectId: shop.id, root }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
     const hours = (ms: number) => ms / 3_600_000;
     assert.deepEqual(statistics.buckets.map(bucket => [bucket.start, hours(bucket.agents.reduce((total, entry) => total + entry.agentMs, 0)), bucket.completed.map(plan => plan.id)]), [
       [local(12, 0).toISOString(), 0, []], [local(13, 0).toISOString(), 2, []], [local(14, 0).toISOString(), 2, ['work-0001']],
@@ -229,6 +229,17 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     assert.deepEqual([statistics.previous?.agentMs, statistics.previous?.plansCompleted], [0, 0], 'the three days before had nothing');
     assert.deepEqual(statistics.plans.map(item => [item.id, hours(item.agentMs), item.tokens, item.state]), [['work-0001', 4, 100, 'closed']]);
     assert.deepEqual(statistics.models, [{ model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }]);
+    // All plans: another project's work-0001 is its own plan, and the figures add up.
+    const appRoot = path.join(directory, 'app');
+    write(path.join(appRoot, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [item('active/0001')] }));
+    write(path.join(appRoot, 'active/0001/plan.md'), plan('in_progress', 'title: Checkout app\n'));
+    const app = database.addProject(appRoot, 'App');
+    insertReport(database, app.id, 'work-0001', createReport({ model: 'claude-opus', session: 's2', at: local(13, 12), measured: {
+      since: local(13, 11).toISOString(), agentMs: 3_600_000, models: [], intervals: [{ agent: null, start: local(13, 11).toISOString(), end: local(13, 12).toISOString() }],
+    } }));
+    const all = await projectStatistics(database, [{ projectId: shop.id, root, folderId: 'f1', name: 'Shop' }, { projectId: app.id, root: appRoot, folderId: 'f2', name: 'App' }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
+    assert.deepEqual(all.plans.map(entry => [entry.folderId, entry.project, entry.id, hours(entry.agentMs)]), [['f1', 'Shop', 'work-0001', 4], ['f2', 'App', 'work-0001', 1]]);
+    assert.deepEqual([hours(all.current.agentMs), all.current.plansCompleted], [5, 1]);
   } finally { database.close(); }
 });
 

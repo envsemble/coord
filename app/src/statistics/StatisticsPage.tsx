@@ -2,17 +2,18 @@
 // 3 months or all time by week): the period's headline figures against the period before, its work
 // over time (agent time stacked by model and effort, the time at least one agent worked as a line,
 // the plans completed marked), where the time went (the plans worked on, most time first, each
-// opening its own statistics) and its models and effort. From the host's project.statistics.
+// opening its own statistics) and its models and effort. From the host's project.statistics; all
+// plans' statistics (every active project together) are the same page, from its projects.statistics.
 import { useEffect, useState, type ReactNode } from 'react';
-import { DisclosureNote, EmptyState, IconButton, Notice, Popover, SegmentedControl, Spinner, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
+import { DisclosureNote, EmptyState, IconButton, Link, Notice, Popover, SegmentedControl, Spinner, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { InfoIcon, StatisticsIcon } from '../ui/icons';
-import type { ProjectStatistics, ProjectWork, Snapshot } from '../types';
+import type { ProjectStatistics, ProjectWork } from '../types';
 import { api } from '../api';
-import { workStatisticsTarget } from '../navigation/targets';
+import { workStatisticsTarget, type Place } from '../navigation/targets';
 import { absoluteDate, compactNumber, duration, plural, shortDate } from '../ui/format';
 import { hubStatus } from '../hub/hubPlans';
 import { StatusIcon } from '../ui/ui';
-import { TargetLink, useWorkbench } from '../workbench/workbenchContext';
+import { useWorkbench } from '../workbench/workbenchContext';
 import { Page } from '../ui/Pages';
 import { roughDuration } from '../work/sessions';
 import { change, modelKey, periods, periodStart, workBars, type PeriodId } from './projectStatistics';
@@ -61,7 +62,7 @@ const bucketName = (start: string, unit: 'day' | 'week') => (unit === 'week' ? '
  * one agent worked as a line over them, and the plans completed marked above. A bar says on hover what
  * it holds; the same figures are in a table, folded.
  */
-function WorkOverTime({ statistics }: { statistics: ProjectStatistics }) {
+function WorkOverTime({ statistics, scope }: { statistics: ProjectStatistics; scope: string }) {
   const { bars, models, top } = workBars(statistics);
   const colour = modelPalette(models);
   const [shown, setShown] = useState<number | null>(null);
@@ -101,12 +102,15 @@ function WorkOverTime({ statistics }: { statistics: ProjectStatistics }) {
           </TableRow>)}</TableBody>
         </Table>
       </DisclosureNote>
-    </> : <p className="muted">No agent worked on this project in this period.</p>}
+    </> : <p className="muted">No agent worked on {scope} in this period.</p>}
   </section>;
 }
 
-/** The plans worked on in the period, most agent time first: each with its status, its share, its time and tokens, and how long it took. */
-function WhereTheTimeWent({ statistics }: { statistics: ProjectStatistics }) {
+/**
+ * The plans worked on in the period, most agent time first: each with its status, its share, its time
+ * and tokens, and how long it took; with its project's name when the page covers all plans.
+ */
+function WhereTheTimeWent({ statistics, open, all }: { statistics: ProjectStatistics; open(plan: ProjectStatistics['plans'][number]): void; all: boolean }) {
   const total = statistics.plans.reduce((sum, plan) => sum + plan.agentMs, 0);
   const most = Math.max(1, ...statistics.plans.map(plan => plan.agentMs));
   return <section className="project-statistics-section" aria-label="Where the time went">
@@ -117,7 +121,10 @@ function WhereTheTimeWent({ statistics }: { statistics: ProjectStatistics }) {
       return <li key={plan.id} className="time-plan">
         <StatusIcon status={status} />
         <div className="time-plan-text">
-          <TargetLink target={workStatisticsTarget(plan.id)} className="time-plan-title">{plan.title}</TargetLink>
+          <span className="time-plan-name">
+            <Link href="#" underline={false} className="time-plan-title" onClick={event => { event.preventDefault(); open(plan); }}>{plan.title}</Link>
+            {all && plan.project && <small className="muted">{plan.project}</small>}
+          </span>
           <span className="time-plan-bar" aria-hidden="true"><span style={{ inlineSize: plan.agentMs / most * 100 + '%' }} /></span>
           {took && <small className="muted">{took}</small>}
         </div>
@@ -145,30 +152,29 @@ function ModelsAndEffort({ statistics }: { statistics: ProjectStatistics }) {
   </section>;
 }
 
-/**
- * A project's statistics, a page of their own from its row on the Projects page (or the hub filtered
- * to it), under its breadcrumb (`trail`: Projects, the project).
- */
-export function Statistics({ trail }: { snapshot: Snapshot; trail: ReactNode }) {
-  const { project, revision } = useWorkbench();
+/** The page's breadcrumb, heading and period, and the figures for the period the host gives (`read`). */
+function StatisticsView({ read, revision, trail, scope, open, all }: {
+  read(from: string | null, unit: 'day' | 'week'): Promise<ProjectStatistics>; revision: unknown; trail: ReactNode; scope: string;
+  open(plan: ProjectStatistics['plans'][number]): void; all: boolean;
+}) {
   const [periodId, setPeriodId] = useState<PeriodId>('month');
   const period = periods.find(item => item.id === periodId)!;
-  const [read, setRead] = useState<{ key: string; statistics: ProjectStatistics | null; error: string } | null>(null);
-  const key = project + ':' + periodId;
+  const [result, setResult] = useState<{ key: string; statistics: ProjectStatistics | null; error: string } | null>(null);
+  const key = scope + ':' + periodId;
   useEffect(() => {
     let current = true;
-    api.projectStatistics(project, periodStart(periodId), null, period.unit)
-      .then(statistics => { if (current) setRead({ key, statistics, error: '' }); }, error => { if (current) setRead({ key, statistics: null, error: (error as Error).message }); });
+    read(periodStart(periodId), period.unit)
+      .then(statistics => { if (current) setResult({ key, statistics, error: '' }); }, error => { if (current) setResult({ key, statistics: null, error: (error as Error).message }); });
     return () => { current = false; };
   }, [key, revision]);
-  const shown = read?.key === key ? read : null;
+  const shown = result?.key === key ? result : null;
   const statistics = shown?.statistics ?? null;
   return <Page title="Statistics" className="statistics-page" heading={<div className="page-heading-stack">{trail}<div className="page-heading-row">
     <Text as="h1" variant="page-heading">Statistics</Text>
     <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
         <p>The figures come from the reports agents record when a session stops, read from their session logs where Atlas can (Claude Code and Codex). Agent time adds up every agent's working time, each session and each subagent in full, also while they work at once; the line shows the time at least one of them was working.</p>
-        <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time the project's sessions waited for you, waits at once counted once.</p>
+        <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time {all ? 'the sessions' : 'the project’s sessions'} waited for you, waits at once counted once.{all ? ' All plans are every active project’s together.' : ''}</p>
       </div>
     </Popover>
     <span className="spacer" />
@@ -177,12 +183,32 @@ export function Statistics({ trail }: { snapshot: Snapshot; trail: ReactNode }) 
     {shown?.error && <Notice tone="warning">{shown.error}</Notice>}
     {!shown ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the statistics" /></div>
       : !statistics ? null
-      : statistics.current.agentMs === 0 && !statistics.plans.length ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on this project since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on this project yet.'} />
+      : statistics.current.agentMs === 0 && !statistics.plans.length ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'} />
       : <>
         <Headline statistics={statistics} period={period} />
-        <WorkOverTime statistics={statistics} />
-        <WhereTheTimeWent statistics={statistics} />
+        <WorkOverTime statistics={statistics} scope={scope} />
+        <WhereTheTimeWent statistics={statistics} open={open} all={all} />
         <ModelsAndEffort statistics={statistics} />
       </>}
   </Page>;
+}
+
+/**
+ * A project's statistics, a page of their own from its row on the Projects page (or the hub filtered
+ * to it), under its breadcrumb (`trail`: Projects, the project).
+ */
+export function Statistics({ trail }: { trail: ReactNode }) {
+  const { project, revision, open } = useWorkbench();
+  return <StatisticsView read={(from, unit) => api.projectStatistics(project, from, null, unit)} revision={revision} trail={trail} scope="this project" all={false}
+    open={plan => open(workStatisticsTarget(plan.id))} />;
+}
+
+/**
+ * All plans' statistics: every active project together, on the same page as a project's, from the
+ * hub's Statistics; each plan opens its own statistics in its project. `revision` changes with the
+ * project list, to read them again.
+ */
+export function AllStatistics({ trail, revision, go }: { trail: ReactNode; revision: unknown; go(place: Place): void }) {
+  return <StatisticsView read={(from, unit) => api.allStatistics(from, null, unit)} revision={revision} trail={trail} scope="any project" all
+    open={plan => { if (plan.folderId) go({ project: plan.folderId, target: workStatisticsTarget(plan.id) }); }} />;
 }

@@ -21,7 +21,7 @@ export const invokeChannels = [
   'window:info',
   'projects:list', 'projects:create', 'search:query', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
-  'project:statistics', 'ui:load', 'ui:save',
+  'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openShown', 'shell:copy',
   'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
@@ -211,6 +211,8 @@ export interface AtlasBridge {
   diagramIndex(project: string): Promise<Result<DiagramIndexEntry[]>>;
   /** A project's statistics for a period (ISO times; `from` null: since its first report, `to` null: until now), by day or week. */
   projectStatistics(project: string, from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
+  /** The statistics of every active project together (all plans), for a period as projectStatistics has it. */
+  allStatistics(from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
   loadUi(): Promise<Result<UiState>>;
   saveUi(state: UiState): Promise<Result<void>>;
   /** Resolve what a planning file references: PRs, commits, files in the project's repositories (each in order; null leads nowhere). */

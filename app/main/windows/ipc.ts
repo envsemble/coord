@@ -266,6 +266,8 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     // Views count in the document use of the computer the project is on.
     // A project's statistics for a period, from the project's computer.
     'project:statistics': { args: [folderId, nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, project: string, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors((await window.readable(project)).request('project.statistics', { folderId: project, from, to, unit }, { timeout: 30000 })) },
+    // All plans: the projects this window's computer has active, as the app keeps them.
+    'projects:statistics': { args: [nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors(window.client().request('projects.statistics', { folderIds: [...await window.activeProjects()], from, to, unit }, { timeout: 30000 })) },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
     'ui:save': { args: [uiState], handle: (window, state: UiState) => { window.shown = state.place; return queueSave(manager, window, state); } },
     'shell:reveal': { args: [folderId, relativePath], handle: (window, project: string, file: string) => revealInside(window, project, file) },

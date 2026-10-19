@@ -41,6 +41,7 @@ export const api: Unwrapped = {
   references: (project, work, path) => unwrap(bridge().references(project, work, path)),
   diagramIndex: project => unwrap(bridge().diagramIndex(project)),
   projectStatistics: (project, from, to, unit) => unwrap(bridge().projectStatistics(project, from, to, unit)),
+  allStatistics: (from, to, unit) => unwrap(bridge().allStatistics(from, to, unit)),
   loadUi: () => unwrap(bridge().loadUi()),
   saveUi: state => unwrap(bridge().saveUi(state)),
   resolveReferences: (project, work, items) => unwrap(bridge().resolveReferences(project, work, items)),

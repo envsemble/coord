@@ -134,11 +134,11 @@ export function Hub({ projects, error, filter, filters, setFilters, go, restore,
       action={<Button variant="secondary" onClick={() => go(projectsPlace())}>Projects</Button>} />
   </Page>;
   const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
-  // One line: the heading (with the project's statistics) at the left, the search and the filters together at the right.
+  // One line: the heading (with its statistics: the project's, or all plans') at the left, the search and the filters together at the right.
   return <Page className="hub" heading={<div className="hub-heading">
     <div className="hub-lead">
       <Text as="h1" variant="page-heading" className="hub-title">{filtered?.name ?? 'Plans'}</Text>
-      {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
+      <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.folderId ?? null))}>Statistics</Button>
     </div>
     <div className="hub-filters">
       {/* The search opens the search popup with what is typed, and never filters this list. */}

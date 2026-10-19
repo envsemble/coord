@@ -37,6 +37,7 @@ const api: AtlasBridge = {
   references: (project, work, path) => call('planning:references', project, work, path),
   diagramIndex: project => call('planning:diagramIndex', project),
   projectStatistics: (project, from, to, unit) => call('project:statistics', project, from, to, unit),
+  allStatistics: (from, to, unit) => call('projects:statistics', from, to, unit),
   loadUi: () => call('ui:load'),
   saveUi: state => call('ui:save', state),
   resolveReferences: (project, work, items) => call('references:resolve', project, work, items),
