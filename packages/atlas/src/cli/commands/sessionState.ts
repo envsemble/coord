@@ -13,9 +13,11 @@ import type { HomeDatabase } from '../../planning/home/database.ts';
  * What a session's agent just did: started a turn (`prompt`); used a tool, so it is in a turn, the
  * same one after waiting for the person's permission, else a new one (`tool`); asked the person
  * (`ask`); ended its turn (`stop`); ended the session (`end`); or nothing that changes its state
- * (null, as a subagent stopping).
+ * (null, as a subagent stopping); or its process stopped without the person ending the session (`gone`:
+ * a harness closing an idle agent, which it resumes on the next message), which leaves a wait for the
+ * person as it is.
  */
-export type Activity = 'prompt' | 'tool' | 'ask' | 'stop' | 'end' | null;
+export type Activity = 'prompt' | 'tool' | 'ask' | 'stop' | 'end' | 'gone' | null;
 /**
  * The hooks that only record a session's state: ToolUse after every tool use, successful or not
  * (its own or a subagent's), and SubagentStart when a subagent begins.
@@ -35,7 +37,9 @@ export const mayMakeProduct = (text: string) => (/\bgit\b.{0,300}?\bcommit\b/.te
 const heartbeatMs = 60_000;
 
 /** The activity a state hook records; null for a notification that does not wait for the person. */
-function activityOf(event: string, input: { notification_type?: unknown }): Activity {
+function activityOf(event: string, input: { notification_type?: unknown; reason?: unknown }): Activity {
+  // Claude Code says `other` when the process stops for a reason that is not the person's (exiting, /clear, logging out).
+  if (event === 'SessionEnd' && input.reason === 'other') return 'gone';
   if (event === 'Notification') return asking.has(typeof input.notification_type === 'string' ? input.notification_type : 'permission_prompt') ? 'ask' : null;
   return ({ UserPromptSubmit: 'prompt', ToolUse: 'tool', PermissionRequest: 'ask', SessionEnd: 'end' } as Record<string, Activity>)[event] ?? null;
 }
@@ -113,6 +117,8 @@ export function nextState(row: SessionRow, activity: Activity, at: string, liveF
     // A second end of the same turn (an interruption and its Stop) keeps when it began to wait.
     case 'stop': return !row.working && row.turn_at === null && row.waiting_at !== null ? null : change({ working: 0, turn_at: null, waiting_at: at, counts_at: resumed });
     case 'end': return change({ working: 0, turn_at: null, waiting_at: null });
+    // Nobody answered: a session waiting for the person still does; one stopped in a turn does not.
+    case 'gone': return row.working ? change({ working: 0, turn_at: null, waiting_at: null }) : null;
   }
 }
 
@@ -204,7 +210,7 @@ export async function stateHook(event: string, text: string | null, at: number, 
   const home = atlasHome(undefined, environment);
   try {
     if (text === null) { text = ''; if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk; }
-    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown; message?: unknown; cwd?: unknown; agent_id?: unknown; agent_type?: unknown };
+    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown; reason?: unknown; message?: unknown; cwd?: unknown; agent_id?: unknown; agent_type?: unknown };
     const session = typeof input.session_id === 'string' && sessionPattern.test(input.session_id) ? input.session_id : null;
     // A subagent's tool use (Claude Code names the subagent in its hooks), or its start.
     const agent = (event === 'ToolUse' || event === 'SubagentStart') && typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;

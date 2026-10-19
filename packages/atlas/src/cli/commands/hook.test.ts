@@ -176,6 +176,9 @@ test('hooks give the session its planning context, check and link planning edits
   await hook('Notification', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
   assert.deepEqual(state(), { working: 0, turn: null, waiting });
   assert.deepEqual(activity(), [['work-0003', 'waiting']]);
+  // The harness closing the idle agent leaves it waiting; the person exiting ends the wait.
+  await hook('SessionEnd', { reason: 'other' });
+  assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting }, [['work-0003', 'waiting']]]);
   await hook('SessionEnd', { reason: 'prompt_input_exit' });
   assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting: null }, []]);
   const [ended] = (await sessions()).sessions;
