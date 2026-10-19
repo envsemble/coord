@@ -88,12 +88,15 @@ export function nextState(row: SessionRow, activity: Activity, at: string, liveF
   const asked = !row.working && row.waiting_at !== null && row.turn_at !== null;
   const counts = row.counts_at ?? row.turn_at;
   const resumed = !asked ? row.counts_at : counts !== null && counts < row.waiting_at! ? moved(counts, Date.parse(at) - Date.parse(row.waiting_at!)) : at;
+  // A new turn after a wait whose report has not come in (an interrupted turn, a failed report) keeps
+  // that turn's unreported time counting, the wait left out, until a report takes it in.
+  const started = row.counts_at !== null && row.waiting_at !== null && row.counts_at < row.waiting_at ? moved(row.counts_at, Date.parse(at) - Date.parse(row.waiting_at)) : at;
   switch (activity) {
     // A prompt while the agent works (a message steering it) goes on with the same turn; one that
     // was last seen long ago was interrupted without a Stop.
-    case 'prompt': return row.working && row.updated_at >= liveFrom ? change({}) : change({ working: 1, turn_at: at, waiting_at: null, counts_at: at });
+    case 'prompt': return row.working && row.updated_at >= liveFrom ? change({}) : change({ working: 1, turn_at: at, waiting_at: null, counts_at: started });
     // A tool call longer than the live window is still the same turn.
-    case 'tool': return row.working ? seen : asked ? change({ working: 1, waiting_at: null, counts_at: resumed }) : change({ working: 1, turn_at: at, waiting_at: null, counts_at: at });
+    case 'tool': return row.working ? seen : asked ? change({ working: 1, waiting_at: null, counts_at: resumed }) : change({ working: 1, turn_at: at, waiting_at: null, counts_at: started });
     case 'ask': return row.working ? change({ working: 0, waiting_at: at }) : null;
     // A second end of the same turn (an interruption and its Stop) keeps when it began to wait.
     case 'stop': return !row.working && row.turn_at === null && row.waiting_at !== null ? null : change({ working: 0, turn_at: null, waiting_at: at, counts_at: resumed });

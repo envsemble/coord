@@ -99,9 +99,12 @@ test('hooks give the session its planning context, check and link planning edits
   const patch = '*** Begin Patch\n*** Update File: active/0002-payments/plan.md\n@@\n-# Payments\n+# Payments today\n*** End Patch\n';
   assert.equal(await hookIn(env, 'PostToolUse', { session_id: session, transcript_path: null, cwd: root, hook_event_name: 'PostToolUse', model: 'gpt-5.5', permission_mode: 'default', tool_name: 'apply_patch', tool_input: { command: patch }, tool_response: 'Done', tool_use_id: 'call_1', turn_id: 't1' }), '');
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
-  // An Atlas MCP tool call links the work item it was about, from its input or its result.
+  // An Atlas MCP tool call that changes a work item links it, from its input or its result; reading one does not.
   await run(['work', 'create', '--title', 'Refunds', '--repo', 'shop', '--planning-dir', root], { env });
-  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__work_status', tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] });
+  const about = { tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] };
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__work_status', ...about });
+  assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step_add', ...about });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003']);
   // A session on several work items counts as working on the one it touched last.
   const activity = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().map(item => [item.workId, item.state]));
@@ -165,8 +168,8 @@ test('a session\'s state follows its events: a wait for the person is left out o
   assert.deepEqual(step('tool', 40), [1, at(0), null, at(4)], 'a tool call of half an hour is the same turn');
   assert.deepEqual(step('stop', 50), [0, null, at(50), at(4)]);
   assert.deepEqual([step('tool', 45), step('prompt', 49)], [[0, null, at(50), at(4)], [0, null, at(50), at(4)]], 'hooks that ran before the stop and arrive after it');
-  assert.deepEqual(step('prompt', 60), [1, at(60), null, at(60)]);
-  assert.deepEqual(step('end', 70), [0, null, null, at(60)]);
+  assert.deepEqual(step('prompt', 60), [1, at(60), null, at(14)], 'the last turn, not yet reported, counts on without the wait');
+  assert.deepEqual(step('end', 70), [0, null, null, at(14)]);
   // A report during a wait (a subagent stopping) counted all until then: the time counts on from the resumption.
   step('prompt', 80);
   step('ask', 85);
