@@ -2,10 +2,9 @@
 // calls with the wrong number or shape of arguments, from a subframe, or from a page that is not
 // the Atlas renderer are rejected. Results and errors cross back as structured values. Requests
 // about a project go to the host of the window's computer, this one or a paired one.
-import { spawn } from 'node:child_process';
-import { accessSync, constants, createReadStream, lstatSync } from 'node:fs';
-import { chmod, lstat, mkdtemp, realpath, stat, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { createReadStream } from 'node:fs';
+import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
@@ -14,13 +13,13 @@ import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atla
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
 import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, referenceInput, referenceInputs, relativePath, sessionId, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../../shared/validate.ts';
+import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, referenceInput, referenceInputs, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { FolderView } from '../host/folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../state.ts';
 import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
-import { appLink, editorLink, resumeWords, terminalFor } from './launch.ts';
+import { appLink, editorLink } from './launch.ts';
 
 type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
 interface Channel { args: Validator<unknown>[]; handle: Handler }
@@ -61,7 +60,7 @@ async function revealInside(window: AtlasWindow, project: string, relative: stri
   shell.showItemInFolder(candidate);
 }
 
-/** What only this computer's projects allow: their files and sessions are on this computer. */
+/** What only this computer's projects allow: their files are on this computer. */
 function thisComputer(window: AtlasWindow, what: string) {
   if (window.computer !== null) throw new AtlasError('forbidden', what + ' of a project on another computer cannot be opened here.');
 }
@@ -114,75 +113,6 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   const folders = [...await Promise.all(workspaces.map(realFolder)), ...checkouts].filter((folder): folder is string => folder !== null);
   if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
   await openInEditor(manager, window, 'this file', real, file.line);
-}
-
-/** Open a work item's folder, inside its project's folder, in the editor. */
-async function openWorkFolder(manager: WindowManager, window: AtlasWindow, project: string, work: string) {
-  thisComputer(window, 'Folders');
-  const view = await window.readable(project);
-  const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
-  const entry = (await view.request('folder.snapshot', { folderId: project })).work.find(item => item.id === work);
-  if (!root || !entry) throw new AtlasError('not-found', 'This work item is not in the project on this computer.');
-  const base = await realpath(root);
-  const folder = await realpath(path.resolve(base, entry.path)).catch(() => null);
-  if (!folder || !within(base, folder) || !(await lstat(folder)).isDirectory()) throw new AtlasError('forbidden', 'Only a work folder inside the project\'s folder opens.');
-  await openInEditor(manager, window, 'this work folder', folder, null);
-}
-
-/**
- * A program's full path on the PATH (Windows: with the PATHEXT extensions), never in `folder` or the
- * current one; null when it is not installed.
- */
-function onPath(name: string, folder: string) {
-  const skipped = new Set([path.resolve(folder).toLowerCase(), path.resolve('.').toLowerCase()]);
-  const extensions = process.platform === 'win32' ? (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
-  for (const directory of (process.env.PATH ?? '').split(path.delimiter).filter(entry => entry && path.isAbsolute(entry))) {
-    if (skipped.has(path.resolve(directory).toLowerCase())) continue;
-    for (const extension of extensions) {
-      const candidate = path.join(directory, name + extension);
-      try { if (lstatSync(candidate).isFile()) return candidate; } catch { /* Not here. */ }
-    }
-  }
-  return null;
-}
-
-/** Whether a program is installed: a full path that exists (Windows), else a name on the PATH. */
-function installed(program: string) {
-  if (path.isAbsolute(program)) { try { lstatSync(program); return true; } catch { return false; } }
-  return (process.env.PATH ?? '').split(path.delimiter).filter(Boolean).some(folder => { try { accessSync(path.join(folder, program), constants.X_OK); return true; } catch { return false; } });
-}
-
-/**
- * Resume a session of a work item in a new terminal, in its folder: the session and its command as
- * the host lists them (never as the page names them), the command only in its harness's own form.
- */
-async function resumeSession(manager: WindowManager, window: AtlasWindow, project: string, work: string, id: string) {
-  thisComputer(window, 'Sessions');
-  const view = await window.readable(project);
-  const session = (await view.request('work.sessions', { folderId: project, work })).sessions.find(item => item.session === id);
-  if (!session) throw new AtlasError('not-found', 'This session is not one of the work item\'s.');
-  const words = session.resume ? resumeWords(session.resume) : null;
-  const folder = session.folder;
-  if (!words || !folder) throw new AtlasError('unavailable', 'Atlas does not know how to resume this session.');
-  if (!fullPath.test(folder) || !(await stat(folder).catch(() => null))?.isDirectory()) throw new AtlasError('not-found', 'The session\'s folder is no longer on this computer: ' + folder);
-  const windowsTerminal = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe') : null;
-  const program = process.platform === 'win32' ? onPath(words[0], folder) : null;
-  const launch = terminalFor(process.platform, folder, words, installed, windowsTerminal, program);
-  if (!launch) throw new AtlasError('unavailable', (process.platform === 'win32' ? words[0] + ' was not found on the PATH' : 'No terminal was found') + ' to resume the session in. Run ' + session.resume + ' in ' + folder + '.');
-  await confirmed(window, 'Resume this session in a terminal?', 'Resume', words.join(' ') + '\nin ' + folder);
-  const args = [...launch.args];
-  if (launch.script) {
-    const script = path.join(await mkdtemp(path.join(tmpdir(), 'atlas-')), launch.script.name);
-    await writeFile(script, launch.script.content, { mode: 0o700 });
-    await chmod(script, 0o700);
-    args.push(script);
-  }
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(launch.file, args, { cwd: folder, detached: true, stdio: 'ignore', windowsHide: false, env: { ...process.env, ...launch.env } });
-    child.once('error', error => reject(new AtlasError('unavailable', 'The terminal could not be started: ' + error.message)));
-    child.once('spawn', () => { child.unref(); resolve(); });
-  });
-  manager.context.log.info('Session resumed', { work, harness: session.harness });
 }
 
 /** Send a plan export on this computer to another computer's host, for its preview there. */
@@ -325,8 +255,6 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'shell:openReference': { args: [folderId, nullable(workId), referenceInput], handle: (window, project: string, work: string | null, reference: ReferenceInput) => openReference(manager, window, project, work, reference) },
-    'shell:openWorkFolder': { args: [folderId, workId], handle: (window, project: string, work: string) => openWorkFolder(manager, window, project, work) },
-    'shell:resumeSession': { args: [folderId, workId, sessionId], handle: (window, project: string, work: string, id: string) => resumeSession(manager, window, project, work, id) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.

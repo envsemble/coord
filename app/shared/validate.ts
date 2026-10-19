@@ -15,8 +15,6 @@ export const editor = oneOf(editors);
 /** What a planning file references, as the host resolves it (within the host's own limits). */
 export const referenceInput: Validator<ReferenceInput> = object<ReferenceInput>({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) });
 export const referenceInputs = array(referenceInput, 500);
-/** An agent session's identifier, as its harness names it. */
-export const sessionId = string({ min: 1, max: 128, pattern: /^[A-Za-z0-9][A-Za-z0-9._-]*$/ });
 export const url = string({ min: 1, max: 4096 });
 /** A folder of the window's computer by its full path. */
 export const folderPath = string({ min: 1, max: limits.path, pattern: fullPath });

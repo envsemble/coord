@@ -2,7 +2,7 @@ import { createContext, createElement, useContext, useEffect, useLayoutEffect, u
 import { Button, Card, EmptyState, Spinner } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
 import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from '../ui/icons';
-import type { DiagramReference, Document, DocumentContent, ReferenceInput, Snapshot, Target } from '../types';
+import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from '../types';
 import { api, fileUrl } from '../api';
 import { resolveLink, siblingReference } from './links';
 import { sectionAnchors } from '@envsemble/atlas/planning/headings';
@@ -12,7 +12,7 @@ import { bytes, workNumber } from '../ui/format';
 import { ProvenanceBadge } from '../ui/ui';
 import { useWorkbench } from './workbenchContext';
 import { appSchemes, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
-import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences, type Resolutions } from './ReferenceLink';
+import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from './ReferenceLink';
 
 /** The diagrams a document links to, refetched when the folder changes. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
@@ -94,11 +94,10 @@ function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   return <button type="button" className="request-fold-toggle" aria-expanded={folds.open.has(id)} onClick={() => folds.toggle(id)}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
 }
 
-export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle, plan = false, onReferences }: {
+export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle, plan = false }: {
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: DiagramReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
   /** A work item's plan: its request shows folded. */ plan?: boolean;
-  /** What the document references and what the host answered for each, as the answers come. */ onReferences?(inputs: ReferenceInput[], resolved: Resolutions): void;
 }) {
   const { project, open, notify, remote, sibling, openPath } = useWorkbench();
   const article = useRef<HTMLElement>(null);
@@ -140,7 +139,6 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   const plugins = useMemo((): Plugins => [rehypeHeadingIds, [rehypeReferences, { collected }], ...plan ? [rehypeFoldRequests] : []], [collected, plan]);
   const resolved = useResolvedReferences(file.workId ?? null, content?.format === 'markdown' ? inputs : []);
   const referenceScope = useMemo(() => ({ resolved, work: file.workId ?? null }), [resolved, file.workId]);
-  useEffect(() => { onReferences?.(inputs, resolved); }, [inputs, resolved]);
   const cardCount = references.length;
   useEffect(() => {
     if (content && anchor) requestAnimationFrame(() => scrollToHeading(anchor));

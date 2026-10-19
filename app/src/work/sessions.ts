@@ -1,8 +1,7 @@
-// What the plan page and a plan's statistics say of its sessions and its time: the timeline line
-// ("Planned 1 day · implementing 4 days · waited on you 3 h"), the branches its sessions worked on,
-// the beginning of a waiting session's message, and the timeline's span and scale. Pure, so it is
-// unit-tested.
-import type { Work, WorkProduct, WorkSession, WorkTimeline } from '../types';
+// What the plan page and a plan's statistics say of its sessions and its time: how long it took
+// ("Planned 1 day · implementing 4 days · waited on you 3 h"), the beginning of a waiting session's
+// message, and the timeline's span and scale. Pure, so it is unit-tested.
+import type { Work, WorkSession, WorkTimeline } from '../types';
 import { duration } from '../ui/format';
 
 export const harnessNames: Record<WorkSession['harness'], string> = { 'claude-code': 'Claude Code', codex: 'Codex', unknown: 'Agent' };
@@ -32,18 +31,6 @@ export function timelineLine(timeline: WorkTimeline | null, work: Pick<Work, 'cr
     timeline?.waitedMs ? 'waited on you ' + roughDuration(timeline.waitedMs) : null,
   ].filter((part): part is string => Boolean(part));
   return parts.length ? parts.join(' · ') : null;
-}
-
-/** The repositories and branches the sessions worked on, each once, most recent first. */
-export function branches(products: WorkProduct[]): { repository: string; branch: string | null }[] {
-  const seen = new Map<string, { repository: string; branch: string | null }>();
-  for (const product of [...products].sort((a, b) => b.at.localeCompare(a.at))) {
-    if (!product.repository) continue;
-    const key = product.repository + '\u0000' + (product.branch ?? '');
-    if (!seen.has(key)) seen.set(key, { repository: product.repository, branch: product.branch });
-  }
-  // A repository with a branch says more than the same repository without one.
-  return [...seen.values()].filter(entry => entry.branch || ![...seen.values()].some(other => other.repository === entry.repository && other.branch));
 }
 
 /** The session waiting for the person with its message, the latest when several wait. */

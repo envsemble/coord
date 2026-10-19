@@ -1,5 +1,5 @@
-// Atlas's small vocabulary on envUI: work status icons and badges, provenance and repository badges,
-// a button that copies text, and values with more to say on hover and focus.
+// Atlas's small vocabulary on envUI: work status icons and badges, provenance badges, a button that
+// copies text, and values with more to say on hover and focus.
 import { useId, useState, type ReactNode, type SVGProps } from 'react';
 import { Badge, Button, Tooltip } from '@envsemble/envui';
 import type { Provenance } from '@envsemble/atlas/planning/provenance';
@@ -32,10 +32,6 @@ export function StatusBadge({ status }: { status: WorkStatus }) {
 export function ProvenanceBadge({ provenance, title }: { provenance: Provenance; title?: string }) {
   if (!provenance.label) return null;
   return <Badge tone={provenance.tone} title={title ?? (provenance.detail || undefined)}>{provenance.label}</Badge>;
-}
-
-export function RepositoryBadge({ id }: { id: string }) {
-  return <Badge variant="outline">{id}</Badge>;
 }
 
 /** Copies text to the clipboard, and says so for a moment. */

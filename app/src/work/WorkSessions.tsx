@@ -1,25 +1,21 @@
-// A plan's sessions and what they made, for its page: each agent session on it (harness, model and
-// effort, its state, when it was last active, its agent time), resumed in a terminal from here; the
-// links that matter (repositories and branches, PRs the plan references or its sessions opened,
-// commits they made, the work folder); and, while the plan needs the person, the waiting session's
-// message with a way to open that session. Read from the host as the plan's activity changes.
+// A plan's sessions, for its page: each agent session on it by its own title, with its harness,
+// model and effort, its state, when it was last active and its agent time; and, while the plan needs
+// the person, the waiting session's message. Read from the host as the plan's activity changes.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
-import { AltRoute } from '@envsemble/envui/icons/AltRoute';
-import { Terminal } from '@envsemble/envui/icons/Terminal';
-import type { ReferenceInput, ResolvedReference, Work, WorkProduct, WorkSession, WorkTimeline } from '../types';
+import type { WorkProduct, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
 import { withEffort, aiModel } from '../ui/aiModels';
-import { duration, relativeDate, absoluteDate } from '../ui/format';
-import { CommitIcon, DotIcon, FolderOpenIcon } from '../ui/icons';
+import { absoluteDate, duration, relativeDate } from '../ui/format';
+import { DotIcon } from '../ui/icons';
 import { statuses } from '../ui/status';
-import { RepositoryBadge, StatusIcon } from '../ui/ui';
+import { StatusIcon } from '../ui/ui';
 import { useWorkbench } from '../workbench/workbenchContext';
-import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences, type Resolutions } from '../workbench/ReferenceLink';
-import { referenceKey, rehypeReferences, wholeReference, type Found } from '../workbench/references';
+import { ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from '../workbench/ReferenceLink';
+import { rehypeReferences, wholeReference, type Found } from '../workbench/references';
 import type { Plugins } from '../workbench/Reader';
-import { branches, excerpt, harnessNames, sessionStates } from './sessions';
+import { excerpt, harnessNames, sessionStates } from './sessions';
 import type { LiveActivity } from './agentTime';
 
 /** What changes when the plan's activity does: the sessions' states and since when. */
@@ -49,93 +45,29 @@ export function useWorkTimeline(work: string, key: string) {
   return value?.work === work ? value.timeline : null;
 }
 
-/** Resume a session in a terminal on this computer; a failure says why. */
-function useResume(work: string) {
-  const { project, notify, remote } = useWorkbench();
-  return (session: WorkSession) => remote || !session.resume || !session.folder ? null
-    : () => { api.resumeSession(project, work, session.session).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); };
-}
-
 /** A session's harness, model and effort: "Claude Code · Claude Opus 5.5 · high". */
 export const sessionLabel = (session: Pick<WorkSession, 'harness' | 'model' | 'effort'>) => [harnessNames[session.harness], session.model && withEffort(aiModel(session.model).name, session.effort)].filter(Boolean).join(' · ');
+/** A session's name: its own title, else its harness and when it started. */
+export const sessionTitle = (session: Pick<WorkSession, 'title' | 'harness' | 'startedAt'>) => session.title?.trim() || harnessNames[session.harness] + ' session, ' + absoluteDate(session.startedAt);
 
-/** How many of a list show before "Show all". */
+/** How many sessions show before "Show all". */
 const shown = 5;
-function More({ count, open, toggle }: { count: number; open: boolean; toggle(): void }) {
-  return count > shown ? <Button variant="text" className="about-more" onClick={toggle}>{open ? 'Show fewer' : 'Show all ' + count}</Button> : null;
-}
-
-/** The plan's sessions, the latest first: each with its state, when it was last active and its agent time, and a way to resume it. */
-export function SessionsList({ work, sessions }: { work: string; sessions: WorkSession[] }) {
-  const resume = useResume(work);
-  const [all, setAll] = useState(false);
-  return <>
-    <ul className="about-sessions">{(all ? sessions : sessions.slice(0, shown)).map(session => {
-      const run = resume(session);
-      return <li key={session.session} className="about-session" data-state={session.state}>
-        {session.state === 'ended' ? <DotIcon className="session-ended-icon" label="Ended" /> : <StatusIcon status={statuses[session.state]} />}
-        <div className="about-session-text">
-          <span className="about-session-title" title={session.session}>{sessionLabel(session)}</span>
-          <span className="muted">{sessionStates[session.state]} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span>{session.agentMs > 0 && ' · ' + duration(session.agentMs)}</span>
-        </div>
-        {run && <Button variant="text" startIcon={<Terminal />} title={session.resume + ' in ' + session.folder} onClick={run}>Resume</Button>}
-      </li>;
-    })}</ul>
-    <More count={sessions.length} open={all} toggle={() => setAll(!all)} />
-  </>;
-}
-
-/** A PR as the Links section shows it: its name, its title and its state. */
-export interface PullLink { label: string; url: string; title: string | null; pull: ResolvedReference['pull'] }
-
-/** PRs a plan references, with what the host answered for them, as the reader found them. */
-export function referencedPulls(inputs: ReferenceInput[], resolved: Resolutions): PullLink[] {
-  return inputs.filter(input => input.kind === 'pull').flatMap(input => {
-    const answer = resolved.get(referenceKey(input));
-    return answer?.url ? [{ label: (answer.repository ?? input.repository ?? '') + '#' + input.value, url: answer.url, title: answer.pull?.title ?? null, pull: answer.pull }] : [];
-  });
-}
-
-function Row({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return <li className="about-link">{icon}<span className="about-link-text">{children}</span></li>;
-}
 
 /**
- * The plan's links: its repositories and the branches its sessions worked on, the PRs it references
- * or its sessions opened (with their state), the commits they made, and its work folder in the editor.
+ * The plan's sessions, the latest first: each by its title, then quietly its harness, model and
+ * effort, its state, when it was last active and its agent time.
  */
-export function LinksList({ work, repositories, products, pulls }: { work: Work; repositories: string[]; products: WorkProduct[]; pulls: PullLink[] }) {
-  const { project, notify, remote } = useWorkbench();
+export function SessionsList({ sessions }: { sessions: WorkSession[] }) {
   const [all, setAll] = useState(false);
-  const failed = (error: Error) => { if ((error as { code?: string }).code !== 'cancelled') notify(error.message, 'warning'); };
-  const open = (url: string) => { api.openExternal(url).catch(failed); };
-  // The PRs the sessions opened, with their state from the host, after those the plan references.
-  const opened = useMemo(() => products.filter(product => product.kind === 'pull' && product.repository).map(product => ({ kind: 'pull' as const, repository: product.repository, value: product.id, line: null })), [products]);
-  const resolved = useResolvedReferences(work.id, opened);
-  const sessionPulls: PullLink[] = products.filter(product => product.kind === 'pull').flatMap(product => {
-    const answer = product.repository ? resolved.get(referenceKey({ kind: 'pull', repository: product.repository, value: product.id, line: null })) : null;
-    const url = answer?.url ?? product.url;
-    return url ? [{ label: (product.repository ?? '') + '#' + product.id, url, title: answer?.pull?.title ?? product.title, pull: answer?.pull ?? null }] : [];
-  });
-  const prs = [...pulls, ...sessionPulls].filter((pull, index, list) => list.findIndex(other => other.url === pull.url) === index);
-  const worked = branches(products);
-  const plain = repositories.filter(id => !worked.some(entry => entry.repository === id));
-  const commits = products.filter(product => product.kind === 'commit');
-  const shortHash = (id: string) => id.slice(0, 7);
   return <>
-    <ul className="about-links">
-      {worked.map(entry => <Row key={entry.repository + entry.branch} icon={<AltRoute className="about-link-icon" />}><RepositoryBadge id={entry.repository} />{entry.branch && <code className="about-branch">{entry.branch}</code>}</Row>)}
-      {plain.length > 0 && <Row icon={<AltRoute className="about-link-icon" />}>{plain.map(id => <RepositoryBadge key={id} id={id} />)}</Row>}
-      {prs.map(pull => <Row key={pull.url} icon={pull.pull ? <PullMark pull={pull.pull} /> : <AltRoute className="about-link-icon" />}>
-        <a href="#" title={pull.url} onClick={event => { event.preventDefault(); open(pull.url); }}>{pull.label}</a>{pull.title && <span className="muted"> {pull.title}</span>}
-      </Row>)}
-      {(all ? commits : commits.slice(0, shown)).map(commit => <Row key={commit.repository + commit.id} icon={<CommitIcon className="about-link-icon" />}>
-        {commit.url ? <a href="#" title={commit.url} onClick={event => { event.preventDefault(); open(commit.url!); }}>{(commit.repository ? commit.repository + '@' : '') + shortHash(commit.id)}</a> : <code>{shortHash(commit.id)}</code>}
-        {commit.title && <span className="muted"> {commit.title}</span>}
-      </Row>)}
-      {!remote && <Row icon={<FolderOpenIcon className="about-link-icon" />}><a href="#" onClick={event => { event.preventDefault(); api.openWorkFolder(project, work.id).catch(failed); }}>Open the work folder</a></Row>}
-    </ul>
-    <More count={commits.length} open={all} toggle={() => setAll(!all)} />
+    <ul className="about-sessions">{(all ? sessions : sessions.slice(0, shown)).map(session => <li key={session.session} className="about-session" data-state={session.state}>
+      {session.state === 'ended' ? <DotIcon className="session-ended-icon" label="Ended" /> : <StatusIcon status={statuses[session.state]} />}
+      <div className="about-session-text">
+        <span className="about-session-title">{sessionTitle(session)}</span>
+        <span className="muted">{[sessionLabel(session), sessionStates[session.state]].join(' · ')} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span>{session.agentMs > 0 && ' · ' + duration(session.agentMs)}</span>
+      </div>
+    </li>)}</ul>
+    {sessions.length > shown && <Button variant="text" className="about-more" onClick={() => setAll(!all)}>{all ? 'Show fewer' : 'Show all ' + sessions.length}</Button>}
   </>;
 }
 
@@ -160,10 +92,9 @@ function MessageWebLink({ href, children }: { href: string; children?: ReactNode
 
 /**
  * Why the plan needs the person: the waiting session's last message, rendered as the Markdown it is,
- * its beginning first, with a way to open that session. What it references links as in the reader.
+ * its beginning first. What it references links as in the reader.
  */
 export function NeedsYou({ work, session }: { work: string; session: WorkSession }) {
-  const resume = useResume(work)(session);
   const [whole, setWhole] = useState(false);
   const message = session.message ?? '';
   const start = excerpt(message);
@@ -177,8 +108,6 @@ export function NeedsYou({ work, session }: { work: string; session: WorkSession
     <div className="needs-you-actions">
       {start.more && <Button variant="text" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
       <span className="muted">{sessionLabel(session)} · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
-      <span className="spacer" />
-      {resume && <Button variant="secondary" startIcon={<Terminal />} onClick={resume}>Open session</Button>}
     </div>
   </section>;
 }

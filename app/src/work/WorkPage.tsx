@@ -1,21 +1,20 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Breadcrumbs, Button, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
 import { stepCounts } from '@envsemble/atlas/planning/ledger';
 import { DownloadIcon } from '../ui/icons';
-import type { Document, LedgerStep, ProjectWork, ReferenceInput, Snapshot, Target, Work, WorkProduct, WorkSession, WorkTimeline } from '../types';
+import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work, WorkSession } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';
 import { hubPlace, workStatisticsTarget, workTarget } from '../navigation/targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from '../ui/format';
 import { workStatus, type WorkStatus } from '../ui/status';
 import { StatusBadge } from '../ui/ui';
 import { Reader, useReferences } from '../workbench/Reader';
-import type { Resolutions } from '../workbench/ReferenceLink';
 import { LedgerSteps } from '../ui/LedgerProgress';
 import { WorkStatisticsSummary } from './WorkStatisticsSummary';
 import { Waited } from './LiveAgentTime';
 import { unreported, type LiveActivity } from './agentTime';
-import { activityKey, LinksList, NeedsYou, referencedPulls, SessionsList, useWorkSessions, useWorkTimeline, type PullLink } from './WorkSessions';
-import { timelineLine, waitingSession } from './sessions';
+import { activityKey, NeedsYou, SessionsList, useWorkSessions } from './WorkSessions';
+import { waitingSession } from './sessions';
 import { TargetLink, useWorkbench } from '../workbench/workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
@@ -54,19 +53,15 @@ function useScrollsMark<T extends HTMLElement>() {
 
 /**
  * The side column: the work's progress (its step in progress showing what agents do, `live`), its
- * sessions, its links (repositories and branches, PRs, commits, the work folder) and its headline
- * statistics with how long each stage took. It stays where it is while the page scrolls, and scrolls
- * on its own.
+ * sessions and its headline statistics, with the way to all of them and the timeline. It stays where
+ * it is while the page scrolls, and scrolls on its own.
  */
-function About({ work, snapshot, found, live, listed, sessions, products, timeline, pulls }: {
-  work: Work; snapshot: Snapshot; found: string | null; live: LiveActivity | null; listed: ProjectWork | undefined;
-  sessions: WorkSession[]; products: WorkProduct[]; timeline: WorkTimeline | null; pulls: PullLink[];
+function About({ work, snapshot, found, live, listed, sessions }: {
+  work: Work; snapshot: Snapshot; found: string | null; live: LiveActivity | null; listed: ProjectWork | undefined; sessions: WorkSession[];
 }) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
   const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
-  const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed]] as const).filter(([, value]) => value).map(([label, value]) => label + ' ' + shortDate(value)).join(' \u00b7 ');
-  const line = timelineLine(timeline, work);
   const statistics = work.statistics;
   const reported = Boolean(statistics && (statistics.reports > 0 || unreported(live)));
   const column = useScrollsMark<HTMLElement>();
@@ -79,10 +74,8 @@ function About({ work, snapshot, found, live, listed, sessions, products, timeli
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
     </AboutSection>}
-    {sessions.length > 0 && <AboutSection title="Sessions"><SessionsList work={work.id} sessions={sessions} /></AboutSection>}
-    <AboutSection title="Links"><LinksList work={work} repositories={work.repositories} products={products} pulls={pulls} /></AboutSection>
-    {(line || reported || sessions.length > 0) && <AboutSection title="Statistics" note={statistics?.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
-      {line && <p className="about-timeline" title={dates || undefined}>{line}</p>}
+    {sessions.length > 0 && <AboutSection title="Sessions"><SessionsList sessions={sessions} /></AboutSection>}
+    {(reported || sessions.length > 0) && <AboutSection title="Statistics" note={statistics?.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
       {statistics && reported && <WorkStatisticsSummary statistics={statistics} activity={live} totals={listed?.statistics} />}
       <TargetLink target={workStatisticsTarget(work.id)} className="about-statistics-link">All statistics and the timeline</TargetLink>
     </AboutSection>}
@@ -117,8 +110,8 @@ function StatusLine({ work, status, live }: { work: Work; status: WorkStatus; li
 
 /**
  * A work item: its plan (or, without one, its README or first document). The breadcrumb names its
- * project and number, with Export Plan… beside it; then the title, the status line and the plan's
- * summary. Beside it the work's progress, its dates and repositories, statistics and recent activity.
+ * project and number, with Export Plan… beside it; then the title, the status line, why it needs you
+ * when it does, and the plan's summary. Beside it the work's progress, its sessions and statistics.
  * Diagrams open from their cards in the plan.
  */
 export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
@@ -131,14 +124,9 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const live = status.key === 'working' || status.key === 'waiting' ? agents : null;
   const listing = listed(work.id), summary = listing?.summary;
   const references = useReferences(reading, work.id, reading?.format === 'markdown');
-  // The plan's sessions and timeline, read again as its activity changes.
-  const key = activityKey(agents);
-  const sessions = useWorkSessions(work.id, key);
-  const timeline = useWorkTimeline(work.id, key);
+  // The plan's sessions, read again as its activity changes.
+  const sessions = useWorkSessions(work.id, activityKey(agents));
   const waiting = status.key === 'waiting' && sessions ? waitingSession(sessions.sessions) : null;
-  // The PRs the plan references, as the reader resolves them, for its links.
-  const [pulls, setPulls] = useState<PullLink[]>([]);
-  const onReferences = useCallback((inputs: ReferenceInput[], resolved: Resolutions) => setPulls(referencedPulls(inputs, resolved)), []);
   return <div className="work-page">
     <div className="work-layout">
       <div className="work-main">
@@ -152,11 +140,10 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
           {waiting && <NeedsYou work={work.id} session={waiting} />}
           {summary && <p className="work-summary">{summary}</p>}
         </header>
-        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} onReferences={onReferences} />
+        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
-      <About work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing}
-        sessions={sessions?.sessions ?? []} products={sessions?.products ?? []} timeline={timeline} pulls={pulls} />
+      <About work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} sessions={sessions?.sessions ?? []} />
     </div>
   </div>;
 }

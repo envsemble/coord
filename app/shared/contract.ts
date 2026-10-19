@@ -23,7 +23,7 @@ export const invokeChannels = [
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'usage:view', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
-  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openWorkFolder', 'shell:resumeSession', 'shell:copy',
+  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
   'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch',
@@ -223,10 +223,6 @@ export interface AtlasBridge {
   openExternal(url: string): Promise<Result<void>>;
   /** Open the file a path reference names in the editor, at its line; only for a project on this computer. */
   openReference(project: string, work: string | null, reference: ReferenceInput): Promise<Result<void>>;
-  /** Open a work item's folder in the editor; only for a project on this computer. */
-  openWorkFolder(project: string, work: string): Promise<Result<void>>;
-  /** Resume a session of a work item in a terminal, in its folder; only for a project on this computer. */
-  resumeSession(project: string, work: string, session: string): Promise<Result<void>>;
   /** The editor files open in, and choosing another. */
   editor(): Promise<Result<Editor>>;
   setEditor(editor: Editor): Promise<Result<void>>;

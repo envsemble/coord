@@ -8,7 +8,7 @@ import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, isEntry, originOf } from './windows/protocol.ts';
 import { HomeDatabase } from '@envsemble/atlas/planning';
 import { DesktopState, placeRow, savedPlace } from './state.ts';
-import { appLink, editorLink, resumeWords, terminalFor } from './windows/launch.ts';
+import { appLink, editorLink } from './windows/launch.ts';
 import { target as tabTarget } from '../shared/validate.ts';
 import type { Target } from '../shared/contract.ts';
 
@@ -137,25 +137,10 @@ test('a window saves the place it shows as a row of its project, and an older wi
   assert.deepEqual(savedPlace(project, placeRow(statistics)!), statistics);
 });
 
-test('outside Atlas, only applications on the allowlist, editors through their links and sessions in their harness\'s form open', () => {
+test('outside Atlas, only applications on the allowlist and editors through their links open', () => {
   assert.equal(appLink('t3-thread://thread/abc'), 't3-thread://thread/abc');
   for (const refused of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'ms-settings:', 'unknown-app://x', 'vscode://file/C:/x.bat', 'slack://open', 'not a link', 't3-thread://x\u0000y']) assert.equal(appLink(refused), null, refused);
   assert.equal(editorLink('vscode', 'C:\\Dev\\atlas\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/atlas/app/src/a%20b%23.ts:68');
   assert.equal(editorLink('cursor', '/home/me/atlas/README.md', null), 'cursor://file/home/me/atlas/README.md');
   assert.equal(editorLink('system', '/home/me/x', 3), null);
-  assert.deepEqual(resumeWords('claude --resume 1f2e-33ab'), ['claude', '--resume', '1f2e-33ab']);
-  assert.deepEqual(resumeWords('codex resume 019a'), ['codex', 'resume', '019a']);
-  for (const refused of ['claude --resume x && calc', 'claude --resume "x"', 'bash -c x', 'codex resume', 'claude --resume -x']) assert.equal(resumeWords(refused), null, refused);
-  const words = ['claude', '--resume', 'abc'];
-  const wt = 'C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe';
-  // On Windows the harness by its full path; one cmd would misread runs by name in a console that does not look in the folder.
-  const env = { NoDefaultCurrentDirectoryInExePath: '1' };
-  const claude = 'C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd';
-  assert.deepEqual(terminalFor('win32', 'C:\\Dev', words, () => true, wt, claude), { file: wt, args: ['-d', '.', 'cmd.exe', '/k', claude, '--resume', 'abc'], env });
-  assert.deepEqual(terminalFor('win32', 'C:\\Dev', words, () => false, wt, claude), { file: 'cmd.exe', args: ['/k', claude, '--resume', 'abc'], env });
-  assert.deepEqual(terminalFor('win32', 'C:\\Dev', words, () => true, wt, 'C:\\Program Files (x86)\\claude.exe'), { file: 'cmd.exe', args: ['/k', ...words], env });
-  assert.equal(terminalFor('win32', 'C:\\Dev', words, () => true, wt, null), null, 'not installed');
-  assert.equal(terminalFor('darwin', "/Users/me/it's", words, () => true, null)!.script!.content, "#!/bin/sh\ncd '/Users/me/it'\\''s' && exec 'claude' '--resume' 'abc'\n");
-  assert.deepEqual(terminalFor('linux', '/home/me', words, name => name === 'konsole', null), { file: 'konsole', args: ['-e', ...words] });
-  assert.equal(terminalFor('linux', '/home/me', words, () => false, null), null);
 });

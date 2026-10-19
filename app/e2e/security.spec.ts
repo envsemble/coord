@@ -127,16 +127,13 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       application: await bridge.openExternal('t3-thread://thread/abc'),
       script: await bridge.openExternal('javascript:alert(1)'),
       unknownScheme: await bridge.openExternal('ms-settings:'),
-      // Sessions resume only as the host lists them, files open only as the host resolves them, and the editor is one of a fixed list.
-      resumeBadId: await bridge.resumeSession(folderId, 'work-0001', '../x'),
-      resumeUnknown: await bridge.resumeSession(folderId, 'work-0001', 'abc'),
+      // Files open only as the host resolves them, and the editor is one of a fixed list.
       referenceKind: await bridge.openReference(folderId, 'work-0001', { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
       editorCommand: await bridge.setEditor('notepad.exe'),
       ok: await bridge.document(folderId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };
   }, project);
-  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'scanRelative', 'scanWrongType', 'scanMissing', 'createRelative', 'updateRelative', 'resumeBadId', 'referenceKind', 'editorCommand'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
-  expect(results.resumeUnknown).toMatchObject({ ok: false, error: { code: 'not-found' } });
+  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'scanRelative', 'scanWrongType', 'scanMissing', 'createRelative', 'updateRelative', 'referenceKind', 'editorCommand'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.otherProject).toMatchObject({ ok: false });
   for (const key of ['quit', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web', 'application'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
