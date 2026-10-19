@@ -26,18 +26,18 @@ const atlas = project('Atlas', 1, {
   ],
 });
 const coord = project('Coord', 2, { active: [work('work-0001', 'implementing', { updated: '2026-10-15' })] });
-const hidden = project('envUI', 3, { active: [work('work-0007', 'draft')] }, 'hidden');
+const archived = project('envUI', 3, { active: [work('work-0007', 'draft')] }, 'archived');
 const unread = project('Broken', 4, null);
-const projects = [atlas, coord, hidden, unread];
+const projects = [atlas, coord, archived, unread];
 
 test('the hub lists the plans of every active project, or of the project it is filtered to', () => {
   const all = hubItems(projects, null);
   assert.deepEqual(all.map(item => item.project.name + ' ' + item.work.id), [
     ...['work-0021', 'work-0022', 'work-0023', 'work-0024', 'work-0025', 'work-0019', 'work-0018'].map(id => 'Atlas ' + id), 'Coord work-0001',
-  ], 'hidden projects and projects whose folder could not be read list none');
+  ], 'archived projects and projects whose folder could not be read list none');
   assert.deepEqual(all.filter(item => item.activity).map(item => item.work.id + ' ' + item.status.label), ['work-0021 Needs you', 'work-0024 Working']);
   assert.deepEqual(hubItems(projects, coord.folderId).map(item => item.work.id), ['work-0001']);
-  assert.deepEqual(hubItems(projects, hidden.folderId).map(item => item.work.id), ['work-0007'], 'filtered to a hidden project, it lists that project\'s plans');
+  assert.deepEqual(hubItems(projects, archived.folderId).map(item => item.work.id), ['work-0007'], 'filtered to an archived project, it lists that project\'s plans');
   assert.deepEqual(hubItems([], null), []);
 });
 

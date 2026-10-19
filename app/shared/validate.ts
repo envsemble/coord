@@ -50,7 +50,7 @@ export function isProjectListing(value: unknown): value is Project[] {
   const project = (item: unknown) => {
     const entry = item as Partial<Record<keyof Project, unknown>> | null;
     return Boolean(entry && typeof entry === 'object') && typeof entry!.folderId === 'string' && /^f-[a-f0-9]{32}$/.test(entry!.folderId) && typeof entry!.name === 'string'
-      && typeof entry!.path === 'string' && typeof entry!.position === 'number' && ['active', 'hidden', 'archived'].includes(entry!.state as string)
+      && typeof entry!.path === 'string' && typeof entry!.position === 'number' && ['active', 'archived', 'hidden'].includes(entry!.state as string)
       && typeof entry!.outsideHome === 'boolean' && Array.isArray(entry!.workspaces) && entry!.workspaces.every(folder => typeof folder === 'string')
       && (entry!.summary === undefined || entry!.summary === null || typeof entry!.summary === 'object');
   };

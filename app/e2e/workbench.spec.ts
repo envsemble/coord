@@ -342,22 +342,21 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await window.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
   await expectProjects(window, ['Northwind', 'Coord platform']);
   expect(JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8')).name).toBe('Coord platform');
-  // Hidden and archived projects stay on the page, after the others; there is no delete.
+  // Archived projects stay on the page, after the others; there is no delete, and no hiding.
+  await window.getByRole('button', { name: 'Actions for Coord platform', exact: true }).click();
+  await expect(window.getByRole('menuitem', { name: /^(Hide|Show)$/ })).toHaveCount(0);
+  await window.keyboard.press('Escape');
   await window.getByRole('button', { name: 'Actions for Northwind', exact: true }).click();
   await expect(window.getByRole('menuitem', { name: /Delete/ })).toHaveCount(0);
   await window.getByRole('menuitem', { name: 'Archive', exact: true }).click();
   await expectProjects(window, ['Coord platform']);
-  await expectProjects(window, ['Northwind'], 'Hidden and archived projects');
-  await expect(projectRow(window, 'Northwind', 'Hidden and archived projects')).toContainText('Archived');
+  await expectProjects(window, ['Northwind'], 'Archived projects');
+  await expect(projectRow(window, 'Northwind', 'Archived projects')).toContainText('Archived');
   // Its plans leave the hub.
   await goHome(window);
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(0);
   await openProjects(window);
   await projectAction(window, 'Northwind', 'Restore');
-  await expectProjects(window, ['Northwind', 'Coord platform']);
-  await projectAction(window, 'Coord platform', 'Hide');
-  await expect(projectRow(window, 'Coord platform', 'Hidden and archived projects')).toContainText('Hidden');
-  await projectAction(window, 'Coord platform', 'Show');
   await expectProjects(window, ['Northwind', 'Coord platform']);
   // A project's name leads to its plans; the window opens there next time, and on the hub once it
   // has gone back to the hub, a project made since the window opened included.

@@ -228,14 +228,14 @@ export async function openProjects(window: Page) {
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
 }
 /**
- * The Projects page's rows: the active projects', or the hidden and archived ones. Found by their
+ * The Projects page's rows: the active projects', or the archived ones. Found by their
  * markup rather than their role, so they are read past an open dialog too.
  */
-export const projectRows = (window: Page, group: 'Projects' | 'Hidden and archived projects' = 'Projects') => window.locator(`.project-list[aria-label="${group}"] > .project-row`);
+export const projectRows = (window: Page, group: 'Projects' | 'Archived projects' = 'Projects') => window.locator(`.project-list[aria-label="${group}"] > .project-row`);
 /** The Projects page's row of the project of that name. */
-export const projectRow = (window: Page, name = 'Northwind', group?: 'Projects' | 'Hidden and archived projects') => projectRows(window, group).filter({ has: window.locator('.row-link-title').getByText(name, { exact: true }) });
+export const projectRow = (window: Page, name = 'Northwind', group?: 'Projects' | 'Archived projects') => projectRows(window, group).filter({ has: window.locator('.row-link-title').getByText(name, { exact: true }) });
 /** The Projects page lists these projects, in this order. */
-export async function expectProjects(window: Page, names: string[], group?: 'Projects' | 'Hidden and archived projects') {
+export async function expectProjects(window: Page, names: string[], group?: 'Projects' | 'Archived projects') {
   await expect(projectRows(window, group).locator('.row-link-title')).toHaveText(names);
 }
 /** A project's statistics, from its row on the Projects page. */

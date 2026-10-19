@@ -1,6 +1,6 @@
 // Remote access between two copies of Atlas: one turns remote access on, the other pairs with a
 // one-time link and then works on the first computer's projects as if they were local: their plans in
-// its hub, listed on its Projects page (hidden its own way), read, renamed and created there, plan export and
+// its hub, listed on its Projects page (archived its own way), read, renamed and created there, plan export and
 // import, and switching between computers. Both run on this machine with their own homes; the
 // first listens on 127.0.0.1, since CI runners have no Tailscale.
 import { existsSync, readFileSync } from 'node:fs';
@@ -157,14 +157,14 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Coord platform');
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
-  // ...while hiding is this app's own.
-  await projectAction(viewer, 'Northwind', 'Hide');
+  // ...while archiving is this app's own.
+  await projectAction(viewer, 'Northwind', 'Archive');
   await expectProjects(viewer, ['Coord platform']);
-  await expectProjects(viewer, ['Northwind'], 'Hidden and archived projects');
+  await expectProjects(viewer, ['Northwind'], 'Archived projects');
   await viewer.waitForTimeout(500);
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
-  // A hidden project's plans are reached from its name there.
-  await projectRow(viewer, 'Northwind', 'Hidden and archived projects').getByRole('button', { name: 'Northwind', exact: true }).click();
+  // An archived project's plans are reached from its name there.
+  await projectRow(viewer, 'Northwind', 'Archived projects').getByRole('button', { name: 'Northwind', exact: true }).click();
   await expectHub(viewer, 'Northwind');
   await openPlan(viewer, 'Customer order notifications');
 
@@ -196,13 +196,13 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   });
   expect(refused).toEqual(['forbidden', 'forbidden']);
 
-  // Next launch, this Atlas shows that computer again with its saved credential, place and hidden project.
+  // Next launch, this Atlas shows that computer again with its saved credential, place and archived project.
   await viewer.waitForTimeout(600);
   await close(reading);
   reading = await launch({ dataDirectory: readerData });
   await expect(reading.window.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   await expect(reading.window.locator('.work-header h1')).toHaveText('Customer order notifications');
-  await expect.poll(() => projectNames(reading!.window).then(names => names.sort())).toEqual(['Coord platform', 'Northwind (hidden)']);
+  await expect.poll(() => projectNames(reading!.window).then(names => names.sort())).toEqual(['Coord platform', 'Northwind (archived)']);
 
   // Started while that computer cannot be reached, the window shows at once, on the hub, and keeps its
   // place (also through a save meanwhile); it comes back when the computer answers again.

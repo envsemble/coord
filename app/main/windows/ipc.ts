@@ -32,7 +32,7 @@ const pairingLink = string({ min: 3, max: 2048 });
 const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
 const workspaces = array(folderPath, limits.workspaces);
 const searchQuery = string({ min: 1, max: 200 });
-const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'hidden', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(workspaces) });
+const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(workspaces) });
 
 /** Import previews belong to the window that chose the file. */
 const pendingImports = new Map<string, { window: number; folder: FolderView }>();
@@ -194,7 +194,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         const computer = window.computer;
         const results = await remoteErrors(window.client().request('search.query', { query, limit: 50 }, { timeout: 20000 }));
         if (computer === null) return results;
-        // This app keeps its own hidden and archived state for another computer's projects: their results go.
+        // This app keeps its own archived state for another computer's projects: their results go.
         const active = await window.activeProjects();
         return results.filter(result => active.has(result.folderId));
       },

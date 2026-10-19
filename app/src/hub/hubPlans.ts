@@ -34,7 +34,7 @@ export function hubStatus(work: ProjectWork, activity: ActivityState = null): Wo
 
 /**
  * The plans the hub can list: those of every active project, or, filtered to a project, that
- * project's (also when it is hidden or archived). A project whose folder could not be read has none.
+ * project's (also when it is archived). A project whose folder could not be read has none.
  */
 export function hubItems(projects: Project[], filter: string | null): HubItem[] {
   return projects.filter(project => filter === null ? project.state === 'active' : project.folderId === filter).flatMap(project => {

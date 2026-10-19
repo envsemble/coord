@@ -1,8 +1,7 @@
-// The Projects page: every project of the window's computer, active, then hidden and archived more
-// quietly, one compact row each: its name (leading to its plans), its planning folder and
+// The Projects page: every project of the window's computer, active, then archived more quietly, one compact row each: its name (leading to its plans), its planning folder and
 // repositories in one muted line, the workspace folders it covers (an agent working in one of them,
 // or inside one, belongs to the project), its statistics, and in its menu what can be done with it:
-// add a workspace folder, rename, hide, show, archive, restore, move into the Atlas home. A folder is
+// add a workspace folder, rename, archive, restore, move into the Atlas home. A folder is
 // removed from its row, quietly until the row is pointed at. Projects are made here too: a name and a
 // folder. Workspace folders are paths on the project's own computer, so they are only chosen in Atlas
 // there.
@@ -27,7 +26,6 @@ export interface ProjectActions {
   go(place: Place): void;
 }
 
-const stateLabels = { hidden: 'Hidden', archived: 'Archived' } as const;
 /** The last part of a folder's path, for a name. */
 export const folderName = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).at(-1) ?? '';
 /** A folder given by its full path, as workspace folders are. */
@@ -150,7 +148,7 @@ function AddFolderDialog({ project, onClose, onAdd }: { project: Project; onClos
   </Dialog>;
 }
 
-/** A project's actions: add a workspace folder, rename, hide or show, archive or restore, and move it into the home. */
+/** A project's actions: add a workspace folder, rename, archive or restore, and move it into the home. */
 function ProjectMenu({ project, actions, rename, addFolder, busy, change }: { project: Project; actions: ProjectActions; rename(): void; addFolder: (() => void) | null; busy: boolean; change(change: ProjectChangeRequest): void }) {
   const state = (next: Project['state']) => change({ state: next });
   return <Menu aria-label={'Actions for ' + project.name} align="end" density="compact"
@@ -159,10 +157,7 @@ function ProjectMenu({ project, actions, rename, addFolder, busy, change }: { pr
     <MenuItem onClick={rename}>Rename…</MenuItem>
     {project.outsideHome && <MenuItem onClick={() => actions.adopt(project)}>Move into the Atlas home</MenuItem>}
     <MenuSeparator />
-    {project.state === 'hidden' && <MenuItem onClick={() => state('active')}>Show</MenuItem>}
-    {project.state === 'archived' && <MenuItem onClick={() => state('active')}>Restore</MenuItem>}
-    {project.state !== 'hidden' && <MenuItem onClick={() => state('hidden')}>Hide</MenuItem>}
-    {project.state !== 'archived' && <MenuItem onClick={() => state('archived')}>Archive</MenuItem>}
+    {project.state === 'active' ? <MenuItem onClick={() => state('archived')}>Archive</MenuItem> : <MenuItem onClick={() => state('active')}>Restore</MenuItem>}
   </Menu>;
 }
 
@@ -178,7 +173,7 @@ function ProjectRow({ project, computer, local, actions, rename, addFolder }: { 
   return <Row className="project-row" data-project={project.folderId} data-state={project.state} aria-busy={busy || undefined}
     title={<span className="row-title">
       <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
-      {project.state !== 'active' && <Badge tone="warning">{stateLabels[project.state]}</Badge>}
+      {project.state !== 'active' && <Badge tone="warning">Archived</Badge>}
       {project.outsideHome && <Badge title="Agents do not find it until it is moved into the Atlas home">Outside the Atlas home</Badge>}
     </span>}
     detail={<span className="project-meta"><bdi className="project-path">{project.path}</bdi>
@@ -218,9 +213,9 @@ export function ProjectsPage({ projects, error, computer, local, actions }: { pr
       : !projects.length ? <Text variant="body" tone="muted">No projects yet.</Text>
       : <>
         {active.length > 0 && list(active, 'Projects')}
-        {aside.length > 0 && <section className="projects-aside" aria-label="Hidden and archived projects">
-          <Text as="h2" variant="section-heading">Hidden and archived</Text>
-          {list(aside, 'Hidden and archived projects')}
+        {aside.length > 0 && <section className="projects-aside" aria-label="Archived projects">
+          <Text as="h2" variant="section-heading">Archived</Text>
+          {list(aside, 'Archived projects')}
         </section>}
       </>}
     {creating && <NewProjectDialog computer={computer} local={local} onClose={() => setCreating(false)} onCreated={actions.created} />}

@@ -58,6 +58,9 @@ export interface WindowContext {
 
 const allowedExternal = new Set(['https:', 'http:', 'mailto:']);
 
+/** A project's state as windows show it: active, else archived (a hidden one from before included). */
+const projectState = (state: string): Project['state'] => state === 'active' ? 'active' : 'archived';
+
 export function externalUrl(value: string): string | null {
   try {
     const url = new URL(value);
@@ -215,7 +218,8 @@ export class AtlasWindow {
         return { project, rowId: row.id };
       });
       const rows = new Map(database.projects(connectionId).map(row => [row.id, row]));
-      projects = projects.map(({ project, rowId }) => ({ project: { ...project, position: rows.get(rowId)!.position, state: rows.get(rowId)!.state }, rowId }))
+      // A project this app hid before reads as archived: hiding is gone.
+      projects = projects.map(({ project, rowId }) => ({ project: { ...project, position: rows.get(rowId)!.position, state: projectState(rows.get(rowId)!.state) }, rowId }))
         .sort((a, b) => a.project.position - b.project.position);
     }
     if (computer === this.computer) this.listed = new Map(projects.map(entry => [entry.project.folderId, entry]));
