@@ -57,10 +57,11 @@ export function timelineSpan(timeline: WorkTimeline, now: number, zoom: 'all' | 
   return { start: Math.min(start, end - 60000), end };
 }
 
-/** Ticks for a span: hours for a day or less, days for weeks, weeks beyond; at most about eight. */
+/** Ticks for a span: minutes or hours for a day or less, days for weeks, weeks beyond; at most about eight. */
 export function timelineTicks(start: number, end: number): { at: number; label: string }[] {
   const span = end - start;
-  const steps = [hour, 3 * hour, 6 * hour, 12 * hour, day, 2 * day, 7 * day, 14 * day, 28 * day];
+  const minute = 60000;
+  const steps = [minute, 5 * minute, 15 * minute, 30 * minute, hour, 3 * hour, 6 * hour, 12 * hour, day, 2 * day, 7 * day, 14 * day, 28 * day];
   const step = steps.find(value => span / value <= 8) ?? 56 * day;
   const offset = new Date(start).getTimezoneOffset() * 60000;
   const ticks: { at: number; label: string }[] = [];
@@ -70,3 +71,21 @@ export function timelineTicks(start: number, end: number): { at: number; label: 
   }
   return ticks;
 }
+
+/** What part of time a timeline shows, in ms. */
+export interface TimeView { start: number; end: number }
+/** The shortest span a timeline zooms to. */
+const shortest = 60_000;
+/** A view kept within the whole of a timeline (`limit`): never wider, never past its ends. */
+function within(start: number, span: number, limit: TimeView): TimeView {
+  const width = Math.min(Math.max(span, shortest), limit.end - limit.start);
+  const from = Math.min(Math.max(start, limit.start), limit.end - width);
+  return { start: from, end: from + width };
+}
+/** Zoom a view by `factor` (below 1 in, above 1 out) around a moment, which stays where it is. */
+export function zoomView(view: TimeView, factor: number, at: number, limit: TimeView): TimeView {
+  const span = view.end - view.start, next = Math.min(Math.max(span * factor, shortest), limit.end - limit.start);
+  return within(at - (at - view.start) * next / span, next, limit);
+}
+/** Move a view along time by `by` ms (later when positive). */
+export const panView = (view: TimeView, by: number, limit: TimeView): TimeView => within(view.start + by, view.end - view.start, limit);

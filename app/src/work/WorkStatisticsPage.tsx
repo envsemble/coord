@@ -1,12 +1,11 @@
 // A plan's statistics, a page of its own (from its page's sidebar, a place in the history): its
-// headline figures, tables of agent time and tokens by session and subagent, by model and reasoning
-// effort, by stage and by kind of token, and its timeline: one lane per session and subagent with
-// its working stretches and its waits for the person, parallel work one lane above another, now
-// marked; zoomed to the last day or week, or all of it. The timeline is also a table, for the
-// keyboard and screen readers. Tooltips only say what a figure stands for.
-import { useMemo, useState, type ReactNode } from 'react';
+// headline figures, its timeline (one lane per session and subagent with its working stretches and
+// its waits for the person, parallel work one lane above another, now marked, to zoom and move along)
+// and agent time and tokens by model and reasoning effort. The timeline is also a table, folded, for
+// screen readers.
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { DisclosureNote, SegmentedControl, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
-import type { AgentUsage, Work, WorkSession, WorkTimeline } from '../types';
+import type { Work, WorkSession, WorkTimeline } from '../types';
 import { aiModel, withEffort } from '../ui/aiModels';
 import { ModelName } from '../ui/AiModel';
 import { absoluteDate, compactNumber, duration, plural, workNumber } from '../ui/format';
@@ -15,14 +14,11 @@ import { workStatus } from '../ui/status';
 import { StatsCard } from '../statistics/StatisticsPage';
 import { useWorkbench } from '../workbench/workbenchContext';
 import { Trail } from './WorkPage';
-import { activityKey, sessionLabel, useWorkSessions, useWorkTimeline } from './WorkSessions';
+import { activityKey, sessionTitle, useWorkSessions, useWorkTimeline } from './WorkSessions';
 import { AgentTime, measuredSection, shortId, useHostNow } from './LiveAgentTime';
 import { liveActiveMs, liveAgentMs, type LiveActivity } from './agentTime';
-import { harnessNames, roughDuration, timelineLine, timelineSpan, timelineTicks } from './sessions';
-import { agentTimeNote, effortRows, stageLabels, stageUsage, tokenRows, type StageKey } from './workStatistics';
-
-/** The subagent that stands for those older reports counted without naming them. */
-const unlisted = 'unlisted';
+import { harnessNames, panView, roughDuration, timelineLine, timelineSpan, timelineTicks, zoomView, type TimeView } from './sessions';
+import { agentTimeNote, effortRows } from './workStatistics';
 
 function Section({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
   return <section className="plan-statistics-section" aria-label={title}>
@@ -31,34 +27,6 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
   </section>;
 }
 
-/** An agent of the plan, as a table names it: a session by its harness, a subagent under its session. */
-function agentName(agent: AgentUsage, sessions: WorkSession[]) {
-  if (agent.subagent === unlisted) return 'Unnamed subagents';
-  if (agent.subagent) return 'Subagent ' + shortId(agent.subagent);
-  const session = sessions.find(item => item.session === agent.session);
-  return agent.session ? (session ? harnessNames[session.harness] : 'Session') + ' ' + shortId(agent.session) : 'Session not recorded';
-}
-
-/** Time by session and subagent: each session, then its subagents under it. */
-function ByAgent({ agents, sessions, total }: { agents: AgentUsage[]; sessions: WorkSession[]; total: number }) {
-  const ordered = useMemo(() => {
-    const own = agents.filter(agent => !agent.subagent);
-    const orphans = agents.filter(agent => agent.subagent && !own.some(session => session.session === agent.session));
-    return [...own.flatMap(session => [session, ...agents.filter(agent => agent.subagent && agent.session === session.session)]), ...orphans];
-  }, [agents]);
-  if (!agents.length) return <p className="muted">No session log was measured for this plan yet.</p>;
-  return <Table className="plan-statistics-table" aria-label="Agent time by session and subagent">
-    <TableHead><TableRow><TableHeaderCell>Session or subagent</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Share</TableHeaderCell></TableRow></TableHead>
-    <TableBody>{ordered.map((agent, index) => <TableRow key={index} data-subagent={agent.subagent ? '' : undefined}>
-      <TableCell><span className={agent.subagent ? 'plan-statistics-subagent' : undefined} title={agent.subagent ?? agent.session ?? undefined}>{agentName(agent, sessions)}</span></TableCell>
-      <TableCell>{agent.model ? <ModelName model={agent.model} effort={agent.effort} /> : <span className="muted">—</span>}</TableCell>
-      <TableCell numeric>{duration(agent.agentMs)}</TableCell>
-      <TableCell numeric>{total ? Math.round(agent.agentMs / total * 100) + '%' : '—'}</TableCell>
-    </TableRow>)}</TableBody>
-  </Table>;
-}
-
-/** Time and tokens by model and reasoning effort. */
 function ByModel({ work }: { work: Work }) {
   const models = work.statistics?.models.filter(model => model.agentMs > 0 || (model.tokens ?? 0) > 0) ?? [];
   if (!models.length) return <p className="muted">No model was reported for this plan yet.</p>;
@@ -74,72 +42,129 @@ function ByModel({ work }: { work: Work }) {
   </Table>;
 }
 
-/** Time and tokens by stage, and tokens by kind. */
-function ByStage({ work }: { work: Work }) {
-  const statistics = work.statistics;
-  const stages = (['planning', 'implementation', 'unknown'] as StageKey[]).filter(stage => stageUsage(statistics ?? null, stage));
-  const kinds = statistics ? tokenRows(statistics) : [];
-  return <div className="plan-statistics-pair">
-    {stages.length ? <Table className="plan-statistics-table" aria-label="Agent time and tokens by stage">
-      <TableHead><TableRow><TableHeaderCell>Stage</TableHeaderCell><TableHeaderCell numeric>Reports</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
-      <TableBody>{stages.map(stage => { const usage = stageUsage(statistics!, stage)!; return <TableRow key={stage}>
-        <TableCell>{stageLabels[stage]}</TableCell><TableCell numeric>{usage.reports}</TableCell><TableCell numeric>{duration(usage.agentMs)}</TableCell><TableCell numeric>{usage.tokens !== null ? compactNumber(usage.tokens) : '—'}</TableCell>
-      </TableRow>; })}</TableBody>
-    </Table> : <p className="muted">No report has a stage yet.</p>}
-    {kinds.length > 0 && <Table className="plan-statistics-table" aria-label="Tokens by kind">
-      <TableHead><TableRow><TableHeaderCell>Tokens</TableHeaderCell><TableHeaderCell numeric>Count</TableHeaderCell></TableRow></TableHead>
-      <TableBody>{kinds.map(row => <TableRow key={row.label}><TableCell>{row.label}</TableCell><TableCell numeric>{row.value.toLocaleString()}</TableCell></TableRow>)}</TableBody>
-    </Table>}
-  </div>;
-}
-
 type Zoom = 'all' | 'week' | 'day';
-/** A lane's name: its session (harness, model and effort) or a subagent under it. */
-function laneName(lane: WorkTimeline['lanes'][number], sessions: WorkSession[]) {
+type Lane = WorkTimeline['lanes'][number];
+/** A lane's name: the model doing its work, with its effort; else its harness, or "Subagent". */
+function laneName(lane: Lane, sessions: WorkSession[]) {
+  if (lane.model) return withEffort(aiModel(lane.model).name, lane.effort);
   const session = sessions.find(item => item.session === lane.session);
-  const model = lane.model ? withEffort(aiModel(lane.model).name, lane.effort) : null;
-  if (lane.subagent) return ['Subagent ' + shortId(lane.subagent), model].filter(Boolean).join(' · ');
-  return [(session ? harnessNames[session.harness] : 'Session') + ' ' + shortId(lane.session), model].filter(Boolean).join(' · ');
+  return lane.subagent ? 'Subagent' : session ? harnessNames[session.harness] : 'Session';
 }
+/** The time a lane worked, added up. */
+const laneWork = (lane: Lane) => lane.working.reduce((total, [from, to]) => total + Math.max(0, Date.parse(to) - Date.parse(from)), 0);
+/** What a lane's name does not say: its session's title and harness, the subagent, the time it worked. */
+function laneDetail(lane: Lane, sessions: WorkSession[]) {
+  const session = sessions.find(item => item.session === lane.session);
+  return [
+    lane.subagent ? 'Subagent ' + shortId(lane.subagent) + ' of ' + (session ? sessionTitle(session) : 'session ' + shortId(lane.session)) : session ? sessionTitle(session) : 'Session ' + shortId(lane.session),
+    session && harnessNames[session.harness], laneName(lane, sessions), duration(laneWork(lane)) + ' of work',
+  ].filter(Boolean).join(' · ');
+}
+const stretchLabels = { working: 'Working', waiting: 'Waiting for you' } as const;
+/** A stretch under the pointer, and where the pointer is in the chart. */
+interface Tip { lane: Lane; kind: 'working' | 'waiting'; from: string; to: string; x: number; y: number }
 
 /**
- * The plan's timeline: a lane per session and subagent, each working stretch and wait for the person
- * placed on one scale of time up to now; where lanes overlap, agents worked in parallel.
+ * The plan's timeline: a lane per session and subagent (subagents under their session), each working
+ * stretch and wait for the person on one scale of time up to now; where lanes overlap, agents worked
+ * in parallel. Shift and the mouse wheel zoom around the pointer and dragging moves along time, as
+ * the arrow keys do on the focused chart; the presets show all of it or its last week or day. Each
+ * stretch says on hover what it was, when, how long and which model.
  */
 function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessions: WorkSession[]; live: LiveActivity | null }) {
-  const [zoom, setZoom] = useState<Zoom>('all');
+  const [preset, setPreset] = useState<Zoom | null>('all');
+  const [view, setView] = useState<TimeView | null>(null);
+  const [tip, setTip] = useState<Tip | null>(null);
+  const chart = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; view: TimeView } | null>(null);
   // Now moves along while agents work.
   const now = useHostNow(live);
-  const { start, end } = timelineSpan(timeline, now, zoom);
+  const whole = timelineSpan(timeline, now, 'all');
+  const { start, end } = preset ? timelineSpan(timeline, now, preset) : view ?? whole;
   const span = end - start;
+  const show = (next: TimeView) => { setPreset(null); setView(next); };
+  /** The tracks' left edge and width on screen, where time is drawn. */
+  const track = () => chart.current?.querySelector('.timeline-track')?.getBoundingClientRect() ?? null;
+  // Shift and the wheel zoom around the pointer (Chromium turns a shifted wheel sideways).
+  useEffect(() => {
+    const element = chart.current;
+    if (!element) return;
+    const wheel = (event: WheelEvent) => {
+      if (!event.shiftKey) return;
+      const box = track(), delta = event.deltaY || event.deltaX;
+      if (!box || !delta) return;
+      event.preventDefault();
+      const at = start + Math.min(Math.max((event.clientX - box.left) / box.width, 0), 1) * span;
+      show(zoomView({ start, end }, delta > 0 ? 1.25 : 0.8, at, whole));
+    };
+    element.addEventListener('wheel', wheel, { passive: false });
+    return () => element.removeEventListener('wheel', wheel);
+  });
+  const keys = (event: KeyboardEvent) => {
+    const step = span / 10, middle = start + span / 2;
+    const moves: Record<string, () => TimeView> = {
+      ArrowLeft: () => panView({ start, end }, -step, whole), ArrowRight: () => panView({ start, end }, step, whole),
+      ArrowUp: () => zoomView({ start, end }, 0.8, middle, whole), '+': () => zoomView({ start, end }, 0.8, middle, whole), '=': () => zoomView({ start, end }, 0.8, middle, whole),
+      ArrowDown: () => zoomView({ start, end }, 1.25, middle, whole), '-': () => zoomView({ start, end }, 1.25, middle, whole),
+    };
+    if (event.key === 'Home') { event.preventDefault(); setPreset('all'); return; }
+    const move = moves[event.key];
+    if (move) { event.preventDefault(); show(move()); }
+  };
+  const down = (event: PointerEvent) => {
+    if (event.button !== 0) return;
+    drag.current = { x: event.clientX, view: { start, end } };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  };
+  const move = (event: PointerEvent) => {
+    const box = track();
+    if (drag.current && box) {
+      setTip(null);
+      const from = drag.current.view;
+      show(panView(from, -(event.clientX - drag.current.x) / box.width * (from.end - from.start), whole));
+      return;
+    }
+    const bar = (event.target as HTMLElement).closest<HTMLElement>('.timeline-bar');
+    const own = chart.current?.getBoundingClientRect();
+    if (!bar || !own) { setTip(null); return; }
+    const lane = timeline.lanes[Number(bar.dataset.lane)], kind = bar.dataset.kind as Tip['kind'];
+    const [from, to] = lane[kind][Number(bar.dataset.index)];
+    setTip({ lane, kind, from, to, x: event.clientX - own.left, y: event.clientY - own.top });
+  };
+  const up = () => { drag.current = null; };
   const place = (from: string, to: string) => {
     const a = Math.max(start, Date.parse(from)), b = Math.min(end, Date.parse(to));
     return b > a ? { left: (a - start) / span * 100 + '%', width: (b - a) / span * 100 + '%' } : null;
   };
   const ticks = timelineTicks(start, end);
-  const working = timeline.lanes.reduce((sum, lane) => sum + lane.working.reduce((total, [from, to]) => total + Math.max(0, Date.parse(to) - Date.parse(from)), 0), 0);
-  const summary = plural(timeline.lanes.length, 'lane') + ' from ' + absoluteDate(new Date(start).toISOString()) + ' to now: ' + duration(working) + ' of work' + (timeline.waitedMs ? ', ' + duration(timeline.waitedMs) + ' waiting for you' : '') + '. The table below lists every stretch.';
+  const working = timeline.lanes.reduce((sum, lane) => sum + laneWork(lane), 0);
+  const summary = plural(timeline.lanes.length, 'lane') + ', ' + duration(working) + ' of work' + (timeline.waitedMs ? ', ' + duration(timeline.waitedMs) + ' waiting for you' : '') + ', shown from ' + absoluteDate(new Date(start).toISOString()) + ' to ' + absoluteDate(new Date(end).toISOString()) + '.';
   const stretches = timeline.lanes.flatMap(lane => [...lane.working.map(([from, to]) => ({ lane, kind: 'Working', from, to })), ...lane.waiting.map(([from, to]) => ({ lane, kind: 'Waiting for you', from, to }))]).sort((a, b) => a.from.localeCompare(b.from));
-  return <Section title="Timeline" note={<SegmentedControl aria-label="Timeline span" size="compact" value={zoom} onValueChange={value => setZoom(value as Zoom)}
+  return <Section title="Timeline" note={<SegmentedControl aria-label="Timeline span" size="compact" value={preset ?? ''} onValueChange={value => setPreset(value as Zoom)}
     options={[{ value: 'all', label: 'All' }, { value: 'week', label: 'Last week' }, { value: 'day', label: 'Last day' }]} />}>
     {timeline.lanes.length ? <>
-      <div className="timeline" role="img" aria-label={summary}>
-        <div className="timeline-axis">{ticks.map(tick => <span key={tick.at} className="timeline-tick" style={{ left: (tick.at - start) / span * 100 + '%' }}>{tick.label}</span>)}</div>
-        {timeline.lanes.map((lane, index) => <div key={index} className="timeline-lane" data-subagent={lane.subagent ? '' : undefined}>
-          <span className="timeline-lane-name">{laneName(lane, sessions)}</span>
+      <div ref={chart} className="timeline" role="group" aria-roledescription="timeline" aria-label={summary} aria-describedby="timeline-help" tabIndex={0}
+        onKeyDown={keys} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => { if (!drag.current) setTip(null); }}>
+        <div className="timeline-axis" aria-hidden="true">{ticks.map(tick => <span key={tick.at} className="timeline-tick" style={{ left: (tick.at - start) / span * 100 + '%' }}>{tick.label}</span>)}</div>
+        {timeline.lanes.map((lane, index) => <div key={index} className="timeline-lane" data-subagent={lane.subagent ? '' : undefined} aria-hidden="true">
+          <span className="timeline-lane-name" title={laneDetail(lane, sessions)}>{laneName(lane, sessions)}</span>
           <div className="timeline-track">
-            {lane.waiting.map(([from, to], at) => { const style = place(from, to); return style && <span key={'w' + at} className="timeline-bar" data-kind="waiting" style={style} />; })}
-            {lane.working.map(([from, to], at) => { const style = place(from, to); return style && <span key={'b' + at} className="timeline-bar" data-kind="working" style={style} />; })}
+            {(['waiting', 'working'] as const).map(kind => lane[kind].map(([from, to], at) => { const style = place(from, to); return style && <span key={kind + at} className="timeline-bar" data-kind={kind} data-lane={index} data-index={at} style={style} />; }))}
           </div>
         </div>)}
         {end >= now - 1000 && <span className="timeline-now" aria-hidden="true" />}
+        {tip && <div className="timeline-tip" role="tooltip" data-flip={tip.x > (chart.current?.clientWidth ?? 0) - 320 ? '' : undefined} style={{ left: tip.x, top: tip.y }}>
+          <strong>{stretchLabels[tip.kind]}</strong>
+          <span>{absoluteDate(tip.from)} – {absoluteDate(tip.to)} · {duration(Math.max(0, Date.parse(tip.to) - Date.parse(tip.from)))}</span>
+          <span className="muted">{laneDetail(tip.lane, sessions)}</span>
+        </div>}
       </div>
-      <p className="timeline-legend muted"><span className="timeline-key" data-kind="working" /> working <span className="timeline-key" data-kind="waiting" /> waiting for you <span className="timeline-key" data-kind="now" /> now</p>
+      <p id="timeline-help" className="timeline-legend muted"><span className="timeline-key" data-kind="working" /> working <span className="timeline-key" data-kind="waiting" /> waiting for you <span className="timeline-key" data-kind="now" /> now · Shift and the wheel zoom, dragging moves; on the focused chart the arrow keys move and zoom, Home shows all</p>
       <DisclosureNote title="The timeline as a table">
         <Table className="plan-statistics-table" aria-label="Timeline">
-          <TableHead><TableRow><TableHeaderCell>Session or subagent</TableHeaderCell><TableHeaderCell>What</TableHeaderCell><TableHeaderCell>From</TableHeaderCell><TableHeaderCell>To</TableHeaderCell><TableHeaderCell numeric>Length</TableHeaderCell></TableRow></TableHead>
+          <TableHead><TableRow><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell>Session or subagent</TableHeaderCell><TableHeaderCell>What</TableHeaderCell><TableHeaderCell>From</TableHeaderCell><TableHeaderCell>To</TableHeaderCell><TableHeaderCell numeric>Length</TableHeaderCell></TableRow></TableHead>
           <TableBody>{stretches.map((stretch, index) => <TableRow key={index}>
-            <TableCell>{laneName(stretch.lane, sessions)}</TableCell><TableCell>{stretch.kind}</TableCell>
+            <TableCell>{laneName(stretch.lane, sessions)}</TableCell><TableCell>{laneDetail(stretch.lane, sessions).split(' · ')[0]}</TableCell><TableCell>{stretch.kind}</TableCell>
             <TableCell>{absoluteDate(stretch.from)}</TableCell><TableCell>{absoluteDate(stretch.to)}</TableCell>
             <TableCell numeric>{duration(Math.max(0, Date.parse(stretch.to) - Date.parse(stretch.from)))}</TableCell>
           </TableRow>)}</TableBody>
@@ -183,9 +208,7 @@ export function WorkStatisticsPage({ work }: { work: Work }) {
     </header>
     <Headline work={work} live={live} sessions={sessions} timeline={timeline} />
     {timeline && <Timeline timeline={timeline} sessions={sessions} live={live} />}
-    <Section title="By session and subagent"><ByAgent agents={statistics?.agents ?? []} sessions={sessions} total={statistics?.agentMs ?? 0} /></Section>
     <Section title="By model and effort"><ByModel work={work} /></Section>
-    <Section title="By stage"><ByStage work={work} /></Section>
     {statistics && statistics.reports > 0 && <Text variant="caption" tone="muted">{agentTimeNote(statistics)}</Text>}
   </div>;
 }

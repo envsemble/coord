@@ -145,8 +145,11 @@ export function WorkPage({ work, snapshot, target, files }: { work: Work; snapsh
         {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
-      <About work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} sessions={sessions?.sessions ?? []} />
-      {files && <div className="work-files">{files}</div>}
+      {/* The side column, and the Files card beside it or, where there is no room, under it in the same column. */}
+      <div className="work-side">
+        <About work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} sessions={sessions?.sessions ?? []} />
+        {files && <div className="work-files">{files}</div>}
+      </div>
     </div>
   </div>;
 }

@@ -153,13 +153,12 @@ test("the Work tab lists each work item with its model, planning and implementat
   await facts.nth(0).locator('.detailed').focus();
   await expect(facts.nth(0).locator('.detailed')).toHaveAccessibleDescription(/measured from the agent's session logs/);
 
-  // The plan's statistics page, a place in the history: time and tokens by stage and by kind, in tables.
+  // The plan's statistics page, a place in the history: its headline figures, and time and tokens by model and effort.
   await statistics.getByRole('link', { name: 'All statistics and the timeline' }).click();
   await expect(window.locator('.plan-statistics-page h1')).toHaveText('Statistics');
-  await expect(window.getByRole('table', { name: 'Agent time and tokens by stage' }).locator('tbody tr')).toHaveText([/^Planning.*1 h 30 min/, /^Implementation.*2 h 38 min/]);
-  const kinds = window.getByRole('table', { name: 'Tokens by kind' });
-  await expect(kinds).toContainText('Cached input' + await whole(window, 12959000));
-  await expect(kinds).toContainText('Self-reported' + await whole(window, 120000));
+  await expect(window.locator('.plan-statistics-page .stat', { hasText: 'Agent time' }).locator('.stat-value')).toHaveText('4 h 8 min');
+  await expect(window.getByRole('table', { name: 'Agent time and tokens by model and effort' })).toContainText('Claude Opus 5.5');
+  await expect(window.getByRole('table', { name: 'Agent time and tokens by stage' })).toHaveCount(0);
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
 });

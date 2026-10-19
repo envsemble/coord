@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { excerpt, timelineLine, timelineSpan, waitingSession } from './sessions.ts';
+import { excerpt, panView, timelineLine, timelineSpan, waitingSession, zoomView } from './sessions.ts';
 import type { WorkSession } from '../types.ts';
 
 const hour = 3600000, day = 24 * hour;
@@ -21,4 +21,13 @@ test('a plan\'s sessions: the one waiting with its message, and its message\'s b
   // The timeline shows up to now; zoomed, the last day or week of it.
   const span = timelineSpan({ plannedMs: null, implementingMs: null, waitedMs: 0, lanes: [{ session: 'a', subagent: null, model: null, effort: null, working: [['2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z']], waiting: [] }] }, Date.parse('2026-10-19T00:00:00Z'), 'all');
   assert.deepEqual(span, { start: Date.parse('2026-10-01T00:00:00Z'), end: Date.parse('2026-10-19T00:00:00Z') });
+});
+
+test('the timeline zooms around the moment under the pointer and moves along, within its whole span', () => {
+  const limit = { start: 0, end: 100 * hour };
+  // Zoomed in by half around 40 h: 40 h stays where it was, a fifth of the way across.
+  assert.deepEqual(zoomView({ start: 20 * hour, end: 120 * hour }, 0.5, 40 * hour, limit), { start: 30 * hour, end: 80 * hour });
+  // Never wider than the whole, nor past its ends.
+  assert.deepEqual(zoomView({ start: 0, end: 50 * hour }, 4, 25 * hour, limit), limit);
+  assert.deepEqual(panView({ start: 60 * hour, end: 90 * hour }, 20 * hour, limit), { start: 70 * hour, end: 100 * hour });
 });

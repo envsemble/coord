@@ -34,6 +34,8 @@ export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): {
 }
 
 type Row = TreeItem & { row: ExplorerRow };
+/** How the open folders note that the plan's own folder is folded (it shows open otherwise). */
+const folded = (id: string) => 'folded:' + id;
 
 /** Which of a project's folders are open in the Files card, and the row of what the window shows. */
 export interface FilesState { expanded: string[]; setExpanded(next: string[]): void; selected: string | null }
@@ -48,10 +50,17 @@ export function PlanFiles({ work }: { work: Work }) {
   const { expanded, setExpanded, selected } = useContext(FilesContext);
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
-  const rows = useMemo(() => visibleRows(index, expandedSet, work.path).map(treeItem), [index, expandedSet, work.path]);
+  // The plan's folder heads its files, open unless folded.
+  const rows = useMemo(() => {
+    const id = folderId(work.path), open = !expandedSet.has(folded(id));
+    const top: ExplorerRow = { id, kind: 'folder', name: work.path.slice(work.path.lastIndexOf('/') + 1), path: work.path, depth: 0, expandable: true, expanded: open };
+    return [top, ...open ? visibleRows(index, expandedSet, work.path).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(treeItem);
+  }, [index, expandedSet, work.path]);
   // A file opens as a file, a diagram file of the work item as its diagram.
   const fileOpens = (file: Document) => documentTarget(file, isDiagramFile(file.path) ? work : undefined);
   const setOpen = (id: string, value: boolean) => {
+    // The plan's folder is open unless folded; the others are folded unless opened.
+    if (id === folderId(work.path)) { setExpanded(value ? expanded.filter(item => item !== folded(id)) : [...expanded, folded(id)]); return; }
     if (value === expandedSet.has(id)) return;
     setExpanded(value ? [...expanded, id] : expanded.filter(item => item !== id));
   };
@@ -93,5 +102,6 @@ function treeItem(row: ExplorerRow): Row {
   const base = { id: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
   if (row.kind !== 'file') return { ...base, label: row.name, icon: row.expanded ? <FolderOpenIcon className="explorer-folder" /> : <FolderIcon className="explorer-folder" />, title: row.path };
   const diagram = isDiagramFile(row.path!) && Boolean(row.file?.workId);
-  return { ...base, label: row.name, icon: diagram ? <DiagramIcon className="explorer-diagram" /> : <FileIcon className="explorer-file" />, detail: row.file && row.file.title !== row.file.name ? row.file.title : undefined, title: row.path };
+  // Its whole name; its title, when it has one of its own, on hover.
+  return { ...base, label: row.name, icon: diagram ? <DiagramIcon className="explorer-diagram" /> : <FileIcon className="explorer-file" />, title: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
 }
