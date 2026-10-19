@@ -43,7 +43,8 @@ async function chooseDiagram(window: Page, title: string) {
 test('the picker lists diagrams by family, one short line each, and switches between a capture and its proposals in place: nothing moves, and the details and the view stay', async () => {
   launched = await launchProject({ dataDirectory, folder });
   const { window, app } = launched;
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+  // As wide as the diagrams had with the plan's Files card beside them.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1720, 900));
   await openDiagrams(window, 'Checkout · captured TypeScript');
   // The picker names the diagram's origin.
   await expect(window.locator('.model-picker-button')).toContainText('Generated from code');

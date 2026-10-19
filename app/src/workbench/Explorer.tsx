@@ -84,10 +84,9 @@ export function PlanFiles({ work }: { work: Work }) {
   </Surface>;
 }
 
-/** Bring the keyboard to the Files card's tree, at its row that takes focus. */
+/** Bring the keyboard to the Files card's tree (which takes focus itself and marks its active row). */
 export function focusPlanFiles() {
-  const tree = document.querySelector<HTMLElement>('.plan-files [role="tree"]');
-  (tree?.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]') ?? tree?.querySelector<HTMLElement>('[role="treeitem"]') ?? tree)?.focus();
+  document.querySelector<HTMLElement>('.plan-files [role="tree"]')?.focus();
 }
 
 function treeItem(row: ExplorerRow): Row {

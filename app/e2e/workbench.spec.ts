@@ -249,7 +249,7 @@ test("the Files card is always beside a plan's pages with the plan's own folder,
   await expect(files.locator('[role="treeitem"][data-id^="d:active/0002-"]')).toHaveCount(0);
   // Ctrl+Shift+E brings the keyboard to it.
   await window.keyboard.press('Control+Shift+E');
-  await expect(files.locator('[role="treeitem"]:focus')).toHaveCount(1);
+  await expect(files.getByRole('tree')).toBeFocused();
   // A folder opens in place; a diagram file opens as a diagram, any other file on the page; the card stays.
   await files.locator(row('d:active/0001-saved-payment-methods/diagrams')).click();
   await files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml')).click();
@@ -382,7 +382,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await expect(bar.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem')).toHaveText(['File']);
   await openPlan(window, 'Customer order notifications');
   const left = async (name: string, role: 'button' | 'menuitem' = 'button') => (await bar.getByRole(role, { name, exact: true }).boundingBox())!.x;
-  const order = [await left('All plans'), await left('Back'), await left('Forward'), await left('File', 'menuitem'), await left('Search'), await left('Files'), await left('Theme')];
+  const order = [await left('All plans'), await left('Back'), await left('Forward'), await left('File', 'menuitem'), await left('Search'), await left('Theme')];
   expect(order).toEqual([...order].sort((a, b) => a - b));
   await expect(bar.getByRole('button', { name: /^Computer:/ })).toBeVisible();
   const regions = await window.evaluate(() => {
@@ -390,6 +390,13 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
     return { bar: region(document.querySelector('.env-title-bar')), search: region(document.querySelector('.search-button')), sections: region(document.querySelector('.section-bar')), tab: region(document.querySelector('.section-tab')) };
   });
   expect(regions).toEqual({ bar: 'drag', search: 'no-drag', sections: 'drag', tab: 'no-drag' });
+  // The plan's Files card is below both rows, never over a part of the window that drags it, at any width.
+  for (const width of [1440, 900]) {
+    await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(size, 800), width);
+    await window.locator('.workbench-page').evaluate(element => { element.closest('.env-window-frame-content, .workbench-body')?.parentElement?.scrollTo?.(0, 0); });
+    const card = (await filesCard(window).boundingBox())!, sections = (await window.locator('.section-bar').boundingBox())!;
+    expect(card.y, String(width)).toBeGreaterThanOrEqual(sections.y + sections.height);
+  }
 
   // The second row: Plans with the open plans, Projects with the projects, Statistics.
   const sections = window.getByRole('navigation', { name: 'Sections' });
@@ -454,7 +461,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await window.keyboard.press('Escape');
   await openPlan(window, 'Saved payment methods');
   await window.keyboard.press('Control+Shift+E');
-  await expect(filesCard(window).locator('[role="treeitem"]:focus')).toHaveCount(1);
+  await expect(filesCard(window).getByRole('tree')).toBeFocused();
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Edit's keys act on the focused field.
