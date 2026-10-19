@@ -21,6 +21,12 @@ export const stateEvents = new Set(['UserPromptSubmit', 'ToolUse', 'Notification
 /** Notifications that wait for the person (Claude Code's); one without a type is taken as one. */
 const asking = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog']);
 export const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
+/**
+ * Whether a tool call may have made a commit (`git commit` prints `[branch hash] subject`) or a PR
+ * (`gh pr create` prints its URL), from the raw text of its input before anything else is read.
+ * bin/atlas.js asks the same before it loads any TypeScript.
+ */
+export const mayMakeProduct = (text: string) => /\[[^\]\s"]+(?: \(root-commit\))? [0-9a-f]{7,40}\] /.test(text) || /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text);
 /** A tool use while the session works says it is still at work this often at most. */
 const heartbeatMs = 60_000;
 
@@ -104,32 +110,49 @@ export function nextState(row: SessionRow, activity: Activity, at: string, liveF
   }
 }
 
+/** The longest last message kept for a session that waits for the person. */
+const messageLimit = 4000;
+/** What a hook knows besides the activity: the session's folder, and the message it waits with (its turn's last, or the question it asks). */
+export interface ActivityDetails { cwd?: string | null; message?: string | null }
+
 /**
  * Record what a session's agent did at `at` (an ISO time: when the hook started), and the stamp
  * that says so. Only sessions that linked work have a row; for others nothing is recorded. A tool
- * use while the session works only says it was seen, at most once a minute.
+ * use while the session works only says it was seen, at most once a minute. Each wait for the
+ * person is recorded with the work item the session is on, and the message it waits with is kept
+ * until it stops waiting.
  */
-export function recordActivity(database: HomeDatabase, home: string, session: string, transcriptPath: string | null, activity: Activity, at: string, liveWindowMs: number) {
+export function recordActivity(database: HomeDatabase, home: string, session: string, transcriptPath: string | null, activity: Activity, at: string, liveWindowMs: number, details: ActivityDetails = {}) {
   // The stamp is written while the database is held, so stamps follow the changes in their order.
   database.transaction(() => writeStamp(home, session, (() => {
     const row = database.db.prepare('SELECT working, turn_at, waiting_at, counts_at, state_at, updated_at FROM session WHERE id = ?').get(session) as SessionRow | undefined;
     if (!row) return 'none';
     const quiet = activity === 'tool' && row.working === 1 && Date.parse(at) - Date.parse(row.updated_at) < heartbeatMs;
     const next = quiet ? null : nextState(row, activity, at, new Date(Date.parse(at) - liveWindowMs).toISOString());
+    const now = { ...row, ...next };
     if (next) {
       const columns = Object.keys(next) as (keyof SessionRow)[];
-      database.db.prepare(`UPDATE session SET ${columns.map(column => column + ' = ?').join(', ')}, transcript_path = ifnull(?, transcript_path) WHERE id = ?`)
-        .run(...columns.map(column => next[column] ?? null), transcriptPath, session);
+      // A wait begins with its message, if the hook knows one; it ends without.
+      const message = now.waiting_at === null ? null : details.message?.trim() ? details.message.trim().slice(0, messageLimit) : undefined;
+      database.db.prepare(`UPDATE session SET ${columns.map(column => column + ' = ?').join(', ')}, transcript_path = ifnull(?, transcript_path), cwd = ifnull(?, cwd)${message === undefined ? '' : ', message = ?'} WHERE id = ?`)
+        .run(...columns.map(column => next[column] ?? null), transcriptPath, details.cwd ?? null, ...message === undefined ? [] : [message], session);
+      if (row.waiting_at !== now.waiting_at) {
+        if (row.waiting_at !== null) database.db.prepare('UPDATE session_wait SET ended_at = ? WHERE session_id = ? AND ended_at IS NULL').run(at, session);
+        if (now.waiting_at !== null) {
+          const on = database.db.prepare(`SELECT session_work.project_id, session_work.work_id FROM session JOIN session_work ON session_work.session_id = session.id
+            WHERE session.id = ? ORDER BY session_work.id = ifnull(session.focus, -1) DESC, ifnull(session_work.touched_at, session_work.linked_at) DESC, session_work.id DESC LIMIT 1`).get(session) as { project_id: number; work_id: string } | undefined;
+          database.db.prepare('INSERT INTO session_wait (session_id, project_id, work_id, started_at) VALUES (?, ?, ?, ?)').run(session, on?.project_id ?? null, on?.work_id ?? null, now.waiting_at);
+        }
+      }
     }
-    const now = { ...row, ...next };
     return now.working ? 'working' : now.waiting_at !== null ? 'waiting' : 'ended';
   })()));
 }
 
 /** Record a session the first time it links work: in a turn from `at`, unless it is recorded already. */
-export function recordSession(database: HomeDatabase, session: string, harness: string, transcriptPath: string | null, at: string) {
-  database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, counts_at, state_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?) ON CONFLICT (id) DO NOTHING')
-    .run(session, harness, transcriptPath, at, at, at, at, at);
+export function recordSession(database: HomeDatabase, session: string, harness: string, transcriptPath: string | null, at: string, cwd: string | null = null) {
+  database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, counts_at, state_at, cwd) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET cwd = ifnull(excluded.cwd, cwd)')
+    .run(session, harness, transcriptPath, at, at, at, at, at, cwd);
 }
 
 /**
@@ -141,15 +164,20 @@ export async function stateHook(event: string, text: string | null, at: number, 
   const home = atlasHome(undefined, environment);
   try {
     if (text === null) { text = ''; if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk; }
-    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown };
+    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown; message?: unknown; cwd?: unknown };
     const session = typeof input.session_id === 'string' && sessionPattern.test(input.session_id) ? input.session_id : null;
     const activity = activityOf(event, input);
     if (!session || !activity) return;
+    // A commit or a PR the tool call made is recorded however recently the session was seen.
+    const made = activity === 'tool' && mayMakeProduct(text);
     const stamp = readStamp(home, session);
-    if (stamp?.state === 'none' || (activity === 'tool' && stamp?.state === 'working' && at - stamp.at < heartbeatMs)) return;
+    if (stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && at - stamp.at < heartbeatMs)) return;
     const { HomeDatabase, liveWindowMs } = await import('../../planning/home/database.ts');
     const database = HomeDatabase.open(home);
-    try { recordActivity(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, activity, new Date(at).toISOString(), liveWindowMs); }
-    finally { database.close(); }
+    try {
+      const details: ActivityDetails = { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: activity === 'ask' && typeof input.message === 'string' ? input.message : null };
+      recordActivity(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, activity, new Date(at).toISOString(), liveWindowMs, details);
+      if (made) await (await import('./products.ts')).recordProducts(database, session, input, new Date(at).toISOString());
+    } finally { database.close(); }
   } catch (error) { logFailure(home, event, error); }
 }

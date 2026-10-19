@@ -13,17 +13,19 @@
 // state, live time and reports count there. When it moves to another, the one it leaves gets a
 // report up to then. The hooks that only record its state (sessionState.ts) run on every tool call.
 import { statSync } from 'node:fs';
-import { readFile, realpath } from 'node:fs/promises';
+import { open, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { checkPaths, findPlanning, HomeDatabase, homePlanningDirectory, insertReport, liveWindowMs, logConsultation, parseFrontmatter, prepareWorkReport, projectOf, resolvePlanningFolder, type PreparedReport, type Whereabouts } from '../../planning/index.ts';
 import { atlasHome } from '../../planning/home/homePath.ts';
 import type { Output } from '../args.ts';
-import { logFailure, pruneStamps, recordActivity, recordSession, sessionPattern, stateEvents, stateHook, type Activity } from './sessionState.ts';
+import { logFailure, pruneStamps, recordActivity, recordSession, sessionPattern, stateEvents, stateHook, type Activity, type ActivityDetails } from './sessionState.ts';
 
 export interface HookInput {
   session_id?: string; transcript_path?: string; cwd?: string; hook_event_name?: string;
   tool_name?: string; tool_input?: unknown; tool_response?: unknown;
   agent_id?: string; agent_type?: string; agent_transcript_path?: string;
+  /** Stop's: the text of the turn's last response (Claude Code and Codex). */
+  last_assistant_message?: string;
 }
 /**
  * A work item the session touched (a session_work row): `linked` is when, so the session's first
@@ -61,7 +63,36 @@ function readLinks(database: HomeDatabase, session: string, transcriptPath: stri
 /** The harness a session runs in, as its log's place tells. */
 const harnessOf = (transcriptPath: string | null) => transcriptPath === null ? 'unknown' : /[\\/]\.codex[\\/]/.test(transcriptPath) ? 'codex' : 'claude-code';
 /** Record what the session's agent did at `at`, from a hook that loaded everything else too. */
-const recordState = (database: HomeDatabase, home: string, links: SessionLinks, activity: Activity, at: string) => recordActivity(database, home, links.session, links.transcriptPath, activity, at, liveWindowMs);
+const recordState = (database: HomeDatabase, home: string, links: SessionLinks, activity: Activity, at: string, details?: ActivityDetails) => recordActivity(database, home, links.session, links.transcriptPath, activity, at, liveWindowMs, details);
+/** How much of a log's end is read for the turn's last message, when the hook's input does not have it. */
+const tailLimit = 256 * 1024;
+/**
+ * The text of a turn's last response: the hook's input has it (Claude Code and Codex send it with
+ * Stop); otherwise the last assistant line with text near the end of a Claude Code log. A
+ * compressed Codex rollout is not read.
+ */
+async function lastMessage(input: HookInput, transcriptPath: string | null): Promise<string | null> {
+  if (typeof input.last_assistant_message === 'string' && input.last_assistant_message.trim()) return input.last_assistant_message;
+  if (!transcriptPath || !transcriptPath.endsWith('.jsonl')) return null;
+  const handle = await open(transcriptPath, 'r').catch(() => null);
+  if (!handle) return null;
+  try {
+    const { size } = await handle.stat();
+    const length = Math.min(size, tailLimit);
+    const buffer = Buffer.alloc(length);
+    await handle.read(buffer, 0, length, size - length);
+    for (const line of buffer.toString('utf8').split('\n').reverse()) {
+      if (!line.includes('"assistant"')) continue;
+      try {
+        const entry = JSON.parse(line) as { type?: unknown; message?: { content?: unknown } };
+        const parts = Array.isArray(entry.message?.content) ? entry.message.content as { type?: unknown; text?: unknown }[] : [];
+        const said = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text as string).join('\n\n').trim();
+        if (entry.type === 'assistant' && said) return said;
+      } catch { /* A line cut by the start of the tail, or not JSON. */ }
+    }
+    return null;
+  } finally { await handle.close(); }
+}
 /**
  * Link the session to a work item (amending, when it edits an accepted plan), noting that it
  * touched it now; returns the link's row. Hooks of one session running at once (a slow Stop and a
@@ -128,6 +159,7 @@ export function sessionContext(where: Whereabouts): string {
   }
   if (where.matches.length > 1) lines.push(`Several projects register this checkout's repository (${where.matches.map(match => match.project).join(', ')}): before planning, ask the user which project to plan in, and give its planning folder to the Atlas tools.`);
   lines.push('Planning: when the user designs something or asks for work big enough to plan, ask before opening a work item; small tasks stay plain coding. Change planning state (work items, steps, blocked, closing, archiving) through the Atlas tools; edit plan prose, glossaries and diagrams directly as files in the planning folder.');
+  lines.push('In planning files, write PRs as repo#N and commits as repo@hash, so Atlas links them; when you stop to wait for the user, begin your message with the question or decision you need.');
   return lines.join('\n');
 }
 
@@ -272,7 +304,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       const left = links.on && !(links.on.projectId === targetProject && links.on.workId === target.workId) ? links.on : null;
       const report = left && await prepareReport(home, links, left, at, event);
       database.transaction(() => {
-        recordSession(database!, session, harnessOf(transcriptPath), transcriptPath, at);
+        recordSession(database!, session, harnessOf(transcriptPath), transcriptPath, at, typeof input.cwd === 'string' ? input.cwd : null);
         const rows = requests.map((request, index) => link(database!, session, projects[index].id, request.workId, request.amending, at));
         const focus = (database!.db.prepare('SELECT focus FROM session WHERE id = ?').get(session) as { focus: number | null }).focus;
         if (focus !== rows.at(-1)) {
@@ -280,13 +312,13 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
           if (left || !links.on) database!.db.prepare('UPDATE session_work SET focused_at = ? WHERE id = ?').run(at, rows.at(-1)!);
         }
         if (left && report) recordReport(database!, session, left, report, at);
-        recordState(database!, home, links, 'tool', at);
+        recordState(database!, home, links, 'tool', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null });
       });
       return output ? JSON.stringify(output) : '';
     }
     // A turn's end waits for the person from now, at once; its report follows, and the time not yet
     // reported stays counted (to when it began to wait) until the report counts it instead.
-    if (turnEnds.has(event)) recordState(database, home, links, 'stop', at);
+    if (turnEnds.has(event)) recordState(database, home, links, 'stop', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: links.on ? await lastMessage(input, links.transcriptPath).catch(() => null) : null });
     if (!links.on) return '';
     const report = await prepareReport(home, links, links.on, at, event);
     database.transaction(() => {

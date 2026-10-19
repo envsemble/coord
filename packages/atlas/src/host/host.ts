@@ -19,7 +19,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
-  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, remeasureReports, storedReports,
+  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, remeasureReports, resolveReferences, storedReports, workDates, workSessions, workTimeline,
   readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type StatisticsReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
@@ -753,6 +753,11 @@ export class Host {
     if (!row) throw new HostError('not-found', `This project is not on ${this.access.name}.`);
     return row;
   }
+  /** A project by its folder's ID, without listing the projects again when its folder was opened here. */
+  private async projectOfFolder(folderId: string): Promise<ProjectRow> {
+    const known = this.folders.pathOf(folderId);
+    return (known && this.database.projectByFolder(canonicalProjectFolderSync(known))) || this.projectRow(folderId);
+  }
   /** The path of a folder by its ID: one this process opened, or a project's. */
   private async pathOf(folderId: string): Promise<string | null> {
     return this.folders.pathOf(folderId) ?? (await this.projectRow(folderId).catch(() => null))?.folder ?? null;
@@ -880,10 +885,19 @@ export class Host {
         return this.createProject(params) as never;
       }
       case 'search.query': { const { query, limit } = p as Methods['search.query']['params']; return this.search(query, limit) as never; }
-      // Contract stubs: the references, sessions and timeline come with the host step.
-      case 'references.resolve': return (p as Methods['references.resolve']['params']).items.map(() => null) as never;
-      case 'work.sessions': return { sessions: [], products: [] } as never;
-      case 'work.timeline': return { plannedMs: null, implementingMs: null, waitedMs: 0, lanes: [] } as never;
+      case 'references.resolve': {
+        const { folderId, work, items } = p as Methods['references.resolve']['params'];
+        return resolveReferences((await this.projectOfFolder(folderId)).folder, work, items) as never;
+      }
+      case 'work.sessions': {
+        const { folderId, work } = p as Methods['work.sessions']['params'];
+        return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work) as never;
+      }
+      case 'work.timeline': {
+        const { folderId, work } = p as Methods['work.timeline']['params'];
+        const row = await this.projectOfFolder(folderId);
+        return workTimeline(this.database, row.id, work, await workDates(row.folder, work)) as never;
+      }
       case 'projects.scan': return this.scanFolder((p as Methods['projects.scan']['params']).folder) as never;
       case 'projects.update': {
         const params = p as Methods['projects.update']['params'];

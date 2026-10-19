@@ -125,6 +125,21 @@ export async function scanWorkspace(folder: string): Promise<WorkspaceScan> {
   return { folder: resolved, repositories: newRepositories([], found), skipped: skippedCheckouts };
 }
 
+/**
+ * Every Git checkout in workspace folders, worktrees included, as the scan finds them: each with its
+ * folder, its repository's common folder (shared by its worktrees) and preferred remote. Folders that
+ * are missing or that Git does not answer for are left out.
+ */
+export async function workspaceCheckouts(folders: string[]): Promise<{ folder: string; common: string; worktree: boolean; remote: string | null }[]> {
+  const candidates: string[] = [];
+  for (const folder of folders) {
+    const entries = await readdir(folder, { withFileTypes: true }).catch(() => null);
+    if (!entries) continue;
+    candidates.push(folder, ...entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && !ignoredFolders.has(entry.name)).map(entry => path.join(folder, entry.name)));
+  }
+  return (await limited(candidates, concurrency, checkoutAt)).filter((answer): answer is Checkout => answer !== null && 'common' in answer);
+}
+
 /** The repositories in several workspace folders, each once and each with an ID of its own, and the checkouts skipped. */
 export async function scanWorkspaces(folders: string[]): Promise<{ repositories: ProjectRepository[]; skipped: SkippedCheckout[] }> {
   const repositories: ProjectRepository[] = [], skipped: SkippedCheckout[] = [];

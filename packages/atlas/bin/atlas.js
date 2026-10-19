@@ -26,7 +26,10 @@ function settled(text) {
     const home = chosen ? path.resolve(chosen.replace(tilde, () => homedir())) : path.join(homedir(), ".atlas");
     const stamp = path.join(home, "session-state", session);
     const state = readFileSync(stamp, "utf8");
-    return state === "none" || (event === "ToolUse" && state === "working" && started - statSync(stamp).mtimeMs < 60_000);
+    if (state === "none") return true;
+    // A tool call that may have made a commit or a PR is looked at (sessionState.ts's mayMakeProduct).
+    if (event === "ToolUse" && (/\[[^\]\s"]+(?: \(root-commit\))? [0-9a-f]{7,40}\] /.test(text) || /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text))) return false;
+    return event === "ToolUse" && state === "working" && started - statSync(stamp).mtimeMs < 60_000;
   } catch { return false; }
 }
 

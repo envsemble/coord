@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { withDatabase } from '../../planning/index.ts';
+import { withDatabase, workSessions, workTimeline } from '../../planning/index.ts';
 import { runHook } from './hook.ts';
 import { nextState, type Activity } from './sessionState.ts';
 import { environment, homeWithPlanning, planText, reportsIn, run, temporary, usageIn, within, write } from '../testing.ts';
@@ -143,13 +143,26 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual({ ...state(), waiting: typeof state().waiting }, { working: 0, turn, waiting: 'string' });
   await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
   assert.deepEqual(state(), { working: 1, turn, waiting: null });
-  await hook('Stop', { stop_hook_active: false });
+  // A commit the session makes is recorded for the work item it is on, with its repository and page.
+  await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'git add -A && git commit -m "Add the cart"' }, tool_response: { stdout: '[main 1a2b3c4] Add the cart\n 1 file changed, 1 insertion(+)\n', stderr: '' } });
+  await hook('Stop', { stop_hook_active: false, last_assistant_message: '**Needs your decision:** keep the cart for a week?' });
   const { waiting } = state();
+  const project = withDatabase(base.ATLAS_HOME!, database => database.projectByFolder(realpathSync.native(root))!.id);
+  const sessions = () => withDatabase(base.ATLAS_HOME!, database => workSessions(database, project, 'work-0003'));
+  assert.deepEqual(sessions().products.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
+    [{ kind: 'commit', repository: 'shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
+  // While it waits, the session shows its turn's last message, and how to resume it in its folder.
+  const [waiter] = sessions().sessions;
+  assert.deepEqual([waiter.state, waiter.message, waiter.folder, waiter.resume], ['waiting', '**Needs your decision:** keep the cart for a week?', checkout, 'claude --resume ' + session]);
   await hook('Notification', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
   assert.deepEqual(state(), { working: 0, turn: null, waiting });
   assert.deepEqual(activity(), [['work-0003', 'waiting']]);
   await hook('SessionEnd', { reason: 'prompt_input_exit' });
   assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting: null }, []]);
+  assert.deepEqual([sessions().sessions[0].state, sessions().sessions[0].message], ['ended', null]);
+  // Its waits on the work item it is on (work-0003): both turns' ends and the permission prompt between them.
+  const timeline = withDatabase(base.ATLAS_HOME!, database => workTimeline(database, project, 'work-0003', { created: null, accepted: null, completed: null }));
+  assert.deepEqual([timeline.lanes.map(lane => [lane.session, lane.subagent, lane.waiting.length]), timeline.waitedMs > 0], [[[session, null, 3]], true]);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.atlas')), 'nothing is written into the planning folder');
   assert.equal((await run(['planning', 'check', root], { env })).status, 0);
 });

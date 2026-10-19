@@ -11,6 +11,7 @@ import { validatePlanning } from '../check/check.ts';
 import { HomeDatabase } from '../home/database.ts';
 import { createProject, readTemplates, setProjectWorkspaces } from './project.ts';
 import { scanWorkspace } from './workspaces.ts';
+import { resolveReferences } from './references.ts';
 
 const templates = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../plugin/skills/atlas/assets/planning');
 
@@ -170,4 +171,45 @@ test('setting workspace folders keeps work registered while the folders were sca
     else assert.match(String(created.reason), /changed meanwhile/);
     assert.ok(set.status === 'fulfilled' || created.status === 'fulfilled');
   } finally { database.close(); }
+});
+
+test('references lead to PRs, commits and files in the project\'s checkouts, the work item\'s repositories first', async t => {
+  const directory = temporary(t);
+  const workspace = path.join(directory, 'workspace');
+  mkdirSync(workspace);
+  const shop = checkout(path.join(workspace, 'shop'), [['origin', 'git@github.com:example/shop.git']]);
+  const other = checkout(path.join(workspace, 'other'));
+  mkdirSync(path.join(shop, 'src'));
+  writeFileSync(path.join(shop, 'src', 'cart.ts'), 'export {};\n');
+  git(shop, 'add', '-A');
+  git(shop, 'commit', '-q', '-m', 'Add the cart');
+  const hash = git(shop, 'rev-parse', 'HEAD').trim();
+  writeFileSync(path.join(other, 'NOTES.md'), '# Notes\n');
+  const root = path.join(directory, 'planning');
+  mkdirSync(root);
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, workspaces: [workspace], repositories: [{ id: 'shop', name: 'Shop', remote: 'git@github.com:example/shop.git' }], work_items: [{ id: 'work-0001', path: 'active/0001-cart', repositories: ['shop'] }] }));
+  const resolved = await resolveReferences(root, 'work-0001', [
+    { kind: 'pull', repository: null, value: '22', line: null },
+    { kind: 'commit', repository: null, value: hash.slice(0, 7), line: null },
+    { kind: 'commit', repository: 'example/shop', value: hash, line: null },
+    { kind: 'path', repository: null, value: 'src/cart.ts', line: 3 },
+    { kind: 'path', repository: null, value: 'README.md', line: null },
+    { kind: 'path', repository: null, value: 'NOTES.md', line: null },
+    { kind: 'path', repository: null, value: '../planning/planning.json', line: null },
+  ], { gh: false });
+  const none = { url: null, file: null, repository: null, pull: null, title: null, choices: [] };
+  assert.deepEqual(resolved, [
+    { ...none, url: 'https://github.com/example/shop/pull/22', repository: 'shop' },
+    // The template's first commit is in both checkouts; this one only in the shop's.
+    { ...none, url: 'https://github.com/example/shop/commit/' + hash.slice(0, 7), repository: 'shop', title: 'Add the cart' },
+    { ...none, url: 'https://github.com/example/shop/commit/' + hash, repository: 'shop', title: 'Add the cart' },
+    { ...none, file: { path: path.join(shop, 'src', 'cart.ts'), line: 3 }, repository: 'shop' },
+    { ...none, file: { path: path.join(shop, 'README.md'), line: null }, repository: 'shop' },
+    { ...none, file: { path: path.join(other, 'NOTES.md'), line: null } },
+    null,
+  ]);
+  // A commit both checkouts have: the work item's repository first, the other as a choice.
+  const first = git(shop, 'rev-list', '--max-parents=0', 'HEAD').trim();
+  const [shared] = await resolveReferences(root, 'work-0001', [{ kind: 'commit', repository: null, value: first, line: null }], { gh: false });
+  assert.deepEqual([shared?.repository, shared?.choices], ['shop', [{ repository: 'other', url: null, title: 'Start' }]]);
 });
