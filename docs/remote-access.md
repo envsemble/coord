@@ -4,7 +4,7 @@ Remote access lets you work on another computer's projects from Atlas on this on
 
 Pairing is for **your own devices**. A paired device can do what Atlas does on that computer:
 
-- see its projects (the planning folders in its Atlas home) and open their plans, rename projects and create new ones (choosing the workspace folders a project covers, which are paths on that computer, stays with the Atlas app there);
+- see its projects (the planning folders in its Atlas home) and open their plans, rename projects and create new ones (choosing the folders a project covers, which are paths on that computer, stays with the Atlas app there);
 - import and export plans.
 
 It cannot reveal files in that computer's file explorer, and Atlas never edits plans, here or there.
@@ -55,7 +55,7 @@ Each window says where it works: the **computer menu** (the computer's name in t
   - Choosing a computer works on it in this window: the hub lists its plans.
   - **Connect to Another Atlas…** pairs with one more.
   - **Manage Computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
-- **The projects** are the planning folders in that computer's Atlas home, on the **Projects** page (in the menu) as this computer's are. **New project** there creates one on that computer, and **Rename…** changes a project's name in its `planning.json` there, for every device; choosing the workspace folders a project covers, which are paths on that computer, stays with Atlas there. The order of the projects and whether one is hidden or archived are this device's own.
+- **The projects** are the planning folders in that computer's Atlas home, on the **Projects** page (in the menu) as this computer's are. **New project** there creates one on that computer, and **Rename…** changes a project's name in its `planning.json` there, for every device; choosing the folders a project covers, which are paths on that computer, stays with Atlas there. The order of the projects and whether one is hidden or archived are this device's own.
 
 A window on another computer shows the computer's name in its title (`desk — Atlas`). Everything works as it does locally:
 
@@ -150,10 +150,10 @@ The loopback listener accepts only the owner credential, and only from this comp
   - The connecting device stores its token in its home database, encrypted with the system's credential store through Electron's `safeStorage` (DPAPI on Windows; the GNOME keyring or KWallet on Linux). On Linux without a keyring, the token is stored unencrypted.
   - On macOS and Linux, Atlas creates the home readable by you only (0700) and the database and its `-wal` and `-shm` files as 0600, and tightens database files an earlier version left readable when it opens them. On Windows, the home is in your user profile, whose permissions keep other users out.
 - **What a device can reach** is what Atlas reaches on that computer, as the user who runs it:
-  - the files inside the planning folders of its projects: those in its Atlas home, and any project from before the home that is still outside it;
-  - new projects it creates there, project names it changes, and projects it moves into the home;
+  - the files inside the planning folders of its projects, all in its Atlas home;
+  - new projects it creates there, and project names it changes;
   - new work items it imports into a planning folder;
-  - what a plan's references lead to, for the repositories its project registers only: the page of a PR or commit, a commit's subject from the computer's checkouts, and a PR's title, state and checks, which the host asks `gh` for with that computer's GitHub sign-in. A device never gets a file path, a checkout no repository registers, or a repository the project does not register;
+  - what a plan's references lead to, for those that name their repository in full (`owner/repo#N`, `owner/repo@hash` or a GitHub URL): the page of a PR or commit, and a PR's title, state and checks or a commit's subject, which the host asks `gh` for with that computer's GitHub sign-in. A device never gets a file path;
   - a plan's sessions as that computer's hooks recorded them: model, reasoning effort, state, times, agent time, the commits and PRs they made, and, while one waits, the last message of its turn (your own devices see what the agent wrote to you there). The folder a session runs in and how to resume it stay on that computer.
 
   It cannot read other files, run programs (beyond the Git and `gh` lookups above, which only the host chooses), edit plans or change how the computer is reached. A lost or stolen device keeps that reach until you revoke it, so revoke it from the computer, from `atlas serve` (`revoke`), or from another device with Manage access.

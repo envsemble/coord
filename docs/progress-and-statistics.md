@@ -37,7 +37,7 @@ In the app:
 - a work item's **About** sidebar shows the bar, the steps done and left, each step with its status, and any blocker;
 - [plan exports](plan-export.md) show the same.
 
-**The work left is the steps not yet done.** It is an estimate by count, not by time: steps differ in size, and Atlas does not predict dates. `atlas check` validates the header. Older ledgers with a version-1 header (`current`, `next`) stay readable and show their focus without progress; the agent rewrites the header as version 2 when the work resumes. The exact format is in the planning contract, [`PLANS.md`](../plugin/skills/atlas/assets/planning/PLANS.md#ledger-status-version-2).
+**The work left is the steps not yet done.** It is an estimate by count, not by time: steps differ in size, and Atlas does not predict dates. `atlas check` validates the header. The exact format is in the planning contract, [`PLANS.md`](../plugin/skills/atlas/assets/planning/PLANS.md#ledger-status-version-2).
 
 ## Work statistics
 
@@ -88,8 +88,6 @@ The **Statistics** page (in the menu) shows them, one project at a time. **Work*
 - **No backfill.** Plan revisions come from Git, so they cover older work too; agent time and tokens exist only from the first report on, and stages and subagents only from reports that record them.
 - **Revisions need history.** Plan revisions count only committed changes, and need the planning folder's Git history.
 - **Not a productivity score.** The figures describe how work went. They do not measure the quality of the outcome.
-
-Before the home database, reports were lines of `<work>/.atlas/statistics.jsonl` in the planning folder. `atlas setup` (for the planning folders in the home; it leaves folders outside the home alone) and `atlas home adopt` (as it moves a folder in) import such files into the database, each report once, and delete them from the planning folder; Atlas never commits, so commit the removal there (Git keeps the files' history). Plan exports leave them out.
 
 ### Sessions and the timeline
 

@@ -27,7 +27,7 @@ Both JSON elements are inert data; every `<` in them is written as the JSON esca
 ```json
 {
   "format": "atlas/plan-export",
-  "version": 1,
+  "version": 2,
   "atlasVersion": "0.8.0",
   "exportedAt": "2026-10-10T12:00:00.000Z",
   "source": {
@@ -36,8 +36,7 @@ Both JSON elements are inert data; every `<` in them is written as the JSON esca
     "title": "Customer order notifications",
     "location": "active",
     "path": "active/0003-customer-notifications",
-    "currentPlan": "plan.md",
-    "repositories": [{ "id": "shop", "name": "Northwind Shop" }]
+    "currentPlan": "plan.md"
   },
   "files": [
     { "path": "plan.md", "size": 2048, "sha256": "…", "data": "<base64>" }
@@ -45,9 +44,9 @@ Both JSON elements are inert data; every `<` in them is written as the JSON esca
 }
 ```
 
-`files` lists every file of the work folder by work-folder-relative POSIX path, sorted, its diagram files (`*.puml`) among them; a diagram's revisions are its Git history. It leaves out Atlas's transient output (`.atlas/results`, `.atlas/prepared`, `.atlas/exports`, lock and temporary files), the agent-reported work statistics (`.atlas/statistics.jsonl`), other hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, a Markdown file relative to the work folder and outside `.atlas/`, or `null` for a legacy item without one. `repositories` carries the work's repository scope with their registered names (not local checkout paths). Git history is not exported.
+`files` lists every file of the work folder by work-folder-relative POSIX path, sorted, its diagram files (`*.puml`) among them; a diagram's revisions are its Git history. It leaves out Atlas's transient output (`.atlas/results`, `.atlas/prepared`, `.atlas/exports`, lock and temporary files), other hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, `plan.md`, relative to the work folder. An export carries no repositories or local checkout paths. Git history is not exported.
 
-Text in the manifest (title, planning folder, repository names and remotes, paths) may not contain control characters, so it cannot rewrite a terminal when it is shown.
+Text in the manifest (title, planning folder, paths) may not contain control characters, so it cannot rewrite a terminal when it is shown.
 
 Exports above 50 MB are written with a warning. A work folder may hold at most 300 MB of files: base64 makes the HTML a third larger, and one JavaScript string holds at most about 512 million characters, so a larger export could be neither written nor read back. Export refuses a larger folder (`LIMIT`) rather than dropping files; keep large evidence elsewhere and link to it. Export also refuses anything an import would refuse (non-portable paths, control characters, a main plan that is not Markdown), so every export it writes can be imported.
 
@@ -69,7 +68,7 @@ Embedded content is displayed, never executed. Raw HTML in Markdown is left out.
 
    Every other byte, diagrams included, is as exported: a diagram names no work, and its references to other diagrams are relative to it, so captures stay frozen.
 
-8. `evidence/import-provenance.json` records the original planning folder, work ID, title, location and folder, the export time and Atlas version, every rewrite and cleared reference with its original value, and the repositories it registered. It uses the export's own spelling of the evidence folder. When that name is taken (compared as a case-insensitive, normalizing filesystem would, so `Import-Provenance.json` counts), as when re-importing an imported item, the earlier record is kept and this one is written as `import-provenance-2.json`.
-9. The item is registered in `planning.json` by inserting its entry after the last one, in the style of its neighbours (indentation, inline or multi-line arrays, line endings and byte order mark); repositories the target does not know are registered the same way, with their remotes. When a repository ID is already registered under another name or remote, the work uses the registered entry and the notes say so. The rest of the file is untouched.
+8. `evidence/import-provenance.json` records the original planning folder, work ID, title, location and folder, the export time and Atlas version, and every rewrite and cleared reference with its original value. It uses the export's own spelling of the evidence folder. When that name is taken (compared as a case-insensitive, normalizing filesystem would, so `Import-Provenance.json` counts), as when re-importing an imported item, the earlier record is kept and this one is written as `import-provenance-2.json`.
+9. The item is registered in `planning.json` by inserting its entry after the last one, in the style of its neighbours (indentation, inline or multi-line arrays, line endings and byte order mark). The rest of the file is untouched.
 10. The import runs `atlas planning check` on the result. If the import would add any error, everything it wrote is rolled back and it fails with `TARGET`, listing the errors. Each rollback step runs on its own: `planning.json` is restored only if it still holds the text this import wrote, the work folder is removed with retries, and a location folder the import created is removed when empty.
 11. Nothing is committed, and the README index is left for the user or an agent; the import notes say so.
