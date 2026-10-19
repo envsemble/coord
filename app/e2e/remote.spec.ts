@@ -213,7 +213,9 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   reading = await launch({ dataDirectory: readerData });
   await expect(reading.window.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   expect(Date.now() - restarted).toBeLessThan(12_000);
-  await expect(reading.window.locator('.hub')).toBeVisible();
+  // The hub, still listing that computer's projects (a request waits for it up to 20 s) or saying they can't be listed.
+  await expect(reading.window.locator('.hub').or(reading.window.getByRole('progressbar', { name: 'Loading the plans' }))).toBeVisible();
+  await expect(reading.window.locator('.work-header')).toHaveCount(0);
   await reading.window.waitForTimeout(600);
   await allow.click();
   await expect(accessStatus(access)).toHaveText(`Listening on 127.0.0.1:${port}.`);
