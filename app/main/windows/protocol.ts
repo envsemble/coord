@@ -15,6 +15,19 @@ export function originOf(value: string): string | null {
   try { const url = new URL(value); return url.protocol + '//' + url.host; } catch { return null; }
 }
 
+/**
+ * Whether an address is the app's own page (`entry`, at any fragment or query): the only place a
+ * window may navigate to on its own origin. A relative link resolves to another path there, which
+ * would leave the app for a page that does not exist.
+ */
+export function isEntry(value: string, entry: string): boolean {
+  try {
+    const url = new URL(value), page = new URL(entry);
+    const path = (name: string) => name === '/' ? '/index.html' : name;
+    return url.protocol === page.protocol && url.host === page.host && path(url.pathname) === path(page.pathname);
+  } catch { return false; }
+}
+
 /** The production content security policy. The renderer has no inline script and loads nothing remote. */
 export const contentSecurityPolicy = [
   "default-src 'none'",

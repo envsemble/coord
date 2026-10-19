@@ -11,7 +11,7 @@ import { AtlasError } from '../errors.ts';
 import type { Connections } from '../host/connections.ts';
 import { FolderView } from '../host/folderView.ts';
 import type { RotatingLog } from '../log.ts';
-import { createProtocolHandler, originOf, rendererOrigin, scheme } from './protocol.ts';
+import { createProtocolHandler, isEntry, originOf, rendererOrigin, scheme } from './protocol.ts';
 import { defaultSize, type Bounds, type DesktopState, type WindowRow } from '../state.ts';
 
 /** envUI's canvas colour in the window's theme, shown until the page paints. */
@@ -168,9 +168,12 @@ export class AtlasWindow {
   private guardNavigation() {
     const contents = this.win.webContents;
     const own = (url: string) => originOf(url) !== null && originOf(url) === originOf(this.manager.context.devUrl ?? rendererOrigin);
+    // Within its own origin a window only reloads its page; a relative link a document or message holds never takes it elsewhere.
+    const page = this.manager.context.devUrl ?? rendererOrigin + '/index.html';
     contents.on('will-navigate', (event, url) => {
-      if (own(url)) return;
+      if (isEntry(url, page)) return;
       event.preventDefault();
+      if (own(url)) return;
       const external = externalUrl(url);
       if (external) void this.openExternal(external).catch(() => undefined);
     });

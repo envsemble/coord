@@ -16,8 +16,8 @@ import { CommitIcon, DotIcon, FolderOpenIcon } from '../ui/icons';
 import { statuses } from '../ui/status';
 import { RepositoryBadge, StatusIcon } from '../ui/ui';
 import { useWorkbench } from '../workbench/workbenchContext';
-import { PullMark, useResolvedReferences, type Resolutions } from '../workbench/ReferenceLink';
-import { referenceKey } from '../workbench/references';
+import { PullMark, ReferenceLink, ReferencesContext, useResolvedReferences, type Resolutions } from '../workbench/ReferenceLink';
+import { documentReferences, findReferences, referenceKey, rehypeReferences, type Found } from '../workbench/references';
 import { branches, excerpt, harnessNames, sessionStates } from './sessions';
 import type { LiveActivity } from './agentTime';
 
@@ -138,17 +138,45 @@ export function LinksList({ work, repositories, products, pulls }: { work: Work;
   </>;
 }
 
+/** A reference the message names as a whole, as the reader finds one (`app/src/x.ts:12`, `atlas#22`, `t3-thread://…`). */
+function wholeReference(href: string): Found | null {
+  const [match] = findReferences(href, true);
+  return match && match.start === 0 && match.end === href.length ? match.found : null;
+}
+const messagePlugins = [rehypeReferences];
+/**
+ * A link in an agent's message, as the reader has links: a reference the message makes (in its text,
+ * or as a link's address) once it leads somewhere; a web or mail address to the browser; anything
+ * else stays text, so a relative address never moves the window.
+ */
+const messageComponents = {
+  a: ({ href = '', children, ...props }: { href?: string; children?: ReactNode; 'data-reference'?: string }) => {
+    if (props['data-reference']) return <ReferenceLink found={JSON.parse(props['data-reference']) as Found}>{children}</ReferenceLink>;
+    if (/^(?:https?|mailto):/i.test(href)) return <MessageWebLink href={href}>{children}</MessageWebLink>;
+    const found = wholeReference(href);
+    return found ? <ReferenceLink found={found}>{children}</ReferenceLink> : <span className="outside-reference" title={href}>{children}</span>;
+  },
+  img: ({ alt = '' }: { alt?: string }) => <span className="outside-reference">{alt || 'Image'}</span>,
+};
+function MessageWebLink({ href, children }: { href: string; children?: ReactNode }) {
+  const { notify } = useWorkbench();
+  return <a href="#" title={href} onClick={event => { event.preventDefault(); api.openExternal(href).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); }}>{children}</a>;
+}
+
 /**
  * Why the plan needs the person: the waiting session's last message, rendered as the Markdown it is,
- * its beginning first, with a way to open that session.
+ * its beginning first, with a way to open that session. What it references links as in the reader.
  */
 export function NeedsYou({ work, session }: { work: string; session: WorkSession }) {
   const resume = useResume(work)(session);
   const [whole, setWhole] = useState(false);
   const message = session.message ?? '';
   const start = excerpt(message);
+  const inputs = useMemo(() => documentReferences(message), [message]);
+  const resolved = useResolvedReferences(work, inputs);
+  const scope = useMemo(() => ({ resolved, work }), [resolved, work]);
   return <section className="needs-you" aria-label="Why it needs you">
-    <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><Markdown>{whole ? message.trim() : start.text}</Markdown></div>
+    <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={messagePlugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
     <div className="needs-you-actions">
       {start.more && <Button variant="text" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
       <span className="muted">{sessionLabel(session)} · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>

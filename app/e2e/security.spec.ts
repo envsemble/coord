@@ -72,6 +72,8 @@ test('the window is isolated and sandboxed, with a strict content security polic
     shell.openExternal = (async (url: string) => { opened.push(url); }) as typeof shell.openExternal;
     dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { asked.push(options.detail ?? ''); return { response: asked.length === 1 ? 0 : 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
+  // A relative link (in a document or an agent's message) never takes the window off its page.
+  await atlasWindow.evaluate(() => { location.href = 'app/src/work/sessions.ts:12'; });
   await atlasWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); });
   await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(1);
   await atlasWindow.evaluate(() => { location.href = 'https://example.com/away'; });

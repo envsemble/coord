@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { RotatingLog } from './log.ts';
-import { containedFile, contentSecurityPolicy, originOf } from './windows/protocol.ts';
+import { containedFile, contentSecurityPolicy, isEntry, originOf } from './windows/protocol.ts';
 import { HomeDatabase } from '@envsemble/atlas/planning';
 import { DesktopState, placeRow, savedPlace } from './state.ts';
 import { appLink, editorLink, resumeWords, terminalFor } from './windows/launch.ts';
@@ -22,6 +22,10 @@ test('the renderer and planning protocol never resolve outside their folder', ()
   assert.equal(originOf('atlas://app/index.html'), 'atlas://app');
   assert.equal(originOf('http://localhost:5173/x'), 'http://localhost:5173');
   assert.equal(originOf('not a url'), null);
+  // A window navigates on its own origin only to its own page.
+  assert.equal(isEntry('atlas://app/index.html#top', 'atlas://app/index.html'), true);
+  assert.equal(isEntry('http://localhost:5173/', 'http://localhost:5173/'), true);
+  for (const away of ['atlas://app/app/src/work/sessions.ts:12', 'atlas://planning/f-0/README.md', 'https://app/index.html']) assert.equal(isEntry(away, 'atlas://app/index.html'), false, away);
   assert.match(contentSecurityPolicy, /default-src 'none'/);
   assert.doesNotMatch(contentSecurityPolicy, /unsafe-eval|script-src[^;]*unsafe-inline/);
 });

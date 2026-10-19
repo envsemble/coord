@@ -99,10 +99,12 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   const file = resolved?.file;
   const missing = () => new AtlasError('not-found', 'This file is not in the project\'s checkouts on this computer.');
   if (!file || !fullPath.test(file.path)) throw missing();
-  // The file itself, not a link a checkout commits to somewhere else: inside one of the project's workspace folders, where its checkouts are.
+  // The file itself, not a link a checkout commits to somewhere else: inside one of the folders the
+  // host finds checkouts in, the project's workspace folders and its repositories' registered paths.
   const real = await realpath(file.path).catch(() => null);
   const workspaces = (await window.projects()).find(entry => entry.folderId === project)?.workspaces ?? [];
-  const folders = (await Promise.all(workspaces.map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
+  const registered = (await view.request('folder.snapshot', { folderId: project })).repositories.flatMap(repository => repository.path && repository.path !== '.' && path.isAbsolute(repository.path) ? [repository.path] : []);
+  const folders = (await Promise.all([...workspaces, ...registered].map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
   if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
   await openInEditor(manager, window, 'this file', real, file.line);
 }
