@@ -6,7 +6,6 @@ export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './system/f
 export { atlasAppRunning, atlasHome, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, statisticsDirectory, type LegacyMigration } from './home/storage.ts';
 export { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, canonicalProjectFolder, canonicalProjectFolderSync, databaseName, folderKey, isPlanningFolder, liveWindowMs, planningName, projectOf, schemaVersion, waitingWindowMs, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState, type SessionActivityRow, type WorkActivityRow } from './home/database.ts';
 export { importLegacyUsage, migrateHomeFiles, pendingHomeFiles, type HomeMigration } from './home/homeMigration.ts';
-export { recordCollectionGap, recordView, usageSummary, type CollectionSource, type ViewEvent } from './statistics/telemetry.ts';
 export { samePlatformPath } from './system/planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check/check.ts';
 export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './work/ledger.ts';
@@ -15,7 +14,6 @@ export { codexThreadName, harnessSessions, logTail, measureSession, sessionLogs,
 export { prepareWorkReport, recordWorkReport, remeasureReports, type PreparedReport, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
 export { workDates, workSessions, workTimeline, type ProductEntry, type SessionEntry, type TimelineEntry } from './statistics/sessions.ts';
 export { resolveReferences, type ReferenceItem, type ResolvedItem } from './projects/references.ts';
-export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './statistics/consultation.ts';
 export type * from './types.ts';
 export {
   exportPlan, readPlanExport, importPlan, planImportTarget, planningRelative, planExportPathProblem,

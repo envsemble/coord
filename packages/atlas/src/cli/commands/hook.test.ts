@@ -5,7 +5,7 @@ import path from 'node:path';
 import { withDatabase, withDatabaseAsync, workSessions, workTimeline } from '../../planning/index.ts';
 import { runHook } from './hook.ts';
 import { nextState, type Activity } from './sessionState.ts';
-import { environment, homeWithPlanning, planText, reportsIn, run, temporary, usageIn, within, write } from '../testing.ts';
+import { environment, homeWithPlanning, planText, reportsIn, run, temporary, within, write } from '../testing.ts';
 
 const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
 interface LinkRow { workId: string; amending: boolean; planningFolder: string; linked: string }
@@ -93,10 +93,9 @@ test('hooks give the session its planning context, check and link planning edits
   write(setUp, '# Planning\n');
   assert.equal(await hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: notes } }), null);
   assert.equal(await hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: setUp } }), null);
-  // Reading a planning file records it as document use, for the work item the session is linked to.
+  // Reading a planning file records nothing.
   assert.equal(await hook('PostToolUse', { tool_name: 'Read', tool_input: { file_path: plan } }), null);
-  assert.deepEqual(withDatabase(base.ATLAS_HOME!, database => ({ ...database.db.prepare('SELECT path, work_id, session FROM document_use').get() })), { path: 'active/0001-cart/plan.md', work_id: 'work-0001', session });
-  assert.equal(usageIn(root, base.ATLAS_HOME!)?.reports, 1);
+  assert.equal(withDatabase(base.ATLAS_HOME!, database => (database.db.prepare('SELECT count(*) AS n FROM document_use').get() as { n: number }).n), 0);
 
   // Codex: apply_patch names its files in the patch, relative to the session's folder.
   assert.equal((await run(['work', 'create', '--title', 'Payments', '--summary', 'Payments by card.', '--repo', 'shop', '--planning-dir', root], { env })).status, 0);

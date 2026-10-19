@@ -113,17 +113,7 @@ export interface WorkProgress {
 export interface StepCounts { total: number; done: number; doing: number; todo: number; remaining: number }
 export interface HistoryEntry { id: string; date: string; title: string; files: string[]; workIds: string[]; repositories: string[] }
 export interface Issue { level: 'warning' | 'error'; message: string; workId?: string }
-export interface DocumentUsage {
-  key: string; path: string; views: number; sessions: number; lastViewed: string | null;
-  reports: number; tasks: number; unassigned: number; lastConsulted: string | null;
-}
-export interface Usage {
-  dashboardSince: string | null; agentSince: string | null;
-  views: number; documentsViewed: number; sessions: number;
-  reports: number; documentsConsulted: number; tasks: number; unassigned: number; failures: number;
-  documents: DocumentUsage[];
-}
-/** What the reader returns for one planning folder, before usage statistics are attached. */
+/** What the reader returns for one planning folder. */
 export interface PlanningIndex {
   root: string;
   /** The project's name: the registry's `name`, else the folder's own name. */

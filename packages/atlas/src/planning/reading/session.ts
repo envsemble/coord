@@ -7,8 +7,8 @@ import { projectOf, type HomeDatabase } from '../home/database.ts';
 
 /**
  * Everything that depends on an open planning folder: its index, its diagrams, and its project in
- * the home database, where its document use is recorded. The database is the caller's (the host
- * keeps one open); without it, document use is unknown.
+ * the home database, whose reports give its work's statistics. The database is the caller's (the
+ * host keeps one open).
  */
 export class PlanningSession {
   readonly root: string;
@@ -16,10 +16,9 @@ export class PlanningSession {
   readonly index: (force?: boolean) => ReturnType<typeof loadPlanning>;
   readonly database: HomeDatabase | null;
   readonly projectId: number | null;
-  readonly collectionError: string | null;
-  private constructor(values: Pick<PlanningSession, 'root' | 'diagrams' | 'index' | 'database' | 'projectId' | 'collectionError'>) {
+  private constructor(values: Pick<PlanningSession, 'root' | 'diagrams' | 'index' | 'database' | 'projectId'>) {
     this.root = values.root; this.diagrams = values.diagrams; this.index = values.index;
-    this.database = values.database; this.projectId = values.projectId; this.collectionError = values.collectionError;
+    this.database = values.database; this.projectId = values.projectId;
   }
 
   static async open(root: string, options: { database?: HomeDatabase | null } = {}) {
@@ -29,10 +28,9 @@ export class PlanningSession {
       const file = await stat(path.join(root, 'planning.json'));
       return file.mtimeMs + ':' + file.size;
     });
-    let projectId: number | null = null, collectionError: string | null = null;
+    let projectId: number | null = null;
     try { if (database) projectId = (await projectOf(database, root)).id; }
-    catch { /* Reported below. */ }
-    if (projectId === null) collectionError = 'Local usage collection is unavailable. Document viewing still works; statistics are unknown.';
-    return new PlanningSession({ root, diagrams, index, database: projectId === null ? null : database, projectId, collectionError });
+    catch { /* Without a project, its work has no statistics. */ }
+    return new PlanningSession({ root, diagrams, index, database: projectId === null ? null : database, projectId });
   }
 }

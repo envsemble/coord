@@ -7,11 +7,9 @@ import { tmpdir, homedir, hostname } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { recordView, usageSummary } from './telemetry.ts';
 import { HomeDatabase, projectOf, withDatabase, withDatabaseAsync } from '../home/database.ts';
 import { atlasAppRunning, atlasHome, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, legacyUsageSchema, mergeUsage, migrateLegacyData, prepareHome, statisticsDirectory } from '../home/storage.ts';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../system/filesystem.ts';
-import { logConsultation, reportConsultation } from './consultation.ts';
 
 /** A planning folder's usage store as Atlas kept it before the home database, with one view of `key`. */
 function legacyView(file: string, key: string) {
@@ -27,28 +25,6 @@ function legacyCounts(file: string) {
   try { return { events: (store.prepare('SELECT count(*) AS n FROM events').get() as { n: number }).n, failures: (store.prepare('SELECT count(*) AS n FROM failures').get() as { n: number }).n }; }
   finally { store.close(); }
 }
-
-test('POSIX backslash planning roots remain separate projects from nested roots', { skip: process.platform === 'win32' }, async () => {
-  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'planning-backslash-cache-')));
-  try {
-    const root = path.join(temporary, 'foo\\bar');
-    const nested = path.join(temporary, 'foo/bar');
-    for (const folder of [root, nested]) {
-      await mkdir(folder, { recursive: true });
-      await writeFile(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 1, repositories: [], work_items: [] }));
-    }
-    const metrics = path.join(temporary, 'metrics');
-    await writeFile(path.join(root, 'foo\\bar.md'), '# Consulted original\n');
-    assert.deepEqual(await reportConsultation(root, ['foo\\bar.md'], { home: metrics }), { recorded: 1, failed: 0 });
-    await withDatabaseAsync(metrics, async database => {
-      const summary = usageSummary(database, (await projectOf(database, root)).id);
-      assert.equal(summary.reports, 1);
-      assert.equal(summary.documents[0].key, 'root:foo\\bar.md');
-      assert.equal(summary.documents[0].path, 'foo\\bar.md');
-      assert.equal(usageSummary(database, (await projectOf(database, nested)).id).reports, 0);
-    });
-  } finally { await rm(temporary, { recursive: true }); }
-});
 
 test('the Atlas home is ~/.atlas unless overridden, and the old data folder follows the per-user convention', async () => {
   const home = path.resolve('/home/someone');
@@ -172,22 +148,6 @@ test('data folder overrides resolve home shorthand identically for every caller'
   if (!(await filesystemCaseSensitive(root))) assert.equal(await statisticsDirectory(root.toUpperCase(), shorthand), expected, 'case-folded aliases share one store');
 });
 
-test('view collection is deduplicated and cannot claim agent consultation', async () => {
-  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'atlas-views-')));
-  const database = HomeDatabase.open(temporary);
-  try {
-    const project = database.addProject(path.join(temporary, 'planning'), 'Planning');
-    const event = { id: randomUUID(), path: 'knowledge/example.md', key: 'root:knowledge/example.md', session: randomUUID(), revision: null, contentHash: 'a'.repeat(64) };
-    recordView(database, project.id, event); recordView(database, project.id, { ...event, id: randomUUID() });
-    const summary = usageSummary(database, project.id);
-    assert.equal(summary.views, 1); assert.equal(summary.sessions, 1);
-    assert.equal(summary.reports, 0); assert.equal(summary.agentSince, null);
-    assert.equal(summary.dashboardSince, project.createdAt, 'views count since the project was added');
-    assert.equal(summary.documents[0].tasks, 0);
-    assert.throws(() => recordView(database, project.id, { ...event, id: '' }));
-  } finally { database.close(); await rm(temporary, { recursive: true }); }
-});
-
 test('Unicode root aliases share storage only when the filesystem equates them', async () => {
   const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'planning-unicode-cache-')));
   try {
@@ -204,35 +164,3 @@ test('Unicode root aliases share storage only when the filesystem equates them',
   } finally { await rm(temporary, { recursive: true }); }
 });
 
-test('consultation written with no app running is readable by the app with source and unknown identities preserved', async () => {
-  const temporary = await realpath(await mkdtemp(path.join(tmpdir(), 'planning-usage-')));
-  try {
-    const root = path.join(temporary, 'planning'); await mkdir(root);
-    await writeFile(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 1, work_items: [] }));
-    await writeFile(path.join(root, 'note.md'), 'A consulted record.\n');
-    await writeFile(path.join(root, 'other.md'), 'Another scoped record.\n');
-    const metrics = path.join(temporary, 'metrics');
-    const log = (folder: string, files: string[], task?: string) => logConsultation(folder, files, { home: metrics, task });
-    assert.deepEqual(await log(root, ['note.md']), { recorded: 1, failed: 0, unavailable: null });
-    assert.deepEqual(await log(root, ['note.md', '../not-a-document.md'], 'real-task'), { recorded: 1, failed: 1, unavailable: null });
-    const summary = (keys?: string[], folder = root) => withDatabase(metrics, database => usageSummary(database, database.projectByFolder(folder)!.id, keys));
-    const first = summary();
-    assert.equal(first.reports, 2); assert.equal(first.views, 0);
-    assert.equal(first.tasks, 1); assert.equal(first.unassigned, 1);
-    assert.equal(first.documentsConsulted, 1); assert.equal(first.failures, 1);
-    assert.ok(first.agentSince); assert.equal(first.documents[0].key, 'root:note.md');
-    await log(root, ['other.md'], 'real-task');
-    await log(root, ['other.md'], 'unrelated-task');
-    assert.equal(summary().tasks, 2);
-    const scoped = summary(['root:note.md']);
-    assert.equal(scoped.reports, 2); assert.equal(scoped.tasks, 1); assert.equal(scoped.unassigned, 1);
-    assert.equal(summary([]).reports, 0);
-    const unrelated = path.join(temporary, 'unrelated-planning'); await mkdir(unrelated);
-    await writeFile(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 1, work_items: [] }));
-    await writeFile(path.join(unrelated, 'note.md'), 'A different repository record.\n');
-    await log(unrelated, ['note.md'], 'unrelated-task');
-    assert.equal(summary(undefined, unrelated).reports, 1);
-    assert.equal(summary().reports, 4, 'one database never mixes projects');
-    assert.equal(summary().reports, 4);
-  } finally { await rm(temporary, { recursive: true }); }
-});

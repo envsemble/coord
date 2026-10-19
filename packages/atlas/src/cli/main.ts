@@ -1,11 +1,11 @@
 // The atlas command: the planning-state operations (also served over MCP by `atlas mcp`), checks,
-// the harness hooks and setup, plan export and import, consultation logging, work statistics and
+// the harness hooks and setup, plan export and import, work statistics and
 // the headless host.
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, logConsultation, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '../planning/index.ts';
+import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '../planning/index.ts';
 import { parseOptions, UsageError, type Output } from './args.ts';
 import { check, home, planningUsage, project, where, work } from './commands/planning.ts';
 import { capture, CaptureError } from './commands/capture.ts';
@@ -24,7 +24,6 @@ ${planningUsage}
   atlas planning check <planning-root>
   atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
   atlas plan import <file> [--planning-dir <dir>] [--dry-run]
-  atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--home <dir>]
   atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
   atlas serve [--address <ip>] [--port <n>] [--home <dir>]
   atlas --version
@@ -59,8 +58,6 @@ plan import prints a preview, then adds the export as new work under the next fr
 and registers it in planning.json without committing; --dry-run only previews. Both use the
 planning folder given by --planning-dir, else the current folder, and exit 0 on success,
 1 for an invalid export or a refused folder and 2 on usage errors.
-usage log exits 0 even when it cannot record, so a logging problem never fails the task (2 only for
-usage errors); it reports gaps on stderr.
 work report records a step transition: its time, the model and the step, in the Atlas home's
 database under the planning folder's project, which the app summarizes. Inside Claude Code or Codex it reads the
 session, the model, and the agent's working time and tokens since the session's previous report
@@ -80,7 +77,6 @@ const console_: Output = { stdout: text => process.stdout.write(text + '\n'), st
 const checkUsage = 'Usage: atlas planning check <planning-root>';
 const exportUsage = 'Usage: atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]';
 const importUsage = 'Usage: atlas plan import <file> [--planning-dir <dir>] [--dry-run]';
-const logUsage = 'Usage: atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--home <dir>]';
 const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]';
 const serveUsage = 'Usage: atlas serve [--address <ip>] [--port <n>] [--home <dir>]';
 
@@ -93,21 +89,6 @@ function planningCheck(args: string[], out: Output) {
   for (const message of errors) out.stderr('ERROR: ' + message);
   if (!errors.length) out.stdout('Planning registry and selected plan metadata valid; files were not modified.');
   return errors.length ? 1 : 0;
-}
-
-async function usageLog(args: string[], out: Output) {
-  if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(logUsage); return 0; }
-  const { positional, values, lists } = parseOptions(args, { values: ['task', 'session', 'home'], lists: ['files'] }, logUsage);
-  if (positional.length > 1) throw new UsageError('unrecognized arguments: ' + positional.slice(1).join(' '), logUsage);
-  const missing = [positional.length ? '' : 'planning-root', lists.files ? '' : '--files'].filter(Boolean);
-  if (missing.length) throw new UsageError('the following arguments are required: ' + missing.join(', '), logUsage);
-  const result = await logConsultation(positional[0], lists.files, { task: values.task, session: values.session, home: values.home });
-  if (result.unavailable) out.stderr('Planning usage logging unavailable (' + result.unavailable + '); continue the task.');
-  else {
-    out.stdout(`{"reported_documents": ${result.recorded}, "unrecorded_documents": ${result.failed}}`);
-    if (result.failed) out.stderr('Some usage reports were not recorded; continue the task.');
-  }
-  return 0;
 }
 
 async function workReport(args: string[], out: Output) {
@@ -243,12 +224,11 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'planning' && subcommand === 'check') return planningCheck(rest, out);
     if (command === 'plan' && subcommand === 'export') return await planExport(rest, printableOutput(out));
     if (command === 'plan' && subcommand === 'import') return await planImport(rest, printableOutput(out));
-    if (command === 'usage' && subcommand === 'log') return await usageLog(rest, out);
     if (command === 'work' && subcommand === 'report') return await workReport(rest, printableOutput(out));
     if (command === 'work') return await work(subcommand, rest, out);
     // The QR code is drawn with terminal colour codes; serve prints only local, trusted text.
     if (command === 'serve') return await serveCommand(args.slice(1), out);
-    throw new UsageError(command === 'planning' || command === 'plan' || command === 'usage' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
+    throw new UsageError(command === 'planning' || command === 'plan' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
     if (error instanceof PlanExportError || error instanceof PlanningNotFoundError || error instanceof CaptureError || error instanceof DatabaseVersionError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
     if (error instanceof WorkError) {

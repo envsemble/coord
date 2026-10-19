@@ -5,8 +5,7 @@ Remote access lets you work on another computer's projects from Atlas on this on
 Pairing is for **your own devices**. A paired device can do what Atlas does on that computer:
 
 - see its projects (the planning folders in its Atlas home) and open their plans, rename projects and create new ones (choosing the workspace folders a project covers, which are paths on that computer, stays with the Atlas app there);
-- import and export plans;
-- have its views counted in that computer's document use.
+- import and export plans.
 
 It cannot reveal files in that computer's file explorer, and Atlas never edits plans, here or there.
 
@@ -64,7 +63,7 @@ A window on another computer shows the computer's name in its title (`desk — A
 - **Export Plan…**, which saves the export on this device;
 - **Import Plan…**, which sends the chosen file to that computer and adds the plan to the project there.
 
-Only **Reveal in File Explorer** is not offered. Your views count in that computer's document use.
+Only **Reveal in File Explorer** is not offered.
 
 Windows showing another computer reopen on the next start while the computer is still paired. When that computer is unreachable (asleep, Atlas closed, or the network down), its windows keep showing the last view with a notice and reconnect on their own.
 
@@ -73,7 +72,7 @@ Windows showing another computer reopen on the next start while the computer is 
 - A window restored at start while its computer is unreachable shows its projects as soon as the computer answers.
 - When the device is revoked, the window says so. Pair again with a new link, and the computer's windows read through the new pairing.
 
-What each device shows stays its own: its windows, the places they show, scrolling, and the order and state of the projects. A project's name, its planning folder and its document use belong to the computer.
+What each device shows stays its own: its windows, the places they show, scrolling, and the order and state of the projects. A project's name and its planning folder belong to the computer.
 
 ### Managing access from another device
 
@@ -134,7 +133,7 @@ A paired device connects to the **network listener** that remote access turns on
 
 Every request has a declared scope, checked before anything else:
 
-- **`computer`:** every paired device has it. It covers the project list, creating and renaming projects, reading them, document use, and plan export and import.
+- **`computer`:** every paired device has it. It covers the project list, creating and renaming projects, reading them, their statistics, and plan export and import.
 - **`access:manage`:** a device has it when its pairing link granted Manage access. It covers pairing links, the paired devices list, revocation, and the remote access status.
 - **`owner`:** changing how the computer is reached is for the owner only.
 
@@ -174,10 +173,9 @@ Remote access sends planning-folder contents only to devices you paired, and onl
 
 - real paths, which often include the user's name;
 - any project's files, Git activity (commit titles and dates, without authors) and work statistics;
-- its plans' sessions with their last messages while they wait, and the state of the PRs its plans reference;
-- document-use counts and last-use dates.
+- its plans' sessions with their last messages while they wait, and the state of the PRs its plans reference.
 
-Its views are recorded in that computer's document use, like views there. A device can also save a plan export, a copy its user then keeps, import plans into a project on that computer, and create and rename projects there.
+A device can also save a plan export, a copy its user then keeps, import plans into a project on that computer, and create and rename projects there.
 
 While remote access is on, anyone who can reach the chosen address and port can ask the host who it is (`GET /api/host`). The answer is this computer's name, a host ID and the Atlas version, but no projects or content. Over Tailscale, only your tailnet can ask; on a local network, anyone on it can.
 

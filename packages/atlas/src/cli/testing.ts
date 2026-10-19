@@ -7,7 +7,7 @@ import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { storedReports, usageSummary, withDatabase } from '../planning/index.ts';
+import { storedReports, withDatabase } from '../planning/index.ts';
 import { main } from './main.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -98,12 +98,5 @@ export function reportsIn(root: string, workId: string, home = environment.ATLAS
   return withDatabase(home, database => {
     const project = database.projectByFolder(realpathSync.native(root));
     return project ? storedReports(database, project.id, [workId]).get(workId) ?? [] : [];
-  });
-}
-/** A planning folder's document use in a home's database. */
-export function usageIn(root: string, home = environment.ATLAS_HOME!) {
-  return withDatabase(home, database => {
-    const project = database.projectByFolder(realpathSync.native(root));
-    return project ? usageSummary(database, project.id) : null;
   });
 }

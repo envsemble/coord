@@ -7,10 +7,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, planningName, projectOf, schemaVersion, withDatabase, withDatabaseAsync } from './database.ts';
-import { recordAgentCollectionGap } from '../statistics/consultation.ts';
 import { migrateHomeFiles, pendingHomeFiles } from './homeMigration.ts';
 import { legacyUsageSchema, prepareHome, statisticsDirectory } from './storage.ts';
-import { usageSummary } from '../statistics/telemetry.ts';
+/** The agent-reported document use of a project an older Atlas recorded, which the move into the database keeps. */
+const reported = (database: { db: { prepare(sql: string): { get(...values: unknown[]): unknown } } }, project: number) => (database.db.prepare("SELECT count(*) AS n FROM document_use WHERE project_id = ? AND source = 'agent_report'").get(project) as { n: number }).n;
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-database-')));
@@ -108,9 +108,6 @@ test('only planning folders become projects: never a mistyped or missing path', 
     rmSync(path.join(root, 'planning.json'));
     assert.equal((await projectOf(database, root)).name, 'Shop');
   });
-  await recordAgentCollectionGap(path.join(directory, 'mistyped'), home);
-  assert.deepEqual(withDatabase(home, database => database.projects().map(project => project.name)), ['Shop']);
-  assert.equal(withDatabase(home, database => (database.db.prepare('SELECT count(*) AS n FROM collection_gap').get() as { n: number }).n), 0);
 });
 
 test('the home\'s files are imported once, and set aside', async t => {
@@ -184,9 +181,8 @@ test('the home\'s files are imported once, and set aside', async t => {
     // The session and its links.
     assert.deepEqual({ ...database.db.prepare('SELECT harness, transcript_path FROM session').get() }, { harness: 'claude-code', transcript_path: '/home/me/.claude/projects/x/' + session + '.jsonl' });
     assert.deepEqual({ ...database.db.prepare('SELECT project_id, work_id, amending FROM session_work').get() }, { project_id: shopProject, work_id: 'work-0001', amending: 1 });
-    // Document use, its gaps, and since when views were counted.
-    const summary = usageSummary(database, shopProject);
-    assert.deepEqual([summary.reports, summary.tasks, summary.failures, summary.dashboardSince], [1, 1, 2, '2026-08-01T00:00:00.000Z']);
+    // Older document use comes along, as older versions read it.
+    assert.equal(reported(database, shopProject), 1);
     // Everything imported is set aside; the lock files are gone; a second run has nothing left.
     assert.deepEqual(readdirSync(path.join(home, 'legacy')).sort(), ['connections.json', 'desktop-state.json', 'host', 'planning-roots.json', 'sessions', 'usage']);
     assert.ok(!existsSync(path.join(home, 'host')) && !existsSync(path.join(home, 'sessions')));
@@ -194,7 +190,7 @@ test('the home\'s files are imported once, and set aside', async t => {
     const again = await migrateHomeFiles(database);
     assert.deepEqual([again.imported, again.failed], [[], []]);
     assert.equal(database.projects().length, 3);
-    assert.equal(usageSummary(database, shopProject).reports, 1);
+    assert.equal(reported(database, shopProject), 1);
   } finally { database.close(); }
 });
 

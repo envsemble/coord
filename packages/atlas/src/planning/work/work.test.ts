@@ -12,7 +12,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { legacyUsageSchema, statisticsDirectory } from '../home/storage.ts';
 import { withDatabase } from '../home/database.ts';
 import { storedReports } from '../statistics/statistics.ts';
-import { usageSummary } from '../statistics/telemetry.ts';
 import { normalizeRemote } from '../projects/resolve.ts';
 import { acceptWork, addSteps, archiveWork, closeWork, createWork, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing/testing.ts';
@@ -374,7 +373,7 @@ test('a planning folder is adopted into the home with its path hints made absolu
   withDatabase(home, database => {
     const project = database.projectByFolder(adopted.to)!;
     assert.equal(project.name, adopted.project);
-    assert.equal(usageSummary(database, project.id).reports, 1);
+    assert.equal((database.db.prepare("SELECT count(*) AS n FROM document_use WHERE project_id = ? AND source = 'agent_report'").get(project.id) as { n: number }).n, 1);
     assert.equal(storedReports(database, project.id).get('work-0001')?.length, 1);
   });
   const repositories = JSON.parse(read(adopted.to, 'planning.json')).repositories;

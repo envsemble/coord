@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { environment, reportsIn, run, temporary, usageIn } from './testing.ts';
+import { environment, reportsIn, run, temporary } from './testing.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(path.resolve(here, '../../package.json'), 'utf8')) as { version: string };
@@ -55,31 +55,6 @@ test('atlas planning check validates read-only with 0/1/2 exit codes', async t =
   assert.equal((await run(['planning', 'check', root, 'extra'])).status, 2);
   assert.equal((await run(['planning', 'check', root, '--fix'])).status, 2);
   assert.equal((await run(['planning', 'check', '--help'])).status, 0);
-});
-
-test('atlas usage log writes what the app reads, deduplicates and never fails the caller', async t => {
-  const directory = temporary(t);
-  const root = planningFolder(directory);
-  const data = path.join(directory, 'home');
-  const env = { ...environment, ATLAS_HOME: data };
-  const logged = await run(['usage', 'log', root, '--task', 'work-0001', '--session', 'chat-1', '--files', 'active/0001-example/plan.md', 'README.md', 'README.md', '../outside.md'], { env });
-  assert.equal(logged.status, 0, logged.stderr);
-  assert.equal(logged.stdout.trim(), '{"reported_documents": 2, "unrecorded_documents": 1}');
-  assert.match(logged.stderr, /Some usage reports were not recorded; continue the task\./);
-  const summary = usageIn(root, data)!;
-  assert.equal(summary.reports, 2); assert.equal(summary.tasks, 1); assert.equal(summary.failures, 1);
-  assert.deepEqual(summary.documents.map(item => item.key).sort(), ['root:README.md', 'work-0001:plan.md']);
-  const explicit = path.join(directory, 'explicit');
-  assert.equal((await run(['usage', 'log', root, '--home', explicit, '--files', 'README.md'], { env })).status, 0);
-  assert.equal(usageIn(root, explicit)?.reports, 1, '--home overrides ATLAS_HOME');
-  const unreadable = await run(['usage', 'log', path.join(directory, 'missing'), '--files', 'README.md'], { env });
-  assert.equal(unreadable.status, 0, 'a missing planning folder never fails the caller');
-  assert.match(unreadable.stderr, /Planning usage logging unavailable/);
-  assert.deepEqual(readdirSync(root).sort(), ['README.md', 'active', 'planning.json'], 'nothing is written into planning');
-  assert.equal((await run(['usage', 'log', root], { env })).status, 2, '--files is required');
-  assert.equal((await run(['usage', 'log', '--files', 'README.md'], { env })).status, 2, 'the planning root is required');
-  assert.equal((await run(['usage', 'log', root, '--files'], { env })).status, 2);
-  assert.equal((await run(['usage', 'log', root, '--files', 'README.md', '--tsk', 'x'], { env })).status, 2);
 });
 
 test('atlas work report records each report in the home database and never fails the caller', async t => {

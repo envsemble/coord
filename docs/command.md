@@ -1,6 +1,6 @@
 # The atlas command
 
-One `atlas` command serves agents, their harnesses and scripts: the planning-state operations (also served over MCP), checks, the harness hooks and setup, plan export and import, work and consultation reports, and the Atlas host. It needs only Node 24.
+One `atlas` command serves agents, their harnesses and scripts: the planning-state operations (also served over MCP), checks, the harness hooks and setup, plan export and import, work reports, and the Atlas host. It needs only Node 24.
 
 ## Install
 
@@ -43,7 +43,6 @@ atlas setup [--dry-run]
 atlas planning check <planning-root>
 atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
 atlas plan import <file> [--planning-dir <dir>] [--dry-run]
-atlas usage log <planning-root> --files <path>... [--task <id>] [--session <id>] [--home <dir>]
 atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
 atlas serve [--address <ip>] [--port <n>] [--home <dir>]
 atlas --version
@@ -80,7 +79,6 @@ These are the operations the [MCP server](agent-interface.md#mcp-tools) offers a
 | `atlas hook`        | Runs one harness hook on the JSON the harness writes to its stdin; the [plugin](agent-interface.md#hooks) calls it. It never breaks a session: on any failure it prints nothing and notes the failure in the home's `logs/hooks.log`.                                   | Always 0                                 |
 | `atlas setup`       | Creates the Atlas home, grants it to Claude Code and Codex, and installs the Atlas plugin into each harness on the PATH. `--dry-run` prints what it would do.                                                                                                           | 0, 1 when a step failed                  |
 | `atlas work report` | Records a statistics report for a work item by hand, for agents whose harness runs without the plugin's hooks. Inside Claude Code or Codex it measures the session from its log. See [progress and statistics](progress-and-statistics.md#reporting-without-the-hooks). | 0, or 2 for usage errors                 |
-| `atlas usage log`   | Records which planning documents an agent consulted, for the app's Document use statistics. Never fails the task: gaps are reported on stderr.                                                                                                                          | 0, or 2 for usage errors                 |
 
 ### Sharing and serving
 
@@ -104,10 +102,10 @@ A harness that is neither on the PATH nor configured is skipped. `HOME` (`USERPR
 
 ## The Atlas home
 
-The **Atlas home** is `~/.atlas`, or `ATLAS_HOME` when set (`--home` for `usage log` and `serve`). It holds:
+The **Atlas home** is `~/.atlas`, or `ATLAS_HOME` when set (`--home` for `serve`). It holds:
 
 - `planning/<name>/`: the planning folders, each its own Git repository and each a project;
-- `atlas.db`: the home database (SQLite), with everything else Atlas keeps: the projects (their names, order and whether they are archived, and the projects of paired computers), the host's identity and paired devices, the app's connections, windows and tabs, which work items each agent session has touched and when it last did, whether its agent is in a turn or waits for you (the work's Working and Needs you), work statistics reports and document-use statistics;
+- `atlas.db`: the home database (SQLite), with everything else Atlas keeps: the projects (their names, order and whether they are archived, and the projects of paired computers), the host's identity and paired devices, the app's connections, windows and tabs, which work items each agent session has touched and when it last did, whether its agent is in a turn or waits for you (the work's Working and Needs you), and work statistics reports (and the document use older versions recorded, no longer kept);
 - `logs/`: the app's, the host's and the hooks' logs;
 - `legacy/`: files from the old data folder that the home already had its own of, and the home's files from before its database.
 

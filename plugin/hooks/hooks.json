@@ -4,7 +4,7 @@
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "atlas hook UserPromptSubmit", "timeout": 30, "async": true }] }],
     "PostToolUse": [
       {
-        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|apply_patch|mcp__.*atlas.*",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|mcp__.*atlas.*",
         "hooks": [{ "type": "command", "command": "atlas hook PostToolUse", "timeout": 30 }]
       },
       { "hooks": [{ "type": "command", "command": "atlas hook ToolUse", "timeout": 30, "async": true }] }
