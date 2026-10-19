@@ -1,5 +1,5 @@
-// The explorer mirrors the planning folder on disk: real folder and file names, dot folders hidden.
-// A work folder shows its status and plan title; its diagram files (.puml) open as diagrams. Only
+// The explorer mirrors the planning folder on disk, or one folder of it (a plan's work folder): real
+// folder and file names, dot folders hidden. Diagram files (.puml) open as diagrams. Only
 // expanded branches are flattened into rows, so very large folders stay cheap: the tree renders
 // just the rows in view.
 import type { Document, Snapshot, Work } from '../types';
@@ -54,7 +54,8 @@ export function buildIndex(snapshot: Pick<Snapshot, 'folders' | 'documents' | 'w
 export const folderId = (path: string) => 'd:' + path;
 export const fileId = (path: string) => 'f:' + path;
 
-export function visibleRows(index: ExplorerIndex, expanded: ReadonlySet<string>): ExplorerRow[] {
+/** The rows of a folder (`root`: the planning folder's own by default) and of its folders that are open. */
+export function visibleRows(index: ExplorerIndex, expanded: ReadonlySet<string>, root = ''): ExplorerRow[] {
   const rows: ExplorerRow[] = [];
   const visit = (directory: string, depth: number) => {
     for (const path of index.folders.get(directory) ?? []) {
@@ -67,7 +68,7 @@ export function visibleRows(index: ExplorerIndex, expanded: ReadonlySet<string>)
     }
     for (const file of index.files.get(directory) ?? []) rows.push({ id: fileId(file.path), kind: 'file', name: file.name, path: file.path, depth, expandable: false, expanded: false, file });
   };
-  visit('', 0);
+  visit(root, 0);
   return rows;
 }
 

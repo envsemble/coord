@@ -94,8 +94,8 @@ function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   return <button type="button" className="request-fold-toggle" aria-expanded={folds.open.has(id)} onClick={() => folds.toggle(id)}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
 }
 
-export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle, plan = false }: {
-  file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: DiagramReference[]; showWork?: boolean;
+export function Reader({ file, snapshot, anchor, references = [], showWork = false, hideTitle, plan = false }: {
+  file: Document; snapshot: Snapshot; anchor: string | null; references?: DiagramReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
   /** A work item's plan: its request shows folded. */ plan?: boolean;
 }) {
@@ -212,8 +212,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
   const reveal = () => { api.reveal(project, file.path).catch(failure => notify(failure.message, 'warning')); };
   const revealButton = remote ? null : <Button variant="text" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>;
 
-  return <article className={'reader' + (toolbar ? ' reader-boxed' : '')} ref={article}>
-    {toolbar && <div className="reader-toolbar"><span className="reader-name"><FileIcon /><strong>{file.name}</strong><span className="muted">{bytes(file.size)}</span></span>{revealButton}</div>}
+  return <article className="reader" ref={article}>
     {error ? <EmptyState icon={<FileIcon />} title="Unable to open this file" description={error} action={revealButton} />
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">

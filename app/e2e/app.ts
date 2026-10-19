@@ -269,12 +269,24 @@ export async function launchProject(options: { dataDirectory?: string; folder?: 
   return { ...launched, folder: home.folder };
 }
 
-/** Show the file panel, with the files of the open plan's project. */
+/** Open the Files card, with the files of the open plan's own folder. */
 export async function showFiles(window: Page) {
-  const panel = window.getByRole('region', { name: 'Files' });
-  if (!await panel.isVisible()) await window.getByRole('button', { name: 'Files', exact: true }).click();
-  await expect(panel.getByRole('tree')).toBeVisible();
-  return panel;
+  const card = window.getByRole('dialog', { name: /^Files of / });
+  if (!await card.isVisible()) await window.getByRole('button', { name: 'Files', exact: true }).click();
+  await expect(card.getByRole('tree')).toBeVisible();
+  return card;
+}
+
+/** The name of the file the window shows: the last part of its breadcrumb. */
+export const shownFile = (window: Page) => window.locator('.file-page .work-trail [aria-current="page"]');
+
+/** Open a document of the open plan's project by its name, through the search. */
+export async function openDocument(window: Page, name: string) {
+  await window.locator('.env-title-bar').getByRole('button', { name: 'Search', exact: true }).click();
+  const popup = searchPopup(window);
+  await popup.getByRole('combobox').fill(name.replace(/\.md$/, ''));
+  await popup.getByRole('option').filter({ hasText: name }).first().click();
+  await expect(shownFile(window)).toContainText(name);
 }
 
 /** Every window currently open, with the computer it shows. */

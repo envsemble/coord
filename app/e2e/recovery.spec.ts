@@ -1,7 +1,7 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { close, expectHub, launch, launchProject, openPlan, projectHome, removeDirectory, section, showFiles, type Launched } from './app';
+import { close, expectHub, launch, launchProject, openDocument, openPlan, projectHome, removeDirectory, section, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 let home: { dataDirectory: string; folder: string };
@@ -22,17 +22,13 @@ test('a crashed window reloads showing what it showed', async () => {
   launched = await launchProject(home);
   const { app, window } = launched;
   await openPlan(window, 'Saved payment methods');
-  const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').click();
-  await expect(window.locator('.reader-name')).toContainText('inventory-schema.md');
+  await openDocument(window, 'inventory-schema.md');
   await window.waitForTimeout(600);
   // End the renderer process as a crash would. (forcefullyCrashRenderer() on Linux leaves a sandboxed
   // renderer stuck in its crash handler, so the process never ends.)
   await app.evaluate(({ BrowserWindow }) => { process.kill(BrowserWindow.getAllWindows()[0].webContents.getOSProcessId(), 'SIGKILL'); });
   // Playwright's page object ends with the crashed renderer, so read the reloaded page from main.
-  const shown = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript("document.querySelector('.reader-name strong')?.textContent ?? ''").catch(() => ''));
+  const shown = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript("document.querySelector('.file-page .work-trail [aria-current=page]')?.textContent ?? ''").catch(() => ''));
   let restored = '';
   for (let attempt = 0; attempt < 40 && restored !== 'inventory-schema.md'; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 500));

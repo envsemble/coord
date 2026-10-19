@@ -1,14 +1,14 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, applicationMenu, close, expectHub, fileMenu, filterHub, goHome, launchProject, openPlan, pageScroll, projectHome, removeDirectory, searchPopup, settledScroll, showFiles, type Launched } from './app';
+import { addProject, applicationMenu, close, expectHub, fileMenu, filterHub, goHome, launchProject, openDocument, openPlan, pageScroll, projectHome, removeDirectory, searchPopup, settledScroll, showFiles, shownFile, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
 /** What the window shows: the hub, a work item, a file or a diagram. */
-const shows = (window: Page) => window.locator('.hub h1, .work-header h1, .reader-name strong, .model-picker-title').first();
+const shows = (window: Page) => window.locator('.hub h1, .work-header h1, .file-page .work-trail [aria-current="page"], .model-picker-title').first();
 /** The last step of a work item's trail: its number. */
 const trailEnd = (window: Page) => window.locator('.work-main .breadcrumb [aria-current="page"]');
 /** Shows the work item Saved payment methods (#0001), or Customer order notifications (#0003). */
@@ -151,16 +151,14 @@ test('a long plan scrolls below the title bar, going back finds it where it was 
   await expect(search).toBeFocused();
   await window.keyboard.press('Escape');
 
-  // In the file panel, Alt+← goes back rather than collapsing the folder.
+  // A file chosen in the Files card opens on the page and closes the card; Alt+← goes back to the plan.
   await openPlan(window, 'Customer order notifications');
   const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/inventory-schema.md"]').click();
-  await expect(window.locator('.reader-name')).toContainText('inventory-schema.md');
+  await files.locator('[role="treeitem"][data-id="f:active/0003-customer-notifications/ledger.md"]').click();
+  await expect(shownFile(window)).toHaveText('ledger.md');
+  await expect(files).toHaveCount(0);
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-header h1')).toHaveText('Customer order notifications');
-  await expect(files.locator('[role="treeitem"][data-id="d:knowledge/shop"]')).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('a link into a sibling project in the home opens there; one to a folder no project has is unavailable', async () => {
@@ -177,9 +175,9 @@ test('a link into a sibling project in the home opens there; one to a folder no 
   await expect(window.locator('.prose .outside-reference', { hasText: 'nothing' })).toBeVisible();
   await window.locator('.prose').getByRole('link', { name: 'the fulfilment model' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
-  // A place of that project: the file panel shows its files.
+  // A place of that project: the Files card shows that plan's files.
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Northwind');
-  await expect(await showFiles(window)).toContainText('Northwind');
+  await expect((await showFiles(window)).locator('[role="treeitem"][data-id="f:active/0002-order-fulfilment-model/plan.md"]')).toBeVisible();
 });
 
 test('going back finds a document where it was before a jump to one of its headings, and one read on from there keeps its reading place', async () => {
@@ -195,19 +193,14 @@ test('going back finds a document where it was before a jump to one of its headi
   const before = await settledScroll(window);
   expect(before).toBeGreaterThan(500);
   // A file links to one of the plan's headings; the plan opens there.
-  const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:knowledge"]').click();
-  await files.locator('[role="treeitem"][data-id="d:knowledge/shop"]').click();
-  await files.locator('[role="treeitem"][data-id="f:knowledge/shop/jump.md"]').click();
-  await window.keyboard.press('Control+Shift+E');
-  await expect(window.locator('.reader-name')).toContainText('jump.md');
+  await openDocument(window, 'jump.md');
   await window.getByRole('link', { name: 'the current checkout' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   const atHeading = await settledScroll(window);
   expect(Math.abs(atHeading - before)).toBeGreaterThan(100);
   // Back to the file, then back to the plan as it was before the jump.
   await window.locator('body').press('Alt+ArrowLeft');
-  await expect(window.locator('.reader-name')).toContainText('jump.md');
+  await expect(shownFile(window)).toContainText('jump.md');
   await window.locator('body').press('Alt+ArrowLeft');
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   await expect.poll(async () => Math.abs(await settledScroll(window) - before)).toBeLessThan(2);
@@ -215,7 +208,7 @@ test('going back finds a document where it was before a jump to one of its headi
   // The jump again, then reading on from the heading, then the hub and the plan again from there:
   // it opens at the reading place.
   await window.locator('body').press('Alt+ArrowRight');
-  await expect(window.locator('.reader-name')).toContainText('jump.md');
+  await expect(shownFile(window)).toContainText('jump.md');
   await window.getByRole('link', { name: 'the current checkout' }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   const again = await settledScroll(window);

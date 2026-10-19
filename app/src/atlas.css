@@ -119,14 +119,11 @@ body { margin: 0; }
 .scan-repositories { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
 .scan-repositories li { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
 
-/* The file panel slides in over the page from the right, with the project's files. */
-.file-dock { position: fixed; inset: var(--topbar-height) 0 0 0; z-index: 20; }
-.file-dock .explorer { block-size: auto; min-block-size: 0; padding-block-end: var(--space-3); }
-
-/* The explorer: the project's name, then its files. */
-.explorer { display: flex; flex-direction: column; block-size: 100%; min-block-size: 0; }
-.explorer-header { display: flex; align-items: center; gap: var(--space-1); min-block-size: var(--control-height-compact); padding: var(--space-2) var(--space-2) var(--space-1) var(--space-4); }
-.explorer-title { flex: 1; min-inline-size: 0; margin: 0; overflow: hidden; color: var(--color-text-muted); font: var(--type-body-small); font-weight: 500; letter-spacing: 0.04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+/* The Files card under the title bar's button: the open plan's folder as a tree, as tall as its rows
+   up to a limit, scrolling on its own beyond it. */
+.files-popover { padding: var(--space-2); }
+.explorer { --explorer-row: 1.75rem; display: flex; flex-direction: column; max-block-size: min(26rem, 60vh); min-block-size: var(--explorer-row); }
+.explorer-empty { margin: 0; padding: var(--space-2); font-size: var(--font-size-body-small); }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 .explorer-tree { flex: 1; min-block-size: 0; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
@@ -240,9 +237,6 @@ body { margin: 0; }
 
 /* Reader */
 .reader { min-inline-size: 0; }
-.reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--space-5) var(--space-6) var(--space-6); }
-.reader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5); border-block-end: 0.0625rem solid var(--color-border-strong); }
-.reader-name { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
 .reader-loading { display: grid; place-content: center; padding-block: var(--space-8); }
 .prose :is(h1, h2, h3, h4, h5, h6) { scroll-margin-block-start: calc(var(--atlas-sticky-top, var(--app-sticky-top, 0px)) + var(--space-4)); }
 .prose img { max-inline-size: 100%; }
@@ -250,8 +244,12 @@ body { margin: 0; }
 .outside-reference { border-block-end: 0.0625rem dashed var(--color-text-quiet); cursor: help; }
 .source-text { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--font-size-body-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 .attachment img { max-inline-size: 100%; }
-.file-page { max-inline-size: 64rem; }
+.file-page { max-inline-size: 64rem; padding-block-start: var(--space-6); }
+/* The plan export viewer shows a file in a card, with its name and size above it. */
 .file-surface { overflow: hidden; }
+.reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--space-5) var(--space-6) var(--space-6); }
+.reader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5); border-block-end: 0.0625rem solid var(--color-border-strong); }
+.reader-name { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
 .diagram-cards { display: grid; gap: var(--space-3); margin-block: var(--space-3) var(--space-5); }
 .diagram-card-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .diagram-card-icon { color: var(--color-tone-accent); }

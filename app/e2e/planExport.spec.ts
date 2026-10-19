@@ -59,13 +59,12 @@ test('Import Plan… refuses a file that is not an export; Export Plan… writes
   await expect(window.getByText('Exported #0001 to ' + fromPage)).toBeVisible();
   expect(readFileSync(fromPage, 'utf8')).toMatch(/^<!doctype html>/i);
 
-  // The file panel's context menu exports the folder it was opened on.
+  // File › Export Plan… exports the plan open.
   const fromExplorer = path.join(scratch, 'from-explorer.html');
   await stubDialogs(app, { save: fromExplorer });
-  // The open plan's work folder is revealed in it.
-  const files = await showFiles(window);
-  await files.locator('[role="treeitem"][data-id="d:active/0002-order-fulfilment-model"]').click({ button: 'right' });
-  await window.getByRole('menuitem', { name: 'Export Plan…' }).click();
+  await goHome(window);
+  await openPlan(window, 'Order fulfilment model');
+  await chooseMenu(window, 'Export Plan…');
   await expect(window.getByText('Exported #0002 to ' + fromExplorer)).toBeVisible();
   const html = readFileSync(fromExplorer, 'utf8');
   expect(html).toMatch(/^<!doctype html>/i);
@@ -89,9 +88,8 @@ test('Import Plan… refuses a file that is not an export; Export Plan… writes
   await expect(window.getByText(/^Imported as #0005/)).toBeVisible();
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   await expect(window.locator('.work-trail .breadcrumb')).toContainText('#0005');
-  const imported = (await showFiles(window)).locator('[role="treeitem"][data-id^="d:active/0005-"]');
-  await expect(imported).toBeVisible();
-  await expect(imported).toContainText('Order fulfilment model');
+  // Its own files are in the new work folder.
+  await expect((await showFiles(window)).locator('[role="treeitem"][data-id^="f:active/0005-"][data-id$="/plan.md"]')).toBeVisible();
   await goHome(window);
   await expect(hubRows(window)).toHaveCount(4);
   // New files only, nothing committed, and no import lock left behind.
