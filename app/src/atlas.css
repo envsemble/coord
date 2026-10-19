@@ -17,6 +17,7 @@ body { margin: 0; }
 .status-icon[data-tone='danger'], .status-text[data-tone='danger'] { color: var(--color-tone-danger); }
 .status-icon[data-tone='warning'], .status-text[data-tone='attention'] { color: var(--color-tone-warning); }
 .status-icon[data-tone='neutral'], .status-text[data-tone='muted'] { color: var(--color-tone-neutral); }
+.status-icon[data-tone='accent'], .status-text[data-tone='started'] { color: var(--color-tone-accent); }
 
 /* A window that is starting, or reading its folder. */
 .page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }

@@ -12,7 +12,7 @@ export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'do
  * GitHub issue colours: work an agent is on is green, work waiting for the person amber, complete
  * work purple, blocked work red; work nobody is on stays neutral.
  */
-export const statusTones: Record<WorkStatus['tone'], Tone> = { open: 'success', done: 'done', danger: 'danger', attention: 'warning', muted: 'neutral' };
+export const statusTones: Record<WorkStatus['tone'], Tone> = { open: 'success', started: 'accent', done: 'done', danger: 'danger', attention: 'warning', muted: 'neutral' };
 
 const statusIcons = {
   working: InProgressIcon, waiting: NeedsYouIcon, blocked: BlockedIcon, paused: PausedIcon, draft: DraftIcon, ready: OpenIcon,

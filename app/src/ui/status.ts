@@ -1,7 +1,7 @@
 import type { Work, WorkActivity } from '../types';
 
 export type WorkStatusKey = 'working' | 'waiting' | 'blocked' | 'paused' | 'draft' | 'ready' | 'complete' | 'partial' | 'superseded' | 'abandoned' | 'unknown';
-export interface WorkStatus { key: WorkStatusKey; label: string; tone: 'open' | 'done' | 'danger' | 'attention' | 'muted' }
+export interface WorkStatus { key: WorkStatusKey; label: string; tone: 'open' | 'started' | 'done' | 'danger' | 'attention' | 'muted' }
 
 /** What agents are doing on a work item now: working, waiting for the person, or nothing. */
 export type ActivityState = WorkActivity['state'] | null;
@@ -10,7 +10,7 @@ export const statuses = {
   working: { key: 'working', label: 'Working', tone: 'open' },
   waiting: { key: 'waiting', label: 'Needs you', tone: 'attention' },
   blocked: { key: 'blocked', label: 'Blocked', tone: 'danger' },
-  paused: { key: 'paused', label: 'Paused', tone: 'muted' },
+  paused: { key: 'paused', label: 'Paused', tone: 'started' },
   draft: { key: 'draft', label: 'Draft', tone: 'muted' },
   ready: { key: 'ready', label: 'Ready', tone: 'muted' },
   complete: { key: 'complete', label: 'Complete', tone: 'done' },
@@ -22,7 +22,7 @@ export const statuses = {
 
 /**
  * One status per work item, what agents do on it first: Working while an agent is in a turn on it
- * (green), Needs you once one waits for the person (amber), then Blocked (red), Paused (implementation
+ * (green), Needs you once one waits for the person (amber), then Blocked (red), Paused (blue: implementation
  * started, nobody on it), Draft and Ready (accepted, not started). Closed work keeps how it ended
  * (complete in purple; partly done once archived, as the hub has it), whatever a session still does
  * on it or a stale blocker says.
