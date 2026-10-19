@@ -5,25 +5,18 @@
 // subagents that worked. Without a measurement, agent time is estimated from the time between
 // reports and tokens are self-reported. Plan revisions come from the planning folder's Git history.
 //
-// Before the database, reports were lines of <work>/.atlas/statistics.jsonl (format version 1, every
-// field added since optional); `atlas setup` and `atlas home adopt` import such files once. A report
-// without a stage is from before stages were recorded: its stage is unknown.
-import { lstat, readdir, readFile, realpath, rm, rmdir } from 'node:fs/promises';
+// A report without a stage is from before stages were recorded: its stage is unknown.
+import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentUsage, ModelUsage, StageUsage, TokenKinds, Work, WorkStage, WorkStatistics } from '../types.ts';
 import { runProgram as execute } from '../system/run.ts';
-import { projectOf, withDatabase, type HomeDatabase } from '../home/database.ts';
-import { normalizedLocation } from '../reading/planning.ts';
+import { withDatabase, type HomeDatabase } from '../home/database.ts';
 
-/** Where a work item's reports live, relative to its folder. Plan exports leave it out. */
-export const statisticsFile = '.atlas/statistics.jsonl';
 /**
  * Unmeasured reports further apart than this start a new stretch of work: the gap is not counted as
  * agent time. Without a session, reports of the same model this close together are treated as one run.
  */
 export const sessionGap = 2 * 60 * 60 * 1000;
-export const fileLimit = 4 * 1024 * 1024;
-const lineLimit = 4096;
 const historyLimit = 20000;
 export const stepLimit = 200;
 /** A measurement names at most this many models, so a report stays one short line. */
@@ -197,30 +190,6 @@ export function createReport(input: ReportInput, modelLimit = measuredModelLimit
   const measured = checkedMeasured(input.measured, at, modelLimit);
   if (measured) report.measured = measured;
   return report;
-}
-
-/**
- * Read one line; null when it is not a valid report (counted, never fatal). A stage, subagents or
- * measurement this version cannot read is left out, and the rest of the report stays, as older
- * versions read it.
- */
-export function parseReport(line: string): StatisticsReport | null {
-  if (line.length > lineLimit) return null;
-  let value: unknown;
-  try { value = JSON.parse(line); } catch { return null; }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const entry = value as Record<string, unknown>;
-  const at = utcTime(entry.at);
-  if (entry.version !== 1 || !at) return null;
-  const stage = workStages.includes(entry.stage as WorkStage) ? entry.stage as WorkStage : null;
-  const fields: ReportInput = { model: entry.model as string, session: entry.session as string | null, tokens: entry.tokens as number | null, step: entry.step as string | null, stage, at: new Date(at) };
-  const measured = entry.measured as Measured | undefined;
-  const attempts = measured === undefined ? [undefined] : [measured, typeof measured === 'object' && measured?.subagents !== undefined ? { ...measured, subagents: undefined } : null, undefined];
-  for (const attempt of attempts) {
-    if (attempt === null) continue;
-    try { return createReport({ ...fields, measured: attempt }, Number.POSITIVE_INFINITY); } catch { /* Read with less. */ }
-  }
-  return null;
 }
 
 const sum = (kinds: TokenKinds) => kinds.input + kinds.cacheRead + kinds.cacheWrite + kinds.output;
@@ -479,64 +448,6 @@ export function storedReports(database: HomeDatabase, projectId: number, workIds
     }
     const workId = String(row.work_id);
     listed(result, workId).push(report);
-  }
-  return result;
-}
-
-/** Whether the database has this report already: the same moment, model, session and step of the same work item. */
-function recorded(database: HomeDatabase, projectId: number, workId: string, report: StatisticsReport) {
-  return Boolean(database.db.prepare('SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND at = ? AND model IS ? AND session IS ? AND step IS ? LIMIT 1')
-    .get(projectId, workId, report.at, report.model, report.session, report.step));
-}
-
-/** What importing a planning folder's statistics files did; `files` relative to the planning folder. */
-export interface StatisticsImport { files: string[]; reports: number; invalid: number; problems: string[] }
-
-/**
- * Import the work statistics files of a planning folder (<work>/.atlas/statistics.jsonl, as Atlas
- * wrote them before the home database) into the database, then delete them. Each report is added
- * once, so an import that stopped half way can run again. Lines that are not valid reports are
- * counted and dropped. A file that is a link, or too large, is left alone and named in `problems`.
- * Nothing is committed: the planning folder's Git history keeps the files.
- */
-export async function importStatisticsFiles(database: HomeDatabase, root: string): Promise<StatisticsImport> {
-  const result: StatisticsImport = { files: [], reports: 0, invalid: 0, problems: [] };
-  const canonical = await realpath(root);
-  let items: unknown[];
-  try { items = (JSON.parse((await readFile(path.join(canonical, 'planning.json'), 'utf8')).replace(/^﻿/, '')) as { work_items?: unknown[] }).work_items ?? []; }
-  catch { return result; }
-  if (!Array.isArray(items)) return result;
-  const project = await projectOf(database, canonical);
-  for (const item of items) {
-    const entry = item && typeof item === 'object' ? item as { id?: unknown; path?: unknown } : {};
-    if (typeof entry.id !== 'string' || typeof entry.path !== 'string') continue;
-    const location = normalizedLocation(entry.path);
-    if (location.split('/').includes('..') || path.isAbsolute(location)) continue;
-    const folder = path.join(canonical, location, '.atlas');
-    const file = path.join(folder, 'statistics.jsonl');
-    const relative = location + '/' + statisticsFile;
-    const info = await lstat(file).catch(() => null);
-    if (!info) continue;
-    if (!info.isFile() || (await lstat(folder)).isSymbolicLink()) { result.problems.push(relative + ' is a link or not a regular file; it was left as it is.'); continue; }
-    if (info.size > fileLimit) { result.problems.push(relative + ' is larger than 4 MB; it was left as it is.'); continue; }
-    const reports: StatisticsReport[] = [];
-    for (const line of (await readFile(file, 'utf8')).replace(/^﻿/, '').split(/\r?\n/)) {
-      if (!line.trim()) continue;
-      const report = parseReport(line);
-      if (report) reports.push(report); else result.invalid++;
-    }
-    const workId = entry.id;
-    database.transaction(() => {
-      for (const report of reports) {
-        if (recorded(database, project.id, workId, report)) continue;
-        insertReport(database, project.id, workId, report);
-        result.reports++;
-      }
-    });
-    await rm(file, { force: true });
-    // The .atlas folder goes too when nothing else is in it.
-    if (!(await readdir(folder).catch(() => ['?'])).length) await rmdir(folder).catch(() => undefined);
-    result.files.push(relative);
   }
   return result;
 }

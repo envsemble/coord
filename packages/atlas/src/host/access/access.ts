@@ -9,7 +9,7 @@
 // its name. Pairing codes live in memory only: they expire after five minutes, are used once, and a
 // restart forgets them.
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { readFileSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { createConnection, createServer, type Server } from 'node:net';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
@@ -97,19 +97,6 @@ function lockHolder(address: string, secret: string): Promise<{ owner: string; p
       resolve(code === 'ECONNREFUSED' || code === 'ENOENT' ? null : code === 'EPERM' || code === 'EACCES' ? impostor : someone);
     });
   });
-}
-
-/**
- * Whether a host from before the home database runs from the folder `directory` (the old data
- * folder, or a home whose files wait to be imported): something answers at the remote-access lock
- * named after the secret in its host/access.json.
- */
-export async function hostRunning(directory: string): Promise<boolean> {
-  let secret: unknown;
-  try { secret = (JSON.parse(readFileSync(path.join(directory, 'host', 'access.json'), 'utf8')) as { secret?: unknown }).secret; }
-  catch { return false; }
-  if (typeof secret !== 'string' || !secret) return false;
-  return await lockHolder(lockAddress(secret).address, secret) !== null;
 }
 
 type Row = Record<string, unknown>;

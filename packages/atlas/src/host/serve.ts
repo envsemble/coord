@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline';
 import QRCode from 'qrcode';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { legacyDataDirectory, legacySettings, pendingHomeFiles, prepareHome, readTemplates } from '../planning/index.ts';
+import { prepareHome, readTemplates } from '../planning/index.ts';
 import { hostAddresses } from './access/addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
 import { impostorHolder } from './access/access.ts';
@@ -28,16 +28,7 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
     warn: (message: string, detail?: unknown) => out.stderr('Warning: ' + message + (detail && typeof detail === 'object' && 'message' in detail ? ': ' + String((detail as { message: unknown }).message) : '')),
     error: (message: string, detail?: unknown) => out.stderr('Error: ' + message + (detail instanceof Error ? ': ' + detail.message : '')),
   };
-  // Serving from the default home before the old data folder's settings moved into it would give the
-  // home fresh ones, and the move would then set the user's own aside.
-  if (!options.home && !process.env.ATLAS_HOME && (await legacySettings(legacyDataDirectory())).length) {
-    throw new Error(`Atlas's settings are still in ${legacyDataDirectory()}. Run atlas setup to move them into the Atlas home first, or give --home.`);
-  }
   const { home } = await prepareHome({ override: options.home ?? undefined });
-  // Likewise the files Atlas kept in the home before its database: setup imports them.
-  if ((await pendingHomeFiles(home)).some(name => !name.startsWith('usage/'))) {
-    throw new Error(`Atlas's settings in ${home} have not moved into its database yet. Run atlas setup first.`);
-  }
   const host = new Host({
     home, version: options.version, log, owner: '`atlas serve`',
     createPlanWorker: () => new Worker(new URL('./export/planWorker.ts', import.meta.url)) as unknown as WorkerLike,

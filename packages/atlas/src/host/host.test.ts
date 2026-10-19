@@ -9,7 +9,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HomeDatabase } from '../planning/index.ts';
-import { AccessStore, hostRunning, lockAddress, normalizeCode } from './access/access.ts';
+import { AccessStore, lockAddress, normalizeCode } from './access/access.ts';
 import { HostRequestError, describeHost, pairWithHost, parsePairing } from './client.ts';
 import { acceptableHost, attachment } from './host.ts';
 import { pairRequest, accessSettings } from './validate.ts';
@@ -268,26 +268,6 @@ test('the lock is a system object that disappears with its process, named after 
   assert.notEqual(lockAddress('secret-two', 'linux').address, linux.address, 'another data folder, another lock');
   assert.equal(lockAddress('secret-one', 'darwin').file, true);
   assert.ok(lockAddress('secret-one', 'darwin').address.length < 104, 'socket paths are short');
-});
-
-test('a host from before the home database is seen by its remote-access lock', async t => {
-  const data = temporary(t, 'atlas-access-');
-  assert.equal(await hostRunning(data), false, 'no host/access.json');
-  const secret = 'S'.repeat(43);
-  mkdirSync(path.join(data, 'host'));
-  writeFileSync(path.join(data, 'host', 'access.json'), JSON.stringify({ version: 2, hostId: 'host-1234-abcd', secret }));
-  // The process holding the lock named after that secret, as an older atlas serve would.
-  const database = HomeDatabase.open(path.join(data, 'home'));
-  database.setSetting('host.secret', secret);
-  const store = new AccessStore(database, quiet, 'atlas serve');
-  opened.add({ store, database });
-  assert.equal(await hostRunning(data), false, 'nobody holds the lock');
-  assert.equal(await store.lock(), null);
-  assert.equal(await hostRunning(data), true);
-  store.unlock();
-  assert.equal(await hostRunning(data), false, 'the lock went with it');
-  writeFileSync(path.join(data, 'host', 'access.json'), '{ broken');
-  assert.equal(await hostRunning(data), false);
 });
 
 test('the host keeps its identity, and device names are trimmed and never blank', async t => {
