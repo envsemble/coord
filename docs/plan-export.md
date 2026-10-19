@@ -65,7 +65,7 @@ Embedded content is displayed, never executed. Raw HTML in Markdown is left out.
 4. The work gets the next free number: one more than the highest registered work ID, skipping any number an unregistered folder in `active/` or `archive/` already uses. It keeps the source's location: `<active|archive>/<NNNN>-<slug>/`, with the slug cut to 100 characters. Importing the same file twice creates two work items.
 5. The files are written to a hidden temporary folder beside the destination and renamed into place.
 6. The work's identity is rewritten: the main plan's `id` and the ledger's `work_id` metadata lines, keeping their quoting, line endings and byte order mark.
-7. References to other work are cleared, because they name work in the source planning folder: the plan's `supersedes` becomes `[]` and `superseded_by` becomes `null`.
+7. References to other work are cleared, because they name work in the source planning folder: the plan's `supersedes` and `continues` become `[]` and `superseded_by` becomes `null`.
 
    Every other byte, diagrams included, is as exported: a diagram names no work, and its references to other diagrams are relative to it, so captures stay frozen.
 

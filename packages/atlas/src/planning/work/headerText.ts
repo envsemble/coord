@@ -29,7 +29,7 @@ export function yamlValue(field: string, value: string | number | null | string[
 }
 
 /** Set top-level header fields; a field the header lacks is added at its end. */
-export function setFields(text: string, fields: Record<string, string | number | null>): string {
+export function setFields(text: string, fields: Record<string, string | number | null | string[]>): string {
   const found = header(text);
   if (!found) throw new HeaderError('The file has no metadata header.');
   let block = found.block;

@@ -22,7 +22,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
     try {
       assert.match(client.getInstructions() ?? '', /Change planning state only through these tools/);
       const { tools } = await client.listTools();
-      assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_accept', 'work_start', 'step_add', 'step_set', 'step_rename', 'step_remove', 'work_block', 'work_close', 'work_archive', 'work_reopen']);
+      assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_accept', 'work_start', 'step_add', 'step_set', 'step_rename', 'step_remove', 'work_block', 'work_continue', 'work_close', 'work_archive', 'work_reopen']);
       assert.ok(tools.every(tool => (tool.description ?? '').length > 40), 'every tool says what it is for');
 
       const call = (name: string, args: object) => client.callTool({ name, arguments: args as Record<string, unknown> }) as Promise<Result>;
@@ -47,6 +47,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.equal((await inRoot('work_block', { work: 'work-0001' })).structuredContent!.blocked, null);
       const created = await call('work_create', { title: 'Payments' });
       assert.deepEqual([created.structuredContent!.workId, created.structuredContent!.repositories], ['work-0002', ['shop']]);
+      assert.deepEqual((await inRoot('work_continue', { work: 'work-0002', continues: ['work-0001'] })).structuredContent!.continues, ['work-0001']);
       assert.match(readFileSync(path.join(root, 'active/0001-cart/ledger.md'), 'utf8'), /status: done/);
       // A reason alone is refused, not dropped; naming the work that supersedes it implies superseded.
       assert.match((await inRoot('work_archive', { work: 'work-0001', reason: 'Replaced' })).content![0].text, /only with a disposition/);

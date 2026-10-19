@@ -10,6 +10,7 @@ import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import type { HomeDatabase } from '../home/database.ts';
 import type { HandoffLink } from '../types.ts';
+import { handoffsOf } from '../work/handoffs.ts';
 import { runProgram } from '../system/run.ts';
 import { storedReports, summarizeReports, type StatisticsReport } from '../statistics/statistics.ts';
 
@@ -115,6 +116,9 @@ async function workOf(root: string, entry: { id: string; path: string; title?: u
     summary: text(planHeader?.summary), steps: steps && { ...counted(steps), planning: counted(steps.filter(step => step?.phase === 'planning')) },
     updated: text(planHeader?.updated) ?? text(planHeader?.completed_at), outcome,
     step: steps && currentStep(steps), completed: text(planHeader?.completed_at), statistics: workStatisticsBrief(reports),
+    // As the plan names them; linkHandoffs finds them in the home's projects, and the work continuing this.
+    continues: handoffsOf(planHeader?.continues).references.map((item): HandoffLink => ({ folderId: null, project: item.project ?? '', projectName: '', workId: item.workId, title: null, state: null, outcome: null })),
+    continuedIn: [],
   };
 }
 

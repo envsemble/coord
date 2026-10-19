@@ -12,6 +12,8 @@ export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from 
 export { StatisticsReportError, createReport, importStatisticsFiles, insertReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, sessionGap, statisticsFile, storedReports, summarizeReports, workStages, workStatistics, type StatisticsImport, type Measured, type MeasuredInterval, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
 export { codexThreadName, harnessSessions, logTail, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './statistics/sessionLog.ts';
 export { prepareWorkReport, recordWorkReport, remeasureReports, type PreparedReport, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
+export { handoffsByWork, linkHandoffs, type ListedProject } from './projects/handoffLinks.ts';
+export { handoffExists, handoffLoop, handoffsOf, handoffText, parseHandoff, type HandoffReference } from './work/handoffs.ts';
 export { projectStatistics, type ProjectStatisticsEntry } from './statistics/projectStatistics.ts';
 export { workDates, workSessions, workTimeline, type ProductEntry, type SessionEntry, type TimelineEntry } from './statistics/sessions.ts';
 export { resolveReferences, type ReferenceItem, type ResolvedItem } from './projects/references.ts';
@@ -24,7 +26,7 @@ export {
 } from './export/planExport.ts';
 export { runProgram, ProgramError, type RunOptions } from './system/run.ts';
 export { acquireFileLock } from './home/importLock.ts';
-export { WorkError, summaryLimit, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, closeWork, archiveWork, reopenWork, repairLinks, localDate, type ArchiveRequest, type WorkResult, type WorkStatus, type OperationOptions } from './work/work.ts';
+export { WorkError, summaryLimit, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, setContinues, closeWork, archiveWork, reopenWork, repairLinks, localDate, type ArchiveRequest, type WorkResult, type WorkStatus, type OperationOptions } from './work/work.ts';
 export { findPlanning, insideFolder, readRegistry, resolvePlanningFolder, normalizeRemote, remoteWithoutCredentials, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type ProjectBrief, type Whereabouts, type WorkBrief } from './projects/resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './check/checkPaths.ts';
 export { adoptPlanningFolder, type Adopted } from './projects/adopt.ts';

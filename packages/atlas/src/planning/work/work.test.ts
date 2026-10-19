@@ -13,7 +13,7 @@ import { legacyUsageSchema, statisticsDirectory } from '../home/storage.ts';
 import { withDatabase } from '../home/database.ts';
 import { storedReports } from '../statistics/statistics.ts';
 import { normalizeRemote } from '../projects/resolve.ts';
-import { acceptWork, addSteps, archiveWork, closeWork, createWork, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing/testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
@@ -32,6 +32,14 @@ test('a work item is created under the next unused number, registered, and valid
   assert.deepEqual(errorsOf(root), []);
   const slugged = await createWork(root, { title: 'Other', repositories: ['shop'], slug: 'custom-name' }, today);
   assert.equal(slugged.path, 'active/0005-custom-name');
+  // The work it continues goes into its header; work_continue replaces it, and only work items are taken.
+  const continuing = await createWork(root, { title: 'Next', repositories: ['shop'], summary: 'The next phase.', continues: ['work-0004', 'work-0004'] }, today);
+  assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0004"]\n'));
+  assert.deepEqual((await setContinues(root, continuing.workId, ['work-0005'], today)).continues, ['work-0005']);
+  assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0005"]\n'));
+  for (const continues of [['work-9999'], ['nope'], [continuing.workId]]) await assert.rejects(setContinues(root, continuing.workId, continues, today), WorkError);
+  await setContinues(root, continuing.workId, [], today);
+  assert.ok(read(root, continuing.plan).includes('\ncontinues: []\n'));
   // A summary goes into the header under the title; without one, the check asks for it.
   const summarized = await createWork(root, { title: 'Refunds', repositories: ['shop'], summary: ' Refunds to the card: "partial" ones too. Not started. ' }, today);
   assert.equal(summarized.summary, 'Refunds to the card: "partial" ones too. Not started.');

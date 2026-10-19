@@ -8,6 +8,7 @@
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
+import { handoffExists, handoffFolder, handoffLoop, handoffsOf, handoffText } from '../work/handoffs.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const repositoryIdentity = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -29,7 +30,7 @@ export type Metadata = Record<string, MetadataValue>;
 /** In a ledger header, `steps` holds a block list of flat mappings. */
 const ledgerEntryLists = ['steps'];
 /** Fields that may start a block list of scalars on the following lines. */
-const scalarListFields = new Set(['repositories', 'supersedes']);
+const scalarListFields = new Set(['repositories', 'supersedes', 'continues']);
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
@@ -406,6 +407,17 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     const replacement = metadata.superseded_by;
     if (replacement !== null && replacement !== undefined && (typeof replacement !== 'string' || !workIds.has(replacement) || replacement === workId)) {
       errors.push(prefix + 'superseded_by must identify another registered work item or null');
+    }
+    // The work it continues (handoffs): here or in another project of the home, never itself; one
+    // that names no work item, or a loop, is only a warning (the other plan may come later).
+    if (metadata.continues !== undefined && metadata.continues !== null) {
+      const { references, invalid } = handoffsOf(metadata.continues);
+      if (invalid.length) errors.push(prefix + 'continues must list work items, such as work-0023, or project:work-0023 for another project of the home');
+      else if (references.some(item => item.workId === workId && handoffFolder(root, item) === root)) errors.push(prefix + 'continues names the work item itself');
+      else {
+        for (const item of references) if (!handoffExists(root, item)) warnings.push(prefix + 'continues ' + handoffText(item) + ', which names no work item');
+        if (typeof workId === 'string' && handoffLoop(root, workId, references)) warnings.push(prefix + 'continues work that continues it: the handoffs form a loop');
+      }
     }
   }
 

@@ -8,7 +8,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter, type Metadata } from '../check/check.ts';
-import { appendToSection, setFields, setSteps } from './headerText.ts';
+import { appendToSection, setFields, setSteps, yamlValue } from './headerText.ts';
+import { handoffExists, handoffFolder, handoffText, parseHandoff } from './handoffs.ts';
 import { ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
 import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from './registryText.ts';
 import { stepLimit, workStatistics } from '../statistics/statistics.ts';
@@ -176,7 +177,7 @@ async function result(root: string, workId: string, changed: string[], warnings:
 }
 
 /** Write the plan with these fields (and `updated`), after checking it still reads. */
-async function writePlan(loaded: Loaded, fields: Record<string, string | null>, today: string) {
+async function writePlan(loaded: Loaded, fields: Record<string, string | null | string[]>, today: string) {
   const next = setFields(loaded.planText, { ...fields, updated: today });
   try { if (!parseFrontmatter(next)) throw new Error('the header disappeared'); }
   catch (error) { throw new WorkError(`The plan ${loaded.plan} could not be updated: ${(error as Error).message}`); }
@@ -205,6 +206,24 @@ export function slugOf(title: string) {
   return title.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50).replace(/-+$/, '') || 'work';
 }
 
+/**
+ * The work items a plan continues, as its header writes them: each one registered, here
+ * (`work-0023`) or in another project of the home (`project:work-0023`, by its planning folder's
+ * name), never the work item itself, each once.
+ */
+function checkedHandoffs(root: string, values: unknown, workId: string | null): string[] {
+  if (!Array.isArray(values)) throw new WorkError('Give the work it continues as a list, such as ["work-0023"].');
+  const written: string[] = [];
+  for (const value of values) {
+    const item = parseHandoff(value);
+    if (!item) throw new WorkError(`${JSON.stringify(value)} is not a work item: write work-0023, or project:work-0023 for another project of the home (its planning folder's name).`);
+    if (item.workId === workId && handoffFolder(root, item) === root) throw new WorkError('A work item cannot continue itself.');
+    if (!handoffExists(root, item)) throw new WorkError(handoffText(item) + ' names no work item' + (item.project ? ' (is ' + item.project + ' the planning folder\'s name in the home?)' : ' in this project') + '.');
+    if (!written.includes(handoffText(item))) written.push(handoffText(item));
+  }
+  return written;
+}
+
 /** The longest plan summary: a few sentences, on one header line. */
 export const summaryLimit = 1000;
 
@@ -230,7 +249,7 @@ const implementing = (loaded: Loaded) => loaded.planMetadata.implementation_stat
  * work, `active/NNNN-slug/plan.md` with a draft plan header (with its summary, when given), its
  * ledger with the planning steps, and its planning.json entry.
  */
-export async function createWork(input: string, request: { title: string; repositories: string[]; slug?: string | null; summary?: string | null }, options: OperationOptions = {}): Promise<WorkResult> {
+export async function createWork(input: string, request: { title: string; repositories: string[]; slug?: string | null; summary?: string | null; continues?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
   const title = oneLine(request.title, 'The title');
   const summary = request.summary == null || String(request.summary).trim() === '' ? null : oneLine(request.summary, 'The summary', summaryLimit);
@@ -241,6 +260,7 @@ export async function createWork(input: string, request: { title: string; reposi
   const repositories = [...new Set(request.repositories)];
   const unknown = repositories.filter(id => !known.has(id));
   if (unknown.length) throw new WorkError('Not registered in planning.json: ' + unknown.join(', ') + '. Registered repositories: ' + [...known].join(', ') + '.');
+  const continues = request.continues?.length ? checkedHandoffs(root, request.continues, null) : [];
   const slug = request.slug ? request.slug : slugOf(title);
   if (!slugPattern.test(slug) || slug.length > 80) throw new WorkError('The slug must be lowercase letters and digits joined by hyphens.');
   const folders = (await Promise.all(['active', 'archive'].map(location => readdir(path.join(root, location)).catch(() => [] as string[])))).flat();
@@ -251,7 +271,7 @@ export async function createWork(input: string, request: { title: string; reposi
   try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, repositories, current_plan: plan }]); }
   catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
   const planText = ['---', 'schema_version: 1', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [], 'repositories: ' + JSON.stringify(repositories).replaceAll('","', '", "'),
-    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# ' + title, ''].join('\n');
+    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], '---', '', '# ' + title, ''].join('\n');
   await mkdir(file(root, location), { recursive: true });
   try {
     await writeFile(file(root, plan), planText, { flag: 'wx' });
@@ -389,6 +409,17 @@ export async function removeStep(root: string, workId: string, title: string, op
 }
 
 /** Set `blocked` to a reason, or clear it with null. */
+/**
+ * Record the work a plan continues (its header's `continues`): the handoff from earlier work, such as
+ * follow-ups moved off work that closed, or a next phase. An empty list records none.
+ */
+export async function setContinues(input: string, workId: string, continues: string[], options: OperationOptions = {}) {
+  const loaded = await load(input, workId);
+  const written = checkedHandoffs(loaded.root, continues, workId);
+  const changed = [await writePlan(loaded, { continues: written }, dateOf(options))];
+  return { ...await result(loaded.root, workId, changed), continues: written };
+}
+
 export async function setBlocked(root: string, workId: string, reason: string | null, options: OperationOptions = {}) {
   const value = reason === null ? null : oneLine(reason, 'The reason', 1000);
   return changeLedger(root, workId, options, () => ({ fields: { blocked: value } }));

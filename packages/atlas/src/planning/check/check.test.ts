@@ -260,6 +260,25 @@ test('explicit IDs and unknown scopes are validated', t => {
   assert.ok(errors.some(item => item.includes('unknown repository')));
 });
 
+test('continues lists work items: malformed or itself is an error, unknown work and loops are warnings', t => {
+  const setup = fixture(t);
+  setup.header.continues = ['not work'];
+  setup.write();
+  assert.ok(setup.validate().errors.some(item => item.includes('continues must list work items')));
+  setup.header.continues = ['work-0001'];
+  setup.write();
+  assert.ok(setup.validate().errors.some(item => item.includes('continues names the work item itself')));
+  const next = path.join(setup.root, 'active/0002-next');
+  mkdirSync(next, { recursive: true });
+  writeFileSync(path.join(next, 'plan.md'), ['---', 'id: work-0002', 'continues: [work-0001]', '---', ''].join('\n'));
+  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', repositories: ['example-app'], current_plan: 'active/0002-next/plan.md' });
+  setup.header.continues = ['work-0002', 'no-such-project:work-0001'];
+  setup.write();
+  const { warnings } = setup.validate();
+  assert.ok(warnings.some(item => item.includes('continues no-such-project:work-0001, which names no work item')));
+  assert.ok(warnings.some(item => item.includes('the handoffs form a loop')));
+});
+
 test('lifecycle chronology matches the dashboard and preserves unknown dates', t => {
   const setup = fixture(t);
   const valid_ = { ...setup.header, created: '2026-10-01', accepted_at: '2026-10-03', completed_at: '2026-10-05', updated: '2026-10-05', implementation_status: 'complete' };

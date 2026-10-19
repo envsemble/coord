@@ -7,7 +7,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork,
+  acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
   resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus, type ProjectRepository,
 } from '../../planning/index.ts';
 import { parseOptions, UsageError, wantsHelp, type Output } from '../args.ts';
@@ -64,11 +64,11 @@ const tools: Tool[] = [
   {
     name: 'work_create',
     description: 'Create and register a work item: the next free number, active/NNNN-slug/plan.md with a draft plan header (with its summary), a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted), and its planning.json entry. Ask the user before creating one: only work big enough to plan needs it. Then write the plan body in plan.md directly, keep the summary in its header current as the work moves, and keep the planning steps true while designing (rename, add or remove them to fit the work).',
-    inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, repositories: titles('Registered repository IDs the work applies to. Omit them to use the repositories your checkout is.'), slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' } }, ['title']),
+    inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, repositories: titles('Registered repository IDs the work applies to. Omit them to use the repositories your checkout is.'), slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' }, continues: titles('The work items it continues (a handoff): work-0023 in this project, or project:work-0023 in another project of the home, by its planning folder\'s name. Give it when the work picks up where other work left off: follow-ups moved off work that is closing, a next phase, deferred review findings.') }, ['title']),
     run: async (root, input) => {
       let repositories = input.repositories as string[] | undefined;
       if (!repositories?.length) repositories = (await findPlanning(input.cwd ?? process.cwd())).matches.find(match => match.planningFolder === root)?.repositories ?? [];
-      return createWork(root, { title: input.title as string, repositories, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null });
+      return createWork(root, { title: input.title as string, repositories, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null });
     },
   },
   {
@@ -105,7 +105,13 @@ const tools: Tool[] = [
     run: (root, input) => setBlocked(root, input.work!, (input.reason as string | undefined) || null),
   },
   {
-    name: 'work_close', description: 'Close finished work: refused with the open items unless its ledger has steps, every one done, and nothing is blocked; then implementation complete, completed_at today, and the folder moves to archive/.',
+    name: 'work_continue',
+    description: 'Record which work a work item continues (the handoff in its plan\'s header, continues): the earlier plan then shows it as continued in this one, and both ledgers link the handoff. Replaces what was recorded; an empty list records none. work_create takes continues too, for new work.',
+    inputSchema: object({ work, continues: titles('The work items it continues (a handoff): work-0023 in this project, or project:work-0023 in another project of the home, by its planning folder\'s name. Give it when the work picks up where other work left off: follow-ups moved off work that is closing, a next phase, deferred review findings.') }, ['work', 'continues']),
+    run: (root, input) => setContinues(root, input.work!, input.continues as string[]),
+  },
+  {
+    name: 'work_close', description: 'Close finished work: refused with the open items unless its ledger has steps, every one done, and nothing is blocked; then implementation complete, completed_at today, and the folder moves to archive/. Follow-ups that move to new work go into a work item created with continues naming this one, which records the handoff; closing records nothing more.',
     inputSchema: object({ work }, ['work']), run: (root, input) => closeWork(root, input.work!),
   },
   {

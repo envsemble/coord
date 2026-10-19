@@ -19,7 +19,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
-  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectStatistics, projectSummary, remeasureReports, resolveReferences, storedReports, workDates, workSessions, workTimeline,
+  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, projectStatistics, projectSummary, remeasureReports, resolveReferences, storedReports, workDates, workSessions, workTimeline,
   readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type StatisticsReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
@@ -28,7 +28,7 @@ import { hostAddresses } from './access/addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
   type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope, type SearchResult, type WorkspaceScan,
+  type NetworkStatus, type PairResponse, type Project, type ProjectRepository, type ProjectSummary, type Scope, type SearchResult, type Snapshot, type WorkspaceScan, type HandoffLink,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folders/folder.ts';
@@ -663,7 +663,34 @@ export class Host {
     this.watchOutsideProjects(listed);
     if (!summaries) return Promise.all(listed.map(row => this.project(row)));
     const { activity, reports, now } = this.readListing(listed);
-    return Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, activity.get(row.id) ?? [], reports.get(row.id), now) })));
+    const projects = await Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, activity.get(row.id) ?? [], reports.get(row.id), now) })));
+    this.noteHandoffs(projects);
+    return projects;
+  }
+  /** Each project's handoffs by work item, as the last listing found them, by folder key. */
+  private handoffs = new Map<string, Map<string, { continues: HandoffLink[]; continuedIn: HandoffLink[] }>>();
+  private handoffsListed = false;
+  /**
+   * Link the listed work's handoffs across projects, and tell the open planning folders whose
+   * handoffs changed (a plan elsewhere that now continues one of theirs), so their plans show them.
+   */
+  private noteHandoffs(projects: Project[]) {
+    linkHandoffs(projects.map(project => ({ folderId: project.folderId, folder: project.path, name: project.name, summary: project.summary ?? null })));
+    const before = this.handoffs;
+    this.handoffs = new Map(projects.map(project => [folderKey(project.path), handoffsByWork({ folderId: project.folderId, folder: project.path, name: project.name, summary: project.summary ?? null })]));
+    this.handoffsListed = true;
+    const signature = (found: Map<string, unknown> | undefined) => JSON.stringify(found ? [...found] : []);
+    for (const project of projects) {
+      if (!this.folders.has(project.folderId) || signature(before.get(folderKey(project.path))) === signature(this.handoffs.get(folderKey(project.path)))) continue;
+      this.folders.get(project.folderId).touch();
+    }
+  }
+  /** A folder's snapshot, with its work's handoffs across the home's projects (listed first, when nothing was listed yet). */
+  private snapshotOf(folder: FolderSession): Snapshot {
+    const snapshot = folder.snapshot();
+    if (!this.handoffsListed) { this.handoffsListed = true; void this.projects(true).catch(() => undefined); }
+    const handoffs = this.handoffs.get(folderKey(folder.root));
+    return handoffs ? { ...snapshot, work: snapshot.work.map(item => ({ ...item, ...handoffs.get(item.id) })) } : snapshot;
   }
   /** What the hub shows of a project's plans: from its planning folder and its reports, with what agents do on its work now. */
   private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity'], reports: Map<string, StatisticsReport[]> | undefined, now: string): Promise<ProjectSummary | null> {
@@ -930,7 +957,7 @@ export class Host {
         await connection.inOrder(folderId, async () => { if (connection.subscriptions.delete(folderId)) this.folders.release(folderId); });
         return null as never;
       }
-      case 'folder.snapshot': return this.subscribed(connection, (p as { folderId: string }).folderId).snapshot() as never;
+      case 'folder.snapshot': return this.snapshotOf(this.subscribed(connection, (p as { folderId: string }).folderId)) as never;
       case 'folder.document': { const { folderId, path: file } = p as { folderId: string; path: string }; return this.subscribed(connection, folderId).document(file) as never; }
       case 'folder.diagrams': { const { folderId, work } = p as { folderId: string; work: string }; return this.subscribed(connection, folderId).diagrams(work) as never; }
       case 'folder.diagram': { const { folderId, work, path: file } = p as { folderId: string; work: string; path: string }; return this.subscribed(connection, folderId).diagram(work, file) as never; }

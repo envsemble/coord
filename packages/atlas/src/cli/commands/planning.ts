@@ -6,7 +6,7 @@ import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  acceptWork, addSteps, adoptPlanningFolder, archiveWork, atlasHome, checkPaths, closeWork, createProject, createWork, findPlanning, homePlanningFolders, planningName,
+  acceptWork, addSteps, adoptPlanningFolder, archiveWork, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, findPlanning, homePlanningFolders, planningName,
   planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, withDatabaseAsync, workStatus,
   type LedgerStepStatus, type ProjectRepository, type SkippedCheckout,
 } from '../../planning/index.ts';
@@ -15,7 +15,8 @@ import { parseOptions, positionals, UsageError, wantsHelp, type Output } from '.
 export const planningUsage = `  atlas where [--cwd <dir>]
   atlas project create --name <name> --workspace <folder>... [--json]
   atlas work status <work-id> [--planning-dir <dir>]
-  atlas work create --title <title> [--summary <text>] [--repo <id>...] [--slug <slug>] [--planning-dir <dir>]
+  atlas work create --title <title> [--summary <text>] [--repo <id>...] [--slug <slug>] [--continues <work>...] [--planning-dir <dir>]
+  atlas work continue <work-id> [<work>...] [--planning-dir <dir>]
   atlas work accept <work-id> [--planning-dir <dir>]
   atlas work start <work-id> --step <title>... [--planning-dir <dir>]
   atlas work step add <work-id> <title>... [--planning-dir <dir>]
@@ -103,7 +104,7 @@ export async function work(operation: string | undefined, args: string[], out: O
       return 0;
     }
     case 'create': {
-      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'planning-dir'], lists: ['repo'] }, line);
+      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'planning-dir'], lists: ['repo', 'continues'] }, line);
       positionals(positional, [], line);
       if (!values.title) throw new UsageError('the following arguments are required: --title', line);
       const root = await planningDir(values, null);
@@ -113,7 +114,15 @@ export async function work(operation: string | undefined, args: string[], out: O
         repositories = (await findPlanning(process.cwd())).matches.find(match => match.planningFolder === root)?.repositories ?? [];
         if (!repositories.length) throw new UsageError('give the repositories with --repo: this checkout is not a registered repository of ' + root, line);
       }
-      print(out, await createWork(root, { title: values.title, repositories, slug: values.slug ?? null, summary: values.summary ?? null }));
+      print(out, await createWork(root, { title: values.title, repositories, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null }));
+      return 0;
+    }
+    case 'continue': {
+      // The work it continues, here (work-0023) or in another project (project:work-0023); none clears it.
+      const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
+      const [id, ...continues] = positional;
+      if (!id) throw new UsageError('the following arguments are required: work-id', line);
+      print(out, await setContinues(await planningDir(values, id), id, continues));
       return 0;
     }
     case 'start': case 'reopen': {

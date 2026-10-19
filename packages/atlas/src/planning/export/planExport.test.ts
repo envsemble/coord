@@ -341,7 +341,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   writeFileSync(path.join(source, 'planning.json'), JSON.stringify(registry, null, 2));
   const successor = plan('work-0003', 'Successor').replace('supersedes: []', 'supersedes:\n  - work-0001\n  - work-0002');
   writeFileSync(path.join(source, 'active/0003-successor/plan.md'), successor);
-  writeFileSync(path.join(source, 'active/0001-checkout/plan.md'), BOM + plan('work-0001', 'Checkout').replace('superseded_by: null', 'superseded_by: "work-0003"  # replaced'));
+  writeFileSync(path.join(source, 'active/0001-checkout/plan.md'), BOM + plan('work-0001', 'Checkout').replace('superseded_by: null', 'superseded_by: "work-0003"  # replaced\ncontinues: [work-0002]'));
   assert.deepEqual(validatePlanning(source).errors, [], 'the source is valid');
   mkdirSync(target); fixture(target);
 
@@ -351,7 +351,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   assert.ok(first.notes.some(note => /Cleared supersedes in plan.md \(was \[work-0001, work-0002\]\)/.test(note)), first.notes.join('\n'));
   const second = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
   assert.ok(readFileSync(path.join(target, second.path, 'plan.md'), 'utf8').startsWith(BOM));
-  assert.match(readFileSync(path.join(target, second.path, 'plan.md'), 'utf8'), /^superseded_by: null$/m);
+  assert.match(readFileSync(path.join(target, second.path, 'plan.md'), 'utf8'), /^superseded_by: null\ncontinues: \[\]$/m);
   const provenance = JSON.parse(readFileSync(path.join(target, second.path, 'evidence/import-provenance.json'), 'utf8'));
   assert.deepEqual(provenance.identityRewrites.find((item: { field: string }) => item.field === 'superseded_by'), { file: 'plan.md', field: 'superseded_by', from: 'work-0003', to: null });
   assert.deepEqual(validatePlanning(target).errors, []);

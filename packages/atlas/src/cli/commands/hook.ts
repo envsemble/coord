@@ -140,6 +140,7 @@ export function sessionContext(where: Whereabouts): string {
   if (where.matches.length > 1) lines.push(`Several projects register this checkout's repository (${where.matches.map(match => match.project).join(', ')}): before planning, ask the user which project to plan in, and give its planning folder to the Atlas tools.`);
   lines.push('Planning: when the user designs something or asks for work big enough to plan, ask before opening a work item; small tasks stay plain coding. Change planning state (work items, steps, blocked, closing, archiving) through the Atlas tools; edit plan prose, glossaries and diagrams directly as files in the planning folder.');
   lines.push('In planning files, write PRs as repo#N and commits as repo@hash, so Atlas links them; when you stop to wait for the user, begin your message with the question or decision you need.');
+  lines.push('When you open work that continues other work (follow-ups moved off work that is closing, a next phase), record the handoff: work_create with continues, or work_continue.');
   return lines.join('\n');
 }
 

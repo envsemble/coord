@@ -587,24 +587,27 @@ function rewriteField(text: string, field: string, from: string, to: string): st
   const block = found.block.slice(0, match.index) + match[1] + match[2] + to + match[2] + match[3] + found.block.slice(match.index + match[0].length);
   return text.slice(0, found.start) + block + text.slice(found.end);
 }
-/** Clear `supersedes` and `superseded_by`, which name work in the source planning folder. */
-function clearCrossWorkReferences(text: string): { text: string; supersedes: string[]; supersededBy: string | null } | null {
+/** Clear `supersedes`, `superseded_by` and `continues`, which name work in the source planning folder or its home. */
+function clearCrossWorkReferences(text: string): { text: string; supersedes: string[]; supersededBy: string | null; continues: string[] } | null {
   let metadata;
   try { metadata = parseFrontmatter(text); } catch { return null; }
   if (!metadata) return null;
   const supersedes = Array.isArray(metadata.supersedes) ? metadata.supersedes.map(String) : [];
   const supersededBy = typeof metadata.superseded_by === 'string' ? metadata.superseded_by : null;
-  if (!supersedes.length && supersededBy === null) return { text, supersedes, supersededBy };
+  const continues = Array.isArray(metadata.continues) ? metadata.continues.map(String) : [];
+  if (!supersedes.length && supersededBy === null && !continues.length) return { text, supersedes, supersededBy, continues };
   const found = header(text)!;
   let block = found.block;
   if (supersedes.length) block = block.replace(/^supersedes:[^\r\n]*(?:\r?\n[ \t]*-[ \t][^\r\n]*)*/m, 'supersedes: []');
   if (supersededBy !== null) block = block.replace(/^superseded_by:[^\r\n]*/m, 'superseded_by: null');
+  if (continues.length) block = block.replace(/^continues:[^\r\n]*(?:\r?\n[ \t]*-[ \t][^\r\n]*)*/m, 'continues: []');
   const result = text.slice(0, found.start) + block + text.slice(found.end);
-  // Accept the edit only when exactly those two fields changed.
+  // Accept the edit only when exactly those fields changed.
   let after;
   try { after = parseFrontmatter(result); } catch { return null; }
-  if (!after || JSON.stringify({ ...metadata, supersedes: [], superseded_by: null }) !== JSON.stringify({ ...after })) return null;
-  return { text: result, supersedes, supersededBy };
+  const expected = { ...metadata, supersedes: [], superseded_by: null, ...continues.length ? { continues: [] } : {} };
+  if (!after || JSON.stringify(expected) !== JSON.stringify({ ...after })) return null;
+  return { text: result, supersedes, supersededBy, continues };
 }
 
 interface Rewrite { file: string; field: string; from: string | string[] | null; to: string | string[] | null }
@@ -727,6 +730,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
         text = cleared.text;
         if (cleared.supersedes.length) rewrites.push({ file: source.currentPlan, field: 'supersedes', from: cleared.supersedes, to: [] });
         if (cleared.supersededBy !== null) rewrites.push({ file: source.currentPlan, field: 'superseded_by', from: cleared.supersededBy, to: null });
+        if (cleared.continues.length) rewrites.push({ file: source.currentPlan, field: 'continues', from: cleared.continues, to: [] });
       }
       if (text !== null && text !== original) await write(source.currentPlan, text);
     } else notes.push('This work item has no registered main plan.');
@@ -773,7 +777,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     const describe = (value: Rewrite['from']) => Array.isArray(value) ? `[${value.join(', ')}]` : String(value);
     notes.unshift(
       `Imported ${source.workId} “${source.title}” from ${source.planningFolder} as ${target.workId} in ${target.path}.`,
-      ...rewrites.map(item => item.field === 'supersedes' || item.field === 'superseded_by'
+      ...rewrites.map(item => ['supersedes', 'superseded_by', 'continues'].includes(item.field)
         ? `Cleared ${item.field} in ${item.file} (was ${describe(item.from)}): it named work in ${source.planningFolder}.`
         : `Rewrote ${item.field} in ${item.file} from ${describe(item.from)} to ${describe(item.to)}.`),
       ...addedRepositories.map(item => `Registered the repository ${item.id} (${item.name}${item.remote ? ', remote ' + item.remote : ''}) in planning.json.`),

@@ -129,6 +129,13 @@ export class FolderSession {
     } catch (error) { this.options.log.warn('Work statistics unreadable', { root: this.root, error: error instanceof Error ? error.message : String(error) }); }
   }
 
+  /** What the snapshot shows besides the folder changed (its work's handoffs elsewhere): clients read it again. */
+  touch() {
+    if (!this.current || this.closed) return;
+    this.revision++;
+    this.emit();
+  }
+
   private emit() {
     if (!this.closed) this.options.onChange(this.state());
   }

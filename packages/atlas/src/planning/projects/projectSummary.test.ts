@@ -7,6 +7,7 @@ import path from 'node:path';
 import { HomeDatabase } from '../home/database.ts';
 import { createReport, insertReport, type ReportInput } from '../statistics/statistics.ts';
 import { projectSummary } from './projectSummary.ts';
+import { handoffsByWork, linkHandoffs } from './handoffLinks.ts';
 import { workTimeline } from '../statistics/sessions.ts';
 import { projectStatistics } from '../statistics/projectStatistics.ts';
 
@@ -44,7 +45,7 @@ function planningFolder(root: string) {
   write(path.join(root, 'active/0005/plan.md'), '---\nimplementation_status: [in_progress\n---\n');
   write(path.join(root, 'outside/plan.md'), plan('in_progress'));
   write(path.join(root, 'archive/0007/plan.md'), plan('in_progress'));
-  write(path.join(root, 'active/0008/plan.md'), plan('not_started', 'title: Gift cards\ndesign_status: draft\n'));
+  write(path.join(root, 'active/0008/plan.md'), plan('not_started', 'title: Gift cards\ndesign_status: draft\ncontinues: [work-0001, "app:work-0002"]\n'));
   write(path.join(root, 'active/0009/plan.md'), plan('partial', 'title: Returns\ndesign_status: draft\n'));
   write(path.join(root, 'archive/0007/ledger.md'), ledger('Blocked long ago'));
 }
@@ -52,17 +53,19 @@ function planningFolder(root: string) {
 test('a project\'s summary lists its active work with where each item stands, and its repositories', async t => {
   const root = path.join(temporary(t), 'shop');
   planningFolder(root);
-  const none = { summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null };
+  const none = { summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] };
+  // The work a plan continues, as its header names it: linked to its project and title by the host's listing.
+  const handoff = (project: string, workId: string) => ({ folderId: null, project, projectName: '', workId, title: null, state: null, outcome: null });
   const unstepped = { steps: { done: 0, total: 0, planning: { done: 0, total: 0 } } };
   const other = (id: string, title = id.slice(-4), more = {}) => ({ id, title, state: 'other', blocked: null, ...none, ...more });
   assert.deepEqual(await projectSummary(root), {
     repositories: ['shop', 'web'],
     active: [
-      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null, step: { title: 'Show', status: 'doing', phase: 'implementation' }, completed: null, statistics: null },
+      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null, step: { title: 'Show', status: 'doing', phase: 'implementation' }, completed: null, statistics: null, continues: [], continuedIn: [] },
       { id: 'work-0002', title: '0002', state: 'blocked', blocked: 'Waiting for the acquirer', ...none, ...unstepped },
       { id: 'work-0003', title: '0003', state: 'blocked', blocked: 'Waiting for review', ...none, ...unstepped },
       other('work-0004', '0004', unstepped), other('work-0005'), other('work-0006'),
-      { id: 'work-0008', title: 'Gift cards', state: 'draft', blocked: null, ...none },
+      { id: 'work-0008', title: 'Gift cards', state: 'draft', blocked: null, ...none, continues: [handoff('', 'work-0001'), handoff('app', 'work-0002')] },
       other('work-0009', 'Returns'),
     ],
     closed: [
@@ -92,7 +95,7 @@ test('a folder without a readable registry has no summary, and odd entries in on
   write(path.join(root, 'list', 'planning.json'), '[]');
   await assert.rejects(projectSummary(path.join(root, 'list')), /not an object/);
   write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ repositories: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001' }, { id: 'work-0001', path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
-  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null }], closed: [], updated: null });
+  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { repositories: [], active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] }], closed: [], updated: null });
 });
 
 test('each work item has the step being worked on or next, and what agents spent on it, from all the project\'s reports at once', async t => {
@@ -227,4 +230,17 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     assert.deepEqual(statistics.plans.map(item => [item.id, hours(item.agentMs), item.tokens, item.state]), [['work-0001', 4, 100, 'closed']]);
     assert.deepEqual(statistics.models, [{ model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }]);
   } finally { database.close(); }
+});
+
+test('handoffs link work across the home\'s projects both ways, by planning folder name, and keep a reference that names nothing', () => {
+  const work = (id: string, continues: { project: string; workId: string }[] = []) => ({ id, title: 'Title ' + id, state: 'implementing', outcome: null, continues: continues.map(item => ({ folderId: null, projectName: '', title: null, state: null, outcome: null, ...item })) }) as never;
+  const shop = { folderId: 'f1', folder: path.join('home', 'planning', 'shop'), name: 'Shop', summary: { active: [work('work-0001'), work('work-0002', [{ project: '', workId: 'work-0001' }])], closed: [] } };
+  const app = { folderId: 'f2', folder: path.join('home', 'planning', 'app'), name: 'App', summary: { active: [work('work-0001', [{ project: 'Shop', workId: 'work-0002' }, { project: 'gone', workId: 'work-0001' }])], closed: [] } };
+  linkHandoffs([shop, app]);
+  const [first, second] = shop.summary.active as { continues: unknown[]; continuedIn: unknown[] }[];
+  assert.deepEqual(first.continuedIn, [{ folderId: null, project: 'shop', projectName: 'Shop', workId: 'work-0002', title: 'Title work-0002', state: 'implementing', outcome: null }]);
+  assert.deepEqual(second.continuedIn, [{ folderId: 'f2', project: 'app', projectName: 'App', workId: 'work-0001', title: 'Title work-0001', state: 'implementing', outcome: null }]);
+  const [continued] = app.summary.active as { continues: { folderId: string | null; workId: string; title: string | null }[] }[];
+  assert.deepEqual(continued.continues.map(item => [item.folderId, item.workId, item.title]), [['f1', 'work-0002', 'Title work-0002'], [null, 'work-0001', null]]);
+  assert.deepEqual(handoffsByWork(app).get('work-0001')!.continues, continued.continues);
 });
