@@ -112,7 +112,11 @@ export function nextState(row: SessionRow, activity: Activity, at: string, liveF
 
 /** The longest last message kept for a session that waits for the person. */
 const messageLimit = 4000;
-/** What a hook knows besides the activity: the session's folder, and the message it waits with (its turn's last, or the question it asks). */
+/**
+ * What a hook knows besides the activity: the folder it runs in (the first one recorded is kept: the
+ * agent may change folders later), and the message the session waits with (its turn's last, or the
+ * question it asks).
+ */
 export interface ActivityDetails { cwd?: string | null; message?: string | null }
 
 /**
@@ -134,7 +138,7 @@ export function recordActivity(database: HomeDatabase, home: string, session: st
       const columns = Object.keys(next) as (keyof SessionRow)[];
       // A wait begins with its message, if the hook knows one; it ends without.
       const message = now.waiting_at === null ? null : details.message?.trim() ? details.message.trim().slice(0, messageLimit) : undefined;
-      database.db.prepare(`UPDATE session SET ${columns.map(column => column + ' = ?').join(', ')}, transcript_path = ifnull(?, transcript_path), cwd = ifnull(?, cwd)${message === undefined ? '' : ', message = ?'} WHERE id = ?`)
+      database.db.prepare(`UPDATE session SET ${columns.map(column => column + ' = ?').join(', ')}, transcript_path = ifnull(?, transcript_path), cwd = ifnull(cwd, ?)${message === undefined ? '' : ', message = ?'} WHERE id = ?`)
         .run(...columns.map(column => next[column] ?? null), transcriptPath, details.cwd ?? null, ...message === undefined ? [] : [message], session);
       if (row.waiting_at !== now.waiting_at) {
         if (row.waiting_at !== null) database.db.prepare('UPDATE session_wait SET ended_at = ? WHERE session_id = ? AND ended_at IS NULL').run(at, session);
@@ -151,7 +155,7 @@ export function recordActivity(database: HomeDatabase, home: string, session: st
 
 /** Record a session the first time it links work: in a turn from `at`, unless it is recorded already. */
 export function recordSession(database: HomeDatabase, session: string, harness: string, transcriptPath: string | null, at: string, cwd: string | null = null) {
-  database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, counts_at, state_at, cwd) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET cwd = ifnull(excluded.cwd, cwd)')
+  database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, counts_at, state_at, cwd) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET cwd = ifnull(cwd, excluded.cwd)')
     .run(session, harness, transcriptPath, at, at, at, at, at, cwd);
 }
 

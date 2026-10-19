@@ -7,6 +7,7 @@ import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import { waitingWindowMs, type HomeDatabase } from '../home/database.ts';
 import { readRegistry } from '../projects/resolve.ts';
+import { sessionFolder } from './sessionLog.ts';
 import { mergeSpans, storedReports, summarizeReports } from './statistics.ts';
 
 type Harness = 'claude-code' | 'codex' | 'unknown';
@@ -26,21 +27,28 @@ const harnessOf = (value: unknown): Harness => value === 'claude-code' || value 
 /** How a session resumes in its harness, run in its folder. */
 const resumeOf = (harness: Harness, session: string) => harness === 'claude-code' ? `claude --resume ${session}` : harness === 'codex' ? `codex resume ${session}` : null;
 
-/** The sessions linked to a work item, the latest seen first, and the commits and PRs they made, the newest first. */
-export function workSessions(database: HomeDatabase, projectId: number, workId: string, now = Date.now()): { sessions: SessionEntry[]; products: ProductEntry[] } {
+/**
+ * The sessions linked to a work item, the latest seen first, and the commits and PRs they made, the
+ * newest first. A session's folder is where it started, as its log says (else the first one a hook
+ * saw): its harness resumes it from there. Without `local` (a paired device asks), the folder and
+ * how to resume, which are of this computer, are left out.
+ */
+export async function workSessions(database: HomeDatabase, projectId: number, workId: string, options: { local?: boolean; now?: number } = {}): Promise<{ sessions: SessionEntry[]; products: ProductEntry[] }> {
+  const { local = true, now = Date.now() } = options;
   const rows = database.db.prepare(`SELECT session.* FROM session_work JOIN session ON session.id = session_work.session_id
     WHERE session_work.project_id = ? AND session_work.work_id = ? ORDER BY session.updated_at DESC`).all(projectId, workId) as Row[];
   const agents = summarizeReports(storedReports(database, projectId, [workId]).get(workId) ?? []).agents;
   const states = new Map((database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []).map(entry => [entry.session, entry.state]));
-  const sessions = rows.map((row): SessionEntry => {
+  const sessions = await Promise.all(rows.map(async (row): Promise<SessionEntry> => {
     const id = String(row.id), harness = harnessOf(row.harness), state = states.get(id) ?? 'ended';
+    const folder = !local ? null : (typeof row.transcript_path === 'string' ? await sessionFolder(row.transcript_path) : null) ?? (row.cwd as string | null) ?? null;
     const own = agents.filter(agent => agent.session === id), main = own.find(agent => agent.subagent === null);
     return {
       session: id, harness, model: main?.model ?? null, effort: main?.effort ?? null, state,
       startedAt: String(row.started_at), lastSeen: String(row.updated_at), agentMs: own.reduce((total, agent) => total + agent.agentMs, 0),
-      folder: (row.cwd as string | null) ?? null, resume: resumeOf(harness, id), message: state === 'waiting' ? (row.message as string | null) ?? null : null,
+      folder, resume: local ? resumeOf(harness, id) : null, message: state === 'waiting' ? (row.message as string | null) ?? null : null,
     };
-  });
+  }));
   const products = (database.db.prepare('SELECT * FROM session_product WHERE project_id = ? AND work_id = ? ORDER BY at DESC, id DESC').all(projectId, workId) as Row[]).map((row): ProductEntry => ({
     kind: row.kind as 'commit' | 'pull', session: String(row.session_id), at: String(row.at), repository: (row.repository as string | null) ?? null,
     id: String(row.ident), title: (row.title as string | null) ?? null, url: (row.url as string | null) ?? null, branch: (row.branch as string | null) ?? null,

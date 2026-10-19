@@ -6,12 +6,12 @@
 // path hints), matched to registered repositories by remote. Git and `gh` run a few at a time, with
 // timeouts, and a call waits for `gh` only briefly: what it has not said yet is left out and kept for
 // the next call.
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { folderKey } from '../home/database.ts';
 import { runProgram } from '../system/run.ts';
 import { projectRepositories, repositoryNamed, type KnownRepository } from './repositories.ts';
-import { normalizeRemote, readRegistry } from './resolve.ts';
+import { insideFolder, normalizeRemote, readRegistry } from './resolve.ts';
 import { workspaceCheckouts } from './workspaces.ts';
 
 export interface ReferenceItem { kind: 'pull' | 'commit' | 'path'; repository: string | null; value: string; line: number | null }
@@ -90,8 +90,14 @@ function pullState(owner: string, name: string, number: string): Promise<PullSta
   return value;
 }
 
-/** Resolve a planning file's references, in order; null for one that leads nowhere. Without `gh` (`gh: false`), PRs have no state. */
-export async function resolveReferences(root: string, workId: string | null, items: ReferenceItem[], options: { gh?: boolean } = {}): Promise<(ResolvedItem | null)[]> {
+/**
+ * Resolve a planning file's references, in order; null for one that leads nowhere. Without `gh`
+ * (`gh: false`), PRs have no state. Without `local` (a paired device asks), only what is not of this
+ * computer: no files, and only the project's registered repositories, so `gh` is never asked about
+ * another.
+ */
+export async function resolveReferences(root: string, workId: string | null, items: ReferenceItem[], options: { gh?: boolean; local?: boolean } = {}): Promise<(ResolvedItem | null)[]> {
+  const here = options.local ?? true;
   const registry = await readRegistry(root);
   const repositories = await projectRepositories(root);
   const named = registry.work_items.find(item => item.id === workId)?.repositories;
@@ -106,7 +112,7 @@ export async function resolveReferences(root: string, workId: string | null, ite
   /** The repository a reference names, else (for a bare one) the work item's only repository. */
   const repositoryOf = (item: ReferenceItem) => item.repository !== null ? repositoryNamed(repositories, item.repository) : own.length === 1 ? own[0] : repositories.length === 1 ? repositories[0] : null;
   /** The page of a repository a reference names: registered, or `owner/name` on GitHub. */
-  const webOf = (item: ReferenceItem, repository: KnownRepository | null) => repository?.web ?? (item.repository && /^[\w.-]+\/[\w.-]+$/.test(item.repository) ? 'https://github.com/' + item.repository : null);
+  const webOf = (item: ReferenceItem, repository: KnownRepository | null) => repository?.web ?? (here && item.repository && /^[\w.-]+\/[\w.-]+$/.test(item.repository) ? 'https://github.com/' + item.repository : null);
   const waiting: Promise<unknown>[] = [];
 
   const results = await Promise.all(items.map(async (item): Promise<ResolvedItem | null> => {
@@ -136,20 +142,23 @@ export async function resolveReferences(root: string, workId: string | null, ite
         if (seen.has(key)) continue;
         seen.add(key);
         const title = await subject(checkout.folder, hash);
-        if (title !== null) found.push({ repository: checkout.repository?.id ?? path.basename(checkout.folder), url: checkout.repository?.web ? checkout.repository.web + '/commit/' + hash : null, title });
+        if (title !== null && (here || checkout.repository)) found.push({ repository: checkout.repository?.id ?? path.basename(checkout.folder), url: checkout.repository?.web ? checkout.repository.web + '/commit/' + hash : null, title });
       }
       if (!found.length) return null;
       const [first, ...others] = found;
       return { ...none, url: first.url, repository: first.repository, title: first.title, choices: others };
     }
-    // A path inside a checkout: never one that leaves it.
+    // A path inside a checkout: never one that leaves it, nor through a link.
+    if (!here) return null;
     const relative = item.value.replace(/\\/g, '/').replace(/^\.\//, '');
     if (path.isAbsolute(relative) || relative.split('/').includes('..')) return null;
     const repository = item.repository !== null ? repositoryNamed(repositories, item.repository) : null;
     for (const checkout of local) {
       if (item.repository !== null && checkout.repository !== repository) continue;
       const file = path.join(checkout.folder, ...relative.split('/'));
-      if ((await stat(file).catch(() => null))?.isFile()) return { ...none, file: { path: file, line: item.line }, repository: checkout.repository?.id ?? null };
+      if (!(await stat(file).catch(() => null))?.isFile()) continue;
+      const [real, base] = await Promise.all([realpath(file).catch(() => null), realpath(checkout.folder).catch(() => null)]);
+      if (real && base && insideFolder(base, real)) return { ...none, file: { path: file, line: item.line }, repository: checkout.repository?.id ?? null };
     }
     return null;
   }));

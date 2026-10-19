@@ -13,6 +13,7 @@
 // line; nothing but numbers, times and model and agent identifiers leaves them, and a line that is
 // not understood is skipped, never fatal.
 import { createReadStream, type Dirent } from 'node:fs';
+import { pipeline } from 'node:stream';
 import { createZstdDecompress } from 'node:zlib';
 import { open, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
@@ -167,6 +168,25 @@ export async function sessionLogs(candidates: SessionCandidate[], options: LogOp
 }
 
 /**
+ * The folder a session started in, where its harness resumes it, as its log says: the first Claude
+ * Code entry that names its `cwd`, or a Codex rollout's session meta. Null when the log does not say.
+ */
+export async function sessionFolder(transcript: string): Promise<string | null> {
+  const rollout = rolloutName.test(path.basename(transcript));
+  let read = 0;
+  try {
+    for await (const text of lines(transcript)) {
+      const entry = objectOf(text);
+      const cwd = rollout ? (entry?.type === 'session_meta' ? (entry.payload as { cwd?: unknown } | undefined)?.cwd : undefined) : entry?.cwd;
+      if (typeof cwd === 'string' && path.isAbsolute(cwd)) return cwd;
+      // A rollout's first line is its meta; Claude Code names its folder within the first entries.
+      if (rollout || ++read >= 50) break;
+    }
+  } catch { /* A log that cannot be read says nothing. */ }
+  return null;
+}
+
+/**
  * The logs of the session whose log a hook names (its transcript path), with the logs beside it: a
  * Claude Code session's subagents (also when the path is a subagent's own log), or a Codex thread's
  * other parts and helpers in the folders above it. Null when the file is neither harness's log.
@@ -247,7 +267,8 @@ const compressed = (file: string) => file.endsWith('.zst');
 async function* lines(file: string): AsyncGenerator<string> {
   let pending: Buffer[] = [];
   const read = createReadStream(file, { highWaterMark: 1 << 20 });
-  const source = compressed(file) ? read.pipe(createZstdDecompress()) : read;
+  // A pipeline passes the file's errors (a log that vanished) on to the decompression, which ends the reading.
+  const source = compressed(file) ? pipeline(read, createZstdDecompress(), () => undefined) : read;
   try {
     for await (const chunk of source as AsyncIterable<Buffer>) {
       let start = 0;

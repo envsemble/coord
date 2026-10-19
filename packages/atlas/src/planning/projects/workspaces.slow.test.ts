@@ -3,7 +3,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -212,4 +212,16 @@ test('references lead to PRs, commits and files in the project\'s checkouts, the
   const first = git(shop, 'rev-list', '--max-parents=0', 'HEAD').trim();
   const [shared] = await resolveReferences(root, 'work-0001', [{ kind: 'commit', repository: null, value: first, line: null }], { gh: false });
   assert.deepEqual([shared?.repository, shared?.choices], ['shop', [{ repository: 'other', url: null, title: 'Start' }]]);
+  // A paired device gets nothing of this computer: no files, no repositories the project does not
+  // register (so gh is never asked about them), no checkouts as choices.
+  assert.deepEqual(await resolveReferences(root, 'work-0001', [
+    { kind: 'pull', repository: 'someone/else', value: '1', line: null },
+    { kind: 'path', repository: null, value: 'src/cart.ts', line: null },
+    { kind: 'commit', repository: null, value: first, line: null },
+  ], { gh: false, local: false }), [null, null, { ...none, url: 'https://github.com/example/shop/commit/' + first, repository: 'shop', title: 'Start' }]);
+  // A link inside a checkout to a file outside it leads nowhere.
+  const outside = path.join(directory, 'secret.txt');
+  writeFileSync(outside, 'secret\n');
+  try { symlinkSync(outside, path.join(other, 'secret.txt')); } catch { return t.diagnostic('Links cannot be made here; the containment is not tried.'); }
+  assert.deepEqual(await resolveReferences(root, 'work-0001', [{ kind: 'path', repository: null, value: 'secret.txt', line: null }], { gh: false }), [null]);
 });

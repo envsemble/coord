@@ -276,7 +276,11 @@ test('Codex: turns from start to completion or abort, each with its model and re
   // Codex keeps its rollouts compressed (.jsonl.zst): they read the same.
   writeFileSync(written + '.zst', zstdCompressSync(readFileSync(written)));
   rmSync(written);
-  assert.deepEqual(await measure(await sessionLogs([{ harness: 'codex', session: thread }], { environment, home }), -1, 60), result);
+  const packed = await sessionLogs([{ harness: 'codex', session: thread }], { environment, home });
+  assert.deepEqual(await measure(packed, -1, 60), result);
+  // One that vanished once found is a log that has nothing to read, not a failure of the process.
+  rmSync(written + '.zst');
+  await assert.rejects(measure(packed, -1, 60), /nothing Atlas can read/);
 });
 
 test('Codex: a question to the person pauses the turn until the answer', async t => {

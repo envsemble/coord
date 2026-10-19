@@ -887,11 +887,12 @@ export class Host {
       case 'search.query': { const { query, limit } = p as Methods['search.query']['params']; return this.search(query, limit) as never; }
       case 'references.resolve': {
         const { folderId, work, items } = p as Methods['references.resolve']['params'];
-        return resolveReferences((await this.projectOfFolder(folderId)).folder, work, items) as never;
+        // A paired device gets what is not of this computer only: no files, and only registered repositories.
+        return resolveReferences((await this.projectOfFolder(folderId)).folder, work, items, { local: connection.owner }) as never;
       }
       case 'work.sessions': {
         const { folderId, work } = p as Methods['work.sessions']['params'];
-        return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work) as never;
+        return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work, { local: connection.owner }) as never;
       }
       case 'work.timeline': {
         const { folderId, work } = p as Methods['work.timeline']['params'];

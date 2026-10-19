@@ -27,7 +27,7 @@ Choose **Remote Access…** in the menu (☰) on the computer whose folders you 
 3. **Port** is 7346 unless you change it (1024–65535).
 4. **Pair a device** asks for what the pairing link grants, before it creates the link:
    - **Device label** (optional) names the device in **Paired devices**, for example "Work laptop". Without one, the device's own computer name is used.
-   - **Use this computer** is what every paired device gets: browsing, opening any planning folder, and importing and exporting plans.
+   - **Use this computer** is what every paired device gets: browsing, opening any planning folder, its plans' sessions and references (without paths on this computer), and importing and exporting plans.
    - **Manage access** (off unless you tick it) also lets the device create pairing links and list and revoke paired devices. Tick it for the device you manage a headless `atlas serve` from.
 
    On a local-network address, the step warns again that the connection is not encrypted.
@@ -153,9 +153,11 @@ The loopback listener accepts only the owner credential, and only from this comp
 - **What a device can reach** is what Atlas reaches on that computer, as the user who runs it:
   - the files inside the planning folders of its projects: those in its Atlas home, and any project from before the home that is still outside it;
   - new projects it creates there, project names it changes, and projects it moves into the home;
-  - new work items it imports into a planning folder.
+  - new work items it imports into a planning folder;
+  - what a plan's references lead to, for the repositories its project registers only: the page of a PR or commit, a commit's subject from the computer's checkouts, and a PR's title, state and checks, which the host asks `gh` for with that computer's GitHub sign-in. A device never gets a file path, a checkout no repository registers, or a repository the project does not register;
+  - a plan's sessions as that computer's hooks recorded them: model, reasoning effort, state, times, agent time, the commits and PRs they made, and, while one waits, the last message of its turn (your own devices see what the agent wrote to you there). The folder a session runs in and how to resume it stay on that computer.
 
-  It cannot read other files, run programs, edit plans or change how the computer is reached. A lost or stolen device keeps that reach until you revoke it, so revoke it from the computer, from `atlas serve` (`revoke`), or from another device with Manage access.
+  It cannot read other files, run programs (beyond the Git and `gh` lookups above, which only the host chooses), edit plans or change how the computer is reached. A lost or stolen device keeps that reach until you revoke it, so revoke it from the computer, from `atlas serve` (`revoke`), or from another device with Manage access.
 
 - **Identity:** before sending its token, over the WebSocket or for a file, a client checks that the address answers with the host ID it paired with, so a different Atlas that now has the address does not receive the credential. The host ID is public, so this is no defence against someone deliberately impersonating the host on your network: use Tailscale, which authenticates the computers themselves.
 - **Browsers are refused:** any request that carries an `Origin` header is rejected, so no web page can call the host, and the `Host` header must be an IP address or `localhost`, which blocks DNS rebinding. Responses carry a restrictive content security policy.
@@ -172,6 +174,7 @@ Remote access sends planning-folder contents only to devices you paired, and onl
 
 - real paths, which often include the user's name;
 - any project's files, Git activity (commit titles and dates, without authors) and work statistics;
+- its plans' sessions with their last messages while they wait, and the state of the PRs its plans reference;
 - document-use counts and last-use dates.
 
 Its views are recorded in that computer's document use, like views there. A device can also save a plan export, a copy its user then keeps, import plans into a project on that computer, and create and rename projects there.

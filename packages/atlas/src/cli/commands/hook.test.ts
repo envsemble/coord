@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { withDatabase, workSessions, workTimeline } from '../../planning/index.ts';
+import { withDatabase, withDatabaseAsync, workSessions, workTimeline } from '../../planning/index.ts';
 import { runHook } from './hook.ts';
 import { nextState, type Activity } from './sessionState.ts';
 import { environment, homeWithPlanning, planText, reportsIn, run, temporary, usageIn, within, write } from '../testing.ts';
@@ -14,6 +14,8 @@ const linksIn = (home: string): LinkRow[] => withDatabase(home, database => (dat
   .map(row => ({ planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending), linked: String(row.linked_at) })));
 /** Run a hook in this process as `atlas hook <event>` runs it on its stdin: what it prints. */
 const hookIn = (env: NodeJS.ProcessEnv, event: string, input: object | string) => within({ env }, () => runHook(event, typeof input === 'string' ? input : JSON.stringify(input)));
+/** The folder the synthetic session started in, as its log says. */
+const startedIn = (config: string) => path.join(config, 'workspace');
 /** A synthetic Claude Code session log that started ten minutes ago, as the harness keeps it. */
 function claudeLog(config: string) {
   const project = path.join(config, 'projects', 'C--work-shop');
@@ -22,7 +24,7 @@ function claudeLog(config: string) {
   const at = (offset: number) => new Date(Date.now() - offset).toISOString();
   const file = path.join(project, session + '.jsonl');
   writeFileSync(file, [
-    { type: 'user', message: { role: 'user', content: 'Placeholder' }, timestamp: at(600000) },
+    { type: 'user', message: { role: 'user', content: 'Placeholder' }, cwd: startedIn(config), timestamp: at(600000) },
     { type: 'assistant', message: { id: 'msg_1', model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: 'end_turn', usage }, timestamp: at(540000) },
   ].map(line => JSON.stringify(line)).join('\n') + '\n');
   return file;
@@ -148,18 +150,22 @@ test('hooks give the session its planning context, check and link planning edits
   await hook('Stop', { stop_hook_active: false, last_assistant_message: '**Needs your decision:** keep the cart for a week?' });
   const { waiting } = state();
   const project = withDatabase(base.ATLAS_HOME!, database => database.projectByFolder(realpathSync.native(root))!.id);
-  const sessions = () => withDatabase(base.ATLAS_HOME!, database => workSessions(database, project, 'work-0003'));
-  assert.deepEqual(sessions().products.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
+  const sessions = (local = true) => withDatabaseAsync(base.ATLAS_HOME!, database => workSessions(database, project, 'work-0003', { local }));
+  assert.deepEqual((await sessions()).products.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
     [{ kind: 'commit', repository: 'shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
-  // While it waits, the session shows its turn's last message, and how to resume it in its folder.
-  const [waiter] = sessions().sessions;
-  assert.deepEqual([waiter.state, waiter.message, waiter.folder, waiter.resume], ['waiting', '**Needs your decision:** keep the cart for a week?', checkout, 'claude --resume ' + session]);
+  // While it waits, the session shows its turn's last message, and how to resume it in the folder it
+  // started in (as its log says, wherever its hooks ran since); a paired device gets no folder.
+  const [waiter] = (await sessions()).sessions;
+  assert.deepEqual([waiter.state, waiter.message, waiter.folder, waiter.resume], ['waiting', '**Needs your decision:** keep the cart for a week?', startedIn(config), 'claude --resume ' + session]);
+  const [remote] = (await sessions(false)).sessions;
+  assert.deepEqual([remote.message, remote.folder, remote.resume], [waiter.message, null, null]);
   await hook('Notification', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
   assert.deepEqual(state(), { working: 0, turn: null, waiting });
   assert.deepEqual(activity(), [['work-0003', 'waiting']]);
   await hook('SessionEnd', { reason: 'prompt_input_exit' });
   assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting: null }, []]);
-  assert.deepEqual([sessions().sessions[0].state, sessions().sessions[0].message], ['ended', null]);
+  const [ended] = (await sessions()).sessions;
+  assert.deepEqual([ended.state, ended.message], ['ended', null]);
   // Its waits on the work item it is on (work-0003): both turns' ends and the permission prompt between them.
   const timeline = withDatabase(base.ATLAS_HOME!, database => workTimeline(database, project, 'work-0003', { created: null, accepted: null, completed: null }));
   assert.deepEqual([timeline.lanes.map(lane => [lane.session, lane.subagent, lane.waiting.length]), timeline.waitedMs > 0], [[[session, null, 3]], true]);
