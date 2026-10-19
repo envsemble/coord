@@ -11,6 +11,8 @@ import { workStatus, type WorkStatus } from '../ui/status';
 import { StatusBadge } from '../ui/ui';
 import { Reader, useReferences } from '../workbench/Reader';
 import { LedgerSteps } from '../ui/LedgerProgress';
+import { continuation, handoffs } from './handoffs';
+import { ContinuedIn, HandoffEntries, type OpenHandoff } from './HandoffLinks';
 import { WorkStatisticsSummary } from './WorkStatisticsSummary';
 import { Waited } from './LiveAgentTime';
 import { unreported, type LiveActivity } from './agentTime';
@@ -66,15 +68,24 @@ function About({ work, snapshot, found, live, listed, sessions }: {
   const statistics = work.statistics;
   const reported = Boolean(statistics && (statistics.reports > 0 || unreported(live)));
   const column = useScrollsMark<HTMLElement>();
+  // Handoffs: the work this plan continues opens its ledger, the work continuing it ends it.
+  const { project, go } = useWorkbench();
+  const links = handoffs(work, project);
+  const openHandoff: OpenHandoff = to => go({ project: to.project, target: workTarget(to.work) });
+  const before = links.continues.length > 0 ? <HandoffEntries items={links.continues} kind="continues" open={openHandoff} /> : null;
+  const after = links.continuedIn.length > 0 ? <HandoffEntries items={links.continuedIn} kind="continuedIn" open={openHandoff} /> : null;
+  const handoffList = (before || after) && <ol className="ledger-steps ledger-handoffs">{before}{after}</ol>;
   return <aside ref={column} className="about" aria-label="About this work">
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
     {hasStatus && progress && <AboutSection title={progress.steps ? 'Progress' : 'Status'} note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
       {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
-      {progress.steps ? <LedgerSteps steps={progress.steps} found={found} live={live?.state} /> : <>
+      {progress.steps ? <LedgerSteps steps={progress.steps} found={found} live={live?.state} before={before} after={after} /> : <>
+        {handoffList}
         {progress.current && <p className="about-current">{progress.current}</p>}
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
     </AboutSection>}
+    {!hasStatus && handoffList && <AboutSection title="Handoffs">{handoffList}</AboutSection>}
     {sessions.length > 0 && <AboutSection title="Sessions"><SessionsList sessions={sessions} /></AboutSection>}
     {(reported || sessions.length > 0) && <AboutSection title="Statistics" note={statistics?.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
       {statistics && reported && <WorkStatisticsSummary statistics={statistics} activity={live} totals={listed?.statistics} />}
@@ -94,6 +105,9 @@ function StatusLine({ work, status, live }: { work: Work; status: WorkStatus; li
   const counts = steps?.length ? stepCounts(steps) : null;
   const planning = (state: LedgerStep['status']) => steps?.find(step => stepPhase(step) === 'planning' && step.status === state);
   const ended = work.completed ?? work.updated;
+  const { project, go } = useWorkbench();
+  const closed = status.key === 'complete' || status.key === 'partial' || status.key === 'superseded' || status.key === 'abandoned';
+  const continued = continuation(closed, work, project);
   let fact: ReactNode = null;
   switch (status.key) {
     case 'working': case 'paused': fact = counts && counts.done + ' of ' + counts.total + ' steps'; break;
@@ -105,6 +119,7 @@ function StatusLine({ work, status, live }: { work: Work; status: WorkStatus; li
   return <div className="work-status">
     <StatusBadge status={status} />
     {fact && <span className="work-status-fact">{fact}</span>}
+    {continued.length > 0 && <span className="work-status-fact"><ContinuedIn items={continued} open={to => go({ project: to.project, target: workTarget(to.work) })} /></span>}
     {work.location === 'archived' && <span className="work-status-fact">archived</span>}
   </div>;
 }

@@ -12,6 +12,7 @@ accepted_at: "2026-09-15"
 completed_at: null
 supersedes: []
 superseded_by: null
+continues: [work-0004]
 ---
 
 # Saved payment methods

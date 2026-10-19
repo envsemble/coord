@@ -128,6 +128,7 @@ test("the hub's search field opens the search with what is typed and never filte
   await expect(window.locator('.hub-group-heading')).toHaveText([/^Closed\s*1$/]);
   await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row .status-icon')).toHaveAttribute('aria-label', 'Complete');
   await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row')).toContainText('Inventory reservations');
+  await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row .handoff-continued')).toHaveText('continued in #0001');
   await state.getByRole('radio', { name: /^All/ }).click();
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
   // The state filter stays while the window shows something else.
@@ -183,6 +184,16 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(window.locator('.about .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
   await expect(window.locator('.about .ledger-step')).toHaveCount(7);
   await expect(trailEnd(window)).toHaveText('#0001');
+  // The work it continues opens its ledger, not as a step, and leads to that plan, whose status line and hub row say where it continues.
+  const handoff = window.locator('.about .ledger-steps > .ledger-handoff');
+  await expect(handoff).toHaveText('Continues #0004 · Inventory reservations');
+  await expect(window.locator('.about .ledger-steps > li').first()).toHaveClass(/ledger-handoff/);
+  await handoff.getByRole('link').click();
+  await expect(window.locator('.work-header h1')).toHaveText('Inventory reservations');
+  await expect(window.locator('.work-status')).toContainText('continued in #0001');
+  await expect(window.locator('.about .ledger-handoff')).toHaveText('Continued in #0001 · Saved payment methods');
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   // A diagram opens from its card in the plan; Back returns to the plan.
   await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
   await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();

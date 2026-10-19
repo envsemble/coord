@@ -17,6 +17,8 @@ import { hubPlace, projectsPlace, statisticsPlace, workTarget, type Place } from
 import { StatusIcon } from '../ui/ui';
 import { StepBar } from '../ui/LedgerProgress';
 import { ModelName } from '../ui/AiModel';
+import { continuation } from '../work/handoffs';
+import { ContinuedIn } from '../work/HandoffLinks';
 import { Page } from '../ui/Pages';
 import { modifierKey } from '../menu/AppMenu';
 import { AgentTime, Waited } from '../work/LiveAgentTime';
@@ -74,6 +76,8 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   const waiting = activity?.state === 'waiting' ? activity : null;
   const open = (event: MouseEvent) => { event.preventDefault(); go({ project: project.folderId, target: workTarget(work.id) }); };
   const large = facts.size === 'large';
+  // Closed work says where it continues, small, under how it ended.
+  const continued = continuation(Boolean(facts.ended), work, project.folderId);
   return <TableRow interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '')} data-work={work.id} data-size={facts.size}
     onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) open(event); }}>
     <TableCell>
@@ -89,7 +93,8 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
         </small>)}
     </TableCell>
     <TableCell><span className="hub-row-project" title={project.name}>{project.name}</span></TableCell>
-    <TableCell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}</span>
+    <TableCell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
+      {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ project: to.project, target: workTarget(to.work) })} /></small>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} activity={activity} /> : <span className="muted">—</span>}</TableCell>
     <TableCell><Spent item={item} facts={facts} /></TableCell>
     <TableCell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</TableCell>

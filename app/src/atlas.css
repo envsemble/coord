@@ -207,6 +207,17 @@ body { margin: 0; }
 .ledger-progress-summary { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
 .ledger-steps { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
 .ledger-step { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--font-size-body-small); }
+/* A handoff opening or ending the ledger: the work it continues, the work continuing it; muted, with an arrow, not a step. */
+.ledger-handoff { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.ledger-handoff-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-icon); }
+.ledger-handoff[data-handoff='continues'] { padding-block-end: var(--space-1); border-block-end: 0.0625rem solid var(--color-border); }
+.ledger-handoff[data-handoff='continuedIn'] { padding-block-start: var(--space-1); border-block-start: 0.0625rem solid var(--color-border); }
+.ledger-handoff[data-handoff='continuedIn'] + .ledger-handoff[data-handoff='continuedIn'] { padding-block-start: 0; border-block-start: 0; }
+.ledger-handoff[data-handoff='continues']:has(+ .ledger-handoff[data-handoff='continues']) { padding-block-end: 0; border-block-end: 0; }
+.handoff-ref { color: var(--color-link); text-decoration: none; overflow-wrap: anywhere; }
+.handoff-ref:hover { text-decoration: underline; }
+.handoff-ref:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.handoff-ref.muted { color: var(--color-text-muted); }
 .step-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-tone-neutral); }
 .step-icon[data-status='done'] { color: var(--color-tone-done); }
 .step-icon[data-status='doing'] { color: var(--color-tone-success); }
