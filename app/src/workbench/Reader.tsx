@@ -2,7 +2,7 @@ import { createContext, createElement, useContext, useEffect, useLayoutEffect, u
 import { Button, Card, EmptyState, Spinner } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
 import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from '../ui/icons';
-import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from '../types';
+import type { DiagramReference, Document, DocumentContent, ReferenceInput, Snapshot, Target } from '../types';
 import { api, fileUrl } from '../api';
 import { resolveLink, siblingReference } from './links';
 import { sectionAnchors } from '@envsemble/atlas/planning/headings';
@@ -11,6 +11,8 @@ import { diagramTarget, documentTarget, workTarget } from '../navigation/targets
 import { bytes, workNumber } from '../ui/format';
 import { ProvenanceBadge } from '../ui/ui';
 import { useWorkbench } from './workbenchContext';
+import { appSchemes, documentReferences, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
+import { PullMark, ReferenceLink, ReferencesContext, useResolvedReferences, type Resolutions } from './ReferenceLink';
 
 /** The diagrams a document links to, refetched when the folder changes. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
@@ -61,9 +63,20 @@ function sessionId() {
   if (!viewSession) viewSession = crypto.randomUUID();
   return viewSession;
 }
-const rehypePlugins = [rehypeHeadingIds];
+// What the document references becomes links.
+const rehypePlugins = [rehypeHeadingIds, rehypeReferences];
 // A plan's request shows folded.
-const planPlugins = [rehypeHeadingIds, rehypeFoldRequests];
+const planPlugins = [rehypeHeadingIds, rehypeReferences, rehypeFoldRequests];
+/** An application's link, by its scheme. */
+const appLinkPattern = new RegExp('^(?:' + appSchemes.join('|') + '):', 'i');
+
+/** A web link: to the browser, with a PR's state beside it when the host knows it. */
+function WebLink({ href, id, children }: { href: string; id?: string; children?: ReactNode }) {
+  const { resolved } = useContext(ReferencesContext);
+  const input = fromUrl(href);
+  const pull = input ? resolved.get(referenceKey(input))?.pull : null;
+  return <><a id={id} href={href} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></a>{pull && <PullMark pull={pull} />}</>;
+}
 
 /**
  * The folded sections the reader opened, by their heading's id. The reader keeps them, outside the
@@ -82,10 +95,11 @@ function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   return <button type="button" className="request-fold-toggle" aria-expanded={folds.open.has(id)} onClick={() => folds.toggle(id)}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
 }
 
-export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle, plan = false }: {
+export function Reader({ file, snapshot, anchor, toolbar = false, references = [], showWork = false, hideTitle, plan = false, onReferences }: {
   file: Document; snapshot: Snapshot; anchor: string | null; toolbar?: boolean; references?: DiagramReference[]; showWork?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
   /** A work item's plan: its request shows folded. */ plan?: boolean;
+  /** What the document references and what the host answered for each, as the answers come. */ onReferences?(inputs: ReferenceInput[], resolved: Resolutions): void;
 }) {
   const { project, open, notify, remote, sibling, openPath } = useWorkbench();
   const article = useRef<HTMLElement>(null);
@@ -121,6 +135,11 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
     // View statistics are optional; a failure never interrupts reading.
     api.recordView(project, { id: crypto.randomUUID(), path: content.path, session: sessionId(), contentHash: content.contentHash || null }).catch(() => undefined);
   }, [content]);
+  // What the document references, resolved in one batch once it shows.
+  const inputs = useMemo(() => content?.format === 'markdown' ? documentReferences(content.body) : [], [content]);
+  const resolved = useResolvedReferences(file.workId ?? null, inputs);
+  const referenceScope = useMemo(() => ({ resolved, work: file.workId ?? null }), [resolved, file.workId]);
+  useEffect(() => { onReferences?.(inputs, resolved); }, [inputs, resolved]);
   const cardCount = references.length;
   useEffect(() => {
     if (content && anchor) requestAnimationFrame(() => scrollToHeading(anchor));
@@ -164,9 +183,12 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
       ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])),
       section: ({ node: _node, children, ...props }: ComponentProps<'section'> & { node?: unknown }) =>
         typeof (props as Record<string, unknown>)['data-fold'] === 'string' ? <FoldedSection id={(props as Record<string, string>)['data-fold']}>{children}</FoldedSection> : <section {...props}>{children}</section>,
-      a: ({ href = '', children, id }: { href?: string; children?: ReactNode; id?: string }) => {
+      a: ({ href = '', children, id, ...props }: { href?: string; children?: ReactNode; id?: string; 'data-reference'?: string }) => {
+        // A reference the reader found in the text.
+        if (props['data-reference']) return <ReferenceLink found={JSON.parse(props['data-reference']) as Found}>{children}</ReferenceLink>;
+        if (appLinkPattern.test(href)) return <ReferenceLink found={{ kind: 'app', url: href }}>{children}</ReferenceLink>;
         const target = destination(href);
-        if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></a>;
+        if (target.external) return <WebLink id={id} href={target.external}>{children}</WebLink>;
         const owner = target.file ? snapshot.work.find(work => work.id === target.file!.workId) : undefined;
         const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
           : target.work ? workTarget(target.work.id, target.anchor ?? null) : null;
@@ -197,7 +219,7 @@ export function Reader({ file, snapshot, anchor, toolbar = false, references = [
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
-        <FoldsContext.Provider value={folds}><Markdown rehypePlugins={plan ? planPlugins : rehypePlugins} components={components}>{content.body}</Markdown></FoldsContext.Provider>
+        <ReferencesContext.Provider value={referenceScope}><FoldsContext.Provider value={folds}><Markdown rehypePlugins={plan ? planPlugins : rehypePlugins} components={components}>{content.body}</Markdown></FoldsContext.Provider></ReferencesContext.Provider>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
       : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(project, file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}
