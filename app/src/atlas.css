@@ -82,21 +82,18 @@ body { margin: 0; }
 
 /* The hub: the plans in their groups, one full-width row each; work under way (agents on it, blocked or
    paused) in larger rows. The title link covers the row; its other details stay above it. */
-/* The hub's heading line: its title (and a project's Statistics) at the left, the search centred on the
-   page while the two sides fit in equal room, the filters at the right. Each side is at least as wide
-   as what it holds, so nothing overlaps; on a narrower window the search goes under them, the whole width. */
-.hub-heading { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(14rem, 24rem) minmax(max-content, 1fr); grid-template-areas: 'lead search filters'; align-items: center; gap: var(--space-3) var(--space-4); inline-size: 100%; }
-.hub-lead { grid-area: lead; display: flex; align-items: center; gap: var(--space-3); min-inline-size: 0; }
+/* The hub's heading line: its title (and a project's Statistics) at the left, the search and the
+   filters together at the right. The search gives up room first; when even its narrowest does not fit,
+   the controls go under the title, still at the right. */
+.hub-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); inline-size: 100%; }
+.hub-lead { display: flex; flex: 0 1 auto; align-items: center; gap: var(--space-3); min-inline-size: 0; max-inline-size: 100%; }
 .hub-title { min-inline-size: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hub-search { grid-area: search; inline-size: 100%; }
-.hub-filters { grid-area: filters; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: var(--space-3); white-space: nowrap; }
+.hub-filters { display: flex; flex: 1 1 auto; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: var(--space-3); margin-inline-start: auto; min-inline-size: 0; white-space: nowrap; }
+.hub-search { flex: 1 1 12rem; min-inline-size: 12rem; max-inline-size: 22rem; }
 /* The controls never squeeze their labels onto two lines. */
-.hub-lead > :not(.hub-title), .hub-filters > *, .hub-filters :is(button, [role='button'], [role='combobox']) { flex-shrink: 0; white-space: nowrap; }
+.hub-lead > :not(.hub-title), .hub-filters > :not(.hub-search), .hub-filters :is(button, [role='button'], [role='combobox']) { flex-shrink: 0; white-space: nowrap; }
 /* With no plans to list, the state sits in the middle of the page. */
 .hub-empty { min-block-size: 50vh; }
-@media (max-width: 90rem) {
-  .hub-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'lead filters' 'search search'; }
-}
 .hub-note { margin: 0; }
 .hub-archived { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .hub-group { display: grid; gap: var(--space-2); }
