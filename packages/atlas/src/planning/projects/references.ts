@@ -6,9 +6,9 @@
 // repositories are checked out), the first that has it. `repo#22`, `#22` and a bare hash lead
 // nowhere. A paired device has `gh` asked only about the repositories checked out in the project's
 // folders, which only the owner sets, so it learns nothing of the others the owner can see. `gh`
-// runs a few at a time, with timeouts, and one call asks it at most `ghBudget` times. A call waits
-// for it only briefly: what it has not said yet is left out, and its answer is kept for the next
-// call. Commit subjects are kept, since commits never change.
+// runs a few at a time, with timeouts, and a device's questions are limited (`deviceBudget`). A
+// call waits for it only briefly: what it has not said yet is left out, and its answer is kept for
+// the next call. Commit subjects are kept, since commits never change.
 import { spawn } from 'node:child_process';
 import { readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -37,8 +37,13 @@ const parallel = 4;
 const ignoredFolders = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 /** A repository as a reference names it: `owner/repo`, each part beginning with a letter, digit or underscore. */
 const repositoryName = /^\w[\w.-]*\/\w[\w.-]*$/;
-/** At most this many questions to `gh` in one call; the call's other references are links only. */
-const ghBudget = 100;
+/**
+ * A paired device has `gh` asked at most this many new questions in one call, and has at most
+ * `devicePendingLimit` of them waiting at once across its calls; its other references are links
+ * only. Answers already kept cost nothing, and the owner is not limited.
+ */
+const deviceBudget = 100, devicePendingLimit = 50;
+let devicePending = 0;
 
 /** Run tasks at most `parallel` at a time, in this process. */
 let running = 0;
@@ -164,10 +169,20 @@ function commitSubjectAgain(key: string, repository: string, hash: string): Prom
 export async function resolveReferences(root: string, items: ReferenceItem[], options: { gh?: boolean; local?: boolean } = {}): Promise<(ResolvedItem | null)[]> {
   const here = options.local ?? true;
   const allowed = here || options.gh === false ? null : await checkedOutRepositories(root);
-  let budget = ghBudget;
-  /** Whether `gh` may be asked about a repository in this call. */
-  const ask = (repository: string) => options.gh !== false && (here || allowed!.has(repository.toLowerCase())) && budget-- > 0;
+  let budget = deviceBudget;
   const waiting: Promise<unknown>[] = [];
+  /**
+   * Ask `gh` (`lookup`) about a repository when this call may: always for the owner; for a paired
+   * device only about the repositories checked out in the project's folders, and a new question
+   * (`kept`: none kept for it) only within its budget and its limit of questions waiting.
+   */
+  const ask = <T>(repository: string, kept: boolean, lookup: () => Promise<T>, use: (value: T) => void) => {
+    if (options.gh === false || !(here || allowed!.has(repository.toLowerCase()))) return;
+    if (here || kept) { waiting.push(lookup().then(use)); return; }
+    if (budget <= 0 || devicePending >= devicePendingLimit) return;
+    budget--; devicePending++;
+    waiting.push(lookup().finally(() => { devicePending--; }).then(use));
+  };
   const resolving = new Map<string, Promise<ResolvedItem | null>>();
   const results = await Promise.all(items.map(item => {
     const key = JSON.stringify([item.kind, item.repository, item.value, item.line]);
@@ -187,13 +202,15 @@ export async function resolveReferences(root: string, items: ReferenceItem[], op
       if (item.kind === 'pull') {
         if (!/^\d{1,9}$/.test(item.value)) return null;
         const resolved: ResolvedItem = { ...none, url: web + '/pull/' + item.value, repository };
-        if (ask(repository)) waiting.push(pullState(repository, item.value).then(state => { resolved.pull = state; }));
+        const kept = pulls.get(`${repository}#${item.value}`.toLowerCase());
+        ask(repository, Boolean(kept && Date.now() - kept.at < cacheMs), () => pullState(repository, item.value), state => { resolved.pull = state; });
         return resolved;
       }
       const hash = item.value.toLowerCase();
       if (!/^[0-9a-f]{7,40}$/.test(hash)) return null;
       const resolved: ResolvedItem = { ...none, url: web + '/commit/' + hash, repository };
-      if (ask(repository)) waiting.push(commitSubject(repository, hash).then(title => { resolved.title = title; }));
+      const kept = subjects.get(`${repository}@${hash}`.toLowerCase());
+      ask(repository, Boolean(kept && Date.now() - kept.at < cacheMs), () => commitSubject(repository, hash), title => { resolved.title = title; });
       return resolved;
     }
     // A path inside one of the project's folders: never one that leaves it, nor through a link.
