@@ -73,11 +73,11 @@ body { margin: 0; }
 /* The hub's heading line: its title at the left, the search centred on the page (the two sides take
    equal room), the filters at the right, all as tall as each other; on a narrow window the search
    goes under the title and the filters, the whole width. */
-.hub-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 32rem) minmax(0, 1fr); grid-template-areas: 'title search filters'; align-items: center; gap: var(--space-2) var(--space-4); inline-size: 100%; --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); }
+.hub-heading { display: grid; grid-template-columns: 1fr minmax(14rem, 24rem) 1fr; grid-template-areas: 'title search filters'; align-items: center; gap: var(--space-2) var(--space-4); inline-size: 100%; --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); }
 .hub-title { grid-area: title; min-inline-size: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-search { grid-area: search; inline-size: 100%; }
-.hub-filters { grid-area: filters; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
-@container (max-width: 62rem) {
+.hub-filters { grid-area: filters; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: var(--space-2); white-space: nowrap; }
+@container (max-width: 72rem) {
   .hub-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title filters' 'search search'; }
 }
 .hub-note { margin: 0; }
