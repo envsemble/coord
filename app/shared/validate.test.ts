@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argumentsOf, command, diagramPath, folderPath, isProjectListing, place, relativePath, target, uiState, ValidationError, viewEvent, workId } from './validate.ts';
+import { argumentsOf, command, diagramPath, folderPath, isProjectListing, place, relativePath, target, uiState, ValidationError, workId } from './validate.ts';
 import { defaultUiState } from './contract.ts';
 
 const project = 'f-' + 'a'.repeat(32);
@@ -20,8 +20,6 @@ test('identifiers, commands and view events have exact shapes', () => {
   for (const bad of ['../../planning.json.puml', 'diagrams/../../x.puml', '/x.puml', 'C:/x.puml', 'plan.md']) assert.throws(() => diagramPath(bad), bad);
   assert.equal(command('newWindow'), 'newWindow');
   for (const gone of ['closeFolder', 'locate', 'openFolder', 'exit', 'closeWindow', 'undo', 'paste', 'selectAll']) assert.throws(() => command(gone), /must be one of/, gone);
-  assert.deepEqual(viewEvent({ id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12', extra: 'dropped' }), { id: 'abcdefgh-1', path: 'README.md', session: 'abcdefgh-2', contentHash: 'ab12' });
-  assert.throws(() => viewEvent({ id: 'x', path: 'README.md', session: 'abcdefgh-2', contentHash: null }));
 });
 
 test('argument lists reject extra arguments', () => {

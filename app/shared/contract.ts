@@ -6,14 +6,14 @@
 // requests about a project to the host of its computer, naming the project by its folder ID.
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot, ViewEventInput,
+  ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
   WorkActivity, WorkProduct, WorkSession, WorkspaceScan, WorkTimeline,
 } from '@envsemble/atlas/host/contract';
 import type { DocumentContent } from '@envsemble/atlas/planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project, ProjectRepository,
-  ProjectState, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot, ViewEventInput,
+  ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
   WorkActivity, WorkProduct, WorkSession, WorkspaceScan, WorkTimeline,
 };
 
@@ -21,7 +21,7 @@ export const invokeChannels = [
   'window:info',
   'projects:list', 'projects:create', 'search:query', 'projects:scan', 'projects:chooseFolder', 'projects:update', 'projects:adopt', 'project:open', 'project:close',
   'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
-  'usage:view', 'ui:load', 'ui:save',
+  'project:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
   'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
@@ -209,7 +209,8 @@ export interface AtlasBridge {
   references(project: string, work: string | null, path: string): Promise<Result<DiagramReference[]>>;
   /** Every diagram of a project, for quick open. */
   diagramIndex(project: string): Promise<Result<DiagramIndexEntry[]>>;
-  recordView(project: string, event: ViewEventInput): Promise<Result<void>>;
+  /** A project's statistics for a period (ISO times; `from` null: since its first report, `to` null: until now), by day or week. */
+  projectStatistics(project: string, from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
   loadUi(): Promise<Result<UiState>>;
   saveUi(state: UiState): Promise<Result<void>>;
   /** Resolve what a planning file references: PRs, commits, files in the project's repositories (each in order; null leads nowhere). */

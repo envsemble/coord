@@ -58,11 +58,6 @@ function text(node: unknown): string {
   const value = node as { type?: string; value?: string; children?: unknown[] };
   return value.type === 'text' ? value.value ?? '' : (value.children ?? []).map(text).join('');
 }
-let viewSession = '';
-function sessionId() {
-  if (!viewSession) viewSession = crypto.randomUUID();
-  return viewSession;
-}
 
 /** What the reader's markdown runs on a document's tree. */
 export type Plugins = NonNullable<ComponentProps<typeof Markdown>['rehypePlugins']>;
@@ -128,11 +123,6 @@ export function Reader({ file, snapshot, anchor, references = [], showWork = fal
     return () => { current = false; };
   }, [project, file.path, file.modified]);
   useEffect(() => { setContent(null); }, [file.path]);
-  useEffect(() => {
-    if (!content) return;
-    // View statistics are optional; a failure never interrupts reading.
-    api.recordView(project, { id: crypto.randomUUID(), path: content.path, session: sessionId(), contentHash: content.contentHash || null }).catch(() => undefined);
-  }, [content]);
   // What the document references becomes links, resolved in one batch once it shows: what its
   // rendering can link, as it renders. A plan's request shows folded.
   const { collected, inputs } = useCollectedReferences();

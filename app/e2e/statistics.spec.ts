@@ -12,10 +12,14 @@ const compact = (window: import('@playwright/test').Page, value: number) => wind
 const whole = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => number.toLocaleString(), value);
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
-/** A project's statistics, from its row on the Projects page. */
-const openStatistics = (window: Page, project = 'Northwind') => openProjectStatistics(window, project);
+/** A project's statistics, from its row on the Projects page, over all its time (the fixture's reports are of a fixed date). */
+async function openStatistics(window: Page, project = 'Northwind') {
+  await openProjectStatistics(window, project);
+  await window.getByRole('radiogroup', { name: 'Period' }).getByRole('radio', { name: 'All time' }).click();
+  await expect(window.getByRole('table', { name: 'Agent time and tokens by model and effort' })).toBeVisible();
+}
 
-test('each project has its statistics, from its row on the Projects page or the hub filtered to it, under a breadcrumb back to them; a wheel over its table scrolls the page', async () => {
+test('each project has its statistics, from its row on the Projects page or the hub filtered to it, under a breadcrumb back to them; a wheel over a table scrolls the page', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
@@ -24,10 +28,8 @@ test('each project has its statistics, from its row on the Projects page or the 
   // No Statistics section: Plans and Projects.
   await expect(window.getByRole('navigation', { name: 'Sections' }).locator('[data-section]')).toHaveCount(2);
   await openStatistics(window, 'Northwind');
-  await expect(window.locator('.work-statistics-table')).toBeVisible();
   // Another project's, from its row; Back returns to Northwind's.
   await openStatistics(window, 'Coord');
-  await expect(window.locator('.work-statistics-table')).toBeVisible();
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Northwind');
@@ -40,14 +42,14 @@ test('each project has its statistics, from its row on the Projects page or the 
   await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');
   await openStatistics(window, 'Coord');
-  // A plan keeps its own statistics in its side column.
-  await window.locator('.work-statistics-table tr', { hasText: 'Saved payment methods' }).getByRole('link').click();
-  await expect(window.locator('.about-section h2', { hasText: 'Statistics' })).toBeVisible();
+  // A plan where the time went opens the plan's own statistics.
+  await window.locator('.time-plan', { hasText: 'Saved payment methods' }).getByRole('link').click();
+  await expect(window.locator('.plan-statistics-page h1')).toHaveText('Statistics');
 
-  // A wheel over the work statistics table scrolls the page.
+  // A wheel over a table scrolls the page.
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(1200, 520); });
   await openStatistics(window, 'Coord');
-  const table = window.getByRole('table', { name: 'Work statistics' });
+  const table = window.getByRole('table', { name: 'Agent time and tokens by model and effort' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
   await table.evaluate(element => element.scrollIntoView({ block: 'center' }));
   const before = await settledScroll(window);
@@ -58,76 +60,36 @@ test('each project has its statistics, from its row on the Projects page or the 
   // A point over the table, within the window.
   const box = (await table.boundingBox())!;
   const point = { x: box.x + box.width / 2, y: Math.min(Math.max(box.y, 140) + 80, box.y + box.height - 10) };
-  expect(await window.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('table[aria-label="Work statistics"]')), point)).toBe(true);
+  expect(await window.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('table[aria-label="Agent time and tokens by model and effort"]')), point)).toBe(true);
   await window.mouse.move(point.x, point.y);
   await window.mouse.wheel(0, delta);
   await expect.poll(async () => Math.abs(await pageScroll(window) - before)).toBeGreaterThan(room - 2);
 });
 
-test("the Work tab lists each work item with its model, planning and implementation, subagents, plan revisions and steps; the Models tab plots completed work over time by implementing model; a work item's About sidebar sums up its statistics", async () => {
+test("a project's statistics look back on its work: its figures against the period before, its work over time, where the time went and its models and effort; a work item's sidebar sums up its own", async () => {
   launched = await launchProject();
   const { window } = launched;
-  await openStatistics(window);
-  await expect(window.getByRole('radiogroup', { name: 'Statistics sections' }).getByRole('radio', { name: 'Work' })).toBeChecked();
-  await expect(window.locator('.stats-grid .stat').first().locator('.stat-value')).toHaveText('2');
+  await openProjectStatistics(window);
+  // No tabs, no repository filter: one page over a period.
+  await expect(window.getByRole('radiogroup', { name: 'Statistics sections' })).toHaveCount(0);
+  await expect(window.getByRole('combobox', { name: 'Repository' })).toHaveCount(0);
+  await expect(window.getByRole('radiogroup', { name: 'Period' }).getByRole('radio', { name: 'Last 4 weeks' })).toBeChecked();
+  await window.getByRole('radiogroup', { name: 'Period' }).getByRole('radio', { name: 'All time' }).click();
+  // The figures, all time: nothing before to compare with.
   const agentTime = window.locator('.stats-grid .stat', { hasText: 'Agent time' });
-  await expect(agentTime.locator('.stat-value')).toHaveText('6 h 48 min');
-  await expect(agentTime.locator('.stat-note')).toHaveText('78% measured from session logs');
-  await expect(window.locator('.stats-grid .stat', { hasText: 'Tokens' }).locator('.stat-note')).toHaveText('measured and self-reported');
-  const payments = window.locator('.work-statistics-table tr', { hasText: 'Saved payment methods' });
-  const model = payments.locator('td').nth(1);
-  await expect(model.locator('.model-name')).toHaveText('Claude Opus 5.5');
-  await expect(model.locator('.model-name')).toHaveAttribute('title', /^claude-opus-5-5 · Anthropic · 2 h 38 min, /);
-  await expect(model.locator('.provider-mark')).toHaveAttribute('data-provider', 'anthropic');
-  await expect(model).toContainText('+2');
-  // Planning, implementation and, as the Codex reports have no stage, a column for those.
-  await expect(window.locator('.work-statistics-table th')).toHaveText(['Work', 'Model', 'Planning', 'Implementation', 'Stage not recorded', 'Subagents', 'Plan revisions', 'Steps']);
-  const planning = payments.locator('td').nth(2), implementation = payments.locator('td').nth(3);
-  await expect(planning).toContainText('1 h 30 min');
-  await expect(planning.locator('.cell-note')).toHaveText((await compact(window, 120000)) + ' tokens');
-  await expect(planning).toHaveAttribute('title', /^Self-reported .+$/);
-  await expect(implementation).toContainText('2 h 38 min');
-  await expect(implementation.locator('.cell-note')).toHaveText((await compact(window, 13695500)) + ' tokens');
-  await expect(implementation).toHaveAttribute('title', /^Cached input .+ · Cache writes .+ · Input .+ · Output .+$/);
-  await expect(payments.locator('td').nth(4)).toHaveText('—');
-  await expect(payments.locator('td').nth(5).locator('.cell-note')).toHaveText('18 min');
-  await expect(payments.locator('td').nth(5)).toHaveAttribute('title', '1 subagent, 18 min');
-  await expect(payments.locator('td').nth(6)).toHaveText('0');
-  await expect(payments.locator('td').nth(7)).toHaveText('2/7');
-  const inventory = window.locator('.work-statistics-table tr', { hasText: 'Inventory reservations' });
-  await expect(inventory.locator('td').nth(1).locator('.model-name')).toHaveText('GPT-6.1 Sol');
-  await expect(inventory.locator('td').nth(1).locator('.provider-mark')).toHaveAttribute('data-provider', 'openai');
-  await expect(inventory.locator('td').nth(2)).toHaveText('—');
-  await expect(inventory.locator('td').nth(3)).toHaveText('—');
-  await expect(inventory.locator('td').nth(4)).toContainText('2 h 40 min');
-  await expect(inventory.locator('td').nth(4).locator('.cell-note')).toHaveText((await compact(window, 3688300)) + ' tokens');
-  await expect(inventory.locator('td').nth(5)).toHaveText('—');
-  const draft = window.locator('.work-statistics-table tr', { hasText: 'Order fulfilment model' });
-  await expect(draft.locator('td').nth(1)).toHaveText('—');
-
-  // The Models tab plots completed work over time by implementing model, with a table and a tooltip.
-  await window.getByRole('radiogroup', { name: 'Statistics sections' }).getByRole('radio', { name: 'Models over time' }).click();
-  await expect(window.locator('.chart-dot')).toHaveCount(1);
-  await expect(window.locator('.chart-legend')).toContainText('GPT-6.1 Sol');
-  await expect(window.locator('.chart-legend .provider-mark')).toHaveAttribute('data-plain', '');
-  const row = window.locator('.model-table tbody tr', { hasText: 'GPT-6.1 Sol' });
-  await expect(row.locator('td').nth(1)).toHaveText('1');
-  await expect(row.locator('td').nth(2)).toHaveText('2 h 40 min');
-  await expect(row.locator('td').nth(3)).toHaveText(await compact(window, 3688300));
-  await window.locator('.chart-dot').hover();
-  await expect(window.locator('.chart-tooltip')).toContainText('Inventory reservations');
-  await expect(window.locator('.chart-tooltip')).toContainText('GPT-6.1 Sol');
-  await expect(window.locator('.chart-tooltip strong')).toHaveText('2 h 40 min');
-  await window.getByLabel('Measure').getByText('Tokens').click();
-  await expect(window.locator('.chart-dot')).toHaveCount(1);
-  await window.getByLabel('Measure').getByText('Plan revisions').click();
-  await expect(window.locator('.chart-dot')).toHaveCount(1);
-  // Keyboard: focus the chart, move to the dot and open its work item.
-  await window.locator('.chart-frame').focus();
-  await window.keyboard.press('ArrowRight');
-  await expect(window.locator('.chart-tooltip')).toContainText('Inventory reservations');
-  await window.keyboard.press('Enter');
-  await expect(window.locator('.work-header h1')).toHaveText(/^Inventory reservations/);
+  await expect(agentTime.locator('.stat-note')).toHaveText('since the first report');
+  await expect(window.locator('.stats-grid .stat', { hasText: 'Plans completed' }).locator('.stat-value')).toHaveText('1');
+  // The work over time, by week, a column saying on hover what it holds.
+  const chart = window.getByRole('img', { name: /^Agent time by week/ });
+  await expect(chart).toBeVisible();
+  await chart.locator('.work-chart-stack').first().hover();
+  await expect(window.locator('.work-chart-tip')).toContainText('of agent time');
+  // Where the time went: the plans, most time first, with their time; the models and effort with their shares.
+  await expect(window.locator('.time-plan').first()).toContainText('Saved payment methods');
+  await expect(window.locator('.time-plan', { hasText: 'Inventory reservations' })).toContainText('2 h 40 min');
+  const models = window.getByRole('table', { name: 'Agent time and tokens by model and effort' });
+  await expect(models).toContainText('Claude Opus 5.5');
+  await expect(models).toContainText('GPT-6.1 Sol');
 
   // A work item's sidebar keeps the headline (its model, agent time and tokens) with what agent time
   // stands for on hover and focus; its own statistics page has the rest. Recent activity is gone.

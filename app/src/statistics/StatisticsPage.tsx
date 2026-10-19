@@ -1,210 +1,178 @@
-// The Statistics view: how work went (the implementing model, agent time and tokens from agent
-// reports, plan revisions, ledger steps), how that changes as new models arrive, and how
-// documents are used.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button, Counter, EmptyState, IconButton, Notice, Popover, SegmentedControl, Select, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/content';
+// A project's statistics, to look back on its work over a period (the last 4 weeks by day, the last
+// 3 months or all time by week): the period's headline figures against the period before, its work
+// over time (agent time stacked by model and effort, the time at least one agent worked as a line,
+// the plans completed marked), where the time went (the plans worked on, most time first, each
+// opening its own statistics) and its models and effort. From the host's project.statistics.
+import { useEffect, useState, type ReactNode } from 'react';
+import { DisclosureNote, EmptyState, IconButton, Notice, Popover, SegmentedControl, Spinner, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { InfoIcon, StatisticsIcon } from '../ui/icons';
-import type { Snapshot } from '../types';
-import { documentTarget, workTarget } from '../navigation/targets';
-import { absoluteDate, compactNumber, duration, median, plural, relativeDate, shortDate, workNumber } from '../ui/format';
-import { workStatus } from '../ui/status';
+import type { ProjectStatistics, ProjectWork, Snapshot } from '../types';
+import { api } from '../api';
+import { workStatisticsTarget } from '../navigation/targets';
+import { absoluteDate, compactNumber, duration, plural, shortDate } from '../ui/format';
+import { hubStatus } from '../hub/hubPlans';
 import { StatusIcon } from '../ui/ui';
-import { aiModel } from '../ui/aiModels';
-import { ModelName } from '../ui/AiModel';
-import { ScatterChart, type ChartSeries } from './ScatterChart';
 import { TargetLink, useWorkbench } from '../workbench/workbenchContext';
-import { Page, RepositorySelect } from '../ui/Pages';
-import type { StageUsage } from '@envsemble/atlas/planning/types';
-import { colourSlots, completedRows, metricValue, modelShare, modelSummaries, otherModels, otherSeries, seriesModels, seriesOf, stageLabels, stageUsage, subagentShare, tokenRows, tokenText, trendMetrics, workRows, type StageKey, type TrendMetric, type WorkRow } from '../work/workStatistics';
-
-type StatisticsTab = 'work' | 'models' | 'documents';
-const tabs: { id: StatisticsTab; label: string }[] = [{ id: 'work', label: 'Work' }, { id: 'models', label: 'Models over time' }, { id: 'documents', label: 'Document use' }];
-/** Categorical slots for the three models with the most recent completed work, set per theme in atlas.css. */
-const seriesColors = ['var(--atlas-chart-1)', 'var(--atlas-chart-2)', 'var(--atlas-chart-3)'];
-const otherColor = 'var(--atlas-chart-other)';
-const reportHint = <>The Atlas plugin records them when an agent session that worked on a work item stops, reading the model, agent time and tokens from the session's own log. Run <Code>atlas setup</Code> to install it; without it, agents report with <Code>atlas work report</Code>.</>;
-
-const formatMetric = (metric: TrendMetric, value: number | null) => value === null ? '—'
-  : metric === 'tokens' ? compactNumber(value) : metric === 'agentMs' ? duration(value) : Number.isInteger(value) ? String(value) : value.toFixed(1);
-
-/**
- * A project's statistics, a page of their own from its row on the Projects page (or the hub filtered
- * to it): under its breadcrumb (`trail`: Projects, the project), with one repository filter.
- */
-export function Statistics({ snapshot, trail }: { snapshot: Snapshot; trail: ReactNode }) {
-  const [tab, setTab] = useState<StatisticsTab>('work');
-  const [repository, setRepository] = useState('all');
-  // Another project's repositories are not this one's.
-  useEffect(() => { if (repository !== 'all' && !snapshot.repositories.some(item => item.id === repository)) setRepository('all'); }, [snapshot, repository]);
-  const rows = useMemo(() => workRows(snapshot, repository), [snapshot, repository]);
-  const usage = repository === 'all' ? snapshot.usage : snapshot.usageByRepository[repository];
-  const body = tab === 'work' ? <WorkStatisticsTab rows={rows} /> : tab === 'models' ? <ModelsTab rows={rows} /> : <DocumentUse snapshot={snapshot} repository={repository} />;
-  return <Page title="Statistics" className="statistics-page" heading={<div className="page-heading-stack">{trail}<div className="page-heading-row">
-    <Text as="h1" variant="page-heading">Statistics</Text>
-    <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
-      <div className="info-body">
-        <p>The model, agent time and tokens come from reports the Atlas plugin records when an agent session stops (or, without the plugin, <Code>atlas work report</Code>). Where a report could read the agent's session log, as in Claude Code and Codex, agent time is measured: the time each agent worked, from each prompt to the end of its turn, with the time it waited for a person left out. Agent time adds up every agent's: each session and each subagent in full, also while they work at once; a plan's agent time shows on hover the time at least one of them was working. Tokens are then counted for each model, by kind.</p>
-        <p>Older reports, and agents whose log Atlas cannot read, are estimated: agent time adds up the time between a session's reports, leaving out breaks of more than two hours, and tokens are what the agent reported. The implementing model is the one that did most of the work.</p>
-        <p>Agent time and tokens are split by the work item's stage when each report was made: planning until its plan is accepted, and while a session amends an accepted plan; implementation after. Reports from before stages were recorded show as "Stage not recorded". Each subagent counts once, with its own working time.</p>
-        <p>Plan revisions count the commits that changed a plan after it was added, up to its completion, from this project's Git history. Moving a plan to the archive is not a revision.</p>
-        <p>The three models whose completed work is most recent each have a colour; other models share "Other". Durations of work items are calendar time between acceptance and completion, not engineering time.</p>
-        <p>Agent reports of documents are self-reported consultation; views are documents opened in Atlas. Unreported access is unknown, and zero use does not mean a record has no value.</p>
-        {usage && <p className="muted">Collecting agent reports {usage.agentSince ? 'since ' + absoluteDate(usage.agentSince) : '— not yet'} · views since {absoluteDate(usage.dashboardSince) || '—'}</p>}
-      </div>
-    </Popover>
-    <span className="spacer" />
-    <RepositorySelect snapshot={snapshot} repository={repository} setRepository={setRepository} />
-  </div></div>}>
-    <SegmentedControl className="statistics-nav" aria-label="Statistics sections" value={tab} onValueChange={value => setTab(value as StatisticsTab)}
-      options={tabs.map(item => ({ value: item.id, label: item.label }))} />
-    <div className="statistics-body">{body}</div>
-  </Page>;
-}
-
-function WorkStatisticsTab({ rows }: { rows: WorkRow[] }) {
-  const reported = rows.filter(row => row.statistics?.reports).map(row => row.statistics!);
-  const tokens = reported.reduce((sum, statistics) => sum + (statistics.tokens ?? 0), 0);
-  const tokensKnown = reported.some(statistics => statistics.tokens !== null);
-  const tokensMeasured = reported.some(statistics => statistics.tokenKinds), tokensSelfReported = reported.some(statistics => tokenRows(statistics).some(row => row.label === 'Self-reported' && row.value > 0));
-  const agentMs = reported.reduce((sum, statistics) => sum + statistics.agentMs, 0);
-  const measuredMs = reported.reduce((sum, statistics) => sum + statistics.measuredMs, 0);
-  const measured = reported.some(statistics => statistics.measuredReports > 0), estimated = reported.some(statistics => statistics.estimatedMs > 0);
-  const completed = completedRows(rows).filter(row => row.statistics?.planRevisions !== null && row.statistics?.planRevisions !== undefined);
-  const revisions = median(completed.map(row => row.statistics!.planRevisions!));
-  const invalid = rows.reduce((sum, row) => sum + (row.statistics?.invalid ?? 0), 0);
-  const stages: StageKey[] = rows.some(row => stageUsage(row.statistics, 'unknown')) ? ['planning', 'implementation', 'unknown'] : ['planning', 'implementation'];
-  return <>
-    <div className="stats-grid">
-      <StatsCard label="Work with reports" value={reported.length} note={'of ' + rows.length + ' work items'} />
-      <StatsCard label="Agent time" value={reported.length ? duration(agentMs) : '—'} note={!measured ? 'estimated from report times' : !estimated ? 'measured from session logs' : Math.round(measuredMs / Math.max(agentMs, 1) * 100) + '% measured from session logs'} />
-      <StatsCard label="Tokens" value={tokensKnown ? compactNumber(tokens) : '—'} note={!tokensKnown ? 'none reported yet' : tokensMeasured && tokensSelfReported ? 'measured and self-reported' : tokensMeasured ? 'measured from session logs' : 'self-reported'} />
-      <StatsCard label="Median plan revisions" value={revisions === null ? '—' : formatMetric('planRevisions', revisions)} note={plural(completed.length, 'completed work item')} />
-    </div>
-    {!reported.length && <Notice tone="info">No agent reports yet. {reportHint}</Notice>}
-    {invalid > 0 && <Notice tone="warning">{invalid} {invalid === 1 ? 'line' : 'lines'} of statistics files are not valid reports and are ignored. <Code>atlas planning check</Code> names the files.</Notice>}
-    {rows.length ? <Table className="work-statistics-table" aria-label="Work statistics" stickyHeader>
-      <TableHead><TableRow>
-        <TableHeaderCell>Work</TableHeaderCell><TableHeaderCell>Model</TableHeaderCell>{stages.map(stage => <TableHeaderCell key={stage} numeric>{stageLabels[stage]}</TableHeaderCell>)}<TableHeaderCell numeric>Subagents</TableHeaderCell><TableHeaderCell numeric>Plan revisions</TableHeaderCell><TableHeaderCell numeric>Steps</TableHeaderCell>
-      </TableRow></TableHead>
-      <TableBody>{rows.map(row => <WorkStatisticsRow key={row.work.id} row={row} stages={stages} />)}</TableBody>
-    </Table> : <EmptyState className="page-empty" title="No work here yet" />}
-  </>;
-}
-
-/** A stage's agent time, with its tokens below. */
-function StageCell({ usage }: { usage: StageUsage | null }) {
-  return <TableCell numeric title={usage?.tokens != null ? tokenText(usage) : undefined}>{usage ? <>{duration(usage.agentMs)}{usage.tokens !== null && <small className="cell-note">{compactNumber(usage.tokens)} tokens</small>}</> : '—'}</TableCell>;
-}
-
-function WorkStatisticsRow({ row, stages }: { row: WorkRow; stages: StageKey[] }) {
-  const { activity } = useWorkbench();
-  const { work, statistics } = row;
-  const status = workStatus(work, activity(work.id)?.state ?? null);
-  const primary = statistics?.models.find(model => model.model === statistics.primaryModel);
-  const others = statistics ? otherModels(statistics) : [];
-  return <TableRow interactive>
-    <TableCell><span className="work-cell"><StatusIcon status={status} /><TargetLink target={workTarget(work.id)}>{work.title}</TargetLink></span><small className="cell-note">{workNumber(work.id)} · {status.label}{statistics?.lastReport ? ' · reported ' + relativeDate(statistics.lastReport) : ''}</small></TableCell>
-    <TableCell>{primary ? <span className="model-cell"><ModelName model={primary.model} effort={statistics!.primaryEffort} detail={modelShare(primary)} />{others.length > 0 && <span title={'Also ' + others.map(model => aiModel(model.model).name + (modelShare(model) ? ' (' + modelShare(model) + ')' : '')).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
-    {stages.map(stage => <StageCell key={stage} usage={stageUsage(statistics, stage)} />)}
-    <TableCell numeric title={subagentShare(statistics) ?? undefined}>{statistics?.subagents?.count ? <>{statistics.subagents.count}<small className="cell-note">{duration(statistics.subagents.agentMs)}</small></> : '—'}</TableCell>
-    <TableCell numeric title={statistics?.planRevisions == null ? 'Not in this folder\'s Git history' : work.completed ? 'Before completion' : 'So far'}>{statistics?.planRevisions ?? '—'}</TableCell>
-    <TableCell numeric>{row.steps ? `${row.stepsDone}/${row.steps}` : '—'}</TableCell>
-  </TableRow>;
-}
-
-function ModelsTab({ rows }: { rows: WorkRow[] }) {
-  const { open } = useWorkbench();
-  const [metric, setMetric] = useState<TrendMetric>('agentMs');
-  const completed = completedRows(rows);
-  const models = seriesModels(completed);
-  const slots = colourSlots(models);
-  // The series colour says which model: the marks stay in the text colour.
-  const series: ChartSeries[] = [...models.map(model => ({ key: model, label: <ModelName model={model} plain />, color: seriesColors[slots.get(model)!] })), { key: otherSeries, label: models.length ? 'Other or unreported model' : 'Model not reported', color: otherColor }];
-  const definition = trendMetrics.find(item => item.id === metric)!;
-  const points = completed.flatMap(row => {
-    const value = metricValue(row, metric);
-    return value === null ? [] : [{ id: row.work.id, x: new Date(row.work.completed + 'T12:00:00').getTime(), y: value, series: seriesOf(row, models), title: row.work.title, detail: workNumber(row.work.id) + ' · completed ' + shortDate(row.work.completed) }];
-  });
-  const summaries = modelSummaries(completed);
-  return <>
-    <div className="section-toolbar">
-      <Text as="h2" variant="section-heading">Completed work by implementing model</Text>
-      <SegmentedControl aria-label="Measure" size="compact" value={metric} onValueChange={value => setMetric(value as TrendMetric)} options={trendMetrics.map(item => ({ value: item.id, label: item.label }))} />
-    </div>
-    {points.length ? <Surface className="chart-box" padding={5}>
-      <ScatterChart label={definition.label + ': ' + definition.unit + ', by completion date and implementing model'} points={points} series={series} formatValue={value => formatMetric(metric, value)}
-        valueKind={metric === 'agentMs' ? 'duration' : 'count'} onOpen={id => open(workTarget(id))} />
-      <Text variant="caption" tone="muted" className="chart-note">Each dot is a completed work item: its {definition.unit}, at its completion date, coloured by the model that did most of the work.{completed.length > points.length ? ` ${completed.length - points.length} completed ${completed.length - points.length === 1 ? 'item has' : 'items have'} no value and ${completed.length - points.length === 1 ? 'is' : 'are'} not shown.` : ''}</Text>
-    </Surface> : <EmptyState className="page-empty" icon={<StatisticsIcon />} title={completed.length ? 'No completed work has this value yet' : 'No completed work yet'} description={metric === 'tokens' || metric === 'agentMs' ? reportHint : 'Trends compare work items once they are complete.'} />}
-    {summaries.length > 0 && <Table className="model-table" aria-label="Implementing models">
-      <TableHead><TableRow>
-        <TableHeaderCell>Implementing model</TableHeaderCell><TableHeaderCell numeric>Completed</TableHeaderCell><TableHeaderCell numeric>Median agent time</TableHeaderCell><TableHeaderCell numeric>Median tokens</TableHeaderCell><TableHeaderCell numeric>Median plan revisions</TableHeaderCell><TableHeaderCell numeric>Median steps</TableHeaderCell><TableHeaderCell>Completed between</TableHeaderCell>
-      </TableRow></TableHead>
-      <TableBody>{summaries.map(summary => <TableRow key={summary.model ?? ''}>
-        <TableCell>{summary.model ? <span className="model-cell"><span className="chart-swatch" style={{ background: series.find(entry => entry.key === summary.model)?.color ?? otherColor }} /><ModelName model={summary.model} plain /></span> : <span className="muted">Not reported</span>}</TableCell>
-        <TableCell numeric>{summary.completed}</TableCell>
-        <TableCell numeric>{formatMetric('agentMs', summary.agentMs)}</TableCell>
-        <TableCell numeric>{formatMetric('tokens', summary.tokens)}</TableCell>
-        <TableCell numeric>{formatMetric('planRevisions', summary.planRevisions)}</TableCell>
-        <TableCell numeric>{formatMetric('steps', summary.steps)}</TableCell>
-        <TableCell nowrap>{summary.first === summary.last ? shortDate(summary.first) : shortDate(summary.first) + ' – ' + shortDate(summary.last)}</TableCell>
-      </TableRow>)}</TableBody>
-    </Table>}
-  </>;
-}
+import { Page } from '../ui/Pages';
+import { roughDuration } from '../work/sessions';
+import { change, modelColour, modelKey, modelLabel, periods, periodStart, workBars, type PeriodId } from './projectStatistics';
 
 export function StatsCard({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
   return <Surface className="stat" padding={4}><span className="stat-label">{label}</span><strong className="stat-value">{value}</strong>{note != null && <small className="stat-note">{note}</small>}</Surface>;
 }
 
-function DocumentUse({ snapshot, repository }: { snapshot: Snapshot; repository: string }) {
-  const [source, setSource] = useState('agent');
-  const [order, setOrder] = useState('most');
-  const [kind, setKind] = useState('meaningful');
-  const [limit, setLimit] = useState(50);
-  useEffect(() => setLimit(50), [source, order, kind, repository]);
-  const totals = repository === 'all' ? snapshot.usage : snapshot.usageByRepository[repository];
-  const owner = (id: string | null) => snapshot.work.find(work => work.id === id);
-  if (snapshot.collectionError) return <EmptyState className="page-empty" icon={<StatisticsIcon />} title="Statistics unavailable" description={snapshot.collectionError} />;
-  if (!totals) return <EmptyState className="page-empty" title="This repository is no longer registered" />;
-  const usage = new Map(totals.documents.map(document => [document.key, document]));
-  const documents = snapshot.documents.filter(document =>
-    (repository === 'all' || document.repositories.includes(repository)) &&
-    (kind === 'all' ? true : kind === 'knowledge' ? document.category === 'knowledge' : document.workId || document.category === 'knowledge'));
-  const rows = documents.map(document => ({ document, usage: usage.get(document.key), count: source === 'agent' ? usage.get(document.key)?.reports ?? 0 : usage.get(document.key)?.views ?? 0 }));
-  rows.sort((a, b) => (order === 'most' ? b.count - a.count : a.count - b.count) || a.document.title.localeCompare(b.document.title));
-  const maximum = Math.max(1, ...rows.map(row => row.count));
-  const durations = snapshot.work.filter(work => work.durationDays !== null && (repository === 'all' || work.repositories.includes(repository)));
-  const meanDuration = durations.length ? (durations.reduce((sum, work) => sum + work.durationDays!, 0) / durations.length).toFixed(1) + ' d' : '—';
-  return <>
-    <div className="stats-grid">
-      <StatsCard label="Agent reports" value={totals.reports} note={totals.agentSince ? 'since ' + absoluteDate(totals.agentSince) : 'not collected yet'} />
-      <StatsCard label="Known tasks" value={totals.tasks} note={totals.unassigned ? totals.unassigned + ' without a task' : undefined} />
-      <StatsCard label="Views in Atlas" value={totals.views} note={totals.documentsViewed + ' documents'} />
-      <StatsCard label="Avg. calendar duration" value={meanDuration} note={durations.length + ' completed work items'} />
-    </div>
-    {snapshot.usage.failures > 0 && <Notice tone="warning">{snapshot.usage.failures} collection failures; counts are incomplete.</Notice>}
-    <div className="section-toolbar">
-      <Text as="h2" variant="section-heading">Document use</Text>
-      <SegmentedControl aria-label="Usage source" size="compact" value={source} onValueChange={setSource} options={[{ value: 'agent', label: 'Agent reports' }, { value: 'views', label: 'Views in Atlas' }]} />
-      <Select density="compact" aria-label="Document category" value={kind} onValueChange={value => setKind(value ?? 'meaningful')} options={[{ value: 'meaningful', label: 'Work & knowledge' }, { value: 'knowledge', label: 'Knowledge only' }, { value: 'all', label: 'All documents' }]} />
-      <Select density="compact" aria-label="Usage order" value={order} onValueChange={value => setOrder(value ?? 'most')} options={[{ value: 'most', label: 'Most used' }, { value: 'least', label: 'Least used' }]} />
-    </div>
-    {rows.length ? <>
-      <Table className="usage-table" aria-label="Document use">
-        <TableHead><TableRow><TableHeaderCell>Document</TableHeaderCell><TableHeaderCell>{source === 'agent' ? 'Reports' : 'Views'}</TableHeaderCell><TableHeaderCell numeric>{source === 'agent' ? 'Tasks' : 'Sessions'}</TableHeaderCell><TableHeaderCell>Last</TableHeaderCell></TableRow></TableHead>
-        <TableBody>{rows.slice(0, limit).map(({ document, usage: item, count }) => {
-          const last = source === 'agent' ? item?.lastConsulted ?? null : item?.lastViewed ?? null;
-          return <TableRow key={document.path} interactive>
-            <TableCell><TargetLink target={documentTarget(document, owner(document.workId))}>{document.title}</TargetLink><small className="cell-note">{document.path}</small></TableCell>
-            <TableCell><span className="count-cell"><span className="mini-bar"><span style={{ width: count / maximum * 100 + '%' }} /></span><strong>{count}</strong></span></TableCell>
-            <TableCell numeric>{source === 'agent' ? item?.tasks ?? 0 : item?.sessions ?? 0}</TableCell>
-            <TableCell nowrap title={absoluteDate(last)}>{last ? relativeDate(last) : '—'}</TableCell>
-          </TableRow>;
-        })}</TableBody>
-      </Table>
-      {rows.length > limit && <div className="table-more"><Button variant="secondary" onClick={() => setLimit(value => value + 100)}>Show more ({rows.length - limit} remaining)</Button></div>}
-    </> : <EmptyState className="page-empty" title="No matching documents" />}
-  </>;
+/** A model at an effort with its colour. */
+export function ModelSwatch({ model, effort }: { model: string | null; effort: string | null }) {
+  return <span className="model-swatch" style={{ background: modelColour(model, effort) }} aria-hidden="true" />;
+}
+
+type Figures = ProjectStatistics['current'];
+/** The headline figures of the period, each with its change against the period before. */
+function Headline({ statistics, period }: { statistics: ProjectStatistics; period: (typeof periods)[number] }) {
+  const { current, previous } = statistics;
+  const card = (label: string, value: (figures: Figures) => number | null, format: (value: number) => string) => {
+    const now = value(current), moved = change(now, previous ? value(previous) : null);
+    const note = !previous ? (statistics.from ? null : 'since the first report')
+      : !moved ? 'none in ' + period.before
+      : moved.direction === 'same' ? 'as in ' + period.before
+      : (moved.by > 0 ? '+' : '−') + format(Math.abs(moved.by)) + (moved.percent !== null ? ' (' + (moved.percent > 0 ? '+' : '−') + Math.abs(moved.percent) + '%)' : '') + ' against ' + period.before;
+    return <StatsCard label={label} value={now === null ? '—' : format(now)} note={note ?? undefined} />;
+  };
+  return <div className="stats-grid">
+    {card('Agent time', figures => figures.agentMs, duration)}
+    {card('Plans completed', figures => figures.plansCompleted, String)}
+    {card('Median time to complete', figures => figures.medianImplementingMs, roughDuration)}
+    {card('Waited on you', figures => figures.waitedMs, roughDuration)}
+  </div>;
+}
+
+/** A bucket's name: its day, or the week it begins. */
+const bucketName = (start: string, unit: 'day' | 'week') => (unit === 'week' ? 'Week of ' : '') + shortDate(start);
+
+/**
+ * The work over time: a bar per day or week, agent time stacked by model and effort, the time at least
+ * one agent worked as a line over them, and the plans completed marked above. A bar says on hover what
+ * it holds; the same figures are in a table, folded.
+ */
+function WorkOverTime({ statistics }: { statistics: ProjectStatistics }) {
+  const { bars, top } = workBars(statistics);
+  const [shown, setShown] = useState<number | null>(null);
+  const bar = shown === null ? null : bars[shown];
+  const line = bars.map((item, index) => `${(index + 0.5) / bars.length * 100},${100 - item.activeMs / top * 100}`).join(' ');
+  const labelEvery = Math.max(1, Math.ceil(bars.length / 8));
+  return <section className="project-statistics-section" aria-label="Work over time">
+    <Text as="h2" variant="section-heading">Work over time</Text>
+    {bars.some(item => item.total > 0) ? <>
+      <div className="work-chart" role="img" aria-label={'Agent time ' + (statistics.unit === 'day' ? 'by day' : 'by week') + ', ' + plural(bars.length, statistics.unit) + '. The table below has every ' + statistics.unit + '.'} onPointerLeave={() => setShown(null)}>
+        <div className="work-chart-bars">{bars.map((item, index) => <div key={item.start} className="work-chart-column" data-shown={shown === index ? '' : undefined} onPointerEnter={() => setShown(index)}>
+          {item.completed.length > 0 && <span className="work-chart-completed" style={{ bottom: item.total / top * 100 + '%' }}>{item.completed.length}</span>}
+          <div className="work-chart-stack" style={{ blockSize: item.total / top * 100 + '%' }}>
+            {item.parts.map(part => <span key={modelKey(part.model, part.effort)} style={{ flexGrow: part.agentMs, background: modelColour(part.model, part.effort) }} />)}
+          </div>
+          {index % labelEvery === 0 && <span className="work-chart-label">{shortDate(item.start)}</span>}
+        </div>)}</div>
+        <svg className="work-chart-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points={line} /></svg>
+        {bar && <div className="work-chart-tip" role="tooltip" data-flip={shown! > bars.length / 2 ? '' : undefined} style={{ left: (shown! + 0.5) / bars.length * 100 + '%' }}>
+          <strong>{bucketName(bar.start, statistics.unit)}</strong>
+          <span>{duration(bar.total)} of agent time · {duration(bar.activeMs)} at least one agent working</span>
+          {bar.parts.map(part => <span key={modelKey(part.model, part.effort)} className="work-chart-tip-model"><ModelSwatch model={part.model} effort={part.effort} />{modelLabel(part.model, part.effort)} {duration(part.agentMs)}</span>)}
+          {bar.completed.length > 0 && <span>Completed: {bar.completed.map(plan => plan.title).join(', ')}</span>}
+        </div>}
+      </div>
+      <p className="work-chart-legend muted">
+        {statistics.models.map(item => <span key={modelKey(item.model, item.effort)}><ModelSwatch model={item.model} effort={item.effort} />{modelLabel(item.model, item.effort)}</span>)}
+        <span><span className="work-chart-key-line" aria-hidden="true" />at least one agent working</span>
+        <span><span className="work-chart-key-completed" aria-hidden="true" />plans completed</span>
+      </p>
+      <DisclosureNote title="The work over time as a table">
+        <Table className="project-statistics-table" aria-label="Work over time">
+          <TableHead><TableRow><TableHeaderCell>{statistics.unit === 'day' ? 'Day' : 'Week'}</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>At least one working</TableHeaderCell><TableHeaderCell>Plans completed</TableHeaderCell></TableRow></TableHead>
+          <TableBody>{bars.map(item => <TableRow key={item.start}>
+            <TableCell>{bucketName(item.start, statistics.unit)}</TableCell><TableCell numeric>{duration(item.total)}</TableCell><TableCell numeric>{duration(item.activeMs)}</TableCell>
+            <TableCell>{item.completed.map(plan => plan.title).join(', ') || '—'}</TableCell>
+          </TableRow>)}</TableBody>
+        </Table>
+      </DisclosureNote>
+    </> : <p className="muted">No agent worked on this project in this period.</p>}
+  </section>;
+}
+
+/** The plans worked on in the period, most agent time first: each with its status, its share, its time and tokens, and how long it took. */
+function WhereTheTimeWent({ statistics }: { statistics: ProjectStatistics }) {
+  const total = statistics.plans.reduce((sum, plan) => sum + plan.agentMs, 0);
+  const most = Math.max(1, ...statistics.plans.map(plan => plan.agentMs));
+  return <section className="project-statistics-section" aria-label="Where the time went">
+    <Text as="h2" variant="section-heading">Where the time went</Text>
+    {statistics.plans.length ? <ul className="time-plans">{statistics.plans.map(plan => {
+      const status = hubStatus({ state: plan.state, outcome: plan.outcome } as ProjectWork);
+      const took = [plan.plannedMs !== null && 'planned ' + roughDuration(plan.plannedMs), plan.implementingMs !== null && 'implementing ' + roughDuration(plan.implementingMs), plan.waitedMs > 0 && 'waited on you ' + roughDuration(plan.waitedMs)].filter(Boolean).join(' · ');
+      return <li key={plan.id} className="time-plan">
+        <StatusIcon status={status} />
+        <div className="time-plan-text">
+          <TargetLink target={workStatisticsTarget(plan.id)} className="time-plan-title">{plan.title}</TargetLink>
+          <span className="time-plan-bar" aria-hidden="true"><span style={{ inlineSize: plan.agentMs / most * 100 + '%' }} /></span>
+          {took && <small className="muted">{took}</small>}
+        </div>
+        <span className="time-plan-figures"><strong>{duration(plan.agentMs)}</strong><small className="muted">{total ? Math.round(plan.agentMs / total * 100) + '%' : ''}{plan.tokens !== null ? ' · ' + compactNumber(plan.tokens) + ' tokens' : ''}</small></span>
+      </li>;
+    })}</ul> : <p className="muted">No plan was worked on in this period.</p>}
+  </section>;
+}
+
+/** Agent time and tokens by model and effort in the period, with each one's share. */
+function ModelsAndEffort({ statistics }: { statistics: ProjectStatistics }) {
+  const total = statistics.models.reduce((sum, item) => sum + item.agentMs, 0);
+  return <section className="project-statistics-section" aria-label="Models and effort">
+    <Text as="h2" variant="section-heading">Models and effort</Text>
+    {statistics.models.length ? <Table className="project-statistics-table" aria-label="Agent time and tokens by model and effort">
+      <TableHead><TableRow><TableHeaderCell>Model and effort</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Share</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
+      <TableBody>{statistics.models.map(item => <TableRow key={modelKey(item.model, item.effort)}>
+        <TableCell><span className="model-cell"><ModelSwatch model={item.model} effort={item.effort} />{modelLabel(item.model, item.effort)}</span></TableCell>
+        <TableCell numeric>{duration(item.agentMs)}</TableCell><TableCell numeric>{total ? Math.round(item.agentMs / total * 100) + '%' : '—'}</TableCell>
+        <TableCell numeric>{item.tokens !== null ? compactNumber(item.tokens) : '—'}</TableCell>
+      </TableRow>)}</TableBody>
+    </Table> : <p className="muted">No model was reported in this period.</p>}
+  </section>;
+}
+
+/**
+ * A project's statistics, a page of their own from its row on the Projects page (or the hub filtered
+ * to it), under its breadcrumb (`trail`: Projects, the project).
+ */
+export function Statistics({ trail }: { snapshot: Snapshot; trail: ReactNode }) {
+  const { project, revision } = useWorkbench();
+  const [periodId, setPeriodId] = useState<PeriodId>('month');
+  const period = periods.find(item => item.id === periodId)!;
+  const [read, setRead] = useState<{ key: string; statistics: ProjectStatistics | null; error: string } | null>(null);
+  const key = project + ':' + periodId;
+  useEffect(() => {
+    let current = true;
+    api.projectStatistics(project, periodStart(periodId), null, period.unit)
+      .then(statistics => { if (current) setRead({ key, statistics, error: '' }); }, error => { if (current) setRead({ key, statistics: null, error: (error as Error).message }); });
+    return () => { current = false; };
+  }, [key, revision]);
+  const shown = read?.key === key ? read : null;
+  const statistics = shown?.statistics ?? null;
+  return <Page title="Statistics" className="statistics-page" heading={<div className="page-heading-stack">{trail}<div className="page-heading-row">
+    <Text as="h1" variant="page-heading">Statistics</Text>
+    <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
+      <div className="info-body">
+        <p>The figures come from the reports agents record when a session stops, read from their session logs where Atlas can (Claude Code and Codex). Agent time adds up every agent's working time, each session and each subagent in full, also while they work at once; the line shows the time at least one of them was working.</p>
+        <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time the project's sessions waited for you, waits at once counted once.</p>
+      </div>
+    </Popover>
+    <span className="spacer" />
+    <SegmentedControl aria-label="Period" size="compact" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} options={periods.map(item => ({ value: item.id, label: item.label }))} />
+  </div></div>}>
+    {shown?.error && <Notice tone="warning">{shown.error}</Notice>}
+    {!shown ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the statistics" /></div>
+      : !statistics ? null
+      : statistics.current.agentMs === 0 && !statistics.plans.length ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on this project since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on this project yet.'} />
+      : <>
+        <Headline statistics={statistics} period={period} />
+        <WorkOverTime statistics={statistics} />
+        <WhereTheTimeWent statistics={statistics} />
+        <ModelsAndEffort statistics={statistics} />
+      </>}
+  </Page>;
 }

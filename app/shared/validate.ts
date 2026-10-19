@@ -6,12 +6,15 @@ import { array, diagramPath, folderId, integer, nullable, object, oneOf, optiona
 
 export {
   ValidationError, argumentsOf, array, boolean, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
-  port, projectName, relativePath, string, token, viewEvent, workId, type Validator,
+  port, projectName, relativePath, string, token, workId, type Validator,
 } from '@envsemble/atlas/host/validate';
 
 export const command = oneOf(appCommands);
 export const themePreference = oneOf(themePreferences);
 export const editor = oneOf(editors);
+/** An instant, as an ISO time. */
+export const isoTime = string({ min: 10, max: 40, pattern: /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+(?:Z|[+-]\d{2}:\d{2})?)?$/ });
+export const statisticsUnit = oneOf(['day', 'week'] as const);
 /** What a planning file references, as the host resolves it (within the host's own limits). */
 export const referenceInput: Validator<ReferenceInput> = object<ReferenceInput>({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) });
 export const referenceInputs = array(referenceInput, 500);

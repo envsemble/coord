@@ -13,7 +13,7 @@ import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atla
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
 import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, referenceInput, referenceInputs, relativePath, string, themePreference, token, uiState, url, viewEvent, workId, type Validator } from '../../shared/validate.ts';
+import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { FolderView } from '../host/folderView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
@@ -238,7 +238,8 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'work:sessions': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.sessions', { folderId: project, work })) },
     'work:timeline': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.timeline', { folderId: project, work })) },
     // Views count in the document use of the computer the project is on.
-    'usage:view': { args: [folderId, viewEvent], handle: async (window, project: string, event) => { await (await window.readable(project)).request('folder.recordView', { folderId: project, event }); } },
+    // A project's statistics for a period, from the project's computer.
+    'project:statistics': { args: [folderId, nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, project: string, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors((await window.readable(project)).request('project.statistics', { folderId: project, from, to, unit }, { timeout: 30000 })) },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
     'ui:save': { args: [uiState], handle: (window, state: UiState) => queueSave(manager, window, state) },
     'shell:reveal': { args: [folderId, relativePath], handle: (window, project: string, file: string) => revealInside(window, project, file) },

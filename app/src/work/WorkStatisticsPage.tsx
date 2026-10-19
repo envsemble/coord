@@ -11,7 +11,7 @@ import { ModelName } from '../ui/AiModel';
 import { absoluteDate, compactNumber, duration, plural, workNumber } from '../ui/format';
 import { workTarget } from '../navigation/targets';
 import { workStatus } from '../ui/status';
-import { StatsCard } from '../statistics/StatisticsPage';
+import { ModelSwatch, StatsCard } from '../statistics/StatisticsPage';
 import { useWorkbench } from '../workbench/workbenchContext';
 import { Trail } from './WorkPage';
 import { activityKey, sessionTitle, useWorkSessions, useWorkTimeline } from './WorkSessions';
@@ -35,7 +35,7 @@ function ByModel({ work }: { work: Work }) {
   return <Table className="plan-statistics-table" aria-label="Agent time and tokens by model and effort">
     <TableHead><TableRow><TableHeaderCell>Model and effort</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
     <TableBody>{rows.map(row => <TableRow key={row.model + ':' + row.effort}>
-      <TableCell><ModelName model={row.model} effort={row.effort ?? (recorded.has(row.model) ? 'effort not recorded' : null)} /></TableCell>
+      <TableCell><span className="model-cell"><ModelSwatch model={row.model} effort={row.effort} /><ModelName model={row.model} effort={row.effort ?? (recorded.has(row.model) ? 'effort not recorded' : null)} /></span></TableCell>
       <TableCell numeric>{duration(row.agentMs)}</TableCell>
       <TableCell numeric>{row.tokens !== null ? compactNumber(row.tokens) : '—'}</TableCell>
     </TableRow>)}</TableBody>
