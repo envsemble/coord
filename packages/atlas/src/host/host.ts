@@ -895,7 +895,7 @@ export class Host {
       }
       case 'work.sessions': {
         const { folderId, work } = p as Methods['work.sessions']['params'];
-        return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work, { local: connection.owner }) as never;
+        return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work, { local: connection.owner, logs: this.options.sessionLogs }) as never;
       }
       case 'work.timeline': {
         const { folderId, work } = p as Methods['work.timeline']['params'];

@@ -99,6 +99,8 @@ const migrations = [
     id INTEGER PRIMARY KEY, report_id INTEGER NOT NULL REFERENCES work_report(id) ON DELETE CASCADE, agent TEXT, model TEXT NOT NULL, effort TEXT NOT NULL,
     agent_ms INTEGER NOT NULL, tokens INTEGER NOT NULL);
   CREATE INDEX report_effort_report ON report_effort(report_id);`,
+  // A session's own title, as its harness names it (Claude Code's latest ai-title, Codex's thread name).
+  `ALTER TABLE session ADD COLUMN title TEXT;`,
 ];
 /** How long a working session counts as live without being seen again: a long tool call can be quiet this long. */
 export const liveWindowMs = 15 * 60_000;

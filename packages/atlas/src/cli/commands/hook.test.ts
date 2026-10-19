@@ -26,6 +26,8 @@ function claudeLog(config: string) {
   writeFileSync(file, [
     { type: 'user', message: { role: 'user', content: 'Placeholder' }, cwd: startedIn(config), timestamp: at(600000) },
     { type: 'assistant', message: { id: 'msg_1', model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: 'end_turn', usage }, timestamp: at(540000) },
+    // Claude Code titles the session, and titles it again as it goes on: the latest counts.
+    { type: 'ai-title', aiTitle: 'Shop cart', sessionId: session }, { type: 'ai-title', aiTitle: 'Carts that last', sessionId: session },
   ].map(line => JSON.stringify(line)).join('\n') + '\n');
   return file;
 }
@@ -161,7 +163,7 @@ test('hooks give the session its planning context, check and link planning edits
   // While it waits, the session shows its turn's last message, and how to resume it in the folder it
   // started in (as its log says, wherever its hooks ran since); a paired device gets no folder.
   const [waiter] = (await sessions()).sessions;
-  assert.deepEqual([waiter.state, waiter.message, waiter.folder, waiter.resume], ['waiting', '**Needs your decision:** keep the cart for a week?', startedIn(config), 'claude --resume ' + session]);
+  assert.deepEqual([waiter.state, waiter.title, waiter.message, waiter.folder, waiter.resume], ['waiting', 'Carts that last', '**Needs your decision:** keep the cart for a week?', startedIn(config), 'claude --resume ' + session]);
   const [remote] = (await sessions(false)).sessions;
   assert.deepEqual([remote.message, remote.folder, remote.resume], [waiter.message, null, null]);
   await hook('Notification', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });

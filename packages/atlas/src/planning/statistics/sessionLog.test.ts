@@ -7,7 +7,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSyn
 import { zstdCompressSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type SessionLogs, type SessionMeasure } from './sessionLog.ts';
+import { codexThreadName, harnessSessions, measureSession, sessionLogs, transcriptLogs, type SessionLogs, type SessionMeasure } from './sessionLog.ts';
 import { spansMs } from './statistics.ts';
 
 delete process.env.CLAUDE_CODE_SESSION_ID;
@@ -278,6 +278,10 @@ test('Codex: turns from start to completion or abort, each with its model and re
   rmSync(written);
   const packed = await sessionLogs([{ harness: 'codex', session: thread }], { environment, home });
   assert.deepEqual(await measure(packed, -1, 60), result);
+  // Its name is the thread's latest in Codex's session index.
+  const index = [{ id: thread, thread_name: 'Old name' }, { id: 'another', thread_name: 'Other' }, { id: thread, thread_name: 'Checkout tidy-up' }];
+  writeFileSync(path.join(environment.CODEX_HOME, 'session_index.jsonl'), jsonl(index));
+  assert.deepEqual([await codexThreadName(thread, { environment, home }), await codexThreadName('missing-thread', { environment, home })], ['Checkout tidy-up', null]);
   // One that vanished once found is a log that has nothing to read, not a failure of the process.
   rmSync(written + '.zst');
   await assert.rejects(measure(packed, -1, 60), /nothing Atlas can read/);

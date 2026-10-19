@@ -7,12 +7,13 @@ import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import { waitingWindowMs, type HomeDatabase } from '../home/database.ts';
 import { readRegistry } from '../projects/resolve.ts';
-import { sessionFolder } from './sessionLog.ts';
+import { codexThreadName, logTail, sessionFolder, type LogOptions } from './sessionLog.ts';
 import { mergeSpans, storedReports, summarizeReports } from './statistics.ts';
 
 type Harness = 'claude-code' | 'codex' | 'unknown';
+/** A work item's session as the host's contract describes it (WorkSession). */
 export interface SessionEntry {
-  session: string; harness: Harness; model: string | null; effort: string | null;
+  session: string; harness: Harness; title: string | null; model: string | null; effort: string | null;
   state: 'working' | 'waiting' | 'ended'; startedAt: string; lastSeen: string; agentMs: number;
   folder: string | null; resume: string | null; message: string | null;
 }
@@ -27,6 +28,22 @@ const harnessOf = (value: unknown): Harness => value === 'claude-code' || value 
 /** How a session resumes in its harness, run in its folder. */
 const resumeOf = (harness: Harness, session: string) => harness === 'claude-code' ? `claude --resume ${session}` : harness === 'codex' ? `codex resume ${session}` : null;
 
+/** The titles found for sessions that had none recorded: each session is looked up once in a process. */
+const titled = new Map<string, string | null>();
+/**
+ * A session's own title: the one the hooks recorded (from its log's end at each turn's end), else
+ * looked up once: the end of a Claude Code log, or Codex's thread name; kept when found.
+ */
+async function titleOf(database: HomeDatabase, row: Row, harness: Harness, logs: LogOptions): Promise<string | null> {
+  if (typeof row.title === 'string') return row.title;
+  const id = String(row.id);
+  if (!titled.has(id)) {
+    const found = harness === 'codex' ? await codexThreadName(id, logs) : typeof row.transcript_path === 'string' ? (await logTail(row.transcript_path)).title : null;
+    titled.set(id, found);
+    if (found) database.db.prepare('UPDATE session SET title = ? WHERE id = ?').run(found, id);
+  }
+  return titled.get(id) ?? null;
+}
 /** The folders sessions started in, by log, as the logs said: each log is read once in a process. */
 const startedIn = new Map<string, string | null>();
 /** Where a session started: from the start of its log, kept as its folder, else the first folder its hooks saw. */
@@ -46,8 +63,8 @@ async function startFolder(database: HomeDatabase, row: Row): Promise<string | n
  * saw): its harness resumes it from there. Without `local` (a paired device asks), the folder and
  * how to resume, which are of this computer, are left out.
  */
-export async function workSessions(database: HomeDatabase, projectId: number, workId: string, options: { local?: boolean; now?: number } = {}): Promise<{ sessions: SessionEntry[]; products: ProductEntry[] }> {
-  const { local = true, now = Date.now() } = options;
+export async function workSessions(database: HomeDatabase, projectId: number, workId: string, options: { local?: boolean; now?: number; logs?: LogOptions } = {}): Promise<{ sessions: SessionEntry[]; products: ProductEntry[] }> {
+  const { local = true, now = Date.now(), logs = {} } = options;
   const rows = database.db.prepare(`SELECT session.* FROM session_work JOIN session ON session.id = session_work.session_id
     WHERE session_work.project_id = ? AND session_work.work_id = ? ORDER BY session.updated_at DESC`).all(projectId, workId) as Row[];
   const agents = summarizeReports(storedReports(database, projectId, [workId]).get(workId) ?? []).agents;
@@ -55,9 +72,10 @@ export async function workSessions(database: HomeDatabase, projectId: number, wo
   const sessions = await Promise.all(rows.map(async (row): Promise<SessionEntry> => {
     const id = String(row.id), harness = harnessOf(row.harness), state = states.get(id) ?? 'ended';
     const folder = local ? await startFolder(database, row) : null;
+    const title = await titleOf(database, row, harness, logs);
     const own = agents.filter(agent => agent.session === id), main = own.find(agent => agent.subagent === null);
     return {
-      session: id, harness, model: main?.model ?? null, effort: main?.effort ?? null, state,
+      session: id, harness, title, model: main?.model ?? null, effort: main?.effort ?? null, state,
       startedAt: String(row.started_at), lastSeen: String(row.updated_at), agentMs: own.reduce((total, agent) => total + agent.agentMs, 0),
       folder, resume: local ? resumeOf(harness, id) : null, message: state === 'waiting' ? (row.message as string | null) ?? null : null,
     };

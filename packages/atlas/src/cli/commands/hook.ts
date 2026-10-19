@@ -13,9 +13,9 @@
 // state, live time and reports count there. When it moves to another, the one it leaves gets a
 // report up to then. The hooks that only record its state (sessionState.ts) run on every tool call.
 import { statSync } from 'node:fs';
-import { open, readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { checkPaths, findPlanning, HomeDatabase, homePlanningDirectory, insertReport, liveWindowMs, logConsultation, parseFrontmatter, prepareWorkReport, projectOf, resolvePlanningFolder, type PreparedReport, type Whereabouts } from '../../planning/index.ts';
+import { checkPaths, findPlanning, HomeDatabase, homePlanningDirectory, insertReport, liveWindowMs, logConsultation, logTail, parseFrontmatter, prepareWorkReport, projectOf, resolvePlanningFolder, type PreparedReport, type Whereabouts } from '../../planning/index.ts';
 import { atlasHome } from '../../planning/home/homePath.ts';
 import type { Output } from '../args.ts';
 import { logFailure, pruneStamps, recordActivity, recordSession, sessionPattern, stateEvents, stateHook, type Activity, type ActivityDetails } from './sessionState.ts';
@@ -64,34 +64,14 @@ function readLinks(database: HomeDatabase, session: string, transcriptPath: stri
 const harnessOf = (transcriptPath: string | null) => transcriptPath === null ? 'unknown' : /[\\/]\.codex[\\/]/.test(transcriptPath) ? 'codex' : 'claude-code';
 /** Record what the session's agent did at `at`, from a hook that loaded everything else too. */
 const recordState = (database: HomeDatabase, home: string, links: SessionLinks, activity: Activity, at: string, details?: ActivityDetails) => recordActivity(database, home, links.session, links.transcriptPath, activity, at, liveWindowMs, details);
-/** How much of a log's end is read for the turn's last message, when the hook's input does not have it. */
-const tailLimit = 256 * 1024;
 /**
- * The text of a turn's last response: the hook's input has it (Claude Code and Codex send it with
- * Stop); otherwise the last assistant line with text near the end of a Claude Code log. A
- * compressed Codex rollout is not read.
+ * A turn's end: the text of its last response (the hook's input has it: Claude Code and Codex send
+ * it with Stop; else the end of a Claude Code log) and the session's latest title, from the log's end.
  */
-async function lastMessage(input: HookInput, transcriptPath: string | null): Promise<string | null> {
-  if (typeof input.last_assistant_message === 'string' && input.last_assistant_message.trim()) return input.last_assistant_message;
-  if (!transcriptPath || !transcriptPath.endsWith('.jsonl')) return null;
-  const handle = await open(transcriptPath, 'r').catch(() => null);
-  if (!handle) return null;
-  try {
-    const { size } = await handle.stat();
-    const length = Math.min(size, tailLimit);
-    const buffer = Buffer.alloc(length);
-    await handle.read(buffer, 0, length, size - length);
-    for (const line of buffer.toString('utf8').split('\n').reverse()) {
-      if (!line.includes('"assistant"')) continue;
-      try {
-        const entry = JSON.parse(line) as { type?: unknown; message?: { content?: unknown } };
-        const parts = Array.isArray(entry.message?.content) ? entry.message.content as { type?: unknown; text?: unknown }[] : [];
-        const said = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text as string).join('\n\n').trim();
-        if (entry.type === 'assistant' && said) return said;
-      } catch { /* A line cut by the start of the tail, or not JSON. */ }
-    }
-    return null;
-  } finally { await handle.close(); }
+async function turnEnd(input: HookInput, transcriptPath: string | null): Promise<{ message: string | null; title: string | null }> {
+  const tail = transcriptPath ? await logTail(transcriptPath) : { message: null, title: null };
+  const given = typeof input.last_assistant_message === 'string' && input.last_assistant_message.trim() ? input.last_assistant_message : null;
+  return { message: given ?? tail.message, title: tail.title };
 }
 /**
  * Link the session to a work item (amending, when it edits an accepted plan), noting that it
@@ -319,7 +299,11 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     }
     // A turn's end waits for the person from now, at once; its report follows, and the time not yet
     // reported stays counted (to when it began to wait) until the report counts it instead.
-    if (turnEnds.has(event)) recordState(database, home, links, 'stop', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: links.on ? await lastMessage(input, links.transcriptPath).catch(() => null) : null });
+    if (turnEnds.has(event)) {
+      const end = links.on ? await turnEnd(input, links.transcriptPath) : { message: null, title: null };
+      recordState(database, home, links, 'stop', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: end.message });
+      if (end.title) database.db.prepare('UPDATE session SET title = ? WHERE id = ?').run(end.title, session);
+    }
     if (!links.on) return '';
     const report = await prepareReport(home, links, links.on, at, event);
     database.transaction(() => {

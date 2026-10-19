@@ -187,6 +187,53 @@ export async function sessionFolder(transcript: string): Promise<string | null> 
   return null;
 }
 
+/** How much of a log's end is read for the turn's last message and the session's title. */
+const tailLimit = 256 * 1024;
+/**
+ * From the end of a Claude Code log (its last 256 KB): the text of the last response, and the
+ * session's latest title (`ai-title`, which Claude Code writes again as the conversation goes on).
+ * A compressed Codex rollout is not read: both are null.
+ */
+export async function logTail(transcript: string): Promise<{ message: string | null; title: string | null }> {
+  const found = { message: null as string | null, title: null as string | null };
+  if (!transcript.endsWith('.jsonl')) return found;
+  const handle = await open(transcript, 'r').catch(() => null);
+  if (!handle) return found;
+  try {
+    const { size } = await handle.stat();
+    const length = Math.min(size, tailLimit);
+    const buffer = Buffer.alloc(length);
+    await handle.read(buffer, 0, length, size - length);
+    for (const line of buffer.toString('utf8').split('\n').reverse()) {
+      if (found.message !== null && found.title !== null) break;
+      const titled = found.title === null && line.includes('"ai-title"'), said = found.message === null && line.includes('"assistant"');
+      if (!titled && !said) continue;
+      const entry = objectOf(line) as { type?: unknown; aiTitle?: unknown; message?: { content?: unknown } } | null;
+      if (entry?.type === 'ai-title' && typeof entry.aiTitle === 'string' && entry.aiTitle.trim()) found.title = entry.aiTitle.trim().slice(0, 200);
+      if (entry?.type === 'assistant' && found.message === null) {
+        const parts = Array.isArray(entry.message?.content) ? entry.message.content as { type?: unknown; text?: unknown }[] : [];
+        const text = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text as string).join('\n\n').trim();
+        if (text) found.message = text;
+      }
+    }
+    return found;
+  } catch { return found; } finally { await handle.close(); }
+}
+
+/** A Codex thread's name, from `<CODEX_HOME>/session_index.jsonl` (its latest entry); null without one. */
+export async function codexThreadName(thread: string, options: LogOptions = {}): Promise<string | null> {
+  const home = path.resolve((options.environment ?? process.env).CODEX_HOME || path.join(options.home ?? os.homedir(), '.codex'));
+  let name: string | null = null;
+  try {
+    for await (const text of lines(path.join(home, 'session_index.jsonl'))) {
+      if (!text.includes(thread)) continue;
+      const entry = objectOf(text) as { id?: unknown; thread_name?: unknown } | null;
+      if (entry?.id === thread && typeof entry.thread_name === 'string' && entry.thread_name.trim()) name = entry.thread_name.trim().slice(0, 200);
+    }
+  } catch { /* No index. */ }
+  return name;
+}
+
 /**
  * The logs of the session whose log a hook names (its transcript path), with the logs beside it: a
  * Claude Code session's subagents (also when the path is a subagent's own log), or a Codex thread's
