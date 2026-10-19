@@ -1,7 +1,7 @@
 // Open in: the title bar's split button that opens the file the window shows (a plan's document, a
 // diagram's source, a file) in the chosen editor, or shows it in the system's file manager. Its arrow
 // lists the editors Atlas knows, each with its mark; choosing one makes it the editor files open in
-// (another window may change it, so it is read again as the list opens) and opens the file with it.
+// (another window may change it, so it is read again as the list opens); the main part opens the file.
 // Ctrl+O (⌘O) does what the main part does. Main builds each editor's link and checks the file.
 import { useEffect, useState } from 'react';
 import { Button, ButtonGroup, IconButton, Menu, MenuItem, Tooltip } from '@envsemble/envui';
@@ -42,7 +42,7 @@ export function EditorButton({ platform, editor, choose, read, open }: { platfor
       trigger={<IconButton variant="secondary" className="editor-button-more" icon={<ExpandMore />} aria-label="Choose the editor" />}>
       {editors.map(value => <MenuItem key={value} icon={<EditorMark editor={value} />} shortcut={value === editor ? mod + '+O' : undefined}
         trailing={value === editor ? <CheckIcon className="editor-current" aria-label="Current" /> : undefined}
-        onClick={() => { void choose(value).then(open, () => undefined); }}>
+        onClick={() => { void choose(value).catch(() => undefined); }}>
         {editorName(value, platform)}
       </MenuItem>)}
     </Menu>
