@@ -21,9 +21,11 @@ export interface Work {
   continues?: HandoffLink[]; continuedIn?: HandoffLink[];
 }
 /**
- * A work item at the other end of a handoff: its project (`folderId`, null for the same project;
- * `project` its planning folder's name in the home, `projectName` its name), the work item, and its
- * title, state and outcome as the hub has them (null when the reference names no work item).
+ * A work item at the other end of a handoff: its project (`folderId`, the project's folder ID, its own
+ * included; null only when no project of the home has that planning folder, or in a plan export, which
+ * opens no other plan; `project` its planning folder's name in the home, `projectName` its name), the
+ * work item, and its title, state and outcome as the hub has them (null when the reference names no
+ * work item).
  */
 export interface HandoffLink {
   folderId: string | null; project: string; projectName: string; workId: string;

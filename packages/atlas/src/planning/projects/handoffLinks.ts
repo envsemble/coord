@@ -13,14 +13,14 @@ const keyOf = (value: string) => caseless ? value.toLowerCase() : value;
 
 /**
  * Fill in each work item's `continues` (from the names its plan gives) and `continuedIn`, in place.
- * A link to another project carries its folder's ID; one in the same project has none. A reference
- * that names no work item stays, without title or state.
+ * Every link carries its project's folder ID, the same project's included. A reference that names no
+ * work item stays, without title or state, and without a folder ID when it names no project.
  */
 export function linkHandoffs(projects: ListedProject[]) {
   const byFolder = new Map(projects.map(project => [keyOf(path.basename(project.folder)), project]));
   const work = (project: ListedProject) => [...project.summary?.active ?? [], ...project.summary?.closed ?? []];
-  const link = (from: ListedProject, to: ListedProject, item: ProjectWork | undefined, workId: string): HandoffLink => ({
-    folderId: from === to ? null : to.folderId, project: path.basename(to.folder), projectName: to.name, workId,
+  const link = (to: ListedProject, item: ProjectWork | undefined, workId: string): HandoffLink => ({
+    folderId: to.folderId, project: path.basename(to.folder), projectName: to.name, workId,
     title: item?.title ?? null, state: item?.state ?? null, outcome: item?.outcome ?? null,
   });
   for (const project of projects) for (const item of work(project)) item.continuedIn = [];
@@ -28,10 +28,10 @@ export function linkHandoffs(projects: ListedProject[]) {
     for (const item of work(project)) {
       item.continues = (item.continues ?? []).map(named => {
         const target = named.project ? byFolder.get(keyOf(named.project)) : project;
-        if (!target) return { ...named, projectName: named.project };
+        if (!target) return { ...named, folderId: null, projectName: named.project, title: null, state: null, outcome: null };
         const found = work(target).find(other => other.id === named.workId);
-        if (found) found.continuedIn!.push(link(target, project, item, item.id));
-        return link(project, target, found, named.workId);
+        if (found) found.continuedIn!.push(link(project, item, item.id));
+        return link(target, found, named.workId);
       });
     }
   }
