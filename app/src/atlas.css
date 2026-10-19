@@ -225,7 +225,7 @@ body { margin: 0; }
 .work-page { --atlas-gutter: var(--space-3); display: grid; align-content: start; }
 /* An island like the diagram's: a pane pill with their hairline and shadow. */
 .diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--color-text-primary) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--color-canvas-dark) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--color-canvas-dark) 28%, transparent); }
-@container (max-width: 40rem) {
+@media (max-width: 40rem) {
   .work-page { --atlas-gutter: var(--space-2); }
 }
 .work-header { display: grid; gap: var(--space-3); padding-block-end: var(--space-5); }
@@ -278,7 +278,7 @@ body { margin: 0; }
 .facts dt { color: var(--color-text-muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 .about-repositories { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-@container (max-width: 62rem) {
+@media (max-width: 62rem) {
   .work-layout { grid-template-columns: minmax(0, 1fr); }
   .about { position: static; max-block-size: none; overflow: visible; }
 }
@@ -318,7 +318,7 @@ body { margin: 0; }
 .diagram-problems { margin: var(--space-3) 0 0; padding-inline-start: 1.25rem; text-align: start; }
 /* While a diagram loads, the switcher and the picker are where the diagram's overlay puts them. */
 .diagrams-islands { position: absolute; inset-block-start: var(--atlas-gutter); inset-inline-start: var(--atlas-gutter); z-index: 5; display: grid; justify-items: start; gap: var(--space-2); }
-@container (max-width: 40rem) {
+@media (max-width: 40rem) {
   .diagrams-islands { gap: var(--space-1); }
 }
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: 40; display: grid; gap: var(--space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
