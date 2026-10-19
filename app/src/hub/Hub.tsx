@@ -134,9 +134,12 @@ export function Hub({ projects, error, filter, filters, setFilters, go, restore,
       action={<Button variant="secondary" onClick={() => go(projectsPlace())}>Projects</Button>} />
   </Page>;
   const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
-  // One line: the heading at the left, the search centred on the page, the filters at the right.
+  // One line: the heading (with the project's statistics) at the left, the search centred on the page, the filters at the right.
   return <Page className="hub" heading={<div className="hub-heading">
-    <Text as="h1" variant="page-heading" className="hub-title">{filtered?.name ?? 'Plans'}</Text>
+    <div className="hub-lead">
+      <Text as="h1" variant="page-heading" className="hub-title">{filtered?.name ?? 'Plans'}</Text>
+      {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
+    </div>
     {/* The search opens the search popup with what is typed, and never filters this list. */}
     <SearchField className="hub-search" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog" showLabel={false}
       aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
@@ -145,7 +148,6 @@ export function Hub({ projects, error, filter, filters, setFilters, go, restore,
       <Select className="hub-project" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
         options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name })),
           ...archived.length ? [{ value: archivedHeading, label: 'Archived', disabled: true }, ...archived.map(project => ({ value: project.folderId, label: project.name }))] : []]} />
-      {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
       <SegmentedControl aria-label="Plan state" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
     </div>
