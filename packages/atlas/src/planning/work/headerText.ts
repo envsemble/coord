@@ -28,14 +28,15 @@ export function yamlValue(field: string, value: string | number | null | string[
   return plainFields.has(field) && /^[a-z_]+$/.test(value) ? value : JSON.stringify(value);
 }
 
-/** Set top-level header fields; a field the header lacks is added at its end. */
+/** Set top-level header fields, a block list's entries included; a field the header lacks is added at its end. */
 export function setFields(text: string, fields: Record<string, string | number | null | string[]>): string {
   const found = header(text);
   if (!found) throw new HeaderError('The file has no metadata header.');
   let block = found.block;
   for (const [field, value] of Object.entries(fields)) {
     const line = field + ': ' + yamlValue(field, value);
-    const pattern = new RegExp(`^${field}:(?:[ \\t][^\\r\\n]*)?$`, 'm');
+    // The field's line, and when it has no value of its own (`field:` or a comment) the block list's `- ` entries after it.
+    const pattern = new RegExp(`^${field}:(?:[ \\t]*(?:#[^\\r\\n]*)?(?:\\r?\\n[ \\t]*-(?:[ \\t][^\\r\\n]*)?)+|(?:[ \\t][^\\r\\n]*)?)$`, 'm');
     block = pattern.test(block) ? block.replace(pattern, () => line) : block + found.eol + line;
   }
   return text.slice(0, found.start) + block + text.slice(found.end);

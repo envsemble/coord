@@ -20,7 +20,7 @@ The HTML contains:
 - a content security policy as its first content: `default-src 'none'`, the viewer script allowed by its SHA-256 hash only, inline styles, images from `data:` and `blob:` URLs, and no connections, frames, objects, workers, forms or base URL;
 - the read-only viewer, with its script and styles inline;
 - `<script id="atlas-plan-export" type="application/json">`, the payload;
-- `<script id="atlas-plan-view" type="application/json">`, derived viewer data (work status, document titles and prepared diagram scenes). Import ignores it.
+- `<script id="atlas-plan-view" type="application/json">`, derived viewer data (work status, document titles, prepared diagram scenes, and the plan's handoffs: the work it continues and the work continuing it, read from the home's plans at export time, with their titles and, for other projects' work, those projects' names). Import ignores it.
 
 Both JSON elements are inert data; every `<` in them is written as the JSON escape `\u003c`. The payload is the manifest with each file's bytes:
 
@@ -65,7 +65,7 @@ Embedded content is displayed, never executed. Raw HTML in Markdown is left out.
 4. The work gets the next free number: one more than the highest registered work ID, skipping any number an unregistered folder in `active/` or `archive/` already uses. It keeps the source's location: `<active|archive>/<NNNN>-<slug>/`, with the slug cut to 100 characters. Importing the same file twice creates two work items.
 5. The files are written to a hidden temporary folder beside the destination and renamed into place.
 6. The work's identity is rewritten: the main plan's `id` and the ledger's `work_id` metadata lines, keeping their quoting, line endings and byte order mark.
-7. References to other work are cleared, because they name work in the source planning folder: the plan's `supersedes` and `continues` become `[]` and `superseded_by` becomes `null`.
+7. References to other work are cleared, because they name work in the source planning folder: the plan's `supersedes` and `continues` become `[]` and `superseded_by` becomes `null`. The viewer still shows the plan's handoffs as they stood at export time, as text: the work it continues and the work continuing it, with their titles and, for another project's work, that project's name.
 
    Every other byte, diagrams included, is as exported: a diagram names no work, and its references to other diagrams are relative to it, so captures stay frozen.
 

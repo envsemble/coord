@@ -341,7 +341,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   writeFileSync(path.join(source, 'planning.json'), JSON.stringify(registry, null, 2));
   const successor = plan('work-0003', 'Successor').replace('supersedes: []', 'supersedes:\n  - work-0001\n  - work-0002');
   writeFileSync(path.join(source, 'active/0003-successor/plan.md'), successor);
-  writeFileSync(path.join(source, 'active/0001-checkout/plan.md'), BOM + plan('work-0001', 'Checkout').replace('superseded_by: null', 'superseded_by: "work-0003"  # replaced\ncontinues: [work-0002]'));
+  writeFileSync(path.join(source, 'active/0001-checkout/plan.md'), BOM + plan('work-0001', 'Checkout').replace('superseded_by: null', 'superseded_by: "work-0003"  # replaced\ncontinues: work-0002'));
   assert.deepEqual(validatePlanning(source).errors, [], 'the source is valid');
   mkdirSync(target); fixture(target);
 

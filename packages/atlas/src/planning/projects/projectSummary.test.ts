@@ -232,15 +232,18 @@ test('a project\'s statistics put time on the days it was worked, by model and e
   } finally { database.close(); }
 });
 
-test('handoffs link work across the home\'s projects both ways, by planning folder name, and keep a reference that names nothing', () => {
+test('handoffs link work across the home\'s projects both ways, by planning folder name, each once, and keep a reference that names nothing', () => {
   const work = (id: string, continues: { project: string; workId: string }[] = []) => ({ id, title: 'Title ' + id, state: 'implementing', outcome: null, continues: continues.map(item => ({ folderId: null, projectName: '', title: null, state: null, outcome: null, ...item })) }) as never;
   const shop = { folderId: 'f1', folder: path.join('home', 'planning', 'shop'), name: 'Shop', summary: { active: [work('work-0001'), work('work-0002', [{ project: '', workId: 'work-0001' }])], closed: [] } };
-  const app = { folderId: 'f2', folder: path.join('home', 'planning', 'app'), name: 'App', summary: { active: [work('work-0001', [{ project: 'Shop', workId: 'work-0002' }, { project: 'gone', workId: 'work-0001' }])], closed: [] } };
-  linkHandoffs([shop, app]);
+  const app = { folderId: 'f2', folder: path.join('home', 'planning', 'app'), name: 'App', summary: { active: [work('work-0001', [{ project: 'Shop', workId: 'work-0002' }, { project: 'shop', workId: 'work-0002' }, { project: 'gone', workId: 'work-0001' }])], closed: [] } };
+  // A project outside the home finds only the folders beside it: not the home's shop.
+  const outside = { folderId: 'f3', folder: path.join('elsewhere', 'notes'), name: 'Notes', summary: { active: [work('work-0001', [{ project: 'shop', workId: 'work-0001' }])], closed: [] } };
+  linkHandoffs([shop, app, outside]);
   const [first, second] = shop.summary.active as { continues: unknown[]; continuedIn: unknown[] }[];
   assert.deepEqual(first.continuedIn, [{ folderId: 'f1', project: 'shop', projectName: 'Shop', workId: 'work-0002', title: 'Title work-0002', state: 'implementing', outcome: null }]);
   assert.deepEqual(second.continuedIn, [{ folderId: 'f2', project: 'app', projectName: 'App', workId: 'work-0001', title: 'Title work-0001', state: 'implementing', outcome: null }]);
   const [continued] = app.summary.active as { continues: { folderId: string | null; workId: string; title: string | null }[] }[];
   assert.deepEqual(continued.continues.map(item => [item.folderId, item.workId, item.title]), [['f1', 'work-0002', 'Title work-0002'], [null, 'work-0001', null]]);
   assert.deepEqual(handoffsByWork(app).get('work-0001')!.continues, continued.continues);
+  assert.deepEqual((outside.summary.active[0] as { continues: { folderId: string | null }[] }).continues.map(item => item.folderId), [null]);
 });

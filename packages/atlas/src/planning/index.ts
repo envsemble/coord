@@ -13,7 +13,7 @@ export { StatisticsReportError, createReport, importStatisticsFiles, insertRepor
 export { codexThreadName, harnessSessions, logTail, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './statistics/sessionLog.ts';
 export { prepareWorkReport, recordWorkReport, remeasureReports, type PreparedReport, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
 export { handoffsByWork, linkHandoffs, type ListedProject } from './projects/handoffLinks.ts';
-export { handoffExists, handoffLoop, handoffsOf, handoffText, parseHandoff, type HandoffReference } from './work/handoffs.ts';
+export { HandoffGraph, handoffExists, handoffLoop, handoffsOf, handoffText, parseHandoff, type HandoffReference } from './work/handoffs.ts';
 export { projectStatistics, type ProjectStatisticsEntry } from './statistics/projectStatistics.ts';
 export { workDates, workSessions, workTimeline, type ProductEntry, type SessionEntry, type TimelineEntry } from './statistics/sessions.ts';
 export { resolveReferences, type ReferenceItem, type ResolvedItem } from './projects/references.ts';

@@ -8,7 +8,7 @@
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
-import { handoffExists, handoffFolder, handoffLoop, handoffsOf, handoffText } from '../work/handoffs.ts';
+import { HandoffGraph, handoffsOf, handoffText } from '../work/handoffs.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'repositories', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const repositoryIdentity = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -271,6 +271,8 @@ function sameSet(first: Set<string>, second: Set<string>) {
 export function validatePlanning(inputRoot: string): { errors: string[]; warnings: string[] } {
   const root = resolveLenient(inputRoot);
   const errors: string[] = [], warnings: string[] = [];
+  // The home's handoffs, each registry and plan header read once for the whole run.
+  const handoffs = new HandoffGraph();
   let registry: unknown;
   try { registry = JSON.parse(readText(path.join(root, 'planning.json'))); }
   catch (error) { return { errors: ['planning.json: ' + (error as Error).message], warnings }; }
@@ -413,10 +415,10 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (metadata.continues !== undefined && metadata.continues !== null) {
       const { references, invalid } = handoffsOf(metadata.continues);
       if (invalid.length) errors.push(prefix + 'continues must list work items, such as work-0023, or project:work-0023 for another project of the home');
-      else if (references.some(item => item.workId === workId && handoffFolder(root, item) === root)) errors.push(prefix + 'continues names the work item itself');
+      else if (references.some(item => item.workId === workId && handoffs.folder(root, item) === root)) errors.push(prefix + 'continues names the work item itself');
       else {
-        for (const item of references) if (!handoffExists(root, item)) warnings.push(prefix + 'continues ' + handoffText(item) + ', which names no work item');
-        if (typeof workId === 'string' && handoffLoop(root, workId, references)) warnings.push(prefix + 'continues work that continues it: the handoffs form a loop');
+        for (const item of references) if (!handoffs.exists(root, item)) warnings.push(prefix + 'continues ' + handoffText(item) + ', which names no work item');
+        if (typeof workId === 'string' && handoffs.inLoop(root, workId)) warnings.push(prefix + 'continues work that continues it: the handoffs form a loop');
       }
     }
   }

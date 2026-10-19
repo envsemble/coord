@@ -595,7 +595,8 @@ function clearCrossWorkReferences(text: string): { text: string; supersedes: str
   if (!metadata) return null;
   const supersedes = Array.isArray(metadata.supersedes) ? metadata.supersedes.map(String) : [];
   const supersededBy = typeof metadata.superseded_by === 'string' ? metadata.superseded_by : null;
-  const continues = Array.isArray(metadata.continues) ? metadata.continues.map(String) : [];
+  // A single reference (`continues: work-0002`) as much as a list.
+  const continues = metadata.continues === null || metadata.continues === undefined ? [] : (Array.isArray(metadata.continues) ? metadata.continues : [metadata.continues]).map(String);
   if (!supersedes.length && supersededBy === null && !continues.length) return { text, supersedes, supersededBy, continues };
   const found = header(text)!;
   let block = found.block;

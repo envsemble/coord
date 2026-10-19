@@ -9,7 +9,7 @@ import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 
 import path from 'node:path';
 import { parseFrontmatter, type Metadata } from '../check/check.ts';
 import { appendToSection, setFields, setSteps, yamlValue } from './headerText.ts';
-import { handoffExists, handoffFolder, handoffText, parseHandoff } from './handoffs.ts';
+import { HandoffGraph, parseHandoff, type HandoffReference } from './handoffs.ts';
 import { ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
 import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from './registryText.ts';
 import { stepLimit, workStatistics } from '../statistics/statistics.ts';
@@ -213,13 +213,23 @@ export function slugOf(title: string) {
  */
 function checkedHandoffs(root: string, values: unknown, workId: string | null): string[] {
   if (!Array.isArray(values)) throw new WorkError('Give the work it continues as a list, such as ["work-0023"].');
-  const written: string[] = [];
+  const graph = new HandoffGraph();
+  const written: string[] = [], references: HandoffReference[] = [];
   for (const value of values) {
     const item = parseHandoff(value);
     if (!item) throw new WorkError(`${JSON.stringify(value)} is not a work item: write work-0023, or project:work-0023 for another project of the home (its planning folder's name).`);
-    if (item.workId === workId && handoffFolder(root, item) === root) throw new WorkError('A work item cannot continue itself.');
-    if (!handoffExists(root, item)) throw new WorkError(handoffText(item) + ' names no work item' + (item.project ? ' (is ' + item.project + ' the planning folder\'s name in the home?)' : ' in this project') + '.');
-    if (!written.includes(handoffText(item))) written.push(handoffText(item));
+    const folder = graph.folder(root, item);
+    if (!folder || !graph.exists(root, item)) throw new WorkError(String(value).trim() + ' names no work item' + (item.project ? ' (is ' + item.project + ' the planning folder\'s name in the home?)' : ' in this project') + '.');
+    if (item.workId === workId && folder === root) throw new WorkError('A work item cannot continue itself.');
+    // Written as the reference resolves: bare in its own project, by the folder's real name in another; each once.
+    const text = folder === root ? item.workId : path.basename(folder) + ':' + item.workId;
+    if (written.includes(text)) continue;
+    written.push(text);
+    references.push({ project: folder === root ? null : path.basename(folder), workId: item.workId });
+  }
+  if (workId !== null && written.length) {
+    graph.assume(root, workId, references);
+    if (graph.inLoop(root, workId)) throw new WorkError('That would make the handoffs a loop: ' + workId + ' would continue work that continues it.');
   }
   return written;
 }

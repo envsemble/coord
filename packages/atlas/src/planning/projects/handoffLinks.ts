@@ -13,11 +13,14 @@ const keyOf = (value: string) => caseless ? value.toLowerCase() : value;
 
 /**
  * Fill in each work item's `continues` (from the names its plan gives) and `continuedIn`, in place.
+ * Another project is found as the plan's own folder finds it (handoffFolder): by its planning
+ * folder's name among the folders beside it, so a project outside the home links only to its
+ * neighbours there, and each work item is linked once.
  * Every link carries its project's folder ID, the same project's included. A reference that names no
  * work item stays, without title or state, and without a folder ID when it names no project.
  */
 export function linkHandoffs(projects: ListedProject[]) {
-  const byFolder = new Map(projects.map(project => [keyOf(path.basename(project.folder)), project]));
+  const byFolder = new Map(projects.map(project => [keyOf(path.resolve(project.folder)), project]));
   const work = (project: ListedProject) => [...project.summary?.active ?? [], ...project.summary?.closed ?? []];
   const link = (to: ListedProject, item: ProjectWork | undefined, workId: string): HandoffLink => ({
     folderId: to.folderId, project: path.basename(to.folder), projectName: to.name, workId,
@@ -26,12 +29,16 @@ export function linkHandoffs(projects: ListedProject[]) {
   for (const project of projects) for (const item of work(project)) item.continuedIn = [];
   for (const project of projects) {
     for (const item of work(project)) {
-      item.continues = (item.continues ?? []).map(named => {
-        const target = named.project ? byFolder.get(keyOf(named.project)) : project;
-        if (!target) return { ...named, folderId: null, projectName: named.project, title: null, state: null, outcome: null };
+      const seen = new Set<string>();
+      item.continues = (item.continues ?? []).flatMap(named => {
+        const target = named.project && keyOf(named.project) !== keyOf(path.basename(project.folder)) ? byFolder.get(keyOf(path.join(path.dirname(path.resolve(project.folder)), named.project))) : project;
+        const key = (target ? target.folderId : '?' + keyOf(named.project)) + '\0' + named.workId;
+        if (seen.has(key)) return [];
+        seen.add(key);
+        if (!target) return [{ ...named, folderId: null, projectName: named.project, title: null, state: null, outcome: null }];
         const found = work(target).find(other => other.id === named.workId);
         if (found) found.continuedIn!.push(link(project, item, item.id));
-        return link(target, found, named.workId);
+        return [link(target, found, named.workId)];
       });
     }
   }
