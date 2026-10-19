@@ -4,11 +4,13 @@
 // in; a commit (`owner/repo@hash`) to its page, with its subject from `gh`. A path leads to the file on
 // this computer: in one of the project's folders, or in a folder directly inside one (where
 // repositories are checked out), the first that has it. `repo#22`, `#22` and a bare hash lead
-// nowhere. `gh` runs a few at a time, with timeouts. A call waits for it only briefly: what it has not
+// nowhere. A paired device has `gh` asked only about the repositories the project's planning files
+// name, so it learns nothing of the others the owner can see. `gh` runs a few at a time, with
+// timeouts, and one call asks it at most `ghBudget` times. A call waits for it only briefly: what it has not
 // said yet is left out, and its answer is kept for the next call. Commit subjects are kept, since
 // commits never change.
 import { spawn } from 'node:child_process';
-import { readdir, realpath, stat } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { folderKey } from '../home/database.ts';
 import { runProgram } from '../system/run.ts';
@@ -32,8 +34,10 @@ const ghWaitMs = 3000;
 /** At most this many `gh` processes at once. */
 const parallel = 4;
 const ignoredFolders = new Set(['node_modules', '__pycache__', 'dist', 'build']);
-/** A repository as a reference names it: `owner/repo`. */
-const repositoryName = /^[\w.-]+\/[\w.-]+$/;
+/** A repository as a reference names it: `owner/repo`, each part beginning with a letter, digit or underscore. */
+const repositoryName = /^\w[\w.-]*\/\w[\w.-]*$/;
+/** At most this many questions to `gh` in one call; the call's other references are links only. */
+const ghBudget = 100;
 
 /** Run tasks at most `parallel` at a time, in this process. */
 let running = 0;
@@ -63,6 +67,31 @@ function projectBases(root: string): Promise<string[]> {
   return value;
 }
 
+const mentions = new Map<string, { at: number; value: Promise<Set<string>> }>();
+/** The repositories a project's planning files name (`owner/repo#N`, `owner/repo@hash`, GitHub URLs), lowercased; kept for a minute. */
+export function mentionedRepositories(root: string): Promise<Set<string>> {
+  const cached = mentions.get(folderKey(root));
+  if (cached && Date.now() - cached.at < cacheMs) return cached.value;
+  const value = (async () => {
+    const found = new Set<string>();
+    const pattern = /github\.com\/(\w[\w.-]*\/\w[\w.-]*)|(?<![\w./-])(\w[\w.-]*\/\w[\w.-]*)(?=#\d|@[0-9a-f]{7})/g;
+    const walk = async (folder: string): Promise<void> => {
+      for (const entry of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
+        if (entry.name.startsWith('.') || ignoredFolders.has(entry.name)) continue;
+        const full = path.join(folder, entry.name);
+        if (entry.isDirectory()) await walk(full);
+        else if (entry.isFile() && entry.name.endsWith('.md')) {
+          for (const match of (await readFile(full, 'utf8').catch(() => '')).matchAll(pattern)) found.add((match[1] ?? match[2]).replace(/\.git$/, '').toLowerCase());
+        }
+      }
+    };
+    await walk(root);
+    return found;
+  })();
+  mentions.set(folderKey(root), { at: Date.now(), value });
+  return value;
+}
+
 let signedIn: { at: number; value: Promise<boolean> } | null = null;
 /**
  * Whether `gh` is installed and has a token (`gh auth token` succeeds; one bad account among several
@@ -79,6 +108,7 @@ function ghReady() {
   return signedIn.value;
 }
 const pulls = new Map<string, { at: number; value: Promise<PullState | null> }>();
+const pullLimit = 2000;
 /** A PR's (or else an issue's) title, state and checks, from `gh`; kept for a minute. */
 function pullState(repository: string, number: string): Promise<PullState | null> {
   const key = `${repository}#${number}`.toLowerCase();
@@ -100,6 +130,7 @@ function pullState(repository: string, number: string): Promise<PullState | null
     const data = JSON.parse(issue) as { title?: unknown; state?: unknown };
     return { title: String(data.title ?? ''), state: data.state === 'CLOSED' ? 'closed' : 'open', checks: null };
   })().catch(() => null);
+  if (pulls.size >= pullLimit) pulls.delete(pulls.keys().next().value!);
   pulls.set(key, { at: Date.now(), value });
   return value;
 }
@@ -127,10 +158,15 @@ function commitSubjectAgain(key: string, repository: string, hash: string): Prom
 /**
  * Resolve a planning file's references, in order; null for one that leads nowhere. Without `gh`
  * (`gh: false`), PRs have no state and commits no subject. Without `local` (a paired device asks),
- * only what is not of this computer: no files.
+ * only what is not of this computer: no files, and `gh` asked only about the repositories the
+ * project's planning files name.
  */
 export async function resolveReferences(root: string, items: ReferenceItem[], options: { gh?: boolean; local?: boolean } = {}): Promise<(ResolvedItem | null)[]> {
   const here = options.local ?? true;
+  const allowed = here || options.gh === false ? null : await mentionedRepositories(root);
+  let budget = ghBudget;
+  /** Whether `gh` may be asked about a repository in this call. */
+  const ask = (repository: string) => options.gh !== false && (here || allowed!.has(repository.toLowerCase())) && budget-- > 0;
   const waiting: Promise<unknown>[] = [];
   const resolving = new Map<string, Promise<ResolvedItem | null>>();
   const results = await Promise.all(items.map(item => {
@@ -151,13 +187,13 @@ export async function resolveReferences(root: string, items: ReferenceItem[], op
       if (item.kind === 'pull') {
         if (!/^\d{1,9}$/.test(item.value)) return null;
         const resolved: ResolvedItem = { ...none, url: web + '/pull/' + item.value, repository };
-        if (options.gh !== false) waiting.push(pullState(repository, item.value).then(state => { resolved.pull = state; }));
+        if (ask(repository)) waiting.push(pullState(repository, item.value).then(state => { resolved.pull = state; }));
         return resolved;
       }
       const hash = item.value.toLowerCase();
       if (!/^[0-9a-f]{7,40}$/.test(hash)) return null;
       const resolved: ResolvedItem = { ...none, url: web + '/commit/' + hash, repository };
-      if (options.gh !== false) waiting.push(commitSubject(repository, hash).then(title => { resolved.title = title; }));
+      if (ask(repository)) waiting.push(commitSubject(repository, hash).then(title => { resolved.title = title; }));
       return resolved;
     }
     // A path inside one of the project's folders: never one that leaves it, nor through a link.
