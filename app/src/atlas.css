@@ -164,15 +164,15 @@ body { margin: 0; }
 .step-icon[data-phase='planning']:is([data-status='done'], [data-status='doing']) { color: var(--color-tone-accent); }
 .step-bar-planning-done { background: var(--color-tone-accent); }
 .step-bar-planning-doing { background: color-mix(in srgb, var(--color-tone-accent) 55%, var(--color-surface-muted)); }
-/* While agents work on a plan, its status, its step in progress (in the list, its share of the bar
-   and the hub's line) pulse; while one waits for the person, the step is amber. Still when motion
-   is reduced. */
+/* While agents work on a plan, its indicators pulse: its status icon and its step in progress (the
+   step's icon in the list and its share of the bar), never their text. While one waits for the
+   person, the step is amber. Still when motion is reduced. */
 @keyframes atlas-working { 50% { opacity: 0.4; } }
-:is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] :is(.step-bar-doing, .step-bar-planning-doing), .hub-row-step[data-live='working']) { animation: atlas-working 1.6s var(--motion-ease) infinite; }
+:is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] :is(.step-bar-doing, .step-bar-planning-doing)) { animation: atlas-working 1.6s var(--motion-ease) infinite; }
 :is(.ledger-step[data-live='waiting'] .step-icon, .hub-row-step[data-live='waiting']) { color: var(--color-tone-warning); }
 .step-bar[data-live='waiting'] :is(.step-bar-doing, .step-bar-planning-doing) { background: var(--color-tone-warning); }
 @media (prefers-reduced-motion: reduce) {
-  :is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] > span, .hub-row-step[data-live='working']) { animation: none; }
+  :is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] > span) { animation: none; }
 }
 
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
