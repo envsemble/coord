@@ -2,13 +2,13 @@
 // folders) and its clients (the desktop app's windows, another computer's Atlas, later a phone).
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
-import type { DocumentContent, PlanImportResult, PlanningIndex, Usage } from '../planning/index.ts';
+import type { DocumentContent, PlanImportResult, PlanningIndex } from '../planning/index.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../planning/reading/diagrams.ts';
 
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 10;
+export const protocolVersion = 11;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -194,17 +194,60 @@ export interface WorkTimeline {
   plannedMs: number | null; implementingMs: number | null; waitedMs: number;
   lanes: { session: string; subagent: string | null; model: string | null; effort: string | null; working: [string, string][]; waiting: [string, string][] }[];
 }
+/**
+ * A period's figures on a project's statistics page: every agent's time added up (`agentMs`), the time
+ * at least one agent worked (`activeMs`: the union of the reports' working intervals, reports
+ * without them added as is), the plans completed in it (their `completed_at` within the period), the
+ * median time from acceptance to completion of those plans (null without any), and the time the
+ * project's sessions waited for the person (waits at once counted once, as work.timeline counts them).
+ */
+export interface ProjectPeriodFigures { agentMs: number; activeMs: number; plansCompleted: number; medianImplementingMs: number | null; waitedMs: number }
+/**
+ * One day or week of a project's statistics. `start` is when it begins, at midnight in the host's
+ * local time (a week begins on Monday), as an ISO time. Time is put where it was worked, by the
+ * reports' working intervals (split at the bucket's bounds); a report without intervals counts at
+ * its report time. `agents`: agent time by model and reasoning effort (null where no log named one),
+ * most first; `completed`: the plans completed in it.
+ */
+export interface ProjectStatisticsBucket {
+  start: string;
+  agents: { model: string | null; effort: string | null; agentMs: number }[];
+  activeMs: number;
+  completed: { id: string; title: string }[];
+}
+/**
+ * A plan worked on in the period, most agent time first: what its status comes from (as the hub
+ * has it), its agent time and tokens in the period, how long it was planned and implemented (in
+ * all, as work.timeline counts them), and how long it waited for the person in the period.
+ */
+export interface ProjectStatisticsPlan {
+  id: string; title: string;
+  state: ProjectWorkState; outcome: ProjectWork['outcome']; steps: ProjectWork['steps']; completed: string | null;
+  agentMs: number; tokens: number | null;
+  plannedMs: number | null; implementingMs: number | null; waitedMs: number;
+}
+/**
+ * A project's statistics for a period, from `from` (null: since its first report) up to `to` (the
+ * host's now when not given), by day or week: the period's figures and the period before's (as
+ * long, just before it; null when the period has no start), its buckets, the plans worked on in it,
+ * and agent time and tokens by model and reasoning effort (most time first).
+ */
+export interface ProjectStatistics {
+  from: string | null; to: string; unit: 'day' | 'week';
+  current: ProjectPeriodFigures; previous: ProjectPeriodFigures | null;
+  buckets: ProjectStatisticsBucket[];
+  plans: ProjectStatisticsPlan[];
+  models: { model: string | null; effort: string | null; agentMs: number; tokens: number | null }[];
+}
 /** A repository a project covers: its ID in planning.json, its name and its Git remote. */
 export interface ProjectRepository { id: string; name: string; remote: string | null }
 /** The Git checkouts found in a workspace folder (the folder itself and the folders directly inside it), as a new project would register them. */
 export interface WorkspaceScan { folder: string; repositories: ProjectRepository[] }
 
 export interface Snapshot extends PlanningIndex {
-  usage: Usage; usageByRepository: Record<string, Usage>; collectionError: string | null;
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
 }
-export interface ViewEventInput { id: string; path: string; session: string; contentHash: string | null }
 
 export interface PreparedExport { token: string; bytes: number; warnings: string[]; fileName: string }
 export interface ImportPreviewValue {
@@ -254,6 +297,8 @@ export interface Methods {
   'work.sessions': { params: { folderId: string; work: string }; result: { sessions: WorkSession[]; products: WorkProduct[] } };
   /** A work item's time and its sessions' working and waiting stretches. */
   'work.timeline': { params: { folderId: string; work: string }; result: WorkTimeline };
+  /** A project's statistics for a period (ISO times; null: from its first report, or to now), by day or week. */
+  'project.statistics': { params: { folderId: string; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
   /** The Git checkouts in a folder on this computer, for a new project's preview. */
   'projects.scan': { params: { folder: string }; result: WorkspaceScan };
   /**
@@ -275,7 +320,6 @@ export interface Methods {
   'folder.references': { params: { folderId: string; work: string | null; path: string }; result: DiagramReference[] };
   /** Every diagram of the folder, for quick open. */
   'folder.diagramIndex': { params: { folderId: string }; result: DiagramIndexEntry[] };
-  'folder.recordView': { params: { folderId: string; event: ViewEventInput }; result: null };
   'plan.exportPrepare': { params: { folderId: string; work: string }; result: PreparedExport };
   'plan.exportDrop': { params: { token: string }; result: null };
   'plan.importRead': { params: { folderId: string; file: string }; result: ImportPreviewValue };
@@ -298,6 +342,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'references.resolve': 'computer',
   'work.sessions': 'computer',
   'work.timeline': 'computer',
+  'project.statistics': 'computer',
   // A folder on this computer, by path: the app's own, like plan.importRead.
   'projects.scan': 'owner',
   'projects.update': 'computer',
@@ -310,7 +355,6 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'folder.diagram': 'computer',
   'folder.references': 'computer',
   'folder.diagramIndex': 'computer',
-  'folder.recordView': 'computer',
   'plan.exportPrepare': 'computer',
   'plan.exportDrop': 'computer',
   // A file on this computer, by path: the app's own. Another device sends its file to routes.imports.

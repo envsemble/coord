@@ -2,7 +2,7 @@
 // host's own stored state. Validators return the checked value or throw ValidationError; unknown
 // object keys are dropped, never passed through. The desktop app reuses the generic ones for the
 // messages its windows send (app/shared/validate.ts).
-import type { AccessSettings, MethodName, Methods, PairRequest, ProjectRepository, ViewEventInput } from './contract.ts';
+import type { AccessSettings, MethodName, Methods, PairRequest, ProjectRepository } from './contract.ts';
 
 export class ValidationError extends Error {}
 export type Validator<T> = (value: unknown, at?: string) => T;
@@ -75,17 +75,13 @@ export function argumentsOf(validators: Validator<unknown>[], values: unknown[])
 export const relativePath = string({ min: 1, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+$/ });
 export const absolutePath = string({ min: 1, max: pathLimit });
 export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
+/** A moment as clients send it: an ISO time with its zone. */
+export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/ });
 /** A diagram file's path in its work folder, relative and inside it. */
 export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
 export const folderId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
 export const token = string({ min: 16, max: 80, pattern: /^[a-zA-Z0-9-]+$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
-export const viewEvent: Validator<ViewEventInput> = object<ViewEventInput>({
-  id: string({ min: 8, max: 80, pattern: /^[a-zA-Z0-9-]+$/ }),
-  path: relativePath,
-  session: string({ min: 8, max: 80, pattern: /^[a-zA-Z0-9-]+$/ }),
-  contentHash: nullable(string({ max: 128, pattern: /^[a-f0-9]*$/ })),
-});
 
 /** An IPv4 or IPv6 literal (no host names: a name could be re-pointed at another machine). */
 export const ipAddress = string({ min: 2, max: 64, pattern: /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}|[0-9a-fA-F:]+:[0-9a-fA-F:.]*)$/ });
@@ -131,6 +127,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'references.resolve': object({ folderId, work: nullable(workId), items: array(object({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) }), 500) }),
   'work.sessions': object({ folderId, work: workId }),
   'work.timeline': object({ folderId, work: workId }),
+  'project.statistics': object({ folderId, from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
   'projects.scan': object({ folder: absolutePath }),
   'projects.adopt': object({ folderId }),
   'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), workspaces: optional(array(absolutePath, 20)) }),
@@ -142,7 +139,6 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'folder.diagram': object({ folderId, work: workId, path: diagramPath }),
   'folder.references': object({ folderId, work: nullable(workId), path: relativePath }),
   'folder.diagramIndex': object({ folderId }),
-  'folder.recordView': object({ folderId, event: viewEvent }),
   'plan.exportPrepare': object({ folderId, work: workId }),
   'plan.exportDrop': object({ token }),
   'plan.importRead': object({ folderId, file: absolutePath }),

@@ -897,6 +897,8 @@ export class Host {
         const { folderId, work } = p as Methods['work.sessions']['params'];
         return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work, { local: connection.owner, logs: this.options.sessionLogs }) as never;
       }
+      // Contract stub: the project's statistics come with the host step.
+      case 'project.statistics': { const { from, to, unit } = p as Methods['project.statistics']['params']; const figures = { agentMs: 0, activeMs: 0, plansCompleted: 0, medianImplementingMs: null, waitedMs: 0 }; return { from, to: to ?? new Date().toISOString(), unit, current: figures, previous: from ? figures : null, buckets: [], plans: [], models: [] } as never; }
       case 'work.timeline': {
         const { folderId, work } = p as Methods['work.timeline']['params'];
         const row = await this.projectOfFolder(folderId);
@@ -931,7 +933,6 @@ export class Host {
       case 'folder.diagram': { const { folderId, work, path: file } = p as { folderId: string; work: string; path: string }; return this.subscribed(connection, folderId).diagram(work, file) as never; }
       case 'folder.references': { const { folderId, work, path: file } = p as { folderId: string; work: string | null; path: string }; return this.subscribed(connection, folderId).references(work, file) as never; }
       case 'folder.diagramIndex': return this.subscribed(connection, (p as { folderId: string }).folderId).diagramIndex() as never;
-      case 'folder.recordView': { const { folderId, event } = p as unknown as Methods['folder.recordView']['params']; await this.subscribed(connection, folderId).recordView(event); return null as never; }
       case 'plan.exportPrepare': {
         const { folderId, work } = p as { folderId: string; work: string };
         const folder = this.subscribed(connection, folderId);

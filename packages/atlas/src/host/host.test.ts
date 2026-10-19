@@ -128,8 +128,6 @@ test('a device pairs once with a five-minute code, gets the whole computer, and 
   assert.equal(snapshot.name, 'Northwind', 'the project\'s name, from its planning.json');
   // A folder that is not a project's is out of reach.
   await assert.rejects(device.connection.request('folders.subscribe', { folderId: 'f-' + 'a'.repeat(32) }), (error: HostRequestError) => error.code === 'not-found');
-  // Its views count in this computer's document use.
-  await device.connection.request('folder.recordView', { folderId: folder.folderId, event: { id: 'view-00000001', path: 'README.md', session: 'session-0001', contentHash: null } });
   // It sends its plans for import (below); it cannot make this computer read a file by path.
   await assert.rejects(device.connection.request('plan.importRead', { folderId: folder.folderId, file: path.join(planning, 'README.md') }), (error: HostRequestError) => error.code === 'forbidden');
   // Only the owner changes the remote-access settings; managing access needs Manage access.

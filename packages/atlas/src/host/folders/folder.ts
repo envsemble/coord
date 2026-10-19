@@ -3,17 +3,14 @@
 // answers every request about that folder from it.
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { readDocument, recordView, usageSummary, workStatistics, type HomeDatabase } from '../../planning/index.ts';
+import { readDocument, workStatistics, type HomeDatabase } from '../../planning/index.ts';
 import { PlanningSession } from '../../planning/reading/session.ts';
-import type { Usage } from '../../planning/types.ts';
-import type { DiagramEntry, DiagramIndexEntry, DiagramReference, FolderState, FolderStatus, Snapshot, ViewEventInput } from '../contract.ts';
+import type { DiagramEntry, DiagramIndexEntry, DiagramReference, FolderState, FolderStatus, Snapshot } from '../contract.ts';
 import { HostError, type Logger } from '../errors.ts';
 import { watchFolder, type FolderWatcher } from './watcher.ts';
-import { runProgram as run } from '../../planning/index.ts';
 
 const skippedFolders = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 const folderLimit = 20000;
-const unavailableUsage: Usage = { dashboardSince: null, agentSince: null, views: 0, documentsViewed: 0, sessions: 0, reports: 0, documentsConsulted: 0, tasks: 0, unassigned: 0, failures: 0, documents: [] };
 
 /** Every visible folder under the root, as the explorer shows it (dot folders and build output hidden). */
 export async function listFolders(root: string): Promise<string[]> {
@@ -90,20 +87,10 @@ export class FolderSession {
     const started = performance.now();
     try {
       const index = await planning.index(true);
-      let usage: Usage = unavailableUsage;
-      const usageByRepository: Record<string, Usage> = Object.create(null);
-      let collectionError = planning.collectionError;
-      try {
-        const { database, projectId } = planning;
-        if (database && projectId !== null) {
-          usage = usageSummary(database, projectId);
-          for (const repository of index.repositories) usageByRepository[repository.id] = usageSummary(database, projectId, index.documents.filter(document => document.repositories.includes(repository.id)).map(document => document.key));
-        }
-      } catch { collectionError = 'Local usage statistics could not be read. Document viewing still works; collection is incomplete.'; }
       let counts: Record<string, number> = {};
       try { counts = planning.diagrams.counts(index); } catch { /* Counts are an indicator only. */ }
       const folders = await listFolders(index.root);
-      this.current = { ...index, work: index.work.map(item => ({ ...item, diagrams: counts[item.id] ?? 0 })), usage, usageByRepository, collectionError, folders };
+      this.current = { ...index, work: index.work.map(item => ({ ...item, diagrams: counts[item.id] ?? 0 })), folders };
       this.status = 'ready';
       this.error = null;
       this.options.log.info('Planning folder read', { root: this.root, work: index.work.length, documents: index.documents.length, milliseconds: Math.round(performance.now() - started) });
@@ -211,18 +198,6 @@ export class FolderSession {
     return entries;
   }
 
-  async recordView(event: ViewEventInput) {
-    const planning = this.session();
-    const snapshot = this.snapshot();
-    const document = snapshot.documents.find(file => file.path === event.path);
-    if (!document) throw new HostError('forbidden', 'This document is not in the open planning folder.');
-    let revision: string | null = null;
-    try { if (snapshot.gitAvailable) revision = (await run('git', ['-C', this.root, 'rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim(); } catch { /* Unknown revision remains null. */ }
-    const content = await readDocument(this.root, event.path);
-    if (event.contentHash && content.contentHash !== event.contentHash) return;
-    if (!planning.database || planning.projectId === null) return;
-    recordView(planning.database, planning.projectId, { ...event, key: document.key, revision, contentHash: content.contentHash || null });
-  }
 
   /** Stop watching. */
   close() {
