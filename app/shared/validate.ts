@@ -22,9 +22,11 @@ export const url = string({ min: 1, max: 4096 });
 export const folderPath = string({ min: 1, max: limits.path, pattern: fullPath });
 
 const anchor = optional(nullable(string({ max: 512 })));
+/** A plan's statistics; any other view (the ledger's, which is gone) is dropped: the plan shows. */
+const workView: Validator<'statistics' | undefined> = value => value === 'statistics' ? 'statistics' : undefined;
 export const target: Validator<Target> = (value, at = 'target') => {
   const kind = object({ kind: oneOf(['work', 'diagram', 'file'] as const) })(value, at).kind;
-  if (kind === 'work') return object<Extract<Target, { kind: 'work' }>>({ kind: oneOf(['work'] as const), work: workId, anchor, step: anchor, view: optional(nullable(oneOf(['statistics'] as const))) })(value, at);
+  if (kind === 'work') return object<Extract<Target, { kind: 'work' }>>({ kind: oneOf(['work'] as const), work: workId, anchor, step: anchor, view: workView })(value, at);
   if (kind === 'diagram') return object<Extract<Target, { kind: 'diagram' }>>({ kind: oneOf(['diagram'] as const), work: workId, path: nullable(diagramPath), element: anchor })(value, at);
   return object<Extract<Target, { kind: 'file' }>>({ kind: oneOf(['file'] as const), path: relativePath, anchor })(value, at);
 };
