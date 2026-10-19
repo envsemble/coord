@@ -45,7 +45,7 @@ Agents do not report statistics: the Atlas plugin's [hooks](agent-interface.md#h
 
 - **Agent time**: the time the agent worked, from each prompt to the last activity of that turn (its output, tool calls and their results), without the time it waited for a person: between turns, for the answer to a question, or, in Claude Code, in a permission prompt (Codex's log does not show a wait for approval, so there it counts). Every agent counts in full: the main agent's own time and each helper's (subagent's) add up, also while they work at the same time. The report also keeps when each agent worked (its working intervals), so Atlas can tell the time at least one of them was working. A turn still under way when the report is made, such as a helper waiting for its tests, counts until the report if its log was written in the last quarter of an hour.
 - **Tokens** for each model, by kind: new input, input read from the prompt cache, input written to it, and output.
-- **The model** of each response. The report names the main agent's model.
+- **The model** of each response, and its **reasoning effort** (`high`, `medium`…) where the log names it: Claude Code on each response, Codex in each turn's context. The report names the main agent's model, and keeps each agent's time and tokens by model and effort.
 - **Subagents**: how many worked in the interval, each one's own working time added up, their tokens, and the busiest few with their models.
 - **The stage**: `planning` while the work's plan is a draft, `implementation` once it is accepted. A session that edits an accepted plan is amending the design, so what it did until its next report counts as planning.
 
@@ -90,6 +90,10 @@ The **Statistics** page (in the menu) shows them, one project at a time. **Work*
 - **Not a productivity score.** The figures describe how work went. They do not measure the quality of the outcome.
 
 Before the home database, reports were lines of `<work>/.atlas/statistics.jsonl` in the planning folder. `atlas setup` (for the planning folders in the home; it leaves folders outside the home alone) and `atlas home adopt` (as it moves a folder in) import such files into the database, each report once, and delete them from the planning folder; Atlas never commits, so commit the removal there (Git keeps the files' history). Plan exports leave them out.
+
+### Sessions and the timeline
+
+A plan's sessions come from the home database: each session linked to it, with the model and reasoning effort it used most there, whether it works, waits for you or has ended, its agent time on the plan, the folder it runs in, and, while it waits, its turn's last message. The commits and PRs the sessions made are listed with them, as the hooks saw them. The plan's timeline says how long it was planned (created to accepted), implemented (accepted to completed, or now) and waited for you (the sessions' waits on it, each at most a day), with a lane per session and subagent: its working stretches from the reports' intervals and its waits.
 
 ### What agents do now
 
