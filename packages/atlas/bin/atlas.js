@@ -28,7 +28,7 @@ function settled(text) {
     const state = readFileSync(stamp, "utf8");
     if (state === "none") return true;
     // A tool call that may have made a commit or a PR is looked at (sessionState.ts's mayMakeProduct).
-    if (event === "ToolUse" && (/\[[^\]\s"]+(?: \(root-commit\))? [0-9a-f]{7,40}\] /.test(text) || /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text))) return false;
+    if (event === "ToolUse" && ((/\bgit\b.{0,300}?\bcommit\b/.test(text) && /\[[^\]"]{1,100} [0-9a-f]{7,40}\] /.test(text)) || (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(text) && /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text)))) return false;
     return event === "ToolUse" && state === "working" && started - statSync(stamp).mtimeMs < 60_000;
   } catch { return false; }
 }

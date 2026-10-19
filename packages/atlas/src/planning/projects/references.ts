@@ -3,10 +3,12 @@
 // a bare hash found in the project's local checkouts) to its page, with its subject; a path to the
 // file in a local checkout: one of the work item's repositories first, then the project's, then any
 // checkout of the project that has it. The checkouts are the project's workspace folders' (and its
-// path hints), matched to registered repositories by remote. Git and `gh` run a few at a time, with
-// timeouts, and a call waits for `gh` only briefly: what it has not said yet is left out and kept for
-// the next call.
+// path hints that are Git checkouts), matched to registered repositories by remote. Git and `gh` run
+// a few at a time, with timeouts. A call waits for `gh` only briefly: what it has not said yet is left
+// out, and its answer is kept for the next call. Commit subjects are kept, since commits never change.
+import { spawn } from 'node:child_process';
 import { realpath, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { folderKey } from '../home/database.ts';
 import { runProgram } from '../system/run.ts';
@@ -27,9 +29,15 @@ interface LocalCheckout { folder: string; common: string; worktree: boolean; rep
 const cacheMs = 60_000;
 /** How long one call waits for `gh`. */
 const ghWaitMs = 3000;
-/** At most this many Git processes per call, and this many of Git's and `gh`'s at once. */
+/**
+ * At most this many Git processes per call, shared out among its commits in their order, so what a
+ * call finds never depends on timing; and this many of Git's and `gh`'s at once.
+ */
 const gitBudget = 120;
 const parallel = 4;
+/** The commit subjects found, by checkout and hash (and the hashes a checkout lacks, for a minute). */
+const subjects = new Map<string, { at: number; subject: string | null }>();
+const subjectLimit = 5000;
 
 /** Run tasks at most `parallel` at a time, in this process. */
 let running = 0;
@@ -48,7 +56,12 @@ function projectCheckouts(root: string, repositories: KnownRepository[], workspa
   if (cached && Date.now() - cached.at < cacheMs) return cached.value;
   const value = (async () => {
     const found = await workspaceCheckouts(workspaces);
-    for (const repository of repositories) if (repository.path && !found.some(item => folderKey(item.folder) === folderKey(repository.path!))) found.push({ folder: repository.path, common: repository.path, worktree: false, remote: null });
+    // A path hint counts only as a Git checkout, and never as a drive's root or the home folder.
+    for (const repository of repositories) {
+      const hint = repository.path;
+      if (!hint || path.parse(hint).root === hint || folderKey(path.resolve(hint)) === folderKey(homedir()) || found.some(item => folderKey(item.folder) === folderKey(hint))) continue;
+      if (await stat(path.join(hint, '.git')).then(() => true, () => false)) found.push({ folder: hint, common: hint, worktree: false, remote: null });
+    }
     return found.map((item): LocalCheckout => {
       const remote = item.remote ? normalizeRemote(item.remote) : null;
       return { ...item, repository: repositories.find(entry => remote ? entry.remote === remote : entry.path !== null && folderKey(entry.path) === folderKey(item.folder)) ?? null };
@@ -59,9 +72,18 @@ function projectCheckouts(root: string, repositories: KnownRepository[], workspa
 }
 
 let signedIn: { at: number; value: Promise<boolean> } | null = null;
-/** Whether `gh` is installed and signed in; asked again after a few minutes. */
+/**
+ * Whether `gh` is installed and has a token (`gh auth token` succeeds; one bad account among several
+ * does not matter, as it would for `gh auth status`); asked again after a few minutes. Only its exit
+ * code is read: the token is never captured.
+ */
 function ghReady() {
-  if (!signedIn || Date.now() - signedIn.at > 5 * cacheMs) signedIn = { at: Date.now(), value: program('gh', ['auth', 'status'], 10_000).then(output => output !== null) };
+  if (!signedIn || Date.now() - signedIn.at > 5 * cacheMs) {
+    signedIn = { at: Date.now(), value: slot(() => new Promise<boolean>(resolve => {
+      const child = spawn('gh', ['auth', 'token'], { stdio: 'ignore', windowsHide: true, timeout: 10_000 });
+      child.once('error', () => resolve(false)).once('exit', code => resolve(code === 0));
+    })) };
+  }
   return signedIn.value;
 }
 const pulls = new Map<string, { at: number; value: Promise<PullState | null> }>();
@@ -105,17 +127,38 @@ export async function resolveReferences(root: string, workId: string | null, ite
   // The work item's repositories first, then the project's, then checkouts no repository registers.
   const rank = (checkout: LocalCheckout) => checkout.repository === null ? 2 : own.includes(checkout.repository) ? 0 : 1;
   const local = (await projectCheckouts(root, repositories, registry.workspaces)).slice().sort((a, b) => rank(a) - rank(b));
-  let budget = gitBudget;
-  const git = (folder: string, args: string[]) => budget-- > 0 ? program('git', ['-C', folder, ...args], 10_000) : Promise.resolve(null);
-  /** A commit's subject in a checkout, or null when the checkout does not have it. */
-  const subject = async (folder: string, hash: string) => (await git(folder, ['show', '-s', '--format=%s', hash + '^{commit}']))?.trim() ?? null;
+  // Each commit, in order, may ask Git its share of the budget; the same reference twice is resolved once.
+  const commits = [...new Set(items.filter(item => item.kind === 'commit').map(item => JSON.stringify([item.repository, item.value.toLowerCase()])))];
+  const share = Math.max(1, Math.floor(gitBudget / Math.max(1, commits.length)));
+  const allowed = new Set(commits.slice(0, gitBudget));
+  /** A commit's subject in a checkout, or null when the checkout does not have it (or the commit's share is spent). */
+  const subject = async (checkout: LocalCheckout, hash: string, budget: { left: number }) => {
+    const key = folderKey(checkout.common) + '\0' + hash;
+    const known = subjects.get(key);
+    if (known && (known.subject !== null || Date.now() - known.at < cacheMs)) return known.subject;
+    if (budget.left-- <= 0) return null;
+    const found = (await program('git', ['-C', checkout.folder, 'show', '-s', '--format=%s', hash + '^{commit}'], 10_000))?.trim() ?? null;
+    if (subjects.size >= subjectLimit) subjects.delete(subjects.keys().next().value!);
+    subjects.set(key, { at: Date.now(), subject: found });
+    return found;
+  };
   /** The repository a reference names, else (for a bare one) the work item's only repository. */
   const repositoryOf = (item: ReferenceItem) => item.repository !== null ? repositoryNamed(repositories, item.repository) : own.length === 1 ? own[0] : repositories.length === 1 ? repositories[0] : null;
   /** The page of a repository a reference names: registered, or `owner/name` on GitHub. */
   const webOf = (item: ReferenceItem, repository: KnownRepository | null) => repository?.web ?? (here && item.repository && /^[\w.-]+\/[\w.-]+$/.test(item.repository) ? 'https://github.com/' + item.repository : null);
   const waiting: Promise<unknown>[] = [];
 
-  const results = await Promise.all(items.map(async (item): Promise<ResolvedItem | null> => {
+  const resolving = new Map<string, Promise<ResolvedItem | null>>();
+  const results = await Promise.all(items.map(item => {
+    const key = JSON.stringify([item.kind, item.repository, item.value, item.line]);
+    if (!resolving.has(key)) resolving.set(key, resolve(item));
+    return resolving.get(key)!;
+  }));
+  // `gh` is waited for only so long; what it says later is kept for the next call.
+  await Promise.race([Promise.all(waiting), new Promise(resolve => setTimeout(resolve, ghWaitMs).unref())]);
+  return results.map(result => result && { ...result, pull: result.pull });
+
+  async function resolve(item: ReferenceItem): Promise<ResolvedItem | null> {
     const none: ResolvedItem = { url: null, file: null, repository: null, pull: null, title: null, choices: [] };
     if (item.kind === 'pull') {
       if (!/^\d{1,9}$/.test(item.value)) return null;
@@ -129,10 +172,12 @@ export async function resolveReferences(root: string, workId: string | null, ite
     if (item.kind === 'commit') {
       const hash = item.value.toLowerCase();
       if (!/^[0-9a-f]{7,40}$/.test(hash)) return null;
+      const id = JSON.stringify([item.repository, hash]);
+      const budget = { left: allowed.has(id) ? share : 0 };
       if (item.repository !== null) {
         const repository = repositoryNamed(repositories, item.repository), web = webOf(item, repository);
         const checkout = repository && local.find(entry => entry.repository === repository);
-        const title = checkout ? await subject(checkout.folder, hash) : null;
+        const title = checkout ? await subject(checkout, hash, budget) : null;
         return web || title ? { ...none, url: web && web + '/commit/' + hash, repository: repository?.id ?? null, title } : null;
       }
       // A bare hash: each repository's checkout is asked, once per repository.
@@ -141,7 +186,7 @@ export async function resolveReferences(root: string, workId: string | null, ite
         const key = checkout.repository?.id ?? folderKey(checkout.common);
         if (seen.has(key)) continue;
         seen.add(key);
-        const title = await subject(checkout.folder, hash);
+        const title = await subject(checkout, hash, budget);
         if (title !== null && (here || checkout.repository)) found.push({ repository: checkout.repository?.id ?? path.basename(checkout.folder), url: checkout.repository?.web ? checkout.repository.web + '/commit/' + hash : null, title });
       }
       if (!found.length) return null;
@@ -161,8 +206,5 @@ export async function resolveReferences(root: string, workId: string | null, ite
       if (real && base && insideFolder(base, real)) return { ...none, file: { path: file, line: item.line }, repository: checkout.repository?.id ?? null };
     }
     return null;
-  }));
-  // `gh` is waited for only so long; what it says later is kept for the next call.
-  await Promise.race([Promise.all(waiting), new Promise(resolve => setTimeout(resolve, ghWaitMs).unref())]);
-  return results.map(result => result && { ...result, pull: result.pull });
+  }
 }

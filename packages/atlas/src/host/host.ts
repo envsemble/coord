@@ -707,11 +707,14 @@ export class Host {
   }
   /**
    * Measure reports from before working intervals again from their logs, a session at a time and
-   * for a while at most, while any are left; one pass at a time, never in a listing's way.
+   * for a while at most, while any are left; one pass at a time, never in a listing's way. Each
+   * minute also forgets the messages of waits that expired.
    */
   private remeasuring: Promise<void> | null = null;
   private remeasure() {
     if (this.remeasuring || this.stopped) return;
+    // A wait that expired takes its message with it.
+    try { this.database.clearExpiredMessages(); } catch { /* Busy for now: the next minute. */ }
     this.remeasuring = remeasureReports(this.database, { ...this.options.sessionLogs, budgetMs: 20_000, stopped: () => this.stopped })
       .then(result => { if (result.measured || result.missing) this.options.log.info('Older reports measured again', { ...result }); },
         error => { if (!this.stopped) this.options.log.warn('Older reports could not be measured again', { error: error instanceof Error ? error.message : String(error) }); })

@@ -14,10 +14,11 @@ export function strings(value: unknown, depth = 0): string[] {
   return (Array.isArray(value) ? value : Object.values(value)).flatMap(item => strings(item, depth + 1));
 }
 
-interface Product { kind: 'commit' | 'pull'; ident: string; title: string | null; branch: string | null; url: string | null; repository: KnownRepository | null; folder: string }
+/** `amends`: the commit replaces the one before it on its branch (`git commit --amend`). */
+interface Product { kind: 'commit' | 'pull'; ident: string; title: string | null; branch: string | null; url: string | null; repository: KnownRepository | null; folder: string; amends?: boolean }
 
 const quoted = (value: string) => value.replace(/^(["'])(.*)\1$/, '$2');
-/** The checkout a command ran in: its `git -C <dir>` or leading `cd <dir>`, else the session's folder. */
+/** The checkout a command ran in: its `git -C <dir>` or leading `cd <dir>`, else the tool's folder (Codex's `workdir`) or the session's. */
 function folderOf(command: string, cwd: string) {
   const named = /\bgit\s+-C\s+("[^"]+"|'[^']+'|\S+)/.exec(command)?.[1] ?? /^\s*cd\s+("[^"]+"|'[^']+'|[^\s;&]+)\s*(?:&&|;)/m.exec(command)?.[1];
   return named ? path.resolve(cwd, quoted(named)) : cwd;
@@ -29,15 +30,20 @@ async function git(folder: string, args: string[]) {
 /** What a tool call made: the commits its output shows for a `git commit`, the PRs for a `gh pr create`. */
 async function productsOf(input: { tool_input?: unknown; tool_response?: unknown; cwd?: unknown }, repositories: KnownRepository[]): Promise<Product[]> {
   const command = strings(input.tool_input).join('\n'), output = strings(input.tool_response).join('\n');
-  const folder = folderOf(command, typeof input.cwd === 'string' && path.isAbsolute(input.cwd) ? input.cwd : process.cwd());
+  const absolute = (value: unknown) => typeof value === 'string' && path.isAbsolute(value) ? value : null;
+  const folder = folderOf(command, absolute((input.tool_input as { workdir?: unknown } | null)?.workdir) ?? absolute(input.cwd) ?? process.cwd());
   const products: Product[] = [];
   if (/\bgit\b[^\n]*\bcommit\b/.test(command)) {
-    const commits = [...output.matchAll(/^\[([^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.*)$/gm)];
+    // [main 4ab195a] …, [main (root-commit) 4ab195a] …, [detached HEAD 4ab195a] …
+    const commits = [...output.matchAll(/^\[([^\]\n]{1,100}?) ([0-9a-f]{7,40})\] (.*)$/gm)];
     if (commits.length) {
       const remote = await git(folder, ['remote', 'get-url', 'origin']);
       const repository = remote ? repositories.find(item => item.remote !== null && item.remote === normalizeRemote(remote)) ?? null : null;
       const web = repository?.web ?? webOf(remote);
-      for (const [, branch, hash, subject] of commits) products.push({ kind: 'commit', ident: hash, title: subject.trim() || null, branch, url: web && web + '/commit/' + hash, repository, folder });
+      for (const [, head, hash, subject] of commits) {
+        const branch = head.replace(/ \(root-commit\)$/, '');
+        products.push({ kind: 'commit', ident: hash, title: subject.trim() || null, branch: branch === 'detached HEAD' ? null : branch, url: web && web + '/commit/' + hash, repository, folder, amends: /--amend\b/.test(command) });
+      }
     }
   }
   if (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(command)) {
@@ -59,9 +65,13 @@ export async function recordProducts(database: HomeDatabase, session: string, in
   const products = await productsOf(input, await projectRepositories(on.folder).catch(() => []));
   const insert = database.db.prepare(`INSERT INTO session_product (session_id, project_id, work_id, kind, at, repository, ident, title, url, branch)
     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM session_product WHERE project_id = ? AND work_id = ? AND kind = ? AND repository IS ? AND ident = ?)`);
+  // An amended commit replaces the session's latest one on the same branch of the same repository.
+  const amended = database.db.prepare(`DELETE FROM session_product WHERE id = (SELECT id FROM session_product WHERE session_id = ? AND project_id = ? AND work_id = ? AND kind = 'commit'
+    AND repository IS ? AND branch IS ? ORDER BY at DESC, id DESC LIMIT 1)`);
   database.transaction(() => {
     for (const product of products) {
       const repository = product.repository?.id ?? path.basename(product.folder);
+      if (product.amends) amended.run(session, on.project_id, on.work_id, repository, product.branch);
       insert.run(session, on.project_id, on.work_id, product.kind, at, repository, product.ident, product.title, product.url, product.branch, on.project_id, on.work_id, product.kind, repository, product.ident);
     }
   });

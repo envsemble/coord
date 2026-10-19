@@ -27,6 +27,19 @@ const harnessOf = (value: unknown): Harness => value === 'claude-code' || value 
 /** How a session resumes in its harness, run in its folder. */
 const resumeOf = (harness: Harness, session: string) => harness === 'claude-code' ? `claude --resume ${session}` : harness === 'codex' ? `codex resume ${session}` : null;
 
+/** The folders sessions started in, by log, as the logs said: each log is read once in a process. */
+const startedIn = new Map<string, string | null>();
+/** Where a session started: from the start of its log, kept as its folder, else the first folder its hooks saw. */
+async function startFolder(database: HomeDatabase, row: Row): Promise<string | null> {
+  const log = row.transcript_path;
+  if (typeof log === 'string' && !startedIn.has(log)) {
+    const found = await sessionFolder(log);
+    startedIn.set(log, found);
+    if (found && found !== row.cwd) database.db.prepare('UPDATE session SET cwd = ? WHERE id = ?').run(found, String(row.id));
+  }
+  return (typeof log === 'string' ? startedIn.get(log) : null) ?? (row.cwd as string | null) ?? null;
+}
+
 /**
  * The sessions linked to a work item, the latest seen first, and the commits and PRs they made, the
  * newest first. A session's folder is where it started, as its log says (else the first one a hook
@@ -41,7 +54,7 @@ export async function workSessions(database: HomeDatabase, projectId: number, wo
   const states = new Map((database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []).map(entry => [entry.session, entry.state]));
   const sessions = await Promise.all(rows.map(async (row): Promise<SessionEntry> => {
     const id = String(row.id), harness = harnessOf(row.harness), state = states.get(id) ?? 'ended';
-    const folder = !local ? null : (typeof row.transcript_path === 'string' ? await sessionFolder(row.transcript_path) : null) ?? (row.cwd as string | null) ?? null;
+    const folder = local ? await startFolder(database, row) : null;
     const own = agents.filter(agent => agent.session === id), main = own.find(agent => agent.subagent === null);
     return {
       session: id, harness, model: main?.model ?? null, effort: main?.effort ?? null, state,
@@ -69,7 +82,8 @@ export async function workDates(root: string, workId: string): Promise<{ created
 /**
  * A work item's timeline: planned from its creation to its acceptance (or now), implemented from
  * then to its completion (or now), the time its sessions waited for the person there (each wait at
- * most a day, as statuses count it), and one lane per session and subagent: its working stretches
+ * most a day, and over once another session works on it, as statuses count it; waits at once
+ * counted once), and one lane per session and subagent: its working stretches
  * from the reports' intervals (a session working now, from where its time not yet reported counts),
  * and the session's waits. An open stretch ends now.
  */
@@ -95,14 +109,31 @@ export function workTimeline(database: HomeDatabase, projectId: number, workId: 
   for (const entry of database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []) {
     if (entry.state === 'working' && entry.countsFrom) lane(entry.session, null).working.push([Date.parse(entry.countsFrom), now]);
   }
-  let waitedMs = 0;
+  // When each session worked on the work item, as its reports and its turn now show: another
+  // session's work ends a wait for the person there, as it ends Needs you.
+  const worked = new Map<string, { spans: [number, number][]; reported: number[] }>();
+  const work = (session: string) => {
+    let entry = worked.get(session);
+    if (!entry) worked.set(session, entry = { spans: [], reported: [] });
+    return entry;
+  };
+  for (const report of reports) if (report.session) work(report.session).reported.push(Date.parse(report.at));
+  for (const item of lanes.values()) work(item.session).spans.push(...item.working);
+  const waits: [number, number][] = [];
   for (const row of database.db.prepare('SELECT session_id, started_at, ended_at FROM session_wait WHERE project_id = ? AND work_id = ? ORDER BY started_at').all(projectId, workId) as Row[]) {
-    const start = Date.parse(String(row.started_at));
-    const end = Math.min(row.ended_at === null ? now : Date.parse(String(row.ended_at)), start + waitingWindowMs);
+    const session = String(row.session_id), start = Date.parse(String(row.started_at));
+    let end = Math.min(row.ended_at === null ? now : Date.parse(String(row.ended_at)), start + waitingWindowMs);
+    for (const [other, entry] of worked) {
+      if (other === session) continue;
+      for (const [from, to] of entry.spans) if (to > start) end = Math.min(end, Math.max(from, start));
+      for (const at of entry.reported) if (at > start) end = Math.min(end, at);
+    }
     if (end <= start) continue;
-    waitedMs += end - start;
-    lane(String(row.session_id), null).waiting.push([start, end]);
+    waits.push([start, end]);
+    lane(session, null).waiting.push([start, end]);
   }
+  // Sessions waiting at once wait for one person: their waits count once.
+  const waitedMs = mergeSpans(waits).reduce((total, [start, end]) => total + end - start, 0);
   return {
     plannedMs, implementingMs, waitedMs,
     lanes: [...lanes.values()].map(item => {

@@ -22,11 +22,12 @@ export const stateEvents = new Set(['UserPromptSubmit', 'ToolUse', 'Notification
 const asking = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog']);
 export const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 /**
- * Whether a tool call may have made a commit (`git commit` prints `[branch hash] subject`) or a PR
- * (`gh pr create` prints its URL), from the raw text of its input before anything else is read.
+ * Whether a tool call may have made a commit (it ran `git … commit`, which prints `[branch hash]
+ * subject`) or a PR (it ran `gh pr create`, which prints its URL), from the raw text of its input
+ * before anything else is read.
  * bin/atlas.js asks the same before it loads any TypeScript.
  */
-export const mayMakeProduct = (text: string) => /\[[^\]\s"]+(?: \(root-commit\))? [0-9a-f]{7,40}\] /.test(text) || /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text);
+export const mayMakeProduct = (text: string) => (/\bgit\b.{0,300}?\bcommit\b/.test(text) && /\[[^\]"]{1,100} [0-9a-f]{7,40}\] /.test(text)) || (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(text) && /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text));
 /** A tool use while the session works says it is still at work this often at most. */
 const heartbeatMs = 60_000;
 

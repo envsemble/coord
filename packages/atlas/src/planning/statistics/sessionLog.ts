@@ -168,14 +168,15 @@ export async function sessionLogs(candidates: SessionCandidate[], options: LogOp
 }
 
 /**
- * The folder a session started in, where its harness resumes it, as its log says: the first Claude
- * Code entry that names its `cwd`, or a Codex rollout's session meta. Null when the log does not say.
+ * The folder a session started in, where its harness resumes it, as the start of its log says (its
+ * first 64 KB): the first Claude Code entry that names its `cwd`, or a Codex rollout's session meta.
+ * Null when the log does not say.
  */
 export async function sessionFolder(transcript: string): Promise<string | null> {
   const rollout = rolloutName.test(path.basename(transcript));
   let read = 0;
   try {
-    for await (const text of lines(transcript)) {
+    for await (const text of lines(transcript, 64 * 1024)) {
       const entry = objectOf(text);
       const cwd = rollout ? (entry?.type === 'session_meta' ? (entry.payload as { cwd?: unknown } | undefined)?.cwd : undefined) : entry?.cwd;
       if (typeof cwd === 'string' && path.isAbsolute(cwd)) return cwd;
@@ -262,11 +263,11 @@ const compressed = (file: string) => file.endsWith('.zst');
 /**
  * A file's lines, split at line feeds only: JSON text may hold U+2028, where line readers also split.
  * A compressed rollout is read through its decompression; one still being written ends where its
- * complete data does.
+ * complete data does. With `limit`, only the file's first bytes are read.
  */
-async function* lines(file: string): AsyncGenerator<string> {
+async function* lines(file: string, limit = Number.POSITIVE_INFINITY): AsyncGenerator<string> {
   let pending: Buffer[] = [];
-  const read = createReadStream(file, { highWaterMark: 1 << 20 });
+  const read = createReadStream(file, { highWaterMark: Math.min(1 << 20, limit), ...Number.isFinite(limit) && { end: limit - 1 } });
   // A pipeline passes the file's errors (a log that vanished) on to the decompression, which ends the reading.
   const source = compressed(file) ? pipeline(read, createZstdDecompress(), () => undefined) : read;
   try {

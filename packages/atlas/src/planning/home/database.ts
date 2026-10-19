@@ -329,6 +329,13 @@ export class HomeDatabase {
     return activity;
   }
   /** What changes whenever a work report is recorded, removed or measured again: how many there are, the newest's row and how many have their intervals settled. */
+  /**
+   * Forget the last messages of sessions no longer waiting for the person: those whose wait passed
+   * `waitingWindowMs`, when Needs you ends for them too (a wait that ends otherwise clears it then).
+   */
+  clearExpiredMessages(now = Date.now()) {
+    this.db.prepare('UPDATE session SET message = NULL WHERE message IS NOT NULL AND (waiting_at IS NULL OR waiting_at < ?)').run(new Date(now - waitingWindowMs).toISOString());
+  }
   reportsMark(): string {
     const row = this.db.prepare('SELECT count(*) AS reports, ifnull(max(id), 0) AS newest, count(intervals) AS settled FROM work_report').get() as Row;
     return row.reports + ':' + row.newest + ':' + row.settled;

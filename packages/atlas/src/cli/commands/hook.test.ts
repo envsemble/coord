@@ -145,14 +145,19 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual({ ...state(), waiting: typeof state().waiting }, { working: 0, turn, waiting: 'string' });
   await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
   assert.deepEqual(state(), { working: 1, turn, waiting: null });
-  // A commit the session makes is recorded for the work item it is on, with its repository and page.
-  await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'git add -A && git commit -m "Add the cart"' }, tool_response: { stdout: '[main 1a2b3c4] Add the cart\n 1 file changed, 1 insertion(+)\n', stderr: '' } });
+  // A commit the session makes is recorded for the work item it is on, with its repository and page;
+  // an amended one replaces it, and one on a detached HEAD has no branch.
+  const commit = (command: string, stdout: string) => hook('ToolUse', { tool_name: 'Bash', tool_input: { command }, tool_response: { stdout, stderr: '' } });
+  await commit('git add -A && git commit -m "Add the cart"', '[main 0f0f0f0] Add a cart\n 1 file changed, 1 insertion(+)\n');
+  await commit('git commit --amend -m "Add the cart"', '[main 1a2b3c4] Add the cart\n Date: Mon Oct 19 12:00:00 2026 +0200\n');
+  await commit('git -C "' + checkout + '" commit -m "Try it"', '[detached HEAD 9e8d7c6] Try it\n');
   await hook('Stop', { stop_hook_active: false, last_assistant_message: '**Needs your decision:** keep the cart for a week?' });
   const { waiting } = state();
   const project = withDatabase(base.ATLAS_HOME!, database => database.projectByFolder(realpathSync.native(root))!.id);
   const sessions = (local = true) => withDatabaseAsync(base.ATLAS_HOME!, database => workSessions(database, project, 'work-0003', { local }));
   assert.deepEqual((await sessions()).products.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
-    [{ kind: 'commit', repository: 'shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
+    [{ kind: 'commit', repository: 'shop', id: '9e8d7c6', title: 'Try it', url: 'https://github.com/example/shop/commit/9e8d7c6', branch: null },
+      { kind: 'commit', repository: 'shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
   // While it waits, the session shows its turn's last message, and how to resume it in the folder it
   // started in (as its log says, wherever its hooks ran since); a paired device gets no folder.
   const [waiter] = (await sessions()).sessions;

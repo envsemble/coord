@@ -35,7 +35,7 @@ export interface HookInput {
  */
 interface Link { id: number; projectId: number; planningFolder: string; workId: string; amending: boolean; linked: string; came: string; amended: string | null }
 /** The session's links, and the one it is on: its focus, else (for a session from before focus) the one it touched last. */
-interface SessionLinks { session: string; transcriptPath: string | null; work: Link[]; on: Link | null }
+interface SessionLinks { session: string; transcriptPath: string | null; work: Link[]; on: Link | null; focus: number | null }
 
 const fileTools = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 /** Events that end a turn: the harness's Stop, a turn that failed (Claude Code) and an interrupted one (Codex). */
@@ -58,7 +58,7 @@ function readLinks(database: HomeDatabase, session: string, transcriptPath: stri
     id: Number(row.id), projectId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
     linked: String(row.linked_at), came: String(row.focused_at ?? row.linked_at), amended: (row.amended_at as string | null) ?? null,
   }));
-  return { session, transcriptPath: transcriptPath ?? saved?.transcript_path ?? null, work, on: work.find(item => item.id === saved?.focus) ?? work.at(-1) ?? null };
+  return { session, transcriptPath: transcriptPath ?? saved?.transcript_path ?? null, work, on: work.find(item => item.id === saved?.focus) ?? work.at(-1) ?? null, focus: saved?.focus ?? null };
 }
 /** The harness a session runs in, as its log's place tells. */
 const harnessOf = (transcriptPath: string | null) => transcriptPath === null ? 'unknown' : /[\\/]\.codex[\\/]/.test(transcriptPath) ? 'codex' : 'claude-code';
@@ -311,7 +311,8 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
           database!.db.prepare('UPDATE session SET focus = ? WHERE id = ?').run(rows.at(-1)!, session);
           if (left || !links.on) database!.db.prepare('UPDATE session_work SET focused_at = ? WHERE id = ?').run(at, rows.at(-1)!);
         }
-        if (left && report) recordReport(database!, session, left, report, at);
+        // Another hook of the session that moved it on meanwhile reported the work item it left.
+        if (left && report && focus === links.focus) recordReport(database!, session, left, report, at);
         recordState(database!, home, links, 'tool', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null });
       });
       return output ? JSON.stringify(output) : '';

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { HomeDatabase } from '../home/database.ts';
 import { createReport, insertReport, type ReportInput } from '../statistics/statistics.ts';
 import { projectSummary } from './projectSummary.ts';
+import { workTimeline } from '../statistics/sessions.ts';
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-summary-')));
@@ -177,5 +178,24 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
     ], 'working while any session works, its time counting from its last report; else waiting');
     assert.deepEqual(activity.get(coord.id), [{ workId: 'work-0003', state: 'working', since: ago(10), sessions: [{ session: 'a', harness: 'claude-code', state: 'working', since: ago(10), countsFrom: ago(10) }] }],
       'a session not seen for 15 minutes, one waiting for a day and one that ended are not listed');
+  } finally { database.close(); }
+});
+
+test('a plan waits for the person once while its sessions wait at once, and no longer once another session works on it', t => {
+  const database = HomeDatabase.open(temporary(t));
+  try {
+    const shop = database.addProject('/planning/shop', 'Shop');
+    const at = (minutes: number) => new Date(Date.UTC(2026, 9, 15, 12, minutes)).toISOString();
+    for (const id of ['a', 'b', 'c']) database.db.prepare('INSERT INTO session (id, harness, started_at, updated_at) VALUES (?, ?, ?, ?)').run(id, 'claude-code', at(0), at(100));
+    const wait = (session: string, from: number, to: number) => database.db.prepare('INSERT INTO session_wait (session_id, project_id, work_id, started_at, ended_at) VALUES (?, ?, ?, ?, ?)').run(session, shop.id, 'work-0001', at(from), at(to));
+    wait('a', 0, 60);
+    wait('b', 30, 90);
+    // Session c works on the plan from minute 40 to 50.
+    insertReport(database, shop.id, 'work-0001', createReport({ model: 'claude-opus', session: 'c', at: new Date(at(50)), measured: { since: at(40), agentMs: 600_000, models: [], intervals: [{ agent: null, start: at(40), end: at(50) }] } }));
+    const timeline = workTimeline(database, shop.id, 'work-0001', { created: '2026-10-14', accepted: '2026-10-15', completed: null }, Date.parse(at(100)));
+    assert.deepEqual([timeline.plannedMs, timeline.waitedMs / 60_000], [86_400_000, 40], 'minutes 0 to 40: the two waits once, ended by c\'s work');
+    assert.deepEqual(timeline.lanes.map(lane => [lane.session, lane.working, lane.waiting]), [
+      ['a', [], [[at(0), at(40)]]], ['b', [], [[at(30), at(40)]]], ['c', [[at(40), at(50)]], []],
+    ]);
   } finally { database.close(); }
 });
