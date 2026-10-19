@@ -137,9 +137,9 @@ body { margin: 0; }
 .project-status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); color: var(--color-text-muted); }
 .project-fact { display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; }
 .project-fact .status-icon { inline-size: 1rem; block-size: 1rem; }
-.project-workspace { display: inline-flex; align-items: center; gap: var(--space-1); max-inline-size: 100%; color: var(--color-text-muted); }
-.project-workspace > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
-.project-workspace > bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-folder-summary { display: inline-flex; align-items: center; gap: var(--space-1); max-inline-size: 100%; color: var(--color-text-muted); }
+.project-folder-summary > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-folder-summary > bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-actions { display: inline-flex; align-items: center; gap: var(--space-1); }
 .projects-aside { display: grid; gap: var(--space-2); margin-block-start: var(--space-4); }
 .projects-aside-toggle { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; padding: var(--space-1) 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; cursor: pointer; }

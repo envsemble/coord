@@ -86,7 +86,7 @@ async function openInEditor(manager: WindowManager, window: AtlasWindow, what: s
 /** Whether a path is a folder or inside it (both real paths). */
 const within = (folder: string, candidate: string) => {
   const inside = path.relative(folder, candidate);
-  return !inside.startsWith('..') && !path.isAbsolute(inside);
+  return inside !== '..' && !inside.startsWith('..' + path.sep) && !path.isAbsolute(inside);
 };
 
 /** Open the file a path reference names, as the host resolves it in the project's folders: never a path the page names itself. */

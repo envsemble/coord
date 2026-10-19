@@ -292,7 +292,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await expectProjects(window, ['Northwind']);
   // A row: its name, its open plans and when it changed, and its folder (none: a dash).
   await expect(projectRow(window).locator('.cell-note')).toContainText('open plan');
-  await expect(projectRow(window).locator('.project-workspace')).toHaveCount(0);
+  await expect(projectRow(window).locator('.project-folder-summary')).toHaveCount(0);
   // Its planning folder and folders are in its menu's Folders….
   const details = await projectDetails(window, 'Northwind');
   await expect(details).toContainText(home.folder);
@@ -312,12 +312,12 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   };
   await add(first);
   await add(second);
-  const folders = details.locator('.project-workspaces > .project-folder');
+  const folders = details.locator('.project-folders > .project-folder');
   await expect(folders).toHaveText([first, second]);
   expect(workspaces()).toEqual([first, second]);
   // The row shows the first by its name, the full paths on hover, and how many more.
-  await expect(projectRow(window).locator('.project-workspace')).toHaveText(path.basename(first) + '+1');
-  await expect(projectRow(window).locator('.project-workspace')).toHaveAttribute('title', first + '\n' + second);
+  await expect(projectRow(window).locator('.project-folder-summary')).toHaveText(path.basename(first) + '+1');
+  await expect(projectRow(window).locator('.project-folder-summary')).toHaveAttribute('title', first + '\n' + second);
   // Removing one waits for the change before the next.
   await details.getByRole('button', { name: 'Remove ' + first }).click();
   await expect(folders).toHaveText([second]);
@@ -350,7 +350,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   const folder = path.join(home.dataDirectory, 'planning', 'coord');
   const registry = JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8'));
   expect([registry.schema_version, registry.name, registry.folders, 'repositories' in registry]).toEqual([2, 'Coord', [workspace], false]);
-  await expect(projectRow(window, 'Coord').locator('.project-workspace')).toHaveText(path.basename(workspace));
+  await expect(projectRow(window, 'Coord').locator('.project-folder-summary')).toHaveText(path.basename(workspace));
   expect(existsSync(path.join(folder, '.git')) && existsSync(path.join(folder, 'AGENTS.md'))).toBe(true);
   await expectProjects(window, ['Northwind', 'Coord']);
   // Rename: the name goes into its planning.json.

@@ -34,6 +34,11 @@ export interface ProjectActions {
 export const folderName = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).at(-1) ?? '';
 /** A folder given by its full path, as a project's folders are. */
 const complete = (folder: string) => fullPath.test(folder.trim());
+/** A folder's path as compared with another: on Windows without case, and either separator; without trailing separators. */
+const folderKey = (folder: string) => {
+  const trimmed = folder.trim().replace(/(?<=.)[\\/]+$/, '');
+  return /^(?:[a-z]:|\\\\)/i.test(trimmed) ? trimmed.replace(/\//g, '\\').toLowerCase() : trimmed;
+};
 
 /** A folder of this computer, typed or chosen in the system's folder dialog. */
 function FolderField({ value, onChange, disabled, autoFocus }: { value: string; onChange(folder: string, chosen: boolean): void; disabled: boolean; autoFocus?: boolean }) {
@@ -158,7 +163,7 @@ function FoldersDialog({ project, computer, local, onClose, onAdd, onChange }: {
       <section><Text as="h3" variant="caption" className="project-details-heading">Planning folder</Text><bdi className="project-details-path">{project.path}</bdi></section>
       <section>
         <Text as="h3" variant="caption" className="project-details-heading">Folders</Text>
-        {project.folders.length ? <ul className="project-folders project-workspaces">{project.folders.map(folder => <li key={folder} className="project-folder">
+        {project.folders.length ? <ul className="project-folders">{project.folders.map(folder => <li key={folder} className="project-folder">
           <FolderIcon /><bdi>{folder}</bdi>
           {local && <IconButton variant="text" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy} onClick={() => void remove(folder)} />}
         </li>)}</ul> : <p className="muted">None: agents find the project only in its planning folder.</p>}
@@ -198,7 +203,7 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
       {facts.waiting > 0 && <span className="project-fact"><StatusIcon status={statuses.waiting} decorative />{facts.waiting} {facts.waiting === 1 ? 'needs' : 'need'} you</span>}
       {facts.working > 0 && <span className="project-fact"><StatusIcon status={statuses.working} decorative />{facts.working} working</span>}
     </span> : null}</TableCell>
-    <TableCell>{first ? <span className="project-workspace" title={project.folders.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="muted">+{more.length}</span>}</span> : <span className="muted">—</span>}</TableCell>
+    <TableCell>{first ? <span className="project-folder-summary" title={project.folders.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="muted">+{more.length}</span>}</span> : <span className="muted">—</span>}</TableCell>
     <TableCell numeric nowrap>
       <span className="project-actions">
         <Tooltip content="Statistics"><IconButton variant="text" icon={<StatisticsIcon />} aria-label={'Statistics of ' + project.name} onClick={() => actions.go(statisticsPlace(project.folderId))} /></Tooltip>
@@ -247,6 +252,6 @@ export function ProjectsPage({ projects, error, computer, local, actions }: { pr
     {creating && <NewProjectDialog computer={computer} local={local} onClose={() => setCreating(false)} onCreated={actions.created} />}
     {renaming && <RenameProjectDialog project={renaming} onClose={() => setRenaming(null)} onRename={name => actions.update(renaming, { name })} />}
     {details && !target && <FoldersDialog project={details} computer={computer} local={local} onClose={() => setDetailed(null)} onAdd={() => setAdding(details.folderId)} onChange={folders => actions.update(details, { folders })} />}
-    {target && <AddFolderDialog project={target} onClose={() => setAdding(null)} onAdd={folder => actions.update(target, { folders: [...target.folders.filter(item => item !== folder), folder] })} />}
+    {target && <AddFolderDialog project={target} onClose={() => setAdding(null)} onAdd={folder => actions.update(target, { folders: [...target.folders.filter(item => folderKey(item) !== folderKey(folder)), folder] })} />}
   </Page>;
 }
