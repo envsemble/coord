@@ -485,7 +485,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with the sections in View.
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   expect(items).toEqual([
-    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', 'Co&nnect to Another Atlas…', 'Re&mote Access…', 'Close Win&dow CmdOrCtrl+Shift+W', 'E&xit']],
+    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', 'Close Win&dow CmdOrCtrl+Shift+W', 'E&xit']],
     ['&Edit', ['Undo CommandOrControl+Z', 'Redo Control+Y', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Projects', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11']],
     ['&Help', ['Open &Logs', '&About Atlas']],

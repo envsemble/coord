@@ -30,11 +30,10 @@ async function freePort(): Promise<number> {
   await new Promise(resolve => server.close(resolve));
   return port;
 }
-async function fileMenu(app: ElectronApplication, label: string) {
-  await app.evaluate(({ Menu, BrowserWindow }, wanted) => {
-    const item = Menu.getApplicationMenu()!.items.find(entry => entry.label === '&File')!.submenu!.items.find(entry => entry.label === wanted)!;
-    item.click(undefined, BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0], undefined as never);
-  }, label);
+/** Choose an item of the title bar's computer menu. */
+async function computerMenu(page: Page, item: string) {
+  await page.getByRole('button', { name: /^Computer:/ }).click();
+  await page.getByRole('menu', { name: /^Computer/ }).getByRole('menuitem', { name: item, exact: true }).click();
 }
 const bridge = (page: Page) => ({
   call: <T>(run: (atlas: AtlasBridge, ...args: string[]) => Promise<T>, ...args: string[]) => page.evaluate(([source, values]) => {
@@ -77,7 +76,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   const name = await bridge(owner).call(async atlas => { const result = await atlas.info(); return result.ok ? result.value.computer.name : ''; });
 
   // Remote access: the pairing step names the device and grants Manage access only when asked.
-  await fileMenu(sharing.app, 'Re&mote Access…');
+  await computerMenu(sharing.window, 'Remote Access…');
   const { access, port } = await listen(owner);
   await expect(access.getByLabel('Manage access')).not.toBeChecked();
   await access.getByLabel('Device label (optional)').fill('Reading laptop');
@@ -95,7 +94,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   reading = await launch({ dataDirectory: readerData });
   const viewer = reading.window;
   await noProjects(viewer);
-  await fileMenu(reading.app, 'Co&nnect to Another Atlas…');
+  await computerMenu(viewer, 'Connect to Another Atlas…');
   const connect = viewer.getByRole('dialog', { name: 'Connect to another Atlas' });
   await connect.getByLabel('Pairing link or address').fill(link);
   await connect.getByRole('button', { name: 'Connect', exact: true }).click();
@@ -172,7 +171,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
 
   // With Manage access, this Atlas pairs and revokes devices of that computer, but cannot change how it is reached.
   await viewer.bringToFront();
-  await fileMenu(reading.app, 'Re&mote Access…');
+  await computerMenu(viewer, 'Remote Access…');
   const remoteAccess = viewer.getByRole('dialog', { name: `Remote access to ${name}` });
   await expect(accessStatus(remoteAccess)).toHaveText(`${name} listens on 127.0.0.1:${port}.`);
   await expect(remoteAccess.getByLabel('Allow paired devices to connect to this computer')).toHaveCount(0);
@@ -257,7 +256,7 @@ test('turning remote access off closes the listener and expires an open pairing 
   sharing = await launchProject();
   const owner = sharing.window;
   await agree(sharing.app);
-  await fileMenu(sharing.app, 'Re&mote Access…');
+  await computerMenu(sharing.window, 'Remote Access…');
   const { access, port } = await listen(owner);
   await access.getByRole('button', { name: 'Create pairing link' }).click();
   await expect(access.locator('.pairing-link')).toBeVisible();

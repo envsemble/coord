@@ -60,7 +60,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'projects', 'statistics', 'importPlan', 'connectRemote', 'remoteAccess', 'goBack', 'goForward', 'about',
+  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'projects', 'statistics', 'importPlan', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 

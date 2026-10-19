@@ -2,24 +2,13 @@
 // like Platform's organization menu, with pairing and this computer's remote access), and the list of computers behind it. Choosing in the menu
 // shows that computer's projects in this window; the list also opens a computer in a new window, and
 // forgets computers.
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge, Button, ConfirmButton, Dialog, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip, useToast } from '@envsemble/envui';
 import { UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
 import { AddIcon, ComputerIcon, DevicesIcon, NewWindowIcon, RemoteAccessIcon } from '../ui/icons';
 import type { Computer, ComputerRef } from '../types';
 import { api } from '../api';
-
-/** Window-wide actions the menus start: pairing, remote access, the computers and About. */
-export interface AppActions {
-  connect(): void;
-  remoteAccess(): void;
-  manageComputers(): void;
-  /** The menu's About Atlas. */
-  about(): void;
-}
-const nothing = () => undefined;
-export const AppActionsContext = createContext<AppActions>({ connect: nothing, remoteAccess: nothing, manageComputers: nothing, about: nothing });
-export const useAppActions = () => useContext(AppActionsContext);
+import { useAppActions } from './appActions';
 
 const statusLabels: Record<Computer['status'], string | null> = { online: null, connecting: 'Connecting', offline: 'Offline', revoked: 'Not paired', mismatch: 'Not the same computer', incompatible: 'Needs an update' };
 const describe = (computer: Computer) => computer.hostId === null ? 'This computer' : computer.origin?.replace(/^https?:\/\//, '') ?? '';

@@ -11,7 +11,8 @@ import { AtlasMark } from '@envsemble/atlas-diagrams/react';
 import type { AppCommand } from '../../shared/contract';
 import type { WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
-import { ComputerMenu, useAppActions } from '../remote/Computers';
+import { ComputerMenu } from '../remote/Computers';
+import { useAppActions } from '../remote/appActions';
 import { FolderIcon, WorkIcon } from '../ui/icons';
 
 /** What the window adds to the title bar: back and forward, a new project, importing a plan and exporting the one open. */

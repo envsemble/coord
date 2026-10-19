@@ -8,7 +8,8 @@ import { ErrorIcon } from './ui/icons';
 import { Workbench } from './workbench/Workbench';
 import { ConnectDialog } from './remote/ConnectDialog';
 import { RemoteAccessDialog } from './remote/RemoteAccessDialog';
-import { AppActionsContext, ComputersDialog, type AppActions } from './remote/Computers';
+import { ComputersDialog } from './remote/Computers';
+import { AppActionsContext, type AppActions } from './remote/appActions';
 import { AboutDialog } from './menu/AboutDialog';
 
 type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'about' } | null;
@@ -32,9 +33,7 @@ export default function App() {
     about: () => setDialog({ kind: 'about' }),
   }), []);
   useEffect(() => api.onMenu(command => {
-    if (command === 'connectRemote') actions.connect();
-    else if (command === 'remoteAccess') actions.remoteAccess();
-    else if (command === 'about') actions.about();
+    if (command === 'about') actions.about();
   }), [actions]);
 
   useEffect(() => {

@@ -19,9 +19,6 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         // The shown file in the chosen editor, as the title bar's Open in button does; the window takes the key itself.
         { label: 'Open in &Editor', accelerator: 'CmdOrCtrl+O', click: () => manager.sendMenu('openInEditor') },
         { type: 'separator' },
-        { label: 'Co&nnect to Another Atlas…', click: () => manager.sendMenu('connectRemote') },
-        { label: 'Re&mote Access…', click: () => manager.sendMenu('remoteAccess') },
-        { type: 'separator' },
         { label: 'Close Win&dow', accelerator: 'CmdOrCtrl+Shift+W', click: () => window()?.win.close() },
         { role: 'quit', label: 'E&xit' },
       ],
@@ -34,7 +31,7 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: '&Back', accelerator: mac ? 'Cmd+[' : 'Alt+Left', click: () => manager.sendMenu('goBack') },
         { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
         { type: 'separator' },
-        // The window's sections; Plans is the logo's.
+        // The window's sections besides Plans.
         { label: '&Projects', click: () => manager.sendMenu('projects') },
         { label: 'S&tatistics', click: () => manager.sendMenu('statistics') },
         { type: 'separator' },
