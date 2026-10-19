@@ -1,19 +1,21 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Breadcrumbs, Button, EmptyState, Notice, Surface, Text } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/content';
 import { stepCounts } from '@envsemble/atlas/planning/ledger';
-import { CommitIcon, DownloadIcon } from '../ui/icons';
-import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work } from '../types';
+import { DownloadIcon } from '../ui/icons';
+import type { Document, LedgerStep, ProjectWork, ReferenceInput, Snapshot, Target, Work, WorkProduct, WorkSession, WorkTimeline } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';
-import { hubPlace, workTarget } from '../navigation/targets';
+import { hubPlace, workStatisticsTarget, workTarget } from '../navigation/targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from '../ui/format';
 import { workStatus, type WorkStatus } from '../ui/status';
-import { RepositoryBadge, StatusBadge } from '../ui/ui';
+import { StatusBadge } from '../ui/ui';
 import { Reader, useReferences } from '../workbench/Reader';
+import type { Resolutions } from '../workbench/ReferenceLink';
 import { LedgerSteps } from '../ui/LedgerProgress';
 import { WorkStatisticsSummary } from './WorkStatisticsSummary';
 import { Waited } from './LiveAgentTime';
 import { unreported, type LiveActivity } from './agentTime';
+import { activityKey, LinksList, NeedsYou, referencedPulls, SessionsList, useWorkSessions, useWorkTimeline, type PullLink } from './WorkSessions';
+import { timelineLine, waitingSession } from './sessions';
 import { TargetLink, useWorkbench } from '../workbench/workbenchContext';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
@@ -52,16 +54,21 @@ function useScrollsMark<T extends HTMLElement>() {
 
 /**
  * The side column: the work's progress (its step in progress showing what agents do, `live`), its
- * dates and repositories, statistics and recent activity. It stays where it is while the page
- * scrolls, and scrolls on its own.
+ * sessions, its links (repositories and branches, PRs, commits, the work folder) and its headline
+ * statistics with how long each stage took. It stays where it is while the page scrolls, and scrolls
+ * on its own.
  */
-function About({ work, snapshot, found, live, listed }: { work: Work; snapshot: Snapshot; found: string | null; live: LiveActivity | null; listed: ProjectWork | undefined }) {
+function About({ work, snapshot, found, live, listed, sessions, products, timeline, pulls }: {
+  work: Work; snapshot: Snapshot; found: string | null; live: LiveActivity | null; listed: ProjectWork | undefined;
+  sessions: WorkSession[]; products: WorkProduct[]; timeline: WorkTimeline | null; pulls: PullLink[];
+}) {
   const issues = snapshot.issues.filter(issue => issue.workId === work.id);
   const progress = work.progress;
   const hasStatus = Boolean(progress && (progress.steps || progress.current || progress.next.length || progress.blocked));
-  const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
-  const commits = snapshot.history.filter(entry => entry.workIds.includes(work.id)).slice(0, 5);
+  const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed]] as const).filter(([, value]) => value).map(([label, value]) => label + ' ' + shortDate(value)).join(' \u00b7 ');
+  const line = timelineLine(timeline, work);
   const statistics = work.statistics;
+  const reported = Boolean(statistics && (statistics.reports > 0 || unreported(live)));
   const column = useScrollsMark<HTMLElement>();
   return <aside ref={column} className="about" aria-label="About this work">
     {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
@@ -72,17 +79,12 @@ function About({ work, snapshot, found, live, listed }: { work: Work; snapshot: 
         {progress.next.length > 0 && <><Text as="h3" variant="caption" className="about-subheading">Next</Text><ul className="about-next">{progress.next.map((step, index) => <li key={index}>{step}</li>)}</ul></>}
       </>}
     </AboutSection>}
-    {(dates.length > 0 || work.repositories.length > 0) && <AboutSection title="About">
-      <dl className="facts">
-        {dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={absoluteDate(value)}>{label === 'Updated' ? relativeDate(value) : shortDate(value)}</dd></div>)}
-        {work.repositories.length > 0 && <div><dt>{work.repositories.length === 1 ? 'Repository' : 'Repositories'}</dt><dd className="about-repositories">{work.repositories.map(id => <RepositoryBadge key={id} id={id} />)}</dd></div>}
-      </dl>
-    </AboutSection>}
-    {statistics && (statistics.reports > 0 || statistics.planRevisions !== null || unreported(live)) && <AboutSection title="Statistics" note={statistics.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
-      <WorkStatisticsSummary work={work} statistics={statistics} activity={live} totals={listed?.statistics} />
-    </AboutSection>}
-    {commits.length > 0 && <AboutSection title="Recent activity">
-      <ul className="about-commits">{commits.map(entry => <li key={entry.id}><CommitIcon className="about-commit-icon" /><div><span className="commit-title">{entry.title}</span><span className="muted"><Code>{entry.id.slice(0, 7)}</Code> · <span title={absoluteDate(entry.date)}>{relativeDate(entry.date)}</span></span></div></li>)}</ul>
+    {sessions.length > 0 && <AboutSection title="Sessions"><SessionsList work={work.id} sessions={sessions} /></AboutSection>}
+    <AboutSection title="Links"><LinksList work={work} repositories={work.repositories} products={products} pulls={pulls} /></AboutSection>
+    {(line || reported || sessions.length > 0) && <AboutSection title="Statistics" note={statistics?.lastReport && <span title={absoluteDate(statistics.lastReport)}>reported {relativeDate(statistics.lastReport)}</span>}>
+      {line && <p className="about-timeline" title={dates || undefined}>{line}</p>}
+      {statistics && reported && <WorkStatisticsSummary statistics={statistics} activity={live} totals={listed?.statistics} />}
+      <TargetLink target={workStatisticsTarget(work.id)} className="about-statistics-link">All statistics and the timeline</TargetLink>
     </AboutSection>}
   </aside>;
 }
@@ -129,6 +131,14 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const live = status.key === 'working' || status.key === 'waiting' ? agents : null;
   const listing = listed(work.id), summary = listing?.summary;
   const references = useReferences(reading, work.id, reading?.format === 'markdown');
+  // The plan's sessions and timeline, read again as its activity changes.
+  const key = activityKey(agents);
+  const sessions = useWorkSessions(work.id, key);
+  const timeline = useWorkTimeline(work.id, key);
+  const waiting = status.key === 'waiting' && sessions ? waitingSession(sessions.sessions) : null;
+  // The PRs the plan references, as the reader resolves them, for its links.
+  const [pulls, setPulls] = useState<PullLink[]>([]);
+  const onReferences = useCallback((inputs: ReferenceInput[], resolved: Resolutions) => setPulls(referencedPulls(inputs, resolved)), []);
   return <div className="work-page">
     <div className="work-layout">
       <div className="work-main">
@@ -139,12 +149,14 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         <header className="work-header">
           <Text as="h1" variant="page-heading">{work.title}</Text>
           <StatusLine work={work} status={status} live={live} />
+          {waiting && <NeedsYou work={work.id} session={waiting} />}
           {summary && <p className="work-summary">{summary}</p>}
         </header>
-        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} />
+        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} onReferences={onReferences} />
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
-      <About work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} />
+      <About work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing}
+        sessions={sessions?.sessions ?? []} products={sessions?.products ?? []} timeline={timeline} pulls={pulls} />
     </div>
   </div>;
 }

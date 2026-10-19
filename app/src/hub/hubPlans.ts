@@ -75,8 +75,8 @@ export interface HubRowFacts {
   step: { label: 'Now' | 'Next'; title: string; phase: Phase } | null;
   /** Why blocked work is blocked, in place of its step. */
   blocked: string | null;
-  /** The model that did most of the work, and how many others took part. */
-  model: { id: string; name: string; provider: Provider | null; others: number } | null;
+  /** The model that did most of the work, the reasoning effort it worked at most, and how many others took part. */
+  model: { id: string; name: string; provider: Provider | null; effort: string | null; others: number } | null;
   /** Agent time in all, and (on a large row) split into planning and implementation. */
   time: { total: string; planning: string | null; implementation: string | null } | null;
   tokens: string | null;
@@ -119,7 +119,7 @@ export function hubRowFacts(work: ProjectWork, status = hubStatus(work)): HubRow
   const time = statistics && statistics.agentMs > 0 ? { total: duration(statistics.agentMs), planning: split(statistics.planning.agentMs), implementation: split(statistics.implementation.agentMs) } : null;
   return {
     size, progress, step, blocked,
-    model: primary && size !== 'closed' ? { id: primary.id, name: primary.name, provider: primary.provider, others: statistics!.otherModels } : null,
+    model: primary && size !== 'closed' ? { id: primary.id, name: primary.name, provider: primary.provider, effort: statistics!.primaryEffort, others: statistics!.otherModels } : null,
     time,
     tokens: statistics?.tokens ? compactNumber(statistics.tokens) + ' tokens' : null,
     subagents: size === 'large' && statistics?.subagents ? plural(statistics.subagents, 'subagent') : null,

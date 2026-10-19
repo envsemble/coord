@@ -106,7 +106,7 @@ function WorkStatisticsRow({ row, stages }: { row: WorkRow; stages: StageKey[] }
   const others = statistics ? otherModels(statistics) : [];
   return <TableRow interactive>
     <TableCell><span className="work-cell"><StatusIcon status={status} /><TargetLink target={workTarget(work.id)}>{work.title}</TargetLink></span><small className="cell-note">{workNumber(work.id)} · {status.label}{statistics?.lastReport ? ' · reported ' + relativeDate(statistics.lastReport) : ''}</small></TableCell>
-    <TableCell>{primary ? <span className="model-cell"><ModelName model={primary.model} detail={modelShare(primary)} />{others.length > 0 && <span title={'Also ' + others.map(model => aiModel(model.model).name + (modelShare(model) ? ' (' + modelShare(model) + ')' : '')).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
+    <TableCell>{primary ? <span className="model-cell"><ModelName model={primary.model} effort={statistics!.primaryEffort} detail={modelShare(primary)} />{others.length > 0 && <span title={'Also ' + others.map(model => aiModel(model.model).name + (modelShare(model) ? ' (' + modelShare(model) + ')' : '')).join(', ')}><Counter value={'+' + others.length} /></span>}</span> : <span className="muted">—</span>}</TableCell>
     {stages.map(stage => <StageCell key={stage} usage={stageUsage(statistics, stage)} />)}
     <TableCell numeric title={subagentShare(statistics) ?? undefined}>{statistics?.subagents?.count ? <>{statistics.subagents.count}<small className="cell-note">{duration(statistics.subagents.agentMs)}</small></> : '—'}</TableCell>
     <TableCell numeric title={statistics?.planRevisions == null ? 'Not in this folder\'s Git history' : work.completed ? 'Before completion' : 'So far'}>{statistics?.planRevisions ?? '—'}</TableCell>
@@ -155,7 +155,7 @@ function ModelsTab({ rows }: { rows: WorkRow[] }) {
   </>;
 }
 
-function StatsCard({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
+export function StatsCard({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
   return <Surface className="stat" padding={4}><span className="stat-label">{label}</span><strong className="stat-value">{value}</strong>{note != null && <small className="stat-note">{note}</small>}</Surface>;
 }
 

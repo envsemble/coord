@@ -217,10 +217,20 @@ body { margin: 0; }
 .about-current { margin: 0; }
 .about-next { margin: 0; padding-inline-start: var(--space-5); }
 .about-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
-.about-commits { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
-.about-commits li { display: flex; gap: var(--space-2); }
-.about-commits li > div { display: grid; min-inline-size: 0; }
-.about-commit-icon { flex: none; margin-block-start: 0.125rem; color: var(--color-icon); }
+/* A plan's sessions, each with its state, model and effort, and a way to resume it; and its links. */
+.about-sessions, .about-links { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
+.about-session { display: flex; align-items: flex-start; gap: var(--space-2); }
+.about-session > :first-child { flex: none; margin-block-start: 0.125rem; }
+.about-session-text { display: grid; flex: 1; min-inline-size: 0; }
+.about-session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-ended-icon { inline-size: 1.125rem; block-size: 1.125rem; padding: 0.375rem; color: var(--color-tone-neutral); }
+.about-link { display: flex; align-items: flex-start; gap: var(--space-2); }
+.about-link-icon, .about-link > .pull-mark { flex: none; margin-block-start: 0.125rem; color: var(--color-icon); }
+.about-link-text { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem var(--space-1); min-inline-size: 0; overflow-wrap: anywhere; }
+.about-branch { font-size: var(--font-size-body-small); }
+.about-more { justify-self: start; }
+.about-timeline { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.about-statistics-link { justify-self: start; font-size: var(--font-size-body-small); }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font-size: var(--font-size-body-small); }
 .facts > div { display: contents; }
 .facts dt { color: var(--color-text-muted); }
@@ -296,6 +306,43 @@ body { margin: 0; }
 /* AI models: a provider's mark in its brand colour, or in the text colour beside a chart's colours. */
 .model-name { display: inline-flex; align-items: center; gap: 0.375rem; min-inline-size: 0; max-inline-size: 100%; vertical-align: bottom; }
 .model-name-text { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A model's reasoning effort beside its name: "Claude Opus 5.5 · high". */
+.model-effort { flex: none; color: var(--color-text-muted); white-space: nowrap; }
+/* A PR's state beside its link: open and draft in the open tone (draft neutral), merged in the done tone, closed in red; its checks after it when they fail or run. */
+.pull-mark { display: inline-flex; align-items: center; gap: 0.125rem; margin-inline-start: 0.25em; vertical-align: -0.125em; }
+.pull-mark svg { inline-size: 1em; block-size: 1em; }
+.pull-mark-state[data-state='open'], .pull-mark-checks[data-checks='passing'] { color: var(--color-tone-success); }
+.pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--color-tone-neutral); }
+.pull-mark-state[data-state='merged'] { color: var(--color-tone-done); }
+.pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--color-tone-danger); }
+/* Why a plan needs you: the waiting session's message under its status, with a way to open the session. */
+.needs-you { display: grid; gap: var(--space-2); max-inline-size: 48rem; padding: var(--space-3) var(--space-4); border-inline-start: 0.1875rem solid var(--color-tone-warning); border-radius: var(--radius-standard); background: color-mix(in srgb, var(--color-tone-warning) 8%, transparent); }
+.needs-you-message { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.needs-you-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--font-size-body-small); }
+/* A plan's statistics page: its figures, its timeline and its tables. */
+.plan-statistics-page { display: grid; gap: var(--space-6); }
+.plan-statistics-header { display: grid; gap: var(--space-1); }
+.plan-statistics-section { display: grid; gap: var(--space-3); }
+.plan-statistics-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--space-4); align-items: start; }
+.plan-statistics-table { font-variant-numeric: tabular-nums; }
+.plan-statistics-subagent { padding-inline-start: var(--space-4); color: var(--color-text-muted); }
+/* The timeline: a lane per session and subagent on one scale of time, working stretches solid,
+   waits for the person in amber behind them, now a line at the end. */
+.timeline { position: relative; display: grid; gap: var(--space-1); padding-block-start: 1.5rem; --timeline-names: 14rem; }
+.timeline-axis { position: absolute; inset: 0 0 auto var(--timeline-names); block-size: 100%; pointer-events: none; }
+.timeline-tick { position: absolute; inset-block-start: 0; block-size: 100%; padding-inline-start: 0.25rem; border-inline-start: 0.0625rem solid color-mix(in srgb, var(--color-text-primary) 12%, transparent); color: var(--color-text-muted); font-size: var(--font-size-body-small); white-space: nowrap; }
+.timeline-lane { display: grid; grid-template-columns: var(--timeline-names) minmax(0, 1fr); align-items: center; min-block-size: 1.5rem; }
+.timeline-lane-name { overflow: hidden; padding-inline-end: var(--space-2); font-size: var(--font-size-body-small); text-overflow: ellipsis; white-space: nowrap; }
+.timeline-lane[data-subagent] .timeline-lane-name { padding-inline-start: var(--space-4); color: var(--color-text-muted); }
+.timeline-track { position: relative; block-size: 0.875rem; border-radius: var(--radius-standard); background: var(--color-surface-muted); }
+.timeline-bar { position: absolute; inset-block: 0; min-inline-size: 0.125rem; border-radius: 0.125rem; }
+.timeline-bar[data-kind='working'], .timeline-key[data-kind='working'] { background: var(--color-tone-success); }
+.timeline-bar[data-kind='waiting'], .timeline-key[data-kind='waiting'] { background: color-mix(in srgb, var(--color-tone-warning) 55%, transparent); }
+.timeline-lane[data-subagent] .timeline-bar[data-kind='working'] { background: color-mix(in srgb, var(--color-tone-success) 60%, var(--color-surface-muted)); }
+.timeline-now { position: absolute; inset-block: 1.25rem 0; inset-inline-end: 0; inline-size: 0.125rem; background: var(--color-tone-accent); }
+.timeline-key { display: inline-block; inline-size: 0.75rem; block-size: 0.75rem; margin-inline: var(--space-2) 0.25rem; border-radius: 0.125rem; vertical-align: -0.0625rem; }
+.timeline-key[data-kind='now'] { inline-size: 0.125rem; background: var(--color-tone-accent); }
+.timeline-legend { margin: 0; font-size: var(--font-size-body-small); }
 .provider-mark { flex: none; inline-size: 1.0625em; block-size: 1.0625em; color: var(--color-text-muted); }
 .provider-mark[data-provider='anthropic'] { color: light-dark(#d97757, #e3896a); }
 .provider-mark[data-provider='openai'] { color: var(--color-text-primary); }

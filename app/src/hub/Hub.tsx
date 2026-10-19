@@ -45,7 +45,7 @@ function Spent({ item, facts }: { item: HubItem; facts: HubRowFacts }) {
   if (!model && !timed && !rest) return <span className="muted">—</span>;
   const stages = ([['Planning', time?.planning], ['Implementation', time?.implementation]] as const).flatMap(([label, value]) => value ? [{ label, value }] : []);
   return <span className="hub-row-stats">
-    {model && <span className="hub-row-model" title={model.id}><ProviderMark provider={model.provider} />{model.name}{model.others > 0 && <span className="muted"> +{model.others}</span>}</span>}
+    {model && <span className="hub-row-model" title={model.id}><ProviderMark provider={model.provider} />{model.name}{model.effort && <span className="model-effort"> · {model.effort}</span>}{model.others > 0 && <span className="muted"> +{model.others}</span>}</span>}
     {(timed || rest) && <small className="cell-note">
       {timed && <AgentTime totals={item.work.statistics ?? { agentMs: 0, activeMs: 0, unmergedMs: 0, lastReport: null }} activity={activity} sections={[{ heading: 'By stage', rows: stages }]} description="Every agent's working time, added up" />}
       {timed && rest ? ' · ' + rest : rest}

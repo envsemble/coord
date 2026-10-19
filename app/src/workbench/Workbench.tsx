@@ -21,6 +21,7 @@ import type { SearchDestination } from '../navigation/search';
 import { ImportDialog } from './ImportDialog';
 import { FileView, WorkPage } from '../work/WorkPage';
 import { AtlasWorkPanel } from '../work/AtlasWorkPanel';
+import { WorkStatisticsPage } from '../work/WorkStatisticsPage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, ProjectsPage, type ProjectActions } from '../projects/ProjectsPage';
 import { hubItems, inState } from '../hub/hubPlans';
@@ -579,7 +580,7 @@ function ProjectContent({ place, folder, project, scope, statisticsControls }: {
     if (target.kind === 'work' || target.kind === 'diagram') {
       const item = snapshot.work.find(entry => entry.id === target.work);
       content = !item ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the plan" /></div>
-        : target.kind === 'work' ? <WorkPage work={item} snapshot={snapshot} target={target} />
+        : target.kind === 'work' ? (target.view === 'statistics' ? <WorkStatisticsPage work={item} /> : <WorkPage work={item} snapshot={snapshot} target={target} />)
         : <div className="work-page section-diagrams"><AtlasWorkPanel key={item.id} work={item} target={target} /></div>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);

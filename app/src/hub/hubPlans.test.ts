@@ -82,7 +82,7 @@ test('work in progress shows its progress, the step being worked on, and what ag
   assert.deepEqual(facts.progress, { done: 3, doing: 1, total: 8, planning: { done: 3, doing: 0 }, text: '3 of 8' });
   assert.deepEqual(facts.step, { label: 'Now', title: 'Build the hub', phase: 'implementation' });
   assert.equal(facts.blocked, null);
-  assert.deepEqual(facts.model, { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', provider: 'anthropic', others: 2 });
+  assert.deepEqual(facts.model, { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', provider: 'anthropic', effort: 'high', others: 2 });
   assert.deepEqual(facts.time, { total: duration(12_000_000), planning: duration(3_600_000), implementation: duration(8_400_000) });
   assert.equal(facts.time!.total, '3 h 20 min');
   assert.equal(facts.tokens, compactNumber(1_234_567) + ' tokens');

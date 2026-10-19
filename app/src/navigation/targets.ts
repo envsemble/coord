@@ -1,5 +1,6 @@
 // What a window shows: one place at a time. A place is one of the window's own pages (the hub, the
-// Projects page, a project's statistics) or something of one project (a plan, a diagram or a file).
+// Projects page, a project's statistics) or something of one project (a plan, a plan's statistics, a
+// diagram or a file).
 // A work item's diagrams share one place, which switches between them in place.
 import type { Document, PagePlace, Place, ProjectPlace, Target, Work } from '../types';
 import { workRelative } from '@envsemble/atlas/planning/paths';
@@ -15,6 +16,10 @@ export const isPage = (place: Place): place is PagePlace => 'page' in place;
 export const placeProject = (place: Place): string | null => !isPage(place) ? place.project : place.page === 'projects' ? null : place.project;
 
 export const workTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor });
+/** A work item's statistics: its time and tokens by session, model and stage, and its timeline. */
+export const workStatisticsTarget = (work: string): Target => ({ kind: 'work', work, anchor: null, view: 'statistics' });
+/** Whether a target is a work item's statistics rather than its plan. */
+export const isWorkStatistics = (target: Target) => target.kind === 'work' && target.view === 'statistics';
 /** A work item's plan with one of its ledger steps (by its title) pointed out in its progress. */
 export const stepTarget = (work: string, step: string): Target => ({ kind: 'work', work, anchor: null, step });
 /** A work item's diagram by its path in the work folder (null: its first), at an element. */
@@ -41,7 +46,7 @@ export function documentTarget(file: Document, work: Work | undefined, anchor: s
 export function placeId(place: Place): string {
   if (isPage(place)) return place.page;
   const { project, target } = place;
-  return project + ':' + (target.kind === 'file' ? 'file:' + target.path : target.kind === 'work' ? 'work:' + target.work : 'diagram:' + target.work);
+  return project + ':' + (target.kind === 'file' ? 'file:' + target.path : target.kind === 'work' ? (isWorkStatistics(target) ? 'statistics:' : 'work:') + target.work : 'diagram:' + target.work);
 }
 
 /** What a place's scroll position belongs to: a page of a project, a work item's plan, a diagram, or a file. */

@@ -44,6 +44,9 @@ function core(id: string) {
   return value.replace(/-(?:\d{8}|\d{4}-\d{2}-\d{2}|latest)$/, '');
 }
 
+/** A model's name with the reasoning effort it worked at, when its log recorded one: "Claude Opus 5.5 · high". */
+export const withEffort = (name: string, effort: string | null | undefined) => effort ? name + ' · ' + effort : name;
+
 /** What an identifier names: its provider and how people say it. */
 export function aiModel(id: string): AiModel {
   const trimmed = id.trim();

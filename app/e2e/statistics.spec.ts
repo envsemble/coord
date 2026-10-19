@@ -1,6 +1,6 @@
 // Work statistics from agent reports (<work>/.atlas/statistics.jsonl in the fixture, imported into the
 // home's database as the fixture is adopted into it) and Git: the Statistics page, opened from the menu
-// for one project at a time, its Work and Models tabs, and the About sidebar of a work item. The fixture has an
+// for one project at a time, its Work and Models tabs, the sidebar of a work item and its own statistics page. The fixture has an
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
 import { expect, test, type Page } from '@playwright/test';
@@ -129,8 +129,8 @@ test("the Work tab lists each work item with its model, planning and implementat
   await window.keyboard.press('Enter');
   await expect(window.locator('.work-header h1')).toHaveText(/^Inventory reservations/);
 
-  // A work item's About sidebar sums up its statistics, by stage and with its subagents, with what
-  // agent time and tokens stand for on hover and focus.
+  // A work item's sidebar keeps the headline (its model, agent time and tokens) with what agent time
+  // stands for on hover and focus; its own statistics page has the rest. Recent activity is gone.
   await goHome(window);
   await openPlan(window, 'Saved payment methods');
   const statistics = window.locator('.about-section', { has: window.locator('h2', { hasText: 'Statistics' }) });
@@ -139,11 +139,8 @@ test("the Work tab lists each work item with its model, planning and implementat
   await expect(statistics.locator('.work-statistics-others')).toHaveText('with Claude Sonnet 4.5 and Claude Haiku 5.5');
   const facts = statistics.locator('.work-statistics-facts li');
   // As shown: each value's description is for assistive technology.
-  await expect(facts).toHaveText([
-    '4 h 8 min of agent time', (await compact(window, 13815500)) + ' tokens',
-    '1 h 30 min planning · ' + (await compact(window, 120000)) + ' tokens', '2 h 38 min implementation · ' + (await compact(window, 13695500)) + ' tokens',
-    '1 subagent · 18 min', '0 plan revisions',
-  ], { useInnerText: true });
+  await expect(facts).toHaveText(['4 h 8 min of agent time', (await compact(window, 13815500)) + ' tokens'], { useInnerText: true });
+  await expect(window.locator('.about')).not.toContainText('Recent activity');
   await expect(window.locator('.about')).not.toContainText('active/0001-saved-payment-methods', { timeout: 1000 });
   // Where the About sidebar sits below the plan, the plan arriving moves it: hover once it has.
   await expect(window.locator('.reader .prose h2').first()).toBeVisible();
@@ -153,12 +150,16 @@ test("the Work tab lists each work item with its model, planning and implementat
   await expect(window.locator('.env-tooltip')).toContainText('Since ');
   await window.mouse.move(0, 0);
   await expect(window.locator('.env-tooltip')).toHaveCount(0);
-  // Keyboard: Tab moves from agent time to the token count, which shows its breakdown.
   await facts.nth(0).locator('.detailed').focus();
-  await window.keyboard.press('Tab');
-  await expect(facts.nth(1).locator('.detailed')).toBeFocused();
-  await expect(window.locator('.env-tooltip')).toContainText('Cached input' + await compact(window, 12959000));
-  await expect(window.locator('.env-tooltip')).toContainText('Self-reported' + await compact(window, 120000));
-  await expect(window.locator('.env-tooltip')).toContainText('Total' + await whole(window, 13815500));
-  await expect(facts.nth(1).locator('.detailed')).toHaveAccessibleDescription(/^Cached input .+ · Self-reported .+$/);
+  await expect(facts.nth(0).locator('.detailed')).toHaveAccessibleDescription(/measured from the agent's session logs/);
+
+  // The plan's statistics page, a place in the history: time and tokens by stage and by kind, in tables.
+  await statistics.getByRole('link', { name: 'All statistics and the timeline' }).click();
+  await expect(window.locator('.plan-statistics-page h1')).toHaveText('Statistics');
+  await expect(window.getByRole('table', { name: 'Agent time and tokens by stage' }).locator('tbody tr')).toHaveText([/^Planning.*1 h 30 min/, /^Implementation.*2 h 38 min/]);
+  const kinds = window.getByRole('table', { name: 'Tokens by kind' });
+  await expect(kinds).toContainText('Cached input' + await whole(window, 12959000));
+  await expect(kinds).toContainText('Self-reported' + await whole(window, 120000));
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
 });
