@@ -211,6 +211,13 @@ const noTokens = (): TokenKinds => ({ input: 0, cacheRead: 0, cacheWrite: 0, out
 const noUsage = (): StageUsage => ({ reports: 0, agentMs: 0, tokens: null, tokenKinds: null });
 const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ input: (into?.input ?? 0) + kinds.input, cacheRead: (into?.cacheRead ?? 0) + kinds.cacheRead, cacheWrite: (into?.cacheWrite ?? 0) + kinds.cacheWrite, output: (into?.output ?? 0) + kinds.output });
 
+/**
+ * Subagents an older report counted without naming them (it named only the busiest four): their
+ * rows in the database, and the one entry of a work item's agents that stands for them all.
+ */
+const unlistedPrefix = 'unlisted-';
+export const unlistedAgents = 'unlisted';
+
 /** Spans of time ([start, end] milliseconds) in time order, those that overlap or touch merged into one. */
 export function mergeSpans(spans: [number, number][]): [number, number][] {
   const merged: [number, number][] = [];
@@ -310,9 +317,12 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
         subagentMs += part(helpers.agentMs);
         for (const agent of helpers.agents) {
           subagents.add(run.id + '\0' + agent.id);
-          credit(run.id, report.session, agent.id, agent.model, part(agent.agentMs));
+          credit(run.id, report.session, agent.id.startsWith(unlistedPrefix) ? unlistedAgents : agent.id, agent.model, part(agent.agentMs));
         }
         unlisted += helpers.count - helpers.agents.length;
+        // A report line names only the busiest subagents: the others' time, together.
+        const rest = helpers.agentMs - helpers.agents.reduce((total, agent) => total + agent.agentMs, 0);
+        if (rest > 0) credit(run.id, report.session, unlistedAgents, null, part(rest));
       }
       // The session's own agent worked what its subagents leave of the time.
       credit(run.id, report.session, null, report.model, Math.max(0, part(report.measured.agentMs) - (share > 0 ? part(helpers?.agentMs ?? 0) : 0)));
@@ -379,7 +389,7 @@ export function insertReport(database: HomeDatabase, projectId: number, workId: 
     const unlisted = helpers.count - helpers.agents.length;
     const restMs = Math.max(0, helpers.agentMs - helpers.agents.reduce((total, agent) => total + agent.agentMs, 0));
     const restTokens = Math.max(0, helpers.tokens - helpers.agents.reduce((total, agent) => total + agent.tokens, 0));
-    for (let index = 0; index < unlisted; index++) subagent.run(lastInsertRowid, `unlisted-${lastInsertRowid}-${index + 1}`, null, index ? 0 : restMs, index ? 0 : restTokens);
+    for (let index = 0; index < unlisted; index++) subagent.run(lastInsertRowid, `${unlistedPrefix}${lastInsertRowid}-${index + 1}`, null, index ? 0 : restMs, index ? 0 : restTokens);
   });
 }
 /** Record a report's working intervals. */

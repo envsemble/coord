@@ -114,10 +114,10 @@ async function workOf(root: string, entry: { id: string; path: string; title?: u
 
 /**
  * A planning folder's summary for the project list; throws when its planning.json cannot be read.
- * With the home database and the project's row in it, each work item has its statistics; reports
- * that cannot be read count as none.
+ * With the home database and the project's row in it, or the project's reports read already, each
+ * work item has its statistics; reports that cannot be read count as none.
  */
-export async function projectSummary(root: string, options: { database?: HomeDatabase; projectId?: number } = {}): Promise<ProjectSummary> {
+export async function projectSummary(root: string, options: { database?: HomeDatabase; projectId?: number; reports?: Map<string, StatisticsReport[]> } = {}): Promise<ProjectSummary> {
   const source = await readFile(path.join(root, 'planning.json'), 'utf8');
   const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { repositories?: unknown; work_items?: unknown } | null;
   if (!registry || typeof registry !== 'object' || Array.isArray(registry)) throw new Error('planning.json is not an object.');
@@ -125,8 +125,8 @@ export async function projectSummary(root: string, options: { database?: HomeDat
     .filter(entry => typeof entry?.id === 'string' && entry.path !== '.').map(entry => entry.id as string);
   const entries = (Array.isArray(registry.work_items) ? registry.work_items : []).filter(entry => typeof entry?.id === 'string' && typeof entry.path === 'string');
   // Every work item's reports in one query.
-  let reports = new Map<string, StatisticsReport[]>();
-  if (options.database && options.projectId !== undefined) {
+  let reports = options.reports ?? new Map<string, StatisticsReport[]>();
+  if (!options.reports && options.database && options.projectId !== undefined) {
     try { reports = storedReports(options.database, options.projectId); } catch { /* No statistics then. */ }
   }
   const [active, closed] = await Promise.all(['active/', 'archive/'].map(location =>

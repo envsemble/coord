@@ -2,6 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { withDatabase } from '../../planning/index.ts';
 import { atlas, command, homeWithPlanning } from '../testing.ts';
 
@@ -17,6 +19,14 @@ test('hooks of one session running at once keep each other\'s links', async t =>
   })));
   const linked = withDatabase(env.ATLAS_HOME!, database => (database.db.prepare('SELECT work_id FROM session_work WHERE session_id = ?').all(session) as { work_id: string }[]).map(row => row.work_id));
   assert.deepEqual(linked.sort(), ids);
+  // The hooks that only record the session's state, as their own processes: the stamp beside the
+  // database says what it holds, so a tool use while the session works reads nothing else.
+  const state = (event: string) => atlas(['hook', event], { env, input: JSON.stringify({ session_id: session, tool_name: 'Bash' }) });
+  const recorded = () => [withDatabase(env.ATLAS_HOME!, database => Number((database.db.prepare('SELECT working FROM session WHERE id = ?').get(session) as { working: number }).working)), readFileSync(path.join(env.ATLAS_HOME!, 'session-state', session), 'utf8')];
+  state('PermissionRequest');
+  assert.deepEqual(recorded(), [0, 'waiting']);
+  state('ToolUse');
+  assert.deepEqual(recorded(), [1, 'working']);
 });
 
 test('a hook process given bad input exits 0 and prints nothing', t => {

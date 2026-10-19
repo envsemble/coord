@@ -12,7 +12,7 @@ export { parseFrontmatter, validatePlanning, FrontmatterError } from './check/ch
 export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './work/ledger.ts';
 export { StatisticsReportError, createReport, importStatisticsFiles, insertReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, sessionGap, statisticsFile, storedReports, summarizeReports, workStages, workStatistics, type StatisticsImport, type Measured, type MeasuredInterval, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
 export { harnessSessions, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './statistics/sessionLog.ts';
-export { recordWorkReport, remeasureReports, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
+export { prepareWorkReport, recordWorkReport, remeasureReports, type PreparedReport, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
 export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './statistics/consultation.ts';
 export type * from './types.ts';
 export {

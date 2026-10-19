@@ -141,7 +141,7 @@ async function reported(database: HomeDatabase, home: string, root: string) {
   assert.equal((await projectSummary(root)).active[0].statistics, null, 'without the database, none');
 }
 
-test('what agents do now: sessions in a turn, seen lately, and those waiting for the person, each on the work it touched last', t => {
+test('what agents do now: sessions in a turn, seen lately, and those waiting for the person until someone works on it, each on the work it touched last', t => {
   const home = temporary(t);
   const database = HomeDatabase.open(home);
   try {
@@ -149,10 +149,10 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
     const coord = database.addProject(path.join(home, 'planning', 'coord'), 'Coord');
     const now = Date.parse('2026-10-15T12:00:00Z');
     const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
-    /** A session as the hooks leave it: seen, in a turn since, or waiting since; linked to work it touched minutes ago. */
-    const session = (id: string, seen: number, state: { turn: number } | { waiting: number } | null, links: [number, string, number][]) => {
-      database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, waiting_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)')
-        .run(id, 'claude-code', ago(600), ago(seen), state && 'turn' in state ? 1 : 0, state && 'turn' in state ? ago(state.turn) : null, state && 'waiting' in state ? ago(state.waiting) : null);
+    /** A session as the hooks leave it: seen, in a turn since, or waiting since, its time not yet reported counting from; linked to work it touched minutes ago. */
+    const session = (id: string, seen: number, state: ({ turn: number } | { waiting: number }) & { counts?: number } | null, links: [number, string, number][]) => {
+      database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, waiting_at, counts_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)')
+        .run(id, 'claude-code', ago(600), ago(seen), state && 'turn' in state ? 1 : 0, state && 'turn' in state ? ago(state.turn) : null, state && 'waiting' in state ? ago(state.waiting) : null, state?.counts === undefined ? null : ago(state.counts));
       for (const [project, work, touched] of links) database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at, touched_at) VALUES (?, ?, ?, ?, ?)').run(id, project, work, ago(600), ago(touched));
     };
     // One conversation on two plans counts for the one it touched last.
@@ -160,7 +160,10 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
     session('b', 5, { turn: 8 }, [[shop.id, 'work-0001', 6], [shop.id, 'work-0002', 7]]);
     database.db.prepare('INSERT INTO work_report (project_id, work_id, at, model, session) VALUES (?, ?, ?, ?, ?)').run(shop.id, 'work-0001', ago(3), 'claude-opus', 'b');
     session('c', 1, { waiting: 1 }, [[shop.id, 'work-0001', 4]]);
-    session('stopped', 1, { waiting: 40 }, [[shop.id, 'work-0004', 50]]);
+    // Its turn ended five minutes after its last report: those count until its report is in.
+    session('stopped', 1, { waiting: 40, counts: 45 }, [[shop.id, 'work-0004', 50]]);
+    // Waiting since before another session worked on the plan: nothing waits for the person there.
+    session('answered', 1, { waiting: 20 }, [[shop.id, 'work-0002', 25]]);
     session('gone', 20, { turn: 30 }, [[coord.id, 'work-0005', 30]]);
     session('left', 25 * 60, { waiting: 25 * 60 }, [[coord.id, 'work-0006', 25 * 60]]);
     session('ended', 1, null, [[coord.id, 'work-0007', 1]]);
@@ -170,7 +173,7 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
         { session: 'b', harness: 'claude-code', state: 'working', since: ago(8), countsFrom: ago(3) },
         { session: 'c', harness: 'claude-code', state: 'waiting', since: ago(1), countsFrom: null },
       ] },
-      { workId: 'work-0004', state: 'waiting', since: ago(40), sessions: [{ session: 'stopped', harness: 'claude-code', state: 'waiting', since: ago(40), countsFrom: null }] },
+      { workId: 'work-0004', state: 'waiting', since: ago(40), sessions: [{ session: 'stopped', harness: 'claude-code', state: 'waiting', since: ago(40), countsFrom: ago(45) }] },
     ], 'working while any session works, its time counting from its last report; else waiting');
     assert.deepEqual(activity.get(coord.id), [{ workId: 'work-0003', state: 'working', since: ago(10), sessions: [{ session: 'a', harness: 'claude-code', state: 'working', since: ago(10), countsFrom: ago(10) }] }],
       'a session not seen for 15 minutes, one waiting for a day and one that ended are not listed');

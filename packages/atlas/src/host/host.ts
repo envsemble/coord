@@ -19,8 +19,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
-  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, remeasureReports,
-  readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates,
+  adoptPlanningFolder, canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, projectSummary, remeasureReports, storedReports,
+  readRegistry, resolveDocument, scanWorkspace, setProjectWorkspaces, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type StatisticsReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
 import { AccessStore, newToken } from './access/access.ts';
@@ -662,12 +662,26 @@ export class Host {
     }
     this.watchOutsideProjects(listed);
     if (!summaries) return Promise.all(listed.map(row => this.project(row)));
-    const live = this.readActivity();
-    return Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, live.get(row.id) ?? []) })));
+    const { activity, reports, now } = this.readListing(listed);
+    return Promise.all(listed.map(async row => ({ ...await this.project(row), summary: await this.summaryOf(row, activity.get(row.id) ?? [], reports.get(row.id), now) })));
   }
-  /** What the hub shows of a project's plans: from its planning folder and its reports, with the work agents are working on now. */
-  private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity']): Promise<ProjectSummary | null> {
-    try { return { ...await projectSummary(row.folder, { database: this.database, projectId: row.id }), activity, now: new Date().toISOString() }; } catch { return null; }
+  /** What the hub shows of a project's plans: from its planning folder and its reports, with what agents do on its work now. */
+  private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity'], reports: Map<string, StatisticsReport[]> | undefined, now: string): Promise<ProjectSummary | null> {
+    try { return { ...await projectSummary(row.folder, { reports: reports ?? new Map() }), activity, now }; } catch { return null; }
+  }
+  /**
+   * What agents do on the projects' work and the reports recorded, read at one moment: a report and
+   * the live time it replaces change together, so a listing never counts the same time twice or
+   * leaves it out. Nothing of what cannot be read.
+   */
+  private readListing(rows: ProjectRow[]) {
+    const now = new Date().toISOString();
+    const db = this.database.db;
+    try {
+      db.exec('BEGIN');
+      return { activity: this.database.workActivity(Date.parse(now)), reports: new Map(rows.map(row => [row.id, storedReports(this.database, row.id)])), now };
+    } catch { return { activity: new Map<number, ProjectSummary['activity']>(), reports: new Map<number, Map<string, StatisticsReport[]>>(), now }; }
+    finally { if (db.isTransaction) db.exec('COMMIT'); }
   }
   /** What agents do on each project's work now, by project row, as the hooks record it; nothing when it cannot be read. */
   private readActivity(): Map<number, ProjectSummary['activity']> {

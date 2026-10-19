@@ -4,6 +4,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writ
 import path from 'node:path';
 import { withDatabase } from '../../planning/index.ts';
 import { runHook } from './hook.ts';
+import { nextState, type Activity } from './sessionState.ts';
 import { environment, homeWithPlanning, planText, reportsIn, run, temporary, usageIn, within, write } from '../testing.ts';
 
 const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
@@ -106,27 +107,27 @@ test('hooks give the session its planning context, check and link planning edits
   const activity = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().map(item => [item.workId, item.state]));
   assert.deepEqual(activity(), [['work-0003', 'working']]);
 
-  // Stop records a report for each linked work item, measured from the session's log since the
-  // session started on it, and clears amending.
+  // A session is on the work item it touched last: moving on recorded the report of the one it left,
+  // up to then (each since the session came to it); Stop records the report of the one it is on,
+  // measured from the session's log, and clears amending for the edits it counted.
   const spent = { input_tokens: 1, cache_creation_input_tokens: 2, cache_read_input_tokens: 3, output_tokens: 4 };
   const responded = Date.now();
   appendFileSync(transcript, JSON.stringify({ type: 'assistant', message: { id: 'msg_2', model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: 'end_turn', usage: spent }, timestamp: new Date(responded).toISOString() }) + '\n');
   while (Date.now() <= responded) await new Promise(resolve => setTimeout(resolve, 1));
   assert.equal(await hook('Stop', { stop_hook_active: false }), null);
-  for (const workId of ['work-0001', 'work-0002', 'work-0003']) {
+  for (const [workId, outputs] of [['work-0001', []], ['work-0002', []], ['work-0003', [4]]] as const) {
     const reports = reportsIn(root, workId, base.ATLAS_HOME!);
     assert.deepEqual(reports.map(report => [report.session, report.model]), [[session, 'claude-opus-5-5']], workId);
-    const linked = links().find(item => item.workId === workId)!.linked;
-    assert.equal(reports[0].measured?.since, linked, workId + ': the first stop measures from the link');
-    assert.deepEqual(reports[0].measured!.models.map(item => item.output), [4], workId + ': only what came after the link');
+    assert.equal(reports[0].measured?.since, links().find(item => item.workId === workId)!.linked, workId + ': the first report measures from the link');
+    assert.deepEqual(reports[0].measured!.models.map(item => item.output), outputs, workId + ': only what came while the session was on it');
   }
   assert.deepEqual(links().map(item => item.amending), [false, false, false]);
   assert.equal(working(), 0, 'the turn is over when the agent stops');
-  // The next tool use, on any file, puts the linked session back in a turn; a subagent stopping leaves it there.
-  await hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(checkout, 'src.ts') } });
+  // The next tool use, of any tool, puts the linked session back in a turn; a subagent stopping leaves it there.
+  await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
   assert.equal(working(), 1);
   await hook('SubagentStop', { agent_id: 'a1', agent_type: 'Explore', agent_transcript_path: transcript });
-  assert.equal(reportsIn(root, 'work-0001', base.ATLAS_HOME!).length, 2);
+  assert.equal(reportsIn(root, 'work-0003', base.ATLAS_HOME!).length, 2);
   assert.equal(working(), 1);
   // The session's state at once: a prompt starts a turn; a permission prompt waits for the person,
   // and the tool use after it continues the same turn; the turn's end waits, a later reminder
@@ -148,6 +149,29 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting: null }, []]);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.atlas')), 'nothing is written into the planning folder');
   assert.equal((await run(['planning', 'check', root], { env })).status, 0);
+});
+
+test('a session\'s state follows its events: a wait for the person is left out of its time, a long tool call stays in its turn, and a late event changes nothing', () => {
+  const at = (minutes: number) => new Date(Date.UTC(2026, 9, 19, 10, 0) + minutes * 60_000).toISOString();
+  let row = { working: 0, turn_at: null as string | null, waiting_at: null as string | null, counts_at: null as string | null, state_at: null as string | null, updated_at: at(0) };
+  const step = (activity: Activity, minutes: number) => {
+    row = { ...row, ...nextState(row, activity, at(minutes), at(minutes - 15)) };
+    return [row.working, row.turn_at, row.waiting_at, row.counts_at];
+  };
+  assert.deepEqual(step('prompt', 0), [1, at(0), null, at(0)]);
+  assert.deepEqual(step('ask', 5), [0, at(0), at(5), at(0)], 'a permission prompt waits within the turn');
+  assert.deepEqual(step('ask', 6), [0, at(0), at(5), at(0)], 'asking again keeps when it began');
+  assert.deepEqual(step('tool', 9), [1, at(0), null, at(4)], 'the four minutes of waiting are not counted');
+  assert.deepEqual(step('tool', 40), [1, at(0), null, at(4)], 'a tool call of half an hour is the same turn');
+  assert.deepEqual(step('stop', 50), [0, null, at(50), at(4)]);
+  assert.deepEqual([step('tool', 45), step('prompt', 49)], [[0, null, at(50), at(4)], [0, null, at(50), at(4)]], 'hooks that ran before the stop and arrive after it');
+  assert.deepEqual(step('prompt', 60), [1, at(60), null, at(60)]);
+  assert.deepEqual(step('end', 70), [0, null, null, at(60)]);
+  // A report during a wait (a subagent stopping) counted all until then: the time counts on from the resumption.
+  step('prompt', 80);
+  step('ask', 85);
+  row.counts_at = at(87);
+  assert.deepEqual(step('tool', 90), [1, at(80), null, at(90)]);
 });
 
 test('a stop clears amending only for edits its report counted', async t => {

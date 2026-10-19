@@ -31,14 +31,18 @@ const FRONTMATTER_KEYS = new Set([
   "disable-model-invocation",
 ]);
 // Each harness event the plugin hooks, with the Atlas hooks it runs: after every tool use, the
-// session's state (in the background) besides the checks of planning edits.
+// session's state besides the checks of planning edits. Each harness ignores the events it lacks
+// (Codex: Notification, PostToolUseFailure, StopFailure; Claude Code: Interrupt).
 const HOOK_EVENTS = {
   SessionStart: ["SessionStart"],
   UserPromptSubmit: ["UserPromptSubmit"],
   PostToolUse: ["PostToolUse", "ToolUse"],
+  PostToolUseFailure: ["ToolUse"],
   Notification: ["Notification"],
   PermissionRequest: ["PermissionRequest"],
   Stop: ["Stop"],
+  StopFailure: ["StopFailure"],
+  Interrupt: ["Interrupt"],
   SubagentStop: ["SubagentStop"],
   SessionEnd: ["SessionEnd"],
 };
@@ -413,6 +417,6 @@ test("the plugin's hooks are the ones Atlas handles", () => {
   }
   assert.match(
     read(path.join(REPO, "packages", "atlas", "src", "cli", "main.ts")),
-    new RegExp(`atlas hook <${Object.values(HOOK_EVENTS).flat().join("\\|")}>`),
+    new RegExp(`atlas hook <${[...new Set(Object.values(HOOK_EVENTS).flat())].join("\\|")}>`),
   );
 });

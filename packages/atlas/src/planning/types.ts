@@ -15,7 +15,10 @@ export interface Work {
   /** Agent reports and plan revisions; absent where they were not read. */
   statistics?: WorkStatistics;
 }
-/** One agent's working time on a work item: a session's own (subagent null) or one of its subagents'. */
+/**
+ * One agent's working time on a work item: a session's own (subagent null) or one of its subagents'.
+ * The subagent `unlisted` stands for the subagents older reports counted without naming them.
+ */
 export interface AgentUsage { session: string | null; subagent: string | null; model: string | null; agentMs: number }
 /** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
 export interface TokenKinds { input: number; cacheRead: number; cacheWrite: number; output: number }

@@ -11,7 +11,7 @@ import { chmodSync, closeSync, existsSync, mkdirSync, openSync, realpathSync } f
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { atlasHome, guardTestHome } from './storage.ts';
+import { atlasHome, guardTestHome } from './homePath.ts';
 
 export const databaseName = 'atlas.db';
 
@@ -72,6 +72,13 @@ const migrations = [
     id INTEGER PRIMARY KEY, report_id INTEGER NOT NULL REFERENCES work_report(id) ON DELETE CASCADE, agent TEXT,
     started_at TEXT NOT NULL, ended_at TEXT NOT NULL);
   CREATE INDEX report_interval_report ON report_interval(report_id);`,
+  // Where a session's time not yet reported counts from (its turn's start, moved on past its waits
+  // for the person and its reports), the time of the hook event that last changed its state (so a
+  // late one changes nothing), the work item it counts for (a session_work row), and since when.
+  `ALTER TABLE session ADD COLUMN counts_at TEXT;
+  ALTER TABLE session ADD COLUMN state_at TEXT;
+  ALTER TABLE session ADD COLUMN focus INTEGER;
+  ALTER TABLE session_work ADD COLUMN focused_at TEXT;`,
 ];
 /** How long a working session counts as live without being seen again: a long tool call can be quiet this long. */
 export const liveWindowMs = 15 * 60_000;
@@ -251,33 +258,44 @@ export class HomeDatabase {
   /**
    * What agents do on each project's work now, as the hooks record it: work items with a session in
    * a turn and seen within `liveWindowMs` (working), or waiting for the person for at most
-   * `waitingWindowMs` (waiting). A session counts only for the work item it touched last. A working
-   * session's time not yet reported counts from the latest of its turn's start, its link to the work
-   * item and its last report on it.
+   * `waitingWindowMs` (waiting), unless another session worked on the work item since it began to
+   * wait. A session counts only for the work item it is on (`session.focus`, else the one it touched
+   * last). Its time not yet reported counts from the latest of `counts_at` (its turn's start, moved
+   * on past its waits and reports), when it came to the work item and its last report there; a
+   * waiting session's stops when it began to wait, and is gone once its report is in.
    */
   workActivity(now = Date.now()): Map<number, WorkActivityRow[]> {
-    const rows = this.db.prepare(`SELECT session.id, session.harness, session.working, session.turn_at, session.waiting_at, session.updated_at,
-        session_work.id AS link, session_work.project_id, session_work.work_id, session_work.linked_at, ifnull(session_work.touched_at, session_work.linked_at) AS touched,
+    const rows = this.db.prepare(`SELECT session.id, session.harness, session.working, session.turn_at, session.waiting_at, session.updated_at, session.counts_at, session.focus,
+        session_work.id AS link, session_work.project_id, session_work.work_id, ifnull(session_work.focused_at, session_work.linked_at) AS came, ifnull(session_work.touched_at, session_work.linked_at) AS touched,
         (SELECT max(at) FROM work_report WHERE work_report.project_id = session_work.project_id AND work_report.work_id = session_work.work_id AND work_report.session = session.id) AS reported
       FROM session JOIN session_work ON session_work.session_id = session.id
       WHERE (session.working = 1 AND session.updated_at >= ?) OR (session.working = 0 AND session.waiting_at >= ?)`)
       .all(new Date(now - liveWindowMs).toISOString(), new Date(now - waitingWindowMs).toISOString()) as Row[];
-    const latest = new Map<string, Row>();
+    const on = new Map<string, Row>();
     for (const row of rows) {
-      const kept = latest.get(String(row.id));
-      if (!kept || String(row.touched) > String(kept.touched) || (row.touched === kept.touched && Number(row.link) > Number(kept.link))) latest.set(String(row.id), row);
+      const kept = on.get(String(row.id));
+      const focus = row.focus === null ? null : Number(row.focus);
+      if (!kept || (focus === null ? String(row.touched) > String(kept.touched) || (row.touched === kept.touched && Number(row.link) > Number(kept.link)) : Number(row.link) === focus)) on.set(String(row.id), row);
     }
+    // Another session's touch, report or turn on the work item since a session began to wait.
+    const later = this.db.prepare(`SELECT 1 FROM session_work WHERE project_id = ? AND work_id = ? AND session_id != ? AND max(ifnull(focused_at, ''), ifnull(touched_at, linked_at)) > ?
+      UNION ALL SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND ifnull(session, '') != ? AND at > ? LIMIT 1`);
+    const latest = (...values: (string | null)[]) => values.filter((value): value is string => value !== null).sort().at(-1) ?? null;
     const work = new Map<string, { projectId: number; workId: string; sessions: SessionActivityRow[] }>();
-    for (const row of latest.values()) {
+    for (const row of on.values()) {
       const working = Number(row.working) === 1;
-      // A turn from before turns were recorded counts from when the session was last seen.
+      const id = String(row.id), waiting = row.waiting_at as string | null;
+      if (!working && ([...on.values()].some(other => other !== row && other.project_id === row.project_id && other.work_id === row.work_id && String(other.turn_at ?? '') > waiting!)
+        || later.get(Number(row.project_id), String(row.work_id), id, waiting, Number(row.project_id), String(row.work_id), id, waiting))) continue;
+      // A session from before turns were recorded counts from when it was last seen.
       const turn = String(row.turn_at ?? row.updated_at);
-      const counted = [turn, String(row.linked_at), row.reported as string | null].filter((value): value is string => value !== null).sort().at(-1)!;
+      const counted = latest(row.counts_at as string | null ?? (working ? turn : null), row.came as string, row.reported as string | null);
       const harness = row.harness === 'claude-code' || row.harness === 'codex' ? row.harness : 'unknown';
       const key = row.project_id + '\0' + row.work_id;
       let entry = work.get(key);
       if (!entry) work.set(key, entry = { projectId: Number(row.project_id), workId: String(row.work_id), sessions: [] });
-      entry.sessions.push(working ? { session: String(row.id), harness, state: 'working', since: turn, countsFrom: counted } : { session: String(row.id), harness, state: 'waiting', since: String(row.waiting_at), countsFrom: null });
+      entry.sessions.push(working ? { session: id, harness, state: 'working', since: turn, countsFrom: counted }
+        : { session: id, harness, state: 'waiting', since: waiting!, countsFrom: row.counts_at !== null && counted! < waiting! ? counted : null });
     }
     const order = (a: { state: string; since: string }, b: { state: string; since: string }) => Number(b.state === 'working') - Number(a.state === 'working') || b.since.localeCompare(a.since);
     const activity = new Map<number, WorkActivityRow[]>();

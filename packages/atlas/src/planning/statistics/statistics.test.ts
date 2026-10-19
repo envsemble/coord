@@ -157,6 +157,8 @@ test('agent time and tokens add up by stage, and each subagent counts once howev
   assert.equal(summary.agentMs, 150 * 60000, 'the stages add up to the whole');
   assert.equal(summary.tokens, 1100 + 2760 + 3000);
   assert.deepEqual(summary.subagents, { count: 5 + 2, agentMs: (45 + 60) * 60000 }, 'a1 to a5 and the two unlisted; a6 came with an interval already covered');
+  const shares = summary.agents.filter(agent => agent.session === session && agent.subagent !== null).map(agent => [agent.subagent, agent.agentMs / 60000]);
+  assert.deepEqual(Object.fromEntries(shares), { a1: 50, a2: 15, a3: 10, a4: 10, a5: 10, unlisted: 10 }, 'each subagent\'s share, the unlisted together: they add up to the subagents\' time');
   // The same subagent identifier in another session is another subagent.
   const other = summarizeReports([report(0, 'model-a', null, 's1'), measured(10, 'model-a', 's1', 0, 10, []), report(0, 'model-a', null, 's2'), measured(10, 'model-a', 's2', 0, 10, [])].map(entry => entry.measured ? staged('implementation', entry, helpers(1, 5, 0, [['a1', null, 5, 0]])) : entry));
   assert.deepEqual(other.subagents, { count: 2, agentMs: 10 * 60000 });
