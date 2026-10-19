@@ -142,11 +142,11 @@ export function Hub({ projects, error, filter, filters, setFilters, go, restore,
       aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
       onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
     <div className="hub-filters">
-      <Select className="hub-project" density="compact" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
+      <Select className="hub-project" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
         options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name })),
           ...archived.length ? [{ value: archivedHeading, label: 'Archived', disabled: true }, ...archived.map(project => ({ value: project.folderId, label: project.name }))] : []]} />
       {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
-      <SegmentedControl aria-label="Plan state" size="compact" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
+      <SegmentedControl aria-label="Plan state" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
     </div>
   </div>}>

@@ -172,7 +172,7 @@ export function Statistics({ trail }: { snapshot: Snapshot; trail: ReactNode }) 
       </div>
     </Popover>
     <span className="spacer" />
-    <SegmentedControl aria-label="Period" size="compact" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} options={periods.map(item => ({ value: item.id, label: item.label }))} />
+    <SegmentedControl aria-label="Period" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} options={periods.map(item => ({ value: item.id, label: item.label }))} />
   </div></div>}>
     {shown?.error && <Notice tone="warning">{shown.error}</Notice>}
     {!shown ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the statistics" /></div>
