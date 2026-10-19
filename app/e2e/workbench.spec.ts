@@ -419,8 +419,8 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   const { window, app } = launched;
   await expect(hubRows(window)).toHaveCount(6);
   const bar = window.locator('.env-title-bar');
-  // File is the one menu.
-  await expect(bar.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem')).toHaveText(['File']);
+  // File, View and Help.
+  await expect(bar.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem')).toHaveText(['File', 'View', 'Help']);
   await openPlan(window, 'Customer order notifications');
   const left = async (name: string, role: 'button' | 'menuitem' = 'button') => (await bar.getByRole(role, { name, exact: true }).boundingBox())!.x;
   const order = [await left('Back'), await left('Forward'), await left('File', 'menuitem'), await left('Search'), await left('Theme')];
@@ -465,13 +465,10 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await projectAction(window, 'Coord', 'Restore');
   await expect(sections.locator('.section-tab').first()).toHaveText(/^Plans\s*6/);
 
-  // File holds the commands.
+  // File holds the window's and the plans' commands; other computers are in the computer menu.
   await fileMenu(window).click();
   const menu = window.getByRole('menu', { name: 'File' });
-  await expect(menu.getByRole('menuitem')).toHaveText([
-    /^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Connect to Another Atlas…', 'Remote Access…',
-    /^Zoom In/, /^Zoom Out/, /^Actual Size/, /^Full Screen\s*F11$/, 'Open Logs', 'About Atlas', 'Exit',
-  ]);
+  await expect(menu.getByRole('menuitem')).toHaveText([/^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Exit']);
   await window.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   // Alt+F opens it from the keyboard, at its first item.

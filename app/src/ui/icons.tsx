@@ -42,3 +42,4 @@ export { UnfoldLess as CollapseAllIcon } from '@envsemble/envui/icons/UnfoldLess
 export { Upload as UploadIcon } from '@envsemble/envui/icons/Upload';
 export { Warning as WarningIcon } from '@envsemble/envui/icons/Warning';
 export { Devices as DevicesIcon } from '@envsemble/envui/icons/Devices';
+export { SettingsRemote as RemoteAccessIcon } from '@envsemble/envui/icons/SettingsRemote';

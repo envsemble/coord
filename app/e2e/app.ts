@@ -192,12 +192,12 @@ export async function goHome(window: Page) {
   await expectHub(window);
 }
 
-/** The title bar's File menu, by its trigger. */
-export const fileMenu = (window: Page) => window.locator('.env-title-bar').getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'File', exact: true });
-/** Choose an item of the title bar's File menu. */
-export async function chooseMenu(window: Page, item: string) {
-  await fileMenu(window).click();
-  await window.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: item, exact: true }).click();
+/** One of the title bar's menus (File by default), by its trigger. */
+export const fileMenu = (window: Page, menu = 'File') => window.locator('.env-title-bar').getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: menu, exact: true });
+/** Choose an item of one of the title bar's menus (File by default). */
+export async function chooseMenu(window: Page, item: string, menu = 'File') {
+  await fileMenu(window, menu).click();
+  await window.getByRole('menu', { name: menu }).getByRole('menuitem', { name: item, exact: true }).click();
 }
 /** The projects as the window's computer lists them, asked through the window's bridge. */
 export const listedProjects = (window: Page) => window.evaluate(async () => {

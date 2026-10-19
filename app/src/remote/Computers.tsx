@@ -1,11 +1,11 @@
 // Choosing where to work: the computer menu in the title bar (this computer and the paired ones,
-// like Platform's organization menu), and the list of computers behind it. Choosing in the menu
+// like Platform's organization menu, with pairing and this computer's remote access), and the list of computers behind it. Choosing in the menu
 // shows that computer's projects in this window; the list also opens a computer in a new window, and
 // forgets computers.
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Badge, Button, ConfirmButton, Dialog, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip, useToast } from '@envsemble/envui';
 import { UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
-import { AddIcon, ComputerIcon, DevicesIcon, NewWindowIcon } from '../ui/icons';
+import { AddIcon, ComputerIcon, DevicesIcon, NewWindowIcon, RemoteAccessIcon } from '../ui/icons';
 import type { Computer, ComputerRef } from '../types';
 import { api } from '../api';
 
@@ -64,6 +64,8 @@ export function ComputerMenu({ current, onError }: { current: ComputerRef; onErr
     <MenuSeparator />
     <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
     <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage Computers…</MenuItem>
+    <MenuSeparator />
+    <MenuItem icon={<RemoteAccessIcon />} onClick={actions.remoteAccess}>Remote Access…</MenuItem>
   </Menu>;
 }
 

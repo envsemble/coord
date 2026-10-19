@@ -1,7 +1,7 @@
-// The window's two rows at the top, GitHub style. The title bar: the logo (which leads to the hub),
-// back and forward, the File menu and the computer the window works on at its start. Below it, the
+// The window's two rows at the top, GitHub style. The title bar: the logo, back and forward, the
+// File, View and Help menus and the computer the window works on (with pairing and remote access) at its start. Below it, the
 // sections: Plans (the hub, and every plan, ledger and diagram opened from it) and Projects (with
-// each project's statistics), with their counts. The shortcuts shown in File are taken by the window and main's
+// each project's statistics), with their counts. The shortcuts shown in the menus are taken by the window and main's
 // application menu (on macOS, the system's menu bar).
 import type { ReactNode } from 'react';
 import { Counter, IconButton, Menubar, MenubarMenu, MenuItem, MenuSeparator, NavigationItem, Tooltip } from '@envsemble/envui';
@@ -35,8 +35,12 @@ const historyKeys = (platform: string) => platform === 'darwin'
   ? { back: '⌘[', forward: '⌘]', backKeys: 'Meta+[ BrowserBack', forwardKeys: 'Meta+] BrowserForward' }
   : { back: 'Alt+←', forward: 'Alt+→', backKeys: 'Alt+ArrowLeft BrowserBack', forwardKeys: 'Alt+ArrowRight BrowserForward' };
 
-/** File: windows and projects, plans, other computers, the view, and the app. Alt+F opens it, except on macOS. */
-export function FileMenu({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
+/**
+ * The window's menus: File (windows, projects and plans), View (zoom and full screen, and the
+ * developer's tools where offered) and Help. Alt and their letter open them, except on macOS.
+ * Other computers and remote access are in the computer menu.
+ */
+export function AppMenus({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
   const actions = useAppActions();
   const mod = modifierKey(info.platform);
   const run = (command: AppCommand) => () => { api.command(command).catch(error => { if ((error as AtlasError).code !== 'cancelled') onError((error as Error).message); }); };
@@ -49,9 +53,9 @@ export function FileMenu({ info, workbench, onError }: { info: WindowInfo; workb
       {workbench.exportPlan && <MenuItem onClick={workbench.exportPlan}>Export Plan…</MenuItem>}
       {workbench.openInEditor && <MenuItem shortcut={mod + '+O'} onClick={workbench.openInEditor}>Open in Editor</MenuItem>}
       <MenuSeparator />
-      <MenuItem onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
-      <MenuItem onClick={actions.remoteAccess}>Remote Access…</MenuItem>
-      <MenuSeparator />
+      <MenuItem onClick={run('quit')}>Exit</MenuItem>
+    </MenubarMenu>
+    <MenubarMenu label="View" accessKey="V">
       <MenuItem shortcut={mod + '++'} onClick={run('zoomIn')}>Zoom In</MenuItem>
       <MenuItem shortcut={mod + '+-'} onClick={run('zoomOut')}>Zoom Out</MenuItem>
       <MenuItem shortcut={mod + '+0'} onClick={run('resetZoom')}>Actual Size</MenuItem>
@@ -61,21 +65,20 @@ export function FileMenu({ info, workbench, onError }: { info: WindowInfo; workb
         <MenuItem shortcut={mod + '+R'} onClick={run('reload')}>Reload</MenuItem>
         <MenuItem shortcut={info.platform === 'darwin' ? 'Alt+⌘+I' : mod + '+Shift+I'} onClick={run('toggleDevTools')}>Developer Tools</MenuItem>
       </>}
-      <MenuSeparator />
+    </MenubarMenu>
+    <MenubarMenu label="Help" accessKey="H">
       <MenuItem onClick={run('openLogs')}>Open Logs</MenuItem>
       <MenuItem onClick={actions.about}>About Atlas</MenuItem>
-      <MenuSeparator />
-      <MenuItem onClick={run('quit')}>Exit</MenuItem>
     </MenubarMenu>
   </Menubar>;
 }
 
-/** The start of the title bar: the logo, back and forward, File, and the computer. */
+/** The start of the title bar: the logo, back and forward, the menus, and the computer. */
 export function TitleBarStart({ info, workbench, onError }: { info: WindowInfo; workbench: WorkbenchMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
     <span className="title-bar-logo" aria-hidden="true"><AtlasMark size={20} label="" /></span>
     <HistoryButtons platform={info.platform} workbench={workbench} />
-    <FileMenu info={info} workbench={workbench} onError={onError} />
+    <AppMenus info={info} workbench={workbench} onError={onError} />
     <ComputerMenu current={info.computer} onError={onError} />
   </div>;
 }

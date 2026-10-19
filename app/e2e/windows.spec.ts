@@ -143,7 +143,7 @@ test('a home without projects opens on the hub, which points to the Projects pag
 
   // About Atlas, from the File menu.
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
-  await chooseMenu(window, 'About Atlas');
+  await chooseMenu(window, 'About Atlas', 'Help');
   const about = window.getByRole('dialog', { name: 'Atlas' });
   await expect(about).toContainText('Version ' + version);
   await expect(about).toContainText('Atlas works offline.');
