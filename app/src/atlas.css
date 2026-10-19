@@ -161,17 +161,14 @@ body { margin: 0; }
 .plan-files-empty { margin: 0; padding: var(--space-1) var(--space-2) var(--space-2); font-size: var(--font-size-body-small); }
 .plan-frame-files { min-inline-size: 0; max-inline-size: 24rem; }
 /* On a plan and its pages (its statistics, a diagram, a file) the card floats at the top right, out of
-   the page's flow: the page lays out and centres as if it were not there, and the card keeps its place
-   as the page scrolls. Where the window is too narrow for it beside the centred page (the plan's 84rem
-   and the card's column on each side), it goes below the page instead. Over a diagram it floats
-   under the viewer's toolbar, and gives way to its details. */
+   the page's flow, at every width: the page lays out and centres as if it were not there, and the card
+   keeps its place as the page scrolls. Over a diagram it floats under the viewer's toolbar, and gives
+   way to its details. */
 .plan-frame { position: relative; display: grid; gap: var(--space-6); }
 .plan-frame-page { min-inline-size: 0; }
-@container (min-width: 122rem) {
-  .plan-frame:not(.is-filled) > .plan-frame-files { position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: 17rem; max-inline-size: none; pointer-events: none; }
-  .plan-frame:not(.is-filled) > .plan-frame-files > .plan-files { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); pointer-events: auto; }
-  .plan-frame:has(> .plan-frame-page > .work-page) > .plan-frame-files { padding-block-start: var(--space-6); }
-}
+.plan-frame:not(.is-filled) > .plan-frame-files { position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: 17rem; max-inline-size: none; pointer-events: none; }
+.plan-frame:not(.is-filled) > .plan-frame-files > .plan-files { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); pointer-events: auto; }
+.plan-frame:has(> .plan-frame-page > .work-page) > .plan-frame-files { padding-block-start: var(--space-6); }
 .plan-frame.is-filled { flex: 1; display: flex; flex-direction: column; min-block-size: 0; gap: 0; }
 .plan-frame.is-filled > .plan-frame-page { flex: 1; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
 .plan-frame.is-filled > .plan-frame-files { position: absolute; inset-block-start: 4.5rem; inset-inline-end: var(--space-3); z-index: 3; inline-size: 17rem; }
