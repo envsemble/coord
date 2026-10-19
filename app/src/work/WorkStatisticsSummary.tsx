@@ -8,7 +8,7 @@ import { Token } from '@envsemble/envui/icons/Token';
 import type { ModelUsage } from '@envsemble/atlas/planning/types';
 import type { WorkStatistics } from '../types';
 import { aiModel, providerNames } from '../ui/aiModels';
-import { ProviderMark } from '../ui/AiModel';
+import { ModelName } from '../ui/AiModel';
 import { compactNumber } from '../ui/format';
 import { agentTimeNote, modelShare, otherModels } from './workStatistics';
 import { unreported, type LiveActivity } from './agentTime';
@@ -26,7 +26,7 @@ function OtherModels({ statistics }: { statistics: WorkStatistics }) {
   if (!others.length) return null;
   const named = others.length > 2 ? others.slice(0, 1) : others, rest = others.slice(named.length);
   // Lines break between models, never inside a name.
-  return <span className="work-statistics-others">{named.map((model, index) => <Fragment key={model.model}>{index ? ' ' : ''}<span className="nowrap">{index ? 'and ' : 'with '}<span title={modelTitle(model)}>{aiModel(model.model).name}</span></span></Fragment>)}
+  return <span className="work-statistics-others">{named.map((model, index) => <Fragment key={model.model}>{index ? ' ' : ''}<span className="nowrap">{index ? 'and ' : 'with '}<ModelName model={model.model} detail={modelShare(model)} /></span></Fragment>)}
     {rest.length > 0 && <> <span className="nowrap" title={rest.map(modelTitle).join('\n')}>and {rest.length} more</span></>}
   </span>;
 }
@@ -38,11 +38,9 @@ function OtherModels({ statistics }: { statistics: WorkStatistics }) {
  */
 export function WorkStatisticsSummary({ statistics, activity = null, totals }: { statistics: WorkStatistics; activity?: LiveActivity | null; totals?: AgentTotals | null }) {
   const primary = statistics.models.find(model => model.model === statistics.primaryModel);
-  const model = primary && aiModel(primary.model);
   return <div className="work-statistics">
-    {primary && model && <div className="work-statistics-model">
-      <ProviderMark provider={model.provider} />
-      <span className="work-statistics-primary" title={modelTitle(primary)}>{model.name}{statistics.primaryEffort && <span className="model-effort"> · {statistics.primaryEffort}</span>}</span>
+    {primary && <div className="work-statistics-model">
+      <ModelName className="work-statistics-primary" model={primary.model} effort={statistics.primaryEffort} detail={modelShare(primary)} />
       <OtherModels statistics={statistics} />
     </div>}
     <ul className="work-statistics-facts">

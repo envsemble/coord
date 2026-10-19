@@ -97,7 +97,7 @@ test("a project's statistics look back on its work: its figures against the peri
   await openPlan(window, 'Saved payment methods');
   const statistics = window.locator('.about-section', { has: window.locator('h2', { hasText: 'Statistics' }) });
   await expect(statistics.locator('.work-statistics-primary')).toHaveText('Claude Opus 5.5');
-  await expect(statistics.locator('.work-statistics-model .provider-mark')).toHaveAttribute('data-provider', 'anthropic');
+  await expect(statistics.locator('.work-statistics-primary .provider-mark')).toHaveAttribute('data-provider', 'anthropic');
   await expect(statistics.locator('.work-statistics-others')).toHaveText('with Claude Sonnet 4.5 and Claude Haiku 5.5');
   const facts = statistics.locator('.work-statistics-facts li');
   // As shown: each value's description is for assistive technology.

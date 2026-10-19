@@ -1,5 +1,5 @@
 // The Projects page: every project of the window's computer, active, then archived more quietly,
-// one row each: its avatar (its initials in a colour of its own), its name (leading to its plans),
+// one row each: its avatar (its initials), its name (leading to its plans),
 // its open plans with what agents do on them and when it changed, its repositories and the workspace
 // folders it covers as chips (an agent working in one of them, or inside one, belongs to the
 // project), its planning folder quietly, its statistics, and in its menu what can be done with it:
@@ -7,13 +7,13 @@
 // from its row, quietly until the row is pointed at. Projects are made here too: a name and a
 // folder. Workspace folders are paths on the project's own computer, so they are only chosen in Atlas
 // there.
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge, Button, Dialog, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
 import { AddIcon, ChevronRightIcon, CloseIcon, FolderIcon, MoreIcon, NewProjectIcon, RepositoryIcon, StatisticsIcon } from '../ui/icons';
 import { StatusIcon } from '../ui/ui';
 import { statuses } from '../ui/status';
 import { plural, relativeDate } from '../ui/format';
-import { avatarTone, initials, projectFacts } from './projectLook';
+import { initials, projectFacts } from './projectLook';
 import type { Project, ProjectChangeRequest, WorkspaceScan } from '../types';
 import { fullPath } from '../../shared/contract';
 import { api, AtlasError } from '../api';
@@ -225,7 +225,7 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
   return <TableRow className="project-row" data-project={project.folderId} data-state={project.state} aria-busy={busy || undefined}>
     <TableCell>
       <span className="project-cell">
-        <span className="project-avatar" style={{ '--project-tone': avatarTone(project) } as CSSProperties} aria-hidden="true">{initials(project.name)}</span>
+        <span className="project-avatar" aria-hidden="true">{initials(project.name)}</span>
         <span className="project-name">
           <span className="row-title">
             <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>

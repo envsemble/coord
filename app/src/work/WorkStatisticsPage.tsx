@@ -8,10 +8,11 @@ import { DisclosureNote, SegmentedControl, Table, TableBody, TableCell, TableHea
 import type { Work, WorkSession, WorkTimeline } from '../types';
 import { aiModel, withEffort } from '../ui/aiModels';
 import { ModelName } from '../ui/AiModel';
+import { modelPalette, orderModels } from '../ui/modelLook';
 import { absoluteDate, compactNumber, duration, plural, workNumber } from '../ui/format';
 import { workTarget } from '../navigation/targets';
 import { workStatus } from '../ui/status';
-import { ModelSwatch, StatsCard } from '../statistics/StatisticsPage';
+import { ModelKey, StatsCard } from '../statistics/StatisticsPage';
 import { useWorkbench } from '../workbench/workbenchContext';
 import { Trail } from './WorkPage';
 import { activityKey, sessionTitle, useWorkSessions, useWorkTimeline } from './WorkSessions';
@@ -30,12 +31,12 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
 function ByModel({ work }: { work: Work }) {
   const models = work.statistics?.models.filter(model => model.agentMs > 0 || (model.tokens ?? 0) > 0) ?? [];
   if (!models.length) return <p className="muted">No model was reported for this plan yet.</p>;
-  const rows = effortRows(models);
-  const recorded = new Set(rows.filter(row => row.effort).map(row => row.model));
+  const rows = orderModels(effortRows(models));
+  const colour = modelPalette(rows);
   return <Table className="plan-statistics-table" aria-label="Agent time and tokens by model and effort">
     <TableHead><TableRow><TableHeaderCell>Model and effort</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
     <TableBody>{rows.map(row => <TableRow key={row.model + ':' + row.effort}>
-      <TableCell><span className="model-cell"><ModelSwatch model={row.model} effort={row.effort} /><ModelName model={row.model} effort={row.effort ?? (recorded.has(row.model) ? 'effort not recorded' : null)} /></span></TableCell>
+      <TableCell><ModelKey model={row.model} effort={row.effort} colour={colour(row.model, row.effort)} items={rows} /></TableCell>
       <TableCell numeric>{duration(row.agentMs)}</TableCell>
       <TableCell numeric>{row.tokens !== null ? compactNumber(row.tokens) : '—'}</TableCell>
     </TableRow>)}</TableBody>
@@ -147,7 +148,7 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
         onKeyDown={keys} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => { if (!drag.current) setTip(null); }}>
         <div className="timeline-axis" aria-hidden="true">{ticks.map(tick => <span key={tick.at} className="timeline-tick" style={{ left: (tick.at - start) / span * 100 + '%' }}>{tick.label}</span>)}</div>
         {timeline.lanes.map((lane, index) => <div key={index} className="timeline-lane" data-subagent={lane.subagent ? '' : undefined} aria-hidden="true">
-          <span className="timeline-lane-name" title={laneDetail(lane, sessions)}>{laneName(lane, sessions)}</span>
+          <span className="timeline-lane-name" title={laneDetail(lane, sessions)}>{lane.model ? <ModelName model={lane.model} effort={lane.effort} detail={laneDetail(lane, sessions)} /> : laneName(lane, sessions)}</span>
           <div className="timeline-track">
             {(['waiting', 'working'] as const).map(kind => lane[kind].map(([from, to], at) => { const style = place(from, to); return style && <span key={kind + at} className="timeline-bar" data-kind={kind} data-lane={index} data-index={at} style={style} />; }))}
           </div>
@@ -164,7 +165,7 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
         <Table className="plan-statistics-table" aria-label="Timeline">
           <TableHead><TableRow><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell>Session or subagent</TableHeaderCell><TableHeaderCell>What</TableHeaderCell><TableHeaderCell>From</TableHeaderCell><TableHeaderCell>To</TableHeaderCell><TableHeaderCell numeric>Length</TableHeaderCell></TableRow></TableHead>
           <TableBody>{stretches.map((stretch, index) => <TableRow key={index}>
-            <TableCell>{laneName(stretch.lane, sessions)}</TableCell><TableCell>{laneDetail(stretch.lane, sessions).split(' · ')[0]}</TableCell><TableCell>{stretch.kind}</TableCell>
+            <TableCell>{stretch.lane.model ? <ModelName model={stretch.lane.model} effort={stretch.lane.effort} /> : laneName(stretch.lane, sessions)}</TableCell><TableCell>{laneDetail(stretch.lane, sessions).split(' · ')[0]}</TableCell><TableCell>{stretch.kind}</TableCell>
             <TableCell>{absoluteDate(stretch.from)}</TableCell><TableCell>{absoluteDate(stretch.to)}</TableCell>
             <TableCell numeric>{duration(Math.max(0, Date.parse(stretch.to) - Date.parse(stretch.from)))}</TableCell>
           </TableRow>)}</TableBody>

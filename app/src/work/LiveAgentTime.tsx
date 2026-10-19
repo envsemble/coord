@@ -6,7 +6,6 @@
 // which comes with the activity in one reading, so a report replaces the live count it covers at once.
 import { useEffect, useState } from 'react';
 import type { SessionActivity, WorkStatistics } from '../types';
-import { aiModel } from '../ui/aiModels';
 import { absoluteDate, duration } from '../ui/format';
 import { Detailed } from '../ui/ui';
 import { hostNow, liveActiveMs, liveAgentMs, since, type LiveActivity } from './agentTime';
@@ -99,5 +98,3 @@ export function measuredSection(statistics: WorkStatistics): ReportSection {
   };
 }
 
-/** A model's name for a report row. */
-export const modelName = (model: string | null) => model ? aiModel(model).name : 'Model not reported';

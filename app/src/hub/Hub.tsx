@@ -12,11 +12,11 @@ import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select,
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
 import { hubGroups, hubItems, hubRowFacts, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
-import { absoluteDate, relativeDate, workNumber } from '../ui/format';
+import { absoluteDate, plural, relativeDate, workNumber } from '../ui/format';
 import { hubPlace, projectsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
 import { StatusIcon } from '../ui/ui';
 import { StepBar } from '../ui/LedgerProgress';
-import { ProviderMark } from '../ui/AiModel';
+import { ModelName } from '../ui/AiModel';
 import { Page } from '../ui/Pages';
 import { modifierKey } from '../menu/AppMenu';
 import { AgentTime, Waited } from '../work/LiveAgentTime';
@@ -46,7 +46,7 @@ function Spent({ item, facts }: { item: HubItem; facts: HubRowFacts }) {
   if (!model && !timed && !rest) return <span className="muted">—</span>;
   const stages = ([['Planning', time?.planning], ['Implementation', time?.implementation]] as const).flatMap(([label, value]) => value ? [{ label, value }] : []);
   return <span className="hub-row-stats">
-    {model && <span className="hub-row-model" title={model.id}><ProviderMark provider={model.provider} />{model.name}{model.effort && <span className="model-effort"> · {model.effort}</span>}{model.others > 0 && <span className="muted"> +{model.others}</span>}</span>}
+    {model && <span className="hub-row-model"><ModelName model={model.id} effort={model.effort} />{model.others > 0 && <span className="muted" title={plural(model.others, 'other model')}>+{model.others}</span>}</span>}
     {(timed || rest) && <small className="cell-note">
       {timed && <AgentTime totals={item.work.statistics ?? { agentMs: 0, activeMs: 0, unmergedMs: 0, lastReport: null }} activity={activity} sections={[{ heading: 'By stage', rows: stages }]} description="Every agent's working time, added up" />}
       {timed && rest ? ' · ' + rest : rest}

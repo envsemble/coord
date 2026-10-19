@@ -15,15 +15,22 @@ import { StatusIcon } from '../ui/ui';
 import { TargetLink, useWorkbench } from '../workbench/workbenchContext';
 import { Page } from '../ui/Pages';
 import { roughDuration } from '../work/sessions';
-import { change, modelColour, modelKey, modelLabel, periods, periodStart, workBars, type PeriodId } from './projectStatistics';
+import { change, modelKey, periods, periodStart, workBars, type PeriodId } from './projectStatistics';
+import { modelPalette, orderModels, shownEffort } from '../ui/modelLook';
+import { ModelName } from '../ui/AiModel';
 
 export function StatsCard({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
   return <Surface className="stat" padding={4}><span className="stat-label">{label}</span><strong className="stat-value">{value}</strong>{note != null && <small className="stat-note">{note}</small>}</Surface>;
 }
 
-/** A model at an effort with its colour. */
-export function ModelSwatch({ model, effort }: { model: string | null; effort: string | null }) {
-  return <span className="model-swatch" style={{ background: modelColour(model, effort) }} aria-hidden="true" />;
+/** A model at an effort's colour, from the palette of the models shown with it (`modelPalette`). */
+export function ModelSwatch({ colour }: { colour: string }) {
+  return <span className="model-swatch" style={{ background: colour }} aria-hidden="true" />;
+}
+
+/** A model at an effort as charts, legends and tables show it: its colour, then its name with its provider's mark and effort. */
+export function ModelKey({ model, effort, colour, items }: { model: string | null; effort: string | null; colour: string; items: { model: string | null; effort: string | null }[] }) {
+  return <span className="model-cell"><ModelSwatch colour={colour} /><ModelName model={model} effort={shownEffort(items, model, effort)} /></span>;
 }
 
 type Figures = ProjectStatistics['current'];
@@ -55,7 +62,8 @@ const bucketName = (start: string, unit: 'day' | 'week') => (unit === 'week' ? '
  * it holds; the same figures are in a table, folded.
  */
 function WorkOverTime({ statistics }: { statistics: ProjectStatistics }) {
-  const { bars, top } = workBars(statistics);
+  const { bars, models, top } = workBars(statistics);
+  const colour = modelPalette(models);
   const [shown, setShown] = useState<number | null>(null);
   const bar = shown === null ? null : bars[shown];
   const line = bars.map((item, index) => `${(index + 0.5) / bars.length * 100},${100 - item.activeMs / top * 100}`).join(' ');
@@ -67,7 +75,7 @@ function WorkOverTime({ statistics }: { statistics: ProjectStatistics }) {
         <div className="work-chart-bars">{bars.map((item, index) => <div key={item.start} className="work-chart-column" data-shown={shown === index ? '' : undefined} onPointerEnter={() => setShown(index)}>
           {item.completed.length > 0 && <span className="work-chart-completed" style={{ bottom: item.total / top * 100 + '%' }}>{item.completed.length}</span>}
           <div className="work-chart-stack" style={{ blockSize: item.total / top * 100 + '%' }}>
-            {item.parts.map(part => <span key={modelKey(part.model, part.effort)} style={{ flexGrow: part.agentMs, background: modelColour(part.model, part.effort) }} />)}
+            {item.parts.map(part => <span key={modelKey(part.model, part.effort)} style={{ flexGrow: part.agentMs, background: colour(part.model, part.effort) }} />)}
           </div>
           {index % labelEvery === 0 && <span className="work-chart-label">{shortDate(item.start)}</span>}
         </div>)}</div>
@@ -75,12 +83,12 @@ function WorkOverTime({ statistics }: { statistics: ProjectStatistics }) {
         {bar && <div className="work-chart-tip" role="tooltip" data-flip={shown! > bars.length / 2 ? '' : undefined} style={{ left: (shown! + 0.5) / bars.length * 100 + '%' }}>
           <strong>{bucketName(bar.start, statistics.unit)}</strong>
           <span>{duration(bar.total)} of agent time · {duration(bar.activeMs)} at least one agent working</span>
-          {bar.parts.map(part => <span key={modelKey(part.model, part.effort)} className="work-chart-tip-model"><ModelSwatch model={part.model} effort={part.effort} />{modelLabel(part.model, part.effort)} {duration(part.agentMs)}</span>)}
+          {[...bar.parts].reverse().map(part => <span key={modelKey(part.model, part.effort)} className="work-chart-tip-model"><ModelKey model={part.model} effort={part.effort} colour={colour(part.model, part.effort)} items={models} /><span className="work-chart-tip-figure">{duration(part.agentMs)}</span></span>)}
           {bar.completed.length > 0 && <span>Completed: {bar.completed.map(plan => plan.title).join(', ')}</span>}
         </div>}
       </div>
       <p className="work-chart-legend muted">
-        {statistics.models.map(item => <span key={modelKey(item.model, item.effort)}><ModelSwatch model={item.model} effort={item.effort} />{modelLabel(item.model, item.effort)}</span>)}
+        {models.map(item => <ModelKey key={modelKey(item.model, item.effort)} model={item.model} effort={item.effort} colour={colour(item.model, item.effort)} items={models} />)}
         <span><span className="work-chart-key-line" aria-hidden="true" />at least one agent working</span>
         <span><span className="work-chart-key-completed" aria-hidden="true" />plans completed</span>
       </p>
@@ -122,12 +130,14 @@ function WhereTheTimeWent({ statistics }: { statistics: ProjectStatistics }) {
 /** Agent time and tokens by model and effort in the period, with each one's share. */
 function ModelsAndEffort({ statistics }: { statistics: ProjectStatistics }) {
   const total = statistics.models.reduce((sum, item) => sum + item.agentMs, 0);
+  const models = orderModels(statistics.models);
+  const colour = modelPalette(models);
   return <section className="project-statistics-section" aria-label="Models and effort">
     <Text as="h2" variant="section-heading">Models and effort</Text>
     {statistics.models.length ? <Table className="project-statistics-table" aria-label="Agent time and tokens by model and effort">
       <TableHead><TableRow><TableHeaderCell>Model and effort</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Share</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
-      <TableBody>{statistics.models.map(item => <TableRow key={modelKey(item.model, item.effort)}>
-        <TableCell><span className="model-cell"><ModelSwatch model={item.model} effort={item.effort} />{modelLabel(item.model, item.effort)}</span></TableCell>
+      <TableBody>{models.map(item => <TableRow key={modelKey(item.model, item.effort)}>
+        <TableCell><ModelKey model={item.model} effort={item.effort} colour={colour(item.model, item.effort)} items={models} /></TableCell>
         <TableCell numeric>{duration(item.agentMs)}</TableCell><TableCell numeric>{total ? Math.round(item.agentMs / total * 100) + '%' : '—'}</TableCell>
         <TableCell numeric>{item.tokens !== null ? compactNumber(item.tokens) : '—'}</TableCell>
       </TableRow>)}</TableBody>

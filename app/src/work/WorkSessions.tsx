@@ -6,7 +6,7 @@ import { Button } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
 import type { WorkProduct, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
-import { withEffort, aiModel } from '../ui/aiModels';
+import { ModelName } from '../ui/AiModel';
 import { absoluteDate, duration, relativeDate } from '../ui/format';
 import { DotIcon } from '../ui/icons';
 import { statuses } from '../ui/status';
@@ -45,8 +45,10 @@ export function useWorkTimeline(work: string, key: string) {
   return value?.work === work ? value.timeline : null;
 }
 
-/** A session's harness, model and effort: "Claude Code · Claude Opus 5.5 · high". */
-export const sessionLabel = (session: Pick<WorkSession, 'harness' | 'model' | 'effort'>) => [harnessNames[session.harness], session.model && withEffort(aiModel(session.model).name, session.effort)].filter(Boolean).join(' · ');
+/** A session's harness, then its model with its provider's mark and effort: "Claude Code · Claude Opus 5.5 · high". */
+function SessionLabel({ session }: { session: Pick<WorkSession, 'harness' | 'model' | 'effort'> }) {
+  return <>{harnessNames[session.harness]}{session.model && <> · <ModelName model={session.model} effort={session.effort} /></>}</>;
+}
 /** A session's name: its own title, else its harness and when it started. */
 export const sessionTitle = (session: Pick<WorkSession, 'title' | 'harness' | 'startedAt'>) => session.title?.trim() || harnessNames[session.harness] + ' session, ' + absoluteDate(session.startedAt);
 
@@ -64,7 +66,7 @@ export function SessionsList({ sessions }: { sessions: WorkSession[] }) {
       {session.state === 'ended' ? <DotIcon className="session-ended-icon" label="Ended" /> : <StatusIcon status={statuses[session.state]} />}
       <div className="about-session-text">
         <span className="about-session-title">{sessionTitle(session)}</span>
-        <span className="muted">{[sessionLabel(session), sessionStates[session.state]].join(' · ')} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span>{session.agentMs > 0 && ' · ' + duration(session.agentMs)}</span>
+        <span className="muted"><SessionLabel session={session} /> · {sessionStates[session.state]} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span>{session.agentMs > 0 && ' · ' + duration(session.agentMs)}</span>
       </div>
     </li>)}</ul>
     {sessions.length > shown && <Button variant="text" className="about-more" onClick={() => setAll(!all)}>{all ? 'Show fewer' : 'Show all ' + sessions.length}</Button>}
@@ -107,7 +109,7 @@ export function NeedsYou({ work, session }: { work: string; session: WorkSession
     <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
     <div className="needs-you-actions">
       {start.more && <Button variant="text" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
-      <span className="muted">{sessionLabel(session)} · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
+      <span className="muted"><SessionLabel session={session} /> · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
     </div>
   </section>;
 }

@@ -29,9 +29,12 @@ export function ProviderMark({ provider, plain = false }: { provider: Provider |
 
 /**
  * A model by name with its provider's mark, and the reasoning effort it worked at when known ("Claude
- * Opus 5.5 · high"); its title gives the identifier, the provider and any detail.
+ * Opus 5.5 · high"); its title gives the identifier, the provider and any detail. Wherever Atlas names
+ * a model it does so with this, so the mark, its size and the effort read the same; no model (none
+ * was recorded) is "Model not recorded" beside a neutral mark.
  */
-export function ModelName({ model, plain, detail, className, effort }: { model: string; plain?: boolean; detail?: string; className?: string; effort?: string | null }) {
+export function ModelName({ model, plain, detail, className, effort }: { model: string | null; plain?: boolean; detail?: string; className?: string; effort?: string | null }) {
+  if (!model) return <span className={'model-name model-unrecorded' + (className ? ' ' + className : '')} title={detail}><ProviderMark provider={null} /><span className="model-name-text">Model not recorded</span></span>;
   const { name, provider } = aiModel(model);
   return <span className={'model-name' + (className ? ' ' + className : '')} title={[model, provider && providerNames[provider], effort && effort + ' effort', detail].filter(Boolean).join(' · ')}>
     <ProviderMark provider={provider} plain={plain} /><span className="model-name-text">{name}</span>{effort && <span className="model-effort"> · {effort}</span>}
