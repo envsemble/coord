@@ -4,8 +4,8 @@
 // ready plans in compact ones, closed work with how it ended. While agents work on a plan its status
 // and its step pulse and its agent time counts up; while one waits for the person they are amber and
 // the row says for how long. A project filter (part of the place, so back and forward and a plan's
-// breadcrumb set it) and a state filter narrow it, beside its heading; the search field under them opens
-// the search. One
+// breadcrumb set it) and a state filter narrow it, on its heading's line with the search field, centred,
+// which opens the search. One
 // click opens a plan.
 import { useMemo, type MouseEvent } from 'react';
 import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
@@ -123,22 +123,21 @@ export function Hub({ projects, error, filter, filters, setFilters, go, query, s
       action={<Button variant="secondary" onClick={() => go(projectsPlace())}>Projects</Button>} />
   </Page>;
   const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
-  // The heading and the filters on one line, the search centred under them.
-  return <Page className="hub" heading={<div className="page-heading-row hub-heading">
-    <Text as="h1" variant="page-heading">{filtered?.name ?? 'Plans'}</Text>
-    <span className="spacer" />
-    <Select className="hub-project" density="compact" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
-      options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name }))]} />
-    {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
-    <SegmentedControl aria-label="Plan state" size="compact" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
-      options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
-  </div>}>
-    {/* The search, centred above the plans: it opens the search popup with what is typed, and never filters this list. */}
-    <div className="hub-search-bar">
-      <SearchField className="hub-search" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog" compact={false} showLabel={false}
-        aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
-        onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
+  // One line: the heading at the left, the search centred on the page, the filters at the right.
+  return <Page className="hub" heading={<div className="hub-heading">
+    <Text as="h1" variant="page-heading" className="hub-title">{filtered?.name ?? 'Plans'}</Text>
+    {/* The search opens the search popup with what is typed, and never filters this list. */}
+    <SearchField className="hub-search" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog" showLabel={false}
+      aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
+      onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
+    <div className="hub-filters">
+      <Select className="hub-project" density="compact" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
+        options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name }))]} />
+      {filtered && <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered.folderId))}>Statistics</Button>}
+      <SegmentedControl aria-label="Plan state" size="compact" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
+        options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
     </div>
+  </div>}>
     {error && <Notice tone="warning">{error}</Notice>}
     {unread.length > 0 && <Text variant="caption" tone="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>
