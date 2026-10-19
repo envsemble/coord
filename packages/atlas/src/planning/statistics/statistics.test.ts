@@ -67,7 +67,7 @@ test('a lower token count starts the session again, and out-of-order lines are s
   assert.equal(summary.tokens, 1000 + 500);
   assert.equal(summarizeReports([report(0, 'model-a', 7000, 's1')]).tokens, null, 'one report is a starting point only: its cost is unknown, not zero');
   const none = { reports: 0, agentMs: 0, tokens: null, tokenKinds: null };
-  assert.deepEqual(summarizeReports([]), { reports: 0, invalid: 0, models: [], primaryModel: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, activeMs: 0, unmergedMs: 0, agents: [], stages: { planning: none, implementation: none, unknown: none }, subagents: { count: 0, agentMs: 0 }, firstReport: null, lastReport: null });
+  assert.deepEqual(summarizeReports([]), { reports: 0, invalid: 0, models: [], primaryModel: null, primaryEffort: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, activeMs: 0, unmergedMs: 0, agents: [], stages: { planning: none, implementation: none, unknown: none }, subagents: { count: 0, agentMs: 0 }, firstReport: null, lastReport: null });
 });
 
 test('a measured report replaces the estimate for its interval, long gaps included; older reports keep the estimate', () => {
@@ -404,7 +404,7 @@ test('a hook names the session\'s log: it is measured with its subagents, whatev
   // Every agent adds up; the time at least one worked is their union, and each agent has its share.
   const statistics = (await loadPlanning(root)).work[0].statistics!;
   assert.deepEqual([statistics.subagents, statistics.stages.implementation.agentMs, statistics.activeMs, statistics.unmergedMs], [{ count: 1, agentMs: 8 * 60000 }, 28 * 60000, 20 * 60000, 0]);
-  assert.deepEqual(statistics.agents, [{ session, subagent: null, model: 'claude-opus-5-5', agentMs: 20 * 60000 }, { session, subagent: 'a7', model: 'claude-haiku-5-5', agentMs: 8 * 60000 }]);
+  assert.deepEqual(statistics.agents, [{ session, subagent: null, model: 'claude-opus-5-5', effort: null, agentMs: 20 * 60000 }, { session, subagent: 'a7', model: 'claude-haiku-5-5', effort: null, agentMs: 8 * 60000 }]);
   const elsewhere = path.join(config, 'notes.jsonl');
   writeFileSync(elsewhere, prompt(0) + '\n');
   const unread = await recordWorkReport(root, 'work-0001', { model: 'model-a', at: new Date(at(50)) }, { ...options, transcriptPath: elsewhere });

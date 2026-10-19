@@ -6,7 +6,7 @@ import { timeTicks, valueTicks } from '../statistics/ScatterChart.tsx';
 import type { Snapshot, Work, WorkStatistics } from '../types.ts';
 
 const statistics = (model: string | null, tokens: number | null, agentMs: number, planRevisions: number | null, lastReport: string | null = null): WorkStatistics => ({
-  reports: model ? 2 : 0, invalid: 0, models: model ? [{ model, reports: 2, sessions: 1, agentMs, tokens, tokenKinds: null }] : [], primaryModel: model, tokens, tokenKinds: null,
+  reports: model ? 2 : 0, invalid: 0, models: model ? [{ model, reports: 2, sessions: 1, agentMs, tokens, tokenKinds: null, efforts: [] }] : [], primaryModel: model, primaryEffort: null, tokens, tokenKinds: null,
   agentMs, activeMs: agentMs, unmergedMs: agentMs, agents: [], measuredMs: 0, estimatedMs: agentMs, measuredReports: 0, firstReport: lastReport, lastReport, planRevisions,
   stages: { planning: none, implementation: none, unknown: { reports: model ? 2 : 0, agentMs, tokens, tokenKinds: null } }, subagents: { count: 0, agentMs: 0 },
 });
@@ -80,7 +80,7 @@ test('tokens break down by kind, with any self-reported tokens apart', () => {
 });
 
 test('the other models are those that did something besides the primary one', () => {
-  const usage = (model: string, agentMs: number, tokens: number | null, reports = 0) => ({ model, reports, sessions: 1, agentMs, tokens, tokenKinds: null });
+  const usage = (model: string, agentMs: number, tokens: number | null, reports = 0) => ({ model, reports, sessions: 1, agentMs, tokens, tokenKinds: null, efforts: [] });
   const models = [usage('claude-opus-5-5', 9480000, 13243850, 3), usage('claude-sonnet-4-5', 5400000, 120000, 2), usage('claude-haiku-5-5', 1080000, 451650), usage('idle-model', 0, 0)];
   assert.deepEqual(otherModels({ models, primaryModel: 'claude-opus-5-5' }).map(model => model.model), ['claude-sonnet-4-5', 'claude-haiku-5-5']);
   assert.equal(modelShare(models[2]), '18 min, ' + compactNumber(451650) + ' tokens');

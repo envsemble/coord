@@ -8,7 +8,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../plann
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 8;
+export const protocolVersion = 9;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -84,7 +84,10 @@ export interface ProjectWorkStatistics {
   activeMs: number;
   /** Of `activeMs`, the time of reports without intervals, added up rather than merged. */
   unmergedMs: number;
-  tokens: number | null; primaryModel: string | null; otherModels: number;
+  tokens: number | null; primaryModel: string | null;
+  /** The reasoning effort the primary model worked at most (`high`, `medium`…); null when no log recorded one. */
+  primaryEffort: string | null;
+  otherModels: number;
   planning: { agentMs: number; tokens: number | null }; implementation: { agentMs: number; tokens: number | null };
   subagents: number; lastReport: string | null;
 }
@@ -133,6 +136,62 @@ export interface WorkActivity {
  * it was listed (`now`), against which clients count live agent time.
  */
 export interface ProjectSummary { repositories: string[]; active: ProjectWork[]; closed: ProjectWork[]; updated: string | null; activity: WorkActivity[]; now: string }
+/**
+ * A reference a planning file makes, as the reader finds it: a PR or issue (`repo#22`, a GitHub URL;
+ * `value` its number), a commit (`repo@4ab195a`, a bare hash; `value` the hash) or a file in a
+ * repository (a path; `value` the path, `line` its line). `repository` is what the text names: a
+ * registered repository ID or name, `owner/name` from a URL, or null when it names none.
+ */
+export interface ReferenceInput { kind: 'pull' | 'commit' | 'path'; repository: string | null; value: string; line: number | null }
+/** A file on the host's computer, in one of the project's local checkouts. */
+export interface ReferenceFile { path: string; line: number | null }
+/**
+ * Where a reference leads. `url`: its page on the repository's host (a PR, an issue, a commit), when
+ * the repository's remote names one. `file`: the file on this computer, for a path (from the plan's
+ * repositories first, then the project's, then any checkout that has it). `repository`: the registered
+ * repository it was found in. `pull`: a PR's or issue's title and state, when `gh` can tell. `title`: a
+ * commit's subject, when a local checkout has it. `choices`: the other repositories a bare hash is in.
+ */
+export interface ResolvedReference {
+  url: string | null; file: ReferenceFile | null; repository: string | null;
+  pull: { title: string; state: 'open' | 'draft' | 'merged' | 'closed'; checks: 'passing' | 'failing' | 'pending' | null } | null;
+  title: string | null;
+  choices: { repository: string; url: string | null; title: string | null }[];
+}
+/**
+ * An agent session on a work item, from the home database: its harness, the model and reasoning
+ * effort it used most, its state now, when it started and was last seen, its agent time on this work
+ * item, and how to resume it on the host's computer (`resume`, a command run in `folder`). `message`
+ * is the last message of its turn, from its log, while it waits for the person; null otherwise.
+ */
+export interface WorkSession {
+  session: string; harness: 'claude-code' | 'codex' | 'unknown';
+  model: string | null; effort: string | null;
+  state: 'working' | 'waiting' | 'ended';
+  startedAt: string; lastSeen: string; agentMs: number;
+  folder: string | null; resume: string | null;
+  message: string | null;
+}
+/** A commit a session on the work item made, or a PR it opened, as its hooks saw them. */
+export interface WorkProduct {
+  kind: 'commit' | 'pull'; session: string; at: string;
+  /** The registered repository, else the checkout's folder name; null when unknown. */
+  repository: string | null;
+  /** The commit's hash, or the PR's number. */
+  id: string;
+  title: string | null; url: string | null;
+  /** The branch the commit was made on, or the PR's head branch. */
+  branch: string | null;
+}
+/**
+ * A work item's time: how long it was planned (created to accepted) and implemented (accepted to
+ * completed, or now), how long its sessions waited for the person, and one lane per session and
+ * subagent with its working and waiting stretches ([start, end], ISO times; an open one ends now).
+ */
+export interface WorkTimeline {
+  plannedMs: number | null; implementingMs: number | null; waitedMs: number;
+  lanes: { session: string; subagent: string | null; model: string | null; effort: string | null; working: [string, string][]; waiting: [string, string][] }[];
+}
 /** A repository a project covers: its ID in planning.json, its name and its Git remote. */
 export interface ProjectRepository { id: string; name: string; remote: string | null }
 /** The Git checkouts found in a workspace folder (the folder itself and the folders directly inside it), as a new project would register them. */
@@ -187,6 +246,12 @@ export interface Methods {
   'projects.create': { params: { name: string; workspaces: string[]; repositories?: ProjectRepository[] }; result: Project };
   /** Search every active project of the computer, best matches first (at most `limit`, default 50). */
   'search.query': { params: { query: string; limit?: number }; result: SearchResult[] };
+  /** Resolve the references a planning file of the project makes (each in order; null when it leads nowhere). */
+  'references.resolve': { params: { folderId: string; work: string | null; items: ReferenceInput[] }; result: (ResolvedReference | null)[] };
+  /** A work item's sessions, newest first, and the commits and PRs they made, newest first. */
+  'work.sessions': { params: { folderId: string; work: string }; result: { sessions: WorkSession[]; products: WorkProduct[] } };
+  /** A work item's time and its sessions' working and waiting stretches. */
+  'work.timeline': { params: { folderId: string; work: string }; result: WorkTimeline };
   /** The Git checkouts in a folder on this computer, for a new project's preview. */
   'projects.scan': { params: { folder: string }; result: WorkspaceScan };
   /**
@@ -228,6 +293,9 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'projects.list': 'computer',
   'projects.create': 'computer',
   'search.query': 'computer',
+  'references.resolve': 'computer',
+  'work.sessions': 'computer',
+  'work.timeline': 'computer',
   // A folder on this computer, by path: the app's own, like plan.importRead.
   'projects.scan': 'owner',
   'projects.update': 'computer',

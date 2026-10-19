@@ -19,7 +19,7 @@ export interface Work {
  * One agent's working time on a work item: a session's own (subagent null) or one of its subagents'.
  * The subagent `unlisted` stands for the subagents older reports counted without naming them.
  */
-export interface AgentUsage { session: string | null; subagent: string | null; model: string | null; agentMs: number }
+export interface AgentUsage { session: string | null; subagent: string | null; model: string | null; effort: string | null; agentMs: number }
 /** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
 export interface TokenKinds { input: number; cacheRead: number; cacheWrite: number; output: number }
 /** One model's share of a work item: the reports naming it and the agent time and tokens it spent. */
@@ -30,6 +30,8 @@ export interface ModelUsage {
   tokens: number | null;
   /** Its measured tokens by kind; null when no session log measured it. */
   tokenKinds: TokenKinds | null;
+  /** Its time and tokens by reasoning effort, most time first; empty when no log recorded an effort. */
+  efforts: { effort: string; agentMs: number; tokens: number | null }[];
 }
 /**
  * A work item's stage when a report was made: planning until its plan's design is accepted, and
@@ -56,6 +58,8 @@ export interface WorkStatistics {
   models: ModelUsage[];
   /** The model that did most of the work: the most agent time (then tokens, then reports). */
   primaryModel: string | null;
+  /** The reasoning effort the primary model worked at most; null when no log recorded one. */
+  primaryEffort: string | null;
   tokens: number | null;
   /** The measured tokens by kind; null when no report was measured. Self-reported tokens have no kinds. */
   tokenKinds: TokenKinds | null;

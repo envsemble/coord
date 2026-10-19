@@ -69,7 +69,7 @@ test('each plan shows its status, what agents do on it first, and closed work ho
 });
 
 const statistics = (change: Partial<NonNullable<ProjectWork['statistics']>> = {}): NonNullable<ProjectWork['statistics']> => ({
-  agentMs: 12_000_000, activeMs: 9_000_000, unmergedMs: 0, tokens: 1_234_567, primaryModel: 'claude-opus-5-5', otherModels: 2,
+  agentMs: 12_000_000, activeMs: 9_000_000, unmergedMs: 0, tokens: 1_234_567, primaryModel: 'claude-opus-5-5', primaryEffort: 'high', otherModels: 2,
   planning: { agentMs: 3_600_000, tokens: 200_000 }, implementation: { agentMs: 8_400_000, tokens: 1_034_567 },
   subagents: 4, lastReport: '2026-10-15T09:30:00Z', ...change,
 });

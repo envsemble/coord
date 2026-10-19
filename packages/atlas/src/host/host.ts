@@ -880,6 +880,10 @@ export class Host {
         return this.createProject(params) as never;
       }
       case 'search.query': { const { query, limit } = p as Methods['search.query']['params']; return this.search(query, limit) as never; }
+      // Contract stubs: the references, sessions and timeline come with the host step.
+      case 'references.resolve': return (p as Methods['references.resolve']['params']).items.map(() => null) as never;
+      case 'work.sessions': return { sessions: [], products: [] } as never;
+      case 'work.timeline': return { plannedMs: null, implementingMs: null, waitedMs: 0, lanes: [] } as never;
       case 'projects.scan': return this.scanFolder((p as Methods['projects.scan']['params']).folder) as never;
       case 'projects.update': {
         const params = p as Methods['projects.update']['params'];

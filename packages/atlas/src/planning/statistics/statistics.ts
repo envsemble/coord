@@ -349,15 +349,16 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     }
     run.last = time;
   }
-  const models: ModelUsage[] = [...usage.values()].map(entry => ({ model: entry.model, reports: entry.reports, sessions: entry.sessions.size, agentMs: entry.agentMs, tokens: entry.tokensKnown ? entry.tokens : null, tokenKinds: entry.tokenKinds }))
+  const models: ModelUsage[] = [...usage.values()].map(entry => ({ model: entry.model, reports: entry.reports, sessions: entry.sessions.size, agentMs: entry.agentMs, tokens: entry.tokensKnown ? entry.tokens : null, efforts: [], tokenKinds: entry.tokenKinds }))
     .sort((a, b) => b.agentMs - a.agentMs || (b.tokens ?? 0) - (a.tokens ?? 0) || b.reports - a.reports || a.model.localeCompare(b.model));
   const tokens = measuredReports || models.some(entry => entry.tokens !== null) ? models.reduce((total, entry) => total + (entry.tokens ?? 0), 0) : null;
   // Each agent's model: the one it worked with longest.
   const busiest = (times: Map<string | null, number>) => [...times].filter(([name]) => name !== null).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  const agentUsage: AgentUsage[] = [...agents.values()].filter(entry => entry.agentMs > 0).map(entry => ({ session: entry.session, subagent: entry.subagent, model: busiest(entry.models), agentMs: entry.agentMs }))
+  const agentUsage: AgentUsage[] = [...agents.values()].filter(entry => entry.agentMs > 0).map(entry => ({ session: entry.session, subagent: entry.subagent, model: busiest(entry.models), effort: null, agentMs: entry.agentMs }))
     .sort((a, b) => b.agentMs - a.agentMs || (a.session ?? '').localeCompare(b.session ?? '') || (a.subagent ?? '').localeCompare(b.subagent ?? ''));
   return {
-    reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, tokens, tokenKinds: kinds,
+    // Contract stub: efforts come with the host step.
+    reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, primaryEffort: null, tokens, tokenKinds: kinds,
     agentMs: measuredMs + estimatedMs, measuredMs, estimatedMs, measuredReports,
     activeMs: spansMs(spans) + unmergedMs, unmergedMs, agents: agentUsage,
     stages, subagents: { count: subagents.size + unlisted, agentMs: subagentMs },

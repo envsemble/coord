@@ -132,7 +132,7 @@ test('the project list has each work item\'s step, completion and statistics fro
   const work = (id: string) => [...summary.active, ...summary.closed].find(item => item.id === id)!;
   assert.deepEqual(work('work-0001').step, { title: 'Add authoriseWithToken to the acquirer gateway, with the challenge_required path (shop#58)', status: 'doing', phase: 'implementation' });
   assert.deepEqual(work('work-0001').statistics, {
-    agentMs: 5_400_000, activeMs: 5_400_000, unmergedMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
+    agentMs: 5_400_000, activeMs: 5_400_000, unmergedMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', primaryEffort: null, otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
     subagents: 0, lastReport: '2026-10-02T10:00:00.000Z',
   });
   assert.deepEqual([work('work-0002').statistics, work('work-0003').step, work('work-0001').completed], [null, null, null], 'no reports, no steps (a ledger from before steps), open');
@@ -150,7 +150,7 @@ test('the project list has each work item\'s step, completion and statistics fro
   assert.deepEqual([sent()?.agentMs, sent()?.activeMs, sent()?.unmergedMs], [5_400_000, 3_600_000, 0]);
   const shown = async () => (await owner.connection.request('folder.snapshot', { folderId })).work.find(item => item.id === 'work-0002')?.statistics;
   await until(() => owner.events.some(event => event.folderId === folderId && event.revision > 1), 5000);
-  assert.deepEqual([(await shown())?.activeMs, (await shown())?.agents], [3_600_000, [{ session: 's3', subagent: null, model: 'claude-opus', agentMs: 3_600_000 }, { session: 's3', subagent: 'a1', model: null, agentMs: 1_800_000 }]]);
+  assert.deepEqual([(await shown())?.activeMs, (await shown())?.agents], [3_600_000, [{ session: 's3', subagent: null, model: 'claude-opus', effort: null, agentMs: 3_600_000 }, { session: 's3', subagent: 'a1', model: null, effort: null, agentMs: 1_800_000 }]]);
 });
 
 test('the search covers every active project, in the home or outside it, best first', async t => {
