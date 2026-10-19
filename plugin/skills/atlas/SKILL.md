@@ -1,6 +1,6 @@
 ---
 name: atlas
-description: "Atlas planning: projects with their plans, ledgers, decisions, glossaries and diagrams in the Atlas home. Use whenever the user mentions Atlas, a project, a work item, a plan or a ledger; when they design something or ask for work big enough to plan; when they want something recorded, reviewed or brought up to date, in one project or across all of them. Small, direct coding tasks need none of it."
+description: "Use whenever the user mentions Atlas, a project, a work item, a plan or a ledger; when they design something or ask for work big enough to plan; when they want something recorded, reviewed or brought up to date. Small, direct coding tasks need none of it."
 ---
 
 # Atlas
@@ -50,6 +50,7 @@ The Atlas tools are the reliable way to change planning state; each validates, r
 | `work_block`                                         | set or clear what blocks the work                                                    |
 | `work_close`                                         | close verified work; refused while items are open                                    |
 | `work_archive`, `work_reopen`                        | archive superseded (by which work) or abandoned (why) work; bring archived work back |
+| `work_continue`                                      | record that a work item continues other work, in any project                         |
 
 Do not hand-edit what the tools own: work-item registrations, the statuses and dates they set, the `superseded`/`abandoned` disposition `work_archive` sets, the ledger header and moves between `active/` and `archive/`.
 
