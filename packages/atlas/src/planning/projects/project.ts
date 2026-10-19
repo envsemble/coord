@@ -5,6 +5,7 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { folderKey, HomeDatabase, projectOf, type ProjectRow } from '../home/database.ts';
+import { absoluteFolder } from '../check/check.ts';
 import { setRegistryMember } from '../work/registryText.ts';
 import { runProgram } from '../system/run.ts';
 import { homePlanningDirectory } from '../home/storage.ts';
@@ -29,7 +30,7 @@ export function checkedFolders(folders: unknown): string[] {
   if (!Array.isArray(folders) || folders.length > folderLimit) throw new WorkError(`List at most ${folderLimit} folders.`);
   const seen = new Set<string>(), checked: string[] = [];
   for (const folder of folders) {
-    if (typeof folder !== 'string' || !folder.trim() || !path.isAbsolute(folder.trim())) throw new WorkError(`A project's folder is an absolute path on this computer: ${String(folder)}`);
+    if (!absoluteFolder(folder)) throw new WorkError(`A project's folder is an absolute path on this computer: ${String(folder)}`);
     const resolved = path.resolve(folder.trim());
     if (seen.has(folderKey(resolved))) continue;
     seen.add(folderKey(resolved));
@@ -82,7 +83,8 @@ export async function createProject(database: HomeDatabase, request: { name: str
 
 /**
  * Set a project's folders in its planning.json, keeping the file's formatting; refused when the
- * file changed meanwhile. Returns the folders as written.
+ * file changed meanwhile. Folders in another system's form (a planning folder shared with a Mac, on
+ * Windows) are kept after them: this computer neither sees nor sets them. Returns this computer's folders.
  */
 export async function setProjectFolders(root: string, folders: string[]): Promise<string[]> {
   const checked = checkedFolders(folders);
@@ -90,8 +92,14 @@ export async function setProjectFolders(root: string, folders: string[]): Promis
   let text: string;
   try { text = await readFile(file, 'utf8'); }
   catch (error) { throw new WorkError(`The project's planning.json cannot be read: ${(error as Error).message}`); }
+  let others: string[] = [];
+  try {
+    const listed = (JSON.parse(text.replace(/^﻿/, '')) as { folders?: unknown }).folders;
+    others = Array.isArray(listed) ? listed.filter((item): item is string => typeof item === 'string' && !absoluteFolder(item)) : [];
+  }
+  catch { /* setRegistryMember says what is wrong with the file. */ }
   let next: string;
-  try { next = setRegistryMember(text, 'folders', checked, ['name', 'schema_version']); }
+  try { next = setRegistryMember(text, 'folders', [...checked, ...others], ['name', 'schema_version']); }
   catch (error) { throw new WorkError(`The project's folders could not be set: ${(error as Error).message}`); }
   if (next !== text) {
     if (await readFile(file, 'utf8') !== text) throw new WorkError('planning.json changed meanwhile; the folders were not set. Try again.');

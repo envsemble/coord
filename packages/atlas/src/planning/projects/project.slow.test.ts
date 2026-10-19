@@ -3,7 +3,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,5 +41,11 @@ test('a project is made with its name and folders, and its folders change in pla
     assert.deepEqual(await setProjectFolders(row.folder, []), []);
     assert.deepEqual(JSON.parse(readFileSync(path.join(row.folder, 'planning.json'), 'utf8')).folders, []);
     await assert.rejects(setProjectFolders(row.folder, ['relative']), /absolute path/);
+    // A folder in another system's form (the planning folder shared with another computer) stays.
+    const foreign = process.platform === 'win32' ? '/Users/someone/work' : 'C:\\work';
+    const registry = JSON.parse(readFileSync(path.join(row.folder, 'planning.json'), 'utf8'));
+    writeFileSync(path.join(row.folder, 'planning.json'), JSON.stringify({ ...registry, folders: [foreign] }, null, 2) + '\n');
+    assert.deepEqual(await setProjectFolders(row.folder, [folder]), [folder]);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(row.folder, 'planning.json'), 'utf8')).folders, [folder, foreign]);
   } finally { database.close(); }
 });
