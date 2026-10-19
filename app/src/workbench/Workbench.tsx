@@ -456,7 +456,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   };
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
   // A project's statistics belong to Projects.
-  const section: Section = isPage(place) && place.page !== 'hub' ? 'projects' : 'plans';
+  // All plans' statistics belong to Plans, a project's to Projects.
+  const section: Section = isPage(place) && (place.page === 'projects' || (place.page === 'statistics' && place.project !== null)) ? 'projects' : 'plans';
   const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
   const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.filter(project => project.state === 'active').length }, [projects]);
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */

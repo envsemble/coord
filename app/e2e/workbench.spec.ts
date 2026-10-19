@@ -186,10 +186,10 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(trailEnd(window)).toHaveText('#0001');
   // The work it continues opens its ledger, not as a step, and leads to that plan, whose status line and hub row say where it continues.
   const handoff = window.locator('.about .ledger-steps > .ledger-handoff');
-  await expect(handoff).toHaveText('Continues #0004 · Inventory reservations');
+  await expect(handoff).toHaveText('Continues #0004 · Inventory reservations at checkout');
   await expect(window.locator('.about .ledger-steps > li').first()).toHaveClass(/ledger-handoff/);
   await handoff.getByRole('link').click();
-  await expect(window.locator('.work-header h1')).toHaveText('Inventory reservations');
+  await expect(window.locator('.work-header h1')).toHaveText('Inventory reservations at checkout');
   await expect(window.locator('.work-status')).toContainText('continued in #0001');
   await expect(window.locator('.about .ledger-handoff')).toHaveText('Continued in #0001 · Saved payment methods');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
@@ -375,8 +375,10 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   expect(JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8')).name).toBe('Coord platform');
   // Archived projects stay on the page, after the others, folded away; there is no delete, and no hiding.
   await window.getByRole('button', { name: 'Actions for Coord platform', exact: true }).click();
+  await expect(window.getByRole('menuitem', { name: 'Rename…', exact: true })).toBeVisible();
   await expect(window.getByRole('menuitem', { name: /^(Hide|Show)$/ })).toHaveCount(0);
   await window.keyboard.press('Escape');
+  await expect(window.getByRole('menu')).toHaveCount(0);
   await window.getByRole('button', { name: 'Actions for Northwind', exact: true }).click();
   await expect(window.getByRole('menuitem', { name: /Delete/ })).toHaveCount(0);
   await window.getByRole('menuitem', { name: 'Archive', exact: true }).click();
@@ -439,9 +441,9 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
     expect(card.y, String(width)).toBeGreaterThanOrEqual(sections.y + sections.height);
   }
 
-  // The second row: Plans with the open plans, Projects with the projects, Statistics.
+  // The second row: Plans with the open plans, Projects with the projects.
   const sections = window.getByRole('navigation', { name: 'Sections' });
-  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*6/, /^Projects\s*2/, /^Statistics$/]);
+  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*6/, /^Projects\s*2/]);
   await expect(sections.getByRole('button', { name: 'Plans 6 open', exact: true })).toBeVisible();
   await expect(sections.getByRole('button', { name: 'Projects 2 active', exact: true })).toBeVisible();
   // A plan belongs to Plans; each section shows its page and is marked.
@@ -460,7 +462,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   // The counts follow the projects: an archived project and its plans are not counted.
   await openProjects(window);
   await projectAction(window, 'Coord', 'Archive');
-  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*3/, /^Projects\s*1/, /^Statistics$/]);
+  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*3/, /^Projects\s*1/]);
   await showArchived(window);
   await projectAction(window, 'Coord', 'Restore');
   await expect(sections.locator('.section-tab').first()).toHaveText(/^Plans\s*6/);

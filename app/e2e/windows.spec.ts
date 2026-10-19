@@ -138,7 +138,7 @@ test('a home without projects opens on the hub, which points to the Projects pag
   await expect(window.locator('.hub')).toContainText('Projects › New project');
   await window.locator('.hub').getByRole('button', { name: 'Projects' }).click();
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
-  await expect(window.locator('.projects-page')).toContainText('No projects yet.');
+  await expect(window.locator('.projects-page')).toContainText('No projects yet');
   await expect(window.getByRole('button', { name: 'New project', exact: true })).toBeVisible();
 
   // About Atlas, from the File menu.
