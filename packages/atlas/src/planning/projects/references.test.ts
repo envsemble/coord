@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { mentionedRepositories, resolveReferences } from './references.ts';
+import { resolveReferences } from './references.ts';
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-references-')));
@@ -51,10 +51,6 @@ test('references lead to GitHub by the owner/repo they name, and paths to files 
     { kind: 'pull', repository: 'someone/else', value: '1', line: null },
     { kind: 'path', repository: null, value: 'src/cart.ts', line: null },
   ], { gh: false, local: false }), [{ ...none, url: 'https://github.com/someone/else/pull/1', repository: 'someone/else' }, null]);
-  // `gh` is asked for a paired device only about the repositories the planning files name.
-  mkdirSync(path.join(root, 'active', '0001-cart'), { recursive: true });
-  writeFileSync(path.join(root, 'active', '0001-cart', 'plan.md'), 'Merged as Example/Shop#22 at example/shop@4ab195a, see https://github.com/acme/tools.git/pull/3; not a/b, nor x/y#.\n');
-  assert.deepEqual([...await mentionedRepositories(root)].sort(), ['acme/tools', 'example/shop']);
   // A link inside a folder to a file outside it leads nowhere.
   const outside = path.join(directory, 'secret.txt');
   writeFileSync(outside, 'secret\n');

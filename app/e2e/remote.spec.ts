@@ -140,7 +140,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await create.getByLabel('Name').fill('Coord');
   await expect(create.getByLabel('Folder')).toHaveCount(0);
   await expect(create.getByRole('button', { name: 'Browse…' })).toHaveCount(0);
-  await expect(create).toContainText(`Its workspace folders are on ${name}: choose them in Atlas there`);
+  await expect(create).toContainText(`Its folders are on ${name}: choose them in Atlas there`);
   await create.getByRole('button', { name: 'Create' }).click();
   await expectProjects(viewer, ['Northwind', 'Coord']);
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);

@@ -4,17 +4,18 @@
 // in; a commit (`owner/repo@hash`) to its page, with its subject from `gh`. A path leads to the file on
 // this computer: in one of the project's folders, or in a folder directly inside one (where
 // repositories are checked out), the first that has it. `repo#22`, `#22` and a bare hash lead
-// nowhere. A paired device has `gh` asked only about the repositories the project's planning files
-// name, so it learns nothing of the others the owner can see. `gh` runs a few at a time, with
-// timeouts, and one call asks it at most `ghBudget` times. A call waits for it only briefly: what it has not
-// said yet is left out, and its answer is kept for the next call. Commit subjects are kept, since
-// commits never change.
+// nowhere. A paired device has `gh` asked only about the repositories checked out in the project's
+// folders, which only the owner sets, so it learns nothing of the others the owner can see. `gh`
+// runs a few at a time, with timeouts, and one call asks it at most `ghBudget` times. A call waits
+// for it only briefly: what it has not said yet is left out, and its answer is kept for the next
+// call. Commit subjects are kept, since commits never change.
 import { spawn } from 'node:child_process';
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { folderKey } from '../home/database.ts';
 import { runProgram } from '../system/run.ts';
 import { insideFolder, readRegistry } from './resolve.ts';
+import { remoteRepository } from './remotes.ts';
 
 export interface ReferenceItem { kind: 'pull' | 'commit' | 'path'; repository: string | null; value: string; line: number | null }
 export interface PullState { title: string; state: 'open' | 'draft' | 'merged' | 'closed'; checks: 'passing' | 'failing' | 'pending' | null }
@@ -67,28 +68,27 @@ function projectBases(root: string): Promise<string[]> {
   return value;
 }
 
-const mentions = new Map<string, { at: number; value: Promise<Set<string>> }>();
-/** The repositories a project's planning files name (`owner/repo#N`, `owner/repo@hash`, GitHub URLs), lowercased; kept for a minute. */
-export function mentionedRepositories(root: string): Promise<Set<string>> {
-  const cached = mentions.get(folderKey(root));
+const checkouts = new Map<string, { at: number; value: Promise<Set<string>> }>();
+/**
+ * The GitHub repositories checked out in a project's folders (each folder, and the folders directly
+ * inside it), by their remotes, lowercased; kept for a minute. Only the owner sets a project's
+ * folders, so a paired device cannot add to them, as it could to the planning files by importing a plan.
+ */
+export function checkedOutRepositories(root: string): Promise<Set<string>> {
+  const cached = checkouts.get(folderKey(root));
   if (cached && Date.now() - cached.at < cacheMs) return cached.value;
   const value = (async () => {
     const found = new Set<string>();
-    const pattern = /github\.com\/(\w[\w.-]*\/\w[\w.-]*)|(?<![\w./-])(\w[\w.-]*\/\w[\w.-]*)(?=#\d|@[0-9a-f]{7})/g;
-    const walk = async (folder: string): Promise<void> => {
-      for (const entry of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
-        if (entry.name.startsWith('.') || ignoredFolders.has(entry.name)) continue;
-        const full = path.join(folder, entry.name);
-        if (entry.isDirectory()) await walk(full);
-        else if (entry.isFile() && entry.name.endsWith('.md')) {
-          for (const match of (await readFile(full, 'utf8').catch(() => '')).matchAll(pattern)) found.add((match[1] ?? match[2]).replace(/\.git$/, '').toLowerCase());
-        }
+    await Promise.all((await projectBases(root)).map(async base => {
+      const remotes = await program('git', ['-C', base, 'config', '--get-regexp', '^remote\\..*\\.url$'], 5000);
+      for (const line of remotes?.split(/\r?\n/) ?? []) {
+        const repository = remoteRepository(line.split(' ').slice(1).join(' '));
+        if (repository?.web) found.add(repository.repository.toLowerCase());
       }
-    };
-    await walk(root);
+    }));
     return found;
   })();
-  mentions.set(folderKey(root), { at: Date.now(), value });
+  checkouts.set(folderKey(root), { at: Date.now(), value });
   return value;
 }
 
@@ -158,12 +158,12 @@ function commitSubjectAgain(key: string, repository: string, hash: string): Prom
 /**
  * Resolve a planning file's references, in order; null for one that leads nowhere. Without `gh`
  * (`gh: false`), PRs have no state and commits no subject. Without `local` (a paired device asks),
- * only what is not of this computer: no files, and `gh` asked only about the repositories the
- * project's planning files name.
+ * only what is not of this computer: no files, and `gh` asked only about the repositories checked
+ * out in the project's folders.
  */
 export async function resolveReferences(root: string, items: ReferenceItem[], options: { gh?: boolean; local?: boolean } = {}): Promise<(ResolvedItem | null)[]> {
   const here = options.local ?? true;
-  const allowed = here || options.gh === false ? null : await mentionedRepositories(root);
+  const allowed = here || options.gh === false ? null : await checkedOutRepositories(root);
   let budget = ghBudget;
   /** Whether `gh` may be asked about a repository in this call. */
   const ask = (repository: string) => options.gh !== false && (here || allowed!.has(repository.toLowerCase())) && budget-- > 0;

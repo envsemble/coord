@@ -108,9 +108,6 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       paste: await bridge.command('paste'),
       closeWindow: await bridge.command('closeWindow'),
       // A workspace folder is a full path of this computer.
-      scanRelative: await bridge.scanFolder('relative/folder'),
-      scanWrongType: await bridge.scanFolder(42),
-      scanMissing: await bridge.scanFolder(),
       createRelative: await bridge.createProject('Coord', ['relative/folder']),
       updateRelative: await bridge.updateProject(folderId, { folders: ['..\\up'] }),
       // Quitting and opening windows or the logs ask first.
@@ -136,7 +133,7 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       ok: await bridge.document(folderId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };
   }, project);
-  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'scanRelative', 'scanWrongType', 'scanMissing', 'createRelative', 'updateRelative', 'referenceKind', 'editorCommand', 'fileTraversal'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
+  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'createRelative', 'updateRelative', 'referenceKind', 'editorCommand', 'fileTraversal'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.notShown).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.otherProject).toMatchObject({ ok: false });
