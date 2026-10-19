@@ -65,7 +65,7 @@ test('each plan shows its status, what agents do on it first, and closed work ho
   assert.equal(hubStatus(work('work-0001', 'closed', { outcome: 'complete' }), 'waiting').label, 'Complete');
   assert.equal(hubStatus(work('work-0001', 'closed', { outcome: 'superseded' })).label, 'Superseded');
   assert.equal(hubStatus(work('work-0001', 'closed', { outcome: 'abandoned' })).label, 'Abandoned');
-  assert.equal(hubStatus(work('work-0001', 'closed')).key, 'complete');
+  assert.equal(hubStatus(work('work-0001', 'closed')).key, 'partial', 'closed work neither complete, superseded nor abandoned was partly done');
 });
 
 const statistics = (change: Partial<NonNullable<ProjectWork['statistics']>> = {}): NonNullable<ProjectWork['statistics']> => ({

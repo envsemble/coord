@@ -21,12 +21,13 @@ const groupLabels: Record<HubGroupId, string> = { waiting: 'Needs you', working:
 const groupOf = (key: WorkStatusKey): HubGroupId => (groupOrder as string[]).includes(key) ? key as HubGroupId : 'closed';
 
 /**
- * A plan's status as the hub shows it, in the app's status vocabulary: how closed work ended, else
- * what agents do on it, else where it stands. Other open work (not a draft, not started or partly
- * done) shows as ready: the project list does not tell them apart.
+ * A plan's status as the hub shows it, in the app's status vocabulary: how closed work ended (closed
+ * work neither complete, superseded nor abandoned was partly done), else what agents do on it, else
+ * where it stands. Other open work (not a draft, not started or partly done) shows as ready: the
+ * project list does not tell them apart.
  */
 export function hubStatus(work: ProjectWork, activity: ActivityState = null): WorkStatus {
-  if (work.state === 'closed') return work.outcome === 'superseded' ? statuses.superseded : work.outcome === 'abandoned' ? statuses.abandoned : statuses.complete;
+  if (work.state === 'closed') return work.outcome ? statuses[work.outcome] : statuses.partial;
   if (activity) return statuses[activity];
   return work.state === 'blocked' ? statuses.blocked : work.state === 'implementing' ? statuses.paused : work.state === 'draft' ? statuses.draft : statuses.ready;
 }

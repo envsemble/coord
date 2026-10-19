@@ -47,7 +47,7 @@ function Spent({ item, facts }: { item: HubItem; facts: HubRowFacts }) {
   return <span className="hub-row-stats">
     {model && <span className="hub-row-model" title={model.id}><ProviderMark provider={model.provider} />{model.name}{model.others > 0 && <span className="muted"> +{model.others}</span>}</span>}
     {(timed || rest) && <small className="cell-note">
-      {timed && <AgentTime totals={item.work.statistics ?? { agentMs: 0, activeMs: 0, unmergedMs: 0 }} activity={activity} sections={[{ heading: 'By stage', rows: stages }]} description="Every agent's working time, added up" />}
+      {timed && <AgentTime work={item.project.folderId + ':' + item.work.id} totals={item.work.statistics ?? { agentMs: 0, activeMs: 0, unmergedMs: 0, lastReport: null }} activity={activity} sections={[{ heading: 'By stage', rows: stages }]} description="Every agent's working time, added up" />}
       {timed && rest ? ' · ' + rest : rest}
     </small>}
   </span>;
@@ -62,8 +62,8 @@ const columnWidths = [44, 13, 15, 18, 10];
 /**
  * A plan: the whole row opens it. A plan under way says where it stands under its title: why it is
  * blocked, else the step being worked on or next, and how long an agent has waited for the person.
- * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
- * but for that line, which pulses while agents work and is amber while one waits.
+ * Its summary shows on the title's hover. The status icon carries the colour and pulses while agents
+ * work; the text stays neutral but for that line, amber while one waits.
  */
 function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   const { work, project, status, activity } = item;
@@ -80,7 +80,7 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
         <span className="hub-row-number">{workNumber(work.id)}</span>
       </span>
       {large && (facts.blocked ? <small className="cell-note hub-row-blocked">Blocked: {facts.blocked}</small>
-        : (facts.step || waiting) && <small className="cell-note hub-row-step" data-phase={facts.step?.phase} data-status={facts.step?.label === 'Now' ? 'doing' : 'todo'} data-live={waiting ? 'waiting' : facts.step?.label === 'Now' ? activity?.state : undefined}
+        : (facts.step || waiting) && <small className="cell-note hub-row-step" data-phase={facts.step?.phase} data-status={facts.step?.label === 'Now' ? 'doing' : 'todo'} data-live={waiting ? 'waiting' : undefined}
           title={facts.step ? (facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step' : undefined}>
           {facts.step && facts.step.label + ': ' + facts.step.title}{facts.step && waiting && ' · '}{waiting && <>waiting <Waited activity={waiting} /></>}
         </small>)}

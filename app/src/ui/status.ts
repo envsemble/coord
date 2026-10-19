@@ -24,12 +24,14 @@ export const statuses = {
  * One status per work item, what agents do on it first: Working while an agent is in a turn on it
  * (green), Needs you once one waits for the person (amber), then Blocked (red), Paused (implementation
  * started, nobody on it), Draft and Ready (accepted, not started). Closed work keeps how it ended
- * (complete in purple), whatever a session still does on it or a stale blocker says.
+ * (complete in purple; partly done once archived, as the hub has it), whatever a session still does
+ * on it or a stale blocker says.
  */
-export function workStatus(work: Pick<Work, 'design' | 'implementation' | 'progress'>, activity: ActivityState = null): WorkStatus {
+export function workStatus(work: Pick<Work, 'design' | 'implementation' | 'progress' | 'location'>, activity: ActivityState = null): WorkStatus {
   if (work.design === 'superseded') return statuses.superseded;
   if (work.design === 'abandoned') return statuses.abandoned;
   if (work.implementation === 'complete') return statuses.complete;
+  if (work.implementation === 'partial' && work.location === 'archived') return statuses.partial;
   if (activity) return statuses[activity];
   if (work.progress?.blocked) return statuses.blocked;
   if (work.implementation === 'in_progress') return statuses.paused;

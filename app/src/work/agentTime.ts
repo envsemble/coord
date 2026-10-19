@@ -40,10 +40,27 @@ export function liveAgentMs(reported: number, activity: WorkActivity | null, now
 }
 
 /**
- * The time at least one agent worked: the reported union, and the union of the working sessions'
- * open intervals, from the earliest of them.
+ * The time at least one agent worked: the reported union, and of the working sessions' open spans
+ * (each from its `countsFrom` to now; their union runs from the earliest) the part no report can
+ * have covered yet. A report covers time up to when it was made, so every reported interval ends by
+ * the latest report (`lastReport`, of any session), while the reported union before it is unknown
+ * here: another session may have reported time inside an open span. Counting from the later of the
+ * earliest `countsFrom` and the latest report never counts a moment twice; what it leaves out comes
+ * with the working sessions' own reports. Never more than every agent's time added up (`agentMs`).
  */
-export function liveActiveMs(reported: number, activity: WorkActivity | null, now: number): number {
+export function liveActiveMs(reported: number, activity: WorkActivity | null, now: number, lastReport: string | null, agentMs: number): number {
   const starts = workingSessions(activity).map(session => Date.parse(session.countsFrom)).filter(Number.isFinite);
-  return starts.length ? reported + Math.max(0, now - Math.min(...starts)) : reported;
+  if (!starts.length) return reported;
+  const from = Math.max(Math.min(...starts), lastReport ? Date.parse(lastReport) || 0 : 0);
+  return Math.min(reported + Math.max(0, now - from), Math.max(agentMs, reported));
 }
+
+/** A live value as last shown: its value, when (on this computer's clock, in ms), and how fast it may grow (ms a ms: the agents working). */
+export interface Shown { value: number; at: number; rate: number }
+/**
+ * A live value while what it counts from settles: a new listing (where each session's time counts
+ * from) and new statistics (the reported time) arrive apart, so for a moment the value would drop or
+ * count a report's time twice. Meanwhile it neither drops below what was shown nor grows faster than
+ * its agents work; once both have arrived it is as counted again.
+ */
+export const held = (value: number, shown: Shown, at: number) => Math.min(Math.max(value, shown.value), shown.value + Math.max(0, at - shown.at) * shown.rate);

@@ -38,14 +38,27 @@ export function TokenBreakdown({ usage }: { usage: { tokens: number | null; toke
 const agentsNamed = 5;
 const agentLabel = (agent: AgentUsage) => [agent.subagent ? 'Subagent ' + shortId(agent.subagent) : agent.session ? 'Session ' + shortId(agent.session) : 'Session not recorded', agent.model && aiModel(agent.model).name].filter(Boolean).join(' · ');
 
+/**
+ * Agent time by agent: the busiest named, then the rest in one row, so the rows add up to the agent
+ * time. The rest counts the agents listed beyond those named and the subagents the statistics count
+ * but do not list (however a remainder is listed); time no agent was named for is the rest too.
+ */
+function byAgent(statistics: WorkStatistics): ReportSection {
+  const agents = statistics.agents, named = agents.slice(0, agentsNamed);
+  if (!agents.length) return { rows: [] };
+  const unlisted = Math.max(0, (statistics.subagents?.count ?? 0) - agents.filter(agent => agent.subagent !== null).length);
+  const more = agents.length - named.length + unlisted;
+  const rest = Math.max(0, statistics.agentMs - named.reduce((sum, agent) => sum + agent.agentMs, 0));
+  return { heading: 'By agent', rows: [
+    ...named.map(agent => ({ label: agentLabel(agent), value: duration(agent.agentMs) })),
+    ...more || rest >= 30_000 ? [{ label: more ? more + ' more' : 'No agent named', value: duration(rest) }] : [],
+  ] };
+}
+
 /** What a work item's agent time report knows beyond the totals: by agent, by model and by stage. */
 function agentTimeSections(statistics: WorkStatistics): ReportSection[] {
-  const agents = statistics.agents, rest = agents.slice(agentsNamed);
   return [
-    { heading: 'By agent', rows: [
-      ...agents.slice(0, agentsNamed).map(agent => ({ label: agentLabel(agent), value: duration(agent.agentMs) })),
-      ...rest.length ? [{ label: rest.length + ' more', value: duration(rest.reduce((sum, agent) => sum + agent.agentMs, 0)) }] : [],
-    ] },
+    byAgent(statistics),
     { heading: 'By model', rows: statistics.models.filter(model => model.agentMs > 0).map(model => ({ label: modelName(model.model), value: duration(model.agentMs) })) },
     { heading: 'By stage', rows: shownStages(statistics).map(stage => ({ label: stageLabels[stage], value: duration(stageUsage(statistics, stage)!.agentMs) })) },
   ];
@@ -80,7 +93,7 @@ export function WorkStatisticsSummary({ work, statistics, activity = null }: { w
     </div>}
     <ul className="work-statistics-facts">
       {(statistics.reports > 0 || activity?.state === 'working') && <li><Schedule className="work-statistics-icon" />
-        <AgentTime totals={statistics} activity={activity} sections={agentTimeSections(statistics)} after={[measuredSection(statistics)]} description={agentTimeNote(statistics)} strong />
+        <AgentTime work={work.id} totals={statistics} activity={activity} sections={agentTimeSections(statistics)} after={[measuredSection(statistics)]} description={agentTimeNote(statistics)} strong />
         <span className="muted">of agent time</span></li>}
       {statistics.tokens !== null && <li><Token className="work-statistics-icon" /><Detailed detail={<TokenBreakdown usage={statistics} />} description={tokenText(statistics)}><strong>{compactNumber(statistics.tokens)}</strong></Detailed><span className="muted">tokens</span></li>}
       {shownStages(statistics).map(stage => {

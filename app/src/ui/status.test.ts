@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { workStatus } from './status.ts';
 
-const work = (design: string, implementation: string, blocked: string | null = null) => ({ design, implementation, progress: blocked ? { version: 1 as const, current: null, next: [], blocked, updated: null, steps: null } : null });
+const work = (design: string, implementation: string, blocked: string | null = null, location = 'active') => ({ design, implementation, location, progress: blocked ? { version: 1 as const, current: null, next: [], blocked, updated: null, steps: null } : null });
 
 test('each work item has one status derived from implementation, blocking and design', () => {
   assert.equal(workStatus(work('accepted', 'not_started')).label, 'Ready');
@@ -22,4 +22,6 @@ test('what agents do on a work item comes first, before a blocker; closed work k
   assert.equal(workStatus(work('accepted', 'in_progress', 'Waiting for review'), 'working').key, 'working');
   assert.equal(workStatus(work('draft', 'not_started'), 'waiting').label, 'Needs you');
   assert.equal(workStatus(work('accepted', 'complete'), 'waiting').key, 'complete');
+  assert.equal(workStatus(work('accepted', 'partial', null, 'archived'), 'working').key, 'partial');
+  assert.equal(workStatus(work('accepted', 'partial'), 'working').key, 'working', 'partly done work still open is not closed');
 });
