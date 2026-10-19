@@ -218,31 +218,17 @@ export interface ProjectStatisticsBucket {
   start: string;
   agents: { model: string | null; effort: string | null; agentMs: number }[];
   activeMs: number;
-  completed: { id: string; title: string; folderId: string | null }[];
-}
-/**
- * A plan worked on in the period, most agent time first: what its status comes from (as the hub
- * has it), its agent time and tokens in the period, how long it was planned and implemented (in
- * all, as work.timeline counts them), and how long it waited for the person in the period.
- */
-export interface ProjectStatisticsPlan {
-  /** Its project's folder ID and name. */
-  id: string; title: string; folderId: string | null; project: string | null;
-  state: ProjectWorkState; outcome: ProjectWork['outcome']; steps: ProjectWork['steps']; completed: string | null;
-  agentMs: number; tokens: number | null;
-  plannedMs: number | null; implementingMs: number | null; waitedMs: number;
+  completed: { id: string; title: string }[];
 }
 /**
  * A project's statistics for a period, from `from` (null: since its first report) up to `to` (the
  * host's now when not given), by day or week: the period's figures and the period before's (as
- * long, just before it; null when the period has no start), its buckets, the plans worked on in it,
- * and agent time and tokens by model and reasoning effort (most time first).
+ * long, just before it; null when the period has no start), its buckets, and agent time and tokens by model and reasoning effort (most time first).
  */
 export interface ProjectStatistics {
   from: string | null; to: string; unit: 'day' | 'week';
   current: ProjectPeriodFigures; previous: ProjectPeriodFigures | null;
   buckets: ProjectStatisticsBucket[];
-  plans: ProjectStatisticsPlan[];
   models: { model: string | null; effort: string | null; agentMs: number; tokens: number | null }[];
 }
 /** A repository a project covers: its ID in planning.json, its name and its Git remote. */

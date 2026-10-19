@@ -927,12 +927,12 @@ export class Host {
       case 'project.statistics': {
         const { folderId, from, to, unit } = p as Methods['project.statistics']['params'];
         const row = await this.projectOfFolder(folderId);
-        return projectStatistics(this.database, [{ projectId: row.id, root: row.folder, folderId, name: row.name }], { from, to, unit }) as never;
+        return projectStatistics(this.database, [{ projectId: row.id, root: row.folder }], { from, to, unit }) as never;
       }
       case 'projects.statistics': {
         const { folderIds, from, to, unit } = p as Methods['projects.statistics']['params'];
-        const rows = await Promise.all([...new Set(folderIds)].map(async folderId => ({ folderId, row: await this.projectOfFolder(folderId) })));
-        return projectStatistics(this.database, rows.map(({ folderId, row }) => ({ projectId: row.id, root: row.folder, folderId, name: row.name })), { from, to, unit }) as never;
+        const rows = await Promise.all([...new Set(folderIds)].map(folderId => this.projectOfFolder(folderId)));
+        return projectStatistics(this.database, rows.map(row => ({ projectId: row.id, root: row.folder })), { from, to, unit }) as never;
       }
       case 'work.timeline': {
         const { folderId, work } = p as Methods['work.timeline']['params'];

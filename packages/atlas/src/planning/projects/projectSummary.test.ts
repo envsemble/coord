@@ -227,7 +227,6 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     ], 'the stretch split at local midnight; the plan completed on its day');
     assert.deepEqual([hours(statistics.current.agentMs), hours(statistics.current.activeMs), statistics.current.plansCompleted, statistics.current.medianImplementingMs! / 86_400_000], [4, 4, 1, 2]);
     assert.deepEqual([statistics.previous?.agentMs, statistics.previous?.plansCompleted], [0, 0], 'the three days before had nothing');
-    assert.deepEqual(statistics.plans.map(item => [item.id, hours(item.agentMs), item.tokens, item.state]), [['work-0001', 4, 100, 'closed']]);
     assert.deepEqual(statistics.models, [{ model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }]);
     // All plans: another project's work-0001 is its own plan, and the figures add up.
     const appRoot = path.join(directory, 'app');
@@ -237,9 +236,8 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     insertReport(database, app.id, 'work-0001', createReport({ model: 'claude-opus', session: 's2', at: local(13, 12), measured: {
       since: local(13, 11).toISOString(), agentMs: 3_600_000, models: [], intervals: [{ agent: null, start: local(13, 11).toISOString(), end: local(13, 12).toISOString() }],
     } }));
-    const all = await projectStatistics(database, [{ projectId: shop.id, root, folderId: 'f1', name: 'Shop' }, { projectId: app.id, root: appRoot, folderId: 'f2', name: 'App' }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
-    assert.deepEqual(all.plans.map(entry => [entry.folderId, entry.project, entry.id, hours(entry.agentMs)]), [['f1', 'Shop', 'work-0001', 4], ['f2', 'App', 'work-0001', 1]]);
-    assert.deepEqual([hours(all.current.agentMs), all.current.plansCompleted], [5, 1]);
+    const all = await projectStatistics(database, [{ projectId: shop.id, root }, { projectId: app.id, root: appRoot }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
+    assert.deepEqual([hours(all.current.agentMs), all.current.plansCompleted, all.buckets.map(bucket => hours(bucket.agents.reduce((total, entry) => total + entry.agentMs, 0)))], [5, 1, [0, 3, 2]]);
   } finally { database.close(); }
 });
 

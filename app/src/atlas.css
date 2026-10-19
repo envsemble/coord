@@ -386,16 +386,6 @@ body { margin: 0; }
 .work-chart-legend > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 .work-chart-key-line { display: inline-block; inline-size: 1rem; border-block-start: 0.125rem dashed var(--color-text-primary); opacity: 0.7; }
 .work-chart-key-completed { display: inline-block; box-sizing: border-box; inline-size: 0.75rem; block-size: 0.75rem; border: 0.09375rem solid var(--color-text-primary); border-radius: 50%; }
-/* Where the time went: a plan a row, its share of the period's time as a bar. */
-.time-plans { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
-.time-plan { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-standard); background: var(--color-row, var(--color-surface-muted)); }
-.time-plan-text { display: grid; gap: 0.25rem; min-inline-size: 0; }
-.time-plan-name { display: flex; align-items: baseline; gap: var(--space-2); min-inline-size: 0; }
-.time-plan-name > small { flex: none; white-space: nowrap; }
-.time-plan-title { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.time-plan-bar { block-size: 0.375rem; overflow: hidden; border-radius: var(--radius-standard); background: var(--color-surface-muted); }
-.time-plan-bar > span { display: block; block-size: 100%; background: var(--color-tone-accent); }
-.time-plan-figures { display: grid; justify-items: end; font-variant-numeric: tabular-nums; }
 .cell-note { display: block; color: var(--color-text-muted); }
 .info-body { display: grid; gap: var(--space-2); }
 .info-body p { margin: 0; }

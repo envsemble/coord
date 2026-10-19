@@ -38,18 +38,11 @@ test('each project has its statistics, from its row on the Projects page or the 
   await filterHub(window, 'Coord');
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
   await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Coord');
-  // The hub of every project leads to all plans', each plan with its project.
+  // The hub of every project leads to all plans'.
   await goHome(window);
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
   await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(/Plans.*Statistics/);
-  await expect(window.locator('.time-plan', { hasText: 'Saved payment methods' }).first()).toContainText('Northwind');
-  await goHome(window);
-  await filterHub(window, 'Coord');
-  await openPlan(window, 'Saved payment methods');
-  await openStatistics(window, 'Coord');
-  // A plan where the time went opens the plan's own statistics.
-  await window.locator('.time-plan', { hasText: 'Saved payment methods' }).getByRole('link').click();
-  await expect(window.locator('.plan-statistics-page h1')).toHaveText('Statistics');
+  await expect(window.locator('.statistics-page .stat').first()).toContainText('Agent time');
 
   // A wheel over a table scrolls the page.
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(1200, 520); });
@@ -89,9 +82,7 @@ test("a project's statistics look back on its work: its figures against the peri
   await expect(chart).toBeVisible();
   await chart.locator('.work-chart-stack').first().hover();
   await expect(window.locator('.work-chart-tip')).toContainText('of agent time');
-  // Where the time went: the plans, most time first, with their time; the models and effort with their shares.
-  await expect(window.locator('.time-plan').first()).toContainText('Saved payment methods');
-  await expect(window.locator('.time-plan', { hasText: 'Inventory reservations' })).toContainText('2 h 40 min');
+  // The models and effort with their shares.
   const models = window.getByRole('table', { name: 'Agent time and tokens by model and effort' });
   await expect(models).toContainText('Claude Opus 5.5');
   await expect(models).toContainText('GPT-6.1 Sol');

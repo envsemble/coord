@@ -1,6 +1,7 @@
-// A project's statistics over a period (or several projects' together, for all plans), to look back on the work: agent time and the time at least
-// one agent worked, by day or week and by model and reasoning effort; the plans completed and how
-// long they took from acceptance; the time work waited for the person; and the plans worked on.
+// A project's statistics over a period (or several projects' together, for all plans), to look back
+// on the work: agent time and the time at least one agent worked, by day or week and by model and
+// reasoning effort; the plans completed and how long they took from acceptance; and the time work
+// waited for the person.
 // Time goes where it was worked, by the reports' working intervals; a report without intervals
 // counts at its report time. Days and weeks begin at midnight in this computer's local time (a week
 // on Monday). One pass over the projects' reports, kept until they change.
@@ -10,17 +11,13 @@ import { workDates, workTimeline } from './sessions.ts';
 import { mergeSpans, sessionGap, storedReports, type StatisticsReport } from './statistics.ts';
 
 export interface PeriodFigures { agentMs: number; activeMs: number; plansCompleted: number; medianImplementingMs: number | null; waitedMs: number }
-/** A project the statistics cover: its row, its planning folder, and its folder's ID and name for clients (null when not given). */
-export interface StatisticsSource { projectId: number; root: string; folderId?: string | null; name?: string | null }
-export interface StatisticsBucket { start: string; agents: { model: string | null; effort: string | null; agentMs: number }[]; activeMs: number; completed: { id: string; title: string; folderId: string | null }[] }
-export interface StatisticsPlan {
-  id: string; title: string; folderId: string | null; project: string | null; state: ProjectWork['state']; outcome: ProjectWork['outcome']; steps: ProjectWork['steps']; completed: string | null;
-  agentMs: number; tokens: number | null; plannedMs: number | null; implementingMs: number | null; waitedMs: number;
-}
+/** A project the statistics cover: its row and its planning folder. */
+export interface StatisticsSource { projectId: number; root: string }
+export interface StatisticsBucket { start: string; agents: { model: string | null; effort: string | null; agentMs: number }[]; activeMs: number; completed: { id: string; title: string }[] }
 export interface ProjectStatisticsEntry {
   from: string | null; to: string; unit: 'day' | 'week';
   current: PeriodFigures; previous: PeriodFigures | null;
-  buckets: StatisticsBucket[]; plans: StatisticsPlan[];
+  buckets: StatisticsBucket[];
   models: { model: string | null; effort: string | null; agentMs: number; tokens: number | null }[];
 }
 
@@ -138,12 +135,11 @@ async function compute(database: HomeDatabase, sources: StatisticsSource[], peri
   const firstPlan = Math.min(...work.map(item => localDay(item.completed) ?? Infinity));
   const first = Math.min(...pieces.map(piece => piece.start), ...spends.map(spend => spend.at), firstPlan);
   const from = period.from ? Date.parse(period.from) : Number.isFinite(first) ? first : to;
-  // Each worked-on plan's timeline: how long it was planned and implemented, and its waits.
+  // Each plan's timeline, for its waits.
   const dates = new Map(await Promise.all(work.map(async item => [item.key, await workDates(item.source.root, item.id)] as const)));
   const timelines = new Map(work.map(item => [item.key, workTimeline(database, item.source.projectId, item.id, dates.get(item.key)!, now, reports.get(item.key) ?? [])]));
-  const waitSpans = (workId?: string) => mergeSpans([...timelines].filter(([id]) => workId === undefined || id === workId).flatMap(([, timeline]) => timeline.lanes.flatMap(lane => lane.waiting.map(([start, end]): [number, number] => [Date.parse(start), Date.parse(end)]))));
   const clipped = (spans: [number, number][], start: number, end: number) => spans.reduce((total, [a, b]) => total + Math.max(0, Math.min(b, end) - Math.max(a, start)), 0);
-  const allWaits = waitSpans();
+  const allWaits = mergeSpans([...timelines.values()].flatMap(timeline => timeline.lanes.flatMap(lane => lane.waiting.map(([start, end]): [number, number] => [Date.parse(start), Date.parse(end)]))));
   const completedIn = (start: number, end: number) => work.filter(item => { const day = localDay(item.completed); return day !== null && day >= start && day < end; });
   const figures = (start: number, end: number): PeriodFigures => {
     const inside = pieces.filter(piece => within(piece, start, end) > 0);
@@ -175,20 +171,9 @@ async function compute(database: HomeDatabase, sources: StatisticsSource[], peri
       start: new Date(start).toISOString(),
       agents: [...byLevel.values()].map(entry => ({ ...entry, agentMs: Math.round(entry.agentMs) })).filter(entry => entry.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs),
       activeMs: figure.activeMs,
-      completed: completedIn(begin, end).map(item => ({ id: item.id, title: item.title, folderId: item.source.folderId ?? null })),
+      completed: completedIn(begin, end).map(item => ({ id: item.id, title: item.title })),
     });
   }
-  // The plans worked on in the period, most agent time first.
-  const plans: StatisticsPlan[] = work.map(item => {
-    const agentMs = Math.round(pieces.filter(piece => piece.workId === item.key).reduce((total, piece) => total + within(piece, from, to), 0));
-    const spent = spends.filter(spend => spend.workId === item.key && spend.at >= from && spend.at < to);
-    const timeline = timelines.get(item.key)!;
-    return {
-      id: item.id, title: item.title, folderId: item.source.folderId ?? null, project: item.source.name ?? null, state: item.state, outcome: item.outcome, steps: item.steps, completed: item.completed,
-      agentMs, tokens: spent.length ? Math.round(spent.reduce((total, spend) => total + spend.tokens, 0)) : null,
-      plannedMs: timeline.plannedMs, implementingMs: timeline.implementingMs, waitedMs: clipped(waitSpans(item.key), from, to),
-    };
-  }).filter(item => item.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs || (a.project ?? '').localeCompare(b.project ?? '') || a.id.localeCompare(b.id));
   // Agent time and tokens by model and effort in the period.
   const levels = new Map<string, { model: string | null; effort: string | null; agentMs: number; tokens: number | null }>();
   const level = (model: string | null, effort: string | null) => {
@@ -203,7 +188,7 @@ async function compute(database: HomeDatabase, sources: StatisticsSource[], peri
   return {
     from: period.from ? new Date(from).toISOString() : null, to: new Date(to).toISOString(), unit: period.unit,
     current: figures(from, to), previous: period.from ? figures(from - length, from) : null,
-    buckets, plans,
+    buckets,
     models: [...levels.values()].map(entry => ({ ...entry, agentMs: Math.round(entry.agentMs), tokens: entry.tokens === null ? null : Math.round(entry.tokens) }))
       .filter(entry => entry.agentMs > 0 || (entry.tokens ?? 0) > 0).sort((a, b) => b.agentMs - a.agentMs || (b.tokens ?? 0) - (a.tokens ?? 0)),
   };

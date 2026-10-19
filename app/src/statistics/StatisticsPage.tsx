@@ -1,18 +1,14 @@
 // A project's statistics, to look back on its work over a period (the last 4 weeks by day, the last
 // 3 months or all time by week): the period's headline figures against the period before, its work
 // over time (agent time stacked by model and effort, the time at least one agent worked as a line,
-// the plans completed marked), where the time went (the plans worked on, most time first, each
-// opening its own statistics) and its models and effort. From the host's project.statistics; all
+// the plans completed marked) and its models and effort. From the host's project.statistics; all
 // plans' statistics (every active project together) are the same page, from its projects.statistics.
 import { useEffect, useState, type ReactNode } from 'react';
-import { DisclosureNote, EmptyState, IconButton, Link, Notice, Popover, SegmentedControl, Spinner, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
+import { DisclosureNote, EmptyState, IconButton, Notice, Popover, SegmentedControl, Spinner, Surface, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { InfoIcon, StatisticsIcon } from '../ui/icons';
-import type { ProjectStatistics, ProjectWork } from '../types';
+import type { ProjectStatistics } from '../types';
 import { api } from '../api';
-import { workStatisticsTarget, type Place } from '../navigation/targets';
 import { absoluteDate, compactNumber, duration, plural, shortDate } from '../ui/format';
-import { hubStatus } from '../hub/hubPlans';
-import { StatusIcon } from '../ui/ui';
 import { useWorkbench } from '../workbench/workbenchContext';
 import { Page } from '../ui/Pages';
 import { roughDuration } from '../work/sessions';
@@ -106,34 +102,6 @@ function WorkOverTime({ statistics, scope }: { statistics: ProjectStatistics; sc
   </section>;
 }
 
-/**
- * The plans worked on in the period, most agent time first: each with its status, its share, its time
- * and tokens, and how long it took; with its project's name when the page covers all plans.
- */
-function WhereTheTimeWent({ statistics, open, all }: { statistics: ProjectStatistics; open(plan: ProjectStatistics['plans'][number]): void; all: boolean }) {
-  const total = statistics.plans.reduce((sum, plan) => sum + plan.agentMs, 0);
-  const most = Math.max(1, ...statistics.plans.map(plan => plan.agentMs));
-  return <section className="project-statistics-section" aria-label="Where the time went">
-    <Text as="h2" variant="section-heading">Where the time went</Text>
-    {statistics.plans.length ? <ul className="time-plans">{statistics.plans.map(plan => {
-      const status = hubStatus({ state: plan.state, outcome: plan.outcome } as ProjectWork);
-      const took = [plan.plannedMs !== null && 'planned ' + roughDuration(plan.plannedMs), plan.implementingMs !== null && 'implementing ' + roughDuration(plan.implementingMs), plan.waitedMs > 0 && 'waited on you ' + roughDuration(plan.waitedMs)].filter(Boolean).join(' · ');
-      return <li key={plan.id} className="time-plan">
-        <StatusIcon status={status} />
-        <div className="time-plan-text">
-          <span className="time-plan-name">
-            <Link href="#" underline={false} className="time-plan-title" onClick={event => { event.preventDefault(); open(plan); }}>{plan.title}</Link>
-            {all && plan.project && <small className="muted">{plan.project}</small>}
-          </span>
-          <span className="time-plan-bar" aria-hidden="true"><span style={{ inlineSize: plan.agentMs / most * 100 + '%' }} /></span>
-          {took && <small className="muted">{took}</small>}
-        </div>
-        <span className="time-plan-figures"><strong>{duration(plan.agentMs)}</strong><small className="muted">{total ? Math.round(plan.agentMs / total * 100) + '%' : ''}{plan.tokens !== null ? ' · ' + compactNumber(plan.tokens) + ' tokens' : ''}</small></span>
-      </li>;
-    })}</ul> : <p className="muted">No plan was worked on in this period.</p>}
-  </section>;
-}
-
 /** Agent time and tokens by model and effort in the period, with each one's share. */
 function ModelsAndEffort({ statistics }: { statistics: ProjectStatistics }) {
   const total = statistics.models.reduce((sum, item) => sum + item.agentMs, 0);
@@ -153,9 +121,9 @@ function ModelsAndEffort({ statistics }: { statistics: ProjectStatistics }) {
 }
 
 /** The page's breadcrumb, heading and period, and the figures for the period the host gives (`read`). */
-function StatisticsView({ read, revision, trail, scope, open, all }: {
+function StatisticsView({ read, revision, trail, scope, all }: {
   read(from: string | null, unit: 'day' | 'week'): Promise<ProjectStatistics>; revision: unknown; trail: ReactNode; scope: string;
-  open(plan: ProjectStatistics['plans'][number]): void; all: boolean;
+  all: boolean;
 }) {
   const [periodId, setPeriodId] = useState<PeriodId>('month');
   const period = periods.find(item => item.id === periodId)!;
@@ -184,11 +152,10 @@ function StatisticsView({ read, revision, trail, scope, open, all }: {
     {shown?.error && <Notice tone="warning">{shown.error}</Notice>}
     {!shown ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the statistics" /></div>
       : !statistics ? null
-      : statistics.current.agentMs === 0 && !statistics.plans.length ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'} />
+      : statistics.current.agentMs === 0 && statistics.current.plansCompleted === 0 ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'} />
       : <>
         <Headline statistics={statistics} period={period} />
         <WorkOverTime statistics={statistics} scope={scope} />
-        <WhereTheTimeWent statistics={statistics} open={open} all={all} />
         <ModelsAndEffort statistics={statistics} />
       </>}
   </Page>;
@@ -199,17 +166,14 @@ function StatisticsView({ read, revision, trail, scope, open, all }: {
  * to it), under its breadcrumb (`trail`: Projects, the project).
  */
 export function Statistics({ trail }: { trail: ReactNode }) {
-  const { project, revision, open } = useWorkbench();
-  return <StatisticsView read={(from, unit) => api.projectStatistics(project, from, null, unit)} revision={revision} trail={trail} scope="this project" all={false}
-    open={plan => open(workStatisticsTarget(plan.id))} />;
+  const { project, revision } = useWorkbench();
+  return <StatisticsView read={(from, unit) => api.projectStatistics(project, from, null, unit)} revision={revision} trail={trail} scope="this project" all={false} />;
 }
 
 /**
  * All plans' statistics: every active project together, on the same page as a project's, from the
- * hub's Statistics; each plan opens its own statistics in its project. `revision` changes with the
- * project list, to read them again.
+ * hub's Statistics. `revision` changes with the project list, to read them again.
  */
-export function AllStatistics({ trail, revision, go }: { trail: ReactNode; revision: unknown; go(place: Place): void }) {
-  return <StatisticsView read={(from, unit) => api.allStatistics(from, null, unit)} revision={revision} trail={trail} scope="any project" all
-    open={plan => { if (plan.folderId) go({ project: plan.folderId, target: workStatisticsTarget(plan.id) }); }} />;
+export function AllStatistics({ trail, revision }: { trail: ReactNode; revision: unknown }) {
+  return <StatisticsView read={(from, unit) => api.allStatistics(from, null, unit)} revision={revision} trail={trail} scope="any project" all />;
 }
