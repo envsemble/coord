@@ -48,10 +48,13 @@ export function excerpt(message: string, limit = 280): { text: string; more: boo
   return { text: first, more: first.length < whole.length || first.length > limit };
 }
 
-/** The span a timeline shows: from its first stretch (or the zoom's start) to now. */
-export function timelineSpan(timeline: WorkTimeline, now: number, zoom: 'all' | 'week' | 'day'): { start: number; end: number } {
+/**
+ * The span a timeline shows: from its first stretch (or the zoom's start) to its last, or to now while
+ * agents work on the plan or wait for the person (`live`), so past work is not squeezed to the left.
+ */
+export function timelineSpan(timeline: WorkTimeline, now: number, zoom: 'all' | 'week' | 'day', live = false): { start: number; end: number } {
   const times = timeline.lanes.flatMap(lane => [...lane.working, ...lane.waiting].flatMap(([start, end]) => [Date.parse(start), Date.parse(end)])).filter(Number.isFinite);
-  const end = Math.max(now, ...times);
+  const end = live || !times.length ? Math.max(now, ...times) : Math.max(...times);
   const first = times.length ? Math.min(...times) : end - hour;
   const start = zoom === 'day' ? end - day : zoom === 'week' ? end - 7 * day : first;
   return { start: Math.min(start, end - 60000), end };

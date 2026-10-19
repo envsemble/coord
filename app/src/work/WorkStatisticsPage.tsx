@@ -81,8 +81,8 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
   const drag = useRef<{ x: number; view: TimeView } | null>(null);
   // Now moves along while agents work.
   const now = useHostNow(live);
-  const whole = timelineSpan(timeline, now, 'all');
-  const { start, end } = preset ? timelineSpan(timeline, now, preset) : view ?? whole;
+  const whole = timelineSpan(timeline, now, 'all', live !== null);
+  const { start, end } = preset ? timelineSpan(timeline, now, preset, live !== null) : view ?? whole;
   const span = end - start;
   const show = (next: TimeView) => { setPreset(null); setView(next); };
   /** The tracks' left edge and width on screen, where time is drawn. */

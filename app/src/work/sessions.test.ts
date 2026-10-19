@@ -18,9 +18,10 @@ test('a plan\'s sessions: the one waiting with its message, and its message\'s b
   assert.deepEqual(excerpt('First paragraph.\n\nSecond.'), { text: 'First paragraph.', more: true });
   assert.deepEqual(excerpt('**Needs your decision:** merge it?'), { text: '**Needs your decision:** merge it?', more: false }, 'Markdown stays whole');
   assert.equal(excerpt('word '.repeat(100), 50).more, true, 'a long first paragraph is clamped on the page');
-  // The timeline shows up to now; zoomed, the last day or week of it.
-  const span = timelineSpan({ plannedMs: null, implementingMs: null, waitedMs: 0, lanes: [{ session: 'a', subagent: null, model: null, effort: null, working: [['2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z']], waiting: [] }] }, Date.parse('2026-10-19T00:00:00Z'), 'all');
-  assert.deepEqual(span, { start: Date.parse('2026-10-01T00:00:00Z'), end: Date.parse('2026-10-19T00:00:00Z') });
+  // The timeline shows its stretches, up to now while agents are on the plan.
+  const timeline = { plannedMs: null, implementingMs: null, waitedMs: 0, lanes: [{ session: 'a', subagent: null, model: null, effort: null, working: [['2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z']] as [string, string][], waiting: [] }] };
+  assert.deepEqual(timelineSpan(timeline, Date.parse('2026-10-19T00:00:00Z'), 'all'), { start: Date.parse('2026-10-01T00:00:00Z'), end: Date.parse('2026-10-02T00:00:00Z') });
+  assert.deepEqual(timelineSpan(timeline, Date.parse('2026-10-19T00:00:00Z'), 'all', true), { start: Date.parse('2026-10-01T00:00:00Z'), end: Date.parse('2026-10-19T00:00:00Z') });
 });
 
 test('the timeline zooms around the moment under the pointer and moves along, within its whole span', () => {
