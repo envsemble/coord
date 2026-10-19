@@ -76,8 +76,10 @@ function projectBases(root: string): Promise<string[]> {
 const checkouts = new Map<string, { at: number; value: Promise<Set<string>> }>();
 /**
  * The GitHub repositories checked out in a project's folders (each folder, and the folders directly
- * inside it), by their remotes, lowercased; kept for a minute. Only the owner sets a project's
- * folders, so a paired device cannot add to them, as it could to the planning files by importing a plan.
+ * inside it), by their remotes, lowercased; kept for a minute. Git spells each remote's URL itself
+ * (`git remote get-url`), applying `url.<base>.insteadOf`; an SSH host alias (`Host` in ~/.ssh/config)
+ * is not followed, so a remote through one does not count. Only the owner sets a project's folders,
+ * so a paired device cannot add to them, as it could to the planning files by importing a plan.
  */
 export function checkedOutRepositories(root: string): Promise<Set<string>> {
   const cached = checkouts.get(folderKey(root));
@@ -85,11 +87,11 @@ export function checkedOutRepositories(root: string): Promise<Set<string>> {
   const value = (async () => {
     const found = new Set<string>();
     await Promise.all((await projectBases(root)).map(async base => {
-      const remotes = await program('git', ['-C', base, 'config', '--get-regexp', '^remote\\..*\\.url$'], 5000);
-      for (const line of remotes?.split(/\r?\n/) ?? []) {
-        const repository = remoteRepository(line.split(' ').slice(1).join(' '));
+      const names = (await program('git', ['-C', base, 'remote'], 5000))?.split(/\r?\n/).filter(Boolean) ?? [];
+      await Promise.all(names.map(async name => {
+        const repository = remoteRepository((await program('git', ['-C', base, 'remote', 'get-url', name], 5000))?.trim() ?? null);
         if (repository?.web) found.add(repository.repository.toLowerCase());
-      }
+      }));
     }));
     return found;
   })();

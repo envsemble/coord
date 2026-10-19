@@ -26,7 +26,7 @@ export {
 export { runProgram, ProgramError, type RunOptions } from './system/run.ts';
 export { acquireFileLock } from './home/importLock.ts';
 export { WorkError, summaryLimit, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, setContinues, closeWork, archiveWork, reopenWork, repairLinks, localDate, type ArchiveRequest, type WorkResult, type WorkStatus, type OperationOptions } from './work/work.ts';
-export { normalizeRemote, remoteRepository, remoteWithoutCredentials } from './projects/remotes.ts';
+export { remoteRepository } from './projects/remotes.ts';
 export { findPlanning, insideFolder, readRegistry, resolvePlanningFolder, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type ProjectBrief, type Whereabouts, type WorkBrief } from './projects/resolve.ts';
 export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './check/checkPaths.ts';
 export { projectSummary, workStatisticsBrief, type ProjectSummary, type ProjectWork, type ProjectWorkState, type ProjectWorkStatistics } from './projects/projectSummary.ts';

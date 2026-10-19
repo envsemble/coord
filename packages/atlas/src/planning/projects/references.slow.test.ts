@@ -20,9 +20,12 @@ test('a paired device has gh asked only about the GitHub repositories checked ou
   };
   checkout('shop', { origin: 'git@github.com:Example/Shop.git', fork: 'https://github.com/someone/shop' });
   checkout('tools', { origin: 'https://gitlab.com/acme/tools.git' });
+  // A remote spelled through url.<base>.insteadOf counts as Git spells it.
+  checkout('docs', { origin: 'gh:example/docs' });
+  execFileSync('git', ['-C', path.join(workspace, 'docs'), 'config', 'url.https://github.com/.insteadOf', 'gh:']);
   mkdirSync(path.join(workspace, 'notes'));
   const root = path.join(directory, 'planning');
   mkdirSync(root);
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [workspace], work_items: [] }));
-  assert.deepEqual([...await checkedOutRepositories(root)].sort(), ['example/shop', 'someone/shop']);
+  assert.deepEqual([...await checkedOutRepositories(root)].sort(), ['example/docs', 'example/shop', 'someone/shop']);
 });

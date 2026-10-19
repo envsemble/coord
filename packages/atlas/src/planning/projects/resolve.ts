@@ -6,7 +6,7 @@
 // `where` also lists every active project of the home in brief, so an agent outside them can ask.
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { parseFrontmatter } from '../check/check.ts';
+import { absoluteFolder, parseFrontmatter } from '../check/check.ts';
 import { ledgerStatus, stepCounts, stepSummary } from '../work/ledger.ts';
 import { atlasHome, homePlanningFolders } from '../home/storage.ts';
 import { folderKey, inactiveProjectFolders, planningName } from '../home/database.ts';
@@ -66,12 +66,12 @@ export function insideFolder(parent: string, child: string) {
 const inside = insideFolder;
 
 interface RegistryEntry { id?: unknown; path?: unknown; current_plan?: unknown }
-/** A planning folder's work items and folders (absolute paths), as planning.json lists them. */
+/** A planning folder's work items and folders (the absolute paths of this computer's form; `atlas check` warns of the others), as planning.json lists them. */
 export async function readRegistry(root: string): Promise<{ work_items: RegistryEntry[]; folders: string[] }> {
   const registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, ''));
   return {
     work_items: Array.isArray(registry?.work_items) ? registry.work_items : [],
-    folders: Array.isArray(registry?.folders) ? registry.folders.filter((item: unknown): item is string => typeof item === 'string' && path.isAbsolute(item)) : [],
+    folders: Array.isArray(registry?.folders) ? registry.folders.filter(absoluteFolder) : [],
   };
 }
 
@@ -113,7 +113,8 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
   const candidates: (PlanningMatch & { depth: number })[] = [];
   const projects: ProjectBrief[] = [];
   const inactive = await inactiveProjectFolders(home);
-  const depthOf = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).length;
+  // A folder's path segments, its root counting as one, so that `/` is a folder like any other.
+  const depthOf = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).length + 1;
   for (const folder of await homePlanningFolders(home)) {
     const root = await realpath(folder).catch(() => folder);
     if (inactive.has(folderKey(root))) continue;

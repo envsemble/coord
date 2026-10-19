@@ -144,6 +144,15 @@ function splitLines(text: string) {
 }
 
 /**
+ * Whether a folder in planning.json's `folders` is an absolute path in this computer's form: on
+ * Windows with a drive or a share (`C:\work`, `\\server\work`), elsewhere from the root (`/work`).
+ */
+export function absoluteFolder(item: unknown): item is string {
+  if (typeof item !== 'string' || !item.trim()) return false;
+  return process.platform === 'win32' ? /^(?:[a-z]:[\\/]|[\\/]{2}[^\\/])/i.test(item) : path.posix.isAbsolute(item);
+}
+
+/**
  * Parse a metadata header, or return null when the document has none. `entryLists` names the
  * fields that hold a block list of flat mappings (a ledger's `steps`); elsewhere such a field
  * is an ordinary scalar or list.
@@ -284,6 +293,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   if (typeof registry.name !== 'string' || !registry.name.trim() || registry.name.length > 100) errors.push('name must be a nonempty string of at most 100 characters');
   // The folders the project covers on this computer: a session in one belongs to it.
   if (!Array.isArray(registry.folders) || registry.folders.some(item => typeof item !== 'string' || !item.trim() || !(path.win32.isAbsolute(item) || path.posix.isAbsolute(item)))) errors.push('folders must be an array of absolute folder paths');
+  // A planning folder may be read on another system, which leaves out the folders of this one's form (readRegistry).
+  else for (const item of registry.folders) if (!absoluteFolder(item)) warnings.push(`planning.json: folder ${item} is a path of another system: it is left out on this computer`);
   if (!Array.isArray(registry.work_items)) errors.push('work_items must be an array');
   if (errors.length) return { errors, warnings };
   const workItems = registry.work_items as unknown[];

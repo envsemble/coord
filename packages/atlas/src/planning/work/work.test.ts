@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
-import { normalizeRemote, remoteRepository } from '../projects/remotes.ts';
+import { remoteRepository } from '../projects/remotes.ts';
 import { acceptWork, addSteps, archiveWork, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing/testing.ts';
 
@@ -253,16 +253,13 @@ test('a current_plan other than the work folder\'s plan.md is refused before any
   assert.equal(read(root, 'active/0002-other/plan.md'), before);
 });
 
-test('remotes are compared in one spelling, and name their repository as owner/repo', () => {
+test('remotes name their repository in one spelling: owner/repo on GitHub, in full elsewhere', () => {
   for (const spelling of ['git@github.com:Example/Shop.git', 'ssh://git@github.com/example/shop', 'ssh://git@github.com:22/example/shop.git', 'https://github.com/example/shop.git', 'https://user@GitHub.com/example/shop/', 'git://github.com/example/shop']) {
-    assert.equal(normalizeRemote(spelling), 'github.com/example/shop', spelling);
+    assert.deepEqual(remoteRepository(spelling), { repository: 'example/shop', web: 'https://github.com/example/shop' }, spelling);
   }
-  assert.equal(normalizeRemote(''), null);
-  assert.equal(normalizeRemote('C:\\repos\\shop.git'), 'c:/repos/shop');
-  assert.deepEqual(remoteRepository('git@github.com:Example/Shop.git'), { repository: 'example/shop', web: 'https://github.com/example/shop' });
-  assert.deepEqual(remoteRepository('https://gitlab.com/group/sub/api.git'), { repository: 'sub/api', web: null });
+  assert.deepEqual(remoteRepository('https://gitlab.com/group/sub/api.git'), { repository: 'gitlab.com/group/sub/api', web: null });
   assert.equal(remoteRepository(null), null);
-  for (const local of ['/srv/git/shop.git', 'file:///srv/git/shop.git', 'C:/repos/shop.git']) assert.equal(remoteRepository(local), null, local);
+  for (const local of ['/srv/git/shop.git', 'file:///srv/git/shop.git', 'C:/repos/shop.git', 'C:\\repos\\shop.git']) assert.equal(remoteRepository(local), null, local);
 });
 
 test('atlas check attributes findings to the files asked about and runs registered checkers', async t => {
@@ -321,9 +318,11 @@ test('atlas check warns about a diagram no document links, and checks the projec
   // A project's folders are absolute paths, none at all too.
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, folders: [] }));
   assert.deepEqual(validatePlanning(root).errors, []);
-  // Windows and POSIX paths alike: a planning folder may be read on another system.
+  // Windows and POSIX paths alike: a planning folder may be read on another system, which leaves out (and warns of) the other's.
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, folders: ['C:\\Dev\\shop', '/home/someone/shop', '\\\\server\\share\\shop'] }));
-  assert.deepEqual(validatePlanning(root).errors, []);
+  const checked = validatePlanning(root), foreign = process.platform === 'win32' ? ['/home/someone/shop'] : ['C:\\Dev\\shop', '\\\\server\\share\\shop'];
+  assert.deepEqual(checked.errors, []);
+  assert.deepEqual(checked.warnings.filter(warning => warning.includes('another system')).map(warning => foreign.find(folder => warning.includes(folder))), foreign);
   for (const folders of ['C:/x', ['relative/folder'], [''], [7]]) {
     writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ ...registry, folders }));
     assert.deepEqual(validatePlanning(root).errors, ['folders must be an array of absolute folder paths'], JSON.stringify(folders));

@@ -1,7 +1,7 @@
 // The commits and PRs a session makes, from its tool calls: `git commit` prints `[branch hash]
 // subject`, and `gh pr create` prints the PR's URL. Each is recorded for the work item the session
-// is on, with its repository as `owner/repo` (from the checkout's remote, or the PR's address; the
-// checkout's folder name when it has no remote), once.
+// is on, with its repository (from the checkout's remote, or the PR's address: `owner/repo` on GitHub,
+// `host/path` elsewhere; none when the checkout has no remote on a host), once.
 import path from 'node:path';
 import type { HomeDatabase } from '../../planning/home/database.ts';
 import { remoteRepository } from '../../planning/projects/remotes.ts';
@@ -15,7 +15,7 @@ export function strings(value: unknown, depth = 0): string[] {
 }
 
 /** `amends`: the commit replaces the one before it on its branch (`git commit --amend`). */
-interface Product { kind: 'commit' | 'pull'; ident: string; title: string | null; branch: string | null; url: string | null; repository: string; amends?: boolean }
+interface Product { kind: 'commit' | 'pull'; ident: string; title: string | null; branch: string | null; url: string | null; repository: string | null; amends?: boolean }
 
 const quoted = (value: string) => value.replace(/^(["'])(.*)\1$/, '$2');
 /** The checkout a command ran in: its `git -C <dir>` or leading `cd <dir>`, else the tool's folder (Codex's `workdir`) or the session's. */
@@ -38,7 +38,7 @@ async function productsOf(input: { tool_input?: unknown; tool_response?: unknown
     const commits = [...output.matchAll(/^\[([^\]\n]{1,100}?) ([0-9a-f]{7,40})\] (.*)$/gm)];
     if (commits.length) {
       const remote = remoteRepository(await git(folder, ['remote', 'get-url', 'origin']));
-      const repository = remote?.repository ?? path.basename(folder), web = remote?.web ?? null;
+      const repository = remote?.repository ?? null, web = remote?.web ?? null;
       for (const [, head, hash, subject] of commits) {
         const branch = head.replace(/ \(root-commit\)$/, '');
         products.push({ kind: 'commit', ident: hash, title: subject.trim() || null, branch: branch === 'detached HEAD' ? null : branch, url: web && web + '/commit/' + hash, repository, amends: /--amend\b/.test(command) });
