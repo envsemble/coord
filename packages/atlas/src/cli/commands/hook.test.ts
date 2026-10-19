@@ -39,7 +39,7 @@ test('hooks give the session its planning context, check and link planning edits
     return output ? JSON.parse(output) : null;
   };
   const links = () => linksIn(base.ATLAS_HOME!);
-  /** Whether the database has the session's agent in a turn (the app's live dot). */
+  /** Whether the database has the session's agent in a turn (the app's Working). */
   const working = () => withDatabase(base.ATLAS_HOME!, database => Number((database.db.prepare('SELECT working FROM session WHERE id = ?').get(session) as { working: number }).working));
 
   // SessionStart: the project, its planning folder and active work, and how to plan; outside a registered checkout, the home's projects.
@@ -102,6 +102,9 @@ test('hooks give the session its planning context, check and link planning edits
   await run(['work', 'create', '--title', 'Refunds', '--repo', 'shop', '--planning-dir', root], { env });
   await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__work_status', tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003']);
+  // A session on several work items counts as working on the one it touched last.
+  const activity = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().map(item => [item.workId, item.state]));
+  assert.deepEqual(activity(), [['work-0003', 'working']]);
 
   // Stop records a report for each linked work item, measured from the session's log since the
   // session started on it, and clears amending.
@@ -125,6 +128,24 @@ test('hooks give the session its planning context, check and link planning edits
   await hook('SubagentStop', { agent_id: 'a1', agent_type: 'Explore', agent_transcript_path: transcript });
   assert.equal(reportsIn(root, 'work-0001', base.ATLAS_HOME!).length, 2);
   assert.equal(working(), 1);
+  // The session's state at once: a prompt starts a turn; a permission prompt waits for the person,
+  // and the tool use after it continues the same turn; the turn's end waits, a later reminder
+  // keeping when it began; the session's end is neither.
+  const state = () => withDatabase(base.ATLAS_HOME!, database => ({ ...database.db.prepare('SELECT working, turn_at AS turn, waiting_at AS waiting FROM session WHERE id = ?').get(session) as { working: number; turn: string | null; waiting: string | null } }));
+  await hook('UserPromptSubmit', { prompt: 'Placeholder' });
+  const { turn } = state();
+  assert.deepEqual(state(), { working: 1, turn, waiting: null });
+  await hook('Notification', { notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' });
+  assert.deepEqual({ ...state(), waiting: typeof state().waiting }, { working: 0, turn, waiting: 'string' });
+  await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
+  assert.deepEqual(state(), { working: 1, turn, waiting: null });
+  await hook('Stop', { stop_hook_active: false });
+  const { waiting } = state();
+  await hook('Notification', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
+  assert.deepEqual(state(), { working: 0, turn: null, waiting });
+  assert.deepEqual(activity(), [['work-0003', 'waiting']]);
+  await hook('SessionEnd', { reason: 'prompt_input_exit' });
+  assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting: null }, []]);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.atlas')), 'nothing is written into the planning folder');
   assert.equal((await run(['planning', 'check', root], { env })).status, 0);
 });

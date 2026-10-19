@@ -30,7 +30,18 @@ const FRONTMATTER_KEYS = new Set([
   "description",
   "disable-model-invocation",
 ]);
-const HOOK_EVENTS = ["SessionStart", "PostToolUse", "Stop", "SubagentStop"];
+// Each harness event the plugin hooks, with the Atlas hooks it runs: after every tool use, the
+// session's state (in the background) besides the checks of planning edits.
+const HOOK_EVENTS = {
+  SessionStart: ["SessionStart"],
+  UserPromptSubmit: ["UserPromptSubmit"],
+  PostToolUse: ["PostToolUse", "ToolUse"],
+  Notification: ["Notification"],
+  PermissionRequest: ["PermissionRequest"],
+  Stop: ["Stop"],
+  SubagentStop: ["SubagentStop"],
+  SessionEnd: ["SessionEnd"],
+};
 
 // Old skill and product names. Character classes keep this file itself free of them.
 const RETIRED_NAMES = [
@@ -387,21 +398,21 @@ test("the plugin manifests agree with each other and the repository", () => {
   }
 });
 
-test("the plugin's hooks are the four Atlas handles", () => {
+test("the plugin's hooks are the ones Atlas handles", () => {
   const { hooks } = json(path.join(PLUGIN, "hooks", "hooks.json"));
-  assert.deepEqual(Object.keys(hooks).sort(), [...HOOK_EVENTS].sort());
-  for (const event of HOOK_EVENTS) {
+  assert.deepEqual(Object.keys(hooks).sort(), Object.keys(HOOK_EVENTS).sort());
+  for (const [event, names] of Object.entries(HOOK_EVENTS)) {
     const commands = hooks[event].flatMap((group) =>
       group.hooks.map((hook) => hook.command),
     );
     assert.deepEqual(
       commands,
-      [`atlas hook ${event}`],
-      `${event}: runs atlas hook ${event}`,
+      names.map((name) => `atlas hook ${name}`),
+      `${event}: runs ${names.join(" and ")}`,
     );
   }
   assert.match(
     read(path.join(REPO, "packages", "atlas", "src", "cli", "main.ts")),
-    new RegExp(`atlas hook <${HOOK_EVENTS.join("\\|")}>`),
+    new RegExp(`atlas hook <${Object.values(HOOK_EVENTS).flat().join("\\|")}>`),
   );
 });

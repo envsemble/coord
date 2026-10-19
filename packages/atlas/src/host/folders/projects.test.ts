@@ -137,10 +137,20 @@ test('the project list has each work item\'s step, completion and statistics fro
   });
   assert.deepEqual([work('work-0002').statistics, work('work-0003').step, work('work-0001').completed], [null, null, null], 'no reports, no steps (a ledger from before steps), open');
   assert.equal(work('work-0004').completed, '2026-09-24');
-  // A report recorded with nothing else changing reaches clients with the next check.
-  insertReport(host.database, project.id, 'work-0002', createReport({ model: 'claude-opus', session: 's3', stage: 'planning', at: new Date('2026-10-03T10:00:00Z') }));
+  // A report recorded with nothing else changing reaches clients with the next check, in the list
+  // and in the plan's statistics: a session and its subagent, each in full, and the hour at least one worked.
+  const folderId = (await projectNamed(owner.connection)).folderId;
+  await owner.connection.follow(folderId);
+  insertReport(host.database, project.id, 'work-0002', createReport({ model: 'claude-opus', session: 's3', stage: 'planning', at: new Date('2026-10-03T10:00:00Z'), measured: {
+    ...measured('2026-10-03T09:00:00.000Z', 5_400_000, 100), subagents: { count: 1, agentMs: 1_800_000, tokens: 0, agents: [{ id: 'a1', model: null, agentMs: 1_800_000, tokens: 0 }] },
+    intervals: [{ agent: null, start: '2026-10-03T09:00:00.000Z', end: '2026-10-03T10:00:00.000Z' }, { agent: 'a1', start: '2026-10-03T09:30:00.000Z', end: '2026-10-03T10:00:00.000Z' }],
+  } }));
   const sent = () => owner.lists.at(-1)?.find(item => item.name === 'Northwind')?.summary?.active.find(item => item.id === 'work-0002')?.statistics;
   await until(() => sent()?.lastReport === '2026-10-03T10:00:00.000Z', 5000, () => owner.lists.length);
+  assert.deepEqual([sent()?.agentMs, sent()?.activeMs, sent()?.unmergedMs], [5_400_000, 3_600_000, 0]);
+  const shown = async () => (await owner.connection.request('folder.snapshot', { folderId })).work.find(item => item.id === 'work-0002')?.statistics;
+  await until(() => owner.events.some(event => event.folderId === folderId && event.revision > 1), 5000);
+  assert.deepEqual([(await shown())?.activeMs, (await shown())?.agents], [3_600_000, [{ session: 's3', subagent: null, model: 'claude-opus', agentMs: 3_600_000 }, { session: 's3', subagent: 'a1', model: null, agentMs: 1_800_000 }]]);
 });
 
 test('the search covers every active project, in the home or outside it, best first', async t => {

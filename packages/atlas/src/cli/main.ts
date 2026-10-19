@@ -19,7 +19,7 @@ Usage:
 ${planningUsage}
   atlas capture <source.json> (--work <work-id> | --out <file>) [--name <name>] [--compares <capture.puml>] [--force] [--planning-dir <dir>]
   atlas mcp
-  atlas hook <SessionStart|PostToolUse|Stop|SubagentStop>
+  atlas hook <SessionStart|UserPromptSubmit|PostToolUse|ToolUse|Notification|PermissionRequest|Stop|SubagentStop|SessionEnd>
   atlas setup [--dry-run]
   atlas planning check <planning-root>
   atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]

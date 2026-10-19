@@ -112,6 +112,11 @@ export class FolderRegistry {
     this.known.delete(folderId);
   }
 
+  /** Reports were recorded or measured again: every open folder reads its work's statistics again. */
+  refreshStatistics() {
+    for (const entry of this.entries.values()) void entry.started.then(() => entry.session.refreshStatistics());
+  }
+
   /** Close every folder now (the host is stopping). */
   closeAll() {
     for (const entry of this.entries.values()) {

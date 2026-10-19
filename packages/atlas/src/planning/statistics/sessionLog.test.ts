@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type SessionLogs } from './sessionLog.ts';
+import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type SessionLogs, type SessionMeasure } from './sessionLog.ts';
+import { spansMs } from './statistics.ts';
 
 delete process.env.CLAUDE_CODE_SESSION_ID;
 delete process.env.CODEX_THREAD_ID;
@@ -60,6 +61,8 @@ function folders(t: TestContext) {
 }
 
 const minutes = (milliseconds: number) => milliseconds / 60000;
+/** The time at least one agent worked: the union of a measurement's intervals, in minutes. */
+const atOnce = (result: SessionMeasure) => minutes(spansMs(result.intervals.map((interval): [number, number] => [Date.parse(interval.start), Date.parse(interval.end)])));
 const measure = async (logs: SessionLogs | null, since: number | null, until: number, live = false) => {
   assert.ok(logs, 'the session\'s logs are found');
   return measureSession(logs, { since: since === null ? null : at(since), at: at(until), live });
@@ -82,7 +85,7 @@ test('a turn runs from its prompt to its last activity; waiting for the person i
   assert.deepEqual(result.models.map(model => [model.model, minutes(model.agentMs), model.input, model.cacheRead, model.cacheWrite, model.output]), [['claude-opus-5-5', 16, 30, 3000, 150, 300]]);
 });
 
-test('helpers working at the same time count once; each model keeps its own time and tokens', async t => {
+test('helpers working at the same time each count in full, with when each worked; each model keeps its own time and tokens', async t => {
   const { claudeSession, environment, home } = folders(t);
   claudeSession(
     [claude.prompt(0), claude.response(2, 'msg_main_1', 'claude-opus-5-5', usage(5, 50, 2000, 100)), claude.result(28), claude.response(30, 'msg_main_2', 'claude-opus-5-5', usage(5, 70, 2500, 0), 'end_turn')],
@@ -92,12 +95,13 @@ test('helpers working at the same time count once; each model keeps its own time
   );
   const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
   const whole = await measure(logs, -1, 60);
-  assert.equal(minutes(whole.agentMs), 50, 'the union of 0–30 and 10–50');
+  assert.equal(minutes(whole.agentMs), 30 + 40, '0–30 and 10–50, each in full');
+  assert.deepEqual(whole.intervals, [{ agent: null, start: iso(0), end: iso(30) }, { agent: 'a0', start: iso(10), end: iso(50) }]);
   assert.deepEqual(whole.models.map(model => [model.model, minutes(model.agentMs), model.input + model.cacheRead + model.cacheWrite + model.output]), [['claude-haiku-5-5', 40, 1196], ['claude-opus-5-5', 30, 4730]]);
   assert.equal(whole.mainModel, 'claude-opus-5-5', 'the main agent\'s model, though its helper worked longer');
   assert.deepEqual(whole.subagents, [{ id: 'a0', model: 'claude-haiku-5-5', agentMs: 40 * 60000, tokens: 1196 }], 'the helper on its own');
   const later = await measure(logs, 20, 60);
-  assert.equal(minutes(later.agentMs), 30, 'only (20, 60] counts');
+  assert.equal(minutes(later.agentMs), 10 + 30, 'only (20, 60] counts');
   assert.deepEqual(later.models.map(model => [model.model, minutes(model.agentMs), model.output]), [['claude-haiku-5-5', 30, 20], ['claude-opus-5-5', 10, 70]], 'and only the responses in it');
   assert.deepEqual(later.subagents, [{ id: 'a0', model: 'claude-haiku-5-5', agentMs: 30 * 60000, tokens: 623 }]);
   assert.deepEqual((await measure(logs, 55, 60)).subagents, [], 'a helper that did nothing in the interval is not listed');
@@ -162,12 +166,12 @@ test('reported from inside the session, a turn still under way runs until the re
     ],
   );
   const logs = await sessionLogs([{ harness: 'claude-code', session }], { environment, home });
-  assert.equal(minutes((await measure(logs, -1, 18)).agentMs), 12, 'from outside, each turn ends at its last activity');
-  assert.equal(minutes((await measure(logs, -1, 18, true)).agentMs), 18, 'from inside, the helpers at work are working now');
-  assert.equal(minutes((await measure(logs, -1, 40, true)).agentMs), 12, 'helpers silent for more than a quarter of an hour have most likely stopped');
+  assert.equal(atOnce(await measure(logs, -1, 18)), 12, 'from outside, each turn ends at its last activity');
+  assert.equal(atOnce(await measure(logs, -1, 18, true)), 18, 'from inside, the helpers at work are working now');
+  assert.equal(atOnce(await measure(logs, -1, 40, true)), 12, 'helpers silent for more than a quarter of an hour have most likely stopped');
   const closed = folders(t);
   closed.claudeSession([claude.prompt(0), step(1, 'a', 'tool_use'), claude.result(10), answer(12)], [[claude.prompt(9, { isSidechain: true }), step(11, 'd', 'tool_use', 'AskUserQuestion')]]);
-  assert.equal(minutes((await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment: closed.environment, home }), -1, 18, true)).agentMs), 12, 'a finished turn and a question to the person do not run on');
+  assert.equal(atOnce(await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment: closed.environment, home }), -1, 18, true)), 12, 'a finished turn and a question to the person do not run on');
 });
 
 test('a helper resumed by its coordinator starts a new turn: the time it sat finished is not work', async t => {
@@ -180,7 +184,7 @@ test('a helper resumed by its coordinator starts a new turn: the time it sat fin
     resumed(300, 'task-notification'), claude.response(302, 'msg_4', 'claude-opus-5-5', undefined, 'end_turn'),
   ]]);
   const result = await measure(await sessionLogs([{ harness: 'claude-code', session }], { environment, home }), -1, 400);
-  assert.equal(minutes(result.agentMs), 10 + 5 + 2, 'neither the hours between turns nor the stray response bridge a wait');
+  assert.equal(minutes(result.subagents[0].agentMs), 10 + 5 + 2, 'neither the hours between turns nor the stray response bridge a wait');
 });
 
 test('a compaction is busy for its duration, but a manual one does not bridge the wait before it', async t => {
@@ -320,7 +324,7 @@ test('Codex: a subagent\'s thread is measured as the root session it belongs to'
   for (const asked of [helper, grandchild]) {
     const logs = await sessionLogs([{ harness: 'codex', session: asked }], { environment, home });
     assert.deepEqual([logs?.session, logs?.requested], [thread, asked], 'the root, asked for by its subagent');
-    assert.equal(minutes((await measure(logs, -1, 80)).agentMs), 70, 'the root with all its subagents');
+    assert.equal(atOnce(await measure(logs, -1, 80)), 70, 'the root with all its subagents');
   }
   const root = await sessionLogs([{ harness: 'codex', session: thread }], { environment, home });
   assert.deepEqual([root?.session, root?.requested], [thread, thread]);
@@ -344,7 +348,7 @@ test('Codex: later parts of a thread continue it, and subagent threads that name
   const logs = await sessionLogs([{ harness: 'codex', session: thread }], { environment, home });
   assert.equal(logs?.files.length, 2, 'both parts of the thread');
   const result = await measure(logs, 15, 60);
-  assert.equal(minutes(result.agentMs), 40 - 20 + 45 - 41, '20–30 in the thread with 22–40 and 41–45 in its subagents; the stranger not at all');
+  assert.deepEqual([minutes(result.agentMs), atOnce(result)], [10 + 18 + 4, 40 - 20 + 45 - 41], '20–30 in the thread with 22–40 and 41–45 in its subagents; the stranger not at all');
   assert.deepEqual(result.models.map(model => [model.model, minutes(model.agentMs), model.input + model.cacheRead + model.output]), [['gpt-5-codex-mini', 22, 110], ['gpt-6.1-sol', 10, 630]]);
   assert.equal(result.mainModel, 'gpt-6.1-sol');
   assert.deepEqual(result.subagents, [{ id: child, model: 'gpt-5-codex-mini', agentMs: 18 * 60000, tokens: 110 }, { id: grandchild, model: 'gpt-5-codex-mini', agentMs: 4 * 60000, tokens: 0 }], 'each helper thread on its own, nested ones too');

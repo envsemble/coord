@@ -7,30 +7,33 @@
 //   their own whose first line names it.
 // A hook names the log itself (its transcript path), which is read with the logs beside it.
 // The agent works from each prompt until the last activity of that turn (its output, tool calls and
-// their results), not while it waits for the person. Helpers' busy time merges with the main agent's,
-// so parallel work counts once; each subagent is also measured on its own. Logs are only read, line
-// by line; nothing but numbers and model and agent identifiers leaves them, and a line that is not
-// understood is skipped, never fatal.
+// their results), not while it waits for the person. Each agent, the main one and each helper, is
+// measured on its own and their times add up, also while they work at once; when each one worked
+// is kept too, so the time at least one of them worked can be told. Logs are only read, line by
+// line; nothing but numbers, times and model and agent identifiers leaves them, and a line that is
+// not understood is skipped, never fatal.
 import { createReadStream, type Dirent } from 'node:fs';
 import { open, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { modelPattern, type MeasuredSubagent } from './statistics.ts';
+import { mergeSpans, modelPattern, type MeasuredInterval, type MeasuredSubagent } from './statistics.ts';
 import type { TokenKinds } from '../types.ts';
 
 export type Harness = 'claude-code' | 'codex';
-/** One model's share of a measured interval: its busy time and the tokens of its responses. */
+/** One model's share of a measured interval: the busy time of every agent that worked with it, added up, and the tokens of its responses. */
 export interface ModelMeasure extends TokenKinds { model: string; agentMs: number }
 export interface SessionMeasure {
   harness: Harness; session: string;
-  /** Working time in the interval: the main agent's and its helpers' busy time, parallel work once. */
+  /** Working time in the interval, every agent added up: the main agent's own and each helper's, also while they work at once. */
   agentMs: number;
-  /** Most working time first. A model's time overlaps another's while both work at once. */
+  /** Most working time first. */
   models: ModelMeasure[];
   /** The model that did most of the main agent's work in the interval, else the latest it used. */
   mainModel: string | null;
   /** Each subagent that worked or spent tokens in the interval, most working time first. */
   subagents: MeasuredSubagent[];
+  /** When each agent worked in the interval (the main agent's are `agent` null), its stretches merged, in time order. */
+  intervals: MeasuredInterval[];
 }
 /** A session to measure; without a harness, both harnesses' logs are searched. */
 export interface SessionCandidate { harness: Harness | null; session: string }
@@ -445,37 +448,40 @@ async function codexTimeline(files: LogFile[], at: number, live: boolean): Promi
   return timeline;
 }
 
+/** The segments' stretches inside (from, to], merged. */
+const stretches = (segments: Segment[], from: number, to: number) => mergeSpans(segments.map(segment => [Math.max(segment.start, from), Math.min(segment.end, to)]));
 /** Total length of the segments' union inside (from, to]. */
-function covered(segments: Segment[], from: number, to: number) {
-  const parts = segments.map(segment => [Math.max(segment.start, from), Math.min(segment.end, to)]).filter(([start, end]) => end > start).sort((a, b) => a[0] - b[0]);
-  let total = 0, start = 0, end = Number.NEGATIVE_INFINITY;
-  for (const [partStart, partEnd] of parts) {
-    if (partStart > end) { if (end > start) total += end - start; start = partStart; end = partEnd; }
-    else end = Math.max(end, partEnd);
-  }
-  return end > start ? total + end - start : total;
-}
+const covered = (segments: Segment[], from: number, to: number) => stretches(segments, from, to).reduce((total, [start, end]) => total + end - start, 0);
 
 /**
- * Measure a session's working time and tokens in (since, at]. Without `since` (the session's first
- * report on a work item, its starting point) only the main model is read. `live` means the report
- * comes from inside the session, so a turn still under way runs until now.
+ * Read a session's logs as far as an interval starting at `since` needs them: logs last written
+ * before it add nothing to it, but the main log still names the model.
  */
-export async function measureSession(logs: SessionLogs, interval: { since: number | null; at: number; live?: boolean }): Promise<SessionMeasure> {
-  const { since, at } = interval;
-  // Logs last written before the interval add nothing to it; the main log still names the model.
+async function sessionTimeline(logs: SessionLogs, since: number | null, at: number, live: boolean): Promise<Timeline> {
   const files = logs.files.filter(file => file.agent === null || (since !== null && file.modified >= since));
   if (logs.harness === 'codex' && since !== null) files.push(...await codexHelpers(logs, since));
-  const live = interval.live ?? false;
   const timeline = logs.harness === 'claude-code' ? await claudeTimeline(files, at, live) : await codexTimeline(files, at, live);
   if (!timeline.events) throw new Error('its log has nothing Atlas can read');
-  const from = since ?? at;
+  return timeline;
+}
+
+/** The working time, tokens and intervals of each agent in (from, at] of a session's timeline. */
+function measureTimeline(logs: SessionLogs, timeline: Timeline, from: number, at: number): SessionMeasure {
   const usage = new Map<string, ModelMeasure>();
   const entry = (model: string) => { let found = usage.get(model); if (!found) usage.set(model, found = { model, agentMs: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 }); return found; };
-  const named = [...new Set(timeline.segments.map(segment => segment.model))].filter((model): model is string => model !== null);
-  /** A model's busy time in the interval: all agents' (undefined), or one agent's (null for the session's own). */
-  const time = (model: string, agent?: string | null) => covered(timeline.segments.filter(segment => segment.model === model && (agent === undefined || segment.agent === agent)), from, at);
-  for (const model of named) { const agentMs = time(model); if (agentMs) entry(model).agentMs = agentMs; }
+  // Each agent's segments in the interval (null: the session's own agent).
+  const own = new Map<string | null, Segment[]>();
+  for (const segment of timeline.segments) {
+    if (segment.end <= from || segment.start >= at) continue;
+    let list = own.get(segment.agent);
+    if (!list) own.set(segment.agent, list = []);
+    list.push(segment);
+  }
+  const named = [...new Set([...own.values()].flat().map(segment => segment.model))].filter((model): model is string => model !== null);
+  const working = [...own.keys()];
+  /** An agent's busy time in the interval, with one model only when given. */
+  const time = (agent: string | null, model?: string) => covered((own.get(agent) ?? []).filter(segment => model === undefined || segment.model === model), from, at);
+  for (const model of named) { const agentMs = working.reduce((total, agent) => total + time(agent, model), 0); if (agentMs) entry(model).agentMs = agentMs; }
   const tokens = (item: TokenKinds) => item.input + item.cacheRead + item.cacheWrite + item.output;
   const spent = timeline.spends.filter(spend => spend.at > from && spend.at <= at);
   for (const spend of spent) {
@@ -485,11 +491,48 @@ export async function measureSession(logs: SessionLogs, interval: { since: numbe
   }
   const models = [...usage.values()].sort((a, b) => b.agentMs - a.agentMs || tokens(b) - tokens(a) || a.model.localeCompare(b.model));
   /** An agent's model: the one it worked with longest, else the one that spent its tokens. */
-  const busiest = (agent: string | null) => named.map(model => ({ model, agentMs: time(model, agent) })).filter(item => item.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs)[0]?.model;
-  const agents = new Set([...timeline.segments, ...spent].map(item => item.agent).filter((agent): agent is string => agent !== null));
+  const busiest = (agent: string | null) => named.map(model => ({ model, agentMs: time(agent, model) })).filter(item => item.agentMs > 0).sort((a, b) => b.agentMs - a.agentMs)[0]?.model;
+  const agents = new Set([...working, ...spent.map(spend => spend.agent)].filter((agent): agent is string => agent !== null));
   const subagents = [...agents].map((id): MeasuredSubagent => {
-    const own = spent.filter(spend => spend.agent === id);
-    return { id, model: busiest(id) ?? own.find(spend => spend.model)?.model ?? null, agentMs: covered(timeline.segments.filter(segment => segment.agent === id), from, at), tokens: own.reduce((total, spend) => total + tokens(spend.tokens), 0) };
+    const spending = spent.filter(spend => spend.agent === id);
+    return { id, model: busiest(id) ?? spending.find(spend => spend.model)?.model ?? null, agentMs: time(id), tokens: spending.reduce((total, spend) => total + tokens(spend.tokens), 0) };
   }).filter(agent => agent.agentMs > 0 || agent.tokens > 0).sort((a, b) => b.agentMs - a.agentMs || b.tokens - a.tokens || a.id.localeCompare(b.id));
-  return { harness: logs.harness, session: logs.session, agentMs: covered(timeline.segments, from, at), models, mainModel: busiest(null) ?? timeline.latest?.model ?? null, subagents };
+  const intervals = working.flatMap(agent => stretches(own.get(agent)!, from, at).map(([start, end]): MeasuredInterval => ({ agent, start: new Date(start).toISOString(), end: new Date(end).toISOString() })))
+    .sort((a, b) => a.start.localeCompare(b.start) || (a.agent ?? '').localeCompare(b.agent ?? ''));
+  return { harness: logs.harness, session: logs.session, agentMs: working.reduce((total, agent) => total + time(agent), 0), models, mainModel: busiest(null) ?? timeline.latest?.model ?? null, subagents, intervals };
+}
+
+/**
+ * Measure a session's working time and tokens in (since, at]. Without `since` (the session's first
+ * report on a work item, its starting point) only the main model is read. `live` means the report
+ * comes from inside the session, so a turn still under way runs until now.
+ */
+export async function measureSession(logs: SessionLogs, interval: { since: number | null; at: number; live?: boolean }): Promise<SessionMeasure> {
+  const timeline = await sessionTimeline(logs, interval.since, interval.at, interval.live ?? false);
+  return measureTimeline(logs, timeline, interval.since ?? interval.at, interval.at);
+}
+
+/** The first index of a sorted list whose value is above `value`. */
+function above(values: number[], value: number) {
+  let low = 0, high = values.length;
+  while (low < high) { const middle = (low + high) >> 1; if (values[middle] <= value) low = middle + 1; else high = middle; }
+  return low;
+}
+
+/**
+ * Measure several intervals of a session from one reading of its logs, as reports from before
+ * intervals are measured again: from outside the session, so each turn ends at its last activity.
+ * Each interval looks only at the segments and spends that can fall in it.
+ */
+export async function measureIntervals(logs: SessionLogs, intervals: { since: number; at: number }[]): Promise<SessionMeasure[]> {
+  if (!intervals.length) return [];
+  const timeline = await sessionTimeline(logs, Math.min(...intervals.map(interval => interval.since)), Math.max(...intervals.map(interval => interval.at)), false);
+  const segments = [...timeline.segments].sort((a, b) => a.start - b.start), starts = segments.map(segment => segment.start);
+  const longest = segments.reduce((most, segment) => Math.max(most, segment.end - segment.start), 0);
+  const spends = [...timeline.spends].sort((a, b) => a.at - b.at), moments = spends.map(spend => spend.at);
+  return intervals.map(({ since, at }) => measureTimeline(logs, {
+    ...timeline,
+    segments: segments.slice(above(starts, since - longest - 1), above(starts, at)),
+    spends: spends.slice(above(moments, since), above(moments, at)),
+  }, since, at));
 }

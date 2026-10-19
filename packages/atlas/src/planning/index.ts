@@ -4,15 +4,15 @@
 export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './reading/planning.ts';
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './system/filesystem.ts';
 export { atlasAppRunning, atlasHome, homePlanningDirectory, homePlanningFolders, legacyData, legacyDataDirectory, legacySettings, migrateLegacyData, prepareHome, statisticsDirectory, type LegacyMigration } from './home/storage.ts';
-export { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, canonicalProjectFolder, canonicalProjectFolderSync, databaseName, folderKey, isPlanningFolder, planningName, projectOf, schemaVersion, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState } from './home/database.ts';
+export { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, canonicalProjectFolder, canonicalProjectFolderSync, databaseName, folderKey, isPlanningFolder, liveWindowMs, planningName, projectOf, schemaVersion, waitingWindowMs, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState, type SessionActivityRow, type WorkActivityRow } from './home/database.ts';
 export { importLegacyUsage, migrateHomeFiles, pendingHomeFiles, type HomeMigration } from './home/homeMigration.ts';
 export { recordCollectionGap, recordView, usageSummary, type CollectionSource, type ViewEvent } from './statistics/telemetry.ts';
 export { samePlatformPath } from './system/planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check/check.ts';
 export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './work/ledger.ts';
-export { StatisticsReportError, createReport, importStatisticsFiles, insertReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, sessionGap, statisticsFile, storedReports, summarizeReports, workStages, workStatistics, type StatisticsImport, type Measured, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
+export { StatisticsReportError, createReport, importStatisticsFiles, insertReport, measuredModelLimit, measuredSubagentLimit, parseReport, planRevisions, sessionGap, statisticsFile, storedReports, summarizeReports, workStages, workStatistics, type StatisticsImport, type Measured, type MeasuredInterval, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
 export { harnessSessions, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './statistics/sessionLog.ts';
-export { recordWorkReport, type RecordedReport, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
+export { recordWorkReport, remeasureReports, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
 export { documentIdentity, logConsultation, reportConsultation, recordAgentCollectionGap, type ConsultationOptions } from './statistics/consultation.ts';
 export type * from './types.ts';
 export {

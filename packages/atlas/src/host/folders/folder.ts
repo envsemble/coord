@@ -3,7 +3,7 @@
 // answers every request about that folder from it.
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { readDocument, recordView, usageSummary, type HomeDatabase } from '../../planning/index.ts';
+import { readDocument, recordView, usageSummary, workStatistics, type HomeDatabase } from '../../planning/index.ts';
 import { PlanningSession } from '../../planning/reading/session.ts';
 import type { Usage } from '../../planning/types.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference, FolderState, FolderStatus, Snapshot, ViewEventInput } from '../contract.ts';
@@ -124,6 +124,22 @@ export class FolderSession {
     this.revision++;
     this.diagramIndexCache = null;
     this.emit();
+  }
+
+  /**
+   * Reports were recorded or measured again: the work's statistics from the home database, without
+   * reading the folder again. A read under way reads them anyway.
+   */
+  async refreshStatistics() {
+    const current = this.current, database = this.planning?.database;
+    if (!current || !database || this.loading || this.closed) return;
+    try {
+      const statistics = await workStatistics(this.root, current.work, { database });
+      if (this.current !== current || this.closed) return;
+      this.current = { ...current, work: current.work.map(item => ({ ...item, statistics: statistics[item.id] })) };
+      this.revision++;
+      this.emit();
+    } catch (error) { this.options.log.warn('Work statistics unreadable', { root: this.root, error: error instanceof Error ? error.message : String(error) }); }
   }
 
   private emit() {

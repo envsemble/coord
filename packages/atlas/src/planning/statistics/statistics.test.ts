@@ -10,10 +10,10 @@ import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { loadPlanning } from '../reading/planning.ts';
 import { exportPlan } from '../export/planExport.ts';
-import { createReport, fitStep, importStatisticsFiles, parseReport, storedReports, summarizeReports, StatisticsReportError, type Measured, type MeasuredSubagents, type StatisticsReport } from './statistics.ts';
+import { createReport, fitStep, importStatisticsFiles, insertReport, parseReport, storedReports, summarizeReports, StatisticsReportError, type Measured, type MeasuredSubagents, type StatisticsReport } from './statistics.ts';
 import { withDatabase, withDatabaseAsync } from '../home/database.ts';
 import type { WorkStage } from '../types.ts';
-import { recordWorkReport } from './workReport.ts';
+import { recordWorkReport, remeasureReports } from './workReport.ts';
 
 // Reports made here never measure the developer's own session: no harness session, no logs at home.
 delete process.env.CLAUDE_CODE_SESSION_ID;
@@ -305,13 +305,15 @@ test('inside a harness, atlas work report reads the session, model, agent time a
   appendFileSync(log, [prompt(100), response(101, 'msg_3', 'claude-opus-5-5'), result(130), response(130, 'msg_4', 'claude-opus-5-5', 'end_turn')].join('\n') + '\n');
   writeFileSync(path.join(project, session, 'subagents', 'agent-a1.jsonl'), [prompt(110), response(111, 'msg_5', 'claude-haiku-5-5'), result(139), response(140, 'msg_6', 'claude-haiku-5-5', 'end_turn')].join('\n') + '\n');
   const second = await recordWorkReport(root, 'work-0001', { step: 'Ship it', at: new Date(at(150)) }, options);
-  assert.deepEqual(second.report.measured, { since: at(2), agentMs: (20 - 2 + 140 - 100) * 60000, models: [
+  assert.deepEqual(second.report.measured, { since: at(2), agentMs: (20 - 2 + 30 + 30) * 60000, models: [
     { model: 'claude-opus-5-5', agentMs: (20 - 2 + 30) * 60000, input: 30, cacheRead: 9000, cacheWrite: 600, output: 1200 },
     { model: 'claude-haiku-5-5', agentMs: 30 * 60000, input: 20, cacheRead: 6000, cacheWrite: 400, output: 800 },
-  ], subagents: { count: 1, agentMs: 30 * 60000, tokens: 2 * 3610, agents: [{ id: 'a1', model: 'claude-haiku-5-5', agentMs: 30 * 60000, tokens: 2 * 3610 }] } }, 'from the previous report on, waiting excluded, the helper\'s parallel work once, and the helper on its own');
+  ], subagents: { count: 1, agentMs: 30 * 60000, tokens: 2 * 3610, agents: [{ id: 'a1', model: 'claude-haiku-5-5', agentMs: 30 * 60000, tokens: 2 * 3610 }] }, intervals: [
+    { agent: null, start: at(2), end: at(20) }, { agent: null, start: at(100), end: at(130) }, { agent: 'a1', start: at(110), end: at(140) },
+  ] }, 'from the previous report on, waiting excluded, the main agent and its helper each in full, and when each worked');
   assert.equal(second.report.stage, 'implementation', 'the plan is accepted');
   const statistics = (await loadPlanning(root)).work[0].statistics!;
-  assert.deepEqual([statistics.agentMs / 60000, statistics.measuredMs / 60000, statistics.estimatedMs, statistics.primaryModel, statistics.tokens], [58, 58, 0, 'claude-opus-5-5', 5 * 3610], 'five responses since the first report');
+  assert.deepEqual([statistics.agentMs / 60000, statistics.measuredMs / 60000, statistics.activeMs / 60000, statistics.estimatedMs, statistics.primaryModel, statistics.tokens], [78, 78, 58, 0, 'claude-opus-5-5', 5 * 3610], 'five responses since the first report');
 
   // An explicit model and session work as before, measured when the session has a log.
   const named = await recordWorkReport(root, 'work-0001', { model: 'claude-opus-5-5[1m]', session, at: new Date(at(160)) }, { environment: { CLAUDE_CONFIG_DIR: config }, home: config });
@@ -396,11 +398,28 @@ test('a hook names the session\'s log: it is measured with its subagents, whatev
   const first = await recordWorkReport(root, 'work-0001', { at: new Date(at(2)) }, options);
   assert.deepEqual([first.report.session, first.report.model, first.warnings], [session, 'claude-opus-5-5', []]);
   const second = await recordWorkReport(root, 'work-0001', { at: new Date(at(40)) }, options);
-  assert.deepEqual([second.report.measured?.agentMs, second.report.measured?.subagents], [20 * 60000, { count: 1, agentMs: 8 * 60000, tokens: 100, agents: [{ id: 'a7', model: 'claude-haiku-5-5', agentMs: 8 * 60000, tokens: 100 }] }]);
+  assert.deepEqual([second.report.measured?.agentMs, second.report.measured?.subagents], [(20 + 8) * 60000, { count: 1, agentMs: 8 * 60000, tokens: 100, agents: [{ id: 'a7', model: 'claude-haiku-5-5', agentMs: 8 * 60000, tokens: 100 }] }]);
+  // Every agent adds up; the time at least one worked is their union, and each agent has its share.
   const statistics = (await loadPlanning(root)).work[0].statistics!;
-  assert.deepEqual([statistics.subagents, statistics.stages.implementation.agentMs], [{ count: 1, agentMs: 8 * 60000 }, 20 * 60000]);
+  assert.deepEqual([statistics.subagents, statistics.stages.implementation.agentMs, statistics.activeMs, statistics.unmergedMs], [{ count: 1, agentMs: 8 * 60000 }, 28 * 60000, 20 * 60000, 0]);
+  assert.deepEqual(statistics.agents, [{ session, subagent: null, model: 'claude-opus-5-5', agentMs: 20 * 60000 }, { session, subagent: 'a7', model: 'claude-haiku-5-5', agentMs: 8 * 60000 }]);
   const elsewhere = path.join(config, 'notes.jsonl');
   writeFileSync(elsewhere, prompt(0) + '\n');
   const unread = await recordWorkReport(root, 'work-0001', { model: 'model-a', at: new Date(at(50)) }, { ...options, transcriptPath: elsewhere });
   assert.deepEqual([unread.report.measured, unread.warnings], [undefined, ['Agent time and tokens were not measured: ' + elsewhere + ' is not a Claude Code or Codex session log.']]);
+
+  // A report from before intervals (as an older Atlas measured it: the union, without intervals) is
+  // measured again from its log, once; one whose log is gone keeps its total, added as is.
+  const projectId = withDatabase(undefined, database => database.projectByFolder(realpathSync.native(root))!.id);
+  withDatabase(undefined, database => {
+    database.db.prepare('UPDATE work_report SET intervals = NULL, agent_ms = ? WHERE project_id = ? AND measured_since IS NOT NULL').run(20 * 60000, projectId);
+    database.db.prepare('DELETE FROM report_interval WHERE report_id IN (SELECT id FROM work_report WHERE project_id = ?)').run(projectId);
+    insertReport(database, projectId, 'work-0001', createReport({ model: 'claude-opus-5-5', session: '22222222-3333-4444-8555-666666666666', at: new Date(at(45)), measured: measurement(35, 5, []) }));
+  });
+  const remeasure = () => withDatabaseAsync(undefined, database => remeasureReports(database, { environment: { CLAUDE_CONFIG_DIR: config }, home: options.home }));
+  assert.equal((await remeasure()).left, 0);
+  assert.deepEqual(withDatabase(undefined, database => database.db.prepare('SELECT intervals FROM work_report WHERE project_id = ? AND measured_since IS NOT NULL ORDER BY at').all(projectId).map(row => row.intervals)), [1, 0]);
+  assert.deepEqual(await remeasure(), { measured: 0, missing: 0, left: 0 }, 'each report is tried once');
+  const remeasured = (await loadPlanning(root)).work[0].statistics!;
+  assert.deepEqual([remeasured.agentMs, remeasured.activeMs, remeasured.unmergedMs].map(ms => ms / 60000), [28 + 5, 20 + 5, 5]);
 });

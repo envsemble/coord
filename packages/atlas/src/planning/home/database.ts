@@ -4,7 +4,9 @@
 // use, collection gaps and work reports); plans, ledgers, diagrams and the registry stay files in
 // the planning folders. Every process opens it in WAL mode with a busy timeout, so they take turns
 // writing; short-lived ones (the command, a hook) open it for one operation and close it again.
-// The schema's version is the database's user_version; each migration runs once, in order.
+// Each migration runs once, in order. The version applied is the setting `schema.version`; the
+// database's user_version is the oldest version an Atlas must know to use it, which an older Atlas
+// checks: migrations that only add tables and columns leave it, so older versions keep working.
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, realpathSync } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -57,11 +59,32 @@ const migrations = [
   CREATE INDEX report_subagent_report ON report_subagent(report_id);`,
   // Whether a session's agent is in a turn: set as it uses tools on linked work, cleared when the turn stops.
   `ALTER TABLE session ADD COLUMN working INTEGER NOT NULL DEFAULT 0;`,
+  // What agents do now: when a session's turn started (null once it ended) and when it began to wait
+  // for the person (null unless it waits), and when it last touched each work item. Each report's
+  // working intervals, per agent (null: the session's own): `intervals` is 1 when they are recorded,
+  // 0 when there are none to record (unmeasured, or its logs could not be read again), and null for
+  // a report from before them.
+  `ALTER TABLE session ADD COLUMN turn_at TEXT;
+  ALTER TABLE session ADD COLUMN waiting_at TEXT;
+  ALTER TABLE session_work ADD COLUMN touched_at TEXT;
+  ALTER TABLE work_report ADD COLUMN intervals INTEGER;
+  CREATE TABLE report_interval (
+    id INTEGER PRIMARY KEY, report_id INTEGER NOT NULL REFERENCES work_report(id) ON DELETE CASCADE, agent TEXT,
+    started_at TEXT NOT NULL, ended_at TEXT NOT NULL);
+  CREATE INDEX report_interval_report ON report_interval(report_id);`,
 ];
 /** How long a working session counts as live without being seen again: a long tool call can be quiet this long. */
 export const liveWindowMs = 15 * 60_000;
+/** How long a session waiting for the person counts as waiting: after a day it was most likely left. */
+export const waitingWindowMs = 24 * 60 * 60_000;
 /** The schema version this Atlas writes. */
 export const schemaVersion = migrations.length;
+/**
+ * The oldest schema version an Atlas must know to use a database of this version, kept as its
+ * user_version: the migrations after it only add tables and columns, which an older Atlas leaves
+ * alone. A migration an older Atlas cannot live with raises it to the new version.
+ */
+const compatibleVersion = 2;
 
 /**
  * Put the database in WAL mode once; later openings find it there and leave it. Switching takes the
@@ -96,6 +119,10 @@ export interface ProjectRow { id: number; connectionId: string | null; name: str
 export const folderKey = (value: string, platform: NodeJS.Platform = process.platform) => platform === 'win32' || platform === 'darwin' ? value.toLowerCase() : value;
 
 type Row = Record<string, unknown>;
+/** A session on a work item now, as the host's contract describes it (SessionActivity). */
+export interface SessionActivityRow { session: string; harness: 'claude-code' | 'codex' | 'unknown'; state: 'working' | 'waiting'; since: string; countsFrom: string | null }
+/** What agents do on a work item now, as the host's contract describes it (WorkActivity). */
+export interface WorkActivityRow { workId: string; state: 'working' | 'waiting'; since: string; sessions: SessionActivityRow[] }
 
 /**
  * The database holds secrets (the host's, device hashes, connection tokens), so on POSIX the home is
@@ -147,15 +174,24 @@ export class HomeDatabase {
   static open(home: string = atlasHome()): HomeDatabase { return new HomeDatabase(home); }
 
   private migrate() {
-    const version = Number((this.db.prepare('PRAGMA user_version').get() as Row).user_version);
-    if (version > schemaVersion) throw new DatabaseVersionError(this.file, version);
-    if (version === schemaVersion) return;
+    const version = this.version();
+    if (version.required > schemaVersion) throw new DatabaseVersionError(this.file, version.required);
+    // A newer Atlas may have added to it: this one leaves what it does not know alone.
+    if (version.applied >= schemaVersion) return;
     this.transaction(() => {
       // Another process may have migrated it meanwhile.
-      const current = Number((this.db.prepare('PRAGMA user_version').get() as Row).user_version);
-      for (let next = current; next < schemaVersion; next++) this.db.exec(migrations[next]);
-      this.db.exec(`PRAGMA user_version = ${schemaVersion}`);
+      const current = this.version();
+      for (let next = current.applied; next < schemaVersion; next++) this.db.exec(migrations[next]);
+      this.db.exec(`PRAGMA user_version = ${Math.max(current.required, compatibleVersion)}`);
+      this.setSetting('schema.version', String(schemaVersion));
     });
+  }
+  /** The version an Atlas must know to use the database (user_version), and the version applied. */
+  private version() {
+    const required = Number((this.db.prepare('PRAGMA user_version').get() as Row).user_version);
+    // Before the settings table there is nothing applied beyond user_version.
+    const applied = required ? Number(this.setting('schema.version') ?? required) : 0;
+    return { required, applied: Math.max(required, applied) };
   }
 
   /** Run `action` in one write transaction (taken at once, so readers never upgrade into a deadlock). */
@@ -213,24 +249,51 @@ export class HomeDatabase {
     });
   }
   /**
-   * The work agents are working on now, by project: work items linked to a session that is in a turn
-   * and was seen within the last `withinMs` (a session that ended without stopping drops out).
+   * What agents do on each project's work now, as the hooks record it: work items with a session in
+   * a turn and seen within `liveWindowMs` (working), or waiting for the person for at most
+   * `waitingWindowMs` (waiting). A session counts only for the work item it touched last. A working
+   * session's time not yet reported counts from the latest of its turn's start, its link to the work
+   * item and its last report on it.
    */
-  liveWork(now = Date.now(), withinMs = liveWindowMs): Map<number, { workId: string; since: string }[]> {
-    const rows = this.db.prepare(`SELECT session_work.project_id, session_work.work_id, max(session.updated_at) AS seen FROM session
-      JOIN session_work ON session_work.session_id = session.id WHERE session.working = 1 AND session.updated_at >= ?
-      GROUP BY session_work.project_id, session_work.work_id ORDER BY session_work.project_id, seen DESC`).all(new Date(now - withinMs).toISOString()) as Row[];
-    const live = new Map<number, { workId: string; since: string }[]>();
+  workActivity(now = Date.now()): Map<number, WorkActivityRow[]> {
+    const rows = this.db.prepare(`SELECT session.id, session.harness, session.working, session.turn_at, session.waiting_at, session.updated_at,
+        session_work.id AS link, session_work.project_id, session_work.work_id, session_work.linked_at, ifnull(session_work.touched_at, session_work.linked_at) AS touched,
+        (SELECT max(at) FROM work_report WHERE work_report.project_id = session_work.project_id AND work_report.work_id = session_work.work_id AND work_report.session = session.id) AS reported
+      FROM session JOIN session_work ON session_work.session_id = session.id
+      WHERE (session.working = 1 AND session.updated_at >= ?) OR (session.working = 0 AND session.waiting_at >= ?)`)
+      .all(new Date(now - liveWindowMs).toISOString(), new Date(now - waitingWindowMs).toISOString()) as Row[];
+    const latest = new Map<string, Row>();
     for (const row of rows) {
-      const projectId = Number(row.project_id);
-      live.set(projectId, [...live.get(projectId) ?? [], { workId: String(row.work_id), since: String(row.seen) }]);
+      const kept = latest.get(String(row.id));
+      if (!kept || String(row.touched) > String(kept.touched) || (row.touched === kept.touched && Number(row.link) > Number(kept.link))) latest.set(String(row.id), row);
     }
-    return live;
+    const work = new Map<string, { projectId: number; workId: string; sessions: SessionActivityRow[] }>();
+    for (const row of latest.values()) {
+      const working = Number(row.working) === 1;
+      // A turn from before turns were recorded counts from when the session was last seen.
+      const turn = String(row.turn_at ?? row.updated_at);
+      const counted = [turn, String(row.linked_at), row.reported as string | null].filter((value): value is string => value !== null).sort().at(-1)!;
+      const harness = row.harness === 'claude-code' || row.harness === 'codex' ? row.harness : 'unknown';
+      const key = row.project_id + '\0' + row.work_id;
+      let entry = work.get(key);
+      if (!entry) work.set(key, entry = { projectId: Number(row.project_id), workId: String(row.work_id), sessions: [] });
+      entry.sessions.push(working ? { session: String(row.id), harness, state: 'working', since: turn, countsFrom: counted } : { session: String(row.id), harness, state: 'waiting', since: String(row.waiting_at), countsFrom: null });
+    }
+    const order = (a: { state: string; since: string }, b: { state: string; since: string }) => Number(b.state === 'working') - Number(a.state === 'working') || b.since.localeCompare(a.since);
+    const activity = new Map<number, WorkActivityRow[]>();
+    for (const { projectId, workId, sessions } of work.values()) {
+      sessions.sort(order);
+      const working = sessions.filter(session => session.state === 'working');
+      // Working: since the earliest working session's turn began; waiting: since the latest began to wait.
+      const item: WorkActivityRow = working.length ? { workId, state: 'working', since: working.map(session => session.since).sort()[0], sessions } : { workId, state: 'waiting', since: sessions[0].since, sessions };
+      activity.set(projectId, [...activity.get(projectId) ?? [], item].sort(order));
+    }
+    return activity;
   }
-  /** What changes whenever a work report is recorded or removed: how many there are and the newest's row. */
+  /** What changes whenever a work report is recorded, removed or measured again: how many there are, the newest's row and how many have their intervals settled. */
   reportsMark(): string {
-    const row = this.db.prepare('SELECT count(*) AS reports, ifnull(max(id), 0) AS newest FROM work_report').get() as Row;
-    return row.reports + ':' + row.newest;
+    const row = this.db.prepare('SELECT count(*) AS reports, ifnull(max(id), 0) AS newest, count(intervals) AS settled FROM work_report').get() as Row;
+    return row.reports + ':' + row.newest + ':' + row.settled;
   }
   /** Change a project's cached name, state or position; a new position moves the others along. */
   updateProject(id: number, change: { name?: string; state?: ProjectState; position?: number; folder?: string }) {

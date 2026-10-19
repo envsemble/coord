@@ -24,15 +24,17 @@ function planningFolder(folder: string, name?: string) {
 }
 const tables = (database: HomeDatabase) => (database.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(row => row.name);
 
-test('the database is created with the accepted schema, and refuses a newer one', t => {
+test('the database is created with the accepted schema, stays open to older versions it only added to, and refuses a newer one', t => {
   const home = temporary(t);
   withDatabase(home, database => {
-    assert.deepEqual(tables(database), ['collection_gap', 'connection', 'device', 'document_use', 'project', 'report_model', 'report_subagent', 'session', 'session_work', 'setting', 'tab', 'window', 'work_report']);
-    assert.equal(Number((database.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version), schemaVersion);
+    assert.deepEqual(tables(database), ['collection_gap', 'connection', 'device', 'document_use', 'project', 'report_interval', 'report_model', 'report_subagent', 'session', 'session_work', 'setting', 'tab', 'window', 'work_report']);
+    // An older Atlas checks user_version: version 2 knows enough to use it.
+    assert.deepEqual([Number((database.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version), database.setting('schema.version')], [2, String(schemaVersion)]);
     assert.equal((database.db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }).journal_mode, 'wal');
     database.setSetting('theme', 'dark');
   });
-  // Opening again keeps what is there.
+  // Opening again keeps what is there, also after a newer Atlas added to it.
+  withDatabase(home, database => database.setSetting('schema.version', String(schemaVersion + 1)));
   assert.equal(withDatabase(home, database => database.setting('theme')), 'dark');
   const raw = new DatabaseSync(path.join(home, 'atlas.db'));
   raw.exec(`PRAGMA user_version = ${schemaVersion + 1}`);

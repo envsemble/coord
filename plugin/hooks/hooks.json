@@ -1,13 +1,18 @@
 {
   "hooks": {
     "SessionStart": [{ "hooks": [{ "type": "command", "command": "atlas hook SessionStart", "timeout": 30 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "atlas hook UserPromptSubmit", "timeout": 30, "async": true }] }],
     "PostToolUse": [
       {
         "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|apply_patch|mcp__.*atlas.*",
         "hooks": [{ "type": "command", "command": "atlas hook PostToolUse", "timeout": 30 }]
-      }
+      },
+      { "hooks": [{ "type": "command", "command": "atlas hook ToolUse", "timeout": 30, "async": true }] }
     ],
+    "Notification": [{ "hooks": [{ "type": "command", "command": "atlas hook Notification", "timeout": 30, "async": true }] }],
+    "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "atlas hook PermissionRequest", "timeout": 30, "async": true }] }],
     "Stop": [{ "hooks": [{ "type": "command", "command": "atlas hook Stop", "timeout": 60 }] }],
-    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "atlas hook SubagentStop", "timeout": 60 }] }]
+    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "atlas hook SubagentStop", "timeout": 60 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "atlas hook SessionEnd", "timeout": 3 }] }]
   }
 }
