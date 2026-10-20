@@ -339,7 +339,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await choose(workspace);
   await dialog.getByRole('button', { name: 'Add folder', exact: true }).click();
   await expect(dialog.getByLabel('Project name')).toHaveValue(path.basename(workspace));
-  await expect(dialog.locator('.folder-list-name')).toHaveAttribute('title', workspace);
+  await expect(dialog.locator('.folder-list-name bdi')).toHaveText(workspace);
   await dialog.getByLabel('Project name').fill('Coord');
   await dialog.getByRole('button', { name: 'Remove ' + path.basename(workspace) }).click();
   await expect(dialog.getByRole('button', { name: 'Create project' })).toBeDisabled();
