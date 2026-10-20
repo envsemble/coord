@@ -342,7 +342,8 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await expect(dialog.locator('.folder-list-path')).toHaveText(workspace);
   await dialog.getByLabel('Project name').fill('Coord');
   await dialog.getByRole('button', { name: 'Remove ' + path.basename(workspace) }).click();
-  await expect(dialog.getByRole('button', { name: 'Create project' })).toBeDisabled();
+  // A named project may cover no folders.
+  await expect(dialog.getByRole('button', { name: 'Create project' })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Add folder', exact: true }).click();
   await expect(dialog.getByLabel('Project name')).toHaveValue('Coord');
   await dialog.getByRole('button', { name: 'Create project' }).click();
@@ -468,9 +469,11 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with the sections in View.
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
+  // Electron gives the roles the system's own shortcuts: Exit and Redo differ on Windows.
+  const windows = process.platform === 'win32';
   expect(items).toEqual([
-    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', 'Close Win&dow CmdOrCtrl+Shift+W', 'E&xit']],
-    ['&Edit', ['Undo CommandOrControl+Z', 'Redo Control+Y', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
+    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
+    ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Projects', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11']],
     ['&Help', ['Open &Logs', '&About Atlas']],
   ]);

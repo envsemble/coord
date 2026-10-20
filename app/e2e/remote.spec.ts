@@ -158,6 +158,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
   // ...while archiving is this app's own (done from a plan of it, which the window then goes back to).
+  await goHome(viewer);
   await openPlan(viewer, 'Customer order notifications');
   await openProjects(viewer);
   await projectAction(viewer, 'Northwind', 'Archive');
