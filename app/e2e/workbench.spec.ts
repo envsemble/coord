@@ -341,7 +341,7 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await expect(dialog.getByLabel('Name')).toHaveValue(path.basename(workspace));
   await expect(dialog.locator('.folder-choice-name')).toHaveAttribute('title', workspace);
   await dialog.getByLabel('Name').fill('Coord');
-  await dialog.getByRole('button', { name: 'Remove the folder' }).click();
+  await dialog.getByRole('button', { name: 'Remove ' + path.basename(workspace) }).click();
   await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(dialog.getByLabel('Name')).toHaveValue('Coord');

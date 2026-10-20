@@ -44,57 +44,56 @@ async function pickFolder(): Promise<string | null> {
 }
 
 /**
- * A folder of this computer, chosen in the system's folder dialog, never typed: before one is chosen
- * a button to choose it; then the folder by its name (its full path on hover), with Change… and a
- * way to remove it. Under it, what the folder is for.
+ * The folders of this computer a new project covers, chosen in the system's folder dialog, never
+ * typed: each by its name (its full path on hover) with a way to remove it, then a button to add
+ * one. Under them, what the folders are for.
  */
-function FolderChoice({ value, onChange, disabled, hint }: { value: string; onChange(folder: string): void; disabled: boolean; hint: string }) {
+function FolderChoice({ value, onChange, disabled, hint }: { value: string[]; onChange(folders: string[]): void; disabled: boolean; hint: string }) {
   const [error, setError] = useState('');
   const id = useId();
-  const choose = () => {
+  const add = () => {
     setError('');
-    pickFolder().then(folder => { if (folder) onChange(folder); }, failure => setError((failure as Error).message));
+    pickFolder().then(folder => { if (folder && !value.some(item => folderKey(item) === folderKey(folder))) onChange([...value, folder]); }, failure => setError((failure as Error).message));
   };
   return <div className="folder-choice" role="group" aria-labelledby={id + '-label'} aria-describedby={error ? undefined : id + '-hint'}>
-    <Text as="span" variant="caption" id={id + '-label'} className="folder-choice-label">Folder</Text>
-    {value ? <div className="folder-choice-chosen">
+    <Text as="span" variant="caption" id={id + '-label'} className="folder-choice-label">Folders</Text>
+    {value.map(folder => <div key={folder} className="folder-choice-chosen">
       <FolderIcon className="folder-choice-icon" />
-      <bdi className="folder-choice-name" title={value}>{folderName(value) || value}</bdi>
-      <Button variant="text" disabled={disabled} onClick={choose}>Change…</Button>
-      <Tooltip content="Remove the folder"><IconButton variant="quiet" icon={<CloseIcon />} aria-label="Remove the folder" disabled={disabled} onClick={() => onChange('')} /></Tooltip>
-    </div>
-      : <Button variant="secondary" className="folder-choice-button" startIcon={<FolderOpenIcon />} disabled={disabled} onClick={choose}>Choose folder…</Button>}
+      <bdi className="folder-choice-name" title={folder}>{folderName(folder) || folder}</bdi>
+      <Tooltip content="Remove the folder"><IconButton variant="quiet" icon={<CloseIcon />} aria-label={'Remove ' + (folderName(folder) || folder)} disabled={disabled} onClick={() => onChange(value.filter(item => item !== folder))} /></Tooltip>
+    </div>)}
+    <Button variant="secondary" className="folder-choice-button" startIcon={<FolderOpenIcon />} disabled={disabled} onClick={add}>{value.length ? 'Add folder…' : 'Choose folder…'}</Button>
     {error ? <Notice tone="error" announce>{error}</Notice> : <Text as="small" variant="caption" tone="muted" id={id + '-hint'}>{hint}</Text>}
   </div>;
 }
 
 /**
- * New project: a name and a folder it covers, made as a planning folder in the computer's Atlas home.
+ * New project: a name and the folders it covers, made as a planning folder in the computer's Atlas home.
  * On another computer it gets a name only: its folders are chosen in Atlas on that computer.
  */
 export function NewProjectDialog({ computer, local, onClose, onCreated }: { computer: string; local: boolean; onClose(): void; onCreated(project: Project): void }) {
   const [name, setName] = useState('');
-  // The folder names the project until the name is typed.
+  // The first folder names the project until the name is typed.
   const [named, setNamed] = useState(false);
-  const [folder, setFolder] = useState('');
+  const [folders, setFolders] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const ready = Boolean(name.trim() && (folder || !local));
+  const ready = Boolean(name.trim() && (folders.length || !local));
   const create = async () => {
     setBusy(true); setError('');
     try {
-      onCreated(await api.createProject(name.trim(), local ? [folder.trim()] : []));
+      onCreated(await api.createProject(name.trim(), local ? folders : []));
       onClose();
     } catch (failure) { setError((failure as Error).message); }
     finally { setBusy(false); }
   };
-  const chooseFolder = (value: string) => { setFolder(value); if (!named) setName(folderName(value)); };
+  const chooseFolders = (next: string[]) => { setFolders(next); if (!named) setName(next.length ? folderName(next[0]) : ''); };
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} pending={busy} size={local ? 'wide' : 'standard'} className="new-project-dialog" title="New project"
     description={<>A planning folder for its plans, with its own Git history, in the Atlas home on {computer}.</>}
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="new-project" pending={busy} disabled={!ready}>Create</Button>}>
     <form id="new-project" className="dialog-form" onSubmit={event => { event.preventDefault(); if (ready) void create(); }}>
       <Input label="Name" value={name} onChange={event => { setName(event.target.value); setNamed(Boolean(event.target.value)); }} autoFocus maxLength={100} disabled={busy} />
-      {local ? <FolderChoice value={folder} onChange={chooseFolder} disabled={busy} hint="Agents working in this folder, or in a folder inside it, find the project." />
+      {local ? <FolderChoice value={folders} onChange={chooseFolders} disabled={busy} hint="Agents working in one of these folders, or in a folder inside one, find the project." />
         : <Notice tone="info">Its folders are on {computer}: choose them in Atlas there, on the Projects page.</Notice>}
       {error && <Notice tone="error" announce>{error}</Notice>}
     </form>
