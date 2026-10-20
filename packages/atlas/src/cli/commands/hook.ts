@@ -284,10 +284,13 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   const changed = /^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '') ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
   if (changed.length) {
     const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
+    const registers = async (root: string | null, workId: string) => root !== null && (await registered(root).catch(() => [])).some(item => item.id === workId);
     for (const about of changed) {
-      const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
+      // The planning folder named, if it registers the work (a shell's path may not be this system's, as Git Bash's /c/…), else the session's.
+      const named = about.planningFolder !== null && await registers(about.planningFolder, about.workId) ? about.planningFolder : null;
+      const root = named ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
       // A work item the planning folder does not register (a mistyped command) links nothing.
-      if (root && (await registered(root).catch(() => [])).some(item => item.id === about.workId)) requests.push({ planningFolder: root, workId: about.workId, amending: false });
+      if (root && (named !== null || await registers(root, about.workId))) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }
   }
   const base = await realpath(homePlanningDirectory(home)).catch(() => null);
