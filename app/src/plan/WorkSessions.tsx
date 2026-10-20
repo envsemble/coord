@@ -10,6 +10,7 @@ import { ModelName } from '../ui/ModelName';
 import { absoluteDate, relativeDate } from '../ui/format';
 import { statuses } from './status';
 import { StatusIcon } from '../ui/badges';
+import { ErrorIcon } from '../ui/icons';
 import { useWindow } from '../window/windowContext';
 import { ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from '../reader/ReferenceLink';
 import { rehypeReferences, wholeReference, type Found } from '../reader/references';
@@ -94,6 +95,48 @@ function MessageWebLink({ href, children }: { href: string; children?: ReactNode
  * Why the plan needs the person: the waiting session's last message, rendered as the Markdown it is,
  * its beginning first. What it references links as in the reader.
  */
+/** A session's latest message, as Markdown with its references linked: its beginning, with Show all for the rest. */
+function SessionMessage({ message, className }: { message: string; className: string }) {
+  const [whole, setWhole] = useState(false);
+  const start = excerpt(message);
+  const { collected, inputs } = useCollectedReferences();
+  const plugins = useMemo((): Plugins => [[rehypeReferences, { collected, addresses: 'all' }]], [collected]);
+  const resolved = useResolvedReferences(inputs);
+  const scope = useMemo(() => ({ resolved }), [resolved]);
+  return <>
+    <div className={className} data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
+    {start.more && <Button variant="text" className="now-more" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
+  </>;
+}
+
+/**
+ * Now, while the plan is implemented: what each session on it is doing, by its latest message and
+ * its last few actions, newest first (a session that waits for the person says why in Needs you,
+ * so only its actions show here); with none on it, where the work stopped. Nothing is kept: it is
+ * read from the sessions' logs as they change.
+ */
+export function NowSection({ sessions }: { sessions: WorkSession[] }) {
+  const on = sessions.filter(session => session.state !== 'ended' && session.now);
+  const shownSessions = on.length ? on : sessions.filter(session => session.now).slice(0, 1);
+  if (!shownSessions.length) return null;
+  return <section className="now" aria-label="Now">
+    {!on.length && <p className="now-stopped muted">Nobody is on it now. Where the work stopped:</p>}
+    {shownSessions.map(session => <div key={session.session} className="now-session">
+      <div className="now-head">
+        {session.state === 'working' && <StatusIcon status={statuses.working} decorative />}
+        <span className="now-title">{sessionTitle(session)}</span>
+        <span className="muted"> · {session.state === 'working' ? 'working' : session.state === 'waiting' ? 'needs you' : session.state === 'idle' ? 'waiting on something else' : 'ended'} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
+      </div>
+      {session.now!.message && session.state !== 'waiting' && <SessionMessage message={session.now!.message} className="now-message" />}
+      {session.now!.actions.length > 0 && <ul className="now-actions" aria-label="Its last actions, newest first">
+        {session.now!.actions.map((action, index) => <li key={index} data-kind={action.kind} data-failed={action.failed ? '' : undefined}>
+          {action.failed && <ErrorIcon className="now-failed" label="Failed" />}{action.text}
+        </li>)}
+      </ul>}
+    </div>)}
+  </section>;
+}
+
 export function NeedsYou({ work, session }: { work: string; session: WorkSession }) {
   const [whole, setWhole] = useState(false);
   const message = session.message ?? '';

@@ -137,6 +137,8 @@ export interface WorkSession {
   startedAt: string; lastSeen: string; agentMs: number;
   folder: string | null; resume: string | null;
   message: string | null;
+  /** What it is doing now, read from its log's end while it is on the work (and for the latest session when none is): its latest message and last actions (newest first); else null. */
+  now: { message: string | null; actions: { kind: 'edit' | 'command' | 'atlas' | 'agent' | 'tool'; text: string; failed?: boolean }[] } | null;
 }
 /** A commit a session on the work item made, or a PR it opened, as its hooks saw them. */
 export interface WorkCommit {

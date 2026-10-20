@@ -8,6 +8,7 @@ import { parseFrontmatter } from '../check/check.ts';
 import { waitingWindowMs, type HomeDatabase } from '../../home/database.ts';
 import { readRegistry } from '../registry/registry.ts';
 import { codexThreadName, logTail, sessionFolder, type LogOptions } from './sessionLog.ts';
+import { sessionNow, type SessionNow } from './sessionNow.ts';
 import { mergeSpans, storedReports, summarizeReports, type WorkReport } from './reports.ts';
 
 type Harness = 'claude-code' | 'codex' | 'unknown';
@@ -16,6 +17,8 @@ export interface SessionEntry {
   session: string; harness: Harness; title: string | null; model: string | null; effort: string | null;
   state: 'working' | 'waiting' | 'idle' | 'ended'; startedAt: string; lastSeen: string; agentMs: number;
   folder: string | null; resume: string | null; message: string | null;
+  /** What it is doing now, from its log's end, while it is on the work (and for the latest session when none is): its latest message and last actions. */
+  now: SessionNow | null;
 }
 /** A commit or a PR a session made, as the host's contract describes it (WorkCommit). */
 export interface CommitEntry { kind: 'commit' | 'pull'; session: string; at: string; repository: string | null; id: string; title: string | null; url: string | null; branch: string | null }
@@ -84,6 +87,8 @@ export async function workSessions(database: HomeDatabase, projectRowId: number,
       session: id, harness, title, model: main?.model ?? null, effort: main?.effort ?? null, state,
       startedAt: String(row.started_at), lastSeen: String(row.updated_at), agentMs: own.reduce((total, agent) => total + agent.agentMs, 0),
       folder, resume: local ? resumeOf(harness, id) : null, message: state === 'waiting' ? (row.message as string | null) ?? null : null,
+      // Read for each session on the work, and for the latest one when none is: where the work stopped.
+      now: (state !== 'ended' || (row === rows[0] && !states.size)) && typeof row.transcript_path === 'string' ? await sessionNow(row.transcript_path) : null,
     };
   }));
   const commits = (database.db.prepare('SELECT * FROM session_commit WHERE project_id = ? AND work_id = ? ORDER BY at DESC, id DESC').all(projectRowId, workId) as Row[]).map((row): CommitEntry => ({
