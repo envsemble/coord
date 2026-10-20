@@ -344,6 +344,11 @@ body { margin: 0; }
 
 /* Reader */
 .reader { min-inline-size: 0; }
+/* A file's metadata header, above its text: field names muted, values as written. */
+.document-header { margin-block-end: var(--space-4); font-size: var(--font-size-body-small); }
+.document-header th { padding-inline-end: var(--space-4); color: var(--color-text-muted); font-weight: 500; text-align: start; vertical-align: top; white-space: nowrap; }
+.document-header td { overflow-wrap: anywhere; }
+.document-header-entries { margin: 0; padding-inline-start: var(--space-4); }
 .reader-loading { display: grid; place-content: center; padding-block: var(--space-8); }
 .prose :is(h1, h2, h3, h4, h5, h6) { scroll-margin-block-start: calc(var(--atlas-sticky-top, var(--app-sticky-top, 0px)) + var(--space-4)); }
 .prose img { max-inline-size: 100%; }

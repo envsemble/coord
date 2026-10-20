@@ -13,6 +13,7 @@ import { ProvenanceBadge } from '../ui/badges';
 import { useWindow, useWindowActions } from '../window/windowContext';
 import { appSchemes, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
 import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from './ReferenceLink';
+import { DocumentHeader } from './DocumentHeader';
 
 /** The diagrams a document links to, refetched when the folder's files change. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
@@ -98,8 +99,9 @@ function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   return <button type="button" className="request-fold-toggle" aria-expanded={folds.open.has(id)} onClick={() => folds.toggle(id)}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
 }
 
-export function Reader({ file, snapshot, anchor, references = noReferences, showWork = false, hideTitle, plan = false }: {
+export function Reader({ file, snapshot, anchor, references = noReferences, showWork = false, hideTitle, plan = false, showHeader = false }: {
   file: Document; snapshot: Snapshot; anchor: string | null; references?: DiagramReference[]; showWork?: boolean;
+  /** The file as it is: its metadata header shown as a table above its text. */ showHeader?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
   /** A work item's plan: its request shows folded. */ plan?: boolean;
 }) {
@@ -222,6 +224,7 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
     {error ? <EmptyState icon={<FileIcon />} title="Unable to open this file" description={error} action={revealButton} />
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
+        {showHeader && content.metadata && <DocumentHeader metadata={content.metadata} />}
         {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
         <ReferencesContext.Provider value={referenceScope}><FoldsContext.Provider value={folds}><ReaderMarkdown body={content.body} plugins={plugins} components={components} /></FoldsContext.Provider></ReferencesContext.Provider>
       </div>
