@@ -281,11 +281,18 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   const requests: LinkRequest[] = [];
   // Tools that change a work item link it; reading (work_status, work_search) leaves the session where it is.
   // So does the atlas command run in a shell (shellWork), the last work item it names last.
-  const changed = /^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '') ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
+  const tool = /^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '');
+  const changed = tool ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
   if (changed.length) {
     const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
     const registers = async (root: string | null, workId: string) => root !== null && (await registered(root).catch(() => [])).some(item => item.id === workId);
     for (const about of changed) {
+      // A tool's result names the work it changed and where.
+      if (tool) {
+        const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
+        if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
+        continue;
+      }
       // The planning folder named, if it registers the work (a shell's path may not be this system's, as Git Bash's /c/…), else the session's.
       const named = about.planningFolder !== null && await registers(about.planningFolder, about.workId) ? about.planningFolder : null;
       const root = named ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
