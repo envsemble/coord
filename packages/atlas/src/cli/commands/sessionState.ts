@@ -236,6 +236,11 @@ export async function stateHook(event: string, text: string | null, at: number, 
         recordActivity(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, activity, when, liveWindowMs, details);
       }
       if (made) await (await import('./products.ts')).recordProducts(database, session, input, when);
+      // The session's end (after an interruption no turn's end comes) and its next prompt (which runs in
+      // the background) report the work items it left whose reports are not measured yet (hook.ts).
+      if ((event === 'SessionEnd' || event === 'UserPromptSubmit') && !agent && database.db.prepare('SELECT 1 FROM session_leave JOIN session_work ON session_work.id = session_leave.link WHERE session_work.session_id = ? LIMIT 1').get(session)) {
+        await (await import('./hook.ts')).reportLeft(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, event, when);
+      }
     } finally { database.close(); }
   } catch (error) { logFailure(home, event, error); }
 }

@@ -11,8 +11,9 @@
 //
 // A session is on one work item at a time, the one it last edited or called an Atlas tool on: its
 // state, live time and reports count there. When it moves to another, the one it leaves gets a
-// report up to then, measured at the session's next turn end, so the edit that moved it is not held
-// up. The hooks that only record its state (sessionState.ts) run on every tool call; bin/atlas.js
+// report up to then, measured at the session's next turn end (or its end, or its next prompt), so the
+// edit that moved it is not held up; one that cannot be measured then is tried again later, for a
+// day. The hooks that only record its state (sessionState.ts) run on every tool call; bin/atlas.js
 // answers a PostToolUse with nothing to do (no Atlas tool, no planning file) before this file loads.
 // Only what each event needs is loaded: checking, measuring and the session's context load on use.
 import { statSync } from 'node:fs';
@@ -54,6 +55,8 @@ function inside(parent: string, child: string) {
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 const latest = (...values: string[]) => values.sort().at(-1)!;
+/** How long a work item the session left waits for its report: a leave not measured within a day is let go. */
+const leaveKeptMs = 24 * 60 * 60_000;
 
 // ---- Session links (the home database's session and session_work) -------------------------------
 
@@ -113,19 +116,20 @@ function reported(database: HomeDatabase, session: string, item: Link, at: strin
   if (item.amending) database.db.prepare('UPDATE session_work SET amending = 0 WHERE id = ? AND (amended_at IS NULL OR amended_at < ?)').run(item.id, at);
 }
 /**
- * Record a report, unless another hook of the session (a Stop and a SubagentStop at once) reported
- * the work item since this one was measured from: both measured the same time, which counts once.
- * Returns whether it was recorded; run in a transaction, which reads what the other hook wrote.
+ * Record a report up to `until`, unless another hook of the session (a Stop and a SubagentStop at
+ * once) reported the work item for time this one measured too: that time counts once. A later report
+ * there (the session came back to it before a leave was measured) is not this time. Returns whether
+ * it was recorded; run in a transaction, which reads what the other hook wrote.
  */
-function insertOnce(database: HomeDatabase, insert: typeof insertReport, session: string, item: Link, prepared: PreparedReport): boolean {
+function insertOnce(database: HomeDatabase, insert: typeof insertReport, session: string, item: Link, prepared: PreparedReport, until: string): boolean {
   const since = prepared.report.measured?.since ?? latest(item.linked, item.came);
-  if (database.db.prepare('SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND session = ? AND at > ? LIMIT 1').get(item.projectId, item.workId, session, since)) return false;
+  if (database.db.prepare("SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND session = ? AND at > ? AND ifnull(measured_since, '') < ? LIMIT 1").get(item.projectId, item.workId, session, since, until)) return false;
   insert(database, item.projectId, item.workId, prepared.report);
   return true;
 }
 /** Record a report in the same transaction as what changes with it. */
 function recordReport(database: HomeDatabase, insert: typeof insertReport, session: string, item: Link, prepared: PreparedReport, at: string) {
-  if (insertOnce(database, insert, session, item, prepared)) reported(database, session, item, at);
+  if (insertOnce(database, insert, session, item, prepared, at)) reported(database, session, item, at);
 }
 /**
  * The work items the session left whose reports are not measured yet (session_leave), oldest
@@ -139,6 +143,30 @@ function leftWork(database: HomeDatabase, session: string): { leave: number; ite
     id: Number(row.id), projectId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
     linked: String(row.since), came: String(row.since), amended: null,
   } }));
+}
+/** Measure the reports of the work items the session left, each up to when it left it; null for one that cannot be. */
+const measureLeft = (home: string, links: SessionLinks, left: ReturnType<typeof leftWork>, event: string) => Promise.all(left.map(entry => prepareReport(home, links, entry.item, entry.at, event)));
+/**
+ * Record the reports of the work items the session left, in a transaction. A leave another hook of
+ * the session reported meanwhile is gone; one that could not be measured stays for the session's next
+ * hook that measures. A leave older than a day (its session gone, or its log never measurable) is let go.
+ */
+function recordLeft(database: HomeDatabase, insert: typeof insertReport, session: string, left: ReturnType<typeof leftWork>, reports: (PreparedReport | null)[], at: string) {
+  left.forEach((entry, index) => {
+    const prepared = reports[index];
+    if (prepared && database.db.prepare('DELETE FROM session_leave WHERE id = ?').run(entry.leave).changes) insertOnce(database, insert, session, entry.item, prepared, entry.at);
+  });
+  database.db.prepare('DELETE FROM session_leave WHERE at < ?').run(new Date(Date.parse(at) - leaveKeptMs).toISOString());
+}
+/**
+ * Report the work items the session left, from a hook that only records its state but can wait for
+ * the measuring: its end (SessionEnd: after an interruption no turn's end comes) or its next prompt.
+ */
+export async function reportLeft(database: HomeDatabase, home: string, session: string, transcriptPath: string | null, event: string, at: string) {
+  const left = leftWork(database, session);
+  if (!left.length) return;
+  const [{ insertReport }, reports] = await Promise.all([import('../../planning/statistics/statistics.ts'), measureLeft(home, readLinks(database, session, transcriptPath), left, event)]);
+  database.transaction(() => recordLeft(database, insertReport, session, left, reports, at));
 }
 
 // ---- SessionStart -------------------------------------------------------------------------------
@@ -314,8 +342,9 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
           database!.db.prepare('UPDATE session SET focus = ? WHERE id = ?').run(rows.at(-1)!, session);
           if (left || !links.on) database!.db.prepare('UPDATE session_work SET focused_at = ? WHERE id = ?').run(at, rows.at(-1)!);
         }
-        // The work item it left is measured up to now at the session's next turn end, and its time not
-        // yet reported counts from now on. Another hook of the session that moved it on meanwhile left it.
+        // The work item it left is measured up to now by the session's next hook that measures (its
+        // session_leave row keeps that time until then), and its time not yet reported counts from now
+        // on, for the work item it is on now. Another hook of the session that moved it on meanwhile left it.
         if (left && focus === links.focus) {
           database!.db.prepare('INSERT INTO session_leave (link, since, at, amending) VALUES (?, ?, ?, ?)').run(left.id, latest(left.linked, left.came), at, left.amending ? 1 : 0);
           reported(database!, session, left, at);
@@ -337,14 +366,10 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const left = leftWork(database, session);
     if (!links.on && !left.length) return '';
     const { insertReport } = await import('../../planning/statistics/statistics.ts');
-    const reports = await Promise.all(left.map(entry => prepareReport(home, links, entry.item, entry.at, event)));
+    const reports = await measureLeft(home, links, left, event);
     const report = links.on && await prepareReport(home, links, links.on, at, event);
     database.transaction(() => {
-      // A leave another hook of the session reported meanwhile is gone; one that could not be measured is let go.
-      left.forEach((entry, index) => {
-        const prepared = reports[index];
-        if (database!.db.prepare('DELETE FROM session_leave WHERE id = ?').run(entry.leave).changes && prepared) insertOnce(database!, insertReport, session, entry.item, prepared);
-      });
+      recordLeft(database!, insertReport, session, left, reports, at);
       if (report) recordReport(database!, insertReport, session, links.on!, report, at);
       // A subagent stopping only says the session is still seen.
       if (event === 'SubagentStop') {

@@ -47,7 +47,7 @@ const schema = `CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL)
     work_id TEXT NOT NULL, linked_at TEXT NOT NULL, amending INTEGER NOT NULL DEFAULT 0, amended_at TEXT, touched_at TEXT NOT NULL, focused_at TEXT,
     UNIQUE (session_id, project_id, work_id));
   -- A work item a session left whose report is not measured yet: from since to when it left (at), as
-  -- planning when it was amending the accepted plan; the session's next turn end measures it.
+  -- planning when it was amending the accepted plan; the session's next turn end, prompt or end measures it, retrying for a day.
   CREATE TABLE session_leave (
     id INTEGER PRIMARY KEY, link INTEGER NOT NULL REFERENCES session_work(id) ON DELETE CASCADE, since TEXT NOT NULL, at TEXT NOT NULL,
     amending INTEGER NOT NULL DEFAULT 0);
@@ -96,7 +96,7 @@ export const liveWindowMs = 15 * 60_000;
 /** How long a session waiting for the person counts as waiting: after a day it was most likely left. */
 export const waitingWindowMs = 24 * 60 * 60_000;
 /** The schema version this Atlas writes and reads. */
-export const schemaVersion = 9;
+export const schemaVersion = 10;
 
 /**
  * Put the database in WAL mode once; later openings find it there and leave it. Switching takes the

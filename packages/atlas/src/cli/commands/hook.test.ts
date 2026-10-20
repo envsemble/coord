@@ -247,6 +247,24 @@ test('a Stop and a SubagentStop at once report the work item once', async t => {
   assert.equal(reportsIn(root, 'work-0001', base.ATLAS_HOME!).length, 1);
 });
 
+test('a work item the session left is reported at its end when no turn end measured it', async t => {
+  const { root, checkout, directory, env: base } = homeWithPlanning(t);
+  const config = path.join(directory, 'claude');
+  const transcript = claudeLog(config);
+  const env = { ...base, CLAUDE_CONFIG_DIR: config };
+  const hook = (event: string, input: object) => hookIn(env, event, { session_id: session, transcript_path: transcript, cwd: checkout, hook_event_name: event, ...input });
+  assert.equal((await run(['work', 'create', '--title', 'Payments', '--planning-dir', root], { env })).status, 0);
+  await hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'active', '0001-cart', 'plan.md') } });
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step_add', tool_input: { work: 'work-0002', planningFolder: root } });
+  const leaves = () => withDatabase(base.ATLAS_HOME!, database => Number((database.db.prepare('SELECT count(*) AS n FROM session_leave').get() as { n: number }).n));
+  // A turn end that cannot read the log keeps the leave for later.
+  await hook('StopFailure', { transcript_path: path.join(directory, 'missing.jsonl') });
+  assert.deepEqual([leaves(), reportsIn(root, 'work-0001', base.ATLAS_HOME!).length], [1, 0]);
+  // Interrupted, then exited: no Stop, and the session's end reports the work item it left.
+  await hook('SessionEnd', { reason: 'prompt_input_exit' });
+  assert.deepEqual([leaves(), reportsIn(root, 'work-0001', base.ATLAS_HOME!).map(report => report.session)], [0, [session]]);
+});
+
 test('a session in a folder that several projects cover is told to ask which one to plan in', async t => {
   const { checkout, home, env } = homeWithPlanning(t);
   const other = path.join(home, 'planning', 'coord');
