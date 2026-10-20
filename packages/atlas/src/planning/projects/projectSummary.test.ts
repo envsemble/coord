@@ -252,7 +252,9 @@ test('handoffs link work across the home\'s projects both ways, by planning fold
   assert.deepEqual(first.continuedIn, [{ projectId: 'f1', project: 'shop', projectName: 'Shop', workId: 'work-0002', title: 'Title work-0002', state: 'implementing', outcome: null }]);
   assert.deepEqual(second.continuedIn, [{ projectId: 'f2', project: 'app', projectName: 'App', workId: 'work-0001', title: 'Title work-0001', state: 'implementing', outcome: null }]);
   const [continued] = app.summary.active as { continues: { projectId: string | null; workId: string; title: string | null }[] }[];
-  assert.deepEqual(continued.continues.map(item => [item.projectId, item.workId, item.title]), [['f1', 'work-0002', 'Title work-0002'], [null, 'work-0001', null]]);
+  // Shop and shop are one project where the file system ignores case (handoffs.ts), two names elsewhere.
+  const caseless = process.platform === 'win32' || process.platform === 'darwin';
+  assert.deepEqual(continued.continues.map(item => [item.projectId, item.workId, item.title]), [...caseless ? [] : [[null, 'work-0002', null]], ['f1', 'work-0002', 'Title work-0002'], [null, 'work-0001', null]]);
   assert.deepEqual(handoffsByWork(app).get('work-0001')!.continues, continued.continues);
   assert.deepEqual((outside.summary.active[0] as { continues: { projectId: string | null }[] }).continues.map(item => item.projectId), [null]);
 });

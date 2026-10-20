@@ -12,6 +12,8 @@ import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWor
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
+/** Project names compare case-insensitively where the file system does (handoffs.ts). */
+const caseless = process.platform === 'win32' || process.platform === 'darwin';
 
 test('a work item is created under the next unused number, registered, and valid', async t => {
   const root = planningFolder(temporary(t));
@@ -30,7 +32,7 @@ test('a work item is created under the next unused number, registered, and valid
   assert.equal(slugged.path, 'active/0005-custom-name');
   // The work it continues goes into its header; work_continue replaces it, and only work items are taken.
   // Each reference is written as it resolves, once: bare in its own project, whatever spelling named it.
-  const continuing = await createWork(root, { title: 'Next', summary: 'The next phase.', continues: ['work-0004', path.basename(root).toUpperCase() + ':work-0004'] }, today);
+  const continuing = await createWork(root, { title: 'Next', summary: 'The next phase.', continues: ['work-0004', (caseless ? path.basename(root).toUpperCase() : path.basename(root)) + ':work-0004'] }, today);
   assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0004"]\n'));
   // A block list is replaced whole, across its comments and blank lines.
   write(path.join(root, continuing.plan), read(root, continuing.plan).replace('continues: ["work-0004"]', 'continues:\n  # moved here\n  - work-0004\n\n  - work-0002'));
