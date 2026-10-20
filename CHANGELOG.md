@@ -1,22 +1,39 @@
 # Changelog
 
-## 0.8.0 — The plans hub — 2026-10-16
+## 0.8.0 — The plans hub — unreleased
 
-- **The hub:** the app opens on one list of every plan of every project, blocked and in progress first, then drafts, each with its project, a one-line summary, its progress and its status: Working while an agent is in a turn on it, Needs you once it waits for you; filter by project and state, or search. A plan opens in one click. The projects sidebar, the project page and the tab rail are gone: a window shows one place, with back and forward, Ctrl+P and New Window for a second.
-- **What agents do now:** the hooks record when a session's turn starts and ends, when it asks for permission and when it ends (`UserPromptSubmit`, `Notification`, `PermissionRequest`, `SessionEnd`, and any tool use in the background); a session counts for the plan it touched last. **Agent time adds every agent up**, subagents in full; reports keep each agent's working intervals, so the time at least one worked is shown too, and older reports are measured again from their logs where they still exist. The home database's schema 3 only adds to it, so older versions keep using it.
-- **References, sessions and effort:** the host resolves what a plan references (`repo#22` and PR URLs with their state from `gh`, `repo@hash` and bare hashes from the project's checkouts, paths to files in a checkout) and lists a plan's sessions (model, effort, state, how to resume, the last message while one waits), the commits and PRs they made (from the hooks) and its timeline. Reports keep time and tokens by model and reasoning effort, and Codex's compressed rollouts are read.
-- **One menu** in the title bar replaces File, Edit, View and Help; every shortcut still works. Projects and Statistics are pages opened from it; Export Plan… sits on the plan's page.
-- **Plan pages:** the plan's summary leads the page, and a "Request" section shows folded.
-- **Planning steps:** a work item's ledger exists from its creation, with planning steps (understand the request, settle the design, write the plan, accepted) that agents keep true; accepting marks them done and starting appends the implementation steps. Atlas shows them in one list, planning steps in their own color.
-- **Plan summaries:** plans carry a `summary` header, a few plain sentences on what the work is and where it stands; `atlas check` warns when an active plan has none, and `where` and the hub show it.
-- **Workspace folders:** a project covers workspace folders (`workspaces` in planning.json); an agent session in one of them belongs to that project, before any match by Git remote. A project is created from a name and a folder, in the app, by an agent with the new `project_create` tool, or with `atlas project create`; Atlas registers the Git checkouts it finds there. Only the app on the computer itself may choose a project's folders.
-- **Handoffs:** a plan's `continues` header names the work it continues, in its project (`work-0023`) or another of the home (`shop:work-0023`, by the planning folder's name); the earlier work shows where it was continued, across projects. `work_create` takes `continues` (`atlas work create --continues`) and `work_continue` (`atlas work continue`) changes it; `atlas check` warns about a handoff that names no work item or forms a loop; the session-start context asks agents to record one, and an imported plan's handoffs are cleared.
-- **No more document use:** Atlas no longer counts the planning documents opened in the app or read by agents; `atlas usage log` is gone, and the hooks no longer run when an agent reads a file.
-- **No hidden projects:** a project is active or archived; hidden projects become archived.
-- **New projects appear at once:** a project created outside the app shows up without a restart.
-- **Ledgers are their steps:** the tools write only the ledger's header (its steps and `blocked`) and no prose: `work_start` adds no Selection section, and `step_remove` (`atlas work step remove`) takes no reason. `work_archive` writes its reason into the plan's Outcome. The app's Ledger view is gone: the steps show in the About column, and the ledger opens as a file. During implementation the ledger also keeps a short final-review list.
-- **atlas-implement reviews in at most three rounds:** each step gets one review, and another round follows only blockers or majors, at most three per step. Minors, a bot's included, go on the final-review list, worked through once before readiness. Quick checks of what changed run while working, and the slow suites only at milestones and before handoff. Worktrees are removed once unused, and the agent says which branch, in which folder, holds the latest work.
-- **Skills name only the commands no tool covers:** `atlas check`, `atlas capture`, `atlas home adopt`, `atlas plan import` and `atlas work report`; the tools replace `atlas where`, `atlas work` and `atlas project create` there.
+**The app**
+
+- **The hub:** Atlas opens on one list of every plan of every project, blocked and in progress first, then drafts. Each row shows its project, a one-line summary, its steps and its status: **Working** while an agent is in a turn on it, **Needs you** once it waits for you. Filter by project and state, or search with Ctrl+P. A plan opens in one click. The projects sidebar, the project page and the tab rail are gone: a window shows one place, with back and forward, and New Window opens a second.
+- **Plan pages:** the plan's summary leads the page, a "Request" section shows folded, and beside it are the steps (planning steps in their own colour), the dates, live agent time, the sessions that worked on the plan, its timeline and its statistics. The steps of a plan being worked on pulse.
+- **Projects page:** one row per project with its avatar and the folders it covers as badges. **New project** asks for a name and the project's folders, chosen in the file manager; a project may have none. Archived projects appear only here.
+- **The title bar** holds the File, View and Help menus, the computer menu, search and the theme switch; **Plans** and **Projects** are the two sections below it, and **Statistics** opens from the hub and from each project.
+- **Faster:** the open plan is parsed only when its text changes, updates carry only what changed (a statistics-only change no longer resends the project), the window starts while the host starts, and the renderer is minified with the diagrams and statistics loaded when first opened (2.5 MB → 0.9 MB at start).
+
+**Projects are folders**
+
+- A project is its planning folder and the folders it covers on this computer (`folders` in `planning.json`); an agent session in one of them, or in the planning folder, belongs to it, the deepest folder winning. Atlas keeps no repositories: references name their repository in full (`owner/repo#12`, `owner/repo@4ab195a`, or a URL).
+- Agents create projects with the new `project_create` tool (`atlas project create`), and a project made outside the app appears at once. A project is active or archived.
+
+**Plans and agents**
+
+- **Summaries:** plans carry a `summary` header, a few plain sentences on what the work is and where it stands; `atlas check` warns when an active plan has none.
+- **Planning steps:** a work item's ledger exists from its creation, with planning steps that agents keep true; accepting marks them done and starting adds the implementation steps. Ledgers are their steps and an optional final-review list, nothing else.
+- **Handoffs:** a plan's `continues` header names the work it continues, in its project or another (`work_create --continues`, `work_continue`); the earlier work shows where it was continued.
+- **Sessions:** the hooks record when a session's turn starts and ends and when it waits for you. Agent time adds every agent up, subagents in full, with the time at least one worked on hover; reports keep time and tokens by model and reasoning effort, as planning or implementation. Codex's compressed rollouts are read.
+- **References:** the host resolves what a plan references: PRs with their state from `gh`, commits from the project's checkouts first, files in a checkout.
+- **Hooks are cheap:** an edit outside the planning folders costs about as much as starting Node, session logs are read from where the last report stopped, and a session that moves to another work item reports the one it left at its next turn end, prompt or end.
+- **Skills:** three, by name: `atlas` (planning and recording, on its own), `atlas-grill` (questioning in rounds) and `atlas-implement` (implementing an accepted plan, with at most three review rounds per step and a final-review list). Atlas records projects and work items, nothing else: no knowledge folder, ADR or evidence conventions, and the skills are about half as long.
+
+**The command and the host**
+
+- `atlas check` replaces `atlas planning check`; a work item without a ledger, and unknown fields in a plan header, are errors.
+- Plan exports carry, and imports require, the plan and its ledger; an import records its provenance in `import-provenance.json` in the work folder.
+- The host reloads a planning folder by reading only what changed (envUI's planning folder: 750 ms → 80 ms, and 1.9 s → 120 ms after a commit), and no Markdown file can hold it for long. Protocol 14: projects are identified by `projectId`, and paired computers on 0.7 cannot connect.
+
+**No backwards compatibility**
+
+- The home database has one schema (version 11) and refuses any other; there are no migrations. Older statistics files, document use, hidden projects, workspace folders and the `.atlas/` model format are gone. Move an older home aside to start afresh.
 
 ## 0.7.1 — Skills by name and work across projects — 2026-10-15
 

@@ -67,7 +67,7 @@ async function check() {
       ),
       "Atlas ships no Python helpers",
     );
-    assert(files["app/assets/atlas-desktop.jpg"]);
+    assert(files["assets/hub.png"]);
     assert(
       files["app/main/index.ts"],
       "Missing the desktop app's main process",
