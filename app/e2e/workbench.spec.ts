@@ -332,20 +332,20 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await window.keyboard.press('Escape');
   await expect(details).toHaveCount(0);
   await window.getByRole('button', { name: 'New project', exact: true }).click();
-  const dialog = window.getByRole('dialog', { name: 'New project' });
+  const dialog = window.getByRole('dialog', { name: 'Create project' });
   await expect(dialog.getByRole('textbox', { name: 'Folder' })).toHaveCount(0);
-  await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Create project' })).toBeDisabled();
   // Chosen with no name yet, the folder names the project, until a name is typed; it can be removed and chosen again.
   await choose(workspace);
-  await dialog.getByRole('button', { name: 'Choose folder…' }).click();
-  await expect(dialog.getByLabel('Name')).toHaveValue(path.basename(workspace));
-  await expect(dialog.locator('.folder-choice-name')).toHaveAttribute('title', workspace);
-  await dialog.getByLabel('Name').fill('Coord');
+  await dialog.getByRole('button', { name: /^Add (folder|a folder on)/ }).click();
+  await expect(dialog.getByLabel('Project name')).toHaveValue(path.basename(workspace));
+  await expect(dialog.locator('.folder-list-name')).toHaveAttribute('title', workspace);
+  await dialog.getByLabel('Project name').fill('Coord');
   await dialog.getByRole('button', { name: 'Remove ' + path.basename(workspace) }).click();
-  await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
-  await dialog.getByRole('button', { name: 'Choose folder…' }).click();
-  await expect(dialog.getByLabel('Name')).toHaveValue('Coord');
-  await dialog.getByRole('button', { name: 'Create' }).click();
+  await expect(dialog.getByRole('button', { name: 'Create project' })).toBeDisabled();
+  await dialog.getByRole('button', { name: /^Add (folder|a folder on)/ }).click();
+  await expect(dialog.getByLabel('Project name')).toHaveValue('Coord');
+  await dialog.getByRole('button', { name: 'Create project' }).click();
   await expect(dialog).toHaveCount(0);
   const folder = path.join(home.dataDirectory, 'planning', 'coord');
   const registry = JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8'));
@@ -463,7 +463,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await expect(menu).toHaveCount(0);
   // New Project… opens its dialog where the window is.
   await chooseMenu(window, 'New Project…');
-  await expect(window.getByRole('dialog', { name: 'New project' })).toBeVisible();
+  await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();
   await window.keyboard.press('Escape');
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with the sections in View.

@@ -136,12 +136,12 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   // are paths there, chosen in Atlas there: here it gets a name only, and its folders are not changed.
   await openProjects(viewer);
   await viewer.getByRole('button', { name: 'New project', exact: true }).click();
-  const create = viewer.getByRole('dialog', { name: 'New project' });
-  await create.getByLabel('Name').fill('Coord');
+  const create = viewer.getByRole('dialog', { name: 'Create project' });
+  await create.getByLabel('Project name').fill('Coord');
   await expect(create.getByLabel('Folder')).toHaveCount(0);
   await expect(create.getByRole('button', { name: 'Browse…' })).toHaveCount(0);
-  await expect(create).toContainText(`Its folders are on ${name}: choose them in Atlas there`);
-  await create.getByRole('button', { name: 'Create' }).click();
+  await expect(create).toContainText(`Its folders are chosen in Atlas on ${name}`);
+  await create.getByRole('button', { name: 'Create project' }).click();
   await expectProjects(viewer, ['Northwind', 'Coord']);
   expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
   expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'coord', 'planning.json'), 'utf8')).folders).toEqual([]);

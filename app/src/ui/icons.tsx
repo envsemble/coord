@@ -21,6 +21,7 @@ export { Download as DownloadIcon } from '@envsemble/envui/icons/Download';
 export { EditNote as DraftIcon } from '@envsemble/envui/icons/EditNote';
 export { EditSquare as NewProjectIcon } from '@envsemble/envui/icons/EditSquare';
 export { Error as ErrorIcon } from '@envsemble/envui/icons/Error';
+export { CreateNewFolder as AddFolderIcon } from '@envsemble/envui/icons/CreateNewFolder';
 export { Folder as FolderIcon } from '@envsemble/envui/icons/Folder';
 export { FolderOpen as FolderOpenIcon } from '@envsemble/envui/icons/FolderOpen';
 export { Fullscreen as FullscreenIcon } from '@envsemble/envui/icons/Fullscreen';
