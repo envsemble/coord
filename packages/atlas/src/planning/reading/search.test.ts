@@ -130,6 +130,8 @@ const synthetic: Record<string, string> = {
   'quoted-fence.md': '> ```\n> # Not a heading\n> ```\n\n# Heading\n\n> ~~~\n> ## Also code\n\n## Out of the quote\n',
   'setext.md': '- Item heading\n  ---\n\n> Quoted heading\n> ===\n\n1. Numbered\n   heading\n   ---\n\n- Lazy\n---\n',
   'footnotes.md': 'Text[^b].\n\n## A[^a]\n\n## B[^b] and A[^a] again\n\n## Unknown[^z]\n\n[^a]: First.\n[^b]: Second.\n',
+  // A lazy line continues the quote's or item's paragraph, and a line under it is a thematic break, not an underline.
+  'lazy.md': '> Quote\nlazy\n---\n\n- Item\nlazy\n---\n\n## After\n',
 };
 
 test('documents up to the size limit have exactly the readers\' heading anchors', async () => {
@@ -167,6 +169,9 @@ test('indexing takes time linear in a file\'s size and gives the thread back bet
   write(path.join(root, 'notes/tags.md'), '# Tags\n\n' + '<a'.repeat(400_000) + '\n');
   // Small, but nested deep: the parser would take seconds and run out of stack.
   write(path.join(root, 'notes/deep.md'), '# Deep\n\n' + '>'.repeat(30_000) + ' x\n');
+  // Small, but dense with emphasis or nested deep by indentation: the parser's time grows with the square of either.
+  write(path.join(root, 'notes/emphasis.md'), '# Emphasis\n\n' + '*a'.repeat(30_000) + '\n');
+  write(path.join(root, 'notes/indented.md'), '# Indented\n\n' + Array.from({ length: 200 }, (_, depth) => '  '.repeat(depth) + '- item').join('\n') + '\n');
   let gap = 0, last = Date.now();
   const timer = setInterval(() => { gap = Math.max(gap, Date.now() - last); last = Date.now(); }, 10);
   const started = Date.now();

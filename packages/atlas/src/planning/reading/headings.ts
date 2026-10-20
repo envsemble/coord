@@ -26,11 +26,16 @@ export function parseMarkdown(markdown: string): Root {
  */
 export function headingAnchors() {
   const used = new Set<string>();
+  // The last number given to each anchor: those below it are taken already, so a heading repeated
+  // many times does not count from 1 again.
+  const last = new Map<string, number>();
   return (text: string) => {
     const base = slug(text) || 'section';
-    let anchor = base, suffix = 0;
+    let anchor = base, suffix = last.get(base) ?? 0;
+    if (suffix) anchor = base + '-' + suffix;
     while (used.has(anchor)) anchor = base + '-' + ++suffix;
     used.add(anchor);
+    last.set(base, suffix);
     return anchor;
   };
 }

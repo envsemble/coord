@@ -1,9 +1,11 @@
 // Links from planning documents to diagram files. A Markdown link to a `.puml` file attaches that
 // diagram to the passage it sits in: under the nearest heading before it, or at the top of the
-// document before any heading. A fragment names an element: `diagrams/order.puml#Order`.
+// document before any heading. A fragment names an element: `diagrams/order.puml#Order`. A document
+// the parser would take long over is read line by line instead (see markdownScan.ts).
 import path from 'node:path';
 import type { Nodes } from 'mdast';
 import { documentAnchors, parseMarkdown } from './headings.ts';
+import { parseable, scanLines } from './markdownScan.ts';
 
 export interface DiagramLink {
   /** The diagram file, as a path in the planning folder. */
@@ -24,15 +26,15 @@ function decode(value: string) {
 /**
  * The diagram links in a Markdown body at `documentPath` (a path in the planning folder), in order,
  * each once per section. A reference link counts where it is used. Links leaving the planning
- * folder, URLs and anything in code or raw HTML are not links to diagrams.
+ * folder, URLs and anything in code or raw HTML are not links to diagrams. A document too large or
+ * costly to parse is read line by line, where a link over lines is not read.
  */
 export function diagramLinks(markdown: string, documentPath: string): DiagramLink[] {
   const links: DiagramLink[] = [];
+  // A link to a diagram names a `.puml` file, its letters escaped at most (percent-encoded or by number).
+  if (!/puml|%[0-9a-f]{2}|&#/i.test(markdown)) return links;
   const seen = new Set<string>();
   const directory = path.posix.dirname(documentPath.replaceAll('\\', '/'));
-  const tree = parseMarkdown(markdown);
-  const definitions = new Map<string, string>();
-  const anchors = documentAnchors(tree);
   let section: string | null = null;
   const add = (href: string) => {
     if (!href || href.startsWith('#') || href.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
@@ -47,6 +49,18 @@ export function diagramLinks(markdown: string, documentPath: string): DiagramLin
     seen.add(key);
     links.push({ target, element, section });
   };
+  if (!parseable(markdown)) {
+    const { headings, links: found } = scanLines(markdown, { links: true });
+    let next = 0;
+    for (const link of found) {
+      while (next < headings.length && headings[next].line <= link.line) section = headings[next++].anchor;
+      add(link.href);
+    }
+    return links;
+  }
+  const tree = parseMarkdown(markdown);
+  const definitions = new Map<string, string>();
+  const anchors = documentAnchors(tree);
   const walk = (node: Nodes, visit: (node: Nodes) => void) => {
     visit(node);
     if ('children' in node) for (const child of node.children) walk(child, visit);

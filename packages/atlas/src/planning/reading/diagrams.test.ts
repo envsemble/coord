@@ -131,6 +131,10 @@ test('diagram links resolve against their document and stay inside the planning 
   assert.deepEqual(links('[a](../../../a.puml) [b](/b.puml) [c](https://x/c.puml) [d](#e) [f](f.md) `[g](g.puml)`\n~~~\n[h](h.puml)\n~~~'), []);
   assert.deepEqual(links('[a](a.puml) [again](a.puml)\n# A\n[a](a.puml)'), [['active/1/a.puml', null, null], ['active/1/a.puml', null, 'a']]);
   assert.deepEqual(links('[a](a.puml)', 'plan.md'), [['a.puml', null, null]]);
+  // A document the parser would take seconds over (dense strikethrough) is read line by line, quickly, with the same links.
+  const started = Date.now();
+  assert.deepEqual(links('# One\n\n' + '~~a'.repeat(20_000) + '\n\n## Two\n\n[b][model] `[c](c.puml)`\n\n[model]: b.puml#Order'), [['active/1/b.puml', 'Order', 'two']]);
+  assert.ok(Date.now() - started < 1000, `read in ${Date.now() - started} ms`);
 });
 
 test('a link\'s section is the anchor the reader gives its heading', () => {
