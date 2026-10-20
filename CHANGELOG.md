@@ -18,6 +18,8 @@
 **Plans and agents**
 
 - **Summaries:** plans carry a `summary` header, a few plain sentences on what the work is and where it stands; `atlas check` warns when an active plan has none.
+- **Tags:** plans carry `tags`, the release the work ships in and the areas it touches, which agents keep (`work_create`, `work_tag`). `tag:0.8.0` in the search lists the plans tagged so, plans show their tags, and agents find past work with `work_search`.
+- **Proposed steps:** while a plan is designed, its agent proposes its implementation steps (`step`, action `propose`); the plan page shows them dimmed under **Proposed**, outside the progress, and `work_start` without steps adopts them.
 - **Planning steps:** a work item's ledger exists from its creation, with planning steps that agents keep true; accepting marks them done and starting adds the implementation steps. Ledgers are their steps and an optional final-review list, nothing else.
 - **Handoffs:** a plan's `continues` header names the work it continues, in its project or another (`work_create --continues`, `work_continue`); the earlier work shows where it was continued.
 - **Sessions:** the hooks record when a session's turn starts and ends and when it waits for you. Agent time adds every agent up, subagents in full, with the time at least one worked on hover; reports keep time and tokens by model and reasoning effort, as planning or implementation. Codex's compressed rollouts are read.

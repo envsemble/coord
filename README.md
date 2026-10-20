@@ -45,6 +45,7 @@ Atlas works with **Claude Code** and **Codex** through its plugin: tools for the
 
   ![An agent's proposal in the change view: new and changed classes and relations marked on the canvas, unchanged ones faded, and the list of changes beside it](assets/comparison-dark.jpg)
 
+- **Find past work by tag.** Agents tag each work item with the release it ships in and the areas it touches, so `tag:0.8.0` in the search, or asking an agent, lists everything done for 0.8.0.
 - **Share a plan** as one offline HTML file that anyone can open in a browser, and import it into another project.
 - **Work from another computer.** Pair your laptop with your workstation over Tailscale and switch between their projects in the title bar.
 
