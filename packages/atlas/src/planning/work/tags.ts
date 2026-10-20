@@ -1,10 +1,11 @@
 // A work item's tags (its plan header's `tags`): what it can be found by later, the release it
-// ships in (`0.8.0`) and the areas it touches (`search`, `hub`). A tag is lowercase letters, digits,
-// dots and hyphens. No imports: the app window and the plan export viewer use this module too.
+// ships in (`0.8.0`) and the areas it touches (`search`, `hub`). A tag is lowercase ASCII letters,
+// digits, dots and hyphens, so the search finds it as written. No imports: the app window and the
+// plan export viewer use this module too.
 
 /** The longest tag. */
 export const tagLimit = 40;
-const tagPattern = /^[\p{Ll}\p{Lo}\p{Nd}][\p{Ll}\p{Lo}\p{Nd}.-]*$/u;
+const tagPattern = /^[a-z0-9][a-z0-9.-]*$/;
 
 /** Whether a header's tag is well formed, as written. */
 export const isTag = (value: unknown): value is string => typeof value === 'string' && value.length <= tagLimit && tagPattern.test(value);
@@ -18,8 +19,7 @@ export function normalTag(value: unknown): string | null {
 
 /** A plan header's tags as readers use them: the well-formed ones, each once, in their order. */
 export function tagsOf(value: unknown): string[] {
-  const list = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
-  return [...new Set(list.filter(isTag))];
+  return Array.isArray(value) ? [...new Set(value.filter(isTag))] : [];
 }
 
 /** How many work items carry each tag, the most used first, then by name. */

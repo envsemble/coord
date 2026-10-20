@@ -213,7 +213,7 @@ export function slugOf(title: string) {
 function checkedTags(values: unknown): string[] {
   if (!Array.isArray(values)) throw new WorkError('Give the tags as a list, such as ["0.8.0", "search"].');
   const bad = values.filter(value => !normalTag(value));
-  if (bad.length) throw new WorkError(`Not tags: ${bad.map(value => JSON.stringify(value)).join(', ')}. A tag is lowercase letters, digits, dots and hyphens, such as 0.8.0 or tag-search.`);
+  if (bad.length) throw new WorkError(`Not tags: ${bad.map(value => JSON.stringify(value)).join(', ')}. A tag is lowercase letters (a-z), digits, dots and hyphens, such as 0.8.0 or tag-search.`);
   return [...new Set(values.map(value => normalTag(value)!))];
 }
 
@@ -244,8 +244,10 @@ export async function tagWork(root: string, workId: string, request: { add?: str
   const add = checkedTags(request.add ?? []), remove = new Set(checkedTags(request.remove ?? []));
   if (!add.length && !remove.size) throw new WorkError('Give tags to add or remove.');
   const loaded = await load(root, workId);
-  const tags = [...new Set([...tagsOf(loaded.planMetadata.tags), ...add])].filter(tag => !remove.has(tag));
-  const changed = [await writePlan(loaded, { tags }, dateOf(options))];
+  const before = tagsOf(loaded.planMetadata.tags);
+  const tags = [...new Set([...before, ...add])].filter(tag => !remove.has(tag));
+  // Nothing to change (adding tags it has, removing ones it lacks) writes nothing.
+  const changed = JSON.stringify(tags) === JSON.stringify(before) ? [] : [await writePlan(loaded, { tags }, dateOf(options))];
   return { ...await result(loaded.root, workId, changed), projectTags: await projectTags(loaded.root) };
 }
 
@@ -262,6 +264,7 @@ const folded = (value: string) => value.normalize('NFKD').replace(/\p{M}/gu, '')
  */
 export async function searchWork(input: string, request: { query?: string; tags?: string[]; status?: 'open' | 'closed' | 'all' }): Promise<FoundWork[]> {
   const root = await planningRoot(input);
+  if (request.tags !== undefined && !Array.isArray(request.tags)) throw new WorkError('Give the tags as a list, such as ["0.8.0"].');
   const wanted = (request.tags ?? []).map(tag => normalTag(tag) ?? String(tag));
   const words = folded(request.query ?? '').split(/\s+/).filter(Boolean);
   const status = request.status ?? 'all';

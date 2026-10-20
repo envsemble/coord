@@ -120,6 +120,7 @@ test('work is tagged, its tags written well formed and counted, and found by tag
   const tagged = await tagWork(root, invoices.workId, { add: ['Tag Search', '0.8.0', '0.8.0'], remove: ['nothing'] }, today);
   assert.deepEqual([tagged.tags, tagged.projectTags], [['tag-search', '0.8.0'], { '0.8.0': 2, payments: 1, 'tag-search': 1 }]);
   assert.deepEqual((await tagWork(root, invoices.workId, { remove: ['tag-search'] }, today)).tags, ['0.8.0']);
+  assert.deepEqual((await tagWork(root, invoices.workId, { add: ['0.8.0'], remove: ['nothing'] }, { today: '2026-10-20' })).changed, [], 'nothing to change writes nothing');
   await assert.rejects(tagWork(root, invoices.workId, { add: ['!!'] }, today), /Not tags: "!!"/);
   assert.deepEqual(await projectTags(root), { '0.8.0': 2, payments: 1 });
   assert.deepEqual(errorsOf(root), []);
